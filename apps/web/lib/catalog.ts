@@ -170,13 +170,14 @@ const CONSOLE = on('console')([
   { id: 'C-04', title: 'Opportunity editor', path: '/console/opportunities/[id]', states: ['archived', 'saving-error'] },
   { id: 'C-05', title: 'Publish checks', path: '/console/opportunities/[id]/publish', states: ['ready', 'blocked', 'published'] },
   { id: 'FB-01', title: 'Forms', path: '/console/forms', states: ['empty', 'import-error'] },
-  {
-    id: 'FB-02',
-    title: 'Form builder (pages, fields, logic, mapping, preview, versions, checks)',
-    path: '/console/forms/[formId]',
-    states: ['mapping-conflict', 'circular-rule', 'lint', 'read-only'],
-    notes: 'FB-02 to FB-08 are tabs of the builder.',
-  },
+  // FB-02…FB-08 are tabs and dialogs of one builder page (FormBuilder has no deep link per tab yet).
+  { id: 'FB-02', title: 'Form builder: pages, fields & CommonGrants mapping', path: '/console/forms/[formId]', states: ['mapping-conflict', 'read-only'] },
+  { id: 'FB-03', title: 'Form builder: conditional logic', path: '/console/forms/[formId]', states: ['circular-rule'], notes: 'Logic tab.' },
+  { id: 'FB-04', title: 'Form builder: applicant preview', path: '/console/forms/[formId]', notes: 'Preview tab.' },
+  { id: 'FB-05', title: 'Form builder: versions & diff', path: '/console/forms/[formId]', notes: 'Versions tab.' },
+  { id: 'FB-06', title: 'Form builder: publish with migration notice', path: '/console/forms/[formId]', notes: 'Publish dialog.' },
+  { id: 'FB-07', title: 'Form builder: form checker', path: '/console/forms/[formId]', states: ['lint'], notes: 'Check tab.' },
+  { id: 'FB-08', title: 'Form templates, CommonGrants import & question bank', path: '/console/forms', notes: 'Create-from-template and import dialogs on the forms list.' },
   { id: 'C-06', title: 'Application pipeline', path: '/console/pipeline', states: ['empty', 'error', 'kanban', 'bulk'] },
   { id: 'C-06-list', title: 'Applications', path: '/console/applications' },
   { id: 'C-07', title: 'Application detail', path: '/console/applications/[id]', states: ['in-progress', 'info-requested', 'agent'] },
@@ -339,12 +340,10 @@ const EMAIL = on('email')([
 ]);
 
 const PDF = on('pdf')([
-  {
-    id: 'H-02',
-    title: 'Generated documents (award letter, agreement, packet, remittance, board book)',
-    path: '/dev/preview/pdf',
-    notes: 'H-02 to H-05. Each document opens at /dev/preview/pdf/{award_letter|agreement|application_packet|remittance|board_book}.',
-  },
+  { id: 'H-02', title: 'Award letter & grant agreement (PDF)', path: '/dev/preview/pdf', notes: 'Documents: /dev/preview/pdf/award_letter and /dev/preview/pdf/agreement.' },
+  { id: 'H-03', title: 'Application packet (PDF)', path: '/dev/preview/pdf', example: '/dev/preview/pdf#application_packet' },
+  { id: 'H-04', title: 'Remittance advice (PDF)', path: '/dev/preview/pdf', example: '/dev/preview/pdf#remittance' },
+  { id: 'H-05', title: 'Board book (PDF)', path: '/dev/preview/pdf', example: '/dev/preview/pdf#board_book' },
 ]);
 
 const DS_TITLES = [
