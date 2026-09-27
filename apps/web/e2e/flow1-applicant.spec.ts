@@ -8,12 +8,8 @@ test.describe.configure({ mode: 'serial' });
 
 test('an applicant checks eligibility, sets up their org and submits a letter of inquiry', async ({ page }) => {
   // An open opportunity with the LOI form and eligibility questions (seeded or created by the dev setup).
-  const [opp] = await query<{ slug: string; title: string }>(
-    `select o.slug, o.title from public.opportunities o join public.workspaces w on w.id = o.workspace_id
-     where w.slug = 'halcyon' and o.status = 'open' and exists (select 1 from public.eligibility_rules r where r.opportunity_id = o.id)
-     order by o.closes_at desc limit 1`,
-  );
-  expect(opp, 'an open opportunity must exist (run pnpm seed)').toBeTruthy();
+  const [opp] = await query<{ slug: string; title: string }>(`select slug, title from public.opportunities where slug = 'e2e-youth-arts-loi'`);
+  expect(opp, 'created by e2e/global-setup.ts').toBeTruthy();
 
   // 1. Eligibility pre-check (no account).
   await page.goto(`/opportunities/${opp!.slug}`);
@@ -35,9 +31,10 @@ test('an applicant checks eligibility, sets up their org and submits a letter of
 
   // 3. Org setup with EIN lookup → IRS prefill.
   await expect(page).toHaveURL(/\/portal\/org\/new/);
-  const [irs] = await query<{ ein: string; name: string }>(
-    `select ein, name from public.irs_exempt_orgs where status = 'active' and ein not in (select ein from public.applicant_orgs where ein is not null) order by ein desc limit 1`,
-  );
+  // A fictional IRS exempt-org record for this run (what the IRS BMF importer would load).
+  const suffix = String(Date.now() % 10_000_000).padStart(7, '0');
+  const irs = { ein: `09-${suffix}`, name: `LARKSPUR YOUTH CHORUS ${suffix.slice(-3)}` };
+  await query(`insert into public.irs_exempt_orgs (ein, name, city, state, subsection, status, pub78, source) values ($1, $2, 'LARKSPUR', 'CA', '03', 'active', true, 'fixture') on conflict do nothing`, [irs.ein, irs.name]);
   expect(irs, 'an unused IRS fixture EIN').toBeTruthy();
   await page.getByLabel('Employer Identification Number (EIN)').fill(irs!.ein);
   await page.getByRole('button', { name: /look up/i }).click();

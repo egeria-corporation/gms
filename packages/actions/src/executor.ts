@@ -222,7 +222,14 @@ export function createExecutor(deps: ActionDeps, opts: { db?: Database } = {}): 
     } catch (err) {
       if (isDomainError(err)) throw err;
       const mapped = fromPgError(err);
-      if (mapped) throw mapped;
+      if (mapped) {
+        // Outside production, keep the database's own message to make policy failures debuggable.
+        if (process.env.NODE_ENV !== 'production' && process.env.GMS_ENV !== 'production') {
+          const e = err as { message?: string; table?: string; constraint?: string };
+          (mapped.details as Record<string, unknown>).pg = { message: e.message, table: e.table, constraint: e.constraint };
+        }
+        throw mapped;
+      }
       throw err;
     }
   }

@@ -7,6 +7,7 @@ const useDev = process.env.E2E_SERVER === 'dev';
 export default defineConfig({
   testDir: './e2e',
   testIgnore: ['**/shots.spec.ts'],
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

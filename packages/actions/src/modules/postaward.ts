@@ -95,7 +95,8 @@ export const submitReport = defineAction({
       .set({ status: 'submitted', submitted_at: at, submitted_by: uid(ctx), submitted_by_agent_client_id: ctx.actor.type === 'agent' ? (ctx.actor.agentClientId ?? null) : null, data: json({ ...(sub.data as object), _attestation: { ...input.attestation, at } }) })
       .where('id', '=', sub.id)
       .execute();
-    await ctx.db.updateTable('report_requirements').set({ status: 'submitted' }).where('id', '=', req.id).execute();
+    // Grantees can't update report_requirements directly (staff-only table); a narrow definer function does it.
+    await sql`select gms_private.mark_report_submitted(${req.id}::uuid)`.execute(ctx.db);
     ctx.audit({ entityType: 'report_requirement', entityId: req.id, before: { status: req.status }, after: { status: 'submitted' } });
     ctx.emit('report.submitted', { type: 'report_requirement', id: req.id }, { awardId: req.award_id, title: req.title });
     return { submittedAt: at };

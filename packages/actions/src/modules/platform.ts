@@ -305,7 +305,7 @@ export const updateAiPolicy = defineAction({
   idempotent: true,
   async run(input, ctx) {
     const w = ws(ctx);
-    const before = await ctx.db.selectFrom('agent_policies').selectAll().where('workspace_id', '=', w.id).executeTakeFirst();
+    const before = await ctx.db.selectFrom('agent_policies').select(['ai_use', 'disclosure_prompt', 'reviewer_assist', 'agent_submissions_enabled', 'mcp_enabled', 'a2a_enabled']).where('workspace_id', '=', w.id).executeTakeFirst();
     await ctx.db
       .updateTable('agent_policies')
       .set({

@@ -52,7 +52,9 @@ export function createRuntime(opts: { db?: Database; clock?: () => Date } = {}):
     diligence: adapters.diligence,
     auth: adapters.auth,
     paymentRail: async (workspaceId, trx) => {
-      const rail = await paymentRailFor(workspaceId, trx, adapters.secrets);
+      // The connection is read in the caller's transaction (it may have just been created there);
+      // rail-side state uses the service connection.
+      const rail = await paymentRailFor(workspaceId, trx as unknown as Database, adapters.secrets, { railDb: db });
       if (!rail) throw new DomainError('precondition_failed', 'Connect the bank (or choose the manual rail) first.');
       return rail;
     },

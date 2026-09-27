@@ -373,7 +373,7 @@ export const submitApplication = defineAction({
       }
     }
     // Agent protections: kill switch + verified EIN.
-    const policy = await ctx.db.selectFrom('agent_policies').selectAll().where('workspace_id', '=', w.id).executeTakeFirst();
+    const policy = await ctx.db.selectFrom('agent_policies').select(['ai_use', 'disclosure_prompt', 'agent_submissions_enabled']).where('workspace_id', '=', w.id).executeTakeFirst();
     if (ctx.actor.type === 'agent') {
       if (policy && !policy.agent_submissions_enabled) throw new DomainError('forbidden', 'This foundation has paused submissions made through AI agents.');
       if (app.applicant_org_id) {
