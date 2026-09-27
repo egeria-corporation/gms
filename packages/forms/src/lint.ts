@@ -136,7 +136,7 @@ export function lintForm(model: FormModel): LintIssue[] {
       const info = cgPathInfo(field.cgMapping);
       if (!info) issues.push({ level: 'info', code: 'custom_cg_path', message: `${name(field)} maps to “${field.cgMapping}”, which is not a well-known CommonGrants path. Prefill won't work for it.`, ...at });
       else if (!info.fieldTypes.includes(field.type)) issues.push({ level: 'warning', code: 'cg_type_mismatch', message: `${name(field)} is a ${field.type.replace(/_/g, ' ')} question, but “${info.label}” expects ${info.fieldTypes.map((t) => t.replace(/_/g, ' ')).join(' or ')}.`, ...at });
-      else if (info.identifying && !field.blind) issues.push({ level: 'info', code: 'identifying_not_blind', message: `${name(field)} can identify the applicant. Consider hiding it from blind reviewers.`, ...at });
+      else if (info.identifying && !field.blind) issues.push({ level: 'info', code: 'identifying_not_blind', message: `${name(field)} identifies the applicant, so blind reviewers never see it, even though it isn't marked hidden. Mark it hidden to make that clear.`, ...at });
     } else if (field.required || field.requiredWhen) {
       const suggestion = suggestCgPath(field);
       if (suggestion) issues.push({ level: 'warning', code: 'unmapped_required', message: `${name(field)} looks like “${suggestion.label}.” Map it to ${suggestion.path} so applicants get it prefilled from their profile.`, ...at });

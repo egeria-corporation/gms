@@ -679,4 +679,49 @@ describe('[fix 0700] security regressions', () => {
       expect((await sql`select * from gms.reviewer_submission(${w.ids.app1})`.execute(trx)).rows).toHaveLength(0);
     });
   });
+
+  it('blind review also hides identifying answers the form author did not flag, and attachment names', async () => {
+    await scenario(t.db, async (trx) => {
+      // Unflagged identifying fields: an EIN, a contact email mapped to CommonGrants, an attestation, and a file.
+      // Published versions are immutable, so the submission points at a new version with this field metadata.
+      const meta = JSON.stringify({
+        name: { blind: true },
+        mission: { type: 'long_text' },
+        ein: { type: 'ein', blind: false },
+        contact: { type: 'text', cgMapping: 'contact.email' },
+        attest: { type: 'attestation' },
+        budget: { type: 'file_upload' },
+      });
+      const fv = await one(trx, sql<{ id: string }>`
+        insert into public.form_versions
+        select (jsonb_populate_record(null::public.form_versions,
+          to_jsonb(v) || jsonb_build_object('id', gen_random_uuid(), 'version', v.version + 100, 'field_meta', ${meta}::jsonb))).*
+        from public.form_versions v where v.id = ${w.ids.fv1}
+        returning id`);
+      // Submissions are append-only; a newer snapshot is what reviewers see.
+      const responses = JSON.stringify({
+        [w.ids.form1!]: {
+          name: 'Maya',
+          mission: 'Murals',
+          ein: '84-1234567',
+          contact: 'maya@riverbend.example',
+          attest: { agreed: true, name: 'Maya Chen' },
+          budget: [{ fileId: 'f1', name: 'riverbend-budget.xlsx', size: 10 }],
+        },
+      });
+      await sql`
+        insert into public.application_submissions
+        select (jsonb_populate_record(null::public.application_submissions,
+          to_jsonb(s) || jsonb_build_object(
+            'id', gen_random_uuid(), 'submitted_at', s.submitted_at + interval '1 minute',
+            'receipt_number', s.receipt_number || '-blind', 'responses', ${responses}::jsonb,
+            'form_versions', jsonb_build_array(jsonb_build_object('formVersionId', ${fv.id}::text))))).*
+        from public.application_submissions s where s.application_id = ${w.ids.app1}
+        order by s.submitted_at desc limit 1`.execute(trx);
+      await as(trx, 'reviewerA');
+      const r = await one(trx, sql<{ responses: Record<string, Record<string, unknown>> }>`
+        select responses from gms.reviewer_submission(${w.ids.app1})`);
+      expect(r.responses[w.ids.form1!]).toEqual({ mission: 'Murals', budget: [{ fileId: 'f1', name: 'Attachment 1.xlsx', size: 10 }] });
+    });
+  });
 });

@@ -9,6 +9,7 @@ export * from './rules';
 export * from './lint';
 export * from './diff';
 export * from './cg';
+export * from './blind';
 export * from './import';
 export * from './library';
 export * from './fixtures';

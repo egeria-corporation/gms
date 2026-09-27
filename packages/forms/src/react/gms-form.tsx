@@ -15,6 +15,7 @@ import type { Categorization, Category, GroupLayout, LabelElement, UISchemaEleme
 import { Alert, Button, cn, DescriptionList, type FileScanStatus, ValidationSummary } from '@gms/ui';
 import { EyeOff } from 'lucide-react';
 import * as React from 'react';
+import { hiddenInBlindReview } from '../blind';
 import type { CompiledForm, FieldMeta } from '../compile';
 import type { Flags } from '../conditions';
 import type { ResponseData } from '../util';
@@ -316,7 +317,7 @@ function ReviewPage({
     wide: true,
     numeric: meta.type === 'currency' || meta.type === 'number',
     detail:
-      blind && meta.blind ? (
+      blind && hiddenInBlindReview(meta) ? (
         <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           <EyeOff className="size-4" aria-hidden="true" />
           Hidden for blind review
