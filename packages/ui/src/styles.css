@@ -361,6 +361,9 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* Sticky shell headers must never cover a focused or scrolled-to element (WCAG 2.4.11). */
+    scroll-padding-top: 5rem;
+    scroll-padding-bottom: 5rem;
     text-rendering: optimizeLegibility;
   }
 
