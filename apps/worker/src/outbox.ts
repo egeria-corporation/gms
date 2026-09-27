@@ -3,6 +3,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { systemContext, WEBHOOK_EVENTS_LIST, type Runtime } from '@gms/actions';
 import { sql, type Outbox } from '@gms/db';
+import { addBusinessDays } from '@gms/domain';
 import type { Selectable } from 'kysely';
 import { applicationRecipients, notifyInApp, orgAdmins, sendTemplate, staffWith, workspaceInfo, type WorkspaceInfo } from './notify';
 
@@ -292,6 +293,9 @@ const handlers: Record<string, Handler> = {
       .where('p.id', '=', ev.entity_id)
       .executeTakeFirst();
     if (!pay) return;
+    const sentAt = pay.sent_at ? new Date(pay.sent_at).toISOString() : new Date().toISOString();
+    // The template shows a date: the end of the method's usual window (ACH 1–3, check 5–10, wire 1 business days).
+    const arrivalDays = pay.method === 'ach' ? 3 : pay.method === 'check' ? 10 : 1;
     for (const r of await orgAdmins(rt.db, pay.applicant_org_id)) {
       await sendTemplate(rt, ws, r.email, 'payment_sent', {
         recipientName: r.name,
@@ -299,9 +303,9 @@ const handlers: Record<string, Handler> = {
         amountCents: pay.amount_cents,
         currency: pay.currency,
         method: pay.method as 'ach',
-        sentAt: pay.sent_at ?? new Date().toISOString(),
+        sentAt,
         timeZone: ws.timezone,
-        expectedArrival: pay.method === 'ach' ? '1–3 business days' : pay.method === 'check' ? '5–10 business days' : '1 business day',
+        expectedArrival: addBusinessDays(sentAt, arrivalDays, ws.timezone),
         awardReference: pay.reference,
         remittanceAttached: false,
         paymentUrl: `${ws.origin}/portal/grants/${pay.award_id}#payments`,
