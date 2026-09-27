@@ -9,19 +9,19 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 ## Milestones
 | M | Scope | Status |
 |---|---|---|
-| M0 | Bootstrap, doctor, monorepo, CI, adapters w/ fakes, DB tier, migrations, Kysely + RLS helper, worker wiring, outbox | **done** (CI workflow written; gate run pending full app) |
-| M1 | Schema + RLS helpers + matrix, auth (magic link + TOTP + step-up), tenancy, action executor, branding engine, design system, shells | **done** except S-01/S-02/S-06 screens (admin agent) |
-| M2 | Programs, opportunities, forms engine + builder, public site A-01…A-07, CG read API, JSON-LD, markdown, llms.txt | core done (public site, CG API, forms core); builder UI + opportunity editor in progress (forms-react agent, then console grantmaking) |
+| M0 | Bootstrap, doctor, monorepo, CI, adapters w/ fakes, DB tier, migrations, Kysely + RLS helper, worker wiring, outbox | **done** |
+| M1 | Schema + RLS + matrix, auth (magic link, TOTP, step-up), tenancy, executor, branding engine, design system, shells | **done** |
+| M2 | Programs, opportunities, forms engine + builder, public site A-01…A-07, CG read API, JSON-LD, markdown, llms.txt | **done** |
 | M3 | Applicant portal B-01…B-09, B-15 | **done**; E2E flow 1 passes |
-| M4 | Console core + review (C-01, C-06…C-08, R-01…R-05, D-01…D-03) | C-01 done; rest queued for a console agent after forms-react |
-| M5 | Awards, agreements, board | backend done; B-10 signing done; staff screens queued |
-| M6 | Payments | backend done; screens + webhooks in progress (finance agent) |
-| M7 | Post-award, diligence, comms | backend done; screens in progress (finance + admin agents) |
-| M8 | Analytics & exports | exports done in worker; analytics schema + screens in progress (admin agent) |
-| M9 | Platform API, webhooks, CG write routes | **done** (/api/v1 + OpenAPI + Arazzo mounted; CG accepts bearer tokens); S-07 screen with admin agent |
-| M10 | Agent layer | **done**: MCP, A2A, OAuth AS + O-01 consent, discovery files mounted; 31 agent evals + E2E flow 5 pass; S-04/S-05 screens with admin agent |
-| M11 | Setup, settings, operator | in progress (admin agent) |
-| M12 | Hardening & ship | not started |
+| M4 | Console core + review (C-01…C-08, R-01…R-05, D-01…D-03, H-03) | **done** (screens merged); E2E flow 3 in progress |
+| M5 | Awards, agreements, board (R-06, R-07, B-10, E-01, E-02, H-02, H-05) | **done**; agreement generation fixed at merge; flow 3 in progress |
+| M6 | Payments (P-01…P-08, fake Mercury, webhooks, reconciliation, manual rail) | **done** (screens merged); E2E flow 4 in progress |
+| M7 | Post-award, diligence, comms (PA-01…03, B-11, B-12, CM-01…03) | **done** |
+| M8 | Analytics & exports (AN-01…03, S-09) | **done**; seed + hourly worker refresh matviews |
+| M9 | Platform API, webhooks, CG write routes | **done** |
+| M10 | Agent layer | **done**; 31 evals + E2E flow 5 + OAuth consent test pass |
+| M11 | Setup, settings, operator (F-01…F-05, S-01…S-09, G-01/G-02) | **done**; E2E flow 6 passes; operator console now requires aal2 |
+| M12 | Hardening & ship | in progress: docs done, audit done, upgrade script done; gate, shots, REPORT.md pending |
 
 ## Done (highlights)
 - 11 migrations; RLS on every table; RLS matrix (5.7k assertions) + invariants + migration tests (262 DB tests passing at last run).
@@ -31,10 +31,10 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 - Verified in a browser: public site renders with tenant brand; staff magic-link → TOTP enrollment → console.
 
 ## In flight (agents)
-console grantmaking/review/board (C-02…C-08, FB, R, D, E) · console finance (payments/reports/diligence/awards + Mercury webhooks + dev Mercury controls) · console admin (settings, approvals, comms, analytics, setup wizard, operator, dev catalog/design-system/previews).
+E2E flows 2 (staff publishing), 3 (review → award → signed agreement), 4 (payments) — each in its own worktree/DB/port.
 
 ## Next (mine)
-Merge the three console agents as they land → E2E flows 2, 3, 4, 6 → full gate → `pnpm run upgrade` script + `pnpm shots` → security pass (audit, RLS report) → REPORT.md → PR if a remote exists.
+Merge flows 2–4 → full verification gate (lint, typecheck, unit, db, build, e2e) → `pnpm shots` → REPORT.md → draft PR (no remote configured yet).
 
 Docs written: README, docs/self-hosting.md, docs/security.md, docs/api.md, docs/agents.md.
 
