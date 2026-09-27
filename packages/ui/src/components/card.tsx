@@ -10,7 +10,7 @@ export function CardHeader({ className, ...props }: React.ComponentProps<'div'>)
   return (
     <div
       data-slot="card-header"
-      className={cn('grid auto-rows-min grid-cols-[1fr_auto] items-start gap-1 px-5 pt-5 has-[[data-slot=card-action]]:gap-x-4', className)}
+      className={cn('grid auto-rows-min grid-cols-1 items-start gap-1 px-5 pt-5 has-[[data-slot=card-action]]:grid-cols-[1fr_auto] has-[[data-slot=card-action]]:gap-x-4', className)}
       {...props}
     />
   );

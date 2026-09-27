@@ -5,7 +5,7 @@
 //   - the public site and portal at 1440px and 390px.
 // Output: artifacts/screens/<surface>/<file>.png, artifacts/screens/index.html (contact sheet) and
 // artifacts/screens.zip. A screen that fails to render is listed on the contact sheet rather than failing the run.
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, type Browser, type BrowserContext } from '@playwright/test';
@@ -25,7 +25,8 @@ interface Viewer {
 
 const MAYA: Viewer = { email: 'maya@eastside-youth-music.example', staff: false };
 const RUTH: Viewer = { email: 'ruth@halcyonridge.example', staff: false };
-const REVIEWER: Viewer = { email: DEMO_USERS.find((u) => u.role === 'reviewer')!.email, staff: false };
+// Reviewers see applicant PII, so they sign in with TOTP like staff.
+const REVIEWER: Viewer = { email: DEMO_USERS.find((u) => u.role === 'reviewer')!.email, staff: true };
 const STAFF: Record<Tenant, Viewer> = {
   halcyon: { email: 'helen@halcyonridge.example', staff: true },
   marigold: { email: 'rosa@marigoldstreet.example', staff: true },
@@ -142,7 +143,7 @@ async function contextFor(browser: Browser, cache: Map<string, BrowserContext>, 
   const ctx = await browser.newContext({ baseURL: originFor(tenant) });
   if (viewer) {
     const page = await ctx.newPage();
-    if (viewer.staff) await signInStaff(page, viewer.email, '/console');
+    if (viewer.staff) await signInStaff(page, viewer.email, surface === 'reviewer' ? '/review' : '/console');
     else await signIn(page, viewer.email, '/portal');
     await page.close();
   }
@@ -195,6 +196,7 @@ function zipDir(dir: string, target: string): void {
 }
 
 test('screenshot every catalog screen', async ({ browser }) => {
+  rmSync(OUT, { recursive: true, force: true }); // no stale screenshots from earlier catalogs
   mkdirSync(OUT, { recursive: true });
   const contexts = new Map<string, BrowserContext>();
   const shots: Shot[] = [];

@@ -91,7 +91,7 @@ export default async function GrantPage({ params, searchParams }: { params: Prom
                 { term: 'Amount', detail: <MoneyDisplay cents={award.amount_cents} currency={award.currency} /> },
                 { term: 'Paid so far', detail: <MoneyDisplay cents={award.disbursed_cents} currency={award.currency} /> },
                 { term: 'Grant period', detail: `${formatDateOnly(award.start_date)} – ${formatDateOnly(award.end_date)}` },
-                { term: 'Agreement', detail: agreement ? agreement.status.replace(/_/g, ' ') : 'Not sent yet' },
+                { term: 'Agreement', detail: agreement ? <StatusChip kind="agreement" value={agreement.status} /> : 'Not sent yet' },
                 { term: 'Purpose', detail: award.purpose, wide: true },
               ]}
             />

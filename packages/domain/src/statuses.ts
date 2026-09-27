@@ -59,6 +59,15 @@ export const AWARD_FLAGS = def({
 });
 export type AwardFlag = keyof typeof AWARD_FLAGS;
 
+export const AGREEMENT_STATUS = def({
+  draft: { label: 'Draft', tone: 'muted', icon: 'file-pen-line' },
+  sent: { label: 'Awaiting signature', tone: 'info', icon: 'file-signature' },
+  signed: { label: 'Signed by grantee', tone: 'progress', icon: 'user-check' },
+  countersigned: { label: 'Fully signed', tone: 'success', icon: 'badge-check' },
+  void: { label: 'Void', tone: 'muted', icon: 'circle-slash' },
+});
+export type AgreementStatus = keyof typeof AGREEMENT_STATUS;
+
 export const PAYEE_STATUS = def({
   invite_sent: { label: 'Invite sent', tone: 'info', icon: 'mail' },
   onboarding: { label: 'Onboarding', tone: 'progress', icon: 'loader' },
@@ -134,6 +143,7 @@ export const STATUS_SETS = {
   review: REVIEW_STATUS,
   award: AWARD_STATUS,
   awardFlag: AWARD_FLAGS,
+  agreement: AGREEMENT_STATUS,
   payee: PAYEE_STATUS,
   payment: PAYMENT_STATUS,
   batch: BATCH_STATUS,

@@ -5,9 +5,10 @@ import { Moon, Sun } from 'lucide-react';
 import { ThemeProvider as NextThemes, useTheme } from 'next-themes';
 import type { ReactNode } from 'react';
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+/** Follows the operating system until the person picks a theme. The nonce lets next-themes' pre-paint script run under the CSP. */
+export function ThemeProvider({ children, nonce }: { children: ReactNode; nonce?: string }) {
   return (
-    <NextThemes attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange storageKey="gms-console-theme">
+    <NextThemes attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange storageKey="gms-console-theme" nonce={nonce}>
       {children}
     </NextThemes>
   );

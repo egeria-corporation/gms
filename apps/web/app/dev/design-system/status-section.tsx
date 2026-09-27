@@ -20,6 +20,7 @@ const KIND_LABELS: Record<StatusKind, string> = {
   review: 'Review',
   award: 'Award',
   awardFlag: 'Award flags',
+  agreement: 'Grant agreement',
   payee: 'Payee',
   payment: 'Payment',
   batch: 'Payment batch',
