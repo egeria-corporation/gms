@@ -9,10 +9,10 @@ import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'n
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, type Browser, type BrowserContext } from '@playwright/test';
-import { DEMO_USERS } from '@gms/fixtures';
+import { DEMO_USERS, SEED_IDS } from '@gms/fixtures';
 import { zipSync } from 'fflate';
 import { CATALOG, SURFACE_LABELS, catalogUrl, isDynamicPath, type CatalogScreen, type CatalogSurface } from '../lib/catalog';
-import { signIn, signInStaff } from './helpers';
+import { query, signIn, signInStaff } from './helpers';
 
 const PORT = Number(process.env.E2E_PORT ?? 3000);
 const OUT = fileURLToPath(new URL('../../../artifacts/screens', import.meta.url));
@@ -49,6 +49,57 @@ function viewerFor(surface: CatalogSurface, tenant: Tenant): Viewer | null {
     default:
       return null;
   }
+}
+
+/**
+ * Concrete values for dynamic route segments, from the deterministic seed (halcyon). Keyed by a path prefix +
+ * parameter name; the first matching entry wins.
+ */
+const HALCYON = `(select id from public.workspaces where slug = 'halcyon')`;
+const PARAMS: [prefix: string, param: string, value: string | (() => Promise<string | undefined>)][] = [
+  ['/opportunities/', 'slug', SEED_IDS.alwaysOpen.slug],
+  ['/portal/apply/', 'slug', SEED_IDS.alwaysOpen.slug],
+  ['/portal/org/', 'orgId', SEED_IDS.maya.orgId],
+  ['/portal/applications/[id]/submitted', 'id', SEED_IDS.maya.awardApplicationId],
+  ['/portal/applications/[id]/', 'id', SEED_IDS.maya.flagshipLoiApplicationId],
+  ['/portal/applications/', 'id', SEED_IDS.maya.awardApplicationId],
+  ['/portal/grants/', 'awardId', SEED_IDS.maya.awardId],
+  ['/portal/grants/', 'reqId', SEED_IDS.maya.upcomingReportRequirementId],
+  ['/portal/confirm/', 'id', async () => (await query<{ id: string }>(`select id from public.approval_requests where on_behalf_of = $1 order by created_at desc limit 1`, [SEED_IDS.maya.userId]))[0]?.id],
+  ['/console/programs/', 'programId', SEED_IDS.programs.youthArts],
+  ['/console/opportunities/', 'id', SEED_IDS.flagship.opportunityId],
+  ['/console/forms/', 'formId', SEED_IDS.flagship.loiFormId],
+  ['/console/applications/', 'id', SEED_IDS.maya.awardApplicationId],
+  ['/console/grantees/', 'orgId', SEED_IDS.orgs.eastside],
+  ['/console/review/rubrics/', 'rubricId', async () => (await query<{ id: string }>(`select id from public.rubrics where workspace_id = ${HALCYON} order by created_at limit 1`))[0]?.id],
+  ['/console/review/', 'stageId', async () => (await query<{ id: string }>(`select id from public.review_stages where workspace_id = ${HALCYON} order by (status = 'active') desc, created_at limit 1`))[0]?.id],
+  ['/console/decisions/', 'applicationId', SEED_IDS.maya.awardApplicationId],
+  ['/console/dockets/', 'docketId', SEED_IDS.currentDocketId],
+  ['/board/', 'docketId', SEED_IDS.currentDocketId],
+  ['/console/awards/', 'awardId', SEED_IDS.maya.awardId],
+  ['/console/payments/batches/', 'id', SEED_IDS.batchAwaitingApprovalId],
+  ['/console/payments/', 'paymentId', async () => (await query<{ id: string }>(`select id from public.payments where workspace_id = ${HALCYON} order by created_at desc limit 1`))[0]?.id],
+  ['/console/reports/', 'requirementId', SEED_IDS.maya.upcomingReportRequirementId],
+  ['/console/approvals/', 'id', async () => (await query<{ id: string }>(`select id from public.approval_requests where workspace_id = ${HALCYON} and audience = 'staff' order by created_at desc limit 1`))[0]?.id],
+  ['/review/', 'assignmentId', async () => (await query<{ id: string }>(`select ra.id from public.review_assignments ra join public.profiles p on p.id = ra.reviewer_id where lower(p.email) = lower($1) order by (ra.status = 'in_progress') desc, ra.created_at limit 1`, [REVIEWER.email]))[0]?.id],
+  ['/operator/', 'id', async () => (await query<{ id: string }>(`select id from public.workspaces where slug = 'halcyon'`))[0]?.id],
+];
+
+const resolved = new Map<string, string | undefined>();
+async function concreteUrl(url: string): Promise<string | null> {
+  const [path = '', rest = ''] = url.split(/(?=[?#])/);
+  let out = path;
+  for (const m of path.matchAll(/\[([^\]]+)\]/g)) {
+    const param = m[1]!;
+    const entry = PARAMS.find(([prefix, p]) => p === param && path.startsWith(prefix));
+    if (!entry) return null;
+    const key = `${entry[0]}:${param}`;
+    if (!resolved.has(key)) resolved.set(key, typeof entry[2] === 'string' ? entry[2] : await entry[2]());
+    const value = resolved.get(key);
+    if (!value) return null;
+    out = out.replace(m[0], encodeURIComponent(value));
+  }
+  return out + rest;
 }
 
 const BRANDED: CatalogSurface[] = ['public', 'embed', 'portal', 'oauth'];
@@ -149,12 +200,13 @@ test('screenshot every catalog screen', async ({ browser }) => {
   const shots: Shot[] = [];
   for (const screen of CATALOG) {
     for (const state of [undefined, ...screen.states]) {
-      const url = catalogUrl(screen, state);
+      const example = catalogUrl(screen, state);
+      const url = example ?? (await concreteUrl(isDynamicPath(screen.path) && state ? `${screen.path}?state=${encodeURIComponent(state)}` : screen.path));
       for (const v of variants(screen)) {
         const shot: Shot = { screen, state, ...v };
         shots.push(shot);
         if (!url) {
-          shot.error = 'no example URL for this dynamic route';
+          shot.error = 'no seeded record for this dynamic route';
           continue;
         }
         const name = [slug(screen.id), state ? slug(state) : null, v.tenant, String(v.width), v.theme === 'dark' ? 'dark' : null].filter(Boolean).join('_');

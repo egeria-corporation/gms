@@ -117,12 +117,14 @@ const PORTAL = on('portal')([
     notes: '"Check your email" appears after sending a link.',
   },
   { id: 'B-02', title: 'Organization setup (EIN lookup)', path: '/portal/org/new' },
+  { id: 'B-03-list', title: 'My organizations', path: '/portal/org' },
   { id: 'B-03', title: 'Organization profile & document vault', path: '/portal/org/[orgId]' },
   { id: 'B-04', title: 'Applicant dashboard', path: '/portal', states: ['new-user', 'error'] },
-  { id: 'B-05', title: 'Start an application', path: '/portal/apply/[slug]' },
-  { id: 'B-06', title: 'Application form (autosave, multi-page)', path: '/portal/applications/[id]/form' },
+  { id: 'B-04-apply', title: 'Start an application', path: '/portal/apply/[slug]' },
+  { id: 'B-05', title: 'Application workspace (autosave, multi-page)', path: '/portal/applications/[id]/form' },
+  { id: 'B-06', title: 'Review & submit', path: '/portal/applications/[id]/review', states: ['deadline-passed', 'grace'] },
   { id: 'B-07', title: 'Application collaborators', path: '/portal/applications/[id]/collaborators' },
-  { id: 'B-08', title: 'Review & submit', path: '/portal/applications/[id]/submit' },
+  { id: 'B-08', title: 'Submission receipt', path: '/portal/applications/[id]/submitted' },
   {
     id: 'B-09',
     title: 'Application detail & messages',
@@ -131,15 +133,16 @@ const PORTAL = on('portal')([
     notes:
       'Every application status can be forced; multi-word statuses use underscores (?state=under_review, in_progress, invited_to_next_stage).',
   },
+  { id: 'B-10-list', title: 'Grants & reports', path: '/portal/grants' },
   {
     id: 'B-10',
     title: 'Grant hub: accept, sign, bank onboarding',
     path: '/portal/grants/[awardId]',
     states: ['sign', 'onboarding', 'ready'],
-    notes:
-      'Also ?state=invite_sent and ?state=invite_expired. Signing happens at /portal/grants/[awardId]/agreement.',
+    notes: 'Also ?state=invite_sent and ?state=invite_expired.',
   },
-  { id: 'B-11', title: 'Grant report form', path: '/portal/grants/[awardId]/reports/[reportId]' },
+  { id: 'B-10-sign', title: 'Sign the grant agreement', path: '/portal/grants/[awardId]/agreement' },
+  { id: 'B-11', title: 'Grant report form', path: '/portal/grants/[awardId]/reports/[reqId]' },
   {
     id: 'B-12',
     title: 'Extension, amendment or budget-change request',
@@ -153,46 +156,65 @@ const PORTAL = on('portal')([
     states: ['confirmed', 'rejected', 'expired'],
   },
   { id: 'B-15', title: 'Account, notifications & data export', path: '/portal/account' },
-  { id: 'PA-01', title: 'Bank details onboarding (payee)', path: '/portal/grants/[awardId]/payee' },
-  { id: 'PA-02', title: 'Payment history', path: '/portal/grants/[awardId]/payments' },
-  { id: 'PA-03', title: 'Payment remittance detail', path: '/portal/grants/[awardId]/payments/[paymentId]' },
+  { id: 'join', title: 'Join an application (collaborator invite)', path: '/portal/join', notes: 'Opened from an invitation link.' },
 ]);
 
 const CONSOLE = on('console')([
   { id: 'C-01', title: 'Console home', path: '/console', states: ['new-workspace'] },
-  { id: 'C-02', title: 'Programs', path: '/console/programs' },
-  { id: 'C-03', title: 'Opportunities', path: '/console/opportunities' },
-  { id: 'C-04', title: 'Forms', path: '/console/forms' },
-  { id: 'C-05', title: 'Application pipeline', path: '/console/pipeline' },
-  { id: 'C-06', title: 'Application detail', path: '/console/applications/[id]' },
-  { id: 'C-07', title: 'Decisions', path: '/console/decisions' },
-  { id: 'C-08', title: 'Board dockets', path: '/console/dockets' },
-
-  { id: 'FB-01', title: 'Form builder: pages & questions', path: '/console/forms/[formId]' },
+  { id: 'console-mfa', title: 'Staff two-step sign-in', path: '/console/mfa', notes: 'Redirects to the console once verified.' },
+  { id: 'console-denied', title: 'No console access', path: '/console/denied' },
+  { id: 'C-02', title: 'Programs & budgets', path: '/console/programs', states: ['empty', 'error'] },
+  { id: 'C-02-detail', title: 'Program detail', path: '/console/programs/[programId]', states: ['no-budget', 'over-budget', 'no-account'] },
+  { id: 'C-03', title: 'Opportunities', path: '/console/opportunities', states: ['empty', 'error'] },
+  { id: 'C-04-new', title: 'New opportunity', path: '/console/opportunities/new', states: ['saving-error'] },
+  { id: 'C-04', title: 'Opportunity editor', path: '/console/opportunities/[id]', states: ['archived', 'saving-error'] },
+  { id: 'C-05', title: 'Publish checks', path: '/console/opportunities/[id]/publish', states: ['ready', 'blocked', 'published'] },
+  { id: 'FB-01', title: 'Forms', path: '/console/forms', states: ['empty', 'import-error'] },
   {
     id: 'FB-02',
-    title: 'Form builder: field settings & CommonGrants mapping',
-    path: '/console/forms/[formId]/fields',
+    title: 'Form builder (pages, fields, logic, mapping, preview, versions, checks)',
+    path: '/console/forms/[formId]',
+    states: ['mapping-conflict', 'circular-rule', 'lint', 'read-only'],
+    notes: 'FB-02 to FB-08 are tabs of the builder.',
   },
-  { id: 'FB-03', title: 'Form builder: conditional logic', path: '/console/forms/[formId]/logic' },
-  { id: 'FB-04', title: 'Form builder: applicant preview', path: '/console/forms/[formId]/preview' },
-  { id: 'FB-05', title: 'Form builder: version history & diff', path: '/console/forms/[formId]/versions' },
-  { id: 'FB-06', title: 'Form builder: publish checks', path: '/console/forms/[formId]/publish' },
-  { id: 'FB-07', title: 'Import from CommonGrants & question bank', path: '/console/forms/import' },
-  { id: 'FB-08', title: 'Form templates', path: '/console/forms/new' },
+  { id: 'C-06', title: 'Application pipeline', path: '/console/pipeline', states: ['empty', 'error', 'kanban', 'bulk'] },
+  { id: 'C-06-list', title: 'Applications', path: '/console/applications' },
+  { id: 'C-07', title: 'Application detail', path: '/console/applications/[id]', states: ['in-progress', 'info-requested', 'agent'] },
+  { id: 'C-08', title: 'Grantees', path: '/console/grantees', states: ['empty', 'error'] },
+  { id: 'C-08-detail', title: 'Grantee profile', path: '/console/grantees/[orgId]', states: ['empty'] },
 
-  { id: 'R-01', title: 'Review setup: rounds & rubrics', path: '/console/review' },
-  { id: 'R-02', title: 'Reviewer assignments', path: '/console/review/assignments' },
-  { id: 'R-06', title: 'Review results & calibration', path: '/console/review/results' },
+  { id: 'R-01', title: 'Review setup: stages & rubrics', path: '/console/review', states: ['empty', 'weights-invalid', 'error'] },
+  { id: 'R-01-new', title: 'New rubric', path: '/console/review/rubrics/new', states: ['weights-invalid'] },
+  { id: 'R-01-rubric', title: 'Rubric editor', path: '/console/review/rubrics/[rubricId]', states: ['weights-invalid', 'locked'] },
+  { id: 'R-02', title: 'Reviewer assignments', path: '/console/review/[stageId]/assign', states: ['over-capacity', 'conflicts', 'empty'] },
+  { id: 'R-03', title: 'Review progress', path: '/console/review/[stageId]', states: ['empty', 'complete'] },
+  { id: 'R-04', title: 'Panel view', path: '/console/review/[stageId]/panel', states: ['variance', 'empty'] },
+  { id: 'R-05', title: 'Decisions', path: '/console/decisions', states: ['empty', 'confirm-final', 'bulk-decline'] },
+  { id: 'R-06', title: 'Award builder', path: '/console/decisions/[applicationId]/award', states: ['over-budget', 'schedule-mismatch', 'active'] },
+  { id: 'R-07', title: 'Grant agreement', path: '/console/decisions/[applicationId]/agreement', states: ['no-award', 'draft', 'sent', 'signed'] },
+  { id: 'E-01', title: 'Board dockets', path: '/console/dockets', states: ['empty', 'error'] },
+  { id: 'E-01-detail', title: 'Docket builder', path: '/console/dockets/[docketId]', states: ['empty', 'in-session', 'closed'] },
 
-  { id: 'P-01', title: 'Awards', path: '/console/awards' },
-  { id: 'P-02', title: 'Award detail', path: '/console/awards/[id]' },
-  { id: 'P-03', title: 'Payments overview', path: '/console/payments' },
-  { id: 'P-04', title: 'Connect bank (Mercury)', path: '/console/payments/connect' },
-  { id: 'P-05', title: 'Payment batch detail & approval', path: '/console/payments/batches/[id]' },
-  { id: 'P-06', title: 'Grantee reports', path: '/console/reports' },
-  { id: 'P-07', title: 'Diligence & screening', path: '/console/diligence' },
-  { id: 'P-08', title: 'Grantees', path: '/console/grantees' },
+  { id: 'awards', title: 'Awards', path: '/console/awards', states: ['flags', 'empty'] },
+  { id: 'awards-detail', title: 'Award detail', path: '/console/awards/[awardId]', states: ['draft', 'countersign', 'on-hold', 'report-overdue', 'completed'] },
+  { id: 'P-01', title: 'Payments overview', path: '/console/payments', states: ['no-bank', 'empty'] },
+  { id: 'P-02', title: 'Payees', path: '/console/payments/payees', states: ['empty', 'no-bank'] },
+  { id: 'P-03', title: 'New payment batch', path: '/console/payments/batches/new', states: ['no-bank'] },
+  { id: 'P-03-list', title: 'Payment batches', path: '/console/payments/batches', states: ['empty'] },
+  {
+    id: 'P-04',
+    title: 'Batch detail & approval',
+    path: '/console/payments/batches/[id]',
+    states: ['awaiting-approval', 'creator', 'needs-second-approval', 'approved', 'submitted', 'rejected'],
+  },
+  { id: 'P-05', title: 'Payment status', path: '/console/payments/status', states: ['empty', 'failed'] },
+  { id: 'P-06', title: 'Exceptions & reconciliation', path: '/console/payments/exceptions', states: ['empty'] },
+  { id: 'P-07', title: 'Payment detail', path: '/console/payments/[paymentId]', states: ['failed'] },
+  { id: 'P-08', title: 'Connect bank (Mercury)', path: '/console/payments/connect', states: ['not-connected', 'webhook-failing'] },
+  { id: 'P-manual', title: 'Manual payments', path: '/console/payments/manual', states: ['no-awards'] },
+  { id: 'PA-01', title: 'Grantee reports', path: '/console/reports', states: ['overdue', 'hold', 'empty'] },
+  { id: 'PA-02', title: 'Report review', path: '/console/reports/[requirementId]', states: ['submitted', 'accepted', 'revisions', 'not-submitted'] },
+  { id: 'PA-03', title: 'Diligence & screening', path: '/console/diligence', states: ['match', 'empty'] },
 
   { id: 'CM-00', title: 'Communications', path: '/console/comms' },
   { id: 'CM-01', title: 'Email templates', path: '/console/comms/templates', states: ['empty'] },
@@ -260,16 +282,15 @@ const CONSOLE = on('console')([
 ]);
 
 const REVIEWER = on('reviewer')([
-  { id: 'R-03', title: 'Reviewer queue', path: '/review' },
-  { id: 'R-04', title: 'Conflict-of-interest declaration', path: '/review/[assignmentId]/conflict' },
-  { id: 'R-05', title: 'Scoring workspace', path: '/review/[assignmentId]' },
-  { id: 'R-07', title: 'Reviewer sign-in', path: '/review/sign-in' },
+  { id: 'D-01', title: 'Reviewer queue', path: '/review', states: ['empty', 'all-done'] },
+  { id: 'D-02', title: 'Conflict-of-interest declaration', path: '/review/[assignmentId]/coi', states: ['conflict', 'recused'] },
+  { id: 'D-03', title: 'Scoring workspace', path: '/review/[assignmentId]', states: ['blind', 'submitted', 'tablet', 'recused'] },
+  { id: 'D-denied', title: 'Not a reviewer here', path: '/review/denied' },
 ]);
 
 const BOARD = on('board')([
-  { id: 'D-01', title: 'Board home: dockets', path: '/board' },
-  { id: 'D-02', title: 'Docket book', path: '/board/dockets/[id]' },
-  { id: 'D-03', title: 'Votes & notes', path: '/board/dockets/[id]/vote' },
+  { id: 'E-02', title: 'Board home: dockets', path: '/board', states: ['empty'] },
+  { id: 'E-02-docket', title: 'Docket book & votes', path: '/board/[docketId]', states: ['voted', 'closed', 'not-in-session'] },
 ]);
 
 const OAUTH = on('oauth')([
@@ -282,13 +303,7 @@ const OAUTH = on('oauth')([
 ]);
 
 const ERRORS = on('public')([
-  { id: 'E-01', title: 'Page not found', path: '/[missing]', example: '/this-page-does-not-exist' },
-  {
-    id: 'E-02',
-    title: 'Something went wrong (error boundary)',
-    path: '/[any]',
-    notes: 'Rendered by the nearest error.tsx when a page throws.',
-  },
+  { id: 'not-found', title: 'Page not found', path: '/this-page-does-not-exist' },
 ]);
 
 const ROOT = on(
@@ -297,6 +312,7 @@ const ROOT = on(
 )([
   { id: 'platform-directory', title: 'Platform directory', path: '/' },
   { id: 'root-sign-in', title: 'Platform sign-in', path: '/sign-in', states: ['check-email'] },
+  { id: 'root-mfa', title: 'Operator two-step sign-in', path: '/mfa' },
   { id: 'F-01', title: 'Setup: owner account', path: '/setup?step=owner', states: ['already-set-up'] },
   { id: 'F-02', title: 'Setup: brand', path: '/setup?step=brand', states: ['contrast-autofix'] },
   { id: 'F-03', title: 'Setup: email', path: '/setup?step=email' },
@@ -323,11 +339,12 @@ const EMAIL = on('email')([
 ]);
 
 const PDF = on('pdf')([
-  { id: 'H-02', title: 'Award letter (PDF)', path: '/dev/preview/pdf/award_letter' },
-  { id: 'H-02-agreement', title: 'Grant agreement (PDF)', path: '/dev/preview/pdf/agreement' },
-  { id: 'H-03', title: 'Application packet (PDF)', path: '/dev/preview/pdf/application_packet' },
-  { id: 'H-04', title: 'Remittance advice (PDF)', path: '/dev/preview/pdf/remittance' },
-  { id: 'H-05', title: 'Board book (PDF)', path: '/dev/preview/pdf/board_book' },
+  {
+    id: 'H-02',
+    title: 'Generated documents (award letter, agreement, packet, remittance, board book)',
+    path: '/dev/preview/pdf',
+    notes: 'H-02 to H-05. Each document opens at /dev/preview/pdf/{award_letter|agreement|application_packet|remittance|board_book}.',
+  },
 ]);
 
 const DS_TITLES = [
@@ -348,6 +365,8 @@ const DEV = on('dev')([
   })),
   { id: 'dev-catalog', title: 'Screen catalog', path: '/dev/catalog' },
   { id: 'dev-mail', title: 'Dev outbox', path: '/dev/mail' },
+  { id: 'dev-email-index', title: 'Email previews index', path: '/dev/preview/email' },
+  { id: 'dev-mercury', title: 'Fake Mercury controls', path: '/dev/mercury' },
 ]);
 
 export const CATALOG: CatalogScreen[] = [
