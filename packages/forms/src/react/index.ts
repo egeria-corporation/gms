@@ -26,6 +26,21 @@ export {
   type ReviewValueProps,
 } from './renderers';
 
+// Form builder (FB-01…FB-08)
+export { FormBuilder, type FormBuilderProps } from './builder/form-builder';
+export { BuilderCanvas, type BuilderCanvasProps } from './builder/canvas';
+export { FieldPalette, type FieldPaletteProps, type PaletteKind } from './builder/palette';
+export { PropertiesPanel, type PropertiesPanelProps, type BuilderSelection, type EditFn } from './builder/properties';
+export { RuleEditor, type RuleEditorProps } from './builder/logic-editor';
+export { OptionListEditor, type OptionListEditorProps } from './builder/options-editor';
+export { QuestionBankPanel, type QuestionBankPanelProps, bankItemMatches, fieldFromBankItem } from './builder/question-bank';
+export { TemplatesDialog, type TemplatesDialogProps, runImport } from './builder/templates-dialog';
+export { FormPreview, type FormPreviewProps, isLoiModel, tryCompile } from './builder/preview';
+export { LintPanel, type LintPanelProps } from './builder/lint-panel';
+export { FormDiffView, type FormDiffViewProps } from './builder/diff-view';
+export { VersionHistory, type VersionHistoryProps, VersionStatusChip, type FormVersionStatus, type FormVersionSummary } from './builder/version-history';
+export { useBuilderHistory, type BuilderHistory } from './builder/use-builder-history';
+
 // React-free helpers (also usable on the server).
 export * from './form-state';
 export * from './money';
@@ -33,3 +48,4 @@ export * from './markdown';
 export * from './autosave-queue';
 export * from './undo-stack';
 export * from './builder-ops';
+export * from './rule-draft';
