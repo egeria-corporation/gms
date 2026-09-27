@@ -1,0 +1,22 @@
+{
+  "id": "txn_0000000000000000",
+  "accountId": "8a4b1f3e-0000-4000-8000-000000000001",
+  "amount": -1250.5,
+  "status": "pending",
+  "kind": "outgoingPayment",
+  "counterpartyId": "rcp_0000000000000000",
+  "counterpartyName": "Example Recipient",
+  "counterpartyNickname": null,
+  "note": null,
+  "externalMemo": null,
+  "bankDescription": null,
+  "createdAt": "2026-09-27T12:05:00.000Z",
+  "postedAt": null,
+  "estimatedDeliveryDate": "2026-09-29T12:05:00.000Z",
+  "failedAt": null,
+  "reasonForFailure": null,
+  "dashboardLink": "https://app.mercury.example/transactions/txn",
+  "requestId": "req_0000000000000000",
+  "attachments": [],
+  "categoryData": null
+}

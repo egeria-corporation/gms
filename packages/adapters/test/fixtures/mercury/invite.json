@@ -1,0 +1,13 @@
+{
+  "id": "inv_0000000000000000",
+  "onboardingUrl": "https://app.mercury.example/recipient-onboarding/abc",
+  "status": "created",
+  "name": "Example Recipient",
+  "contactEmail": "grants@recipient.example",
+  "paymentMethods": ["ach"],
+  "requireTaxDocument": true,
+  "createdAt": "2026-09-27T12:00:00.000Z",
+  "expiresAt": "2026-10-27T12:00:00.000Z",
+  "recipientId": null,
+  "notes": null
+}

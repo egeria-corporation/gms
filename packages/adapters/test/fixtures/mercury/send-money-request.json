@@ -1,0 +1,15 @@
+{
+  "requestId": "req_0000000000000000",
+  "accountId": "8a4b1f3e-0000-4000-8000-000000000001",
+  "recipientId": "rcp_0000000000000000",
+  "paymentMethod": "ach",
+  "amount": 1250.5,
+  "status": "pendingApproval",
+  "requestedByUserId": "5d1c0000-0000-4000-8000-000000000009",
+  "createdAt": "2026-09-27T12:00:00.000Z",
+  "reviews": [],
+  "memo": null,
+  "numberOfApproversRequired": 1,
+  "requesterMayApprove": false,
+  "scheduledSendDate": null
+}

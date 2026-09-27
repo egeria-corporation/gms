@@ -1,0 +1,17 @@
+{
+  "id": "8a4b1f3e-0000-4000-8000-000000000001",
+  "name": "Mercury Checking ••9876",
+  "nickname": null,
+  "accountNumber": "0000009876",
+  "routingNumber": "000000000",
+  "availableBalance": 250000.0,
+  "currentBalance": 250000.0,
+  "kind": "checking",
+  "type": "mercury",
+  "status": "active",
+  "legalBusinessName": "Fictional Foundation",
+  "canReceiveTransactions": true,
+  "canSendRealTimePayments": false,
+  "createdAt": "2026-01-15T17:00:00.000Z",
+  "dashboardLink": "https://app.mercury.example/accounts/8a4b1f3e"
+}
