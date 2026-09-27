@@ -290,3 +290,38 @@ revoke all on all tables in schema analytics from public, gms_anon, gms_authenti
 grant select on all tables in schema analytics to gms_analytics;
 alter default privileges in schema analytics grant select on tables to gms_analytics;
 revoke all on function analytics.refresh_all() from public;
+
+-- ---------------------------------------------------------------------------------------------------------
+-- Fix (S-02 invite acceptance): in gms.accept_invitation the OUT parameter "workspace_id" made the
+-- ON CONFLICT (workspace_id, user_id) target ambiguous, so every acceptance failed. Same function, with
+-- column references preferred over the OUT parameters.
+-- ---------------------------------------------------------------------------------------------------------
+create or replace function gms.accept_invitation(p_token_hash text)
+returns table (workspace_id uuid, role text)
+language plpgsql security definer set search_path = '' as $$
+#variable_conflict use_column
+declare
+  inv record;
+  me uuid := gms.uid();
+begin
+  if me is null then
+    return;
+  end if;
+  select i.* into inv from public.invitations i
+  where i.token_hash = p_token_hash and i.status = 'pending' and i.expires_at > now()
+    and lower(i.email) = gms.email()
+  for update;
+  if not found then
+    return;
+  end if;
+  insert into public.workspace_members (workspace_id, user_id, role, invited_by)
+  values (inv.workspace_id, me, inv.role, inv.invited_by)
+  on conflict (workspace_id, user_id) do update set role = excluded.role, status = 'active';
+  update public.invitations set status = 'accepted', accepted_at = now() where id = inv.id;
+  workspace_id := inv.workspace_id;
+  role := inv.role;
+  return next;
+end
+$$;
+revoke all on function gms.accept_invitation(text) from public;
+grant execute on function gms.accept_invitation(text) to gms_authenticated;
