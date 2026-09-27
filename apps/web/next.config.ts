@@ -18,6 +18,8 @@ function gitSha(): string {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // We maintain our own AGENTS.md at the repo root.
+  agentRules: false,
   poweredByHeader: false,
   transpilePackages: [
     '@gms/actions',

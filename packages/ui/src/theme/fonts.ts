@@ -44,7 +44,9 @@ export const HEADING_FONTS: readonly HeadingFont[] = [
 export const DEFAULT_HEADING_FONT: HeadingFontId = 'inter';
 
 export function headingFont(id: string | null | undefined): HeadingFont {
-  return HEADING_FONTS.find((f) => f.id === id) ?? (HEADING_FONTS[0] as HeadingFont);
+  // Accept ids ('source-serif-4') and labels ('Source Serif 4', as stored in workspace_brand).
+  const key = typeof id === 'string' ? id.trim().toLowerCase() : '';
+  return HEADING_FONTS.find((f) => f.id === key || f.label.toLowerCase() === key) ?? (HEADING_FONTS[0] as HeadingFont);
 }
 
 export function isHeadingFontId(id: unknown): id is HeadingFontId {

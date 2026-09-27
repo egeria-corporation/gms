@@ -46,6 +46,10 @@
     "turbo": "^2.11.4",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.70.1",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "@gms/actions": "workspace:*",
+    "@gms/adapters": "workspace:*",
+    "@gms/domain": "workspace:*",
+    "@gms/fixtures": "workspace:*"
   }
 }

@@ -336,6 +336,25 @@ const handlers: Record<string, Handler> = {
     await notifyInApp(rt.db, { workspaceId: ws.id, userIds: ids, kind: 'review', title: 'You have new applications to review', link: '/review' });
   },
 
+  async 'opportunity.opened'(rt, ev, ws) {
+    if (!ws || !ev.entity_id) return;
+    const opp = await rt.db.selectFrom('opportunities').select(['id', 'slug', 'title', 'closes_at']).where('id', '=', ev.entity_id).executeTakeFirst();
+    if (!opp) return;
+    const subs = await rt.db
+      .selectFrom('opportunity_subscriptions as s')
+      .innerJoin('profiles as p', 'p.id', 's.user_id')
+      .select(['s.id', 'p.email', 'p.full_name'])
+      .where('s.opportunity_id', '=', opp.id)
+      .where('s.notified_at', 'is', null)
+      .execute();
+    for (const s of subs) {
+      if (opp.closes_at) {
+        await sendTemplate(rt, ws, s.email, 'deadline_reminder', { recipientName: s.full_name, opportunityName: opp.title, closesAt: opp.closes_at, timeZone: ws.timezone, applicationUrl: `${ws.origin}/opportunities/${opp.slug}` });
+      }
+      await rt.db.updateTable('opportunity_subscriptions').set({ notified_at: new Date().toISOString() }).where('id', '=', s.id).execute();
+    }
+  },
+
   async 'export.requested'(rt, ev, ws) {
     if (!ws || !ev.entity_id) return;
     const { runExport } = await import('./exports');

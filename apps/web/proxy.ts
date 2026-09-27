@@ -44,7 +44,21 @@ export function proxy(request: NextRequest) {
   headers.set('x-request-id', requestId);
   headers.set('x-gms-pathname', pathname);
 
-  const response = NextResponse.next({ request: { headers } });
+  // Root host (no tenant): serve platform pages (setup wizard, operator console, directory) from /gms-root.
+  // Tenant hosts can never reach /gms-root directly.
+  let response: NextResponse;
+  if (pathname.startsWith('/gms-root')) {
+    return new NextResponse('Not found', { status: 404 });
+  }
+  const rootPath = res.kind === 'root' || (gms.mode === 'single' && pathname.startsWith('/setup'));
+  const passThrough = /^\/(_next|api\/storage|auth|fonts|brand)/.test(pathname) || pathname.includes('.');
+  if (rootPath && !passThrough) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/gms-root${pathname === '/' ? '' : pathname}`;
+    response = NextResponse.rewrite(url, { request: { headers } });
+  } else {
+    response = NextResponse.next({ request: { headers } });
+  }
   response.headers.set('Content-Security-Policy', buildCsp(nonce, pathname));
   response.headers.set('X-Request-Id', requestId);
   if (!pathname.startsWith('/embed')) response.headers.set('X-Frame-Options', 'DENY');

@@ -408,6 +408,13 @@ export const MATRIX: readonly TableSpec[] = [
   { table: 'sanctions_screenings', allow: staffTable(STAFF, OAPF) },
   { table: 'diligence_checks', allow: staffTable(STAFF, OAPF) },
 
+  {
+    table: 'opportunity_subscriptions',
+    allow: allow([...byRole('owner', 'admin', 'program_officer', 'auditor'), 'applicant'], SIGNED_IN.filter((p) => p !== 'anon'), NONE, ['applicant']),
+    actor: ['user_id'],
+    note: 'People subscribe themselves to a public forecasted opportunity; staff can see subscriber counts.',
+  },
+
   // --- views ----------------------------------------------------------------------------------------------------------------
   {
     table: 'public_awards',

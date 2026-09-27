@@ -616,3 +616,28 @@ export const tickSchedule = defineAction({
     return { opened: opened.length, closed };
   },
 });
+
+export const subscribeOpportunity = defineAction({
+  id: 'opportunities.subscribe',
+  title: 'Get notified when an opportunity opens',
+  description: 'Subscribes the signed-in person to an email when a forecasted opportunity opens (or unsubscribes).',
+  input: z.object({ opportunityId: uuid, subscribe: z.boolean().default(true) }),
+  output: Ok,
+  scopes: ['opportunities:read'],
+  roles: ['authenticated'],
+  riskTier: 'R1',
+  idempotent: true,
+  async run(input, ctx) {
+    const w = ws(ctx);
+    if (input.subscribe) {
+      await ctx.db
+        .insertInto('opportunity_subscriptions')
+        .values({ workspace_id: w.id, opportunity_id: input.opportunityId, user_id: uid(ctx) })
+        .onConflict((oc) => oc.columns(['opportunity_id', 'user_id']).doNothing())
+        .execute();
+    } else {
+      await ctx.db.deleteFrom('opportunity_subscriptions').where('opportunity_id', '=', input.opportunityId).where('user_id', '=', uid(ctx)).execute();
+    }
+    return { ok: true as const };
+  },
+});

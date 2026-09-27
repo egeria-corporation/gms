@@ -887,6 +887,15 @@ export interface Opportunities {
   search: GeneratedAlways<string | null>;
 }
 
+export interface OpportunitySubscriptions {
+  id: Generated<string>;
+  workspace_id: string;
+  opportunity_id: string;
+  user_id: string;
+  notified_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+}
+
 export interface OrgAddresses {
   id: Generated<string>;
   org_id: string;
@@ -1587,6 +1596,7 @@ export interface DB {
   oauth_authorization_codes: OauthAuthorizationCodes;
   oauth_pending_authorizations: OauthPendingAuthorizations;
   opportunities: Opportunities;
+  opportunity_subscriptions: OpportunitySubscriptions;
   org_addresses: OrgAddresses;
   org_documents: OrgDocuments;
   outbox: Outbox;
