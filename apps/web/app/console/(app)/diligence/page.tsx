@@ -146,9 +146,17 @@ export default async function DiligencePage({ searchParams }: { searchParams: Pr
     <div className="grid gap-6">
       {header}
       <section aria-label="Diligence summary" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatTile label="Sanctions matches to review" value={counts.review} action={<Link className="text-link underline" href="/console/diligence?status=needs_review">Show</Link>} />
+        <StatTile label="Sanctions matches to review" value={counts.review} action={
+            <Link className="text-link underline" href="/console/diligence?status=needs_review">
+              Show matches to review
+            </Link>
+          } />
         <StatTile label="IRS status needs attention" value={counts.irs} />
-        <StatTile label="Never checked" value={counts.unchecked} action={<Link className="text-link underline" href="/console/diligence?status=not_checked">Show</Link>} />
+        <StatTile label="Never checked" value={counts.unchecked} action={
+            <Link className="text-link underline" href="/console/diligence?status=not_checked">
+              Show grantees never checked
+            </Link>
+          } />
       </section>
       <div className="flex flex-wrap items-center gap-3">
         <UrlFilterSelect

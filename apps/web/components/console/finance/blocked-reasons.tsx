@@ -14,8 +14,8 @@ export function reasonView(reason: string): ReasonView {
   if (r.includes('confirmed sanctions')) return { icon: ShieldX, tone: 'danger', next: 'Payments stay blocked. Talk to counsel.' };
   if (r.includes('ofac') || r.includes('sanctions')) return { icon: ShieldAlert, tone: 'warning', next: 'Review the match in Diligence.' };
   if (r.includes('payee')) return { icon: UserX, tone: 'warning', next: 'Invite or re-invite the grantee in Payee onboarding.' };
-  if (r.includes('hold')) return { icon: PauseCircle, tone: 'danger', next: 'Release the hold on the award, or clear the overdue report.' };
-  if (r.includes('report')) return { icon: AlarmClock, tone: 'danger', next: 'Wait for the report, or turn off its payment hold.' };
+  if (r.includes('report')) return { icon: AlarmClock, tone: 'danger', next: 'Follow up on the overdue report; payments resume once it is in.' };
+  if (r.includes('hold')) return { icon: PauseCircle, tone: 'danger', next: 'Release the hold on the award when it’s resolved.' };
   if (r.includes('agreement')) return { icon: FileSignature, tone: 'warning', next: 'Get the agreement signed and countersigned.' };
   if (r.includes('budget') || r.includes('ceiling')) return { icon: PiggyBank, tone: 'danger', next: 'Amend the award or adjust the schedule.' };
   if (r.includes('not active')) return { icon: CircleSlash, tone: 'warning', next: 'Activate the award first.' };

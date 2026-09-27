@@ -22,7 +22,7 @@ import { MailPlus, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 import { invitePayeeAction, reissuePayeeAction } from '@/app/console/(app)/payments/actions';
-import { FeedbackRegion, UrlFilterSelect, useRunner, useUrlPagination } from './client-utils';
+import { FeedbackRegion, UrlFilterSelect, useRunner, useUrlPagination, type Feedback } from './client-utils';
 
 export interface PayeeRow {
   id: string;
@@ -120,7 +120,7 @@ export interface UninvitedRow {
   awards: { id: string; reference: string }[];
 }
 
-function InviteDialog({ row }: { row: UninvitedRow }) {
+function InviteDialog({ row, onInvited }: { row: UninvitedRow; onInvited: (f: Feedback) => void }) {
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState(row.email ?? '');
   const { run, pending, feedback, setFeedback } = useRunner();
@@ -151,9 +151,12 @@ function InviteDialog({ row }: { row: UninvitedRow }) {
             e.preventDefault();
             void run(
               () => invitePayeeAction({ applicantOrgId: row.orgId, contactEmail: email.trim() || undefined }),
-              (d) => ({ variant: 'success', title: d.status === 'ready' ? `${row.grantee} is ready to be paid outside GMS.` : `Invite sent to ${email || 'the grantee'}.` }),
+              (d) => {
+                // The row leaves this list on success, so the list announces the result.
+                onInvited({ variant: 'success', title: d.status === 'ready' ? `${row.grantee} is ready to be paid outside GMS.` : `Invite sent to ${email || row.grantee}.` });
+              },
             ).then((ok) => {
-              if (ok) setTimeout(() => setOpen(false), 900);
+              if (ok) setOpen(false);
             });
           }}
         >
@@ -176,7 +179,16 @@ function InviteDialog({ row }: { row: UninvitedRow }) {
 }
 
 export function UninvitedList({ rows, canWrite }: { rows: UninvitedRow[]; canWrite: boolean }) {
-  if (!rows.length) return <p className="text-sm text-muted-foreground">Every awarded grantee has been invited.</p>;
+  const [invited, setInvited] = React.useState<Feedback>(null);
+  return (
+    <div className="grid gap-2">
+      <FeedbackRegion feedback={invited} />
+      {rows.length ? <InviteRows rows={rows} canWrite={canWrite} onInvited={setInvited} /> : <p className="text-sm text-muted-foreground">Every awarded grantee has been invited.</p>}
+    </div>
+  );
+}
+
+function InviteRows({ rows, canWrite, onInvited }: { rows: UninvitedRow[]; canWrite: boolean; onInvited: (f: Feedback) => void }) {
   return (
     <ul className="grid gap-2">
       {rows.map((r) => (
@@ -194,7 +206,7 @@ export function UninvitedList({ rows, canWrite }: { rows: UninvitedRow[]; canWri
               ))}
             </span>
           </div>
-          {canWrite ? <InviteDialog row={r} /> : null}
+          {canWrite ? <InviteDialog row={r} onInvited={onInvited} /> : null}
         </li>
       ))}
     </ul>

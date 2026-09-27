@@ -234,7 +234,9 @@ export function BatchBuilder({
                   </TableBody>
                   <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={4}>Total ({preview.included} payments)</TableCell>
+                      <TableCell colSpan={4}>
+                        Total ({preview.included} payment{preview.included === 1 ? '' : 's'})
+                      </TableCell>
                       <TableCell className="text-right">
                         <MoneyDisplay cents={fees} />
                       </TableCell>

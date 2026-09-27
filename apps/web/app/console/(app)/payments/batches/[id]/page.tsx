@@ -224,7 +224,9 @@ export default async function BatchPage({ params, searchParams }: { params: Prom
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={5}>Total ({count} payments)</TableCell>
+                    <TableCell colSpan={5}>
+                      Total ({count} payment{count === 1 ? '' : 's'})
+                    </TableCell>
                     <TableCell className="text-right">
                       <MoneyDisplay cents={fees} />
                     </TableCell>

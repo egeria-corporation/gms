@@ -34,7 +34,7 @@ import {
   generateAgreementAction,
   sendAgreementAction,
 } from '@/app/console/(app)/awards/actions';
-import { FeedbackRegion, useRunner } from './client-utils';
+import { FeedbackRegion, useRunner, type Feedback } from './client-utils';
 
 export function ActivateAwardButton({ awardId, scheduleMatches, amountCents, scheduledCents }: { awardId: string; scheduleMatches: boolean; amountCents: number; scheduledCents: number }) {
   const { run, pending, feedback, dialog } = useRunner({ reason: 'Activating an award commits the foundation’s money, so we check your authenticator app first.', actionLabel: 'Activate award' });
@@ -290,7 +290,7 @@ export interface AmendmentView {
   createdAt: string;
 }
 
-function AmendmentDecision({ a, parentAwardId }: { a: AmendmentView; parentAwardId: string }) {
+function AmendmentDecision({ a, parentAwardId, onDecided }: { a: AmendmentView; parentAwardId: string; onDecided: (f: Feedback) => void }) {
   const { run, pending, feedback, dialog } = useRunner({ reason: 'Approving an amendment changes committed funds, so we check your authenticator app first.', actionLabel: 'Approve' });
   return (
     <div className="grid gap-1">
@@ -301,14 +301,16 @@ function AmendmentDecision({ a, parentAwardId }: { a: AmendmentView; parentAward
           onClick={() =>
             run(
               () => approveAmendmentAction({ amendmentId: a.id, parentAwardId, approve: true }),
-              (d) => ({ variant: 'success', title: `Approved. The award total is now ${formatMoney(d.newTotalCents)}.`, detail: 'Update the payment schedule to include the new amount.' }),
+              (d) => {
+                onDecided({ variant: 'success', title: `${a.reference} approved. The award total is now ${formatMoney(d.newTotalCents)}.`, detail: 'Update the payment schedule to include the new amount.' });
+              },
               { stepUp: true },
             )
           }
         >
           Approve {a.kind}
         </Button>
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => approveAmendmentAction({ amendmentId: a.id, parentAwardId, approve: false }), () => ({ variant: 'info', title: 'Rejected.' }), { stepUp: true })}>
+        <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => approveAmendmentAction({ amendmentId: a.id, parentAwardId, approve: false }), () => onDecided({ variant: 'info', title: `${a.reference} rejected.` }), { stepUp: true })}>
           Reject
         </Button>
       </div>
@@ -394,6 +396,8 @@ function DraftAmendmentDialog({ awardId, endDate }: { awardId: string; endDate: 
 }
 
 export function AmendmentsPanel({ awardId, awardStatus, endDate, items, canManage }: { awardId: string; awardStatus: string; endDate: string | null; items: AmendmentView[]; canManage: boolean }) {
+  // Decisions unmount their row's buttons, so the result is announced at panel level.
+  const [decided, setDecided] = React.useState<Feedback>(null);
   return (
     <div className="grid gap-3 text-sm">
       {items.length ? (
@@ -408,7 +412,7 @@ export function AmendmentsPanel({ awardId, awardStatus, endDate, items, canManag
               </div>
               {a.endDate && a.endDate !== endDate ? <span className="text-xs text-muted-foreground">New end date {formatDateOnly(a.endDate)}</span> : null}
               {a.purpose ? <p className="text-muted-foreground">{a.purpose}</p> : null}
-              {a.status === 'draft' && canManage ? <AmendmentDecision a={a} parentAwardId={awardId} /> : null}
+              {a.status === 'draft' && canManage ? <AmendmentDecision a={a} parentAwardId={awardId} onDecided={setDecided} /> : null}
             </li>
           ))}
         </ul>
@@ -420,6 +424,7 @@ export function AmendmentsPanel({ awardId, awardStatus, endDate, items, canManag
           <DraftAmendmentDialog awardId={awardId} endDate={endDate} />
         </div>
       ) : null}
+      <FeedbackRegion feedback={decided} />
     </div>
   );
 }
