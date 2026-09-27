@@ -23,6 +23,7 @@ export function LikertMatrixRenderer(p: FieldRendererProps) {
   const rowHeaderId = (rowId: string) => `${p.domId}-row-${rowId}`;
   return (
     <FieldSet
+      className="min-w-0"
       id={p.domId}
       legend={p.meta.label}
       description={p.meta.help}

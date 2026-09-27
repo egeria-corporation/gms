@@ -31,11 +31,13 @@ export function sumHint(opts: {
 }): { tone: 'ok' | 'warn' | 'info'; text: string } {
   const fmt = (n: number) => (opts.isMoney ? formatMoney(n, opts.currency ?? 'USD', { compact: true }) : n.toLocaleString('en-US'));
   const noun = opts.noun || 'rows';
+  // “Label.” — but no extra period when the label already ends a sentence (“How much?”).
+  const quoted = /[.?!]$/.test(opts.targetLabel.trim()) ? `“${opts.targetLabel.trim()}”` : `“${opts.targetLabel.trim()}.”`;
   if (typeof opts.target !== 'number') {
-    return { tone: 'info', text: `Your ${noun} will need to add up to your answer to “${opts.targetLabel}.” Right now they add up to ${fmt(opts.total)}.` };
+    return { tone: 'info', text: `Right now your ${noun} add up to ${fmt(opts.total)}. They will need to match your answer to ${quoted}` };
   }
   const diff = opts.target - opts.total;
-  if (diff === 0) return { tone: 'ok', text: `Your ${noun} add up to ${fmt(opts.total)}, which matches “${opts.targetLabel}.”` };
+  if (diff === 0) return { tone: 'ok', text: `Your ${noun} add up to ${fmt(opts.total)}, which matches ${quoted}` };
   return {
     tone: 'warn',
     text: `Your ${noun} add up to ${fmt(opts.total)}. They need to add up to ${fmt(opts.target)} (“${opts.targetLabel}”) — ${fmt(Math.abs(diff))} ${diff > 0 ? 'to go' : 'too much'}.`,
@@ -116,6 +118,7 @@ export function RepeaterTableRenderer(p: FieldRendererProps) {
 
   return (
     <FieldSet
+      className="min-w-0"
       id={p.domId}
       legend={p.meta.label}
       description={p.meta.help}

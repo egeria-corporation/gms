@@ -28,7 +28,7 @@ export function SelectRenderer(p: FieldRendererProps) {
   const locked = p.disabled || p.readOnly;
   if (p.options.format === 'radio') {
     return (
-      <FieldSet {...fieldSetProps(p)}>
+      <FieldSet className="min-w-0" {...fieldSetProps(p)}>
         <RadioGroup
           value={value}
           onValueChange={(v) => p.onChange(v || undefined)}
@@ -93,7 +93,7 @@ export function CheckboxListRenderer(p: FieldRendererProps) {
   const size = p.ctx.density === 'applicant' ? 'lg' : 'default';
   const countId = `${p.domId}-count`;
   return (
-    <FieldSet {...fieldSetProps(p)}>
+    <FieldSet className="min-w-0" {...fieldSetProps(p)}>
       {max ? (
         <p id={countId} className={cn('text-sm text-muted-foreground', selected.length > max && 'font-medium text-status-danger-fg')} aria-live="polite">
           Choose up to {max}. {selected.length} chosen.
@@ -134,7 +134,7 @@ export function YesNoRenderer(p: FieldRendererProps) {
   const value = p.value === true ? 'yes' : p.value === false ? 'no' : '';
   const size = p.ctx.density === 'applicant' ? 'lg' : 'default';
   return (
-    <FieldSet {...fieldSetProps(p)}>
+    <FieldSet className="min-w-0" {...fieldSetProps(p)}>
       <RadioGroup
         value={value}
         onValueChange={(v) => p.onChange(v === 'yes' ? true : v === 'no' ? false : undefined)}

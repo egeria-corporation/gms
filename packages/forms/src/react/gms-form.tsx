@@ -202,7 +202,7 @@ export function GmsForm(props: GmsFormProps) {
       const top = fieldLevelError(fieldErrors, fieldId) ?? (PART_AWARE_TYPES.has(meta.type) ? undefined : fieldErrors[0]?.message);
       const options = ((el as { options?: Record<string, unknown> }).options ?? {}) as Record<string, unknown>;
       return (
-        <div key={key} data-field-id={fieldId} className="scroll-mt-24">
+        <div key={key} data-field-id={fieldId} className="min-w-0 scroll-mt-24">
           <Renderer
             fieldId={fieldId}
             meta={meta}
@@ -260,7 +260,7 @@ export function GmsForm(props: GmsFormProps) {
       {pageErrors.length > 0 ? (
         <ValidationSummary
           autoFocus={false}
-          errors={pageErrors.map((e) => ({ fieldId: domIdForPointer(e.pointer, idPrefix), message: `${labelOf(e.fieldId)}: ${e.message}` }))}
+          errors={pageErrors.map((e) => ({ fieldId: domIdForPointer(e.pointer, idPrefix), message: `${labelOf(e.fieldId)} — ${e.message}` }))}
         />
       ) : null}
       {otherPages.length > 0 ? (

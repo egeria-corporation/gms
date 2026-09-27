@@ -206,6 +206,12 @@ export function FormBuilder(props: FormBuilderProps) {
     setSelection({ kind: 'element', id });
     setAddPageId(null);
   };
+  /** Selecting from the canvas on a narrow screen opens the Settings pane (the panes are tabs there). */
+  const selectFromCanvas = (next: BuilderSelection) => {
+    setSelection(next);
+    setAddPageId(null);
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023.98px)').matches) setPane('settings');
+  };
   const jumpTo = (id: string) => {
     const m = modelRef.current;
     if (m.pages.some((p) => p.id === id)) setSelection({ kind: 'page', id });
@@ -571,13 +577,8 @@ export function FormBuilder(props: FormBuilderProps) {
                     readOnly={readOnly}
                     mappingConflictIds={conflictIds}
                     errorCounts={errorCounts}
-                    onSelect={(id) => {
-                      select(id);
-                    }}
-                    onSelectPage={(id) => {
-                      setSelection({ kind: 'page', id });
-                      setAddPageId(null);
-                    }}
+                    onSelect={(id) => selectFromCanvas({ kind: 'element', id })}
+                    onSelectPage={(id) => selectFromCanvas({ kind: 'page', id })}
                     onMoveBy={onMoveBy}
                     onMoveToPage={onMoveToPage}
                     onDuplicate={onDuplicate}

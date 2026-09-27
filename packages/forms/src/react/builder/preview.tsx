@@ -198,7 +198,7 @@ function TestResults({
             {result.errors.map((e) => (
               <li key={e.pointer}>
                 <button type="button" className="text-left underline underline-offset-2" onClick={() => onJump(e.pageId, e.pointer)}>
-                  {pageTitle(e.pageId)} → {labelOf(e.fieldId)}: {e.message}
+                  {pageTitle(e.pageId)} → {labelOf(e.fieldId)} — {e.message}
                 </button>
               </li>
             ))}

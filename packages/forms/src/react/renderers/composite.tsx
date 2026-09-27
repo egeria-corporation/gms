@@ -76,7 +76,7 @@ function compositeFieldSet(p: FieldRendererProps) {
 
 export function NameRenderer(p: FieldRendererProps) {
   return (
-    <FieldSet {...compositeFieldSet(p)}>
+    <FieldSet className="min-w-0" {...compositeFieldSet(p)}>
       <Parts
         p={p}
         className="sm:grid-cols-2"
@@ -91,7 +91,7 @@ export function NameRenderer(p: FieldRendererProps) {
 
 export function AddressRenderer(p: FieldRendererProps) {
   return (
-    <FieldSet {...compositeFieldSet(p)}>
+    <FieldSet className="min-w-0" {...compositeFieldSet(p)}>
       <Parts
         p={p}
         className="sm:grid-cols-6"
@@ -118,7 +118,7 @@ export function AttestationRenderer(p: FieldRendererProps) {
   const size = p.ctx.density === 'applicant' ? 'lg' : 'default';
   const locked = p.disabled || p.readOnly;
   return (
-    <FieldSet {...compositeFieldSet(p)} description={undefined}>
+    <FieldSet className="min-w-0" {...compositeFieldSet(p)} description={undefined}>
       {p.meta.help ? <p className="-mt-1 text-sm text-muted-foreground">{p.meta.help}</p> : null}
       <div id={statementId} className="rounded-md border bg-muted/40 p-4">
         <Markdown source={statement} className="text-foreground" />
