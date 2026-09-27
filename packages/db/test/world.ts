@@ -416,6 +416,26 @@ export async function buildWorld(db: Database): Promise<World> {
   await seed('dockets', 'docket3', { workspace_id: wsA, name: 'December board', status: 'draft', created_by: u('programOfficerA') });
   await seed('votes', 'vote1', { workspace_id: wsA, docket_item_id: id('item1'), voter_id: u('boardA'), vote: 'approve' }, true);
 
+  // --- grantmaking console (migration 1500) ---------------------------------------------------------------
+  await seed('applications', 'app2', {
+    workspace_id: wsA,
+    opportunity_id: id('opp1'),
+    competition_id: id('comp1'),
+    applicant_org_id: id('org1'),
+    applicant_user_id: u('applicant'),
+    reference_number: 'RLS-2026-0002',
+    title: 'Murals for the riverfront',
+    status: 'submitted',
+    submitted_at: sql`now() - interval '2 days'`,
+  });
+  await seed(
+    'application_duplicate_dismissals',
+    'dupDismiss1',
+    { workspace_id: wsA, application_id: id('app1'), other_application_id: id('app2'), reason: 'Different projects', dismissed_by: u('programOfficerA') },
+    true,
+  );
+  await seed('grantee_profiles', 'granteeProfile1', { workspace_id: wsA, applicant_org_id: id('org1'), tags: ['arts'], relationship_owner_id: u('programOfficerA') }, true);
+
   const awardBase = {
     workspace_id: wsA,
     program_id: id('program1'),
