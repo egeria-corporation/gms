@@ -6,6 +6,6 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc -p tsconfig.json" },
-  "dependencies": { "@gms/db": "workspace:*", "@gms/domain": "workspace:*", "@gms/actions": "workspace:*", "@gms/adapters": "workspace:*", "@gms/forms": "workspace:*" },
+  "dependencies": { "@gms/db": "workspace:*", "@gms/domain": "workspace:*", "@gms/actions": "workspace:*", "@gms/adapters": "workspace:*", "@gms/forms": "workspace:*", "kysely": "^0.29.6" },
   "devDependencies": {  }
 }
