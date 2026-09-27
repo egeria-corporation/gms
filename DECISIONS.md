@@ -36,3 +36,17 @@ Items marked **(needs owner confirmation)** are also listed in `REPORT.md`.
 - **2026-09-27 · Discovery documents are served by one route (`/agent-discovery`) via a proxy rewrite** (`/.well-known/*`, `/llms.txt`, `/llms-full.txt`, `/agents.md`, `/opportunities/{slug}.md`, and `Accept: text/markdown` on opportunity pages), instead of dot-folders in the app router. — Add app routes per path.
 - **2026-09-27 · Dependency audit.** `undici` is overridden to `^7.29.0` (pulled in by `@common-grants/core`'s TypeSpec/Scalar tooling). Accepted: `uuid` < 11.1.1 via `exceljs` — the advisory affects v3/v5/v6 with a caller-supplied buffer; exceljs only calls v4. — Remove the override once upstream updates; replace exceljs if it ever calls the affected APIs.
 - **2026-09-27 · `pnpm run upgrade` treats "RLS on, no policies" tables as service-only** (deny-all for request roles): outbox, OAuth protocol state, rate limits, idempotency keys, dev mail capture. — Add explicit `revoke` statements if you prefer privilege-level denial as well.
+- **2026-09-27 · Reviewers need TOTP (aal2)** because they see applicant PII; `/review` redirects to `/console/mfa`. Board members don't (their votes are people-only R3 actions on a docket). — Guard in `app/review/(app)/layout.tsx`.
+- **2026-09-27 · Blind review hides the organization on the COI gate too** (project title only). — `gms.reviewer_queue`.
+- **2026-09-27 · Grantee CRM data (`grantee_profiles`) is per workspace**, so one foundation's tags and notes never reach another. — Migration 1500.
+- **2026-09-27 · Panel view (R-04) polls every 5 s (paused when hidden)** instead of Supabase Realtime, so it works on every DB tier. — Swap to Realtime channels.
+- **2026-09-27 · Bulk decline previews the real `status_change` email** rendered on the server in a sandboxed iframe.
+- **2026-09-27 · Final decisions are always `is_final = true`**, including a final defer (visible to the applicant as a deferral). Recommendations stay `is_final = false`.
+- **2026-09-27 · Analytics views run with the view owner's rights** (not `security_invoker`) and filter with `gms.is_staff(workspace_id)`; request roles get nothing on the cross-workspace matviews. Demographics suppress cells under 5 plus a complementary cell. — docs/analytics.md.
+- **2026-09-27 · Invitations are accepted with an explicit "Join" button**, never on GET, so link scanners can't accept them.
+- **2026-09-27 · Outside production `/setup` renders read-only when a workspace exists** (for screenshots); the server action still refuses.
+- **2026-09-27 · Brand asset uploads reject SVG** (PNG/JPEG/WebP/ICO only), since SVG can carry script.
+- **2026-09-27 · Operators need aal2** to open the operator console (root-host `/mfa`), like staff.
+- **2026-09-27 · Mercury webhooks are stored by a system action** (`system.ingest_rail_webhook`) that verifies the signature and de-duplicates by provider + event id; processing runs after the 200 response. Route handlers never write tables.
+- **2026-09-27 · The dev Mercury webhook button posts to 127.0.0.1 with the dev-only `x-gms-tenant` header**, because `*.localhost` does not resolve from Node on every OS.
+- **2026-09-27 · Frame policy is `frame-ancestors 'self'` / `X-Frame-Options: SAMEORIGIN`** (not `'none'`) so GMS can show its own PDF previews in iframes; other sites still can't frame GMS. Embeds remain frameable anywhere.
