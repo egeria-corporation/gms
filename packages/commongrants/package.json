@@ -6,6 +6,6 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc -p tsconfig.json" },
-  "dependencies": { "@gms/domain": "workspace:*", "@gms/db": "workspace:*", "@common-grants/sdk": "^0.8.0", "@common-grants/core": "^0.4.0", "zod": "^4.6.5" },
+  "dependencies": { "@gms/domain": "workspace:*", "@gms/db": "workspace:*", "@common-grants/sdk": "^0.8.0", "@common-grants/core": "^0.4.0", "kysely": "^0.29.6", "zod": "^4.6.5" },
   "devDependencies": {  }
 }
