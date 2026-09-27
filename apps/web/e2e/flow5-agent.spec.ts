@@ -225,3 +225,77 @@ test('a staff agent proposes a payment batch as a draft but cannot approve it', 
     expect(still!.status).toBe('draft');
   }
 });
+
+test('an agent connects with OAuth: Maya reviews and narrows the permissions on the consent screen (O-01)', async ({ page }) => {
+  const REDIRECT = 'http://127.0.0.1:43110/callback';
+  // The agent's local callback server.
+  await page.route('http://127.0.0.1:43110/**', (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'You can close this window.' }));
+
+  await signIn(page, MAYA, '/portal');
+  const reg = await page.evaluate(async (redirect) => {
+    const r = await fetch('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Desk Research Agent', redirect_uris: [redirect], token_endpoint_auth_method: 'none' }) });
+    return { status: r.status, body: (await r.json()) as { client_id: string } };
+  }, REDIRECT);
+  expect(reg.status).toBe(201);
+
+  const verifier = randomUUID() + randomUUID();
+  const { createHash } = await import('node:crypto');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const origin = new URL(page.url()).origin;
+  const authorize = new URL('/oauth/authorize', origin);
+  for (const [k, v] of Object.entries({
+    response_type: 'code',
+    client_id: reg.body.client_id,
+    redirect_uri: REDIRECT,
+    scope: 'opportunities:read applications:read applications:write',
+    state: 'e2e-state',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    resource: `${origin}/mcp`,
+  }))
+    authorize.searchParams.set(k, v);
+  await page.goto(authorize.toString());
+
+  // O-01: who is asking, what it can do, where it goes back to.
+  await expect(page).toHaveURL(/\/oauth\/consent\?request=/);
+  await expect(page.getByRole('heading', { level: 1, name: /allow desk research agent/i })).toBeVisible();
+  await expect(page.getByText('127.0.0.1:43110')).toBeVisible();
+  await expectAccessible(page);
+  const boxes = page.locator('input[name="scope"]');
+  await expect(boxes).toHaveCount(3);
+  await page.locator('input[name="scope"][value="applications:write"]').uncheck();
+  await page.getByRole('button', { name: 'Allow', exact: true }).click();
+  await page.waitForURL(/127\.0\.0\.1:43110\/callback/);
+  const back = new URL(page.url());
+  expect(back.searchParams.get('state')).toBe('e2e-state');
+  const code = back.searchParams.get('code')!;
+  expect(code).toMatch(/^gms_ac_/);
+
+  await page.goto(`${origin}/portal`);
+  const tok = await page.evaluate(
+    async ({ code, clientId, redirect, verifier, resource }) => {
+      const r = await fetch('/oauth/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: clientId, redirect_uri: redirect, code_verifier: verifier, resource }).toString(),
+      });
+      return { status: r.status, body: (await r.json()) as { access_token?: string; scope?: string } };
+    },
+    { code, clientId: reg.body.client_id, redirect: REDIRECT, verifier, resource: `${origin}/mcp` },
+  );
+  expect(tok.status, JSON.stringify(tok.body)).toBe(200);
+  expect(tok.body.access_token).toMatch(/^gms_oat_/);
+  expect(tok.body.scope?.split(' ').sort()).toEqual(['applications:read', 'opportunities:read']);
+
+  // The narrowed grant: reads work, writes are not offered.
+  const names = await page.evaluate(async (token) => {
+    const r = await fetch('/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+    return ((await r.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+  }, tok.body.access_token!);
+  expect(names).toContain('get_status');
+  expect(names).not.toContain('save_answers');
+
+  // The connection shows up in Connected agents.
+  await page.goto('/portal/account/agents');
+  await expect(page.getByText('Desk Research Agent').first()).toBeVisible();
+});

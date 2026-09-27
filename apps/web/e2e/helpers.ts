@@ -43,6 +43,9 @@ export function firstLink(text: string, pattern: RegExp = /https?:\/\/\S+/): str
 /** Real magic-link sign-in: request a link in the UI, read it from the dev outbox, open it. */
 export async function signIn(page: Page, email: string, next = '/portal'): Promise<void> {
   const since = new Date(Date.now() - 1000);
+  // Test housekeeping: the suite signs the same seeded people in many times; reset their sign-in rate-limit
+  // windows (the limiter itself is exercised by its own test).
+  await query(`delete from public.rate_limit_buckets where key = $1 or key like 'signin:ip:%'`, [`signin:email:${email.toLowerCase()}`]);
   await page.goto(`/portal/sign-in?next=${encodeURIComponent(next)}`);
   if (!page.url().includes('/portal/sign-in')) return; // already signed in
   await page.getByLabel('Email address').fill(email);
