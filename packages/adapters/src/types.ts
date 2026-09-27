@@ -258,6 +258,8 @@ export interface CookieJar {
   get(name: string): string | undefined;
   set(name: string, value: string, opts: CookieOptions): void;
   delete(name: string): void;
+  /** All request cookies (used by Supabase SSR, which stores sessions in chunked cookies). */
+  getAll?(): { name: string; value: string }[];
 }
 
 export interface CookieOptions {
