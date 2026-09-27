@@ -14,6 +14,6 @@ export * as review from './review';
 export * as tenancy from './tenancy';
 export { resolveSegment } from './comms';
 export { validateApplication } from './applications';
-export { agreementProps } from './awards';
+export { agreementAttestation, agreementProps } from './awards';
 export { syncAccounts } from './payments';
 export { WEBHOOK_EVENTS } from './platform';
