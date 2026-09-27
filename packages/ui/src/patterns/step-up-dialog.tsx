@@ -59,8 +59,9 @@ export function StepUpDialog({
     try {
       const ok = await onVerify(value);
       if (ok) {
-        onOpenChange(false);
+        // Hand over before closing: callers treat a close while an action is waiting as “cancelled”.
         onVerified?.();
+        onOpenChange(false);
         return;
       }
       setError('That code didn’t work. Codes change every 30 seconds, so check your app and try the newest one.');
