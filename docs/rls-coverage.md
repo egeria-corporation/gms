@@ -5,10 +5,10 @@
 
 Every table in `public` and `gms_private`, whether row-level security is enabled, its policies, its guard triggers, and whether the RLS matrix test (`packages/db/test/rls-matrix.db.test.ts`, data in `packages/db/test/rls-expectations.ts`) covers it.
 
-- Relations: 109 (108 tables, 1 view(s))
-- RLS enabled: 108 / 108 tables
-- Policies: 362
-- Matrix coverage: 103 / 103 public relations; 5726 allow/deny assertions over 14 principals
+- Relations: 121 (111 tables, 10 view(s))
+- RLS enabled: 111 / 111 tables
+- Policies: 374
+- Matrix coverage: 115 / 115 public relations; 6020 allow/deny assertions over 14 principals
 
 Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `reviewerA2`, `boardA`, `auditorA`, `applicant`, `collaborator`, `otherApplicant`, `outsider`, `adminB`, `anon`.
 
@@ -27,15 +27,24 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.agent_policies` | table | on | 2 | 0 | yes |
 | `public.agent_tasks` | table | on | 1 | 1 | yes |
 | `public.agreements` | table | on | 6 | 2 | yes |
+| `public.analytics_budget_by_program` | view | n/a | 0 | 0 | yes |
+| `public.analytics_cashflow_forecast` | view | n/a | 0 | 0 | yes |
+| `public.analytics_demographics` | view | n/a | 0 | 0 | yes |
+| `public.analytics_outcomes` | view | n/a | 0 | 0 | yes |
+| `public.analytics_pipeline_funnel` | view | n/a | 0 | 0 | yes |
+| `public.analytics_portfolio_by_cause` | view | n/a | 0 | 0 | yes |
+| `public.analytics_portfolio_by_county` | view | n/a | 0 | 0 | yes |
+| `public.analytics_time_in_stage` | view | n/a | 0 | 0 | yes |
 | `public.api_keys` | table | on | 4 | 1 | yes |
 | `public.applicant_extensions` | table | on | 5 | 1 | yes |
 | `public.applicant_org_members` | table | on | 5 | 0 | yes |
 | `public.applicant_orgs` | table | on | 5 | 1 | yes |
 | `public.application_collaborators` | table | on | 4 | 2 | yes |
-| `public.application_comments` | table | on | 3 | 1 | yes |
+| `public.application_comments` | table | on | 3 | 2 | yes |
+| `public.application_duplicate_dismissals` | table | on | 4 | 1 | yes |
 | `public.application_submissions` | table | on | 2 | 2 | yes |
 | `public.applications` | table | on | 4 | 3 | yes |
-| `public.approval_requests` | table | on | 3 | 1 | yes |
+| `public.approval_requests` | table | on | 2 | 1 | yes |
 | `public.attachments` | table | on | 3 | 2 | yes |
 | `public.audit_log` | table | on | 1 | 1 | yes |
 | `public.award_conditions` | table | on | 5 | 1 | yes |
@@ -65,7 +74,8 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.form_responses` | table | on | 3 | 1 | yes |
 | `public.form_templates` | table | on | 2 | 0 | yes |
 | `public.form_versions` | table | on | 6 | 2 | yes |
-| `public.forms` | table | on | 5 | 1 | yes |
+| `public.forms` | table | on | 6 | 1 | yes |
+| `public.grantee_profiles` | table | on | 4 | 0 | yes |
 | `public.idempotency_keys` | table | on | 0 | 0 | yes |
 | `public.indicator_values` | table | on | 6 | 1 | yes |
 | `public.indicators` | table | on | 4 | 1 | yes |
@@ -79,6 +89,7 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.oauth_authorization_codes` | table | on | 0 | 1 | yes |
 | `public.oauth_pending_authorizations` | table | on | 0 | 1 | yes |
 | `public.opportunities` | table | on | 5 | 1 | yes |
+| `public.opportunity_subscriptions` | table | on | 3 | 1 | yes |
 | `public.org_addresses` | table | on | 3 | 0 | yes |
 | `public.org_documents` | table | on | 5 | 1 | yes |
 | `public.outbox` | table | on | 0 | 0 | yes |
@@ -96,6 +107,7 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.program_budgets` | table | on | 4 | 1 | yes |
 | `public.programs` | table | on | 4 | 0 | yes |
 | `public.public_awards` | view | n/a | 0 | 0 | yes |
+| `public.public_programs` | view | n/a | 0 | 0 | yes |
 | `public.question_bank_items` | table | on | 2 | 0 | yes |
 | `public.rail_events` | table | on | 1 | 0 | yes |
 | `public.rate_limit_buckets` | table | on | 0 | 0 | yes |
@@ -103,9 +115,9 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.report_requirements` | table | on | 5 | 1 | yes |
 | `public.report_submissions` | table | on | 7 | 1 | yes |
 | `public.review_assignments` | table | on | 6 | 2 | yes |
-| `public.review_scores` | table | on | 2 | 1 | yes |
+| `public.review_scores` | table | on | 2 | 2 | yes |
 | `public.review_stages` | table | on | 4 | 1 | yes |
-| `public.reviews` | table | on | 4 | 1 | yes |
+| `public.reviews` | table | on | 4 | 2 | yes |
 | `public.rubric_criteria` | table | on | 4 | 1 | yes |
 | `public.rubrics` | table | on | 4 | 0 | yes |
 | `public.sanctions_entries` | table | on | 1 | 0 | yes |
@@ -117,12 +129,12 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.support_access_grants` | table | on | 4 | 0 | yes |
 | `public.taxonomy_terms` | table | on | 5 | 1 | yes |
 | `public.threads` | table | on | 7 | 2 | yes |
-| `public.votes` | table | on | 3 | 1 | yes |
+| `public.votes` | table | on | 4 | 1 | yes |
 | `public.webhook_deliveries` | table | on | 1 | 1 | yes |
 | `public.webhook_endpoints` | table | on | 4 | 0 | yes |
 | `public.workspace_brand` | table | on | 3 | 0 | yes |
 | `public.workspace_domains` | table | on | 4 | 0 | yes |
-| `public.workspace_members` | table | on | 4 | 0 | yes |
+| `public.workspace_members` | table | on | 4 | 1 | yes |
 | `public.workspace_settings` | table | on | 2 | 0 | yes |
 | `public.workspaces` | table | on | 2 | 1 | yes |
 
@@ -239,6 +251,86 @@ Triggers: `agreements_guard`, `workspace_consistency`
 | update | ownerA, adminA, programOfficerA, applicant |
 | delete | ownerA, adminA, programOfficerA |
 
+### `public.analytics_budget_by_program`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_cashflow_forecast`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_demographics`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_outcomes`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_pipeline_funnel`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_portfolio_by_cause`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_portfolio_by_county`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
+### `public.analytics_time_in_stage`
+
+Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+
 ### `public.api_keys`
 
 | Policy | Command | Roles | Type |
@@ -340,7 +432,7 @@ Triggers: `application_collaborators_guard`, `workspace_consistency`
 | `app_comments_select` | SELECT | gms_authenticated | permissive |
 | `app_comments_update` | UPDATE | gms_authenticated | permissive |
 
-Triggers: `workspace_consistency`
+Triggers: `application_comments_guard`, `workspace_consistency`
 
 | Op | Allowed (everyone else denied) |
 |---|---|
@@ -348,6 +440,26 @@ Triggers: `workspace_consistency`
 | insert | applicant, collaborator |
 | update | applicant, collaborator |
 | delete | — |
+
+### `public.application_duplicate_dismissals`
+
+"Not a duplicate" decisions made on the pipeline.
+
+| Policy | Command | Roles | Type |
+|---|---|---|---|
+| `application_duplicate_dismissals_staff_delete` | DELETE | gms_authenticated | permissive |
+| `application_duplicate_dismissals_staff_insert` | INSERT | gms_authenticated | permissive |
+| `application_duplicate_dismissals_staff_select` | SELECT | gms_authenticated | permissive |
+| `application_duplicate_dismissals_staff_update` | UPDATE | gms_authenticated | permissive |
+
+Triggers: `workspace_consistency`
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+| insert | ownerA, adminA, programOfficerA |
+| update | ownerA, adminA, programOfficerA |
+| delete | ownerA, adminA, programOfficerA |
 
 ### `public.application_submissions`
 
@@ -389,13 +501,12 @@ Triggers: `applications_guard`, `applications_guard_extra`, `workspace_consisten
 
 ### `public.approval_requests`
 
-Anyone may file a request on their own behalf; decisions are recorded by the service.
+Anyone may file a request on their own behalf; decisions (confirm/reject/expire) are recorded by the service only.
 
 | Policy | Command | Roles | Type |
 |---|---|---|---|
 | `approvals_insert` | INSERT | gms_authenticated | permissive |
 | `approvals_select` | SELECT | gms_authenticated | permissive |
-| `approvals_update` | UPDATE | gms_authenticated | permissive |
 
 Triggers: `workspace_consistency`
 
@@ -403,7 +514,7 @@ Triggers: `workspace_consistency`
 |---|---|
 | select | applicant, ownerA, adminA, auditorA |
 | insert | ownerA, adminA, programOfficerA, financeA, reviewerA, reviewerA2, boardA, auditorA, applicant, collaborator, otherApplicant, outsider, adminB |
-| update | applicant |
+| update | — |
 | delete | — |
 
 ### `public.attachments`
@@ -926,6 +1037,7 @@ Attached to a public competition, so public. Deleting cascades into its publishe
 | Policy | Command | Roles | Type |
 |---|---|---|---|
 | `forms_public` | SELECT | gms_anon, gms_authenticated | permissive |
+| `forms_report_authenticated` | SELECT | gms_authenticated | permissive |
 | `forms_staff_delete` | DELETE | gms_authenticated | permissive |
 | `forms_staff_insert` | INSERT | gms_authenticated | permissive |
 | `forms_staff_select` | SELECT | gms_authenticated | permissive |
@@ -939,6 +1051,24 @@ Triggers: `workspace_consistency`
 | insert | ownerA, adminA, programOfficerA |
 | update | ownerA, adminA, programOfficerA |
 | delete | — |
+
+### `public.grantee_profiles`
+
+The workspace's own CRM data about an applicant organization (tags, relationship owner).
+
+| Policy | Command | Roles | Type |
+|---|---|---|---|
+| `grantee_profiles_staff_delete` | DELETE | gms_authenticated | permissive |
+| `grantee_profiles_staff_insert` | INSERT | gms_authenticated | permissive |
+| `grantee_profiles_staff_select` | SELECT | gms_authenticated | permissive |
+| `grantee_profiles_staff_update` | UPDATE | gms_authenticated | permissive |
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, financeA, auditorA |
+| insert | ownerA, adminA, programOfficerA |
+| update | ownerA, adminA, programOfficerA |
+| delete | ownerA, adminA, programOfficerA |
 
 ### `public.idempotency_keys`
 
@@ -1159,6 +1289,25 @@ Triggers: `workspace_consistency`
 | insert | ownerA, adminA, programOfficerA |
 | update | ownerA, adminA, programOfficerA |
 | delete | ownerA, adminA, programOfficerA |
+
+### `public.opportunity_subscriptions`
+
+People subscribe themselves to a public forecasted opportunity; staff can see subscriber counts.
+
+| Policy | Command | Roles | Type |
+|---|---|---|---|
+| `opp_subs_delete` | DELETE | gms_authenticated | permissive |
+| `opp_subs_insert` | INSERT | gms_authenticated | permissive |
+| `opp_subs_self` | SELECT | gms_authenticated | permissive |
+
+Triggers: `workspace_consistency`
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA, programOfficerA, auditorA, applicant |
+| insert | ownerA, adminA, programOfficerA, financeA, reviewerA, reviewerA2, boardA, auditorA, applicant, collaborator, otherApplicant, outsider, adminB |
+| update | — |
+| delete | applicant |
 
 ### `public.org_addresses`
 
@@ -1454,6 +1603,16 @@ View (runs with its owner's privileges; grants decide who can read it).
 |---|---|
 | select | everyone |
 
+### `public.public_programs`
+
+Names of active programs that have a published opportunity (public site, CommonGrants customFields).
+
+View (runs with its owner's privileges; grants decide who can read it).
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | everyone |
+
 ### `public.question_bank_items`
 
 | Policy | Command | Roles | Type |
@@ -1579,7 +1738,7 @@ Triggers: `review_assignments_guard`, `workspace_consistency`
 | `review_scores_staff_select` | SELECT | gms_authenticated | permissive |
 | `scores_reviewer_all` | ALL | gms_authenticated | permissive |
 
-Triggers: `workspace_consistency`
+Triggers: `review_scores_submitted_guard`, `workspace_consistency`
 
 | Op | Allowed (everyone else denied) |
 |---|---|
@@ -1615,7 +1774,7 @@ Triggers: `workspace_consistency`
 | `reviews_reviewer_update` | UPDATE | gms_authenticated | permissive |
 | `reviews_staff_select` | SELECT | gms_authenticated | permissive |
 
-Triggers: `workspace_consistency`
+Triggers: `reviews_submitted_guard`, `workspace_consistency`
 
 | Op | Allowed (everyone else denied) |
 |---|---|
@@ -1819,10 +1978,13 @@ Triggers: `threads_guard`, `workspace_consistency`
 
 ### `public.votes`
 
+Board members vote (and may change their own vote) only while the docket is in session.
+
 | Policy | Command | Roles | Type |
 |---|---|---|---|
 | `votes_board_insert` | INSERT | gms_authenticated | permissive |
 | `votes_board_select` | SELECT | gms_authenticated | permissive |
+| `votes_board_update` | UPDATE | gms_authenticated | permissive |
 | `votes_staff_select` | SELECT | gms_authenticated | permissive |
 
 Triggers: `workspace_consistency`
@@ -1831,7 +1993,7 @@ Triggers: `workspace_consistency`
 |---|---|
 | select | ownerA, adminA, programOfficerA, auditorA, boardA |
 | insert | boardA |
-| update | — |
+| update | boardA |
 | delete | — |
 
 ### `public.webhook_deliveries`
@@ -1906,6 +2068,8 @@ Seeded row is reviewerA2's membership.
 | `members_admin_insert` | INSERT | gms_authenticated | permissive |
 | `members_admin_update` | UPDATE | gms_authenticated | permissive |
 | `members_select` | SELECT | gms_authenticated | permissive |
+
+Triggers: `workspace_members_owner_guard`
 
 | Op | Allowed (everyone else denied) |
 |---|---|

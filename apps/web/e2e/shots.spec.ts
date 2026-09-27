@@ -7,6 +7,7 @@
 // artifacts/screens.zip. A screen that fails to render is listed on the contact sheet rather than failing the run.
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, type Browser, type BrowserContext } from '@playwright/test';
 import { DEMO_USERS } from '@gms/fixtures';
 import { zipSync } from 'fflate';
@@ -14,7 +15,7 @@ import { CATALOG, SURFACE_LABELS, catalogUrl, isDynamicPath, type CatalogScreen,
 import { signIn, signInStaff } from './helpers';
 
 const PORT = Number(process.env.E2E_PORT ?? 3000);
-const OUT = join(__dirname, '..', '..', '..', 'artifacts', 'screens');
+const OUT = fileURLToPath(new URL('../../../artifacts/screens', import.meta.url));
 const TENANTS = ['halcyon', 'marigold'] as const;
 type Tenant = (typeof TENANTS)[number];
 interface Viewer {
