@@ -54,7 +54,7 @@ Sign-in links land in `/dev/mail`; staff TOTP secrets for the demo people are in
 | Outputs | H-01…H-05 | `/dev/preview/email/**`, `/dev/preview/pdf/**` | done | unit (PDF render) | |
 | Design system | DS-01…DS-06, `/dev/catalog` | `/dev/design-system`, `/dev/catalog` | done | catalog unit test | |
 
-Screenshots of every catalog route (both tenants for branded surfaces, light + dark console, 1440 px + 390 px for public/portal): `artifacts/screens/index.html` and `artifacts/screens.zip` (gitignored; regenerate with `pnpm shots`).
+Screenshots of every catalog route (590 of 591 captured; `/dev/catalog` times out waiting for network idle because it prefetches hundreds of links) (both tenants for branded surfaces, light + dark console, 1440 px + 390 px for public/portal): `artifacts/screens/index.html` and `artifacts/screens.zip` (gitignored; regenerate with `pnpm shots`).
 
 ## 4. CommonGrants conformance
 
@@ -154,12 +154,12 @@ Run on the final tree of `feat/v1` (embedded Postgres, fake adapters):
 |---|---|
 | `pnpm lint` | ✓ 0 problems (`--max-warnings=0`) |
 | `pnpm typecheck` | ✓ 14/14 packages |
-| `pnpm test` (unit) | ✓ 411 passed · 5 skipped (live Mercury sandbox / Supabase / Resend tests, no credentials) |
-| `pnpm test:db` | ✓ 301 passed (RLS matrix, invariants, migrations, seed, CommonGrants contract, agents) |
+| `pnpm test` (unit) | ✓ 413 passed · 5 skipped (live Mercury sandbox / Supabase / Resend tests, no credentials) |
+| `pnpm test:db` | ✓ 302 passed (RLS matrix, invariants, migrations, seed, CommonGrants contract, agents) |
 | `pnpm build` | ✓ |
 | `pnpm e2e` (Playwright + axe, `next start`) | ✓ 10 passed — flows 1–6 and the OAuth consent test; zero serious/critical axe violations on every checked page |
 | `pnpm evals` | ✓ 33 passed |
 
 E2E flows: 1 applicant (eligibility → EIN prefill → LOI → receipt → Submitted) · 2 staff (form builder → scheduled opportunity → public site + CommonGrants feed) · 3 review (COI gate → rubric scores → final decision → two-installment award → agreement signed) · 4 payments (payee onboarding via fake Mercury → Priya builds, can't approve → Marcus approves with step-up → Mercury approval → Sent → Reconciled → disbursed amount + remittance email) · 5 agent (PAT → MCP save/submit → approval_required → Maya confirms → audit "Grant Writer Assistant, acting for Maya Chen"; staff agent proposes a draft batch, approval refused) · 6 branding (S-01 color change → auto-corrected with a warning → public site updates).
 
-Bugs the E2E flows found and fixed along the way included: the step-up dialog never ran the action after a correct code; agreement generation always failed; fake Mercury onboarding links pointed at the wrong host; the payment-sent email failed on every send; agent submissions weren't validated before asking the person to confirm.
+Bugs the E2E flows found and fixed along the way included: the step-up dialog never ran the action after a correct code; agreement generation always failed; fake Mercury onboarding links pointed at the wrong host; the payment-sent email failed on every send; agent submissions weren't validated before asking the person to confirm. The final screenshot review also found that blind review leaked EINs, attestation signatures and attachment file names; blind stages now hide identifying answers automatically (migration 1700).
