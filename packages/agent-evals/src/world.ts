@@ -5,7 +5,6 @@
 import { randomUUID } from 'node:crypto';
 import { createRuntime, type ActionContext, type Runtime, type WorkspaceRef } from '@gms/actions';
 import type { AgentEnv } from '@gms/agents';
-import { sql } from '@gms/db';
 import { createTestDatabase, createUser, type TestDatabase, type TestUser } from '@gms/db/testing';
 import { APPLICANT_SCOPES, STAFF_SCOPES } from '@gms/domain';
 import { compileForm, YOUTH_ARTS_LOI } from '@gms/forms';
@@ -72,12 +71,6 @@ export async function buildAgentWorld(prefix = 'gms_agents'): Promise<AgentWorld
     .set({ ai_use: 'disclosure' })
     .where('workspace_id', '=', ws.id)
     .execute();
-  // KNOWN BUG (outside packages/agents, reported): applications.submit and agents.update_policy run
-  // `select * from agent_policies` under RLS, but migration 20260927001000 (§7) revoked column llm_key_ref from
-  // gms_authenticated, so EVERY submission — by a person or an agent — fails with "permission denied". The fix
-  // belongs in @gms/actions (select explicit columns). This grant exists only in the throwaway eval database so
-  // the agent path can be exercised end to end; it is never applied to a real schema.
-  await sql`grant select (llm_key_ref) on public.agent_policies to gms_authenticated`.execute(db);
 
   const now = Date.now();
   const iso = (ms: number) => new Date(now + ms).toISOString();

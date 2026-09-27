@@ -8,6 +8,7 @@ import { agentCard } from './a2a';
 import { authenticate, type AgentPrincipal } from './auth';
 import { agentsMd, llmsFullTxt, llmsTxt, opportunityMarkdown } from './discovery';
 import { errorResponse, json, text, trimOrigin, type AgentEnv, type ResourceKind } from './env';
+export { errorResponse, HttpError } from './env';
 import { authorizationServerMetadata, protectedResourceMetadata } from './oauth';
 
 export type { AgentEnv, ResourceKind, ClientMetadataFetcher } from './env';

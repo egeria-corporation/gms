@@ -25,6 +25,16 @@ function buildCsp(nonce: string, pathname: string): string {
   ].join('; ');
 }
 
+/** Paths answered by @gms/agents' discovery dispatcher (see app/agent-discovery). */
+function isDiscoveryPath(pathname: string, accept: string | null): boolean {
+  if (/^\/\.well-known\/(?:oauth-protected-resource(?:\/.*)?|oauth-authorization-server|agent-card\.json|agent\.json)$/.test(pathname)) return true;
+  if (pathname === '/llms.txt' || pathname === '/llms-full.txt' || pathname === '/agents.md') return true;
+  if (/^\/opportunities\/[a-z0-9-]{1,80}\.md$/.test(pathname)) return true;
+  // Content negotiation: an opportunity page requested as markdown.
+  const a = (accept ?? '').toLowerCase();
+  return /^\/opportunities\/[a-z0-9-]{1,80}$/.test(pathname) && a.includes('text/markdown') && !a.includes('text/html');
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const override = gms.devToolsEnabled
@@ -52,7 +62,13 @@ export function proxy(request: NextRequest) {
   }
   const rootPath = res.kind === 'root' || (gms.mode === 'single' && pathname.startsWith('/setup'));
   const passThrough = /^\/(?:_next|api\/storage|auth|fonts|brand)(?:\/|$)/.test(pathname) || pathname.includes('.');
-  if (rootPath && !passThrough) {
+  if (!rootPath && isDiscoveryPath(pathname, request.headers.get('accept'))) {
+    // Agent discovery documents are served by one route handler; it rebuilds the public URL from x-gms-pathname.
+    const url = request.nextUrl.clone();
+    url.pathname = '/agent-discovery';
+    response = NextResponse.rewrite(url, { request: { headers } });
+    response.headers.set('Vary', 'Accept');
+  } else if (rootPath && !passThrough) {
     const url = request.nextUrl.clone();
     url.pathname = `/gms-root${pathname === '/' ? '' : pathname}`;
     response = NextResponse.rewrite(url, { request: { headers } });
