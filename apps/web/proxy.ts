@@ -51,7 +51,7 @@ export function proxy(request: NextRequest) {
     return new NextResponse('Not found', { status: 404 });
   }
   const rootPath = res.kind === 'root' || (gms.mode === 'single' && pathname.startsWith('/setup'));
-  const passThrough = /^\/(_next|api\/storage|auth|fonts|brand)/.test(pathname) || pathname.includes('.');
+  const passThrough = /^\/(?:_next|api\/storage|auth|fonts|brand)(?:\/|$)/.test(pathname) || pathname.includes('.');
   if (rootPath && !passThrough) {
     const url = request.nextUrl.clone();
     url.pathname = `/gms-root${pathname === '/' ? '' : pathname}`;

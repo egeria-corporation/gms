@@ -3,7 +3,6 @@
 import { NextLink } from '@/components/next-link';
 import { PageHeader } from '@gms/ui';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EligibilityCheck, type RuleView } from '@/components/public/eligibility-check';
 import { eligibilityRules, getOpportunity } from '@/lib/public-data';
