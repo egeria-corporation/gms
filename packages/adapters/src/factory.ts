@@ -101,7 +101,7 @@ export async function paymentRailFor(
   workspaceId: string,
   db: Database,
   secrets: SecretStore,
-  opts: { fetch?: FetchLike; env?: NodeJS.ProcessEnv; railDb?: Database } = {},
+  opts: { fetch?: FetchLike; env?: NodeJS.ProcessEnv; railDb?: Database; onboardingBaseUrl?: string } = {},
 ): Promise<PaymentRail | null> {
   const conn = await db
     .selectFrom('bank_connections')
@@ -116,7 +116,8 @@ export async function paymentRailFor(
   if (conn.provider !== 'mercury') throw new RailConfigurationError(`unknown payment provider: ${conn.provider}`);
   // The fake bank keeps its own state (gms_private) with its own transactions, so it needs a service
   // connection, not the caller's (possibly RLS-scoped) transaction.
-  if (conn.environment === 'fake') return new FakeMercury({ workspaceId, db: opts.railDb ?? db });
+  // Its hosted-onboarding stand-in is a dev page on the tenant's own host, so invite links must use the tenant origin.
+  if (conn.environment === 'fake') return new FakeMercury({ workspaceId, db: opts.railDb ?? db, onboardingBaseUrl: opts.onboardingBaseUrl });
   if (conn.environment !== 'sandbox' && conn.environment !== 'production') {
     throw new RailConfigurationError(`unknown Mercury environment: ${conn.environment}`);
   }
