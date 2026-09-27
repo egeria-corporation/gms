@@ -2,7 +2,7 @@
 // Process-wide runtime: adapters + executor, shared by the web app, the worker, scripts and tests.
 import { createAdapters, paymentRailFor, type AdapterSet } from '@gms/adapters';
 import { getDb, type Database } from '@gms/db';
-import { SYSTEM_ACTOR } from '@gms/domain';
+import { DomainError, SYSTEM_ACTOR } from '@gms/domain';
 import { randomUUID } from 'node:crypto';
 import type { ActionContext, WorkspaceRef } from './define';
 import type { ActionDeps } from './deps';
@@ -51,7 +51,11 @@ export function createRuntime(opts: { db?: Database; clock?: () => Date } = {}):
     llm: adapters.llm,
     diligence: adapters.diligence,
     auth: adapters.auth,
-    paymentRail: (workspaceId, trx) => paymentRailFor(workspaceId, trx, adapters.secrets),
+    paymentRail: async (workspaceId, trx) => {
+      const rail = await paymentRailFor(workspaceId, trx, adapters.secrets);
+      if (!rail) throw new DomainError('precondition_failed', 'Connect the bank (or choose the manual rail) first.');
+      return rail;
+    },
     origin: originFor,
     clock: opts.clock ?? (() => new Date()),
   };
