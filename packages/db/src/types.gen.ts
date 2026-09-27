@@ -174,6 +174,17 @@ export interface ApplicationComments {
   last_modified_at: Generated<Timestamp>;
 }
 
+export interface ApplicationDuplicateDismissals {
+  id: Generated<string>;
+  workspace_id: string;
+  application_id: string;
+  other_application_id: string;
+  reason: string | null;
+  dismissed_by: string | null;
+  created_at: Generated<Timestamp>;
+  last_modified_at: Generated<Timestamp>;
+}
+
 export interface ApplicationSubmissions {
   id: Generated<string>;
   workspace_id: string;
@@ -692,6 +703,17 @@ export interface Forms {
   status: Generated<string>;
   current_version_id: string | null;
   created_by: string | null;
+  created_at: Generated<Timestamp>;
+  last_modified_at: Generated<Timestamp>;
+}
+
+export interface GranteeProfiles {
+  id: Generated<string>;
+  workspace_id: string;
+  applicant_org_id: string;
+  tags: Generated<string[]>;
+  relationship_owner_id: string | null;
+  summary: string | null;
   created_at: Generated<Timestamp>;
   last_modified_at: Generated<Timestamp>;
 }
@@ -1550,6 +1572,7 @@ export interface DB {
   applicant_orgs: ApplicantOrgs;
   application_collaborators: ApplicationCollaborators;
   application_comments: ApplicationComments;
+  application_duplicate_dismissals: ApplicationDuplicateDismissals;
   application_submissions: ApplicationSubmissions;
   applications: Applications;
   approval_requests: ApprovalRequests;
@@ -1583,6 +1606,7 @@ export interface DB {
   form_templates: FormTemplates;
   form_versions: FormVersions;
   forms: Forms;
+  grantee_profiles: GranteeProfiles;
   idempotency_keys: IdempotencyKeys;
   indicator_values: IndicatorValues;
   indicators: Indicators;
