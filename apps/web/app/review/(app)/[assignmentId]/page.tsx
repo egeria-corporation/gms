@@ -245,7 +245,7 @@ export default async function ReviewApplicationPage({ params, searchParams }: { 
       <div className="grid gap-8">
         {blind ? (
           <Alert variant="info" icon={<EyeOff />} title="Blind review">
-            The applicant’s name, organization and any answers marked as identifying are hidden. Score only what you can see, and don’t try to identify the applicant.
+            Names, contact details, tax IDs, signatures and attachment file names are hidden. The applicant’s own answers may still mention who they are: score only what you can see, and don’t try to identify the applicant.
           </Alert>
         ) : null}
         {submitted ? (
