@@ -50,7 +50,7 @@ async function authorizeAndConsent(
   expect(pending?.scopes.map((s) => s.scope)).toEqual(scope.split(' '));
   const done = await completeAuthorization(env, {
     requestId,
-    userId: w.maya.id,
+    person: w.humanCtx(w.maya),
     approvedScopes: scope.split(' '),
   });
   const back = new URL(done.redirectUrl);

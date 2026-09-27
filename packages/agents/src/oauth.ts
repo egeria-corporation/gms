@@ -9,12 +9,12 @@
 //
 // The OAuth tables (oauth_pending_authorizations, oauth_authorization_codes) are service-only by design (RLS on,
 // no policies): the token endpoint is unauthenticated, so the AS writes them with the service connection. The
-// person's consent itself is the `oauth.grant_consent` action; completeAuthorization() only records a grant when
-// that action has not (see agents.md, "known gaps").
+// person's consent itself is recorded by the `oauth.grant_consent` action, which completeAuthorization() runs as
+// the person (under RLS) before issuing the code.
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Database } from '@gms/db';
 import { ALL_SCOPES, parseScopes, SCOPES, STAFF_ROLES, type Scope } from '@gms/domain';
-import { loadRoles } from '@gms/actions';
+import { loadRoles, type ActionContext } from '@gms/actions';
 import { REFRESH_AUDIENCE, consumeRateLimit, supabaseUrlFor } from './auth';
 import {
   CimdError,
@@ -347,22 +347,27 @@ export async function getPendingAuthorization(
 }
 
 /**
- * Called by the app after the person approved on the consent screen (and `oauth.grant_consent` ran). Issues a
- * one-time authorization code bound to the client, redirect URI, PKCE challenge, scopes and resource, and returns
- * the redirect URL (`code`, `state`, `iss`).
+ * Called by the app after the person approved on the consent screen. Records the consent by running the
+ * `oauth.grant_consent` action as that person (`person` is their ActionContext for this request), then issues a
+ * one-time authorization code bound to the client, redirect URI, PKCE challenge, the consented scopes and
+ * resource, and returns the redirect URL (`code`, `state`, `iss`).
  */
 export async function completeAuthorization(
   env: AgentEnv,
-  input: { requestId: string; userId: string; approvedScopes: readonly string[] },
+  input: { requestId: string; person: ActionContext; approvedScopes: readonly string[] },
 ): Promise<{ redirectUrl: string }> {
   const db = env.runtime.db;
   const at = now(env);
+  const { person } = input;
+  const userId = person.actor.type === 'human' ? person.actor.id : null;
+  if (!userId || person.claims.sub !== userId)
+    throw new HttpError(401, 'unauthenticated', 'Unauthenticated', 'Sign in to approve this agent.');
   const p = await db
     .selectFrom('oauth_pending_authorizations')
     .selectAll()
     .where('id', '=', input.requestId)
     .executeTakeFirst();
-  if (!p || p.workspace_id !== env.workspace.id)
+  if (!p || p.workspace_id !== env.workspace.id || person.workspace?.id !== env.workspace.id)
     throw new HttpError(404, 'not_found', 'Not found', 'This authorization request was not found.');
   if (new Date(p.expires_at) <= at) {
     await db.deleteFrom('oauth_pending_authorizations').where('id', '=', p.id).execute();
@@ -373,62 +378,20 @@ export async function completeAuthorization(
       'This authorization request expired. Start again from the agent.',
     );
   }
-  const roles = await loadRoles(db, env.workspace.id, input.userId);
+  const roles = await loadRoles(db, env.workspace.id, userId);
   const isStaff = roles.some((r) => STAFF_ROLES.includes(r));
   // Approved ⊆ requested; staff scopes only for staff. Scopes outside the registry are dropped by parseScopes.
-  let scopes = parseScopes(input.approvedScopes).filter(
+  let scopes: Scope[] = parseScopes(input.approvedScopes).filter(
     (s) => p.scopes.includes(s) && (isStaff || SCOPES[s].audience !== 'staff'),
   );
-  const grant = await db
-    .selectFrom('agent_grants')
-    .selectAll()
-    .where('client_id', '=', p.client_id)
-    .where('user_id', '=', input.userId)
-    .where('status', '=', 'active')
-    .orderBy('created_at', 'desc')
-    .executeTakeFirst();
-  if (grant && (!grant.expires_at || new Date(grant.expires_at) > at)) {
-    scopes = scopes.filter((s) => grant.scopes.includes(s));
-  } else if (scopes.length) {
-    // `oauth.grant_consent` cannot see DCR/CIMD clients under RLS (agent_clients_select), so the consent grant is
-    // recorded here — with the same audit entry the action would write — when the app has not created one.
-    const person = await db
-      .selectFrom('profiles')
-      .select(['full_name', 'email'])
-      .where('id', '=', input.userId)
-      .executeTakeFirst();
-    const client = await db
-      .selectFrom('agent_clients')
-      .select('name')
-      .where('id', '=', p.client_id)
-      .executeTakeFirst();
-    await db.transaction().execute(async (trx) => {
-      const g = await trx
-        .insertInto('agent_grants')
-        .values({
-          client_id: p.client_id,
-          user_id: input.userId,
-          workspace_id: env.workspace.id,
-          scopes,
-          status: 'active',
-          expires_at: new Date(at.getTime() + GRANT_TTL_DAYS * 86400_000).toISOString(),
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow();
-      await sql`select gms_private.append_audit(${JSON.stringify({
-        workspace_id: env.workspace.id,
-        actor_type: 'human',
-        actor_id: input.userId,
-        actor_name: person?.full_name ?? person?.email ?? null,
-        action: 'oauth.grant_consent',
-        entity_type: 'agent_grant',
-        entity_id: g.id,
-        after: { client: client?.name ?? null, scopes, days: GRANT_TTL_DAYS, via: 'oauth_authorize' },
-        risk_tier: 'R3',
-        ip: env.ip ?? null,
-        request_id: env.requestId,
-      })}::jsonb)`.execute(trx);
-    });
+  if (scopes.length) {
+    const r = await env.runtime.executor.execute<{ grantId: string; scopes: string[] }>(
+      'oauth.grant_consent',
+      { clientId: p.client_id, scopes, durationDays: GRANT_TTL_DAYS },
+      { ...person, roles },
+    );
+    if (r.status !== 'ok') throw new Error('oauth.grant_consent unexpectedly required an approval.');
+    scopes = parseScopes(r.output.scopes);
   }
   await db.deleteFrom('oauth_pending_authorizations').where('id', '=', p.id).execute();
   if (!scopes.length) {
@@ -447,7 +410,7 @@ export async function completeAuthorization(
     .values({
       code_hash: code.hash,
       client_id: p.client_id,
-      user_id: input.userId,
+      user_id: userId,
       workspace_id: env.workspace.id,
       redirect_uri: p.redirect_uri,
       scopes,
