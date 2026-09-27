@@ -390,17 +390,45 @@ export async function completeAuthorization(
   if (grant && (!grant.expires_at || new Date(grant.expires_at) > at)) {
     scopes = scopes.filter((s) => grant.scopes.includes(s));
   } else if (scopes.length) {
-    await db
-      .insertInto('agent_grants')
-      .values({
-        client_id: p.client_id,
-        user_id: input.userId,
+    // `oauth.grant_consent` cannot see DCR/CIMD clients under RLS (agent_clients_select), so the consent grant is
+    // recorded here — with the same audit entry the action would write — when the app has not created one.
+    const person = await db
+      .selectFrom('profiles')
+      .select(['full_name', 'email'])
+      .where('id', '=', input.userId)
+      .executeTakeFirst();
+    const client = await db
+      .selectFrom('agent_clients')
+      .select('name')
+      .where('id', '=', p.client_id)
+      .executeTakeFirst();
+    await db.transaction().execute(async (trx) => {
+      const g = await trx
+        .insertInto('agent_grants')
+        .values({
+          client_id: p.client_id,
+          user_id: input.userId,
+          workspace_id: env.workspace.id,
+          scopes,
+          status: 'active',
+          expires_at: new Date(at.getTime() + GRANT_TTL_DAYS * 86400_000).toISOString(),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await sql`select gms_private.append_audit(${JSON.stringify({
         workspace_id: env.workspace.id,
-        scopes,
-        status: 'active',
-        expires_at: new Date(at.getTime() + GRANT_TTL_DAYS * 86400_000).toISOString(),
-      })
-      .execute();
+        actor_type: 'human',
+        actor_id: input.userId,
+        actor_name: person?.full_name ?? person?.email ?? null,
+        action: 'oauth.grant_consent',
+        entity_type: 'agent_grant',
+        entity_id: g.id,
+        after: { client: client?.name ?? null, scopes, days: GRANT_TTL_DAYS, via: 'oauth_authorize' },
+        risk_tier: 'R3',
+        ip: env.ip ?? null,
+        request_id: env.requestId,
+      })}::jsonb)`.execute(trx);
+    });
   }
   await db.deleteFrom('oauth_pending_authorizations').where('id', '=', p.id).execute();
   if (!scopes.length) {

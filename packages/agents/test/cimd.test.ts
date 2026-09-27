@@ -7,7 +7,7 @@ import {
   redirectUriMatches,
   validateClientIdUrl,
 } from '../src/cimd';
-import { opportunityMarkdown } from '../src';
+import { opportunityMarkdown, prefersMarkdown } from '../src';
 import { passagesFor, rankPassages } from '../src/retrieval';
 
 describe('SSRF guard', () => {
@@ -132,6 +132,16 @@ describe('retrieval', () => {
     const late = rankPassages(passagesFor(OPP), 'are late applications accepted', 1);
     expect(late[0]!.passage.heading).toBe('Deadline');
     expect(rankPassages(passagesFor(OPP), 'zzz qqq', 3)).toEqual([]);
+  });
+});
+
+describe('Accept: text/markdown negotiation', () => {
+  const req = (accept: string) => new Request('http://x.example/opportunities/a', { headers: { accept } });
+  it('prefers markdown only when asked for at least as strongly as HTML', () => {
+    expect(prefersMarkdown(req('text/markdown'))).toBe(true);
+    expect(prefersMarkdown(req('text/markdown, text/html;q=0.5'))).toBe(true);
+    expect(prefersMarkdown(req('text/html, text/markdown;q=0.5'))).toBe(false);
+    expect(prefersMarkdown(req('text/html,application/xhtml+xml'))).toBe(false);
   });
 });
 

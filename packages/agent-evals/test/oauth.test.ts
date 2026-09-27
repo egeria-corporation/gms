@@ -138,6 +138,15 @@ describe('OAuth fallback authorization server', () => {
     expect(access.startsWith('gms_oat_')).toBe(true);
     expect(tok.body!.token_type).toBe('Bearer');
 
+    const consent = await w.t.db
+      .selectFrom('audit_log')
+      .select(['actor_type', 'actor_id', 'action'])
+      .where('action', '=', 'oauth.grant_consent')
+      .where('actor_id', '=', w.maya.id)
+      .execute();
+    expect(consent.length).toBeGreaterThan(0);
+    expect(consent[0]!.actor_type).toBe('human');
+
     const tools = await mcpRequest<{ tools: { name: string }[] }>(w.env(), 'tools/list', {}, access);
     expect(tools.status).toBe(200);
     const names = tools.body!.result!.tools.map((t) => t.name);

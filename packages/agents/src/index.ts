@@ -77,6 +77,19 @@ export {
 const CORS = { 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=300' };
 const MARKDOWN = 'text/markdown; charset=utf-8';
 
+/** True when the client asked for markdown (`Accept: text/markdown` preferred over HTML) — serve opportunityMarkdownBySlug. */
+export function prefersMarkdown(req: Request): boolean {
+  const accept = (req.headers.get('accept') ?? '').toLowerCase();
+  if (!accept.includes('text/markdown')) return false;
+  const q = (type: string) => {
+    const part = accept.split(',').find((p) => p.trim().startsWith(type));
+    if (!part) return -1;
+    const m = /;\s*q=([0-9.]+)/.exec(part);
+    return m ? Number(m[1]) : 1;
+  };
+  return q('text/markdown') >= q('text/html');
+}
+
 /** Markdown for one published opportunity by slug (null when not public). For /opportunities/{slug}.md. */
 export async function opportunityMarkdownBySlug(env: AgentEnv, slug: string): Promise<string | null> {
   const found = await withRls(
