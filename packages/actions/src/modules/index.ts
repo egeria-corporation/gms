@@ -3,6 +3,7 @@
 export * as applications from './applications';
 export * as awards from './awards';
 export * as comms from './comms';
+export * as financeExtra from './finance-extra';
 export * as forms from './forms';
 export * as messages from './messages';
 export * as opportunities from './opportunities';
