@@ -382,6 +382,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../forms
+      kysely:
+        specifier: ^0.29.6
+        version: 0.29.6
 
   packages/forms:
     dependencies:
