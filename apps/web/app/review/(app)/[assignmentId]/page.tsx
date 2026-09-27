@@ -115,8 +115,9 @@ export default async function ReviewApplicationPage({ params, searchParams }: { 
     const scores = review ? await trx.selectFrom('review_scores').select(['criterion_id', 'score', 'comment']).where('review_id', '=', review.id).execute() : [];
     const sub = submission.rows[0] ?? null;
     const formIds = sub && isObj(sub.responses) ? Object.keys(sub.responses).filter(isUuid) : [];
-    // The submission's exact form versions aren't exposed to reviewers; use the published (else latest)
-    // version of each form in the snapshot.
+    // The exact form version each answer set was written against (gms.reviewer_form_versions); fall back
+    // to the published (else latest) version of each form in the snapshot.
+    const pinned = formIds.length ? (await sql<{ form_id: string; form_version_id: string }>`select * from gms.reviewer_form_versions(${row.application_id}::uuid)`.execute(trx)).rows : [];
     const versions = formIds.length
       ? await trx
           .selectFrom('form_versions')
@@ -126,7 +127,7 @@ export default async function ReviewApplicationPage({ params, searchParams }: { 
           .orderBy('version', 'desc')
           .execute()
       : [];
-    return { criteria, review, sub, notes, panels, scores, versions, formIds };
+    return { criteria, review, sub, notes, panels, scores, versions, formIds, pinned };
   }).catch((err: unknown) => {
     console.error('[review] D-03 load failed', err);
     return null;
@@ -149,7 +150,8 @@ export default async function ReviewApplicationPage({ params, searchParams }: { 
   const forms = data.formIds
     .map((formId) => {
       const candidates = data.versions.filter((v) => v.form_id === formId);
-      const v = candidates.find((x) => x.status === 'published') ?? candidates[0];
+      const pinnedId = data.pinned.find((p) => p.form_id === formId)?.form_version_id;
+      const v = candidates.find((x) => x.id === pinnedId) ?? candidates.find((x) => x.status === 'published') ?? candidates[0];
       const compiled = v ? compiledFromModel(v.id, v.builder_model) : null;
       const answers = data.sub && isObj(data.sub.responses) && isObj(data.sub.responses[formId]) ? (data.sub.responses[formId] as Record<string, unknown>) : {};
       return compiled ? { formId, compiled, answers } : null;

@@ -159,3 +159,22 @@ language sql stable security definer set search_path = '' as $$
   order by di.position, a.reference_number
 $$;
 grant execute on function gms.board_docket_items(uuid) to gms_authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- The exact form versions of the latest submission, for a cleared reviewer (gms.reviewer_submission
+-- returns the answers; this says which form version each answer set was written against).
+-- ---------------------------------------------------------------------------------------------
+create or replace function gms.reviewer_form_versions(app uuid)
+returns table (form_id uuid, form_version_id uuid)
+language sql stable security definer set search_path = '' as $$
+  with s as (
+    select sub.form_versions from public.application_submissions sub
+    where sub.application_id = app
+    order by sub.submitted_at desc limit 1
+  )
+  select (fv ->> 'formId')::uuid, (fv ->> 'formVersionId')::uuid
+  from s, jsonb_array_elements(s.form_versions) fv
+  where (gms.is_cleared_reviewer_for(app) or gms.can_view_application_content(app))
+    and fv ? 'formId' and fv ? 'formVersionId'
+$$;
+grant execute on function gms.reviewer_form_versions(uuid) to gms_authenticated;
