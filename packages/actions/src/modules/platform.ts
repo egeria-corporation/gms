@@ -3,7 +3,7 @@
 // setup wizard (first workspace), operator console (tenants, time-boxed support access, flags).
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { sql } from '@gms/db';
-import { ALL_SCOPES, DomainError, parseScopes, SCOPES, slugify, type Scope } from '@gms/domain';
+import { ALL_SCOPES, DomainError, parseScopes, SCOPES, slugify, STAFF_ROLES, type Scope } from '@gms/domain';
 import { z } from 'zod';
 import { defineAction } from '../define';
 import { Email, found, Hex, IdOut, json, Ok, Slug, uid, uuid, ws } from './lib';
@@ -350,7 +350,7 @@ export const grantConsent = defineAction({
   title: 'Allow an agent to act for you',
   description: 'Records a person’s consent for an OAuth client with the (possibly narrowed) scopes and duration they chose. People only (R3).',
   input: z.object({ clientId: uuid, scopes: ScopeList, durationDays: z.number().int().min(1).max(365).default(90) }),
-  output: z.object({ grantId: z.string().uuid() }),
+  output: z.object({ grantId: z.string().uuid(), scopes: z.array(z.string()) }),
   scopes: [],
   roles: ['authenticated'],
   riskTier: 'R3',
@@ -358,9 +358,18 @@ export const grantConsent = defineAction({
   requiresWorkspace: false,
   async run(input, ctx) {
     const me = uid(ctx);
-    const client = found(await ctx.db.selectFrom('agent_clients').select(['id', 'scopes', 'status', 'name']).where('id', '=', input.clientId).executeTakeFirst(), 'agent');
+    // agent_clients_select hides DCR/CIMD clients from a person who has not connected them yet; this function
+    // returns only the non-secret columns, for OAuth clients of this tenant (or workspace-less CIMD clients).
+    const { rows } = await sql<{ id: string; name: string; scopes: string[]; status: string }>`
+      select id, name, scopes, status from gms.oauth_client_public(${input.clientId}::uuid, ${ctx.workspace?.id ?? null}::uuid)`.execute(ctx.db);
+    const client = found(rows[0], 'agent');
     if (client.status !== 'active') throw new DomainError('forbidden', 'This agent has been paused or revoked.');
-    const allowed = input.scopes.filter((s): s is Scope => (ALL_SCOPES as string[]).includes(s));
+    const isStaff = ctx.roles.some((r) => (STAFF_ROLES as readonly string[]).includes(r));
+    // Consented ⊆ what the client registered for; staff scopes only for staff.
+    const allowed = input.scopes.filter(
+      (s): s is Scope => (ALL_SCOPES as string[]).includes(s) && client.scopes.includes(s) && (isStaff || SCOPES[s].audience !== 'staff'),
+    );
+    if (!allowed.length) throw new DomainError('validation_failed', 'Choose at least one permission this agent asked for.');
     await ctx.db.updateTable('agent_grants').set({ status: 'revoked' }).where('client_id', '=', client.id).where('user_id', '=', me).where('status', '=', 'active').execute();
     const g = await ctx.db
       .insertInto('agent_grants')
@@ -368,7 +377,7 @@ export const grantConsent = defineAction({
       .returning('id')
       .executeTakeFirstOrThrow();
     ctx.audit({ entityType: 'agent_grant', entityId: g.id, after: { client: client.name, scopes: allowed, days: input.durationDays } });
-    return { grantId: g.id };
+    return { grantId: g.id, scopes: allowed };
   },
 });
 
