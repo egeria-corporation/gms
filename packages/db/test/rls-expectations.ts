@@ -135,6 +135,19 @@ export const MATRIX: readonly TableSpec[] = [
   { table: 'saved_views', allow: allow(STAFF, STAFF, ['programOfficerA'], ['programOfficerA']), actor: ['user_id'] },
   { table: 'notifications', allow: allow(['programOfficerA'], NONE, ['programOfficerA'], NONE), update: 'read_at = now()' },
   { table: 'internal_notes', allow: staffTable(STAFF, OAPF), actor: ['author_id'] },
+  {
+    table: 'grantee_profiles',
+    allow: staffTable(STAFF, OAP),
+    prepInsert: (w) => `delete from public.grantee_profiles where id = '${w.ids.granteeProfile1}'`,
+    note: "The workspace's own CRM data about an applicant organization (tags, relationship owner).",
+  },
+  {
+    table: 'application_duplicate_dismissals',
+    allow: staffTable(STAFF, OAP),
+    actor: ['dismissed_by'],
+    prepInsert: (w) => `delete from public.application_duplicate_dismissals where id = '${w.ids.dupDismiss1}'`,
+    note: '"Not a duplicate" decisions made on the pipeline.',
+  },
 
   // --- agents ------------------------------------------------------------------------------------
   {
@@ -412,6 +425,8 @@ export const MATRIX: readonly TableSpec[] = [
     table: 'opportunity_subscriptions',
     allow: allow([...byRole('owner', 'admin', 'program_officer', 'auditor'), 'applicant'], SIGNED_IN.filter((p) => p !== 'anon'), NONE, ['applicant']),
     actor: ['user_id'],
+    clone: (r, w) => ({ ...r, opportunity_id: w.ids.oppLeaf }),
+    update: 'notified_at = notified_at',
     note: 'People subscribe themselves to a public forecasted opportunity; staff can see subscriber counts.',
   },
 

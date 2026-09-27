@@ -4,6 +4,7 @@ export * as applications from './applications';
 export * as awards from './awards';
 export * as comms from './comms';
 export * as forms from './forms';
+export * as grantmakingExtra from './grantmaking-extra';
 export * as messages from './messages';
 export * as opportunities from './opportunities';
 export * as orgs from './orgs';
