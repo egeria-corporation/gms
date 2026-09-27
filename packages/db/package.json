@@ -1,0 +1,25 @@
+{
+  "name": "@gms/db",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts",
+    "./migrate": "./src/migrate.ts",
+    "./types": "./src/types.gen.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "embedded-postgres": "18.4.0-beta.17",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "kysely-codegen": "^0.20.0"
+  }
+}

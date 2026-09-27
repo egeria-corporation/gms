@@ -1,0 +1,11 @@
+{
+  "name": "@gms/commongrants",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@gms/domain": "workspace:*", "@gms/db": "workspace:*", "@common-grants/sdk": "^0.8.0", "@common-grants/core": "^0.4.0", "zod": "^4.6.5" },
+  "devDependencies": {  }
+}

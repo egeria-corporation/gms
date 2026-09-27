@@ -1,0 +1,11 @@
+{
+  "name": "@gms/worker",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@gms/db": "workspace:*", "@gms/domain": "workspace:*", "@gms/actions": "workspace:*", "@gms/adapters": "workspace:*", "@gms/email": "workspace:*", "@gms/pdf": "workspace:*", "@gms/commongrants": "workspace:*", "graphile-worker": "^0.18.0", "exceljs": "^4.4.0" },
+  "devDependencies": {  }
+}

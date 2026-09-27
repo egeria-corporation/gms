@@ -1,0 +1,11 @@
+{
+  "name": "@gms/forms",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./react": "./src/react/index.ts", "./*": "./src/*.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@gms/ui": "workspace:*", "@gms/domain": "workspace:*", "@jsonforms/core": "^3.8.0", "@jsonforms/react": "^3.8.0", "ajv": "^8.20.0", "ajv-formats": "^3.0.1", "zod": "^4.6.5" },
+  "devDependencies": { "@types/react": "^19.2.2", "react": "^19.3.0", "react-dom": "^19.3.0" }
+}

@@ -1,0 +1,17 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  sharp: true
+  "@embedded-postgres/windows-x64": true
+  "@embedded-postgres/linux-x64": true
+  "@embedded-postgres/darwin-arm64": true
+  "@embedded-postgres/darwin-x64": true
+  supabase: true
+  unrs-resolver: true
+  "@parcel/watcher": true
+  "@swc/core": true
+  protobufjs: true
+minimumReleaseAgeExclude:
+  - nodemailer@10.0.11

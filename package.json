@@ -1,0 +1,51 @@
+{
+  "name": "gms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GMS: open-source grants management platform",
+  "license": "AGPL-3.0-only",
+  "repository": "github:egeria-corporation/gms",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "doctor": "tsx scripts/doctor.ts",
+    "db:up": "tsx scripts/db-up.ts",
+    "db:down": "tsx scripts/db-down.ts",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:reset": "tsx scripts/db-migrate.ts --reset",
+    "db:types": "tsx scripts/db-types.ts",
+    "seed": "tsx packages/fixtures/src/cli.ts",
+    "setup": "tsx scripts/setup.ts",
+    "upgrade": "tsx scripts/upgrade.ts",
+    "dev": "turbo run dev --parallel --filter=@gms/web --filter=@gms/worker",
+    "worker": "pnpm --filter @gms/worker start",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run --project unit",
+    "test:db": "vitest run --project db",
+    "build": "turbo run build",
+    "e2e": "pnpm --filter @gms/web e2e",
+    "shots": "pnpm --filter @gms/web shots",
+    "evals": "vitest run --project evals"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@gms/db": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.23.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.5.0",
+    "pg": "^8.23.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "turbo": "^2.11.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
+  }
+}

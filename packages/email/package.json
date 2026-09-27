@@ -1,0 +1,11 @@
+{
+  "name": "@gms/email",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@react-email/render": "^2.0.0", "@gms/domain": "workspace:*", "react": "^19.3.0", "react-dom": "^19.3.0" },
+  "devDependencies": { "@types/react": "^19.2.2" }
+}
