@@ -319,6 +319,9 @@ async function submitPreconditions(input: z.infer<typeof SubmitIn>, ctx: RunCont
 
   // Deadline (server-side, workspace timezone).
   const dl = deadlineFor(comp, app.deadline_override_at ?? (await latestExtension(ctx.db, app.id)), ctx.now());
+  if (!dl.open && comp.opens_at && ctx.now() < new Date(comp.opens_at)) {
+    throw new DomainError('precondition_failed', `Submissions open ${formatInZone(comp.opens_at, w.timezone)}. You can keep working on your answers until then.`, { opensAt: comp.opens_at });
+  }
   if (!dl.open) {
     throw new DomainError('deadline_passed', `The deadline was ${formatInZone(comp.closes_at, w.timezone)}. Contact the foundation if you need an extension.`, {
       closesAt: comp.closes_at,

@@ -8,6 +8,7 @@ import type { RawBuilder } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Runtime } from '@gms/actions';
 import { DEMO_TOTP_SECRETS, DEMO_USERS, DemoDataExistsError, SEED_IDS, seed, totpNow, type SeedResult } from '../src/index';
+import { flagshipStatus } from '../src/steps/catalog';
 
 process.env.GMS_AUTH_MODE = 'test';
 
@@ -96,9 +97,10 @@ describe('full demo seed', () => {
     expect(new Set(reports.map((r) => r.status))).toEqual(new Set(['upcoming', 'due', 'overdue', 'submitted', 'accepted', 'revisions_requested']));
   });
 
-  it('has six pending agent approval requests (applicant and staff side)', async () => {
+  it('has pending agent approval requests (applicant and staff side)', async () => {
     const reqs = await t.db.selectFrom('approval_requests').select(['audience', 'requester_name', 'status']).where('status', '=', 'awaiting_confirmation').execute();
-    expect(reqs).toHaveLength(6);
+    // Maya's LOI submission request exists only while the flagship LOI window is open at the anchor.
+    expect(reqs).toHaveLength(flagshipStatus(ANCHOR) === 'open' ? 6 : 5);
     expect(reqs.filter((r) => r.audience === 'applicant' && r.requester_name === 'Grant Writer Assistant').length).toBeGreaterThanOrEqual(1);
     expect(reqs.filter((r) => r.audience === 'staff' && r.requester_name === 'Ops Assistant').length).toBeGreaterThanOrEqual(1);
     expect(result.tokens?.grantWriterAssistant.token).toMatch(/^gms_pat_/);

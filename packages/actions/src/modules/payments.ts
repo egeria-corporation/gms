@@ -932,7 +932,6 @@ export const importManualCsv = defineAction({
         continue;
       }
       try {
-        await ctx.db.transaction !== undefined ? null : null;
         await sql`savepoint csv_row`.execute(ctx.db);
         const method = (['ach', 'check', 'domestic_wire', 'international_wire', 'manual'].includes(r.method ?? '') ? r.method : 'manual') as z.infer<typeof ManualIn>['method'];
         await recordManualPayment(ctx, { awardId: a.id, amountCents: r.amountCents, paidOn: r.paidOn, method, reference: r.reference });

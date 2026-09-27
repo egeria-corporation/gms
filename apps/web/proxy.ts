@@ -17,7 +17,8 @@ function buildCsp(nonce: string, pathname: string): string {
     `font-src 'self' data:`,
     `connect-src 'self'${supabase ? ` ${supabase} ${supabase.replace(/^http/, 'ws')}` : ''}${dev ? ' ws:' : ''}`,
     `frame-src 'self'`,
-    `frame-ancestors ${embeddable ? '*' : "'none'"}`,
+    // Embeds can be framed anywhere; everything else only by GMS itself (PDF previews), never by other sites.
+    `frame-ancestors ${embeddable ? '*' : "'self'"}`,
     `form-action 'self'`,
     `base-uri 'self'`,
     `object-src 'none'`,
@@ -61,7 +62,7 @@ export function proxy(request: NextRequest) {
     return new NextResponse('Not found', { status: 404 });
   }
   const rootPath = res.kind === 'root' || (gms.mode === 'single' && pathname.startsWith('/setup'));
-  const passThrough = /^\/(?:_next|api\/storage|auth|fonts|brand)(?:\/|$)/.test(pathname) || pathname.includes('.');
+  const passThrough = /^\/(?:_next|api\/storage|auth|fonts|brand|webhooks)(?:\/|$)/.test(pathname) || pathname.includes('.');
   if (!rootPath && isDiscoveryPath(pathname, request.headers.get('accept'))) {
     // Agent discovery documents are served by one route handler; it rebuilds the public URL from x-gms-pathname.
     const url = request.nextUrl.clone();
@@ -77,7 +78,7 @@ export function proxy(request: NextRequest) {
   }
   response.headers.set('Content-Security-Policy', buildCsp(nonce, pathname));
   response.headers.set('X-Request-Id', requestId);
-  if (!pathname.startsWith('/embed')) response.headers.set('X-Frame-Options', 'DENY');
+  if (!pathname.startsWith('/embed')) response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   return response;
 }
 

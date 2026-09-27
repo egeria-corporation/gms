@@ -21,6 +21,8 @@ export async function operatorGate(next: string): Promise<{ viewer: Viewer; isOp
   if (config.mode !== 'multi') notFound();
   const viewer = await getViewer();
   if (!viewer) redirect(`/sign-in?next=${encodeURIComponent(next)}`);
+  // Operators see every tenant's metadata: require a fresh two-step check (aal2) like staff.
+  if (viewer.isOperator && viewer.session.aal !== 'aal2') redirect(`/mfa?next=${encodeURIComponent(next)}`);
   return { viewer, isOperator: viewer.isOperator };
 }
 

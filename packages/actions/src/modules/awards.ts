@@ -4,10 +4,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { sql, type Tx } from '@gms/db';
 import { applicationMachine, awardMachine, DomainError, formatMoney, splitInstallments, sumCents } from '@gms/domain';
-import { documentHash, renderPdf } from '@gms/pdf';
+import { documentHash, renderPdf, type GrantAgreementProps } from '@gms/pdf';
 import { z } from 'zod';
 import { defineAction, type RunContext } from '../define';
-import { DateOnly, found, IdOut, json, Ok, recordStatus, transition, uid, uuid, ws, yearInZone, nextReference } from './lib';
+import { DateOnly, found, IdOut, Ok, recordStatus, transition, uid, uuid, ws, yearInZone, nextReference } from './lib';
 
 const PROGRAM_ROLES = ['owner', 'admin', 'program_officer'] as const;
 
@@ -43,14 +43,14 @@ async function recordFinal(ctx: RunContext, applicationId: string, outcome: 'app
   if (target) transition(applicationMachine, app.status, target);
   const d = await ctx.db
     .insertInto('decisions')
-    .values({ workspace_id: w.id, application_id: app.id, outcome, reason, recommended_amount_cents: amountCents, is_final: outcome !== 'defer', recorded_by: uid(ctx), letter_sent_at: notify && target ? ctx.now().toISOString() : null })
+    .values({ workspace_id: w.id, application_id: app.id, outcome, reason, recommended_amount_cents: amountCents, is_final: true, recorded_by: uid(ctx), letter_sent_at: notify && target ? ctx.now().toISOString() : null })
     .returning('id')
     .executeTakeFirstOrThrow();
   if (target) {
     await ctx.db.updateTable('applications').set({ status: target }).where('id', '=', app.id).execute();
     await recordStatus(ctx, app, target, outcome === 'decline' ? reason : null);
   }
-  ctx.audit({ entityType: 'decision', entityId: d.id, after: { applicationId: app.id, outcome, amountCents, final: outcome !== 'defer' } });
+  ctx.audit({ entityType: 'decision', entityId: d.id, after: { applicationId: app.id, outcome, amountCents, final: true } });
   ctx.emit('decision.recorded', { type: 'application', id: app.id }, { outcome, decisionId: d.id, notify });
   return { app, decisionId: d.id };
 }
@@ -221,14 +221,11 @@ export const draftAward = defineAction({
         .execute();
       if (input.installments) await replaceSchedule(ctx, awardId, input.installments);
     }
-    await ctx.db
-      .updateTable('awards')
-      .set({
-        ...(input.expenditureResponsibility !== undefined ? { expenditure_responsibility: input.expenditureResponsibility } : {}),
-        ...(input.grantToIndividual !== undefined ? { grant_to_individual: input.grantToIndividual } : {}),
-      })
-      .where('id', '=', awardId)
-      .execute();
+    const flags = {
+      ...(input.expenditureResponsibility !== undefined ? { expenditure_responsibility: input.expenditureResponsibility } : {}),
+      ...(input.grantToIndividual !== undefined ? { grant_to_individual: input.grantToIndividual } : {}),
+    };
+    if (Object.keys(flags).length) await ctx.db.updateTable('awards').set(flags).where('id', '=', awardId).execute();
     if (input.conditions) {
       await ctx.db.deleteFrom('award_conditions').where('award_id', '=', awardId).where('status', '=', 'open').execute();
       if (input.conditions.length) await ctx.db.insertInto('award_conditions').values(input.conditions.map((c) => ({ workspace_id: app.workspace_id, award_id: awardId!, body: c }))).execute();
@@ -464,20 +461,52 @@ async function brandFor(ctx: RunContext) {
   };
 }
 
-export async function agreementProps(ctx: RunContext, awardId: string) {
+/** Standard terms printed in every grant agreement (numbered sections after the award-specific terms). */
+export const STANDARD_AGREEMENT_TERMS: readonly { heading: string; body: string }[] = [
+  { heading: 'Use of funds', body: 'The Grantee will use the grant only for the purpose in this agreement and will keep records of how it was spent for at least three years after the grant ends.' },
+  { heading: 'Reports', body: 'The Grantee will submit the reports listed above through the Foundation’s grantee portal by their due dates. The Foundation may pause payments while a report is overdue.' },
+  { heading: 'Changes', body: 'The Grantee will ask the Foundation in writing before making significant changes to the budget, timeline or purpose. Changes take effect only when the Foundation approves them.' },
+  { heading: 'Unspent funds', body: 'Funds not used for the purpose of this grant by the end of the grant period will be returned to the Foundation unless the Foundation agrees otherwise in writing.' },
+  { heading: 'Ending the grant', body: 'Either party may end this agreement with 30 days’ written notice. The Foundation may end it sooner if funds are used for anything other than the purpose above.' },
+  { heading: 'Electronic signatures', body: 'The parties agree that typed electronic signatures on this agreement are binding, just like handwritten ones.' },
+];
+
+/** Date-only (YYYY-MM-DD) for `at` in the workspace timezone. */
+function dateInZone(at: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
+}
+
+/** Props for the H-02 grant agreement (`renderPdf('agreement', …)`), built from the award as it stands now. */
+export async function agreementProps(ctx: RunContext, awardId: string): Promise<GrantAgreementProps> {
   const w = ws(ctx);
   const a = await ctx.db.selectFrom('awards').selectAll().where('id', '=', awardId).executeTakeFirstOrThrow();
   const org = a.applicant_org_id ? await ctx.db.selectFrom('applicant_orgs').select(['legal_name', 'ein']).where('id', '=', a.applicant_org_id).executeTakeFirst() : null;
+  const opp = a.opportunity_id ? await ctx.db.selectFrom('opportunities').select(['title']).where('id', '=', a.opportunity_id).executeTakeFirst() : null;
   const inst = await ctx.db.selectFrom('installments').selectAll().where('award_id', '=', a.id).orderBy('position').execute();
-  const conds = await ctx.db.selectFrom('award_conditions').select(['body', 'due_date']).where('award_id', '=', a.id).execute();
+  const conds = await ctx.db.selectFrom('award_conditions').select(['body']).where('award_id', '=', a.id).execute();
   const reqs = await ctx.db.selectFrom('report_requirements').select(['title', 'due_date', 'kind']).where('award_id', '=', a.id).orderBy('due_date').execute();
+  const granteeName = org?.legal_name ?? 'Grantee';
   return {
-    award: { reference: a.reference, title: a.title, purpose: a.purpose, amountCents: a.amount_cents, currency: a.currency, startDate: a.start_date, endDate: a.end_date },
-    grantee: { legalName: org?.legal_name ?? 'Grantee', ein: org?.ein ?? null },
-    foundation: { name: w.name, timezone: w.timezone },
-    installments: inst.map((i) => ({ position: i.position, dueDate: i.due_date, amountCents: i.amount_cents, condition: i.condition })),
-    conditions: conds.map((c) => ({ body: c.body, dueDate: c.due_date })),
-    reports: reqs.map((r) => ({ title: r.title, dueDate: r.due_date, kind: r.kind })),
+    awardReference: a.reference,
+    opportunityName: opp?.title ?? '',
+    projectTitle: a.title,
+    amountCents: a.amount_cents,
+    currency: a.currency,
+    periodStart: a.start_date ?? '',
+    periodEnd: a.end_date ?? '',
+    purpose: a.purpose ?? '',
+    installments: inst.map((i) => ({ label: `Installment ${i.position}`, dueDate: i.due_date, condition: i.condition, amountCents: i.amount_cents })),
+    conditions: conds.map((c) => c.body),
+    reportingRequirements: reqs.map((r) => ({ name: r.title, dueDate: r.due_date, description: r.kind })),
+    agreementDate: dateInZone(ctx.now(), w.timezone),
+    foundation: { legalName: w.name },
+    grantee: { legalName: granteeName, ein: org?.ein ?? null },
+    terms: [...STANDARD_AGREEMENT_TERMS],
+    signatures: [
+      { party: 'For the grantee', organizationName: granteeName },
+      { party: 'For the foundation', organizationName: w.name },
+    ],
+    timeZone: w.timezone,
   };
 }
 
@@ -498,7 +527,7 @@ export const generateAgreement = defineAction({
     const existing = await ctx.db.selectFrom('agreements').select(['id', 'status']).where('award_id', '=', a.id).where('status', '!=', 'void').executeTakeFirst();
     if (existing && existing.status !== 'draft') throw new DomainError('conflict', 'The agreement was already sent. Void it to issue a new one.');
     const props = await agreementProps(ctx, a.id);
-    const bytes = await renderPdf('agreement', props as never, await brandFor(ctx));
+    const bytes = await renderPdf('agreement', props, await brandFor(ctx));
     const hash = documentHash(bytes);
     const key = `${w.id}/agreements/${a.id}/${hash.slice(0, 16)}.pdf`;
     await ctx.deps.storage.put('agreements', key, bytes, 'application/pdf');

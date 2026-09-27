@@ -480,6 +480,7 @@ export const attachForm = defineAction({
   async run(input, ctx) {
     const w = ws(ctx);
     const form = found(await ctx.db.selectFrom('forms').select(['id', 'current_version_id']).where('id', '=', input.formId).executeTakeFirst(), 'form');
+    if (!form.current_version_id) throw new DomainError('precondition_failed', 'Publish this form before attaching it, so applicants always answer a fixed version.');
     const pos = await ctx.db.selectFrom('competition_forms').select((eb) => eb.fn.max('position').as('m')).where('competition_id', '=', input.competitionId).executeTakeFirst();
     await ctx.db
       .insertInto('competition_forms')

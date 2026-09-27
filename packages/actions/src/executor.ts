@@ -13,7 +13,7 @@ import {
   type Scope,
   type WorkspaceRole,
 } from '@gms/domain';
-import { z } from 'zod';
+import { type z } from 'zod';
 import type { ActionContext, AnyAction, ApprovalPreview, AuditEntry, RunContext } from './define';
 import { getAction } from './define';
 import type { ActionDeps } from './deps';

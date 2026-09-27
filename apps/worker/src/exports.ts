@@ -3,6 +3,7 @@
 // workspace export (JSON + CommonGrants bundle, zipped).
 import { crc32 } from 'node:zlib';
 import { originFor, type Runtime } from '@gms/actions';
+import { adminExtra } from '@gms/actions/modules';
 import { toCgOpportunity } from '@gms/commongrants';
 import { sql } from '@gms/db';
 import ExcelJS from 'exceljs';
@@ -86,6 +87,9 @@ const dollars = (c: number | null | undefined) => (c === null || c === undefined
 export async function dataset(rt: Runtime, workspaceId: string, kind: string, params: Record<string, unknown>): Promise<Row[]> {
   const db = rt.db;
   switch (kind) {
+    case 'report_definition':
+      // AN-02 saved reports: the one whitelisted report query, shared with the builder page.
+      return adminExtra.reportDefinitionExport(db, workspaceId, params);
     case 'applications': {
       const rows = await db
         .selectFrom('applications as a')

@@ -294,7 +294,7 @@ export const autoAssign = defineAction({
     else revQ = revQ.where('m.role', '=', 'reviewer');
     const reviewers = await revQ.orderBy('p.full_name').execute();
     if (!reviewers.length) throw new DomainError('precondition_failed', 'There are no reviewers on the team yet. Invite reviewers first.');
-    const existing = await ctx.db.selectFrom('review_assignments').select(['application_id', 'reviewer_id']).where('stage_id', '=', stage.id).execute();
+    const existing = await ctx.db.selectFrom('review_assignments').select(['application_id', 'reviewer_id', 'status']).where('stage_id', '=', stage.id).execute();
     const conflicts = await ctx.db
       .selectFrom('coi_declarations as d')
       .innerJoin('review_assignments as ra', 'ra.id', 'd.assignment_id')
@@ -305,7 +305,8 @@ export const autoAssign = defineAction({
       .execute();
     const conflictKey = new Set(conflicts.map((c) => `${c.reviewer_id}:${c.applicant_org_id ?? c.application_id}`));
     const load = new Map<string, number>(reviewers.map((r) => [r.user_id, 0]));
-    const totals = await ctx.db.selectFrom('review_assignments').select(['reviewer_id']).select((eb) => eb.fn.countAll<number>().as('n')).where('stage_id', '=', stage.id).groupBy('reviewer_id').execute();
+    // Recused assignments count neither as coverage nor as reviewer load (the recused pair is still never re-proposed).
+    const totals = await ctx.db.selectFrom('review_assignments').select(['reviewer_id']).select((eb) => eb.fn.countAll<number>().as('n')).where('stage_id', '=', stage.id).where('status', '<>', 'recused').groupBy('reviewer_id').execute();
     for (const t of totals) if (load.has(t.reviewer_id)) load.set(t.reviewer_id, Number(t.n));
     const has = new Set(existing.map((e) => `${e.application_id}:${e.reviewer_id}`));
     const plan: z.infer<typeof PlanItem>[] = [];
@@ -313,7 +314,7 @@ export const autoAssign = defineAction({
     const overCapacity = new Set<string>();
     const nameOf = new Map(reviewers.map((r) => [r.user_id, r.full_name]));
     for (const app of apps) {
-      const already = existing.filter((e) => e.application_id === app.id).length;
+      const already = existing.filter((e) => e.application_id === app.id && e.status !== 'recused').length;
       let need = stage.reviewers_per_application - already;
       if (need <= 0) continue;
       const candidates = reviewers
@@ -407,6 +408,12 @@ export const declareCoi = defineAction({
     const a = found(await ctx.db.selectFrom('review_assignments').selectAll().where('id', '=', input.assignmentId).where('reviewer_id', '=', uid(ctx)).executeTakeFirst(), 'assignment');
     if (input.hasConflict && !input.explanation?.trim()) {
       throw new DomainError('validation_failed', 'Briefly describe the conflict so staff can reassign fairly.', {}, [{ pointer: '/explanation', message: 'Describe the conflict.' }]);
+    }
+    // A declaration is a permanent record: repeating the same answer is a no-op; changing it goes through staff.
+    const prior = await ctx.db.selectFrom('coi_declarations').select(['has_conflict']).where('assignment_id', '=', a.id).executeTakeFirst();
+    if (prior) {
+      if (prior.has_conflict === input.hasConflict) return { status: a.status };
+      throw new DomainError('conflict', prior.has_conflict ? 'You already declared a conflict and were recused from this application.' : 'You already declared no conflict for this application. If that has changed, ask the program officer to reassign it.');
     }
     await ctx.db
       .insertInto('coi_declarations')

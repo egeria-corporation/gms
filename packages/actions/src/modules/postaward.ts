@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Post-award: grantee reports (draft → submit → accept / revisions), overdue tracking + payment holds,
 // change requests (extension / amendment / budget change), site visits; due diligence (IRS status, OFAC).
-import { sql } from '@gms/db';
+import { sql, type Tx } from '@gms/db';
 import { DomainError, reportMachine } from '@gms/domain';
 import { z } from 'zod';
 import { defineAction } from '../define';
@@ -11,7 +11,7 @@ import { DateOnly, found, IdOut, json, Ok, transition, uid, uuid, ws } from './l
 const PROGRAM_ROLES = ['owner', 'admin', 'program_officer'] as const;
 
 // Reports ------------------------------------------------------------------------------------------
-async function reportContext(ctxDb: import('@gms/db').Tx, requirementId: string) {
+async function reportContext(ctxDb: Tx, requirementId: string) {
   const req = found(await ctxDb.selectFrom('report_requirements').selectAll().where('id', '=', requirementId).executeTakeFirst(), 'report');
   const version = req.form_id
     ? await ctxDb

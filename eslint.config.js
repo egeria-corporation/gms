@@ -18,6 +18,7 @@ export default tseslint.config(
       '**/next-env.d.ts',
       'packages/db/src/types.gen.ts',
       '.netlify/**',
+      '.claude/**',
     ],
   },
   js.configs.recommended,

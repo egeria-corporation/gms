@@ -7,7 +7,7 @@ import { json, type SeedContext } from '../context';
 import { hexOf } from '../ids';
 import type { Apps } from './applications';
 import type { Awards } from './awards';
-import type { Catalog } from './catalog';
+import { flagshipStatus, type Catalog } from './catalog';
 
 export const OPS_SCOPES: readonly Scope[] = ['pipeline:read', 'payments:read', 'payments:propose', 'analytics:read', 'awards:draft'];
 export const OPS_TOOLS = [
@@ -133,7 +133,10 @@ export async function agents(ctx: SeedContext, cat: Catalog, apps: Apps, aw: Awa
   };
   const mayaAsAgent = ctx.asAgent(gwAgent, 'maya', 'halcyon', []);
   await request('reports.submit', { requirementId: mayaRequirementId, attestation: { typedName: mayaName, agreed: true } }, mayaAsAgent);
-  if (apps.mayaLoi) {
+  // Maya's agent asks to submit her LOI only while the flagship LOI window is open (a request that couldn't
+  // succeed when confirmed is refused up front).
+  const mayaSubmitRequested = Boolean(apps.mayaLoi) && flagshipStatus(ctx.clock.anchor) === 'open';
+  if (apps.mayaLoi && mayaSubmitRequested) {
     await request(
       'applications.submit',
       { applicationId: apps.mayaLoi.id, attestation: { typedName: mayaName, agreed: true }, aiDisclosure: String(apps.mayaLoi.data.ai_disclosure ?? '') },
@@ -149,7 +152,8 @@ export async function agents(ctx: SeedContext, cat: Catalog, apps: Apps, aw: Awa
   await request('competitions.invite_applicants', { competitionId: flag.stages[1]!.id, applicationIds: strong.map((a) => a.id), message: 'Congratulations! We would like to invite you to submit a full proposal.' }, opsCtx());
   const mismatch = aw.nfs.find((a) => a.installments[0]!.plan === 'exception')!;
   await request('awards.set_hold', { awardId: mismatch.id, onHold: true, reason: 'The bank shows a different amount for the first installment. Pausing payments until finance reconciles it.' }, opsCtx());
-  if (pending.length !== (apps.mayaLoi ? 6 : 5)) throw new Error(`expected 6 pending approvals, made ${pending.length}`);
+  const expectedPending = mayaSubmitRequested ? 6 : 5;
+  if (pending.length !== expectedPending) throw new Error(`expected ${expectedPending} pending approvals, made ${pending.length}`);
   ctx.bump('approval_requests', pending.length);
 
   return { grantWriter: gw, ops, intake: { clientId: intakeId }, pendingApprovals: pending };

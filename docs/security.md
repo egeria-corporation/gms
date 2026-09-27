@@ -30,7 +30,7 @@ Please email **security@egeria.example** (replace with the project's security co
 ## Application security controls
 
 - **Authentication:** magic links (single use, 15 minutes, rate limited per email and IP, no account enumeration); TOTP MFA required for staff; step-up (fresh TOTP within 15 minutes) for people-only actions.
-- **Headers:** CSP with per-request nonces and `strict-dynamic`; `frame-ancestors 'none'` except the embed route; HSTS in production; `X-Content-Type-Options: nosniff`; `Referrer-Policy: strict-origin-when-cross-origin`; `Permissions-Policy`.
+- **Headers:** CSP with per-request nonces and `strict-dynamic`; `frame-ancestors 'self'` (and `X-Frame-Options: SAMEORIGIN`) so only GMS itself can frame its pages, for PDF previews; the embed route can be framed anywhere; HSTS in production; `X-Content-Type-Options: nosniff`; `Referrer-Policy: strict-origin-when-cross-origin`; `Permissions-Policy`.
 - **CSRF:** Next.js server actions check the origin; machine endpoints use bearer tokens, not cookies.
 - **Input/output:** zod validation for every action; Ajv for form answers on every save and at submit; React escaping; rich text is Markdown rendered to elements or sanitized with DOMPurify (`SafeHtml`) — `dangerouslySetInnerHTML` is lint-banned elsewhere; CSV exports neutralize formula injection.
 - **Rate limits:** sign-in, public APIs, MCP and A2A (per client/key and per IP), with `RateLimit` and `Retry-After` headers.
