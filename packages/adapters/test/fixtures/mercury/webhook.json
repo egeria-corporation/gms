@@ -1,0 +1,10 @@
+{
+  "id": "whk_0000000000000000",
+  "url": "https://gms.example/webhooks/mercury",
+  "status": "active",
+  "secret": "whsec_recorded_shape_only",
+  "createdAt": "2026-09-27T12:00:00.000Z",
+  "updatedAt": "2026-09-27T12:00:00.000Z",
+  "eventTypes": ["transaction.created", "transaction.updated"],
+  "filterPaths": null
+}
