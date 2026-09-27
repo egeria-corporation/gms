@@ -326,7 +326,8 @@ test('the applicant’s org admin signs the agreement in the portal', async ({ p
   await page.getByLabel('Type your full name to sign').fill('Maya Chen');
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Sign agreement' }).click();
-  await expect(page.getByText('Signed — thank you')).toBeVisible();
+  // The form's brief success message is replaced by the refreshed page; assert the lasting signed state.
+  await expect(page.getByText('You signed this agreement')).toBeVisible();
 
   const [agreement] = await query<{ id: string; status: string; document_hash: string }>(`select id, status, document_hash from public.agreements where award_id = $1 and status <> 'void'`, [award!.id]);
   expect(agreement!.status).toBe('signed');
@@ -339,5 +340,5 @@ test('the applicant’s org admin signs the agreement in the portal', async ({ p
   await expect(page.getByText(/Signed for your organization/)).toBeVisible();
   await page.goto(`/portal/grants/${award!.id}`);
   await expect(page.getByText('Next step: review and sign your grant agreement')).toHaveCount(0);
-  await expect(page.getByText('signed', { exact: true })).toBeVisible();
+  await expect(page.getByText('Signed by grantee', { exact: true })).toBeVisible();
 });

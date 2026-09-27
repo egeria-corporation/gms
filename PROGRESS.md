@@ -21,7 +21,7 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 | M9 | Platform API, webhooks, CG write routes | **done** |
 | M10 | Agent layer | **done**; 31 evals + E2E flow 5 + OAuth consent test pass |
 | M11 | Setup, settings, operator (F-01…F-05, S-01…S-09, G-01/G-02) | **done**; E2E flow 6 passes; operator console now requires aal2 |
-| M12 | Hardening & ship | in progress: docs done, audit done, upgrade script done; gate, shots, REPORT.md pending |
+| M12 | Hardening & ship | **done**: full gate green (lint, typecheck, 411 unit, 301 db, build, 10 E2E, 33 evals); docs; audit; RLS report; `pnpm shots`; REPORT.md. No preview deploy or PR (no Netlify credentials, no git remote). |
 
 ## Done (highlights)
 - 11 migrations; RLS on every table; RLS matrix (5.7k assertions) + invariants + migration tests (262 DB tests passing at last run).
@@ -31,10 +31,10 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 - Verified in a browser: public site renders with tenant brand; staff magic-link → TOTP enrollment → console.
 
 ## In flight (agents)
-E2E flows 2 (staff publishing), 3 (review → award → signed agreement), 4 (payments) — each in its own worktree/DB/port.
+None.
 
-## Next (mine)
-Merge flows 2–4 → full verification gate (lint, typecheck, unit, db, build, e2e) → `pnpm shots` → REPORT.md → draft PR (no remote configured yet).
+## Next
+Owner: confirm the decisions listed in REPORT.md §7; add a git remote to publish `feat/v1` and open the draft PR. Then the §13 stretch items, in order.
 
 Docs written: README, docs/self-hosting.md, docs/security.md, docs/api.md, docs/agents.md.
 
@@ -42,4 +42,4 @@ Docs written: README, docs/self-hosting.md, docs/security.md, docs/api.md, docs/
 - Docker daemon never started → tier 1 (local Supabase) untested in this run; tier 3 used throughout.
 
 ## Deferred (Should items)
-- (none yet)
+See REPORT.md §8.
