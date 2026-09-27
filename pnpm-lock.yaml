@@ -220,12 +220,27 @@ importers:
 
   packages/agent-evals:
     dependencies:
+      '@gms/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@gms/agents':
         specifier: workspace:*
         version: link:../agents
+      '@gms/db':
+        specifier: workspace:*
+        version: link:../db
+      '@gms/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@gms/forms':
+        specifier: workspace:*
+        version: link:../forms
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.1
         version: 1.30.1(supports-color@7.2.0)(zod@4.6.5)
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
 
   packages/agents:
     dependencies:
@@ -238,9 +253,18 @@ importers:
       '@gms/domain':
         specifier: workspace:*
         version: link:../domain
+      '@gms/forms':
+        specifier: workspace:*
+        version: link:../forms
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.1
         version: 1.30.1(supports-color@7.2.0)(zod@4.6.5)
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+      yaml:
+        specifier: ^2.9.1
+        version: 2.9.1
       zod:
         specifier: ^4.6.5
         version: 4.6.5
