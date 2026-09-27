@@ -45,7 +45,9 @@ export function isPrivateAddress(ip: string): boolean {
   if (net.isIPv4(addr)) return ipv4Private(addr);
   if (!net.isIPv6(addr)) return true;
   if (addr === '::' || addr === '::1') return true;
-  const mapped = /^(?:0{0,4}:){0,5}(?:0{0,4}:)?ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr) ?? /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
+  const mapped =
+    /^(?:0{0,4}:){0,5}(?:0{0,4}:)?ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr) ??
+    /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
   if (mapped) return ipv4Private(mapped[1]!);
   if (/^::ffff:[0-9a-f]{1,4}:[0-9a-f]{1,4}$/.test(addr)) return true; // hex-form IPv4-mapped: refuse outright
   const first = parseInt(addr.split(':')[0] || '0', 16);
@@ -72,12 +74,19 @@ export function validateClientIdUrl(raw: string): URL {
   if (u.hash) throw new CimdError('client_id URLs must not contain a fragment.');
   if (u.port && u.port !== '443') throw new CimdError('client_id URLs must use the default https port.');
   if (u.pathname === '/' || u.pathname === '') throw new CimdError('client_id URLs must have a path.');
-  if (/(^|\/)\.\.?(\/|$)/.test(u.pathname)) throw new CimdError('client_id URLs must not contain dot segments.');
+  if (/(^|\/)\.\.?(\/|$)/.test(u.pathname))
+    throw new CimdError('client_id URLs must not contain dot segments.');
   const host = u.hostname.replace(/^\[|\]$/g, '');
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) {
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal')
+  ) {
     throw new CimdError('client_id URLs must point to a public host.');
   }
-  if ((net.isIP(host) && isPrivateAddress(host)) || !host.includes('.')) throw new CimdError('client_id URLs must point to a public host.');
+  if ((net.isIP(host) && isPrivateAddress(host)) || !host.includes('.'))
+    throw new CimdError('client_id URLs must point to a public host.');
   return u;
 }
 
@@ -86,7 +95,11 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
     if (err) return callback(err, '', 4);
     const list = addresses ?? [];
     if (!list.length || list.some((a) => isPrivateAddress(a.address))) {
-      return callback(new CimdError(`Refusing to connect: ${hostname} resolves to a non-public address.`), '', 4);
+      return callback(
+        new CimdError(`Refusing to connect: ${hostname} resolves to a non-public address.`),
+        '',
+        4,
+      );
     }
     if (options.all) return (callback as unknown as (e: null, a: LookupAddress[]) => void)(null, list);
     return callback(null, list[0]!.address, list[0]!.family);
@@ -94,7 +107,10 @@ const safeLookup: net.LookupFunction = (hostname, options, callback) => {
 };
 
 /** GETs a CIMD document with every SSRF guard above. */
-export function fetchClientMetadataSafely(raw: string, opts: { timeoutMs?: number; maxBytes?: number } = {}): Promise<unknown> {
+export function fetchClientMetadataSafely(
+  raw: string,
+  opts: { timeoutMs?: number; maxBytes?: number } = {},
+): Promise<unknown> {
   const url = validateClientIdUrl(raw);
   const timeoutMs = opts.timeoutMs ?? CIMD_TIMEOUT_MS;
   const maxBytes = opts.maxBytes ?? CIMD_MAX_BYTES;
@@ -109,11 +125,20 @@ export function fetchClientMetadataSafely(raw: string, opts: { timeoutMs?: numbe
     };
     const req = https.request(
       url,
-      { method: 'GET', headers: { accept: 'application/json', 'user-agent': 'GMS-CIMD/1.0' }, lookup: safeLookup, timeout: timeoutMs },
+      {
+        method: 'GET',
+        headers: { accept: 'application/json', 'user-agent': 'GMS-CIMD/1.0' },
+        lookup: safeLookup,
+        timeout: timeoutMs,
+      },
       (res) => {
         if (res.statusCode !== 200) {
           res.resume();
-          return done(new CimdError(`The client metadata document returned HTTP ${res.statusCode} (redirects are not followed).`));
+          return done(
+            new CimdError(
+              `The client metadata document returned HTTP ${res.statusCode} (redirects are not followed).`,
+            ),
+          );
         }
         const type = String(res.headers['content-type'] ?? '');
         if (!/json/i.test(type)) {
@@ -147,7 +172,13 @@ export function fetchClientMetadataSafely(raw: string, opts: { timeoutMs?: numbe
       req.destroy();
       done(new CimdError('Timed out fetching the client metadata document.'));
     });
-    req.on('error', (e) => done(e instanceof CimdError ? e : new CimdError(`Could not fetch the client metadata document: ${e.message}`)));
+    req.on('error', (e) =>
+      done(
+        e instanceof CimdError
+          ? e
+          : new CimdError(`Could not fetch the client metadata document: ${e.message}`),
+      ),
+    );
     req.end();
   });
 }
@@ -165,7 +196,10 @@ export function isAllowedRedirectUri(raw: unknown): raw is string {
   if (u.protocol === 'https:') return true;
   if (u.protocol === 'http:') return isLoopbackHost(u.hostname);
   // Private-use URI schemes for native apps (reverse domain name, RFC 8252 §7.1).
-  return /^[a-z][a-z0-9+.-]*\.[a-z0-9+.-]+:$/.test(u.protocol) && !/^(javascript|data|file|vbscript|blob|about):$/.test(u.protocol);
+  return (
+    /^[a-z][a-z0-9+.-]*\.[a-z0-9+.-]+:$/.test(u.protocol) &&
+    !/^(javascript|data|file|vbscript|blob|about):$/.test(u.protocol)
+  );
 }
 
 export function isLoopbackHost(host: string): boolean {
@@ -186,7 +220,13 @@ export function redirectUriMatches(registered: readonly string[], candidate: str
   return registered.some((r) => {
     try {
       const u = new URL(r);
-      return u.protocol === 'http:' && isLoopbackHost(u.hostname) && u.hostname === c.hostname && u.pathname === c.pathname && u.search === c.search;
+      return (
+        u.protocol === 'http:' &&
+        isLoopbackHost(u.hostname) &&
+        u.hostname === c.hostname &&
+        u.pathname === c.pathname &&
+        u.search === c.search
+      );
     } catch {
       return false;
     }
@@ -215,21 +255,32 @@ function optionalHttps(v: unknown, field: string): string | null {
 
 /** Validates a fetched CIMD document for the given client_id URL. */
 export function parseClientMetadataDocument(clientId: string, doc: unknown): ClientMetadata {
-  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new CimdError('The client metadata document must be a JSON object.');
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc))
+    throw new CimdError('The client metadata document must be a JSON object.');
   const d = doc as Record<string, unknown>;
-  if (d.client_id !== clientId) throw new CimdError('The document’s client_id must equal the URL it was fetched from.');
-  if ('client_secret' in d || 'client_secret_expires_at' in d) throw new CimdError('Client metadata documents must not contain a client secret.');
+  if (d.client_id !== clientId)
+    throw new CimdError('The document’s client_id must equal the URL it was fetched from.');
+  if ('client_secret' in d || 'client_secret_expires_at' in d)
+    throw new CimdError('Client metadata documents must not contain a client secret.');
   const auth = d.token_endpoint_auth_method ?? 'none';
-  if (auth !== 'none') throw new CimdError('Only public clients (token_endpoint_auth_method "none") can use a client metadata document here.');
+  if (auth !== 'none')
+    throw new CimdError(
+      'Only public clients (token_endpoint_auth_method "none") can use a client metadata document here.',
+    );
   const uris = d.redirect_uris;
   if (!Array.isArray(uris) || !uris.length || uris.length > 20 || !uris.every(isAllowedRedirectUri)) {
-    throw new CimdError('redirect_uris must be a non-empty list of https (or loopback http / private-use scheme) URIs.');
+    throw new CimdError(
+      'redirect_uris must be a non-empty list of https (or loopback http / private-use scheme) URIs.',
+    );
   }
   const grants = d.grant_types ?? ['authorization_code'];
   if (!Array.isArray(grants) || !grants.every((g) => g === 'authorization_code' || g === 'refresh_token')) {
     throw new CimdError('grant_types may only contain authorization_code and refresh_token.');
   }
-  const name = typeof d.client_name === 'string' && d.client_name.trim() ? d.client_name.trim().slice(0, 100) : new URL(clientId).hostname;
+  const name =
+    typeof d.client_name === 'string' && d.client_name.trim()
+      ? d.client_name.trim().slice(0, 100)
+      : new URL(clientId).hostname;
   return {
     clientId,
     name,

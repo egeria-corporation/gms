@@ -25,11 +25,18 @@ export interface OpportunityText {
 }
 
 const STOP = new Set(
-  'a an and are as at be by can do does for from has have how i if in is it its may me my of on or our should that the their them there these they this to was we what when where which who will with you your about any also am been but did get into just more most much must not only other out over same so some such than then too very would'.split(' '),
+  'a an and are as at be by can do does for from has have how i if in is it its may me my of on or our should that the their them there these they this to was we what when where which who will with you your about any also am been but did get into just more most much must not only other out over same so some such than then too very would'.split(
+    ' ',
+  ),
 );
 
 export function tokenize(text: string): string[] {
-  return (text.toLowerCase().normalize('NFKD').match(/[a-z0-9]+/g) ?? [])
+  return (
+    text
+      .toLowerCase()
+      .normalize('NFKD')
+      .match(/[a-z0-9]+/g) ?? []
+  )
     .filter((t) => !STOP.has(t) && t.length > 1)
     .map(stem);
 }
@@ -66,7 +73,17 @@ export function passagesFor(opp: OpportunityText): Passage[] {
   const out: Passage[] = [];
   const add = (source: PassageSource, md: string | null) => {
     if (!md) return;
-    splitMarkdown(md).forEach((p, i) => out.push({ id: `${opp.id}:${source}:${i}`, opportunityId: opp.id, opportunityTitle: opp.title, slug: opp.slug, source, heading: p.heading, text: p.text }));
+    splitMarkdown(md).forEach((p, i) =>
+      out.push({
+        id: `${opp.id}:${source}:${i}`,
+        opportunityId: opp.id,
+        opportunityTitle: opp.title,
+        slug: opp.slug,
+        source,
+        heading: p.heading,
+        text: p.text,
+      }),
+    );
   };
   add('description', opp.description_md);
   add('eligibility', opp.eligibility_md);
@@ -75,7 +92,15 @@ export function passagesFor(opp: OpportunityText): Passage[] {
     opp.faq.forEach((f, i) => {
       const item = f as { q?: unknown; a?: unknown };
       if (typeof item.q === 'string' && typeof item.a === 'string') {
-        out.push({ id: `${opp.id}:faq:${i}`, opportunityId: opp.id, opportunityTitle: opp.title, slug: opp.slug, source: 'faq', heading: item.q, text: `Q: ${item.q}\nA: ${item.a}` });
+        out.push({
+          id: `${opp.id}:faq:${i}`,
+          opportunityId: opp.id,
+          opportunityTitle: opp.title,
+          slug: opp.slug,
+          source: 'faq',
+          heading: item.q,
+          text: `Q: ${item.q}\nA: ${item.a}`,
+        });
       }
     });
   }
@@ -83,7 +108,11 @@ export function passagesFor(opp: OpportunityText): Passage[] {
 }
 
 /** BM25 (k1 = 1.2, b = 0.75). Returns the top `k` passages with a positive score. */
-export function rankPassages(passages: Passage[], question: string, k = 3): { passage: Passage; score: number }[] {
+export function rankPassages(
+  passages: Passage[],
+  question: string,
+  k = 3,
+): { passage: Passage; score: number }[] {
   const q = [...new Set(tokenize(question))];
   if (!q.length || !passages.length) return [];
   const docs = passages.map((p) => tokenize(`${p.heading ?? ''} ${p.text}`));

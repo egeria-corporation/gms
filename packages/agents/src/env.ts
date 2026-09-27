@@ -84,7 +84,11 @@ export function text(body: string, contentType: string, status = 200, headers: H
 export function problemResponse(problem: ProblemDetails, headers: HeaderMap = {}): Response {
   return new Response(JSON.stringify(problem), {
     status: problem.status,
-    headers: { 'content-type': 'application/problem+json; charset=utf-8', 'cache-control': 'no-store', ...headers },
+    headers: {
+      'content-type': 'application/problem+json; charset=utf-8',
+      'cache-control': 'no-store',
+      ...headers,
+    },
   });
 }
 
@@ -130,9 +134,21 @@ export function isHttpError(e: unknown): e is HttpError {
 /** Reads a JSON body with a size cap; throws a 400/413 HttpError on problems. */
 export async function readJson(req: Request, maxBytes = 1_000_000): Promise<unknown> {
   const len = Number(req.headers.get('content-length') ?? 0);
-  if (len > maxBytes) throw new HttpError(413, 'validation_failed', 'Request too large', `The body is larger than ${maxBytes} bytes.`);
+  if (len > maxBytes)
+    throw new HttpError(
+      413,
+      'validation_failed',
+      'Request too large',
+      `The body is larger than ${maxBytes} bytes.`,
+    );
   const raw = await req.text();
-  if (raw.length > maxBytes) throw new HttpError(413, 'validation_failed', 'Request too large', `The body is larger than ${maxBytes} bytes.`);
+  if (raw.length > maxBytes)
+    throw new HttpError(
+      413,
+      'validation_failed',
+      'Request too large',
+      `The body is larger than ${maxBytes} bytes.`,
+    );
   if (!raw.trim()) return undefined;
   try {
     return JSON.parse(raw) as unknown;

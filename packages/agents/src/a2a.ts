@@ -13,7 +13,15 @@ import { randomUUID } from 'node:crypto';
 import type { ActionContext } from '@gms/actions';
 import { ANON_CLAIMS, withRls, type Database } from '@gms/db';
 import { ALL_SCOPES, DomainError, isDomainError, toProblem, type Scope } from '@gms/domain';
-import { authenticate, channelDisabled, channelEnabled, insufficientScope, rateLimitHeaders, unauthorized, type AgentPrincipal } from './auth';
+import {
+  authenticate,
+  channelDisabled,
+  channelEnabled,
+  insufficientScope,
+  rateLimitHeaders,
+  unauthorized,
+  type AgentPrincipal,
+} from './auth';
 import { findCapability, invokeCapability, type InvokeResult } from './catalog';
 import { errorResponse, HttpError, isRecord, readJson, resourceUrl, trimOrigin, type AgentEnv } from './env';
 import { passagesFor, rankPassages } from './retrieval';
@@ -45,8 +53,16 @@ const DB_STATE: Record<TaskState, string> = {
   TASK_STATE_CANCELLED: 'canceled',
   TASK_STATE_REJECTED: 'rejected',
 };
-const FROM_DB = Object.fromEntries(Object.entries(DB_STATE).map(([k, v]) => [v, k])) as Record<string, TaskState>;
-const TERMINAL = new Set<TaskState>(['TASK_STATE_COMPLETED', 'TASK_STATE_FAILED', 'TASK_STATE_CANCELLED', 'TASK_STATE_REJECTED']);
+const FROM_DB = Object.fromEntries(Object.entries(DB_STATE).map(([k, v]) => [v, k])) as Record<
+  string,
+  TaskState
+>;
+const TERMINAL = new Set<TaskState>([
+  'TASK_STATE_COMPLETED',
+  'TASK_STATE_FAILED',
+  'TASK_STATE_CANCELLED',
+  'TASK_STATE_REJECTED',
+]);
 
 export type Part = { kind: 'text'; text: string } | { kind: 'data'; data: Record<string, unknown> };
 
@@ -88,7 +104,8 @@ export const SKILLS: SkillDef[] = [
   {
     id: 'find_opportunities',
     name: 'Find funding opportunities',
-    description: 'Searches the foundation’s published funding opportunities by keywords, cause or geography. Send text, or a data part {query, status}.',
+    description:
+      'Searches the foundation’s published funding opportunities by keywords, cause or geography. Send text, or a data part {query, status}.',
     tags: ['grants', 'search', 'opportunities'],
     examples: ['Find open grants for youth arts programs', '{"query": "watershed", "status": "open"}'],
     authenticated: false,
@@ -114,7 +131,8 @@ export const SKILLS: SkillDef[] = [
   {
     id: 'start_application',
     name: 'Start an application',
-    description: 'Starts (or resumes) a draft application for the person. Data part {opportunityId | competitionId, applicantOrgId?}. Nothing is submitted.',
+    description:
+      'Starts (or resumes) a draft application for the person. Data part {opportunityId | competitionId, applicantOrgId?}. Nothing is submitted.',
     tags: ['applications'],
     examples: ['{"opportunityId": "…", "applicantOrgId": "…"}'],
     authenticated: true,
@@ -123,7 +141,8 @@ export const SKILLS: SkillDef[] = [
   {
     id: 'application_status',
     name: 'Application status',
-    description: 'Reports the status of the person’s applications (or one, with {applicationId}), including confirmations still waiting for them.',
+    description:
+      'Reports the status of the person’s applications (or one, with {applicationId}), including confirmations still waiting for them.',
     tags: ['applications', 'status'],
     examples: ['What is the status of my application?'],
     authenticated: true,
@@ -142,9 +161,12 @@ export const SKILLS: SkillDef[] = [
   {
     id: 'request_extension',
     name: 'Request an extension',
-    description: 'Asks the foundation for more time on a report or grant {awardId, requirementId?, newDueDate (YYYY-MM-DD), reason}. Staff decide.',
+    description:
+      'Asks the foundation for more time on a report or grant {awardId, requirementId?, newDueDate (YYYY-MM-DD), reason}. Staff decide.',
     tags: ['reports', 'extension'],
-    examples: ['{"awardId": "…", "newDueDate": "2027-03-31", "reason": "Our program ran two weeks late because of flooding."}'],
+    examples: [
+      '{"awardId": "…", "newDueDate": "2027-03-31", "reason": "Our program ran two weeks late because of flooding."}',
+    ],
     authenticated: true,
     capability: 'awards_request_change',
   },
@@ -181,7 +203,12 @@ export function agentCard(env: AgentEnv, opts: { extended?: boolean } = {}): Rec
     provider: { organization: env.brandName, url: o },
     version: AGENT_VERSION,
     documentationUrl: `${o}/agents.md`,
-    capabilities: { streaming: true, pushNotifications: false, stateTransitionHistory: false, extendedAgentCard: true },
+    capabilities: {
+      streaming: true,
+      pushNotifications: false,
+      stateTransitionHistory: false,
+      extendedAgentCard: true,
+    },
     securitySchemes: {
       oauth2: {
         type: 'oauth2',
@@ -196,7 +223,11 @@ export function agentCard(env: AgentEnv, opts: { extended?: boolean } = {}): Rec
           },
         },
       },
-      bearer: { type: 'http', scheme: 'bearer', description: 'Personal access token (gms_pat_…) or OAuth access token for resource ' + url },
+      bearer: {
+        type: 'http',
+        scheme: 'bearer',
+        description: 'Personal access token (gms_pat_…) or OAuth access token for resource ' + url,
+      },
     },
     supportsAuthenticatedExtendedCard: true,
     defaultInputModes: ['text/plain', 'application/json'],
@@ -223,7 +254,13 @@ interface TaskRow {
 }
 
 function agentMessage(parts: Part[], task?: { id: string; contextId: string }): A2aMessage {
-  return { kind: 'message', messageId: randomUUID(), role: 'ROLE_AGENT', parts, ...(task ? { taskId: task.id, contextId: task.contextId } : {}) };
+  return {
+    kind: 'message',
+    messageId: randomUUID(),
+    role: 'ROLE_AGENT',
+    parts,
+    ...(task ? { taskId: task.id, contextId: task.contextId } : {}),
+  };
 }
 
 function toTask(row: TaskRow, historyLength?: number): A2aTask {
@@ -246,7 +283,18 @@ function toTask(row: TaskRow, historyLength?: number): A2aTask {
 
 async function saveTask(
   db: Database,
-  row: { id: string; workspaceId: string; clientId: string | null; userId: string | null; skill: string; contextId: string; state: TaskState; input: Record<string, unknown>; output: Record<string, unknown>; history: A2aMessage[] },
+  row: {
+    id: string;
+    workspaceId: string;
+    clientId: string | null;
+    userId: string | null;
+    skill: string;
+    contextId: string;
+    state: TaskState;
+    input: Record<string, unknown>;
+    output: Record<string, unknown>;
+    history: A2aMessage[];
+  },
   isNew: boolean,
 ): Promise<TaskRow> {
   if (isNew) {
@@ -270,7 +318,13 @@ async function saveTask(
   }
   return db
     .updateTable('agent_tasks')
-    .set({ state: DB_STATE[row.state], input: JSON.stringify(row.input), output: JSON.stringify(row.output), history: JSON.stringify(row.history.slice(-50)), last_modified_at: new Date().toISOString() })
+    .set({
+      state: DB_STATE[row.state],
+      input: JSON.stringify(row.input),
+      output: JSON.stringify(row.output),
+      history: JSON.stringify(row.history.slice(-50)),
+      last_modified_at: new Date().toISOString(),
+    })
     .where('id', '=', row.id)
     .returningAll()
     .executeTakeFirstOrThrow();
@@ -279,7 +333,11 @@ async function saveTask(
 function canSee(row: TaskRow, env: AgentEnv, principal: AgentPrincipal | null): boolean {
   if (row.workspace_id !== env.workspace.id) return false;
   if (!row.user_id) return true; // anonymous (public-skill) tasks: the unguessable task id is the capability
-  return Boolean(principal && principal.userId === row.user_id && (row.client_id === null || row.client_id === principal.clientId));
+  return Boolean(
+    principal &&
+    principal.userId === row.user_id &&
+    (row.client_id === null || row.client_id === principal.clientId),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -305,18 +363,26 @@ interface SkillCall {
 }
 
 const SEARCH_NOISE = new Set(
-  'find search show list me any all grant grants opportunity opportunities funding fund funds for the a an in of to open available please what which are there i we looking look need our my is with about on'.split(' '),
+  'find search show list me any all grant grants opportunity opportunities funding fund funds for the a an in of to open available please what which are there i we looking look need our my is with about on'.split(
+    ' ',
+  ),
 );
 
 function keywords(text: string): string {
-  const words = (text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => !SEARCH_NOISE.has(w) && w.length > 2);
+  const words = (text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter(
+    (w) => !SEARCH_NOISE.has(w) && w.length > 2,
+  );
   return words.slice(0, 8).join(' or ');
 }
 
 async function capCall(c: SkillCall, name: string, input: unknown): Promise<InvokeResult> {
   const cap = findCapability(name);
   if (!cap) throw new DomainError('internal', `Capability ${name} is missing.`);
-  if (c.principal && c.ctx.scopes !== '*' && !cap.scopes.every((s) => (c.ctx.scopes as readonly string[]).includes(s))) {
+  if (
+    c.principal &&
+    c.ctx.scopes !== '*' &&
+    !cap.scopes.every((s) => (c.ctx.scopes as readonly string[]).includes(s))
+  ) {
     throw insufficientScope(c.env, 'a2a', cap.scopes, c.ctx.scopes as readonly string[]);
   }
   return invokeCapability(c.env, cap, input, c.ctx, c.principal);
@@ -344,16 +410,27 @@ async function findOpportunities(c: SkillCall): Promise<Outcome> {
   const query = typeof c.data.query === 'string' ? c.data.query : keywords(c.text);
   const status = typeof c.data.status === 'string' ? c.data.status : 'open';
   let r = await capCall(c, 'search_opportunities', { ...(query ? { query } : {}), status, limit: 10 });
-  let out = r.status === 'ok' ? (r.output as { opportunities: unknown[]; total: number }) : { opportunities: [], total: 0 };
+  let out =
+    r.status === 'ok'
+      ? (r.output as { opportunities: unknown[]; total: number })
+      : { opportunities: [], total: 0 };
   if (!out.total && query && typeof c.data.query !== 'string') {
     r = await capCall(c, 'search_opportunities', { status, limit: 10 });
     out = r.status === 'ok' ? (r.output as { opportunities: unknown[]; total: number }) : out;
   }
-  return { state: 'TASK_STATE_COMPLETED', text: r.summary, data: out as unknown as Record<string, unknown>, artifactName: 'opportunities' };
+  return {
+    state: 'TASK_STATE_COMPLETED',
+    text: r.summary,
+    data: out as unknown as Record<string, unknown>,
+    artifactName: 'opportunities',
+  };
 }
 
 async function resolveOpportunityId(c: SkillCall): Promise<string | { ask: Outcome }> {
-  const given = (typeof c.data.opportunityId === 'string' && c.data.opportunityId) || (typeof c.prior.opportunityId === 'string' && c.prior.opportunityId) || null;
+  const given =
+    (typeof c.data.opportunityId === 'string' && c.data.opportunityId) ||
+    (typeof c.prior.opportunityId === 'string' && c.prior.opportunityId) ||
+    null;
   if (given) return given;
   const slug = typeof c.data.slug === 'string' ? c.data.slug : null;
   const rows = await publicOpportunityRows(c.env, slug ? { slug } : {});
@@ -366,7 +443,10 @@ async function resolveOpportunityId(c: SkillCall): Promise<string | { ask: Outco
     ask: {
       state: 'TASK_STATE_INPUT_REQUIRED',
       text: 'Which opportunity? Reply with a data part {"opportunityId": "…"}.',
-      data: { needed: ['opportunityId'], options: pool.map((o) => ({ opportunityId: o.id, title: o.title })) },
+      data: {
+        needed: ['opportunityId'],
+        options: pool.map((o) => ({ opportunityId: o.id, title: o.title })),
+      },
     },
   };
 }
@@ -374,9 +454,16 @@ async function resolveOpportunityId(c: SkillCall): Promise<string | { ask: Outco
 async function checkEligibility(c: SkillCall): Promise<Outcome> {
   const opp = await resolveOpportunityId(c);
   if (typeof opp !== 'string') return opp.ask;
-  const answers = { ...(isRecord(c.prior.answers) ? c.prior.answers : {}), ...(isRecord(c.data.answers) ? c.data.answers : {}) };
+  const answers = {
+    ...(isRecord(c.prior.answers) ? c.prior.answers : {}),
+    ...(isRecord(c.data.answers) ? c.data.answers : {}),
+  };
   const r = await capCall(c, 'check_eligibility', { opportunityId: opp, answers });
-  const out = (r.status === 'ok' ? r.output : {}) as { eligible: boolean | null; missing: { ruleId: string; question: string; kind: string; options?: string[] }[]; outcomes: { question: string; passed: boolean | null; message?: string }[] };
+  const out = (r.status === 'ok' ? r.output : {}) as {
+    eligible: boolean | null;
+    missing: { ruleId: string; question: string; kind: string; options?: string[] }[];
+    outcomes: { question: string; passed: boolean | null; message?: string }[];
+  };
   if (out.eligible === null) {
     return {
       state: 'TASK_STATE_INPUT_REQUIRED',
@@ -388,7 +475,9 @@ async function checkEligibility(c: SkillCall): Promise<Outcome> {
   const failed = out.outcomes.filter((o) => o.passed === false);
   return {
     state: 'TASK_STATE_COMPLETED',
-    text: out.eligible ? 'Eligible: every eligibility question passes.' : `Not eligible: ${failed.map((f) => f.message ?? f.question).join(' ')}`,
+    text: out.eligible
+      ? 'Eligible: every eligibility question passes.'
+      : `Not eligible: ${failed.map((f) => f.message ?? f.question).join(' ')}`,
     data: { opportunityId: opp, ...out },
     artifactName: 'eligibility',
     input: { opportunityId: opp, answers },
@@ -397,13 +486,23 @@ async function checkEligibility(c: SkillCall): Promise<Outcome> {
 
 async function answerQuestion(c: SkillCall): Promise<Outcome> {
   const question = (typeof c.data.question === 'string' ? c.data.question : c.text).trim();
-  if (!question) return { state: 'TASK_STATE_INPUT_REQUIRED', text: 'What would you like to know? Send the question as text.', data: { needed: ['question'] } };
+  if (!question)
+    return {
+      state: 'TASK_STATE_INPUT_REQUIRED',
+      text: 'What would you like to know? Send the question as text.',
+      data: { needed: ['question'] },
+    };
   const id = typeof c.data.opportunityId === 'string' ? c.data.opportunityId : undefined;
   const slug = typeof c.data.slug === 'string' ? c.data.slug : undefined;
   const rows = await publicOpportunityRows(c.env, { id, slug });
   const top = rankPassages(rows.flatMap(passagesFor), question, 3);
   if (!top.length) {
-    return { state: 'TASK_STATE_COMPLETED', text: 'The published guidelines and FAQ do not cover this. Contact the foundation directly.', data: { question, citations: [], answeredBy: 'retrieval' }, artifactName: 'answer' };
+    return {
+      state: 'TASK_STATE_COMPLETED',
+      text: 'The published guidelines and FAQ do not cover this. Contact the foundation directly.',
+      data: { question, citations: [], answeredBy: 'retrieval' },
+      artifactName: 'answer',
+    };
   }
   const citations = top.map((t, i) => ({
     n: i + 1,
@@ -416,16 +515,25 @@ async function answerQuestion(c: SkillCall): Promise<Outcome> {
   }));
   const llm = c.env.runtime.adapters.llm;
   if (llm && llm.name !== 'fake-llm') {
-    const context = citations.map((ct) => `[${ct.n}] (${ct.opportunity} — ${ct.source})\n${ct.quote}`).join('\n\n');
+    const context = citations
+      .map((ct) => `[${ct.n}] (${ct.opportunity} — ${ct.source})\n${ct.quote}`)
+      .join('\n\n');
     const r = await llm.complete({
       system:
         'You answer questions about a foundation’s grant opportunity using ONLY the numbered passages from its published guidelines and FAQ. Cite passages like [1]. If the passages do not answer the question, say so and suggest contacting the foundation. Never invent eligibility rules, amounts or dates.',
       messages: [{ role: 'user', content: `Question: ${question}\n\nPassages:\n${context}` }],
       maxTokens: 600,
     });
-    return { state: 'TASK_STATE_COMPLETED', text: r.text, data: { question, answer: r.text, citations, answeredBy: 'llm' }, artifactName: 'answer' };
+    return {
+      state: 'TASK_STATE_COMPLETED',
+      text: r.text,
+      data: { question, answer: r.text, citations, answeredBy: 'llm' },
+      artifactName: 'answer',
+    };
   }
-  const verbatim = citations.map((ct) => `[${ct.n}] ${ct.opportunity} (${ct.source}): “${ct.quote}” — ${ct.url}`).join('\n');
+  const verbatim = citations
+    .map((ct) => `[${ct.n}] ${ct.opportunity} (${ct.source}): “${ct.quote}” — ${ct.url}`)
+    .join('\n');
   return {
     state: 'TASK_STATE_COMPLETED',
     text: `No language model is configured here, so these are the most relevant passages from the published guidelines and FAQ, quoted verbatim:\n${verbatim}`,
@@ -440,9 +548,13 @@ async function startApplication(c: SkillCall): Promise<Outcome> {
     const opp = await resolveOpportunityId(c);
     if (typeof opp !== 'string') return opp.ask;
     const form = await capCall(c, 'get_application_form', { opportunityId: opp });
-    competitionId = form.status === 'ok' ? String((form.output as { competitionId: string }).competitionId) : null;
+    competitionId =
+      form.status === 'ok' ? String((form.output as { competitionId: string }).competitionId) : null;
   }
-  const r = await capCall(c, 'start_application', { competitionId, ...(typeof c.data.applicantOrgId === 'string' ? { applicantOrgId: c.data.applicantOrgId } : {}) });
+  const r = await capCall(c, 'start_application', {
+    competitionId,
+    ...(typeof c.data.applicantOrgId === 'string' ? { applicantOrgId: c.data.applicantOrgId } : {}),
+  });
   const out = r.status === 'ok' ? (r.output as { result?: unknown } & Record<string, unknown>) : {};
   return {
     state: 'TASK_STATE_COMPLETED',
@@ -453,15 +565,30 @@ async function startApplication(c: SkillCall): Promise<Outcome> {
 }
 
 async function applicationStatus(c: SkillCall): Promise<Outcome> {
-  const r = await capCall(c, 'get_status', typeof c.data.applicationId === 'string' ? { applicationId: c.data.applicationId } : {});
-  return { state: 'TASK_STATE_COMPLETED', text: r.summary, data: r.status === 'ok' ? (r.output as Record<string, unknown>) : {}, artifactName: 'status' };
+  const r = await capCall(
+    c,
+    'get_status',
+    typeof c.data.applicationId === 'string' ? { applicationId: c.data.applicationId } : {},
+  );
+  return {
+    state: 'TASK_STATE_COMPLETED',
+    text: r.summary,
+    data: r.status === 'ok' ? (r.output as Record<string, unknown>) : {},
+    artifactName: 'status',
+  };
 }
 
 function approvalOutcome(r: Extract<InvokeResult, { status: 'approval_required' }>): Outcome {
   return {
     state: 'TASK_STATE_AUTH_REQUIRED',
     text: `${r.summary}`,
-    data: { status: 'approval_required', approvalRequestId: r.approvalRequestId, confirmUrl: r.confirmUrl, expiresAt: r.expiresAt, preview: r.preview },
+    data: {
+      status: 'approval_required',
+      approvalRequestId: r.approvalRequestId,
+      confirmUrl: r.confirmUrl,
+      expiresAt: r.expiresAt,
+      preview: r.preview,
+    },
     extraOutput: { approvalRequestId: r.approvalRequestId, confirmUrl: r.confirmUrl },
   };
 }
@@ -477,13 +604,22 @@ async function submitReport(c: SkillCall): Promise<Outcome> {
     return {
       state: 'TASK_STATE_INPUT_REQUIRED',
       text: `To submit a report I need: ${missing.join(', ')}. Send a data part {"requirementId": "…", "attestation": {"typedName": "<the person's name>", "agreed": true}}.`,
-      data: { needed: missing, reports: reports?.status === 'ok' ? (reports.output as { reports: unknown[] }).reports : [] },
+      data: {
+        needed: missing,
+        reports: reports?.status === 'ok' ? (reports.output as { reports: unknown[] }).reports : [],
+      },
       input,
     };
   }
   const r = await capCall(c, 'submit_report', { requirementId: input.requirementId, attestation: att });
   if (r.status === 'approval_required') return { ...approvalOutcome(r), input };
-  return { state: 'TASK_STATE_COMPLETED', text: r.summary, data: r.output as Record<string, unknown>, artifactName: 'report', input };
+  return {
+    state: 'TASK_STATE_COMPLETED',
+    text: r.summary,
+    data: r.output as Record<string, unknown>,
+    artifactName: 'report',
+    input,
+  };
 }
 
 async function requestExtension(c: SkillCall): Promise<Outcome> {
@@ -494,15 +630,29 @@ async function requestExtension(c: SkillCall): Promise<Outcome> {
     kind: typeof input.kind === 'string' ? input.kind : 'extension',
     ...(typeof input.requirementId === 'string' ? { requirementId: input.requirementId } : {}),
     reason: input.reason ?? (c.text || undefined),
-    details: { ...details, ...(typeof input.newDueDate === 'string' ? { newDueDate: input.newDueDate } : {}) },
+    details: {
+      ...details,
+      ...(typeof input.newDueDate === 'string' ? { newDueDate: input.newDueDate } : {}),
+    },
   };
   try {
     const r = await capCall(c, 'awards_request_change', payload);
     if (r.status === 'approval_required') return { ...approvalOutcome(r), input };
-    return { state: 'TASK_STATE_COMPLETED', text: 'Sent. Foundation staff will decide and the person will be notified.', data: r.output as Record<string, unknown>, artifactName: 'change_request', input };
+    return {
+      state: 'TASK_STATE_COMPLETED',
+      text: 'Sent. Foundation staff will decide and the person will be notified.',
+      data: r.output as Record<string, unknown>,
+      artifactName: 'change_request',
+      input,
+    };
   } catch (err) {
     if (isDomainError(err) && err.code === 'validation_failed') {
-      return { state: 'TASK_STATE_INPUT_REQUIRED', text: `${err.message} ${err.issues.map((i) => `${i.pointer}: ${i.message}`).join('; ')}`, data: { errors: err.issues }, input };
+      return {
+        state: 'TASK_STATE_INPUT_REQUIRED',
+        text: `${err.message} ${err.issues.map((i) => `${i.pointer}: ${i.message}`).join('; ')}`,
+        data: { errors: err.issues },
+        input,
+      };
     }
     throw err;
   }
@@ -533,7 +683,13 @@ function inferSkill(text: string, data: Record<string, unknown>): string {
 // JSON-RPC
 // ---------------------------------------------------------------------------------------------------------
 type Id = string | number | null;
-const A2A_ERR = { taskNotFound: -32001, notCancelable: -32002, pushNotSupported: -32003, unsupported: -32004, authRequired: -32040 } as const;
+const A2A_ERR = {
+  taskNotFound: -32001,
+  notCancelable: -32002,
+  pushNotSupported: -32003,
+  unsupported: -32004,
+  authRequired: -32040,
+} as const;
 
 function rpcResult(id: Id, result: unknown) {
   return { jsonrpc: '2.0', id, result };
@@ -554,7 +710,12 @@ function parseParts(raw: unknown): { text: string; data: Record<string, unknown>
   return { text: text.slice(0, 5000), data };
 }
 
-async function runMessage(env: AgentEnv, params: Record<string, unknown>, ctx: ActionContext, principal: AgentPrincipal | null): Promise<A2aTask> {
+async function runMessage(
+  env: AgentEnv,
+  params: Record<string, unknown>,
+  ctx: ActionContext,
+  principal: AgentPrincipal | null,
+): Promise<A2aTask> {
   const msg = isRecord(params.message) ? params.message : null;
   if (!msg) throw new DomainError('validation_failed', 'params.message is required.');
   const { text, data } = parseParts(msg.parts);
@@ -563,17 +724,33 @@ async function runMessage(env: AgentEnv, params: Record<string, unknown>, ctx: A
     kind: 'message',
     messageId: typeof msg.messageId === 'string' ? msg.messageId.slice(0, 100) : randomUUID(),
     role: 'ROLE_USER',
-    parts: [...(text ? [{ kind: 'text' as const, text }] : []), ...(Object.keys(data).length ? [{ kind: 'data' as const, data }] : [])],
+    parts: [
+      ...(text ? [{ kind: 'text' as const, text }] : []),
+      ...(Object.keys(data).length ? [{ kind: 'data' as const, data }] : []),
+    ],
   };
 
   let existing: TaskRow | undefined;
   if (typeof msg.taskId === 'string') {
-    existing = await db.selectFrom('agent_tasks').selectAll().where('id', '=', msg.taskId).where('protocol', '=', 'a2a').executeTakeFirst();
-    if (!existing || !canSee(existing, env, principal)) throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
-    if (TERMINAL.has(FROM_DB[existing.state] ?? 'TASK_STATE_FAILED')) throw new A2aRpcError(A2A_ERR.unsupported, 'This task is finished. Start a new task (omit taskId).');
+    existing = await db
+      .selectFrom('agent_tasks')
+      .selectAll()
+      .where('id', '=', msg.taskId)
+      .where('protocol', '=', 'a2a')
+      .executeTakeFirst();
+    if (!existing || !canSee(existing, env, principal))
+      throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
+    if (TERMINAL.has(FROM_DB[existing.state] ?? 'TASK_STATE_FAILED'))
+      throw new A2aRpcError(A2A_ERR.unsupported, 'This task is finished. Start a new task (omit taskId).');
   }
   const meta = isRecord(msg.metadata) ? msg.metadata : isRecord(params.metadata) ? params.metadata : {};
-  const skillId = existing?.skill ?? (typeof meta.skill === 'string' ? meta.skill : typeof data.skill === 'string' ? data.skill : inferSkill(text, data));
+  const skillId =
+    existing?.skill ??
+    (typeof meta.skill === 'string'
+      ? meta.skill
+      : typeof data.skill === 'string'
+        ? data.skill
+        : inferSkill(text, data));
   const skill = SKILLS.find((s) => s.id === skillId);
   if (!skill) throw new A2aRpcError(A2A_ERR.unsupported, `Unknown skill "${skillId}". See the agent card.`);
   if (skill.authenticated && !principal) {
@@ -582,9 +759,13 @@ async function runMessage(env: AgentEnv, params: Record<string, unknown>, ctx: A
   }
 
   const id = existing?.id ?? randomUUID();
-  const contextId = existing?.context_id ?? (typeof msg.contextId === 'string' ? msg.contextId.slice(0, 100) : randomUUID());
+  const contextId =
+    existing?.context_id ?? (typeof msg.contextId === 'string' ? msg.contextId.slice(0, 100) : randomUUID());
   const prior = existing && isRecord(existing.input) ? existing.input : {};
-  const history = [...(existing && Array.isArray(existing.history) ? (existing.history as A2aMessage[]) : []), { ...userMsg, taskId: id, contextId }];
+  const history = [
+    ...(existing && Array.isArray(existing.history) ? (existing.history as A2aMessage[]) : []),
+    { ...userMsg, taskId: id, contextId },
+  ];
 
   let outcome: Outcome;
   try {
@@ -594,12 +775,22 @@ async function runMessage(env: AgentEnv, params: Record<string, unknown>, ctx: A
     const p = toProblem(err);
     if (p.status >= 500) console.error('[a2a] skill failed', skill.id, (err as Error)?.message);
     const rejected = p.code === 'human_only' || p.code === 'forbidden';
-    outcome = { state: rejected ? 'TASK_STATE_REJECTED' : 'TASK_STATE_FAILED', text: `${p.title}: ${p.detail}`, data: { problem: p } };
+    outcome = {
+      state: rejected ? 'TASK_STATE_REJECTED' : 'TASK_STATE_FAILED',
+      text: `${p.title}: ${p.detail}`,
+      data: { problem: p },
+    };
   }
-  const parts: Part[] = [{ kind: 'text', text: outcome.text }, ...(outcome.data ? [{ kind: 'data' as const, data: outcome.data }] : [])];
+  const parts: Part[] = [
+    { kind: 'text', text: outcome.text },
+    ...(outcome.data ? [{ kind: 'data' as const, data: outcome.data }] : []),
+  ];
   const statusMessage = agentMessage(parts, { id, contextId });
   const previousOut = existing && isRecord(existing.output) ? existing.output : {};
-  const artifacts = outcome.state === 'TASK_STATE_COMPLETED' ? [{ artifactId: randomUUID(), name: outcome.artifactName ?? 'result', parts }] : [];
+  const artifacts =
+    outcome.state === 'TASK_STATE_COMPLETED'
+      ? [{ artifactId: randomUUID(), name: outcome.artifactName ?? 'result', parts }]
+      : [];
   const row = await saveTask(
     db,
     {
@@ -621,12 +812,32 @@ async function runMessage(env: AgentEnv, params: Record<string, unknown>, ctx: A
 
 /** Refreshes AUTH_REQUIRED tasks whose approval request a person has since decided. */
 async function refreshApproval(env: AgentEnv, row: TaskRow): Promise<TaskRow> {
-  if (row.state !== 'auth_required' || !isRecord(row.output) || typeof row.output.approvalRequestId !== 'string') return row;
-  const ar = await env.runtime.db.selectFrom('approval_requests').select(['status', 'result']).where('id', '=', row.output.approvalRequestId).executeTakeFirst();
+  if (
+    row.state !== 'auth_required' ||
+    !isRecord(row.output) ||
+    typeof row.output.approvalRequestId !== 'string'
+  )
+    return row;
+  const ar = await env.runtime.db
+    .selectFrom('approval_requests')
+    .select(['status', 'result'])
+    .where('id', '=', row.output.approvalRequestId)
+    .executeTakeFirst();
   if (!ar || ar.status === 'awaiting_confirmation') return row;
-  const state: TaskState = ar.status === 'confirmed' ? 'TASK_STATE_COMPLETED' : ar.status === 'rejected' ? 'TASK_STATE_REJECTED' : 'TASK_STATE_FAILED';
-  const text = ar.status === 'confirmed' ? 'The person confirmed it in GMS. Done.' : `The request was ${ar.status.replace(/_/g, ' ')}.`;
-  const parts: Part[] = [{ kind: 'text', text }, { kind: 'data', data: { approvalStatus: ar.status, result: ar.result } }];
+  const state: TaskState =
+    ar.status === 'confirmed'
+      ? 'TASK_STATE_COMPLETED'
+      : ar.status === 'rejected'
+        ? 'TASK_STATE_REJECTED'
+        : 'TASK_STATE_FAILED';
+  const text =
+    ar.status === 'confirmed'
+      ? 'The person confirmed it in GMS. Done.'
+      : `The request was ${ar.status.replace(/_/g, ' ')}.`;
+  const parts: Part[] = [
+    { kind: 'text', text },
+    { kind: 'data', data: { approvalStatus: ar.status, result: ar.result } },
+  ];
   const statusMessage = agentMessage(parts, { id: row.id, contextId: row.context_id ?? row.id });
   return saveTask(
     env.runtime.db,
@@ -639,7 +850,12 @@ async function refreshApproval(env: AgentEnv, row: TaskRow): Promise<TaskRow> {
       contextId: row.context_id ?? row.id,
       state,
       input: isRecord(row.input) ? row.input : {},
-      output: { ...row.output, statusMessage, artifacts: state === 'TASK_STATE_COMPLETED' ? [{ artifactId: randomUUID(), name: 'result', parts }] : [] },
+      output: {
+        ...row.output,
+        statusMessage,
+        artifacts:
+          state === 'TASK_STATE_COMPLETED' ? [{ artifactId: randomUUID(), name: 'result', parts }] : [],
+      },
       history: [...(Array.isArray(row.history) ? (row.history as A2aMessage[]) : []), statusMessage],
     },
     false,
@@ -680,7 +896,8 @@ export async function handleA2a(req: Request, env: AgentEnv): Promise<Response> 
     } catch {
       return Response.json(rpcError(null, -32700, 'Parse error'), { status: 400, headers });
     }
-    if (!isRecord(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string') return Response.json(rpcError(null, -32600, 'Invalid JSON-RPC request.'), { status: 400, headers });
+    if (!isRecord(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string')
+      return Response.json(rpcError(null, -32600, 'Invalid JSON-RPC request.'), { status: 400, headers });
     id = typeof body.id === 'string' || typeof body.id === 'number' ? body.id : null;
     const method = METHOD_ALIASES[body.method] ?? body.method;
     const params = isRecord(body.params) ? body.params : {};
@@ -693,19 +910,46 @@ export async function handleA2a(req: Request, env: AgentEnv): Promise<Response> 
           result = await runMessage(env, params, auth.ctx, auth.principal);
           break;
         case 'tasks/get': {
-          const taskId = typeof params.id === 'string' ? params.id : typeof params.name === 'string' ? params.name.replace(/^tasks\//, '') : '';
-          const row = /^[0-9a-f-]{36}$/i.test(taskId) ? await env.runtime.db.selectFrom('agent_tasks').selectAll().where('id', '=', taskId).where('protocol', '=', 'a2a').executeTakeFirst() : undefined;
-          if (!row || !canSee(row, env, auth.principal)) throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
+          const taskId =
+            typeof params.id === 'string'
+              ? params.id
+              : typeof params.name === 'string'
+                ? params.name.replace(/^tasks\//, '')
+                : '';
+          const row = /^[0-9a-f-]{36}$/i.test(taskId)
+            ? await env.runtime.db
+                .selectFrom('agent_tasks')
+                .selectAll()
+                .where('id', '=', taskId)
+                .where('protocol', '=', 'a2a')
+                .executeTakeFirst()
+            : undefined;
+          if (!row || !canSee(row, env, auth.principal))
+            throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
           const fresh = await refreshApproval(env, row);
           result = toTask(fresh, typeof params.historyLength === 'number' ? params.historyLength : undefined);
           break;
         }
         case 'tasks/cancel': {
           const taskId = typeof params.id === 'string' ? params.id : '';
-          const row = /^[0-9a-f-]{36}$/i.test(taskId) ? await env.runtime.db.selectFrom('agent_tasks').selectAll().where('id', '=', taskId).where('protocol', '=', 'a2a').executeTakeFirst() : undefined;
-          if (!row || !canSee(row, env, auth.principal)) throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
-          if (TERMINAL.has(FROM_DB[row.state] ?? 'TASK_STATE_FAILED')) throw new A2aRpcError(A2A_ERR.notCancelable, 'This task already finished.');
-          const updated = await env.runtime.db.updateTable('agent_tasks').set({ state: 'canceled', last_modified_at: new Date().toISOString() }).where('id', '=', row.id).returningAll().executeTakeFirstOrThrow();
+          const row = /^[0-9a-f-]{36}$/i.test(taskId)
+            ? await env.runtime.db
+                .selectFrom('agent_tasks')
+                .selectAll()
+                .where('id', '=', taskId)
+                .where('protocol', '=', 'a2a')
+                .executeTakeFirst()
+            : undefined;
+          if (!row || !canSee(row, env, auth.principal))
+            throw new A2aRpcError(A2A_ERR.taskNotFound, 'Task not found.');
+          if (TERMINAL.has(FROM_DB[row.state] ?? 'TASK_STATE_FAILED'))
+            throw new A2aRpcError(A2A_ERR.notCancelable, 'This task already finished.');
+          const updated = await env.runtime.db
+            .updateTable('agent_tasks')
+            .set({ state: 'canceled', last_modified_at: new Date().toISOString() })
+            .where('id', '=', row.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
           result = toTask(updated);
           break;
         }
@@ -715,7 +959,10 @@ export async function handleA2a(req: Request, env: AgentEnv): Promise<Response> 
           break;
         case 'tasks/pushNotificationConfig/set':
         case 'tasks/pushNotificationConfig/get':
-          throw new A2aRpcError(A2A_ERR.pushNotSupported, 'Push notifications are not supported. Poll tasks/get.');
+          throw new A2aRpcError(
+            A2A_ERR.pushNotSupported,
+            'Push notifications are not supported. Poll tasks/get.',
+          );
         case 'tasks/resubscribe':
           throw new A2aRpcError(A2A_ERR.unsupported, 'Resubscribe is not supported. Poll tasks/get.');
         default:
@@ -732,13 +979,19 @@ export async function handleA2a(req: Request, env: AgentEnv): Promise<Response> 
     }
     const payload = rpcResult(id, result);
     if (stream) {
-      return new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, { status: 200, headers: { ...headers, 'content-type': 'text/event-stream', 'cache-control': 'no-store' } });
+      return new Response(`event: message\ndata: ${JSON.stringify(payload)}\n\n`, {
+        status: 200,
+        headers: { ...headers, 'content-type': 'text/event-stream', 'cache-control': 'no-store' },
+      });
     }
     return Response.json(payload, { headers });
   } catch (err) {
     if (err instanceof HttpError) {
       const code = err.status === 401 ? A2A_ERR.authRequired : -32603;
-      return Response.json(rpcError(id, code, err.message, err.problem(instance)), { status: err.status, headers: { ...headers, ...err.headers } });
+      return Response.json(rpcError(id, code, err.message, err.problem(instance)), {
+        status: err.status,
+        headers: { ...headers, ...err.headers },
+      });
     }
     return errorResponse(err, instance, headers);
   }

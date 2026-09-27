@@ -55,14 +55,26 @@ export const CURATED_ACTIONS: CuratedAction[] = [
     lead: 'Problems come back as JSON Pointers (e.g. /org_ein) with a plain-language fix-it hint; correct them and call save_answers again.',
   },
   { name: 'validate_application', actionId: 'applications.validate' },
-  { name: 'upload_attachment', actionId: 'applications.request_upload', lead: 'Returns a signed upload URL (PUT the file bytes), then call applications_confirm_upload.' },
+  {
+    name: 'upload_attachment',
+    actionId: 'applications.request_upload',
+    lead: 'Returns a signed upload URL (PUT the file bytes), then call applications_confirm_upload.',
+  },
   {
     name: 'request_submission',
     actionId: 'applications.submit',
     lead: 'Asks to submit the application. You cannot submit on your own: this returns status "approval_required" with a confirmUrl the person must open and confirm. Poll get_status afterwards.',
   },
-  { name: 'submit_report', actionId: 'reports.submit', lead: 'Asks to submit a grant report; the person confirms at the returned confirmUrl.' },
-  { name: 'screen_eligibility', actionId: 'applications.screen_eligibility', lead: 'Your screening is recorded as a suggestion for staff; it never changes the application status.' },
+  {
+    name: 'submit_report',
+    actionId: 'reports.submit',
+    lead: 'Asks to submit a grant report; the person confirms at the returned confirmUrl.',
+  },
+  {
+    name: 'screen_eligibility',
+    actionId: 'applications.screen_eligibility',
+    lead: 'Your screening is recorded as a suggestion for staff; it never changes the application status.',
+  },
   {
     name: 'assign_reviewers',
     actionId: 'review.auto_assign',
@@ -70,10 +82,26 @@ export const CURATED_ACTIONS: CuratedAction[] = [
     defaults: { dryRun: true },
   },
   { name: 'draft_message', actionId: 'comms.draft_bulk_message' },
-  { name: 'send_message', actionId: 'comms.send_bulk_message', lead: 'Sending is consequential: returns approval_required with a confirmUrl for a staff member.' },
-  { name: 'draft_award', actionId: 'awards.draft', lead: 'Creates a DRAFT award only; activating it is people-only.' },
-  { name: 'propose_payment_batch', actionId: 'payments.propose_batch', lead: 'Creates a DRAFT batch only. Approving payments is people-only and cannot be done by any agent.' },
-  { name: 'run_report', actionId: 'exports.request', lead: 'Starts an export job and returns its id; poll get_export_status until it is ready.' },
+  {
+    name: 'send_message',
+    actionId: 'comms.send_bulk_message',
+    lead: 'Sending is consequential: returns approval_required with a confirmUrl for a staff member.',
+  },
+  {
+    name: 'draft_award',
+    actionId: 'awards.draft',
+    lead: 'Creates a DRAFT award only; activating it is people-only.',
+  },
+  {
+    name: 'propose_payment_batch',
+    actionId: 'payments.propose_batch',
+    lead: 'Creates a DRAFT batch only. Approving payments is people-only and cannot be done by any agent.',
+  },
+  {
+    name: 'run_report',
+    actionId: 'exports.request',
+    lead: 'Starts an export job and returns its id; poll get_export_status until it is ready.',
+  },
 ];
 
 const CURATED_READ_NAMES = new Set([
@@ -94,7 +122,8 @@ const CURATED_READ_NAMES = new Set([
 ]);
 
 function tierNote(tier: RiskTier): string {
-  if (tier === 'R2') return ' Consequential (R2): when an agent calls this, nothing happens yet — GMS returns status "approval_required" with a confirmUrl, and a person confirms inside GMS.';
+  if (tier === 'R2')
+    return ' Consequential (R2): when an agent calls this, nothing happens yet — GMS returns status "approval_required" with a confirmUrl, and a person confirms inside GMS.';
   if (tier === 'R0') return ' Read-only.';
   return '';
 }
@@ -108,12 +137,19 @@ export function agentCallable(a: AnyAction): boolean {
   return a.scopes.length > 0;
 }
 
-function actionCapability(a: AnyAction, name: string, curated: boolean, lead?: string, defaults?: Record<string, unknown>): Capability {
+function actionCapability(
+  a: AnyAction,
+  name: string,
+  curated: boolean,
+  lead?: string,
+  defaults?: Record<string, unknown>,
+): Capability {
   const audience = actionAudience(a);
   return {
     name,
     title: a.title,
-    description: `${lead ? `${lead} ` : ''}${a.description}${tierNote(a.riskTier)}`.trim(),
+    description:
+      `${lead ? `${lead} ` : ''}${a.description}${tierNote(a.riskTier)}${curated ? '' : ` Runs the GMS action ${a.id} (scope: ${a.scopes.join(' ')}).`}`.trim(),
     audience: audience === 'system' ? 'staff' : audience,
     roles: a.roles,
     scopes: a.scopes,
@@ -192,7 +228,10 @@ export function scopesAllow(cap: Pick<Capability, 'scopes'>, ctx: ActionContext)
   return cap.scopes.every((s) => granted.includes(s));
 }
 
-export function allowlistAllows(cap: Pick<Capability, 'name' | 'actionId'>, principal: AgentPrincipal | null): boolean {
+export function allowlistAllows(
+  cap: Pick<Capability, 'name' | 'actionId'>,
+  principal: AgentPrincipal | null,
+): boolean {
   const list = principal?.toolAllowlist;
   if (!list) return true;
   return list.includes(cap.name) || (cap.actionId !== null && list.includes(cap.actionId));
@@ -205,7 +244,11 @@ async function effectiveTier(env: AgentEnv, cap: Capability, ctx: ActionContext)
 }
 
 /** The capabilities this caller can use right now (role, scopes, allowlist, tier overrides). */
-export async function visibleCapabilities(env: AgentEnv, ctx: ActionContext, principal: AgentPrincipal | null): Promise<(Capability & { tier: RiskTier })[]> {
+export async function visibleCapabilities(
+  env: AgentEnv,
+  ctx: ActionContext,
+  principal: AgentPrincipal | null,
+): Promise<(Capability & { tier: RiskTier })[]> {
   const out: (Capability & { tier: RiskTier })[] = [];
   for (const cap of allCapabilities()) {
     if (!roleAllows(cap, ctx) || !scopesAllow(cap, ctx) || !allowlistAllows(cap, principal)) continue;
@@ -221,34 +264,65 @@ export async function visibleCapabilities(env: AgentEnv, ctx: ActionContext, pri
 // ---------------------------------------------------------------------------------------------------------
 export type InvokeResult =
   | { status: 'ok'; output: unknown; summary: string }
-  | { status: 'approval_required'; approvalRequestId: string; confirmUrl: string; expiresAt: string; preview: ApprovalPreview; summary: string };
+  | {
+      status: 'approval_required';
+      approvalRequestId: string;
+      confirmUrl: string;
+      expiresAt: string;
+      preview: ApprovalPreview;
+      summary: string;
+    };
 
 function humanOnly(title: string): DomainError {
-  return new DomainError('human_only', `"${title}" can only be done by a person in GMS. Agents cannot be granted this.`, { riskTier: 'R3' });
+  return new DomainError(
+    'human_only',
+    `"${title}" can only be done by a person in GMS. Agents cannot be granted this.`,
+    { riskTier: 'R3' },
+  );
 }
 
 /** Checks role / scope / allowlist / tier gates in a fixed order (R3 first, so it is never masked). */
-async function gate(env: AgentEnv, cap: Capability, ctx: ActionContext, principal: AgentPrincipal | null): Promise<void> {
+async function gate(
+  env: AgentEnv,
+  cap: Capability,
+  ctx: ActionContext,
+  principal: AgentPrincipal | null,
+): Promise<void> {
   if ((await effectiveTier(env, cap, ctx)) === 'R3') throw humanOnly(cap.title);
   if (!allowlistAllows(cap, principal)) {
-    throw new DomainError('forbidden', `"${cap.name}" is not on this agent’s tool allowlist. An admin can change the allowlist in GMS.`);
+    throw new DomainError(
+      'forbidden',
+      `"${cap.name}" is not on this agent’s tool allowlist. An admin can change the allowlist in GMS.`,
+    );
   }
   if (!roleAllows(cap, ctx)) {
-    if (!signedIn(ctx)) throw new DomainError('unauthenticated', `"${cap.name}" needs an access token for a person.`, { requiredScopes: cap.scopes });
-    throw new DomainError('forbidden', `The person this agent acts for cannot "${cap.title.toLowerCase()}".`, { requiredRoles: cap.roles });
+    if (!signedIn(ctx))
+      throw new DomainError('unauthenticated', `"${cap.name}" needs an access token for a person.`, {
+        requiredScopes: cap.scopes,
+      });
+    throw new DomainError(
+      'forbidden',
+      `The person this agent acts for cannot "${cap.title.toLowerCase()}".`,
+      { requiredRoles: cap.roles },
+    );
   }
   if (!scopesAllow(cap, ctx)) {
     const granted = ctx.scopes === '*' ? [] : (ctx.scopes as readonly string[]);
-    throw new DomainError('insufficient_scope', `This token is missing scope(s): ${cap.scopes.filter((s) => !granted.includes(s)).join(' ')}.`, {
-      requiredScopes: cap.scopes,
-      missingScopes: cap.scopes.filter((s) => !granted.includes(s)),
-    });
+    throw new DomainError(
+      'insufficient_scope',
+      `This token is missing scope(s): ${cap.scopes.filter((s) => !granted.includes(s)).join(' ')}.`,
+      {
+        requiredScopes: cap.scopes,
+        missingScopes: cap.scopes.filter((s) => !granted.includes(s)),
+      },
+    );
   }
 }
 
 function withDefaults(cap: Capability, input: unknown): unknown {
   if (!cap.defaults) return input ?? {};
-  const base = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const base =
+    input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
   return { ...cap.defaults, ...base };
 }
 
@@ -257,13 +331,26 @@ function summarizeOutput(cap: Capability, output: unknown): string {
     const errs = ((output as { errors?: { pointer: string; message: string }[] }).errors ?? []).slice(0, 10);
     const conflicts = (output as { conflicts?: unknown[] }).conflicts ?? [];
     const head = `Saved${(output as { etag?: string }).etag ? ` (etag ${(output as { etag: string }).etag})` : ''}.`;
-    return [head, errs.length ? `${errs.length} problem(s) to fix: ${errs.map((e) => `${e.pointer} — ${e.message}`).join('; ')}` : 'No problems so far.', conflicts.length ? `${conflicts.length} field(s) were changed by someone else and not overwritten.` : '']
+    return [
+      head,
+      errs.length
+        ? `${errs.length} problem(s) to fix: ${errs.map((e) => `${e.pointer} — ${e.message}`).join('; ')}`
+        : 'No problems so far.',
+      conflicts.length
+        ? `${conflicts.length} field(s) were changed by someone else and not overwritten.`
+        : '',
+    ]
       .filter(Boolean)
       .join(' ');
   }
   if (cap.actionId === 'applications.validate') {
     const o = output as { ready: boolean; errors: { pointer: string; message: string }[] };
-    return o.ready ? 'Ready to submit: every answer passes.' : `Not ready: ${o.errors.length} problem(s). ${o.errors.slice(0, 8).map((e) => `${e.pointer} — ${e.message}`).join('; ')}`;
+    return o.ready
+      ? 'Ready to submit: every answer passes.'
+      : `Not ready: ${o.errors.length} problem(s). ${o.errors
+          .slice(0, 8)
+          .map((e) => `${e.pointer} — ${e.message}`)
+          .join('; ')}`;
   }
   const json = JSON.stringify(output);
   return `${cap.title}: done. ${json.length > 400 ? `${json.slice(0, 400)}…` : json}`;
@@ -271,22 +358,35 @@ function summarizeOutput(cap: Capability, output: unknown): string {
 
 /** Adds a fix-it hint to every JSON-Pointer error an action returns. */
 function withHints(cap: Capability, output: unknown): unknown {
-  if (!output || typeof output !== 'object' || !Array.isArray((output as { errors?: unknown }).errors)) return output;
+  if (!output || typeof output !== 'object' || !Array.isArray((output as { errors?: unknown }).errors))
+    return output;
   const tool = cap.actionId === 'reports.save' ? 'reports_save' : 'save_answers';
-  const errors = (output as { errors: { pointer: string; message: string; fieldId?: string }[] }).errors.map((e) => ({
-    ...e,
-    hint: `${e.message} Then call ${tool} again with a corrected value for "${e.fieldId ?? e.pointer.replace(/^\//, '').split('/')[0]}".`,
-  }));
+  const errors = (output as { errors: { pointer: string; message: string; fieldId?: string }[] }).errors.map(
+    (e) => ({
+      ...e,
+      hint: `${e.message} Then call ${tool} again with a corrected value for "${e.fieldId ?? e.pointer.replace(/^\//, '').split('/')[0]}".`,
+    }),
+  );
   return { ...(output as Record<string, unknown>), errors };
 }
 
-export async function invokeCapability(env: AgentEnv, cap: Capability, input: unknown, ctx: ActionContext, principal: AgentPrincipal | null): Promise<InvokeResult> {
+export async function invokeCapability(
+  env: AgentEnv,
+  cap: Capability,
+  input: unknown,
+  ctx: ActionContext,
+  principal: AgentPrincipal | null,
+): Promise<InvokeResult> {
   await gate(env, cap, ctx, principal);
   if (cap.read) {
     const output = await runRead(env, cap.read, input, ctx);
     return { status: 'ok', output, summary: cap.read.summarize(output as never, { env }) };
   }
-  const r: ExecuteResult<unknown> = await env.runtime.executor.execute(cap.actionId!, withDefaults(cap, input), ctx);
+  const r: ExecuteResult<unknown> = await env.runtime.executor.execute(
+    cap.actionId!,
+    withDefaults(cap, input),
+    ctx,
+  );
   if (r.status === 'approval_required') {
     return {
       status: 'approval_required',
@@ -305,11 +405,21 @@ export async function invokeCapability(env: AgentEnv, cap: Capability, input: un
  * Executes any registry action by id for /api/v1/actions/{id}. Actions that agents can never call are refused
  * with a clear reason (R3 → human_only; UI-only/system → forbidden).
  */
-export async function callAction(env: AgentEnv, actionId: string, input: unknown, ctx: ActionContext, principal: AgentPrincipal | null): Promise<InvokeResult> {
+export async function callAction(
+  env: AgentEnv,
+  actionId: string,
+  input: unknown,
+  ctx: ActionContext,
+  principal: AgentPrincipal | null,
+): Promise<InvokeResult> {
   const a = getAction(actionId);
   if (!a) throw new DomainError('not_found', `Unknown action "${actionId}".`);
   if (a.riskTier === 'R3') throw humanOnly(a.title);
-  if (!agentCallable(a)) throw new DomainError('forbidden', `"${a.title}" is only available to people in GMS (there is no agent permission for it).`);
+  if (!agentCallable(a))
+    throw new DomainError(
+      'forbidden',
+      `"${a.title}" is only available to people in GMS (there is no agent permission for it).`,
+    );
   const cap = capabilityForAction(actionId) ?? actionCapability(a, a.id.replace(/\./g, '_'), false);
   return invokeCapability(env, cap, input, ctx, principal);
 }

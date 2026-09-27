@@ -4,8 +4,12 @@
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
   "dependencies": {
     "@gms/actions": "workspace:*",
     "@gms/agents": "workspace:*",

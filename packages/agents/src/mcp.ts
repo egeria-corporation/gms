@@ -17,8 +17,23 @@ import type { CallToolResult, InitializeResult, Tool } from '@modelcontextprotoc
 import type { ActionContext } from '@gms/actions';
 import { getAction } from '@gms/actions';
 import { DomainError, isDomainError, toProblem, type ProblemDetails } from '@gms/domain';
-import { authenticate, channelDisabled, channelEnabled, insufficientScope, rateLimitHeaders, unauthorized, type AgentPrincipal } from './auth';
-import { capabilitySchemas, findCapability, invokeCapability, roleAllows, visibleCapabilities, type Capability } from './catalog';
+import {
+  authenticate,
+  channelDisabled,
+  channelEnabled,
+  insufficientScope,
+  rateLimitHeaders,
+  unauthorized,
+  type AgentPrincipal,
+} from './auth';
+import {
+  capabilitySchemas,
+  findCapability,
+  invokeCapability,
+  roleAllows,
+  visibleCapabilities,
+  type Capability,
+} from './catalog';
 import { errorResponse, HttpError, isRecord, readJson, trimOrigin, type AgentEnv } from './env';
 import { UNTRUSTED_NOTICE } from './reads';
 
@@ -34,7 +49,13 @@ interface RpcRequest {
   params?: unknown;
 }
 
-const RPC = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603 } as const;
+const RPC = {
+  parse: -32700,
+  invalidRequest: -32600,
+  methodNotFound: -32601,
+  invalidParams: -32602,
+  internal: -32603,
+} as const;
 
 function rpcError(id: JsonRpcId | null, code: number, message: string, data?: unknown) {
   return { jsonrpc: '2.0' as const, id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
@@ -127,8 +148,11 @@ async function handleRpc(msg: RpcRequest, st: CallState): Promise<unknown> {
   const params = isRecord(msg.params) ? msg.params : {};
   switch (msg.method) {
     case 'initialize': {
-      const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : MCP_PROTOCOL_VERSION;
-      const protocolVersion = (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested) ? requested : MCP_PROTOCOL_VERSION;
+      const requested =
+        typeof params.protocolVersion === 'string' ? params.protocolVersion : MCP_PROTOCOL_VERSION;
+      const protocolVersion = (SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
+        ? requested
+        : MCP_PROTOCOL_VERSION;
       const result: InitializeResult = {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
@@ -151,30 +175,58 @@ async function handleRpc(msg: RpcRequest, st: CallState): Promise<unknown> {
       if (!cap) {
         const r3 = peopleOnlyAction(name);
         if (r3) {
-          const p = toProblem(new DomainError('human_only', `"${r3.title}" can only be done by a person in GMS. Agents cannot be granted this.`, { riskTier: 'R3' }));
+          const p = toProblem(
+            new DomainError(
+              'human_only',
+              `"${r3.title}" can only be done by a person in GMS. Agents cannot be granted this.`,
+              { riskTier: 'R3' },
+            ),
+          );
           return { jsonrpc: '2.0', id, result: toolError(p, st.env) };
         }
         return rpcError(id, RPC.invalidParams, `Unknown tool: ${name}`);
       }
       // HTTP-level challenges (MCP authorization): anonymous → 401, missing scope → 403 insufficient_scope.
       if (!st.principal && !roleAllows(cap, st.ctx)) throw unauthorized(st.env, 'mcp', undefined, cap.scopes);
-      if (st.principal && st.ctx.scopes !== '*' && !cap.scopes.every((s) => (st.ctx.scopes as readonly string[]).includes(s))) {
+      if (
+        st.principal &&
+        st.ctx.scopes !== '*' &&
+        !cap.scopes.every((s) => (st.ctx.scopes as readonly string[]).includes(s))
+      ) {
         throw insufficientScope(st.env, 'mcp', cap.scopes, st.ctx.scopes as readonly string[]);
       }
       try {
         const r = await invokeCapability(st.env, cap, args, st.ctx, st.principal);
         if (r.status === 'approval_required') {
-          const structured = { status: 'approval_required', approvalRequestId: r.approvalRequestId, confirmUrl: r.confirmUrl, expiresAt: r.expiresAt, preview: r.preview };
-          const result: CallToolResult = { content: [{ type: 'text', text: r.summary }], structuredContent: structured };
+          const structured = {
+            status: 'approval_required',
+            approvalRequestId: r.approvalRequestId,
+            confirmUrl: r.confirmUrl,
+            expiresAt: r.expiresAt,
+            preview: r.preview,
+          };
+          const result: CallToolResult = {
+            content: [{ type: 'text', text: r.summary }],
+            structuredContent: structured,
+          };
           return { jsonrpc: '2.0', id, result };
         }
-        const structured = cap.read ? (r.output as Record<string, unknown>) : { status: 'ok', result: r.output };
-        const result: CallToolResult = { content: [{ type: 'text', text: r.summary }], structuredContent: structured };
+        const structured = cap.read
+          ? (r.output as Record<string, unknown>)
+          : { status: 'ok', result: r.output };
+        const result: CallToolResult = {
+          content: [{ type: 'text', text: r.summary }],
+          structuredContent: structured,
+        };
         return { jsonrpc: '2.0', id, result };
       } catch (err) {
         if (err instanceof HttpError) throw err;
         if (!isDomainError(err)) console.error('[mcp] tool failed', name, (err as Error)?.message);
-        return { jsonrpc: '2.0', id, result: toolError(toProblem(err, `${trimOrigin(st.env.origin)}/mcp#${name}`), st.env) };
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: toolError(toProblem(err, `${trimOrigin(st.env.origin)}/mcp#${name}`), st.env),
+        };
       }
     }
     default:
@@ -191,16 +243,25 @@ function wantsSse(req: Request): boolean {
 function respond(req: Request, body: unknown, headers: Record<string, string>, status = 200): Response {
   if (wantsSse(req)) {
     const payload = `event: message\ndata: ${JSON.stringify(body)}\n\n`;
-    return new Response(payload, { status, headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', ...headers } });
+    return new Response(payload, {
+      status,
+      headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store', ...headers },
+    });
   }
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers },
+  });
 }
 
 function originAllowed(req: Request, env: AgentEnv): boolean {
   const origin = req.headers.get('origin');
   if (origin === null) return true;
   if (trimOrigin(origin) === trimOrigin(env.origin)) return true;
-  const extra = (process.env.GMS_MCP_ALLOWED_ORIGINS ?? '').split(',').map((s) => trimOrigin(s.trim())).filter(Boolean);
+  const extra = (process.env.GMS_MCP_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => trimOrigin(s.trim()))
+    .filter(Boolean);
   return extra.includes(trimOrigin(origin));
 }
 
@@ -211,11 +272,21 @@ export async function handleMcp(req: Request, env: AgentEnv): Promise<Response> 
     if (req.method !== 'POST') {
       return new Response(null, { status: 405, headers: { allow: 'POST' } });
     }
-    if (!originAllowed(req, env)) throw new HttpError(403, 'forbidden', 'Origin not allowed', 'This Origin may not call the MCP server.');
+    if (!originAllowed(req, env))
+      throw new HttpError(403, 'forbidden', 'Origin not allowed', 'This Origin may not call the MCP server.');
     if (!(await channelEnabled(env, 'mcp'))) throw channelDisabled(env, 'mcp');
     const headerVersion = req.headers.get('mcp-protocol-version');
     if (headerVersion && !(SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(headerVersion)) {
-      return respond(req, rpcError(null, RPC.invalidRequest, `Unsupported MCP-Protocol-Version ${headerVersion}. Supported: ${SUPPORTED_PROTOCOL_VERSIONS.join(', ')}`), {}, 400);
+      return respond(
+        req,
+        rpcError(
+          null,
+          RPC.invalidRequest,
+          `Unsupported MCP-Protocol-Version ${headerVersion}. Supported: ${SUPPORTED_PROTOCOL_VERSIONS.join(', ')}`,
+        ),
+        {},
+        400,
+      );
     }
     const auth = await authenticate(req, env, 'mcp', { channel: 'mcp' });
     const headers = rateLimitHeaders(auth.rate);
@@ -225,8 +296,15 @@ export async function handleMcp(req: Request, env: AgentEnv): Promise<Response> 
     } catch {
       return respond(req, rpcError(null, RPC.parse, 'Parse error'), headers, 400);
     }
-    if (Array.isArray(body)) return respond(req, rpcError(null, RPC.invalidRequest, 'JSON-RPC batches are not supported.'), headers, 400);
-    if (!isRecord(body) || body.jsonrpc !== '2.0') return respond(req, rpcError(null, RPC.invalidRequest, 'Invalid JSON-RPC message.'), headers, 400);
+    if (Array.isArray(body))
+      return respond(
+        req,
+        rpcError(null, RPC.invalidRequest, 'JSON-RPC batches are not supported.'),
+        headers,
+        400,
+      );
+    if (!isRecord(body) || body.jsonrpc !== '2.0')
+      return respond(req, rpcError(null, RPC.invalidRequest, 'Invalid JSON-RPC message.'), headers, 400);
     const msg = body as unknown as RpcRequest;
     // Responses or notifications from the client: acknowledge.
     if (msg.id === undefined || msg.id === null || typeof msg.method !== 'string') {

@@ -19,7 +19,17 @@ import {
   type Capability,
   type InvokeResult,
 } from './catalog';
-import { errorResponse, isRecord, json, readJson, sha256Hex, text, trimOrigin, type AgentEnv, type HeaderMap } from './env';
+import {
+  errorResponse,
+  isRecord,
+  json,
+  readJson,
+  sha256Hex,
+  text,
+  trimOrigin,
+  type AgentEnv,
+  type HeaderMap,
+} from './env';
 import { arazzoYaml, openApiDocument } from './openapi';
 
 export interface ApiAlias {
@@ -31,7 +41,11 @@ export interface ApiAlias {
   /** Candidate capabilities in priority order (e.g. staff view first, then the applicant's own view). */
   caps: string[];
   /** Maps path params + query + body to the capability input. */
-  input: (p: { params: Record<string, string>; query: URLSearchParams; body: Record<string, unknown> }) => Record<string, unknown>;
+  input: (p: {
+    params: Record<string, string>;
+    query: URLSearchParams;
+    body: Record<string, unknown>;
+  }) => Record<string, unknown>;
   /** Path params that become input fields (documented as path parameters). */
   pathParams: string[];
   /** Query params documented for GET operations. */
@@ -41,10 +55,18 @@ export interface ApiAlias {
   pick?: (out: unknown) => unknown;
 }
 
-const num = (v: string | null) => (v !== null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined);
-const list = (v: string | null) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
+const num = (v: string | null) =>
+  v !== null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined;
+const list = (v: string | null) =>
+  v
+    ? v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined;
 const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+const clean = (o: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 export const API_ALIASES: ApiAlias[] = [
   {
@@ -56,7 +78,11 @@ export const API_ALIASES: ApiAlias[] = [
     pathParams: [],
     queryParams: [
       { name: 'q', description: 'Keywords', schema: { type: 'string' } },
-      { name: 'status', description: 'open (default), forecasted, closed or any', schema: { type: 'string' } },
+      {
+        name: 'status',
+        description: 'open (default), forecasted, closed or any',
+        schema: { type: 'string' },
+      },
       { name: 'cause', description: 'Cause term', schema: { type: 'string' } },
       { name: 'geography', description: 'Geography term', schema: { type: 'string' } },
       { name: 'applicantType', description: 'Applicant type', schema: { type: 'string' } },
@@ -81,7 +107,10 @@ export const API_ALIASES: ApiAlias[] = [
     summary: 'Get an opportunity (id or slug)',
     caps: ['get_opportunity'],
     pathParams: ['opportunityId'],
-    input: ({ params }) => (isUuid(params.opportunityId!) ? { opportunityId: params.opportunityId } : { slug: params.opportunityId }),
+    input: ({ params }) =>
+      isUuid(params.opportunityId!)
+        ? { opportunityId: params.opportunityId }
+        : { slug: params.opportunityId },
   },
   {
     method: 'POST',
@@ -99,7 +128,8 @@ export const API_ALIASES: ApiAlias[] = [
     summary: 'Get the application form for an opportunity',
     caps: ['get_application_form'],
     pathParams: ['opportunityId'],
-    input: ({ params, query }) => clean({ opportunityId: params.opportunityId, competitionId: query.get('competitionId') ?? undefined }),
+    input: ({ params, query }) =>
+      clean({ opportunityId: params.opportunityId, competitionId: query.get('competitionId') ?? undefined }),
   },
   {
     method: 'GET',
@@ -109,14 +139,24 @@ export const API_ALIASES: ApiAlias[] = [
     caps: ['query_pipeline', 'get_status'],
     pathParams: [],
     queryParams: [
-      { name: 'opportunityId', description: 'Staff: filter by opportunity', schema: { type: 'string', format: 'uuid' } },
+      {
+        name: 'opportunityId',
+        description: 'Staff: filter by opportunity',
+        schema: { type: 'string', format: 'uuid' },
+      },
       { name: 'status', description: 'Staff: comma-separated statuses', schema: { type: 'string' } },
       { name: 'q', description: 'Staff: keywords', schema: { type: 'string' } },
       { name: 'limit', description: '1–100', schema: { type: 'integer' } },
       { name: 'cursor', description: 'Page cursor', schema: { type: 'string' } },
     ],
     input: ({ query }) =>
-      clean({ opportunityId: query.get('opportunityId') ?? undefined, status: list(query.get('status')), query: query.get('q') ?? undefined, limit: num(query.get('limit')), cursor: query.get('cursor') ?? undefined }),
+      clean({
+        opportunityId: query.get('opportunityId') ?? undefined,
+        status: list(query.get('status')),
+        query: query.get('q') ?? undefined,
+        limit: num(query.get('limit')),
+        cursor: query.get('cursor') ?? undefined,
+      }),
   },
   {
     method: 'POST',
@@ -191,7 +231,12 @@ export const API_ALIASES: ApiAlias[] = [
     summary: 'List awards (staff) or my grants (applicants)',
     caps: ['list_awards', 'list_my_awards'],
     pathParams: [],
-    input: ({ query }) => clean({ status: list(query.get('status')), limit: num(query.get('limit')), cursor: query.get('cursor') ?? undefined }),
+    input: ({ query }) =>
+      clean({
+        status: list(query.get('status')),
+        limit: num(query.get('limit')),
+        cursor: query.get('cursor') ?? undefined,
+      }),
   },
   {
     method: 'GET',
@@ -200,7 +245,8 @@ export const API_ALIASES: ApiAlias[] = [
     summary: 'Payment batches (staff with payments:read) or my payment status (applicants)',
     caps: ['list_payments', 'get_payment_status'],
     pathParams: [],
-    input: ({ query }) => clean({ status: list(query.get('status')), awardId: query.get('awardId') ?? undefined }),
+    input: ({ query }) =>
+      clean({ status: list(query.get('status')), awardId: query.get('awardId') ?? undefined }),
   },
   {
     method: 'POST',
@@ -279,7 +325,9 @@ export const API_ALIASES: ApiAlias[] = [
 
 function templateRegex(path: string): { re: RegExp; names: string[] } {
   const names: string[] = [];
-  const re = new RegExp(`^${path.replace(/\{([A-Za-z]+)\}/g, (_m, n: string) => (names.push(n), '([^/]+)'))}/?$`);
+  const re = new RegExp(
+    `^${path.replace(/\{([A-Za-z]+)\}/g, (_m, n: string) => (names.push(n), '([^/]+)'))}/?$`,
+  );
   return { re, names };
 }
 const COMPILED = API_ALIASES.map((a) => ({ alias: a, ...templateRegex(a.path) }));
@@ -288,7 +336,8 @@ function idempotencyKey(req: Request): string | null {
   const k = req.headers.get('idempotency-key');
   if (k === null) return null;
   const v = k.trim().replace(/^"|"$/g, '');
-  if (!v || v.length > 255 || !/^[\x21-\x7e]+$/.test(v)) throw new DomainError('validation_failed', 'Idempotency-Key must be 1–255 visible ASCII characters.');
+  if (!v || v.length > 255 || !/^[\x21-\x7e]+$/.test(v))
+    throw new DomainError('validation_failed', 'Idempotency-Key must be 1–255 visible ASCII characters.');
   return v;
 }
 
@@ -306,21 +355,53 @@ function matchesEtag(header: string | null, current: string): boolean {
   return header.split(',').some((h) => stripEtag(h) === stripEtag(current));
 }
 
-function resultResponse(r: InvokeResult, env: AgentEnv, headers: HeaderMap, pick?: (o: unknown) => unknown, etag?: string | null): Response {
+function resultResponse(
+  r: InvokeResult,
+  env: AgentEnv,
+  headers: HeaderMap,
+  pick?: (o: unknown) => unknown,
+  etag?: string | null,
+): Response {
   if (r.status === 'approval_required') {
-    const body = { status: r.status, approvalRequestId: r.approvalRequestId, confirmUrl: r.confirmUrl, expiresAt: r.expiresAt, preview: r.preview, message: r.summary };
-    return json(body, 202, { ...headers, location: `${trimOrigin(env.origin)}/api/v1/approval-requests/${r.approvalRequestId}` });
+    const body = {
+      status: r.status,
+      approvalRequestId: r.approvalRequestId,
+      confirmUrl: r.confirmUrl,
+      expiresAt: r.expiresAt,
+      preview: r.preview,
+      message: r.summary,
+    };
+    return json(body, 202, {
+      ...headers,
+      location: `${trimOrigin(env.origin)}/api/v1/approval-requests/${r.approvalRequestId}`,
+    });
   }
   const out = pick ? pick(r.output) : r.output;
   return json(out, 200, { ...headers, ...(etag ? { etag } : {}) });
 }
 
-function toApiError(err: unknown, env: AgentEnv, auth: AuthResult | null, instance: string, headers: HeaderMap): Response {
+function toApiError(
+  err: unknown,
+  env: AgentEnv,
+  auth: AuthResult | null,
+  instance: string,
+  headers: HeaderMap,
+): Response {
   if (isDomainError(err)) {
     const required = (err.details.requiredScopes as string[] | undefined) ?? [];
-    if (err.code === 'unauthenticated' && !auth?.principal) return errorResponse(unauthorized(env, 'api', undefined, required), instance, headers);
+    if (err.code === 'unauthenticated' && !auth?.principal)
+      return errorResponse(unauthorized(env, 'api', undefined, required), instance, headers);
     if (err.code === 'insufficient_scope') {
-      return errorResponse(insufficientScope(env, 'api', required, auth && auth.ctx.scopes !== '*' ? (auth.ctx.scopes as string[]) : []), instance, headers);
+      return errorResponse(
+        insufficientScope(
+          env,
+          'api',
+          required,
+          auth && auth.ctx.scopes !== '*' ? (auth.ctx.scopes as string[]) : [],
+        ),
+        instance,
+        headers,
+      );
     }
   }
   return errorResponse(err, instance, headers);
@@ -329,7 +410,9 @@ function toApiError(err: unknown, env: AgentEnv, auth: AuthResult | null, instan
 /** Chooses the first candidate capability this caller can use (staff view before the applicant view). */
 function chooseCapability(names: string[], auth: AuthResult): Capability {
   const caps = names.map((n) => findCapability(n)).filter((c): c is Capability => Boolean(c));
-  const usable = caps.find((c) => roleAllows(c, auth.ctx) && scopesAllow(c, auth.ctx) && allowlistAllows(c, auth.principal));
+  const usable = caps.find(
+    (c) => roleAllows(c, auth.ctx) && scopesAllow(c, auth.ctx) && allowlistAllows(c, auth.principal),
+  );
   if (usable) return usable;
   // Nothing fits: report against the most general candidate (last) so the error names the right scopes.
   const fallback = caps[caps.length - 1];
@@ -337,10 +420,21 @@ function chooseCapability(names: string[], auth: AuthResult): Capability {
   return fallback;
 }
 
-async function currentFormEtag(env: AgentEnv, auth: AuthResult, applicationId: string, formId: string): Promise<string | null> {
+async function currentFormEtag(
+  env: AgentEnv,
+  auth: AuthResult,
+  applicationId: string,
+  formId: string,
+): Promise<string | null> {
   const row = await withRls(
     auth.ctx.claims,
-    (trx) => trx.selectFrom('form_responses').select('etag').where('application_id', '=', applicationId).where('form_id', '=', formId).executeTakeFirst(),
+    (trx) =>
+      trx
+        .selectFrom('form_responses')
+        .select('etag')
+        .where('application_id', '=', applicationId)
+        .where('form_id', '=', formId)
+        .executeTakeFirst(),
     env.runtime.db,
   );
   return row?.etag ?? null;
@@ -354,9 +448,12 @@ export async function handleApiV1(req: Request, env: AgentEnv): Promise<Response
   let auth: AuthResult | null = null;
   let headers: HeaderMap = {};
   try {
-    if (req.method === 'GET' && (rel === '/openapi.json' || rel === '/openapi')) return json(openApiDocument(env), 200, { 'cache-control': 'public, max-age=300' });
+    if (req.method === 'GET' && (rel === '/openapi.json' || rel === '/openapi'))
+      return json(openApiDocument(env), 200, { 'cache-control': 'public, max-age=300' });
     if (req.method === 'GET' && (rel === '/workflows.arazzo.yaml' || rel === '/workflows.arazzo.yml')) {
-      return text(arazzoYaml(env), 'application/vnd.oai.workflows+yaml; charset=utf-8', 200, { 'cache-control': 'public, max-age=300' });
+      return text(arazzoYaml(env), 'application/vnd.oai.workflows+yaml; charset=utf-8', 200, {
+        'cache-control': 'public, max-age=300',
+      });
     }
 
     auth = await authenticate(req, env, 'api', { channel: 'api' });
@@ -378,11 +475,28 @@ export async function handleApiV1(req: Request, env: AgentEnv): Promise<Response
     }
     if (req.method === 'GET' && rel === '/actions') {
       const caps = await visibleCapabilities(env, ctx, auth.principal);
-      return json({ actions: caps.map((c) => ({ name: c.name, actionId: c.actionId, title: c.title, riskTier: c.tier, scopes: c.scopes })) }, 200, headers);
+      return json(
+        {
+          actions: caps.map((c) => ({
+            name: c.name,
+            actionId: c.actionId,
+            title: c.title,
+            riskTier: c.tier,
+            scopes: c.scopes,
+          })),
+        },
+        200,
+        headers,
+      );
     }
     const actionMatch = /^\/actions\/([a-z][a-z0-9_.]*)$/.exec(rel);
     if (actionMatch) {
-      if (req.method !== 'POST') return errorResponse(new DomainError('validation_failed', 'Use POST with the action input as the JSON body.'), instance, { ...headers, allow: 'POST' });
+      if (req.method !== 'POST')
+        return errorResponse(
+          new DomainError('validation_failed', 'Use POST with the action input as the JSON body.'),
+          instance,
+          { ...headers, allow: 'POST' },
+        );
       const body = (await readJson(req)) ?? {};
       const r = await callAction(env, actionMatch[1]!, body, ctx, auth.principal);
       return resultResponse(r, env, headers);
@@ -394,7 +508,11 @@ export async function handleApiV1(req: Request, env: AgentEnv): Promise<Response
       if (alias.method !== req.method) {
         const allowed = COMPILED.filter((c) => c.re.test(rel)).map((c) => c.alias.method);
         if (allowed.includes(req.method as ApiAlias['method'])) continue;
-        return errorResponse(new DomainError('validation_failed', `Use ${allowed.join(' or ')} for ${rel}.`), instance, { ...headers, allow: allowed.join(', ') });
+        return errorResponse(
+          new DomainError('validation_failed', `Use ${allowed.join(' or ')} for ${rel}.`),
+          instance,
+          { ...headers, allow: allowed.join(', ') },
+        );
       }
       const params = Object.fromEntries(names.map((n, i) => [n, decodeURIComponent(m[i + 1]!)]));
       const rawBody = alias.method === 'GET' ? {} : ((await readJson(req)) ?? {});
@@ -406,22 +524,48 @@ export async function handleApiV1(req: Request, env: AgentEnv): Promise<Response
         const current = await currentFormEtag(env, auth, params.applicationId!, params.formId!);
         const ifMatch = req.headers.get('if-match');
         if (ifMatch && current !== null && !matchesEtag(ifMatch, `"${current}"`)) {
-          return errorResponse(new DomainError('precondition_failed', 'These answers changed since you loaded them. GET the form again (new ETag) and retry.', { currentEtag: `"${current}"` }), instance, headers);
+          return errorResponse(
+            new DomainError(
+              'precondition_failed',
+              'These answers changed since you loaded them. GET the form again (new ETag) and retry.',
+              { currentEtag: `"${current}"` },
+            ),
+            instance,
+            headers,
+          );
         }
-        if (ifMatch && ifMatch.trim() !== '*' && input.etag === undefined) input = { ...input, etag: stripEtag(ifMatch) };
+        if (ifMatch && ifMatch.trim() !== '*' && input.etag === undefined)
+          input = { ...input, etag: stripEtag(ifMatch) };
       }
       const r = await invokeCapability(env, cap, input, ctx, auth.principal);
       let etag: string | null = null;
-      if (r.status === 'ok' && alias.etag === 'form' && isRecord(r.output) && typeof r.output.etag === 'string') etag = `"${r.output.etag}"`;
+      if (
+        r.status === 'ok' &&
+        alias.etag === 'form' &&
+        isRecord(r.output) &&
+        typeof r.output.etag === 'string'
+      )
+        etag = `"${r.output.etag}"`;
       if (r.status === 'ok' && alias.etag === 'lastModified') {
         const item = alias.pick ? alias.pick(r.output) : r.output;
-        const lm = isRecord(item) && typeof item.lastModifiedAt === 'string' ? item.lastModifiedAt : JSON.stringify(item);
+        const lm =
+          isRecord(item) && typeof item.lastModifiedAt === 'string'
+            ? item.lastModifiedAt
+            : JSON.stringify(item);
         etag = etagOf(lm);
-        if (req.method === 'GET' && matchesEtag(req.headers.get('if-none-match'), etag)) return new Response(null, { status: 304, headers: { ...headers, etag } });
+        if (req.method === 'GET' && matchesEtag(req.headers.get('if-none-match'), etag))
+          return new Response(null, { status: 304, headers: { ...headers, etag } });
       }
       return resultResponse(r, env, headers, alias.pick, etag);
     }
-    return errorResponse(new DomainError('not_found', `No API route for ${req.method} ${url.pathname}. See ${trimOrigin(env.origin)}/api/v1/openapi.json.`), instance, headers);
+    return errorResponse(
+      new DomainError(
+        'not_found',
+        `No API route for ${req.method} ${url.pathname}. See ${trimOrigin(env.origin)}/api/v1/openapi.json.`,
+      ),
+      instance,
+      headers,
+    );
   } catch (err) {
     return toApiError(err, env, auth, instance, headers);
   }
