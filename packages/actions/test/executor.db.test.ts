@@ -189,7 +189,11 @@ describe('action executor', () => {
       code: 'human_only',
     });
     await expect(ex.run('test.approve_money', {}, ctxFor(owner, { roles: ['owner'] }))).rejects.toMatchObject({ code: 'step_up_required' });
-    await expect(ex.run('test.approve_money', {}, ctxFor(owner, { roles: ['owner'], aal: 'aal2' }))).resolves.toEqual({ ok: true });
+    await expect(ex.run('test.approve_money', {}, ctxFor(owner, { roles: ['owner'], aal: 'aal2' }))).rejects.toMatchObject({ code: 'step_up_required' });
+    await expect(
+      ex.run('test.approve_money', {}, ctxFor(owner, { roles: ['owner'], aal: 'aal2', stepUpAt: new Date(Date.now() - 3600_000).toISOString() })),
+    ).rejects.toMatchObject({ code: 'step_up_required' });
+    await expect(ex.run('test.approve_money', {}, ctxFor(owner, { roles: ['owner'], aal: 'aal2', stepUpAt: new Date().toISOString() }))).resolves.toEqual({ ok: true });
   });
 
   it('turns agent R2 calls into approval requests, and runs them once a person confirms', async () => {

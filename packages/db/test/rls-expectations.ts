@@ -161,9 +161,9 @@ export const MATRIX: readonly TableSpec[] = [
   { table: 'agent_tasks', allow: readOnly(['applicant', ...STAFF]) },
   {
     table: 'approval_requests',
-    allow: allow(['applicant', ...ADMIN_READ], SIGNED_IN, ['applicant'], NONE),
+    allow: allow(['applicant', ...ADMIN_READ], SIGNED_IN, NONE, NONE),
     actor: ['on_behalf_of'],
-    note: 'Anyone may file a request on their own behalf; decisions are recorded by the service.',
+    note: 'Anyone may file a request on their own behalf; decisions (confirm/reject/expire) are recorded by the service only.',
   },
   {
     table: 'agent_policies',
@@ -298,8 +298,9 @@ export const MATRIX: readonly TableSpec[] = [
   { table: 'docket_items', allow: staffTable([...STAFF, 'boardA'], OAP), clone: (r, w) => ({ ...r, docket_id: w.ids.docket3 }) },
   {
     table: 'votes',
-    allow: allow([...byRole('owner', 'admin', 'program_officer', 'auditor'), 'boardA'], ['boardA'], NONE, NONE),
+    allow: allow([...byRole('owner', 'admin', 'program_officer', 'auditor'), 'boardA'], ['boardA'], ['boardA'], NONE),
     update: 'vote = vote',
+    note: 'Board members vote (and may change their own vote) only while the docket is in session.',
     actor: ['voter_id'],
     clone: (r, w) => ({ ...r, docket_item_id: w.ids.item2 }),
   },
@@ -413,6 +414,12 @@ export const MATRIX: readonly TableSpec[] = [
     kind: 'view',
     allow: allow(ALL, NONE, NONE, NONE),
     note: 'Column-limited public transparency view (bypasses RLS by design).',
+  },
+  {
+    table: 'public_programs',
+    kind: 'view',
+    allow: allow(ALL, NONE, NONE, NONE),
+    note: 'Names of active programs that have a published opportunity (public site, CommonGrants customFields).',
   },
 ];
 

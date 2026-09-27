@@ -32,6 +32,8 @@ export interface ActionContext {
   /** Verified claims used for RLS. System actors run with the service role instead. */
   claims: RequestClaims;
   aal: 'aal1' | 'aal2';
+  /** When the person last verified their authenticator (ISO). Step-up actions need this to be recent. */
+  stepUpAt?: string | null;
   requestId: string;
   channel: Channel;
   ip?: string | null;

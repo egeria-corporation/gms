@@ -559,7 +559,7 @@ describe('awards (experimental)', () => {
   // gms_private.award_ceiling_cents(), which is not SECURITY DEFINER, so for gms_anon its
   // `select … from public.awards` is filtered by RLS and the public amount is always 0.
   // Fix with a migration (make the function security definer); then flip this to `it`.
-  it.fails('anon awardedAmount includes the original award plus approved amendments', async () => {
+  it('anon awardedAmount includes the original award plus approved amendments', async () => {
     const { json } = await call(anon(), 'GET', `/awards/${ids.award}`);
     expect((json.data as { funding: unknown }).funding).toEqual({ awardedAmount: { amount: '30000.00', currency: 'USD' } });
   });

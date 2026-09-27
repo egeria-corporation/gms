@@ -275,6 +275,8 @@ export interface Session {
   aal: 'aal1' | 'aal2';
   sessionId: string;
   expiresAt: string;
+  /** When the authenticator (TOTP) was last verified in this session; drives step-up freshness. */
+  mfaAt?: string | null;
   /** Verified claims to pass to RLS (withRls). */
   claims: { sub: string; role: 'authenticated'; email: string; aal: 'aal1' | 'aal2'; session_id: string; [k: string]: unknown };
 }

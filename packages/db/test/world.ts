@@ -428,6 +428,7 @@ export async function buildWorld(db: Database): Promise<World> {
   await seed('awards', 'award2', { ...awardBase, reference: 'AWD-0002', title: 'Spare award', amount_cents: 500_000 });
   await seed('awards', 'awardLeaf', { ...awardBase, reference: 'AWD-0003', title: 'Leaf award', amount_cents: 100_000 }, true);
   rows.public_awards = { id: id('award1') };
+  rows.public_programs = { id: id('program1') };
   await seed('award_conditions', 'condition1', { workspace_id: wsA, award_id: id('award1'), body: 'Send a W-9' }, true);
   const agreementBase = { workspace_id: wsA, award_id: id('award1'), status: 'sent', document_hash: 'sha256:agreement', body_md: 'Terms', created_by: u('programOfficerA') };
   await seed('agreements', 'agreement1', agreementBase);

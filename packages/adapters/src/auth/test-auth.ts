@@ -102,14 +102,22 @@ export class TestAuthAdapter implements AuthAdapter {
     });
   }
 
-  private toSession(userId: string, email: string, sessionId: string, aal: 'aal1' | 'aal2', expiresAt: Date): Session {
+  private toSession(userId: string, email: string, sessionId: string, aal: 'aal1' | 'aal2', expiresAt: Date, mfaAt: string | null = null): Session {
     return {
       userId,
       email,
       aal,
       sessionId,
       expiresAt: expiresAt.toISOString(),
-      claims: { sub: userId, role: 'authenticated', email, aal, session_id: sessionId },
+      mfaAt,
+      claims: {
+        sub: userId,
+        role: 'authenticated',
+        email,
+        aal,
+        session_id: sessionId,
+        ...(mfaAt ? { amr: [{ method: 'totp', timestamp: Math.floor(Date.parse(mfaAt) / 1000) }] } : {}),
+      },
     };
   }
 
@@ -136,13 +144,13 @@ export class TestAuthAdapter implements AuthAdapter {
     try {
       const { payload } = await jwtVerify(raw, this.key, { algorithms: ['HS256'] });
       const sid = String(payload.sid ?? '');
-      const r = await sql<{ user_id: string; aal: 'aal1' | 'aal2'; expires_at: string; email: string }>`
-        select s.user_id, s.aal, s.expires_at, u.email from gms_private.test_auth_sessions s join auth.users u on u.id = s.user_id
+      const r = await sql<{ user_id: string; aal: 'aal1' | 'aal2'; expires_at: string; email: string; mfa_at: string | null }>`
+        select s.user_id, s.aal, s.expires_at, s.mfa_at, u.email from gms_private.test_auth_sessions s join auth.users u on u.id = s.user_id
         where s.id = ${sid}::uuid and s.revoked_at is null and s.expires_at > now()
           and (u.banned_until is null or u.banned_until < now())`.execute(this.db());
       const row = r.rows[0];
       if (!row) return null;
-      return this.toSession(row.user_id, row.email, sid, row.aal, new Date(row.expires_at));
+      return this.toSession(row.user_id, row.email, sid, row.aal, new Date(row.expires_at), row.mfa_at ? new Date(row.mfa_at).toISOString() : null);
     } catch {
       return null;
     }
@@ -183,10 +191,11 @@ export class TestAuthAdapter implements AuthAdapter {
     const ok = authenticator.check(code.replace(/\s/g, ''), decrypt(row.secret_ciphertext, 'totp'));
     if (!ok) return null;
     await sql`update gms_private.test_auth_factors set status = 'verified' where id = ${factorId}::uuid`.execute(this.db());
-    await sql`update gms_private.test_auth_sessions set aal = 'aal2' where id = ${s.sessionId}::uuid`.execute(this.db());
+    const mfaAt = new Date().toISOString();
+    await sql`update gms_private.test_auth_sessions set aal = 'aal2', mfa_at = ${mfaAt} where id = ${s.sessionId}::uuid`.execute(this.db());
     const expiresAt = new Date(s.expiresAt);
     await this.setSessionCookie(cookies, s.sessionId, s.userId, s.email, 'aal2', expiresAt);
-    return this.toSession(s.userId, s.email, s.sessionId, 'aal2', expiresAt);
+    return this.toSession(s.userId, s.email, s.sessionId, 'aal2', expiresAt, mfaAt);
   }
 }
 

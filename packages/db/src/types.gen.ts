@@ -1133,6 +1133,15 @@ export interface PublicAwards {
   opportunity_id: string | null;
 }
 
+export interface PublicPrograms {
+  id: string | null;
+  workspace_id: string | null;
+  name: string | null;
+  slug: string | null;
+  description: string | null;
+  cause_area: string | null;
+}
+
 export interface QuestionBankItems {
   id: Generated<string>;
   workspace_id: string | null;
@@ -1595,6 +1604,7 @@ export interface DB {
   program_budgets: ProgramBudgets;
   programs: Programs;
   public_awards: PublicAwards;
+  public_programs: PublicPrograms;
   question_bank_items: QuestionBankItems;
   rail_events: RailEvents;
   rate_limit_buckets: RateLimitBuckets;

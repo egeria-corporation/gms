@@ -125,8 +125,12 @@ export function createExecutor(deps: ActionDeps, opts: { db?: Database } = {}): 
         riskTier: 'R3',
       });
     }
-    if (action.stepUp && ctx.actor.type === 'human' && ctx.aal !== 'aal2') {
-      throw new DomainError('step_up_required', 'Confirm with your authenticator app to continue.', { requiredAal: 'aal2' });
+    if (action.stepUp && ctx.actor.type === 'human') {
+      const windowS = Number(process.env.GMS_STEP_UP_WINDOW_S ?? 900);
+      const fresh = ctx.stepUpAt ? deps.clock().getTime() - Date.parse(ctx.stepUpAt) <= windowS * 1000 : false;
+      if (ctx.aal !== 'aal2' || !fresh) {
+        throw new DomainError('step_up_required', 'Confirm with your authenticator app to continue.', { requiredAal: 'aal2', windowSeconds: windowS });
+      }
     }
 
     // 4. Idempotency replay.
