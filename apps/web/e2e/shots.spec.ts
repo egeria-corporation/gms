@@ -218,7 +218,8 @@ test('screenshot every catalog screen', async ({ browser }) => {
           const page = await ctx.newPage();
           await page.setViewportSize({ width: v.width, height: v.width < 768 ? 844 : 900 });
           await page.emulateMedia({ colorScheme: v.theme, reducedMotion: 'reduce' });
-          const res = await page.goto(url, { waitUntil: 'networkidle' });
+          // /dev/catalog prefetches hundreds of links, so it never goes network-idle; wait for load instead.
+          const res = await page.goto(url, { waitUntil: screen.id === 'dev-catalog' ? 'load' : 'networkidle' });
           if (res && res.status() >= 500) throw new Error(`HTTP ${res.status()}`);
           mkdirSync(join(OUT, screen.surface), { recursive: true });
           await page.screenshot({ path: join(OUT, file), fullPage: true, animations: 'disabled' });
