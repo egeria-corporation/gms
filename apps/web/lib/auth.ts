@@ -35,8 +35,10 @@ export async function cookieJar(): Promise<CookieJar> {
 }
 
 export const getSession = cache(async (): Promise<Session | null> => {
-  const auth = getRuntime().adapters.auth;
-  return auth.getSession(await cookieJar());
+  // Read the request cookies first: that marks the route dynamic, so the auth adapter is never built during a
+  // static prerender (where no request, and possibly no auth configuration, exists).
+  const jar = await cookieJar();
+  return getRuntime().adapters.auth.getSession(jar);
 });
 
 export interface Membership {
