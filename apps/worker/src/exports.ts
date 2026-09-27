@@ -2,7 +2,8 @@
 // Background exports: curated datasets to CSV/XLSX, the 990-PF grants-paid schedule, and the full
 // workspace export (JSON + CommonGrants bundle, zipped).
 import { crc32 } from 'node:zlib';
-import type { Runtime } from '@gms/actions';
+import { originFor, type Runtime } from '@gms/actions';
+import { toCgOpportunity } from '@gms/commongrants';
 import { sql } from '@gms/db';
 import ExcelJS from 'exceljs';
 
@@ -184,10 +185,10 @@ export async function workspaceBundle(rt: Runtime, workspaceId: string): Promise
     files.push({ name: `gms/${t}.json`, data: enc(rows.rows) });
   }
   // CommonGrants bundle.
-  const { toCgOpportunity } = await import('./cg-export');
-  const opps = await db.selectFrom('opportunities').selectAll().where('workspace_id', '=', workspaceId).execute();
+  const opps = await db.selectFrom('opportunities').selectAll().where('workspace_id', '=', workspaceId).where('status', 'in', ['forecasted', 'open', 'closed']).execute();
   const ws = await db.selectFrom('workspaces').select(['slug', 'timezone']).where('id', '=', workspaceId).executeTakeFirstOrThrow();
-  files.push({ name: 'commongrants/opportunities.json', data: enc(opps.map((o) => toCgOpportunity(o, ws))) });
+  const ctx = { origin: originFor(ws.slug), timezone: ws.timezone };
+  files.push({ name: 'commongrants/opportunities.json', data: enc(opps.map((o) => toCgOpportunity(o as never, ctx))) });
   files.push({ name: 'README.txt', data: new TextEncoder().encode('GMS workspace export. gms/*.json are raw tables for this workspace; commongrants/*.json are CommonGrants-shaped records.\n') });
   return files;
 }
