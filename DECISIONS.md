@@ -31,3 +31,4 @@ Items marked **(needs owner confirmation)** are also listed in `REPORT.md`.
 - **Root-host platform pages live under `/gms-root/*`** (setup wizard, operator console, directory), reached by a proxy rewrite; tenant hosts get 404 there. — `apps/web/proxy.ts`.
 - **"Notify me" requires sign-in** (no anonymous email capture, to avoid a spam vector). New table `opportunity_subscriptions`. — Allow anon subscriptions with double opt-in.
 - **Next's generated AGENTS.md/CLAUDE.md are disabled** (`agentRules: false`); the repo's root AGENTS.md is canonical.
+- **Form rendering does not use JSON Forms at runtime.** GMS walks the compiled UI schema with its own renderer set; visibility/requiredness use the same functions as the server; formatted text is stored as Markdown (no HTML). `@jsonforms/core` types remain for the UI-schema shape. — Replace with a JSON Forms renderer set in `packages/forms/src/react`.
