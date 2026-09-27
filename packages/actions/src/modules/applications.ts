@@ -305,13 +305,67 @@ const SubmitIn = z.object({
   aiDisclosure: z.string().trim().max(2000).optional().nullable(),
 });
 
+/**
+ * Everything that must hold for a submission to succeed (state, deadline, cap, agent protections, AI-use policy,
+ * form validation). Runs at submit time and before an agent's confirmation request is created, so an agent learns
+ * about problems immediately instead of the person hitting them when they confirm.
+ */
+async function submitPreconditions(input: z.infer<typeof SubmitIn>, ctx: RunContext) {
+  const w = ws(ctx);
+  const app = await loadApp(ctx.db, input.applicationId);
+  transition(applicationMachine, app.status, 'submitted');
+  const comp = await ctx.db.selectFrom('competitions').selectAll().where('id', '=', app.competition_id).executeTakeFirstOrThrow();
+  const opp = await ctx.db.selectFrom('opportunities').select(['id', 'title', 'status']).where('id', '=', app.opportunity_id).executeTakeFirstOrThrow();
+
+  // Deadline (server-side, workspace timezone).
+  const dl = deadlineFor(comp, app.deadline_override_at ?? (await latestExtension(ctx.db, app.id)), ctx.now());
+  if (!dl.open) {
+    throw new DomainError('deadline_passed', `The deadline was ${formatInZone(comp.closes_at, w.timezone)}. Contact the foundation if you need an extension.`, {
+      closesAt: comp.closes_at,
+    });
+  }
+  // Submission cap.
+  if (comp.submission_cap) {
+    const n = await sql<{ n: number }>`select count(*)::int as n from public.applications where competition_id = ${comp.id}::uuid and submitted_at is not null`.execute(ctx.db);
+    if ((n.rows[0]?.n ?? 0) >= comp.submission_cap) {
+      throw new DomainError('precondition_failed', 'This opportunity has reached its limit on applications.');
+    }
+  }
+  // Agent protections: kill switch + verified EIN.
+  const policy = await ctx.db.selectFrom('agent_policies').select(['ai_use', 'disclosure_prompt', 'agent_submissions_enabled']).where('workspace_id', '=', w.id).executeTakeFirst();
+  if (ctx.actor.type === 'agent') {
+    if (policy && !policy.agent_submissions_enabled) throw new DomainError('forbidden', 'This foundation has paused submissions made through AI agents.');
+    if (app.applicant_org_id) {
+      const org = await ctx.db.selectFrom('applicant_orgs').select(['ein_verified_at']).where('id', '=', app.applicant_org_id).executeTakeFirst();
+      if (!org?.ein_verified_at) throw new DomainError('precondition_failed', 'Submissions made through an agent need a verified EIN on the organization profile.');
+    }
+  }
+  // AI-use policy.
+  const disclosure = input.aiDisclosure?.trim() || null;
+  if (policy?.ai_use === 'disclosure' && !disclosure) {
+    throw new DomainError('validation_failed', 'Tell the foundation whether you used AI tools, and how.', {}, [
+      { pointer: '/aiDisclosure', message: policy.disclosure_prompt },
+    ]);
+  }
+
+  // Validate every form in submit mode.
+  const { rows, errors } = await validateApplication(ctx.db, app.id);
+  if (errors.length) {
+    const issues: FieldIssue[] = errors.map((e) => ({ pointer: `/forms/${e.formId}${e.pointer}`, message: e.message }));
+    throw new DomainError('validation_failed', `${errors.length} answer${errors.length === 1 ? ' needs' : 's need'} attention before you can submit.`, { errors }, issues);
+  }
+
+  return { w, app, comp, opp, rows, disclosure };
+}
+
 async function submitPreview(input: z.infer<typeof SubmitIn>, ctx: RunContext) {
+  await submitPreconditions(input, ctx);
   const app = await loadApp(ctx.db, input.applicationId);
   const org = app.applicant_org_id
     ? await ctx.db.selectFrom('applicant_orgs').select(['legal_name']).where('id', '=', app.applicant_org_id).executeTakeFirst()
     : null;
   const opp = await ctx.db.selectFrom('opportunities').select(['title']).where('id', '=', app.opportunity_id).executeTakeFirst();
-  const { rows, errors } = await validateApplication(ctx.db, app.id);
+  const { rows } = await validateApplication(ctx.db, app.id);
   const summaryText = rows
     .map((r) => {
       const d = (r.data ?? {}) as Record<string, unknown>;
@@ -329,7 +383,6 @@ async function submitPreview(input: z.infer<typeof SubmitIn>, ctx: RunContext) {
       { label: 'Organization', value: org?.legal_name ?? 'Individual applicant' },
       { label: 'Reference', value: app.reference_number },
       { label: 'Signed as', value: input.attestation.typedName },
-      { label: 'Problems to fix first', value: errors.length ? `${errors.length}` : 'None' },
       ...(input.aiDisclosure ? [{ label: 'AI-assistance disclosure', value: input.aiDisclosure }] : []),
     ],
     quotedContent: summaryText,
@@ -351,50 +404,8 @@ export const submitApplication = defineAction({
   idempotent: true,
   preview: submitPreview,
   async run(input, ctx) {
-    const w = ws(ctx);
     const me = uid(ctx);
-    const app = await loadApp(ctx.db, input.applicationId);
-    transition(applicationMachine, app.status, 'submitted');
-    const comp = await ctx.db.selectFrom('competitions').selectAll().where('id', '=', app.competition_id).executeTakeFirstOrThrow();
-    const opp = await ctx.db.selectFrom('opportunities').select(['id', 'title', 'status']).where('id', '=', app.opportunity_id).executeTakeFirstOrThrow();
-
-    // Deadline (server-side, workspace timezone).
-    const dl = deadlineFor(comp, app.deadline_override_at ?? (await latestExtension(ctx.db, app.id)), ctx.now());
-    if (!dl.open) {
-      throw new DomainError('deadline_passed', `The deadline was ${formatInZone(comp.closes_at, w.timezone)}. Contact the foundation if you need an extension.`, {
-        closesAt: comp.closes_at,
-      });
-    }
-    // Submission cap.
-    if (comp.submission_cap) {
-      const n = await sql<{ n: number }>`select count(*)::int as n from public.applications where competition_id = ${comp.id}::uuid and submitted_at is not null`.execute(ctx.db);
-      if ((n.rows[0]?.n ?? 0) >= comp.submission_cap) {
-        throw new DomainError('precondition_failed', 'This opportunity has reached its limit on applications.');
-      }
-    }
-    // Agent protections: kill switch + verified EIN.
-    const policy = await ctx.db.selectFrom('agent_policies').select(['ai_use', 'disclosure_prompt', 'agent_submissions_enabled']).where('workspace_id', '=', w.id).executeTakeFirst();
-    if (ctx.actor.type === 'agent') {
-      if (policy && !policy.agent_submissions_enabled) throw new DomainError('forbidden', 'This foundation has paused submissions made through AI agents.');
-      if (app.applicant_org_id) {
-        const org = await ctx.db.selectFrom('applicant_orgs').select(['ein_verified_at']).where('id', '=', app.applicant_org_id).executeTakeFirst();
-        if (!org?.ein_verified_at) throw new DomainError('precondition_failed', 'Submissions made through an agent need a verified EIN on the organization profile.');
-      }
-    }
-    // AI-use policy.
-    const disclosure = input.aiDisclosure?.trim() || null;
-    if (policy?.ai_use === 'disclosure' && !disclosure) {
-      throw new DomainError('validation_failed', 'Tell the foundation whether you used AI tools, and how.', {}, [
-        { pointer: '/aiDisclosure', message: policy.disclosure_prompt },
-      ]);
-    }
-
-    // Validate every form in submit mode.
-    const { rows, errors } = await validateApplication(ctx.db, app.id);
-    if (errors.length) {
-      const issues: FieldIssue[] = errors.map((e) => ({ pointer: `/forms/${e.formId}${e.pointer}`, message: e.message }));
-      throw new DomainError('validation_failed', `${errors.length} answer${errors.length === 1 ? ' needs' : 's need'} attention before you can submit.`, { errors }, issues);
-    }
+    const { w, app, comp, opp, rows, disclosure } = await submitPreconditions(input, ctx);
 
     // Snapshot (immutable) + receipt.
     const profile = await orgProfile(ctx.db, app.applicant_org_id, app.applicant_user_id);
