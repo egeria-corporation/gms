@@ -376,7 +376,7 @@ export const assignReviewers = defineAction({
 export const unassignReviewer = defineAction({
   id: 'review.unassign',
   title: 'Remove a reviewer assignment',
-  description: 'Removes a reviewer assignment that has no submitted review.',
+  description: 'Removes a reviewer assignment; only allowed while the reviewer has not submitted a review for it.',
   input: z.object({ assignmentId: uuid }),
   output: Ok,
   scopes: ['reviews:write'],
@@ -531,7 +531,7 @@ export const submitReview = defineAction({
 export const reopenReview = defineAction({
   id: 'review.reopen',
   title: 'Reopen a review',
-  description: 'Reopens a submitted review so the reviewer can change it.',
+  description: 'Reopens a submitted review so the reviewer can change their scores or comments.',
   input: z.object({ assignmentId: uuid }),
   output: Ok,
   scopes: [],
@@ -551,7 +551,7 @@ export const reopenReview = defineAction({
 export const addPanelNote = defineAction({
   id: 'review.panel_note',
   title: 'Add a panel note',
-  description: 'Adds a note visible to the review panel for an application.',
+  description: 'Adds a note about an application that other panel reviewers and program staff can read (never the applicant).',
   input: z.object({ applicationId: uuid, panelId: uuid.nullable().optional(), body: z.string().trim().min(1).max(10000) }),
   output: IdOut,
   scopes: ['reviews:write'],

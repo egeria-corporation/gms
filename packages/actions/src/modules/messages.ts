@@ -75,7 +75,7 @@ export const sendMessage = defineAction({
 export const markThreadRead = defineAction({
   id: 'messages.mark_read',
   title: 'Mark a thread read',
-  description: 'Marks messages in a thread as read for your side.',
+  description: 'Marks every message in a thread as read for your side of the conversation (applicant or foundation).',
   input: z.object({ threadId: uuid }),
   output: z.object({ ok: z.literal(true) }),
   scopes: ['messages:read'],

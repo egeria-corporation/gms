@@ -23,7 +23,7 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
   webServer: {
     command: useDev ? `pnpm exec next dev --port ${PORT}` : `pnpm exec next start --port ${PORT}`,
-    url: `http://halcyon.localhost:${PORT}/`,
+    url: `http://localhost:${PORT}/robots.txt`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     env: { GMS_AUTH_MODE: 'test', GMS_MODE: 'multi', GMS_ROOT_DOMAIN: `localhost:${PORT}`, GMS_ENV: 'test' },

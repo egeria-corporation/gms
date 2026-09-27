@@ -152,7 +152,7 @@ export const setReportHold = defineAction({
 export const addReportRequirement = defineAction({
   id: 'reports.add_requirement',
   title: 'Add a report requirement',
-  description: 'Adds a report due date to an award.',
+  description: 'Adds a report requirement (title, kind and due date, optionally a report form) to an award.',
   input: z.object({ awardId: uuid, title: z.string().trim().min(1).max(200), kind: z.enum(['interim', 'final', 'financial', 'narrative']), dueDate: DateOnly, formId: uuid.nullable().optional() }),
   output: IdOut,
   scopes: [],

@@ -201,7 +201,7 @@ export const diffFormVersions = defineAction({
 export const deleteFormDraft = defineAction({
   id: 'forms.delete_draft',
   title: 'Discard a draft version',
-  description: 'Discards an unpublished draft version.',
+  description: 'Discards an unpublished draft version of a form; published versions are permanent and cannot be deleted.',
   input: z.object({ versionId: uuid }),
   output: Ok,
   scopes: [],

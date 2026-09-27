@@ -494,7 +494,7 @@ export const attachForm = defineAction({
 export const detachForm = defineAction({
   id: 'competitions.detach_form',
   title: 'Remove a form from a stage',
-  description: 'Removes a form from a draft stage.',
+  description: 'Removes a form from a stage that has not opened yet; stages that are open keep their forms.',
   input: z.object({ competitionId: uuid, formId: uuid }),
   output: Ok,
   scopes: [],

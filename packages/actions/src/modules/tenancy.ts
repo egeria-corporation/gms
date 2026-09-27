@@ -200,7 +200,7 @@ export const inviteMember = defineAction({
 export const revokeInvite = defineAction({
   id: 'team.revoke_invite',
   title: 'Revoke an invitation',
-  description: 'Revokes a pending team invitation.',
+  description: 'Revokes a pending team invitation so its link stops working.',
   input: z.object({ invitationId: uuid }),
   output: Ok,
   scopes: [],
@@ -362,7 +362,7 @@ export const requestAccountDeletion = defineAction({
 export const markNotificationsRead = defineAction({
   id: 'notifications.mark_read',
   title: 'Mark notifications read',
-  description: 'Marks notifications as read (all, or the given ids).',
+  description: 'Marks the signed-in person’s in-app notifications as read: all of them, or only the given ids.',
   input: z.object({ ids: z.array(uuid).max(200).optional() }),
   output: Ok,
   scopes: [],

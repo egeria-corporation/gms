@@ -50,6 +50,7 @@
     "@gms/actions": "workspace:*",
     "@gms/adapters": "workspace:*",
     "@gms/domain": "workspace:*",
-    "@gms/fixtures": "workspace:*"
+    "@gms/fixtures": "workspace:*",
+    "@gms/forms": "workspace:*"
   }
 }

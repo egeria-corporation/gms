@@ -75,9 +75,9 @@ export function ApplicationWorkspace(p: WorkspaceProps) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-      <aside className="grid content-start gap-4 lg:sticky lg:top-4">
+      <aside className="grid min-w-0 content-start gap-4 self-start lg:sticky lg:top-4">
         <FormProgressRail compiled={compiled} data={data} errors={errors} currentPageId={pages[idx]?.id ?? ''} onSelect={goTo} />
-        <div className="grid gap-2 rounded-lg border bg-card p-3 text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border bg-card p-3 text-sm">
           <AutosaveIndicator {...autosave.indicator} />
           {p.closesAt ? <DeadlineChip at={p.closesAt} timeZone={p.timeZone} label="Due" /> : null}
           <Link href={`/portal/applications/${p.applicationId}/collaborators`} className="inline-flex items-center gap-1 text-link underline underline-offset-2">
@@ -85,7 +85,7 @@ export function ApplicationWorkspace(p: WorkspaceProps) {
           </Link>
         </div>
       </aside>
-      <div className="grid content-start gap-5">
+      <div className="grid min-w-0 content-start gap-5">
         {p.deadlinePassed ? (
           <Alert variant="danger" title="The deadline has passed">
             You can still read your answers, but you can’t submit. If something went wrong, message the foundation from your application page.

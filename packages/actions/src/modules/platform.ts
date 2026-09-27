@@ -76,7 +76,7 @@ export const createApiKey = defineAction({
 export const revokeApiKey = defineAction({
   id: 'api_keys.revoke',
   title: 'Revoke an API key',
-  description: 'Revokes an API key immediately.',
+  description: 'Revokes a workspace API key immediately; calls using it start failing with 401.',
   input: z.object({ id: uuid }),
   output: Ok,
   scopes: [],
@@ -142,7 +142,7 @@ export const saveWebhookEndpoint = defineAction({
 export const deleteWebhookEndpoint = defineAction({
   id: 'webhooks.delete_endpoint',
   title: 'Delete a webhook endpoint',
-  description: 'Deletes an outbound webhook endpoint.',
+  description: 'Deletes an outbound webhook endpoint; no further deliveries are attempted to its URL.',
   input: z.object({ id: uuid }),
   output: Ok,
   scopes: [],
@@ -420,7 +420,7 @@ export const saveTaxonomyTerm = defineAction({
 export const deleteTaxonomyTerm = defineAction({
   id: 'settings.delete_term',
   title: 'Delete a taxonomy term',
-  description: 'Deletes a taxonomy term.',
+  description: 'Deletes a cause-area, geography or population taxonomy term from this workspace.',
   input: z.object({ id: uuid }),
   output: Ok,
   scopes: [],
@@ -501,7 +501,7 @@ export const requestSupportAccess = defineAction({
 export const revokeSupportAccess = defineAction({
   id: 'operator.revoke_support_access',
   title: 'Revoke support access',
-  description: 'Ends a support-access grant immediately.',
+  description: 'Ends a platform-operator support-access grant for this workspace immediately.',
   input: z.object({ id: uuid }),
   output: Ok,
   scopes: [],

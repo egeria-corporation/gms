@@ -110,7 +110,7 @@ export async function syncAccounts(trx: Tx, workspaceId: string, connectionId: s
 export const syncBank = defineAction({
   id: 'bank.sync',
   title: 'Refresh balances',
-  description: 'Refreshes account names and balances from the bank.',
+  description: 'Refreshes bank account names and balances from the connected bank (read-only; moves no money).',
   input: z.object({}),
   output: z.object({ accounts: z.number() }),
   scopes: ['payments:read'],

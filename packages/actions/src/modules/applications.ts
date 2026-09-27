@@ -646,7 +646,7 @@ export const acceptCollaborator = defineAction({
 export const removeCollaborator = defineAction({
   id: 'applications.remove_collaborator',
   title: 'Remove a collaborator',
-  description: 'Removes a collaborator from an application.',
+  description: 'Removes a collaborator from an in-progress application so they can no longer see or edit it.',
   input: z.object({ collaboratorId: uuid }),
   output: Ok,
   scopes: ['applications:write'],
@@ -685,7 +685,7 @@ export const addComment = defineAction({
 export const resolveComment = defineAction({
   id: 'applications.resolve_comment',
   title: 'Resolve a team comment',
-  description: 'Marks a team comment as resolved.',
+  description: 'Marks an applicant-team comment on an application as resolved (the foundation never sees these comments).',
   input: z.object({ commentId: uuid }),
   output: Ok,
   scopes: ['applications:write'],

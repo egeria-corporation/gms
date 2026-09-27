@@ -36,7 +36,7 @@ export function PoweredByFooter({ sourceUrl, version, className }: PoweredByFoot
         Source code
         <span className="sr-only"> for version {version}</span>
       </a>
-      <span className="tabular-nums opacity-80">({version})</span>
+      <span className="tabular-nums">({version})</span>
     </p>
   );
 }

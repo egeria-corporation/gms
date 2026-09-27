@@ -26,6 +26,9 @@ importers:
       '@gms/fixtures':
         specifier: workspace:*
         version: link:packages/fixtures
+      '@gms/forms':
+        specifier: workspace:*
+        version: link:packages/forms
       '@types/node':
         specifier: ^24.10.1
         version: 24.19.0
