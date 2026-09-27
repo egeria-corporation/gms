@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // @gms/fixtures: deterministic, fictional demo data for GMS (`pnpm seed`).
 import { getRuntime, type Runtime } from '@gms/actions';
-import type { Database } from '@gms/db';
+import { sql, type Database } from '@gms/db';
 import { APPLICANT_SCOPES } from '@gms/domain';
 import { SeedContext } from './context';
 import { DEMO_USERS, type DemoUser } from './people';
@@ -130,6 +130,9 @@ export async function seed(opts: SeedOptions = {}): Promise<SeedResult> {
 
   for (const r of ctx.refCounters) await ctx.setReferenceCounter(r.ws, r.kind, r.year, r.value);
   await ctx.flushAudit();
+  // Populate the analytics matviews now so dashboards have data before the worker's first hourly refresh.
+  log('analytics');
+  await sql`select analytics.refresh_all()`.execute(ctx.db);
 
   return {
     mode: 'full',
