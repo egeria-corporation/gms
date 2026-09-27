@@ -62,8 +62,10 @@ const handlers: Record<string, Handler> = {
       .where('a.id', '=', ev.entity_id)
       .executeTakeFirst();
     if (!app) return;
-    const decision = to === 'declined' ? await rt.db.selectFrom('decisions').select(['letter_sent_at']).where('application_id', '=', app.id).where('is_final', '=', true).orderBy('recorded_at', 'desc').executeTakeFirst() : null;
-    if (to === 'declined' && decision && !decision.letter_sent_at) return; // staff chose not to send a letter
+    // Final decisions: staff may choose not to send a letter (approve or decline).
+    const decided = to === 'declined' || to === 'awarded';
+    const decision = decided ? await rt.db.selectFrom('decisions').select(['letter_sent_at']).where('application_id', '=', app.id).where('is_final', '=', true).orderBy('recorded_at', 'desc').executeTakeFirst() : null;
+    if (decided && decision && !decision.letter_sent_at) return; // staff chose not to send a letter
     for (const r of await applicationRecipients(rt.db, app.id)) {
       await sendTemplate(rt, ws, r.email, 'status_change', {
         recipientName: r.name,

@@ -352,13 +352,37 @@ export const proposeBatch = defineAction({
       sourceAccountId = first?.id ?? null;
     }
     const blocked: z.infer<typeof Blocked>[] = [];
-    const ok: (DueRow & { payee_id: string | null })[] = [];
+    const ok: (DueRow & { payee_id: string | null; root: string | null })[] = [];
     for (const d of due) {
       const reasons: string[] = [];
       if (d.award_status !== 'active') reasons.push('Award is not active');
       if (d.agreement_pending) reasons.push('Agreement not countersigned yet');
       if (d.on_hold) reasons.push('Award is on hold');
-      if (d.report_overdue && settings.overdue_report_hold) reasons.push('A report is overdue (payment hold)');
+      // Overdue reports hold payments when the workspace setting is on and that report is set to hold payments.
+      if (settings.overdue_report_hold) {
+        const holding = await ctx.db
+          .selectFrom('report_requirements')
+          .select('title')
+          .where('award_id', '=', d.award_id)
+          .where('status', '=', 'overdue')
+          .where('holds_payments', '=', true)
+          .executeTakeFirst();
+        if (holding) reasons.push(`Report overdue: ${holding.title} (payment hold)`);
+      }
+      // Never propose more than the award (plus approved amendments) allows; earlier rows in this batch count too.
+      const ceiling = await sql<{ root: string; ceiling: number; committed: number }>`
+        with r as (select gms_private.award_root(${d.award_id}::uuid) as root)
+        select r.root, gms_private.award_ceiling_cents(r.root)::bigint as ceiling,
+               coalesce((select sum(p.amount_cents) from public.payments p
+                         where gms_private.award_root(p.award_id) = r.root and p.status not in ('failed', 'cancelled')), 0)::bigint as committed
+        from r`.execute(ctx.db);
+      const c = ceiling.rows[0];
+      if (c) {
+        const inBatch = ok.filter((o) => o.root === c.root).reduce((sum, o) => sum + o.amount_cents, 0);
+        if (Number(c.committed) + inBatch + d.amount_cents > Number(c.ceiling)) {
+          reasons.push(`Over budget: ${formatMoney(Number(c.committed) + inBatch + d.amount_cents)} would exceed the award's ${formatMoney(Number(c.ceiling))}`);
+        }
+      }
       let payeeId: string | null = null;
       if (d.applicant_org_id) {
         const payee = await ctx.db.selectFrom('payees').select(['id', 'status']).where('workspace_id', '=', w.id).where('applicant_org_id', '=', d.applicant_org_id).executeTakeFirst();
@@ -375,7 +399,7 @@ export const proposeBatch = defineAction({
         if (screening?.status === 'confirmed_match') reasons.push('Confirmed sanctions (OFAC) match');
       } else reasons.push('No grantee organization');
       if (reasons.length) blocked.push({ installmentId: d.installment_id, awardReference: d.reference, grantee: d.legal_name ?? '—', amountCents: d.amount_cents, reasons });
-      else ok.push({ ...d, payee_id: payeeId });
+      else ok.push({ ...d, payee_id: payeeId, root: ceiling.rows[0]?.root ?? null });
     }
     if (!ok.length) return { batchId: null, included: 0, totalCents: 0, feeCents: 0, blocked };
     const method: PaymentMethod = conn.provider === 'manual' ? 'manual' : input.method;
