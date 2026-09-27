@@ -2,11 +2,12 @@
 // Admin extras: brand asset uploads, integrations settings (email domain, OpenGrants syndication),
 // race-safe first-run setup (F-01…F-05, `pnpm run setup`) and operator view auditing (G-02).
 import { randomBytes } from 'node:crypto';
-import { sql } from '@gms/db';
+import { sql, type Database } from '@gms/db';
 import { DomainError, WORKSPACE_ROLES } from '@gms/domain';
 import { FORM_TEMPLATES, templateModel } from '@gms/forms';
 import { z } from 'zod';
 import { defineAction, getAction, type RunContext } from '../define';
+import { zodIssues } from '../executor';
 import { Email, found, Ok, uuid, ws } from './lib';
 
 const ADMIN = ['owner', 'admin'] as const;
@@ -89,8 +90,10 @@ export const setOpenGrantsSyndication = defineAction({
 // First-run setup (F-01…F-05) ---------------------------------------------------------------------------
 async function runNested<T>(actionId: string, raw: unknown, ctx: RunContext): Promise<T> {
   const action = found(getAction(actionId), 'action');
-  const input = action.input.parse(raw);
-  return (await action.run(input, ctx)) as T;
+  const parsed = action.input.safeParse(raw);
+  if (!parsed.success) throw new DomainError('validation_failed', 'The input is not valid.', { action: actionId }, zodIssues(parsed.error));
+  // Nested audit entries keep their own action id (the executor would otherwise label them setup.initialize).
+  return (await action.run(parsed.data, { ...ctx, audit: (e) => ctx.audit({ ...e, action: e.action ?? actionId }) })) as T;
 }
 
 const InviteRow = z.object({ email: Email, role: z.enum(WORKSPACE_ROLES).refine((r) => r !== 'owner', 'Invite other owners later, from Team settings.') });
@@ -198,3 +201,155 @@ export const recordOperatorView = defineAction({
     return { ok: true as const };
   },
 });
+
+// Report builder (AN-02) ----------------------------------------------------------------------------------------
+// One aggregate query per report definition. Every SQL fragment comes from the whitelists below; user values
+// are bound parameters. Used by the report builder page (under RLS) and by the export worker
+// (exports.request kind "report_definition": `adminExtra.reportDefinitionExport(rt.db, workspaceId, params)`).
+export type ReportDatasetKey = 'applications' | 'awards' | 'payments' | 'reports';
+
+export interface ReportDefinition {
+  dataset: ReportDatasetKey;
+  rows: string;
+  cols: string | null;
+  measure: string;
+  from: string | null;
+  to: string | null;
+  statuses: string[];
+  programId: string | null;
+}
+
+export interface ReportResultRow {
+  row: string;
+  col: string | null;
+  value: number;
+}
+
+type Frag = ReturnType<typeof sql.raw>;
+
+interface DatasetSql {
+  from: (ws: string) => Frag;
+  date: Frag;
+  status: Frag;
+  program: Frag;
+  dims: Record<string, (tz: string) => Frag>;
+  measures: Record<string, Frag>;
+}
+
+const month = (col: string) => (tz: string) => sql`to_char(date_trunc('month', ${sql.raw(col)} at time zone ${tz}), 'YYYY-MM')`;
+
+const REPORT_SQL: Record<ReportDatasetKey, DatasetSql> = {
+  applications: {
+    from: (ws) => sql`public.applications a
+      left join public.opportunities o on o.id = a.opportunity_id
+      left join public.programs p on p.id = o.program_id
+      where a.workspace_id = ${ws}::uuid`,
+    date: sql.raw('a.submitted_at'),
+    status: sql.raw('a.status'),
+    program: sql.raw('p.id'),
+    dims: {
+      status: () => sql.raw('a.status'),
+      opportunity: () => sql.raw(`coalesce(o.title, 'No opportunity')`),
+      program: () => sql.raw(`coalesce(p.name, 'No program')`),
+      month: month('a.submitted_at'),
+      channel: () => sql.raw(`case coalesce(a.submitted_via, a.created_via) when 'agent' then 'AI agent' when 'api' then 'API' else 'Web' end`),
+    },
+    measures: { count: sql.raw('count(*)'), requested: sql.raw('coalesce(sum(a.requested_amount_cents), 0)') },
+  },
+  awards: {
+    from: (ws) => sql`public.awards a
+      join public.workspaces w on w.id = a.workspace_id
+      left join public.opportunities o on o.id = a.opportunity_id
+      left join public.programs p on p.id = a.program_id
+      left join lateral (select ad.county from public.org_addresses ad where ad.org_id = a.applicant_org_id order by (ad.kind = 'mailing') desc limit 1) c on true
+      where a.workspace_id = ${ws}::uuid and a.kind = 'original'`,
+    date: sql.raw('a.start_date'),
+    status: sql.raw('a.status'),
+    program: sql.raw('p.id'),
+    dims: {
+      status: () => sql.raw('a.status'),
+      program: () => sql.raw(`coalesce(p.name, 'No program')`),
+      fiscal_year: () => sql.raw(`'FY ' || coalesce(a.fiscal_year, analytics.fiscal_year(coalesce(a.start_date, a.created_at::date), w.fiscal_year_start_month))`),
+      opportunity: () => sql.raw(`coalesce(o.title, 'No opportunity')`),
+      county: () => sql.raw(`coalesce(nullif(trim(c.county), ''), 'Unknown')`),
+    },
+    measures: { count: sql.raw('count(*)'), amount: sql.raw('coalesce(sum(a.amount_cents), 0)'), disbursed: sql.raw('coalesce(sum(a.disbursed_cents), 0)') },
+  },
+  payments: {
+    from: (ws) => sql`public.payments pm
+      join public.awards a on a.id = pm.award_id
+      left join public.programs p on p.id = a.program_id
+      where pm.workspace_id = ${ws}::uuid`,
+    date: sql.raw('pm.sent_at'),
+    status: sql.raw('pm.status'),
+    program: sql.raw('p.id'),
+    dims: {
+      status: () => sql.raw('pm.status'),
+      method: () => sql.raw('pm.method'),
+      program: () => sql.raw(`coalesce(p.name, 'No program')`),
+      month: month('pm.sent_at'),
+      rail: () => sql.raw('pm.rail'),
+    },
+    measures: { count: sql.raw('count(*)'), amount: sql.raw('coalesce(sum(pm.amount_cents), 0)') },
+  },
+  reports: {
+    from: (ws) => sql`public.report_requirements r
+      join public.awards a on a.id = r.award_id
+      left join public.programs p on p.id = a.program_id
+      where r.workspace_id = ${ws}::uuid`,
+    date: sql.raw('r.due_date'),
+    status: sql.raw('r.status'),
+    program: sql.raw('p.id'),
+    dims: {
+      status: () => sql.raw('r.status'),
+      kind: () => sql.raw('r.kind'),
+      program: () => sql.raw(`coalesce(p.name, 'No program')`),
+      month: () => sql.raw(`to_char(date_trunc('month', r.due_date), 'YYYY-MM')`),
+    },
+    measures: { count: sql.raw('count(*)') },
+  },
+};
+
+export async function runReportDefinition(db: Database, workspaceId: string, timeZone: string, c: ReportDefinition): Promise<ReportResultRow[]> {
+  const d = REPORT_SQL[c.dataset];
+  const rowExpr = (d.dims[c.rows] ?? d.dims.status!)(timeZone);
+  const colExpr = c.cols && d.dims[c.cols] ? d.dims[c.cols]!(timeZone) : sql`null`;
+  const measure = d.measures[c.measure] ?? d.measures.count!;
+  const filters: Frag[] = [];
+  if (c.from) filters.push(sql`${d.date} >= (${c.from}::date)`);
+  if (c.to) filters.push(sql`${d.date} < (${c.to}::date + 1)`);
+  if (c.statuses.length) filters.push(sql`${d.status} = any(${c.statuses}::text[])`);
+  if (c.programId) filters.push(sql`${d.program} = ${c.programId}::uuid`);
+  const where = filters.length ? sql` and ${sql.join(filters, sql` and `)}` : sql``;
+  const r = await sql<{ row: string | null; col: string | null; value: number | string }>`
+    select coalesce((${rowExpr})::text, '—') as row, (${colExpr})::text as col, (${measure})::bigint as value
+    from ${d.from(workspaceId)}${where}
+    group by 1, 2
+    order by 1, 2
+    limit 2000`.execute(db);
+  return r.rows.map((x) => ({ row: x.row ?? '—', col: x.col, value: Number(x.value) }));
+}
+
+/** Rows for a CSV/XLSX export of a saved or ad-hoc report definition (params as stored on the export). */
+export async function reportDefinitionExport(db: Database, workspaceId: string, params: Record<string, unknown>): Promise<Record<string, string | number | null>[]> {
+  const str = (k: string) => (typeof params[k] === 'string' ? (params[k] as string) : null);
+  const dataset = (Object.keys(REPORT_SQL) as ReportDatasetKey[]).find((k) => k === params.dataset) ?? 'applications';
+  const d = REPORT_SQL[dataset];
+  const rows = str('rows') && d.dims[str('rows')!] ? str('rows')! : 'status';
+  const colsRaw = str('cols');
+  const cols = colsRaw && d.dims[colsRaw] && colsRaw !== rows ? colsRaw : null;
+  const measure = str('measure') && d.measures[str('measure')!] ? str('measure')! : 'count';
+  const date = (k: string) => (str(k) && /^\d{4}-\d{2}-\d{2}$/.test(str(k)!) ? str(k) : null);
+  const ws = await db.selectFrom('workspaces').select('timezone').where('id', '=', workspaceId).executeTakeFirst();
+  const result = await runReportDefinition(db, workspaceId, ws?.timezone ?? 'UTC', {
+    dataset,
+    rows,
+    cols,
+    measure,
+    from: date('from'),
+    to: date('to'),
+    statuses: Array.isArray(params.statuses) ? params.statuses.map(String).filter((s) => /^[a-z_]{1,40}$/.test(s)) : [],
+    programId: str('programId') && /^[0-9a-f-]{36}$/i.test(str('programId')!) ? str('programId') : null,
+  });
+  return result.map((r) => ({ [rows]: r.row, ...(cols ? { [cols]: r.col } : {}), [measure]: r.value }));
+}
