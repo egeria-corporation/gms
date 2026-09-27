@@ -16,3 +16,5 @@ supabase/.temp/
 supabase/.branches/
 *.log
 .DS_Store
+.claude/worktrees/
+.claude/settings.local.json
