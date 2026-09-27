@@ -12,14 +12,14 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 | M0 | Bootstrap, doctor, monorepo, CI, adapters w/ fakes, DB tier, migrations, Kysely + RLS helper, worker wiring, outbox | **done** (CI workflow written; gate run pending full app) |
 | M1 | Schema + RLS helpers + matrix, auth (magic link + TOTP + step-up), tenancy, action executor, branding engine, design system, shells | **done** except S-01/S-02/S-06 screens (admin agent) |
 | M2 | Programs, opportunities, forms engine + builder, public site A-01…A-07, CG read API, JSON-LD, markdown, llms.txt | core done (public site, CG API, forms core); builder UI + opportunity editor in progress (forms-react agent, then console grantmaking) |
-| M3 | Applicant portal B-01…B-09, B-15 | mostly done; B-05…B-08 workspace/review/collaborators/receipt wait on `@gms/forms/react` |
+| M3 | Applicant portal B-01…B-09, B-15 | **done**; E2E flow 1 passes |
 | M4 | Console core + review (C-01, C-06…C-08, R-01…R-05, D-01…D-03) | C-01 done; rest queued for a console agent after forms-react |
 | M5 | Awards, agreements, board | backend done; B-10 signing done; staff screens queued |
 | M6 | Payments | backend done; screens + webhooks in progress (finance agent) |
 | M7 | Post-award, diligence, comms | backend done; screens in progress (finance + admin agents) |
 | M8 | Analytics & exports | exports done in worker; analytics schema + screens in progress (admin agent) |
-| M9 | Platform API, webhooks, CG write routes | CG write routes done; /api/v1 in progress (agents agent); outbound webhooks done in worker |
-| M10 | Agent layer | in progress (agents agent); approvals flow + B-13/B-14 done |
+| M9 | Platform API, webhooks, CG write routes | **done** (/api/v1 + OpenAPI + Arazzo mounted; CG accepts bearer tokens); S-07 screen with admin agent |
+| M10 | Agent layer | **done**: MCP, A2A, OAuth AS + O-01 consent, discovery files mounted; 31 agent evals + E2E flow 5 pass; S-04/S-05 screens with admin agent |
 | M11 | Setup, settings, operator | in progress (admin agent) |
 | M12 | Hardening & ship | not started |
 
@@ -31,10 +31,12 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 - Verified in a browser: public site renders with tenant brand; staff magic-link → TOTP enrollment → console.
 
 ## In flight (agents)
-forms React renderers + builder UI · seed/demo data · agent layer + /api/v1 + evals · console finance (payments/reports/diligence/awards + Mercury webhooks + dev Mercury controls) · console admin (settings, approvals, comms, analytics, setup wizard, operator, dev catalog/design-system/previews).
+console grantmaking/review/board (C-02…C-08, FB, R, D, E) · console finance (payments/reports/diligence/awards + Mercury webhooks + dev Mercury controls) · console admin (settings, approvals, comms, analytics, setup wizard, operator, dev catalog/design-system/previews).
 
 ## Next (mine)
-Merge agents as they land → application workspace B-05…B-08 + report submission B-11 (needs forms-react) → spawn console grantmaking/review agent (C-02…C-08, R-01…R-07, D, E, FB pages) → mount agent routes (/mcp, /a2a, /api/v1, /.well-known, llms, agents.md, O-01 consent) → E2E flows 1–6 → gate → docs → hardening → deploy/report.
+Merge the three console agents as they land → E2E flows 2, 3, 4, 6 → full gate → `pnpm run upgrade` script + `pnpm shots` → security pass (audit, RLS report) → REPORT.md → PR if a remote exists.
+
+Docs written: README, docs/self-hosting.md, docs/security.md, docs/api.md, docs/agents.md.
 
 ## Known issues
 - Docker daemon never started → tier 1 (local Supabase) untested in this run; tier 3 used throughout.
