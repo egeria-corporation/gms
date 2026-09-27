@@ -425,6 +425,7 @@ export const MATRIX: readonly TableSpec[] = [
     table: 'opportunity_subscriptions',
     allow: allow([...byRole('owner', 'admin', 'program_officer', 'auditor'), 'applicant'], SIGNED_IN.filter((p) => p !== 'anon'), NONE, ['applicant']),
     actor: ['user_id'],
+    // The seeded row is the applicant's subscription to opp1; probe inserts target another public opportunity.
     clone: (r, w) => ({ ...r, opportunity_id: w.ids.oppLeaf }),
     update: 'notified_at = notified_at',
     note: 'People subscribe themselves to a public forecasted opportunity; staff can see subscriber counts.',
@@ -443,6 +444,25 @@ export const MATRIX: readonly TableSpec[] = [
     allow: allow(ALL, NONE, NONE, NONE),
     note: 'Names of active programs that have a published opportunity (public site, CommonGrants customFields).',
   },
+
+  // --- analytics (M8): read-only views over analytics.* matviews, filtered by gms.is_staff(workspace_id) ------
+  ...[
+    'analytics_pipeline_funnel',
+    'analytics_time_in_stage',
+    'analytics_budget_by_program',
+    'analytics_cashflow_forecast',
+    'analytics_portfolio_by_cause',
+    'analytics_portfolio_by_county',
+    'analytics_outcomes',
+    'analytics_demographics',
+  ].map(
+    (table): TableSpec => ({
+      table,
+      kind: 'view',
+      allow: allow(STAFF, NONE, NONE, NONE),
+      note: 'Aggregates only (demographics suppress n < 5). Staff of the workspace; the matviews themselves are not readable by request roles.',
+    }),
+  ),
 ];
 
 export function specFor(table: string): TableSpec | undefined {

@@ -89,6 +89,101 @@ export interface Agreements {
   last_modified_at: Generated<Timestamp>;
 }
 
+export interface AnalyticsBudgetByProgram {
+  workspace_id: string | null;
+  program_id: string | null;
+  program_name: string | null;
+  fiscal_year: number | null;
+  currency: string | null;
+  row_key: string | null;
+  budget_cents: number | null;
+  committed_cents: number | null;
+  paid_cents: number | null;
+  unpaid_commitments_cents: number | null;
+  remaining_cents: number | null;
+  awards: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsCashflowForecast {
+  workspace_id: string | null;
+  month: string | null;
+  currency: string | null;
+  scheduled_cents: number | null;
+  installments: number | null;
+  paid_cents: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsDemographics {
+  workspace_id: string | null;
+  question: string | null;
+  answer: string | null;
+  responses: number | null;
+  suppressed: boolean | null;
+  question_respondents: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsOutcomes {
+  workspace_id: string | null;
+  indicator_id: string | null;
+  indicator: string | null;
+  unit: string | null;
+  program_id: string | null;
+  program_name: string | null;
+  total_value: number | null;
+  awards_reporting: number | null;
+  latest_period_end: string | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsPipelineFunnel {
+  workspace_id: string | null;
+  opportunity_id: string | null;
+  opportunity_title: string | null;
+  opportunity_status: string | null;
+  started: number | null;
+  submitted: number | null;
+  reviewed: number | null;
+  awarded: number | null;
+  declined: number | null;
+  withdrawn_or_ineligible: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsPortfolioByCause {
+  workspace_id: string | null;
+  cause: string | null;
+  cause_label: string | null;
+  currency: string | null;
+  committed_cents: number | null;
+  awards: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsPortfolioByCounty {
+  workspace_id: string | null;
+  county: string | null;
+  currency: string | null;
+  committed_cents: number | null;
+  awards: number | null;
+  grantees: number | null;
+  refreshed_at: Timestamp | null;
+}
+
+export interface AnalyticsTimeInStage {
+  workspace_id: string | null;
+  status: string | null;
+  completed: number | null;
+  avg_days: number | null;
+  median_days: number | null;
+  p90_days: number | null;
+  current: number | null;
+  current_avg_days: number | null;
+  refreshed_at: Timestamp | null;
+}
+
 export interface ApiKeys {
   id: Generated<string>;
   workspace_id: string;
@@ -1566,6 +1661,14 @@ export interface DB {
   agent_policies: AgentPolicies;
   agent_tasks: AgentTasks;
   agreements: Agreements;
+  analytics_budget_by_program: AnalyticsBudgetByProgram;
+  analytics_cashflow_forecast: AnalyticsCashflowForecast;
+  analytics_demographics: AnalyticsDemographics;
+  analytics_outcomes: AnalyticsOutcomes;
+  analytics_pipeline_funnel: AnalyticsPipelineFunnel;
+  analytics_portfolio_by_cause: AnalyticsPortfolioByCause;
+  analytics_portfolio_by_county: AnalyticsPortfolioByCounty;
+  analytics_time_in_stage: AnalyticsTimeInStage;
   api_keys: ApiKeys;
   applicant_extensions: ApplicantExtensions;
   applicant_org_members: ApplicantOrgMembers;

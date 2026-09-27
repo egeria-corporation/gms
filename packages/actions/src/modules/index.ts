@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Importing this module registers every action in the registry.
+export * as adminExtra from './admin-extra';
 export * as applications from './applications';
 export * as awards from './awards';
 export * as comms from './comms';

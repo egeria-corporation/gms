@@ -572,6 +572,17 @@ export async function buildWorld(db: Database): Promise<World> {
     true,
   );
 
+  // --- analytics: refresh the matviews over the seeded rows, then point each view at a workspace-A row ---------
+  await sql`select analytics.refresh_all()`.execute(db);
+  rows.analytics_pipeline_funnel = { opportunity_id: id('opp1') };
+  rows.analytics_time_in_stage = { workspace_id: wsA, status: 'under_review' };
+  rows.analytics_budget_by_program = { workspace_id: wsA, program_id: id('program1'), fiscal_year: '2026' };
+  rows.analytics_cashflow_forecast = { workspace_id: wsA, month: '2026-10-01' };
+  rows.analytics_portfolio_by_cause = { workspace_id: wsA, cause: 'Unspecified' };
+  rows.analytics_portfolio_by_county = { workspace_id: wsA, county: 'Alameda' };
+  rows.analytics_outcomes = { indicator_id: id('indicator1') };
+  rows.analytics_demographics = { workspace_id: wsA, question: 'bipoc_led', answer: 'true' };
+
   const userId = (p: Principal): string | null => (p === 'anon' ? null : users[p].id);
   const claims = (p: Principal): RequestClaims => {
     if (p === 'anon') return { role: 'anon' };
