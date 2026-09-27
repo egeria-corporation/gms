@@ -108,6 +108,14 @@ describe('paymentRailFor', () => {
     expect([rail?.name, rail?.environment]).toEqual(['fake-mercury', 'fake']);
   });
 
+  it('points fake onboarding links at the tenant origin it is given', async () => {
+    const ws = await workspace();
+    await tdb.db.insertInto('bank_connections').values({ workspace_id: ws, provider: 'mercury', environment: 'fake' }).execute();
+    const rail = await paymentRailFor(ws, tdb.db, secrets(), { onboardingBaseUrl: 'http://halcyon.localhost:3104/' });
+    const invite = await rail!.createRecipientInvite({ contactEmail: 'grantee@example.example', name: 'Grantee', paymentMethods: ['ach'], requireTaxDocument: true, sendEmail: false });
+    expect(invite.onboardingUrl).toBe(`http://halcyon.localhost:3104/dev/mercury/invites/${invite.inviteId}`);
+  });
+
   it('returns MercuryRail for sandbox with the token from the SecretStore', async () => {
     const ws = await workspace();
     const ref = await secrets().put('mercury_token', 'secret-token:mercury_sandbox_wma_TESTTOKEN123', { workspaceId: ws });

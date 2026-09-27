@@ -54,7 +54,9 @@ export function createRuntime(opts: { db?: Database; clock?: () => Date } = {}):
     paymentRail: async (workspaceId, trx) => {
       // The connection is read in the caller's transaction (it may have just been created there);
       // rail-side state uses the service connection.
-      const rail = await paymentRailFor(workspaceId, trx as unknown as Database, adapters.secrets, { railDb: db });
+      // The simulated bank's onboarding page lives on the tenant's host (/dev/mercury/invites/…).
+      const ws = await db.selectFrom('workspaces').select('slug').where('id', '=', workspaceId).executeTakeFirst();
+      const rail = await paymentRailFor(workspaceId, trx as unknown as Database, adapters.secrets, { railDb: db, onboardingBaseUrl: originFor(ws?.slug ?? null) });
       if (!rail) throw new DomainError('precondition_failed', 'Connect the bank (or choose the manual rail) first.');
       return rail;
     },
