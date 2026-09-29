@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Symmetric crypto helpers: AES-256-GCM envelopes, purpose-bound HMAC tokens, hashing.
+import { isInternetFacing, isProductionEnvironment } from '@gms/domain';
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 
 let masterKey: Buffer | null = null;
@@ -17,8 +18,8 @@ export function getMasterKey(): Buffer {
     masterKey = buf;
     return buf;
   }
-  if (isProductionDeploy()) {
-    throw new Error('GMS_ENCRYPTION_KEY is required in production.');
+  if (isInternetFacing()) {
+    throw new Error('GMS_ENCRYPTION_KEY is required on internet-facing deployments.');
   }
   masterKey = createHash('sha256').update('gms-development-key:do-not-use-in-production').digest();
   return masterKey;
@@ -26,7 +27,7 @@ export function getMasterKey(): Buffer {
 
 /** True only for real production deployments (Netlify production context or GMS_ENV=production). */
 export function isProductionDeploy(): boolean {
-  return process.env.GMS_ENV === 'production' || process.env.CONTEXT === 'production';
+  return isProductionEnvironment();
 }
 
 /** Derives an independent key for a purpose (HKDF-SHA256). */

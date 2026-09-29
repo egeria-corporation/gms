@@ -6,7 +6,7 @@ import { getDb, type Database } from '@gms/db';
 import { SupabaseAuthAdapter } from './auth/supabase-auth';
 import { TestAuthAdapter } from './auth/test-auth';
 import { StubBilling } from './billing/stub';
-import { isProductionDeploy } from './crypto';
+import { isProductionEnvironment } from '@gms/domain';
 import { FixtureDiligenceSource } from './diligence/fixtures';
 import { LiveDiligenceSource } from './diligence/import';
 import type { FetchLike } from './http';
@@ -52,7 +52,7 @@ export function createMailer(db: () => Database, env: NodeJS.ProcessEnv = proces
   if (env.RESEND_API_KEY) real = new ResendMailer({ apiKey: env.RESEND_API_KEY, fetch: fetchImpl });
   else if (env.SMTP_URL) real = new SmtpMailer({ url: env.SMTP_URL });
   if (!real) return outbox;
-  const production = env === process.env ? isProductionDeploy() : env.GMS_ENV === 'production' || env.CONTEXT === 'production';
+  const production = isProductionEnvironment(env);
   if (production) return real;
   return new GuardedMailer(real, outbox, { production: false, allowlist: (env.GMS_EMAIL_ALLOWLIST ?? '').split(/[,\s]+/).filter(Boolean) });
 }
@@ -117,6 +117,9 @@ export async function paymentRailFor(
   // The fake bank keeps its own state (gms_private) with its own transactions, so it needs a service
   // connection, not the caller's (possibly RLS-scoped) transaction.
   // Its hosted-onboarding stand-in is a dev page on the tenant's own host, so invite links must use the tenant origin.
+  if (conn.environment === 'fake' && isProductionEnvironment(opts.env ?? process.env)) {
+    throw new RailConfigurationError('The simulated bank is not available in production. Connect Mercury or use the manual rail.');
+  }
   if (conn.environment === 'fake') return new FakeMercury({ workspaceId, db: opts.railDb ?? db, onboardingBaseUrl: opts.onboardingBaseUrl });
   if (conn.environment !== 'sandbox' && conn.environment !== 'production') {
     throw new RailConfigurationError(`unknown Mercury environment: ${conn.environment}`);

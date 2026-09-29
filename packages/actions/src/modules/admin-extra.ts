@@ -8,7 +8,7 @@ import { FORM_TEMPLATES, templateModel } from '@gms/forms';
 import { z } from 'zod';
 import { defineAction, getAction, type RunContext } from '../define';
 import { zodIssues } from '../executor';
-import { Email, found, Ok, uuid, ws } from './lib';
+import { Email, found, Ok, uid, uuid, ws } from './lib';
 
 const ADMIN = ['owner', 'admin'] as const;
 
@@ -353,3 +353,99 @@ export async function reportDefinitionExport(db: Database, workspaceId: string, 
   });
   return result.map((r) => ({ [rows]: r.row, ...(cols ? { [cols]: r.col } : {}), [measure]: r.value }));
 }
+
+// Platform operators ----------------------------------------------------------------------------------------------
+export const addPlatformOperator = defineAction({
+  id: 'operators.add',
+  title: 'Add a platform operator',
+  description:
+    'System (the `pnpm run operator:add` script on the server): makes a person a platform operator of this GMS installation, creating their account if needed. Operators see the tenant list and, with a time-boxed support grant, tenant data; every view is audited in the tenant log.',
+  input: z.object({ email: Email, fullName: z.string().trim().min(1).max(200), role: z.enum(['operator', 'support']).default('operator') }),
+  output: z.object({ userId: z.string().uuid(), created: z.boolean() }),
+  scopes: [],
+  roles: ['system'],
+  riskTier: 'R3',
+  idempotent: true,
+  requiresWorkspace: false,
+  async run(input, ctx) {
+    const email = input.email.toLowerCase();
+    const existing = await ctx.db.selectFrom('profiles').select('id').where(sql`lower(email)`, '=', email).executeTakeFirst();
+    const userId = existing?.id ?? (ctx.deps.auth ? await ctx.deps.auth.ensureUser({ email, fullName: input.fullName }) : null);
+    if (!userId) throw new DomainError('precondition_failed', 'No auth adapter is configured to create the account. Sign in once, then run this again.');
+    await sql`insert into public.profiles (id, email, full_name) values (${userId}::uuid, ${email}, ${input.fullName})
+      on conflict (id) do nothing`.execute(ctx.db);
+    const r = await ctx.db
+      .insertInto('platform_operators')
+      .values({ user_id: userId, role: input.role })
+      .onConflict((oc) => oc.column('user_id').doUpdateSet({ role: input.role }))
+      .returning(sql<boolean>`(xmax = 0)`.as('created'))
+      .executeTakeFirstOrThrow();
+    ctx.audit({ entityType: 'platform_operator', entityId: userId, after: { email, role: input.role } });
+    return { userId, created: Boolean(r.created) };
+  },
+});
+
+// Custom deployment requests (hosted service) -----------------------------------------------------------------------
+const DeploymentKind = z.enum(['custom_domain', 'dedicated', 'other']);
+
+export const requestCustomDeployment = defineAction({
+  id: 'deployments.request',
+  title: 'Request a custom deployment',
+  description:
+    'Asks the platform team for the foundation’s own domain or a dedicated GMS deployment. Records the request in the workspace and notifies the platform team; they reply by email.',
+  input: z.object({
+    kind: DeploymentKind,
+    desiredDomain: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/, 'Enter a domain like grants.example.org.')
+      .refine((d) => d.includes('.'), 'Enter a domain like grants.example.org.')
+      .optional()
+      .nullable()
+      .or(z.literal('')),
+    details: z.string().trim().min(1, 'Tell us what you need.').max(4000),
+    contactEmail: Email,
+  }),
+  output: z.object({ id: z.string().uuid() }),
+  scopes: [],
+  roles: ['owner', 'admin'],
+  riskTier: 'R1',
+  idempotent: true,
+  async run(input, ctx) {
+    const w = ws(ctx);
+    const row = await ctx.db
+      .insertInto('deployment_requests')
+      .values({
+        workspace_id: w.id,
+        requested_by: uid(ctx),
+        kind: input.kind,
+        desired_domain: input.desiredDomain || null,
+        details: input.details,
+        contact_email: input.contactEmail.toLowerCase(),
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    ctx.audit({ entityType: 'deployment_request', entityId: row.id, after: { kind: input.kind, desiredDomain: input.desiredDomain || null } });
+    ctx.emit('deployment.requested', { type: 'deployment_request', id: row.id }, { kind: input.kind });
+    return { id: row.id };
+  },
+});
+
+export const setDeploymentRequestStatus = defineAction({
+  id: 'deployments.set_status',
+  title: 'Update a custom deployment request',
+  description: 'System (operator console): moves a custom deployment request to in review or closed. Audited in the tenant log.',
+  input: z.object({ requestId: uuid, status: z.enum(['new', 'in_review', 'closed']), operatorEmail: z.string().max(320) }),
+  output: Ok,
+  scopes: [],
+  roles: ['system'],
+  riskTier: 'R1',
+  idempotent: true,
+  async run(input, ctx) {
+    const before = found(await ctx.db.selectFrom('deployment_requests').select(['id', 'status']).where('id', '=', input.requestId).executeTakeFirst(), 'deployment request');
+    await ctx.db.updateTable('deployment_requests').set({ status: input.status }).where('id', '=', input.requestId).execute();
+    ctx.audit({ entityType: 'deployment_request', entityId: input.requestId, before: { status: before.status }, after: { status: input.status, by: input.operatorEmail } });
+    return { ok: true as const };
+  },
+});

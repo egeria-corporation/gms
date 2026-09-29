@@ -34,7 +34,7 @@ Core platform work happens on `feat/v1`; independent packages/screens are built 
 None.
 
 ## Next
-Owner: confirm the decisions listed in REPORT.md §7; add a git remote to publish `feat/v1` and open the draft PR. Then the §13 stretch items, in order.
+Hosted service (docs/hosting.md): Phase 2 code is PR `feat/hosted`. Waiting on the owner for Netlify, Supabase, Resend access and the Cloudflare NS records; then Phase 3 staging, Phase 4 production.
 
 Docs written: README, docs/self-hosting.md, docs/security.md, docs/api.md, docs/agents.md.
 

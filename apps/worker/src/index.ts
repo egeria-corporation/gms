@@ -2,7 +2,7 @@
 // Long-lived worker for local development and self-hosting on a server: graphile-worker with a crontab,
 // plus LISTEN gms_outbox so domain events fan out within a second.
 import { getRuntime } from '@gms/actions';
-import { databaseUrl, loadDotEnv } from '@gms/db';
+import { loadDotEnv, sessionDatabaseUrl } from '@gms/db';
 import { run } from 'graphile-worker';
 import pg from 'pg';
 import { drainOutbox } from './outbox';
@@ -10,7 +10,7 @@ import { CRONTAB, taskList } from './tasks';
 
 loadDotEnv();
 const rt = getRuntime();
-const connectionString = databaseUrl();
+const connectionString = sessionDatabaseUrl();
 
 const runner = await run({ connectionString, concurrency: 4, noHandleSignals: false, pollInterval: 2000, taskList: taskList(rt), crontab: CRONTAB });
 

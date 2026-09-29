@@ -246,3 +246,63 @@ export const agentConfirmationRequest = defineTemplate<AgentConfirmationRequestP
     ],
   }),
 });
+
+export interface DeploymentRequestProps {
+  foundationName: string;
+  workspaceSlug: string;
+  requesterName: string;
+  contactEmail: string;
+  kind: 'custom_domain' | 'dedicated' | 'other';
+  desiredDomain?: string | null;
+  details: string;
+  requestedAt: string;
+  timeZone: string;
+  /** The tenant's page in the operator console. */
+  operatorUrl: string;
+}
+
+const DEPLOYMENT_KIND_LABELS: Record<DeploymentRequestProps['kind'], string> = {
+  custom_domain: 'Their own domain',
+  dedicated: 'A dedicated deployment',
+  other: 'Something else',
+};
+
+export const deploymentRequest = defineTemplate<DeploymentRequestProps>({
+  name: 'Custom deployment request',
+  description: 'Sent to the platform team when a foundation asks for its own domain or a dedicated deployment.',
+  audience: 'staff',
+  previewProps: {
+    foundationName: 'Halcyon Ridge Foundation',
+    workspaceSlug: 'halcyon',
+    requesterName: FIX.owner,
+    contactEmail: 'helen@halcyonridge.example',
+    kind: 'custom_domain',
+    desiredDomain: 'grants.halcyonridge.example',
+    details: 'We would like applicants to see our own domain in their browser and in our emails.',
+    requestedAt: '2026-09-28T17:00:00Z',
+    timeZone: FIX.tz,
+    operatorUrl: 'https://gms.example/operator/preview-workspace',
+  },
+  build: (p) => ({
+    subject: `Custom deployment request: ${p.foundationName}`,
+    preheader: `${p.requesterName} asked for ${DEPLOYMENT_KIND_LABELS[p.kind].toLowerCase()}.`,
+    reason: `${p.foundationName} filed a custom deployment request in GMS settings.`,
+    blocks: [
+      { type: 'heading', text: `${p.foundationName} asked for a custom deployment` },
+      {
+        type: 'details',
+        rows: [
+          { label: 'Foundation', value: `${p.foundationName} (${p.workspaceSlug})` },
+          { label: 'Asked for', value: DEPLOYMENT_KIND_LABELS[p.kind] },
+          ...(p.desiredDomain ? [{ label: 'Domain', value: p.desiredDomain }] : []),
+          { label: 'Requested by', value: p.requesterName },
+          { label: 'Contact', value: p.contactEmail },
+          { label: 'Requested', value: formatInZone(p.requestedAt, p.timeZone) },
+        ],
+      },
+      { type: 'paragraph', content: p.details },
+      { type: 'button', label: 'Open in the operator console', href: p.operatorUrl },
+      { type: 'fineprint', content: `Reply to ${p.contactEmail} to follow up.` },
+    ],
+  }),
+});

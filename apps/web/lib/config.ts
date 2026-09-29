@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Runtime configuration shared by proxy.ts and server code. No secrets here.
+import { isInternetFacing, isProductionEnvironment } from '@gms/domain/environment';
 
 export type GmsMode = 'single' | 'multi';
 
@@ -15,17 +16,36 @@ export const config = {
     return process.env.DEFAULT_TENANT ?? 'halcyon';
   },
   get isProductionDeploy(): boolean {
-    return process.env.GMS_ENV === 'production' || process.env.CONTEXT === 'production';
+    return isProductionEnvironment();
   },
-  /** Dev-only surfaces (/dev/*, ?state=, tenant override header) are available outside production deploys. */
+  /** Any internet-facing deploy: production, staging and Netlify deploy previews. */
+  get isInternetFacing(): boolean {
+    return isInternetFacing();
+  },
+  /**
+   * Dev-only surfaces (/dev/*, ?state=, tenant override header) exist only on local machines and CI. On anything
+   * internet-facing, /dev/mail would hand out other people's sign-in links.
+   */
   get devToolsEnabled(): boolean {
-    return !this.isProductionDeploy && process.env.GMS_DEV_TOOLS !== 'false';
+    return !this.isInternetFacing && process.env.GMS_DEV_TOOLS !== 'false';
   },
   get protocol(): 'http' | 'https' {
     return /localhost|127\.0\.0\.1/.test(this.rootDomain) ? 'http' : 'https';
   },
   get version(): string {
     return process.env.NEXT_PUBLIC_GMS_VERSION ?? 'dev';
+  },
+  /**
+   * Foundations may serve GMS from their own domain (verified rows in workspace_domains). The hosted service at
+   * gms.opengrants.io turns this off (GMS_CUSTOM_DOMAINS=false): foundations use {slug}.{root} and can request a
+   * custom deployment instead.
+   */
+  get customDomains(): boolean {
+    return process.env.GMS_CUSTOM_DOMAINS !== 'false';
+  },
+  /** Where custom-deployment requests (and other platform support mail) go; unset → operators only. */
+  get supportEmail(): string | null {
+    return process.env.GMS_SUPPORT_EMAIL?.trim() || null;
   },
   get sourceUrl(): string {
     return process.env.NEXT_PUBLIC_GMS_SOURCE_URL ?? 'https://github.com/egeria-corporation/gms';

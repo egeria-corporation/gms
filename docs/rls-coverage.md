@@ -5,10 +5,10 @@
 
 Every table in `public` and `gms_private`, whether row-level security is enabled, its policies, its guard triggers, and whether the RLS matrix test (`packages/db/test/rls-matrix.db.test.ts`, data in `packages/db/test/rls-expectations.ts`) covers it.
 
-- Relations: 121 (111 tables, 10 view(s))
-- RLS enabled: 111 / 111 tables
-- Policies: 374
-- Matrix coverage: 115 / 115 public relations; 6020 allow/deny assertions over 14 principals
+- Relations: 122 (112 tables, 10 view(s))
+- RLS enabled: 112 / 112 tables
+- Policies: 376
+- Matrix coverage: 116 / 116 public relations; 6076 allow/deny assertions over 14 principals
 
 Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `reviewerA2`, `boardA`, `auditorA`, `applicant`, `collaborator`, `otherApplicant`, `outsider`, `adminB`, `anon`.
 
@@ -61,6 +61,7 @@ Principals: `ownerA`, `adminA`, `programOfficerA`, `financeA`, `reviewerA`, `rev
 | `public.custom_field_definitions` | table | on | 4 | 0 | yes |
 | `public.decisions` | table | on | 5 | 1 | yes |
 | `public.demographic_responses` | table | on | 3 | 1 | yes |
+| `public.deployment_requests` | table | on | 2 | 0 | yes |
 | `public.dev_outbox` | table | on | 0 | 0 | yes |
 | `public.diligence_checks` | table | on | 4 | 1 | yes |
 | `public.docket_items` | table | on | 5 | 1 | yes |
@@ -811,6 +812,22 @@ Triggers: `workspace_consistency`
 | select | applicant, collaborator |
 | insert | applicant, collaborator |
 | update | applicant, collaborator |
+| delete | — |
+
+### `public.deployment_requests`
+
+Owners/admins file custom deployment requests; operators work them through system actions.
+
+| Policy | Command | Roles | Type |
+|---|---|---|---|
+| `deployment_requests_insert` | INSERT | gms_authenticated | permissive |
+| `deployment_requests_staff_select` | SELECT | gms_authenticated | permissive |
+
+| Op | Allowed (everyone else denied) |
+|---|---|
+| select | ownerA, adminA |
+| insert | ownerA, adminA |
+| update | — |
 | delete | — |
 
 ### `public.dev_outbox`

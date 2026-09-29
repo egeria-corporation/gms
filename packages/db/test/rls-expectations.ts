@@ -131,6 +131,12 @@ export const MATRIX: readonly TableSpec[] = [
   { table: 'webhook_endpoints', allow: staffTable(ADMIN_READ, OA) },
   { table: 'webhook_deliveries', allow: readOnly(ADMIN_READ) },
   { table: 'exports', allow: allow([...ADMIN_READ, 'programOfficerA'], STAFF, NONE, NONE), actor: ['requested_by'] },
+  {
+    table: 'deployment_requests',
+    allow: allow(OA, OA, NONE, NONE),
+    actor: ['requested_by'],
+    note: 'Owners/admins file custom deployment requests; operators work them through system actions.',
+  },
   { table: 'custom_field_definitions', allow: staffTable(STAFF, OA), clone: (r) => ({ ...r, key: 'regionClone' }) },
   { table: 'saved_views', allow: allow(STAFF, STAFF, ['programOfficerA'], ['programOfficerA']), actor: ['user_id'] },
   { table: 'notifications', allow: allow(['programOfficerA'], NONE, ['programOfficerA'], NONE), update: 'read_at = now()' },

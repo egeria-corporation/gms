@@ -46,6 +46,7 @@ GMS runs on **Next.js on Netlify** with **Supabase** (Postgres, Auth, Storage, V
 ## Documentation
 
 - [docs/self-hosting.md](docs/self-hosting.md) — install, configure, upgrade
+- [docs/hosting.md](docs/hosting.md) — runbook for the hosted service at gms.opengrants.io
 - [docs/api.md](docs/api.md) — CommonGrants coverage, `/api/v1`, webhooks
 - [docs/agents.md](docs/agents.md) — MCP, A2A and OAuth guides; scopes; the approval model
 - [docs/security.md](docs/security.md) — threat model, RLS approach, reporting vulnerabilities
