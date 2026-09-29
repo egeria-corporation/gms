@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-01 Email previews: index of every transactional template.
 import { TEMPLATE_KEYS, templates } from '@gms/email';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { AnthropicLlm, ANTHROPIC_DEFAULT_MODEL, LlmError } from '../src/llm/anthropic';
 import { OpenAiLlm } from '../src/llm/openai';

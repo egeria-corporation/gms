@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-02 Opportunity listing with filters (states: none; mobile sheet).
 import { NextLink } from '@/components/next-link';
 import { Button, EmptyState, PageHeader, Pagination } from '@gms/ui';

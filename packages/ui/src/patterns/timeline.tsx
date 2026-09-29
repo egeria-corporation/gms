@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { formatInZone, relativeTime, type Actor, type Tone } from '@gms/domain';
 import * as React from 'react';
 import { cn } from '../lib/utils';

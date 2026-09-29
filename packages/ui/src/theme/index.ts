@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Branding engine. Pure TypeScript: safe to import from server code, workers and tests.
 export * from './color';
 export * from './fonts';

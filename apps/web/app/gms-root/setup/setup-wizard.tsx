@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // F-01…F-05 first-run setup wizard. All answers stay in this component until the final step; `?step=` is kept
 // in sync so each step is linkable. Each step is validated before continuing.

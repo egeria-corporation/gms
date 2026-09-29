@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Status chips for agent accounts and consent grants (icon + text + color).
 import { ToneChip } from '@gms/ui';
 import { Ban, CircleCheck, CirclePause, Clock } from 'lucide-react';

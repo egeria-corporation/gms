@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Dev-only stand-in for Mercury's hosted recipient onboarding page (the fake invite's onboarding URL).
 import { getRuntime } from '@gms/actions';
 import { fakeMercuryControls } from '@gms/adapters';

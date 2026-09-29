@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-02 Team & roles: members with roles, invitations (pending, revoke), role change / removal behind an
 // authenticator step-up, reviewer capacity (states: invite-pending, step-up).
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, WORKSPACE_ROLES, type WorkspaceRole } from '@gms/domain';

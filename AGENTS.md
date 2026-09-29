@@ -30,4 +30,4 @@ This file is for AI coding agents and humans alike. (For AI agents that *use* a 
 7. **Money** is integer cents + ISO currency. Status is always icon + text + color. Applicant text shown in AI contexts is quoted and labeled "applicant-supplied".
 8. **Secrets** live in the SecretStore. Never log, commit, or send them to the client. Never store bank account numbers.
 9. **Fictional data only** in fixtures; emails use the reserved `.example` TLD.
-10. SPDX header `// SPDX-License-Identifier: AGPL-3.0-only` on every source file. Conventional commits. DCO sign-off (`git commit -s`).
+10. SPDX header `// SPDX-License-Identifier: AGPL-3.0-or-later` on every source file. Conventional commits. DCO sign-off (`git commit -s`).

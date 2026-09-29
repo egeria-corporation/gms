@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-03 Opportunities: every opportunity with its status, program, open/close dates (workspace timezone) and
 // application counts. Server-side pagination/sort/search; filters `status` (comma list) and `program`.
 // ?state= empty | error

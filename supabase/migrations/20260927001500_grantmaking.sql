@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Grantmaking console support:
 --   * grantee_profiles: the workspace's own CRM data about an applicant organization (tags, relationship
 --     owner, summary). Kept per workspace so one foundation's labels never leak to another.

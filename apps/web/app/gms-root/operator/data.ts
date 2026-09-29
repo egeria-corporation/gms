@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Operator console reads (G-01, G-02). Root host, no tenant: these use the service connection, so every caller
 // must first check the viewer is a platform operator (operatorGate). Tenant data (beyond platform metadata and
 // usage counts) is only read while an active support-access grant exists, and each view is audited.

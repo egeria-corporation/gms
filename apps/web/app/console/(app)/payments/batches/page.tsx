@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // All payment batches, newest first, with status and totals. ?state= (non-production): empty · error
 import { sql } from '@gms/db';
 import { BATCH_STATUS, formatInZone, PAYMENT_METHOD_LABELS, type PaymentMethod } from '@gms/domain';

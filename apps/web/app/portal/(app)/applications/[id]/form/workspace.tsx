@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // B-05 Application workspace: multi-page form, progress rail, autosave with revision conflicts,
 // uploads through signed URLs with scan status, validation summary, team comments.

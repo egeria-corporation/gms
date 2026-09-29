@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared E2E helpers: sign in through the real magic-link flow (reading the link from the dev outbox),
 // pass TOTP with the seeded dev-only secrets, run axe, and query the database for assertions.
 import AxeBuilder from '@axe-core/playwright';

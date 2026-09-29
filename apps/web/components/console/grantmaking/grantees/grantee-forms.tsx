@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Grantee CRM editors: relationship profile (tags, owner, summary → grantees.update_profile) and recording a
 // site visit (grantees.record_site_visit).

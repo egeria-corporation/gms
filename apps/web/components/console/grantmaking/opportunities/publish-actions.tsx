@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-05 actions: publish (shows the server's readiness problems inline), lifecycle changes allowed by the
 // opportunity state machine (each confirmed, with an optional reason), and inviting applicants to an

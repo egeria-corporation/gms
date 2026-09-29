@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-03 Opportunity detail (states: forecasted "Notify me"; open; closed) + JSON-LD MonetaryGrant.
 import { NextLink } from '@/components/next-link';
 import { formatDateOnly, formatInZone, formatMoney } from '@gms/domain';

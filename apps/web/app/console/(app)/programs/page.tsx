@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-02 Programs & budgets: every program with its fiscal-year budget, committed (active + completed awards,
 // including approved amendments), paid (disbursed) and remaining.
 // ?state= empty | error   ·   ?fy=2027 picks the fiscal year.

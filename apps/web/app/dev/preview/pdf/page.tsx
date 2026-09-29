@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-02…H-05 PDF previews: index of every generated document with open/download links and an embedded viewer.
 import { PDF_DOCUMENT_KEYS, pdfDocuments } from '@gms/pdf';
 import {

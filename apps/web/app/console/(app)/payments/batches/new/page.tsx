@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-03 Batch builder. ?state= (non-production): no-bank · error
 import { Button, EmptyState, ErrorState, PageHeader } from '@gms/ui';
 import { Landmark } from 'lucide-react';

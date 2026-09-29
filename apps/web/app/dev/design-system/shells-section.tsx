@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // DS-05 Shells. Live shells render landmarks, a skip link and an <h1>, which can't nest inside this page,
 // so each shell gets a schematic thumbnail and a link to a real route that uses it.
 import {

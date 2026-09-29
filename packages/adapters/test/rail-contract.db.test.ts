@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract suite: FakeMercury (DB-backed) and MercuryRail (against the HTTP emulator) must behave the same.
 import { randomUUID } from 'node:crypto';
 import { createTestDatabase, type TestDatabase } from '@gms/db/testing';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Set a program's budget for a fiscal year (programs.set_budget; owner, admin and finance).
 import { formatMoney, parseMoneyToCents } from '@gms/domain';

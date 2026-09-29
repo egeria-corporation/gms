@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // AN-03 Compliance: the 990-PF grants-paid schedule (Part XV line 3a) for a tax year, with CSV/XLSX export,
 // and a qualifying-distributions tracker labeled "Estimate, not tax advice." (states: empty).
 import { sql } from '@gms/db';

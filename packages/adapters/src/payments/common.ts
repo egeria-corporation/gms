@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Errors, safety guards and concurrency helpers shared by the payment rails.
 
 /** An error from the Mercury API (or the fake, which mirrors its semantics). Never carries the API token. */

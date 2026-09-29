@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Narrow security-definer entry points for fields that request roles may not write directly
 -- (scan results, EIN verification), plus guards for gaps found in the RLS audit.
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-02 Payee onboarding: grantees' payee status (Invite sent / Onboarding / Ready / Invite expired), invite
 // awarded organizations that have no payee yet, and reissue expired invites.
 // ?state= (non-production): empty · no-bank · error

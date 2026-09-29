@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Blind review: which answers a reviewer on a blind stage must not see. The same rule is enforced in the
 // database by gms.reviewer_submission (migration 1700), which removes these keys and hides attachment names;
 // the renderer uses this to label them "Hidden for blind review" instead of "Not answered".

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Live diligence source (IRS + OFAC over the network) and the importer that upserts any DiligenceSource into
 // public.irs_exempt_orgs / public.sanctions_entries (service role; run by the worker or `pnpm seed`).
 import { sql, type Database } from '@gms/db';

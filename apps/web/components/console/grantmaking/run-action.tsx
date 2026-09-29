@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Client helpers for calling 'use server' actions from the grantmaking screens: pending state,
 // success/error toasts, and a refresh of the server-rendered page.

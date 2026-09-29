@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-05 decision queue table (server-paged via the URL): review aggregates, latest recommendation, final
 // decision, and per-row Recommend / Record final decision. Bulk decline uses the shared BulkDeclineDialog.

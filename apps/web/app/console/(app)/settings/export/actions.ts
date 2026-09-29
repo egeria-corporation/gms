@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // S-09 Workspace export: queue a full export (JSON tables + CommonGrants bundle, zipped).
 import { revalidatePath } from 'next/cache';

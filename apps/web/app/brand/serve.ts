@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Serves the current tenant's logo / favicon from the `brand` storage bucket. Public (logos appear on the
 // public site and in emails) and cached; the stored path changes on every upload, so the ETag does too.
 import 'server-only';

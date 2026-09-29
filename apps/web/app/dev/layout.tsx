@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { config } from '@/lib/config';

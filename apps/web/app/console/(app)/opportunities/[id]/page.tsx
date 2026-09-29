@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-04 Opportunity editor: Details (CommonGrants fields), Eligibility questions, Stages & forms, Distribution;
 // Duplicate; link to Review & publish (C-05). `?tab=` details | eligibility | stages | distribution.
 // ?state= archived (read-only notice) | saving-error (a failed save message on Details) | not-found

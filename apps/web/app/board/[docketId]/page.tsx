@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-02 Board docket: item summaries (gms.board_docket_items — board members can't read reviews or applicant
 // orgs directly), recommended amounts, review score summaries (average / min / max, count — never individual
 // reviews), a section nav of items, voting while the docket is in session (board.vote, R3, people only) with

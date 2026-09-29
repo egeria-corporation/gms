@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Supabase compatibility shim for the plain-Postgres test tier (tier 3).
 -- Creates the pieces of a Supabase database that GMS migrations rely on:
 -- the anon/authenticated/service_role roles, the auth schema with auth.users,

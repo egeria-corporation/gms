@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Measures the live token colors (light or dark theme, whichever is active) and reports WCAG contrast.
 import {

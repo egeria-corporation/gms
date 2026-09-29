@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // SupabaseAuthAdapter: Supabase Auth through @supabase/ssr (sessions in HTTP-only cookies).
 //  - Magic links: by default GMS generates the link with the admin API (auth.admin.generateLink) and sends it
 //    with its own (branded, guarded) Mailer, so development never emails real people and every workspace

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Root-host magic-link sign-in (platform operators). Same response whether or not the account exists.
 import { getRuntime } from '@gms/actions';

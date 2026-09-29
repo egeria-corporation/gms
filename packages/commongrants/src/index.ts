@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/commongrants: the CommonGrants (https://commongrants.org) protocol surface of GMS.
 export * from './types';
 export * from './money';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-06 pipeline board. Moving a card runs the matching action: Under review → applications.advance,
 // Declined → BulkDeclineDialog, Ineligible → reason dialog (R3), Invited → pick the invite-only stage.

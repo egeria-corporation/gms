@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { agentsMd, handleDiscovery, llmsFullTxt, llmsTxt } from '../src';
 import { ORIGIN, setup, type Setup } from './helpers';

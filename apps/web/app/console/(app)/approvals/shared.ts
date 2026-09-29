@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared shaping of approval_requests rows for the inbox (S-05) and the detail page.
 import type { RiskTier } from '@gms/domain';
 

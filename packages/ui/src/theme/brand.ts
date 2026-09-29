@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Branding engine: turns a workspace's brand colors into CSS variables that always meet WCAG AA.
 import {
   adjustForContrast,

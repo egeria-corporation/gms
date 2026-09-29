@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Small fetch helpers shared by the HTTP adapters (Mercury, Resend, LLMs): retries with exponential backoff
 // + full jitter on 429/5xx, honoring Retry-After. Never logs request headers or bodies (they carry secrets).
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Streams the award's current agreement PDF for staff (access checked under RLS first).
 import { getRuntime } from '@gms/actions';
 import { AWARDS_READ } from '@/components/console/finance/params';

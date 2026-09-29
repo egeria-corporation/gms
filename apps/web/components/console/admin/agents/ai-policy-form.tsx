@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-04: the foundation's AI-use policy for applicants, reviewer assistance, and agent kill switches.
 import { Alert, Button, Field, FieldSet, RadioGroup, RadioOption, Switch, Textarea, toast } from '@gms/ui';

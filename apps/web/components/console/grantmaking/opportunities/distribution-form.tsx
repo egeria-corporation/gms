@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-04 Distribution: where a published opportunity appears (site listing, embed widget, CommonGrants feed,
 // OpenGrants). Saved with opportunities.update { distribution }.

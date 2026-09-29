@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-04 Applicant dashboard (states: new user; multiple orgs).
 import { formatInZone, relativeTime } from '@gms/domain';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, DeadlineChip, EmptyState, PageHeader, StatusChip } from '@gms/ui';

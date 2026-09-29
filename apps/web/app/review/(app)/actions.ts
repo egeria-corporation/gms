@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Reviewer workspace server actions (D-02 COI, D-03 scoring). All mutations go through act().
 import { revalidatePath } from 'next/cache';

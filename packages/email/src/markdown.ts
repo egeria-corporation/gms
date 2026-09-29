@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A deliberately tiny, safe markdown subset for staff-authored bulk messages.
 // Supported: paragraphs (single newlines become line breaks), **bold** / __bold__, *italic* / _italic_,
 // [links](https://…) with http/https/mailto only, "- " / "* " bullet lists and "1. " numbered lists,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Stable, name-derived UUIDs (RFC 4122 version-5 layout over SHA-1), so seeded rows keep the same ids across runs.
 import { createHash } from 'node:crypto';
 

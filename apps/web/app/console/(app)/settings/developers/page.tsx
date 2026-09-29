@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-07 Developers: API keys & webhooks (states: key-created, secret-created, empty).
 import { WEBHOOK_EVENTS_LIST } from '@gms/actions';
 import { sql } from '@gms/db';

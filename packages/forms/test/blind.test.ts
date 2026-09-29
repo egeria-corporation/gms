@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { hiddenInBlindReview, IDENTIFYING_CG_PATHS, IDENTIFYING_FIELD_TYPES } from '../src/blind';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // AN-02 Report builder: curated datasets (applications, awards, payments, reports), filters, group / pivot,
 // chart type, save (saved_views surface "report_builder"), scheduled digest option, CSV/XLSX export
 // (states: empty, saved).

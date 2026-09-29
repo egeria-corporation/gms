@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-03 Application packet PDF for the applicant ("Download a copy"): read under the applicant's own RLS, so
 // only applications they can see are rendered; anything else is a 404.
 import { renderPdf } from '@gms/pdf';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-02 program list: budget, committed, paid and remaining for the selected fiscal year.
 import { DataTable, MoneyDisplay, Progress, ToneChip, type ColumnDefFor } from '@gms/ui';

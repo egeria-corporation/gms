@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ClamAV scanner over clamd's TCP protocol: "zINSTREAM\0", then chunks each prefixed with a 4-byte big-endian
 // length, terminated by a zero-length chunk. Replies are "stream: OK" or "stream: <signature> FOUND".
 import { Socket } from 'node:net';

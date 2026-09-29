@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // PA-01 Report due tracker: every report requirement, overdue first, with filters, the per-report payment
 // hold and the award hold. ?state= (non-production): overdue · hold · empty · error
 import { sql } from '@gms/db';

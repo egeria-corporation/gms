@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Awards list with status and flag chips (Agreement pending, On hold, Report overdue).
 // ?state= (non-production): flags · empty · error
 import { sql } from '@gms/db';

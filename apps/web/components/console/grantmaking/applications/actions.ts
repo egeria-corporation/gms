@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Application detail (C-07) server actions: messages, internal notes, request info, extensions.
 // Pipeline moves (advance, mark ineligible, duplicates) live in ../pipeline/actions.ts.

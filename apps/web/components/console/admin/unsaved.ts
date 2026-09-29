@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Warns before leaving a page with unsaved changes: browser navigation (beforeunload) and in-app link
 // clicks (the App Router has no navigation-blocking API, so we confirm on clicks of same-origin links).

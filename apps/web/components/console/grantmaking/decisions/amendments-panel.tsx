@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-06 amendments & supplements for an active award: drafted here as child awards (awards.amend) and
 // approved on the award page (/console/awards/[id]).

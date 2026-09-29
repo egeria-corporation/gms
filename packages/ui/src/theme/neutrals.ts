@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Neutral surface colors, mirrored from styles.css so contrast checks use the real backgrounds.
 import { oklchToHex } from './color';
 

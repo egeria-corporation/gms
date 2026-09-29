@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // F-01…F-05 First-run setup (states: already-set-up, contrast-autofix, check-email).
 // Root host only (/setup is rewritten here). Available only while no workspace exists.
 import { getRuntime, originFor } from '@gms/actions';

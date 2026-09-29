@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // G-02 tenant controls: re-verifies the viewer is a platform operator, then runs operator.set_flags as the
 // system actor and records which operator made the change in the tenant's audit log.

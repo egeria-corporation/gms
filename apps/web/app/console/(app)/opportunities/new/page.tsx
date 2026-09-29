@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-04 New opportunity: the Details form; saving creates a draft with a first stage and opens the full editor
 // (eligibility, stages & forms, distribution).
 // ?state= saving-error (shows how a failed save looks)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-06 Audit log (states: empty, diff-open).
 import { sql } from '@gms/db';
 import { zonedTimeToUtc } from '@gms/domain';

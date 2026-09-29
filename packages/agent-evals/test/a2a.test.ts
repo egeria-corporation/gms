@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: another agent talks to the foundation over A2A v1.0 (JSON-RPC).
 import { agentCard, type A2aTask } from '@gms/agents';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

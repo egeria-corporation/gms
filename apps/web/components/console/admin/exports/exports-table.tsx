@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-09: export rows with status chips and download links (server-renderable).
 import { formatInZone } from '@gms/domain';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, ToneChip } from '@gms/ui';

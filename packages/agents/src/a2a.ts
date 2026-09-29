@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A2A (Agent2Agent) v1.0 — JSON-RPC 2.0 binding, hand-rolled (no @a2a-js/sdk dependency).
 //
 //   GET  /.well-known/agent-card.json   public Agent Card (public skills)

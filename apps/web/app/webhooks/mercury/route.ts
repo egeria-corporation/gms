@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Mercury webhook receiver. Reads the raw body, hands it (with the Mercury-Signature header) to the
 // system.ingest_rail_webhook action, which finds the workspace whose signing secret verifies it and stores the
 // event once. Invalid signatures get 401 and nothing is stored. Processing (system.process_rail_event) runs

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-06 Reconciliation exceptions. ?state= (non-production): empty · error
 import { sql } from '@gms/db';
 import { ErrorState, PageHeader } from '@gms/ui';

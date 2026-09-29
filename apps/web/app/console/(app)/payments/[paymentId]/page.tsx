@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-07 Payment detail: milestones (created → batched → approved → requested → sent → reconciled), the activity
 // timeline from the audit log and bank webhooks, references (idempotency key, Mercury request id, transaction
 // id), and the award. ?state= (non-production): failed · error

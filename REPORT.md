@@ -91,19 +91,23 @@ Screenshots of every catalog route (590 of 591 captured; `/dev/catalog` times ou
 - **Dependency audit:** `undici` overridden to a patched version; one accepted moderate advisory (`uuid` < 11.1.1 via exceljs — affects APIs exceljs doesn't call).
 - **Open risks:** see `docs/security.md` ("Known gaps"): `style-src 'unsafe-inline'`; security-definer outbox/idempotency helpers callable by request roles (server-side only); optional ClamAV.
 
-## 7. Decisions that need owner confirmation
+## 7. Decisions
 
-All decisions are in `DECISIONS.md` (date · decision · reason · how to reverse). Needing confirmation:
+All decisions are in `DECISIONS.md` (date · decision · reason · how to reverse).
 
-1. **SPDX `AGPL-3.0-only` vs `-or-later`** — the brief asked for `-only`; `-or-later` lets future AGPL versions apply.
-2. **Embedded Postgres tier** was used for all development and tests (no Docker daemon). Tier 1 (local Supabase) is implemented but untested in this run.
-3. **Built-in OAuth server is the default** (Supabase OAuth 2.1 accepted when configured) because Supabase doesn't support Client ID Metadata Documents.
-4. **MCP and A2A are hand-rolled** on the official types (stateless 2026-07-28 not supported by SDK 1.30; A2A v1.0 JSON shapes not verified against the final spec text).
-5. **Reviewers need TOTP**; board members don't (their votes are still people-only).
-6. **Final decisions don't require a step-up** (they are people-only R3, but the brief lists step-up only for payment approval and role changes).
-7. **Frame policy is `'self'`** (not `'none'`) so GMS can show its own PDF previews.
-8. **Console defaults to the OS light/dark preference.**
-9. **Payments use approval mode only** (request-send-money); direct send is not implemented.
+**Confirmed by the owner (2026-09-28):**
+
+1. **License: `AGPL-3.0-or-later`** (changed from the brief's `-only` across every file, `package.json` and the OpenAPI document).
+2. **Reviewers need TOTP**; board members don't (their votes are still people-only).
+3. **Final decisions don't require a step-up** (people-only R3, no fresh TOTP).
+4. **Payments use approval mode only** (request-send-money, approved by a person in Mercury); direct send is not implemented.
+5. **Built-in OAuth server is the default** (Supabase OAuth 2.1 tokens accepted when configured).
+6. **Blind review masks identifying fields automatically**; applicants' own free text is not redacted.
+7. **The repository stays private for now.**
+
+**Other defaults (no confirmation needed):** embedded Postgres tier for development and tests; MCP and A2A hand-rolled on the official types (stateless 2026-07-28; A2A v1.0 JSON shapes not verified against the final spec text); frame policy `'self'` so GMS can show its own PDF previews; the console follows the OS light/dark preference.
+
+**Still open:** the security contact address in `docs/security.md` is a placeholder.
 
 ## 8. Known issues and deferred items
 
@@ -130,21 +134,8 @@ All decisions are in `DECISIONS.md` (date · decision · reason · how to revers
 
 - Preview deploy: **none** (no Netlify credentials).
 - Screenshots: `artifacts/screens/index.html`, `artifacts/screens.zip` (local; `pnpm shots`).
-- Pull request: **not opened** — the repository has no git remote. `gh` is logged in on this machine, but creating or pushing to a remote is left to the owner (see below).
-
-To publish the branch once a remote exists (this local repository has only `feat/v1`; use the remote's default branch as the PR base):
-
-```bash
-git remote add origin https://github.com/egeria-corporation/gms.git
-```
-
-```bash
-git push -u origin feat/v1
-```
-
-```bash
-gh pr create --draft --base main --head feat/v1 --title "GMS v1" --body-file REPORT.md
-```
+- Repository: https://github.com/egeria-corporation/gms (private). `main` starts at the bootstrap commit.
+- Pull request: https://github.com/egeria-corporation/gms/pull/1 (draft, `feat/v1` → `main`).
 
 ## Verification gate
 
@@ -154,8 +145,8 @@ Run on the final tree of `feat/v1` (embedded Postgres, fake adapters):
 |---|---|
 | `pnpm lint` | ✓ 0 problems (`--max-warnings=0`) |
 | `pnpm typecheck` | ✓ 14/14 packages |
-| `pnpm test` (unit) | ✓ 413 passed · 5 skipped (live Mercury sandbox / Supabase / Resend tests, no credentials) |
-| `pnpm test:db` | ✓ 302 passed (RLS matrix, invariants, migrations, seed, CommonGrants contract, agents) |
+| `pnpm test` (unit) | ✓ 415 passed · 5 skipped (live Mercury sandbox / Supabase / Resend tests, no credentials) |
+| `pnpm test:db` | ✓ 309 passed (RLS matrix, invariants, migrations, seed, CommonGrants contract, agents) |
 | `pnpm build` | ✓ |
 | `pnpm e2e` (Playwright + axe, `next start`) | ✓ 10 passed — flows 1–6 and the OAuth consent test; zero serious/critical axe violations on every checked page |
 | `pnpm evals` | ✓ 33 passed |

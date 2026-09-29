@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // PA-02 Report review: the submitted answers (read-only, from the form version's field_meta), indicator capture,
 // accept / request revisions, and this grant's change requests.
 // ?state= (non-production): submitted · accepted · revisions · not-submitted · error

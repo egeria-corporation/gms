@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // PA-01 table: report requirements (overdue first) with status, the per-report payment-hold switch and the
 // award hold control.

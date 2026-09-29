@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Mercury webhook signatures (documented at https://docs.mercury.com/reference/webhooks):
 //   header  Mercury-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256>
 //   signed  "<t>.<raw request body>"  keyed with the endpoint's secret (returned once at webhook creation)

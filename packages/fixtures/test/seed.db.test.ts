@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Seeds a fresh database with the full demo data set and checks the counts and invariants the demos and
 // E2E tests rely on. Also checks --minimal mode and that seeding twice is refused.
 import { currentTotpForFactor } from '@gms/adapters';

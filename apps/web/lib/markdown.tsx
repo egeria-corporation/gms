@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { markdownToHtml } from '@gms/email';
 import { SafeHtml } from '@gms/ui';
 

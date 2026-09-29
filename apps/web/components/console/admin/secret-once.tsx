@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Shows a newly created secret (API key, signing secret) exactly once, with a copy button.
 import { Alert, Button, toast } from '@gms/ui';

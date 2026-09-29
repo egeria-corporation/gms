@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-01 Board docket detail: items (gms.board_docket_items) with requested vs recommended amounts, review
 // aggregates and vote tallies (who voted, when); reorder / add / remove while draft or published; lifecycle
 // published → in session → closed (tally against the quorum); board book PDF; approved items link to the

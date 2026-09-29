@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Refreshes the page every 5 seconds while any export is queued or running (paused when the tab is hidden).
 import { LoaderCircle } from 'lucide-react';

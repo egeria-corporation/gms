@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Best-effort import of CommonGrants form-library-style JSON (a JSON Schema + UI schema pair,
 // optionally with `x-cg-mapping` hints or a `mappingToCommonGrants` block) into a builder model.
 // Anything that can't be represented is reported, never silently dropped.

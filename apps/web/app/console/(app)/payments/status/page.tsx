@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-05 Payment status tracking. ?state= (non-production): empty · failed · error
 import { sql } from '@gms/db';
 import { formatMoney, PAYMENT_METHOD_LABELS, PAYMENT_STATUS } from '@gms/domain';

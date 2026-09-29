@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Presentational view of a resolveBrand() result. Used by the server-rendered presets and the live playground.
 import {
   Alert,

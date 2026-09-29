@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Reviewer workspace root: tenant + branded tokens. The member/role/TOTP guard lives in (app)/layout.tsx so
 // that /review/denied (where non-reviewers are sent) is reachable without it.
 import type { ReactNode } from 'react';

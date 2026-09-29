@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Communications server actions: every mutation goes through act() (the action executor); previews render
 // the tenant-branded email on the server.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared environment + HTTP helpers for the agent surfaces (MCP, A2A, /api/v1, OAuth, discovery).
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Runtime, WorkspaceRef } from '@gms/actions';

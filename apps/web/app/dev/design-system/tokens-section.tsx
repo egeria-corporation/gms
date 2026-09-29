@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // DS-01 Tokens & theming.
 import {
   AA_NON_TEXT,

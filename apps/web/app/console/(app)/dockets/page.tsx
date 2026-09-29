@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-01 Board dockets: every docket with its meeting time (workspace timezone), status, items and quorum;
 // create a docket, optionally auto-assembled from pending approve recommendations.
 // ?state= empty | error

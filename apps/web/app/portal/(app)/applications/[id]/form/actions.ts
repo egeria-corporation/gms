@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 import type { ResponseError } from '@gms/forms';
 import { revalidatePath } from 'next/cache';

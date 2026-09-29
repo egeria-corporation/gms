@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Magic-link landing: exchanges the one-time token for a session cookie, then continues to `next`.
 import { getRuntime } from '@gms/actions';
 import { NextResponse, type NextRequest } from 'next/server';

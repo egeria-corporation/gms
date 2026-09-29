@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A small immutable undo/redo stack for the form builder. React-free.
 
 export interface UndoStack<T> {

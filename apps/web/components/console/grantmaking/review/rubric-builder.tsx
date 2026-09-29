@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-01 rubric builder: criteria with add / remove / move up / move down (buttons, no drag), weights that must
 // total 100% (live total announced politely; save is blocked until it is exactly 100), scale min/max with a

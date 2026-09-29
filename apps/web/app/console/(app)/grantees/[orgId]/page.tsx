@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-08 Grantee detail (CRM): profile, relationship timeline (applications, decisions, awards, payments,
 // reports, messages, site visits), diligence summary, contacts, internal notes, site visits, and the
 // relationship profile editor (tags, owner, summary).

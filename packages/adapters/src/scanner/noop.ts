@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Scanner, ScanResult } from '../types';
 
 /** No scanner configured: files are marked "not scanned"; the reviewer gate follows workspace SCAN_REQUIRED. */

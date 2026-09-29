@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-05 Decision queue: applications awaiting a decision (submitted / under review / invited) with review
 // aggregates and the latest recommendation; recommend, record the final decision (R3, people only) and
 // bulk decline with a letter preview. The "Decided" view lists final decisions with links to the award builder.

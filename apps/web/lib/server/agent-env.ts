@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Builds the @gms/agents environment for this request: the tenant from the host, the shared runtime, and the
 // request id / client IP assigned by the proxy.
 import 'server-only';

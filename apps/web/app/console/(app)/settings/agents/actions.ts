@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // S-04 AI agents & policy: agent accounts, pause/resume/revoke, AI-use policy, optional model key.
 import { revalidatePath } from 'next/cache';

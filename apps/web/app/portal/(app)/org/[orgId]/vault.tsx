@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { formatDateOnly } from '@gms/domain';
 import { Alert, Badge, Button, Field, FileDropzone, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Screenshots of every screen in the catalog:
 //   - branded surfaces (public, embed, portal, OAuth) for both demo foundations;
 //   - the staff console in light and dark;

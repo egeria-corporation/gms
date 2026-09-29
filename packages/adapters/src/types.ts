@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Interfaces for every external dependency. Each has a real implementation and a fake.
 // Tests default to fakes; live tests run only when credentials exist.
 

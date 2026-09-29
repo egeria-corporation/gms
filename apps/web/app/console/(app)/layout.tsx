@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { sql } from '@gms/db';
 import { ConsoleShell } from '@gms/ui';
 import type { ReactNode } from 'react';

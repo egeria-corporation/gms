@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Pure mappers: internal DB rows <-> CommonGrants models.
 // Every `toCg*` has a `toInternal*` partner; tests assert internal -> CG -> internal equality
 // on the mapped fields. Mappers never touch the database.

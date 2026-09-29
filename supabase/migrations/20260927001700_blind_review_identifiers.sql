@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Blind review hides identifying answers even when the form author didn't flag them.
 --
 -- Before: gms.reviewer_submission removed only fields flagged `blind` in the form. EINs, contact details,

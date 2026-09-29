@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The shared auth callback and guards send people to /portal/sign-in; on the root host that means the
 // operator sign-in page.
 import { redirect } from 'next/navigation';

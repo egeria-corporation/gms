@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { FilePenLine } from 'lucide-react';
 import * as React from 'react';
 import { ToneChip } from './status-chip';

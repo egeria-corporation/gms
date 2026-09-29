@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // E-01 docket lifecycle (board.set_docket_status, R2 — runs for a person): publish to the board → open
 // voting (in session) → close and tally against the quorum. Each step is confirmed; closing shows the

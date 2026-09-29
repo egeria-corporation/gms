@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The single path for every mutation: UI server actions, /api/v1, MCP, A2A, CommonGrants apply routes, workers.
 import { createHash, randomBytes } from 'node:crypto';
 import { getDb, sql, withRls, withService, type Database, type Tx } from '@gms/db';

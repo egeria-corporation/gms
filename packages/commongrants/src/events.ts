@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Instants (timestamptz) <-> CommonGrants events.
 // CG `SingleDateEvent` carries a plain `date` + `time` with no zone, so we emit wall-clock values
 // in the workspace timezone and name the zone in `description`. Reading an event back requires the

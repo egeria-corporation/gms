@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm run upgrade` — after `git pull && pnpm i`: applies forward-only migrations, then checks that the schema
 // is safe to serve (RLS on every table, no privileges leaked to Supabase's anon/authenticated roles, the
 // request roles exist) and that the database has what this version expects. Exits non-zero on any failure.

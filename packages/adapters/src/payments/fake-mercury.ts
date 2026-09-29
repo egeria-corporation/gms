@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // FakeMercury: a stateful stand-in for Mercury backed by gms_private.fake_rail_objects, so the web app, the
 // worker and the /dev simulate controls share one fake bank. Objects are stored as Mercury-shaped JSON and
 // mapped with the same code as the real client, so both rails return identical interface objects.

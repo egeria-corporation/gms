@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: "Grant Writer Assistant" (a PAT Maya created) prepares and asks to submit her application over MCP.
 import { decideApproval } from '@gms/actions';
 import { createAjv, LOI_VALID_RESPONSE } from '@gms/forms';

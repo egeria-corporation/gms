@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { compileForm, LOI_DRAFT_RESPONSE, LOI_VALID_RESPONSE, validateResponses, YOUTH_ARTS_LOI } from '../src';
 import {

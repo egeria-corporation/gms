@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Platform: exports & saved reports, API keys, outbound webhook endpoints, agent credentials & AI-use policy,
 // setup wizard (first workspace), operator console (tenants, time-boxed support access, flags).
 import { createHash, randomBytes, randomUUID } from 'node:crypto';

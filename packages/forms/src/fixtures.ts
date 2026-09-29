@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Sample (fictional) response data for the Youth Arts Fund LOI, a sample applicant profile, and a
 // sample CommonGrants form-library JSON document for import tests.
 import type { ResponseData } from './util';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm shots`: a screenshot of every catalog route (lib/catalog.ts) into artifacts/screens/, plus an
 // index.html contact sheet and a zip. Reuses a running server on the port, or starts `next start`.
 import { defineConfig, devices } from '@playwright/test';

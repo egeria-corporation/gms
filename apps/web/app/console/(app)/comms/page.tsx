@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CM-00 Communications: templates, bulk messages and automatic notifications, with quick stats.
 import { sql } from '@gms/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader, StatTile } from '@gms/ui';

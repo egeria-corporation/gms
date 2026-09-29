@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Accept a collaborator invitation (the signed-in email must match the invitation).
 import { Alert, Button, PageHeader } from '@gms/ui';
 import type { Metadata } from 'next';

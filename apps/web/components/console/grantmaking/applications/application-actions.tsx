@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Staff actions on one application: advance to review, request info, mark ineligible (R3, applicant-visible
 // reason), grant a deadline extension, and a link to record a recommendation in Decisions.

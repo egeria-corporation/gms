@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Local-filesystem storage for development and tier 3. Private by default: objects are only reachable through
 // short-lived HMAC-signed URLs served by the app's /api/storage/object route.
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';

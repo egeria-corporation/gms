@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Grantmaking console gaps: grantee CRM profile (tags, relationship owner), "not a duplicate"
 // dismissals, board docket curation (add / remove / reorder items) and form metadata.
 // grantee_profiles and application_duplicate_dismissals (migration 1500) are not in the generated

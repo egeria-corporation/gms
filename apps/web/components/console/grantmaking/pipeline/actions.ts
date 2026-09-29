@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Pipeline (C-06) server actions: every mutation runs through act() (executor: validation, roles, RLS,
 // audit). Also used by the application detail page (C-07).

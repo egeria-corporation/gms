@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // One scheduled tick (Netlify Scheduled Function or `pnpm --filter @gms/worker tick`):
 // runs queued graphile jobs once, then the time-based work for this minute.
 import { getRuntime } from '@gms/actions';

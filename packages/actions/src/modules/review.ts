@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Staff pipeline actions and the review process: rubrics, stages, assignment (manual + round-robin with
 // load balancing), COI declarations, scoring, panels.
 import type { Tx } from '@gms/db';

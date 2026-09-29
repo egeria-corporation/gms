@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // O-01 OAuth consent: which agent is asking, what it can do (plain-language scopes), and where you'll be sent
 // back. Agents can never approve payments or change roles, whatever you allow here.
 import { getPendingAuthorization } from '@gms/agents';

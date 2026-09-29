@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CM-02 Bulk message composer (states: confirm-count, bounced, empty). Segment builder + message, count
 // recipients, type the count to confirm, then send; below, message history with delivery results.
 import { sql } from '@gms/db';

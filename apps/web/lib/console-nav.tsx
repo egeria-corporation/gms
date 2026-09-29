@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Console navigation, grouped by module and filtered by role. Every console route lives here.
 import type { WorkspaceRole } from '@gms/domain';
 import type { NavGroup } from '@gms/ui';

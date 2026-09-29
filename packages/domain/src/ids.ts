@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Workspace-prefixed human reference numbers, e.g. HRF-2027-00042. */
 export function workspacePrefix(name: string): string {
   const words = name.replace(/[^A-Za-z ]/g, ' ').split(/\s+/).filter(Boolean);

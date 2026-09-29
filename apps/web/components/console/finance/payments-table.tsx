@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-05 table: every payment with its status (incl. "Awaiting bank approval (Mercury)"), failed payments
 // with the next step and Retry, URL filters and server-side pagination.

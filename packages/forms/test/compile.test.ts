@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Categorization, Category, ControlElement, JsonSchema7, VerticalLayout } from '@jsonforms/core';
 import { describe, expect, it } from 'vitest';
 import { ALL_TYPES } from './helpers';

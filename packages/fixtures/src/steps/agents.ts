@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Agents: Maya's "Grant Writer Assistant" (personal access token), the foundation's "Ops Assistant" (agent
 // account with an API key), the "Halcyon Intake Agent" (A2A peer). Their requests go through the executor,
 // so the six pending approval requests carry real previews and audit entries.

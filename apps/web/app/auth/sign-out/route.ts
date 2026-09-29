@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { getRuntime } from '@gms/actions';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookieJar } from '@/lib/auth';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The complete GMS renderer set: one renderer per field type, chosen by `fieldMeta[id].type`
 // (the same value as the compiled schema's `x-fieldType` and the UI schema's `options.fieldType`).
 import type { FieldType } from '../../model';

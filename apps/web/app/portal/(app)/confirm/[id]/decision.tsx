@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import type { RiskTier } from '@gms/domain';
 import { Alert, ApprovalRequestCard, Button, CheckboxField, type ApprovalChange } from '@gms/ui';

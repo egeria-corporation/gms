@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Button, CheckboxField, Field, Input, RadioGroup, RadioOption, ValidationSummary } from '@gms/ui';
 import { CheckCircle2, Info } from 'lucide-react';

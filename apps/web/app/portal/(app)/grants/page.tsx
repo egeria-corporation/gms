@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { formatDateOnly } from '@gms/domain';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, MoneyDisplay, PageHeader, StatusChip } from '@gms/ui';
 import type { Metadata } from 'next';

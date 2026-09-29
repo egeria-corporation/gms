@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CM-03 Notification rules (states: empty). Owners and admins edit; program officers and auditors view.
 import { PageHeader } from '@gms/ui';
 import type { Metadata } from 'next';

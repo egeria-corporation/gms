@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { formatMoney, formatMoneyShort } from '@gms/domain';
 import * as React from 'react';

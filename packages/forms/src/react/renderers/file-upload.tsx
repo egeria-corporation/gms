@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { type DropzoneFile, Field, FieldError, FileDropzone, type RejectedFile } from '@gms/ui';
 import * as React from 'react';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { compileForm, importCommonGrantsForm, lintForm, listFields, SAMPLE_CG_FORM_LIBRARY_JSON, validateResponses } from '../src';
 

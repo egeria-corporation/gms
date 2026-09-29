@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Award (finance/program side) server actions. Every mutation goes through act().
 import { revalidatePath } from 'next/cache';

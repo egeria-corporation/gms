@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Fictional sample data for the design-system page. Nothing here refers to real organizations.
 import type { ChartDatum, CountyRegion } from '@gms/ui';
 

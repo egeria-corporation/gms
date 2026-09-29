@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OAuth Client ID Metadata Documents (draft-ietf-oauth-client-id-metadata-document): a client_id that is an
 // https URL whose JSON document describes the client. Fetched with SSRF protections:
 //   - https only, default port, no userinfo/fragment, a non-root path

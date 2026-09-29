@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-08: cause / geography / population taxonomies. Add and rename inline; delete with confirmation.
 import {

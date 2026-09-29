@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Review module server actions (R-01 … R-04). Every mutation goes through act() → the action executor.
 import { zonedTimeToUtc } from '@gms/domain';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // TOTP MFA on the root host: platform operators verify (aal2) before the operator console opens.
 import { Card, CardContent, CardHeader } from '@gms/ui';
 import type { Metadata } from 'next';

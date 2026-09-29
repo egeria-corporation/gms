@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Form linter for the builder: problems that block publishing (errors), likely mistakes
 // (warnings) and suggestions (info). Messages are written for program staff.
 import { cgPathInfo, suggestCgPath } from './cg';

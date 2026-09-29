@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-03: application packet. Answers arrive pre-flattened so the renderer stays form-agnostic.
 
 import { Text, View } from '@react-pdf/renderer';

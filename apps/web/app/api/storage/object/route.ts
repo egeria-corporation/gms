@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Signed-URL endpoint for the local-filesystem storage adapter (tier 3 / development).
 // Supabase Storage issues its own signed URLs, so this route is only used with LocalStorage.
 import { getRuntime } from '@gms/actions';

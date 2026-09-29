@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Wraps a people-only action: when the server answers `step_up_required`, ask for a fresh authenticator
 // code, then retry the action once.

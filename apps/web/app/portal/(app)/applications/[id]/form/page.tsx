@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-05 Application workspace (states: offline retry; mobile).
 import { deadlineState } from '@gms/domain';
 import { PageHeader, type FileScanStatus } from '@gms/ui';

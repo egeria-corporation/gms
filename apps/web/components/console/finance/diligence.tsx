@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // PA-03 client parts: run checks, review a potential OFAC match (people-only), and the expenditure-responsibility /
 // grants-to-individuals flags per award.

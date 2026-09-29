@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-01 Payments overview: balances per account, installments due in the next 30 days, batches awaiting
 // approval (GMS), payments awaiting bank approval (Mercury), and open reconciliation exceptions.
 // ?state= (non-production): no-bank · empty · error

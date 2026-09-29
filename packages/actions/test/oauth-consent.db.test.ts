@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // oauth.grant_consent: an applicant can consent to a DCR or CIMD client they cannot see under agent_clients_select,
 // through gms.oauth_client_public (non-secret columns only, OAuth clients of this tenant or workspace-less ones).
 import { randomUUID } from 'node:crypto';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Read-only answers for staff: one GmsForm (review mode, staff density) per form of the stage. File answers
 // link to the console attachment route, which re-checks access under RLS.

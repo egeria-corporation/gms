@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-03 Application packet PDF for staff: built from the latest submission (or in-progress answers) under RLS.
 import { renderPdf } from '@gms/pdf';
 import { requireStaff } from '@/lib/auth';

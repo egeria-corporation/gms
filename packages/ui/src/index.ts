@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/ui: design system, components, patterns and shells. Framework-agnostic React.
 // The branding engine lives at "@gms/ui/theme" (pure TS); its public API is re-exported here too.
 

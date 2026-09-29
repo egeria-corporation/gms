@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Builds the adapter set for the current environment. Selection mirrors scripts/lib/detect.ts exactly, and every
 // dependency has a fake so a missing credential never blocks the app. Real mailers are always wrapped by the
 // allowlist guard outside production deploys.

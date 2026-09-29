@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Application lifecycle (applicant side): start, autosave with revision-based conflict detection,
 // validation, attachments, submission snapshot + receipt, withdrawal, collaborators, comments.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';

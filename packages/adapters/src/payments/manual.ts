@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // ManualRail: for workspaces that pay grants outside GMS (their own bank portal, checks, a fiscal host).
 // Nothing is sent from here; staff record payments (one by one or via CSV import) and GMS tracks them.
 import { DomainError, parseMoneyToCents, type PaymentMethod } from '@gms/domain';

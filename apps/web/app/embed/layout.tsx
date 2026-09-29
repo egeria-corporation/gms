@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { PoweredByFooter } from '@gms/ui';
 import type { ReactNode } from 'react';
 import { BrandStyle } from '@/lib/brand-style';

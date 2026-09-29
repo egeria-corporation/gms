@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Color math for the branding engine: OKLCH scales and WCAG contrast. Pure TS, runs in Node and the browser.
 import { clampChroma, converter, formatHex, parse, wcagContrast, type Oklch } from 'culori';
 

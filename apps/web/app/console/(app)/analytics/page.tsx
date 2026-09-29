@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // AN-01 Dashboards: pipeline funnel, time in stage, committed vs paid vs remaining by program and fiscal year,
 // cash-flow forecast, portfolio by cause and county, outcomes, voluntary demographics with suppression
 // (states: empty, suppressed). Every number comes from the analytics schema (one definition per metric).

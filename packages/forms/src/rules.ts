@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Plain-language rule descriptions and rule-graph checks (cycles, unknown fields).
 import type { CompiledForm } from './compile';
 import {

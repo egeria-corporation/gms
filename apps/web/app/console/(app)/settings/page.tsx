@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-00 Workspace settings: name, timezone, public contact, about, fiscal year, scan requirement, overdue-report
 // hold, second-approval threshold, transparency page; raising action risk tiers; time-boxed support access for
 // platform operators (states: support-granted).

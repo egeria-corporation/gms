@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { compileForm, FormModelSchema } from '@gms/forms';
 import { GmsForm, GmsFormPager, pickChanged, useAutosave } from '@gms/forms/react';

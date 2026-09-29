@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Client-side upload: ask the server for a short-lived signed URL, PUT the bytes, then confirm (scan).
 export interface SignedTarget {
   uploadUrl: string;

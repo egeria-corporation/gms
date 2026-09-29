@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Fiscal-year switcher (URL param `fy`).
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@gms/ui';

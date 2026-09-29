@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Root host (no tenant): platform directory, first-run setup, operator sign-in and console.
 // Neutral GMS styling — no tenant brand tokens are injected here.
 import { Button, PublicShell } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Review: 12 reviewers with assignments, conflict-of-interest declarations and scored reviews on the
 // flagship LOIs (in progress) and the two past cycles (complete), plus a panel.
 import type { Row, SeedContext } from '../context';

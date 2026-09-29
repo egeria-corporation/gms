@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-05: board book for a docket meeting.
 
 import { Text, View } from '@react-pdf/renderer';

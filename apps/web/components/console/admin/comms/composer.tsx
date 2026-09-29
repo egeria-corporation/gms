@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // CM-02 composer: segment builder + message → "Save draft & count recipients" → type the exact count to
 // confirm → send. A changed segment at send time (precondition_failed) re-counts and asks again.

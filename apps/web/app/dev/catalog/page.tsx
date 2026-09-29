@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Screen catalog: every spec screen grouped by surface, with links to the route and each `?state=` variant.
 import {
   Badge,

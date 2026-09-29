@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Resend mailer (HTTP API via fetch) plus Svix signature verification for Resend's delivery/bounce webhooks.
 // Outside production deploys this mailer is always wrapped by GuardedMailer (./guard.ts), which only lets mail
 // through to @resend.dev test addresses or GMS_EMAIL_ALLOWLIST hosts.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Dev-only: simulate the bank side of the fake Mercury rail for the current tenant. These are not GMS mutations
 // (they play Mercury), so they use the fake controls directly; afterwards the system polls run through the

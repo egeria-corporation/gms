@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Supabase Storage with the service role. Every bucket is private; the browser only ever gets short-lived
 // signed URLs (uploads via createSignedUploadUrl, downloads via createSignedUrl). Object keys are validated
 // with the same rules as local storage (no traversal, restricted charset).

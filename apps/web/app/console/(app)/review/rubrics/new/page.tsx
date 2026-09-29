@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-01 rubric builder — new rubric.
 // ?state= weights-invalid (starts with criteria whose weights total 90%, so the live total warns and Save is blocked)
 import { PageHeader } from '@gms/ui';

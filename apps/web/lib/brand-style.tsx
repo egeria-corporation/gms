@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-side injection of the tenant's resolved brand tokens as CSS variables.
 import { brandCss } from '@gms/ui/theme';
 import type { Tenant } from './tenant';

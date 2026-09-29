@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Dev-only fake Mercury controls for the current tenant: accounts, recipient invites, send-money requests and
 // transactions, with buttons to play the bank's side and to deliver signed webhooks to /webhooks/mercury.
 import { getRuntime } from '@gms/actions';

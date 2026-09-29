@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Threaded messages between applicants and foundation staff, and internal notes.
 import { DomainError } from '@gms/domain';
 import { z } from 'zod';

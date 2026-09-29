@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-03 Review stage progress: per reviewer (assigned, not started, in progress, submitted, recused) and per
 // application (each reviewer's status and weighted score, the average); reopen a submitted review.
 // ?state= empty (no assignments) | complete (every review shown as submitted) | error

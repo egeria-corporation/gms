@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-02…H-05 PDF previews: renders a document with sample data and the workspace brand (or ?brand=preset).
 // Route handlers don't get the /dev layout's production guard, so this checks devToolsEnabled itself.
 import { PDF_DOCUMENT_KEYS, pdfDocuments, renderPdf, type PdfDocumentKey } from '@gms/pdf';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-04 AI agents & policy (states: key-created, empty).
 import { actionAudience, listActions } from '@gms/actions';
 import { formatInZone, ROLE_LABELS, SCOPES, STAFF_ROLES, type Scope, type WorkspaceRole } from '@gms/domain';

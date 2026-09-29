@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Invitation acceptance (from the staff_invite email): requires sign-in, shows what you're joining, accepts
 // via team.accept_invite, then redirects to the console (reviewers → /review, board → /board) (states: invalid).
 import { createHash } from 'node:crypto';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Badge, EmptyState } from '@gms/ui';
 import { CircleCheck, TriangleAlert } from 'lucide-react';

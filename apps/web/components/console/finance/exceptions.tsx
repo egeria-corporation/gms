@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-06 Reconciliation exceptions: the list and the resolve dialog (link to a payment, mark resolved, or ignore,
 // always with a note for the audit trail).

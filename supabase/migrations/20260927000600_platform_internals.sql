@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Service-only internals: encrypted secrets (AES fallback for Supabase Vault), fake payment rail state,
 -- test-auth tables (tier 3 only), idempotency helper, outbox claiming, and email capture helpers.
 -- No gms_* role has table privileges in gms_private; RLS is enabled anyway.

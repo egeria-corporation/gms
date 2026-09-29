@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Form builder backend: drafts, compile + lint on save, immutable published versions,
 // migration of in-progress applications to a new version, templates, question bank, CommonGrants import.
 import { randomUUID } from 'node:crypto';

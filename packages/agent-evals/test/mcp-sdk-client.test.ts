@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Interop: the official MCP TypeScript SDK client (Streamable HTTP transport) against the stateless /mcp handler.
 // The SDK validates every structuredContent against the tool's outputSchema, so this also checks the schemas.
 import { handleMcp } from '@gms/agents';

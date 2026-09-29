@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Shared pieces for writing staff messages: merge-field picker (inserts at the cursor), debounced
 // server-rendered branded preview, unknown-token warning, and an unsaved-changes guard.

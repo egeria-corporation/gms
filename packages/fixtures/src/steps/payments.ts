@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The fake Mercury bank, payees (real fake-rail recipients for ready payees), payment batches with maker-checker
 // approvals, 64 Halcyon payments across every status, bank transactions and reconciliation exceptions.
 import { FakeMercury, fakeMercuryControls } from '@gms/adapters';

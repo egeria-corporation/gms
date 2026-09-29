@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { FIXTURE_IRS_RECORDS, FIXTURE_NEAR_MATCH, FIXTURE_SANCTIONS_RECORDS, FixtureDiligenceSource } from '../src/diligence/fixtures';
 import { LiveDiligenceSource } from '../src/diligence/import';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-07 Award letter & agreement for an application's active award: generate (agreements.generate → PDF +
 // SHA-256), preview the exact PDF, send for signature (agreements.send, R2 — runs for a person), and follow
 // draft → sent → signed → countersigned with signatures. Countersigning happens on the award page.

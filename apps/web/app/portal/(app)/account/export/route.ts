@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-15 "Download my data": everything this person can see about themselves, read under RLS.
 import { getSession } from '@/lib/auth';
 import { rls } from '@/lib/server/db';

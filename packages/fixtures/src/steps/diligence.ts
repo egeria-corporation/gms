@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Due diligence: the IRS/OFAC fixtures (fictional) and a real screening of every grantee through the
 // diligence.run action (system actor). Cedar Hollow Food Pantry ends up with a potential match to review.
 import { FixtureDiligenceSource, importDiligence } from '@gms/adapters';

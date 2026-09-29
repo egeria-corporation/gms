@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // DS-01…DS-06 Design system: tokens & theming, components, form renderer modes, status & actors, shells, system states.
 // Jump with #ds-01 … #ds-06, or render a single section with ?section=ds-0N.
 import { Button, PageHeader } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // FB-01…FB-08 forms: create (blank, built-in template, workspace template), CommonGrants import, rename/archive,
 // save draft, publish, new version, save as template, and loading an older version's builder model.

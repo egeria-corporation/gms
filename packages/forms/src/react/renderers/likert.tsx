@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { cn, FieldSet } from '@gms/ui';
 import { CircleAlert } from 'lucide-react';

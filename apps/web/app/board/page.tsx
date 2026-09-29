@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-02 Board portal home: published, in-session and closed dockets (RLS hides drafts from the board), with
 // the meeting time, item count and how many items you have voted on.
 // ?state= empty | error

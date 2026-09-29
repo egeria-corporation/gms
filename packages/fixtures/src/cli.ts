@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm seed [--minimal] [--reset] [--force]`: loads deterministic, fictional demo data.
 //
 //   --minimal  one workspace (halcyon) + its owner (Helen Ortiz, with a TOTP factor) + its brand

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-11 Grant report submission (autosave; revisions requested; submitted/accepted read-only).
 import { formatDateOnly } from '@gms/domain';
 import { Alert, Button, PageHeader, StatusChip } from '@gms/ui';

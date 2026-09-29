@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Bundled diligence data for demos, tests and the plain-Postgres tier. EVERYTHING HERE IS FICTIONAL:
 // the EINs use the never-issued 00- prefix, and no row describes a real organization or a real sanctions
 // listing. Program codes are prefixed "DEMO-" so fixture sanctions entries can never be mistaken for OFAC data.

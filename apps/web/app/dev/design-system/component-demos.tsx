@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Interactive demos for DS-02 (anything that needs state or function props).
 import { formatDateOnly } from '@gms/domain';

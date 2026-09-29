@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Integer cents <-> CommonGrants Money ({ amount: "25000.00", currency: "USD" }).
 // Pure string arithmetic: no floats ever touch an amount.
 import type { CgMoney } from './types';

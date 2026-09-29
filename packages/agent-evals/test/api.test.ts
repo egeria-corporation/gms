@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: the Platform API (/api/v1) — REST aliases, problem+json, idempotency, ETags, 202 approvals.
 import { LOI_VALID_RESPONSE } from '@gms/forms';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract tests: call handleCommonGrants() against a real database under RLS and validate every
 // response body against the CommonGrants SDK zod schemas (Opportunity, envelopes) or the
 // core-0.4-derived schemas in src/schemas.ts (models the SDK does not ship).

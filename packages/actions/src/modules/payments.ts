@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Payments with the foundation's own bank (Mercury approval-mode) or the manual rail.
 // GMS never holds funds and never stores bank numbers: payees onboard through Mercury recipient invites,
 // payments go through maker-checker in GMS, then Mercury's request-send-money (a person approves in Mercury).

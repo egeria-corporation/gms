@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { render } from '@react-email/render';
 import { blocksToText } from './blocks';
 import { resolveBrand, type Brand } from './brand';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Escaping and URL helpers shared by the markdown renderer, merge fields and layout.
 
 const HTML_ESCAPES: Record<string, string> = {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-renders the React components to static HTML to prove they mount without a DOM.
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';

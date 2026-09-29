@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 3 — Review: a reviewer passes the conflict-of-interest gate (D-02) and scores an application against
 // the rubric (D-03) → Jordan records the final decision (R-05) → builds the award with two installments and
 // activates it (R-06) → generates and sends the agreement (R-07) → the applicant's org admin signs it in the

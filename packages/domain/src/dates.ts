@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Timezone-aware deadline helpers. Deadlines are stored as timestamptz and displayed in the workspace timezone.
 
 /** Returns the UTC offset (minutes) of `tz` at the given instant. */

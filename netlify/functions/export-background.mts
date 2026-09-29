@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Netlify Background Function (up to 15 minutes): long exports, PDF bundles and board books.
 import { getRuntime } from '@gms/actions';
 import { runExport } from '../../apps/worker/src/exports';

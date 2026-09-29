@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: an MCP client connects through GMS's built-in OAuth 2.1 server (discovery → DCR/CIMD → authorize
 // with PKCE + resource → consent → token → MCP), and the protections around it.
 import { createHash, randomBytes } from 'node:crypto';

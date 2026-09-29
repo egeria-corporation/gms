@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Secondary navigation shared by every /console/settings page (the console nav links to the main ones).
 import Link from 'next/link';
 

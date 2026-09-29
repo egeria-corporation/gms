@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // E-01 board docket server actions: create (auto-assembled from approve recommendations), curate items
 // (add / remove / reorder) and move through published → in session → closed. All through act().

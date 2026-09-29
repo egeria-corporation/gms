@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-04 Eligibility pre-check (no account; states: pass, kind knock-out).
 import { NextLink } from '@/components/next-link';
 import { PageHeader } from '@gms/ui';

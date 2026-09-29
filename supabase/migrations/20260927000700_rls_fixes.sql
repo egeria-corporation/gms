@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- RLS / integrity fixes found by the RLS matrix audit (packages/db/test/rls-matrix.db.test.ts).
 -- Every change here only narrows what the gms_anon / gms_authenticated roles can do; service
 -- connections (executor system actor, workers, webhooks) are unaffected unless stated.

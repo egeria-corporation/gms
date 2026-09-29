@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Compiles a builder model into JSON Schema (2020-12), a JSON Forms UI schema (one Category per
 // page), field_meta and CommonGrants mappings. Output is deterministic: it depends only on the
 // model's content (never on input key order), and keys are inserted in a fixed order.

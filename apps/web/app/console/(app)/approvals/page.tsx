@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-05 Approval inbox: agent requests for staff (and ones made on the viewer's behalf) with confirm / reject,
 // plus payment batches waiting for the viewer's approval. Mobile friendly (states: empty).
 import { EmptyState, MoneyDisplay, PageHeader, Section, StatusChip, Badge } from '@gms/ui';

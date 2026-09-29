@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-07: outbound webhook endpoints. Creating one is people-only (R3); the signing secret is shown once.
 import { formatInZone } from '@gms/domain';

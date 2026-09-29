@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Stable identifiers tests can rely on. Every id is derived from a name (see ids.ts), so it is the same on
 // every run. Workspace ids are created by the setup action, so tests should look workspaces up by slug.
 import { sid } from './ids';

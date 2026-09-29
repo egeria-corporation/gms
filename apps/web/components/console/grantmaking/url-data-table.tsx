@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // DataTable in server mode with its state in the URL: `page`, `size`, `sort`, `dir`, `q`, `hide`
 // (hidden columns; `none` = show all) and `density`. The page (a Server Component) reads the same params with

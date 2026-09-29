@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 4 — Payments: a grantee completes bank onboarding on the simulated Mercury → Priya (finance) builds a
 // batch (P-03) and can't approve it (P-04, maker-checker) → Marcus (finance) approves with an authenticator
 // step-up → "Awaiting bank approval (Mercury)" → approved in the simulated Mercury → Sent → Reconciled → the

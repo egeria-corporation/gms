@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E preconditions, created through the real action layer (as Jordan, the program officer):
 // an always-open opportunity that uses the flagship LOI form and eligibility questions, independent of
 // where today's date falls in the flagship's LOI window.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Fictional sample props for every document (preview routes and tests).
 
 import { splitInstallments } from '@gms/domain';

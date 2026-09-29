@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-09 Workspace export (states: running, empty).
 import { Card, CardContent, EmptyState, PageHeader, Section } from '@gms/ui';
 import { Archive, FileJson, FolderArchive, Globe2 } from 'lucide-react';

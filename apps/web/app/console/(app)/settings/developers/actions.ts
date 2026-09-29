@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // S-07 Developers: API keys (R3, shown once) and outbound webhook endpoints (signing secret shown once).
 import { revalidatePath } from 'next/cache';

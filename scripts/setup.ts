@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm run setup`: non-interactive first-run setup (the CLI twin of the /setup wizard). Runs the race-safe
 // `setup.initialize` action as the system actor, prints the workspace URL, and emails (or, in test auth mode,
 // prints) a sign-in link for the owner.

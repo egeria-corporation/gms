@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // FB-01…FB-08 Form builder: edits the form's draft version (save, publish with a migration notice, version
 // history and compare, preview desktop/mobile with a test submission, checks). When the newest version is
 // published the builder opens view-only with "Start a new version".

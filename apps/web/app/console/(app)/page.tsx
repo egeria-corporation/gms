@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-01 Console home: my tasks, deadlines, pipeline snapshot, payments awaiting approval, overdue reports,
 // agent approvals; a checklist for new workspaces.
 import { APPLICATION_STATUS, formatDateOnly, formatMoneyShort, type ApplicationStatus } from '@gms/domain';

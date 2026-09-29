@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Test data builders for the IRS/OFAC importers (fictional rows only) and an in-memory fetch.
 import { deflateRawSync } from 'node:zlib';
 import type { FetchLike } from '../src/http';

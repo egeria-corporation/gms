@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Platform API /api/v1/* generated from the action registry (+ friendly REST aliases over the same capabilities).
 //   POST /api/v1/actions/{actionId}      any action the caller's audience may call (body = input)
 //   GET  /api/v1/openapi.json            OpenAPI 3.1 (one operation per action + the aliases)

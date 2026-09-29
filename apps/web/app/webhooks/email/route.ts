@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Resend (Svix-signed) delivery events → system.record_email_event. Verified with RESEND_WEBHOOK_SECRET;
 // without a secret configured this endpoint is not available (501). Unverified bodies are never stored.
 import { getRuntime, systemContext } from '@gms/actions';

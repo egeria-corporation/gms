@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-06 Pipeline: every application in the workspace as a server-paged table or a status board
 // (`?view=table|kanban`). Filters (status, opportunity, stage, program, tags, from/to, agent, dupes, q) live in
 // the URL so they can be saved as views. Bulk actions: advance, decline, assign reviewers, message, tag.

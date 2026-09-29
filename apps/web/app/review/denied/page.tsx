@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Where requireMember() sends people without a reviewer role. Deliberately unguarded (no requireMember).
 import { Button, DeniedState } from '@gms/ui';
 import type { Metadata } from 'next';

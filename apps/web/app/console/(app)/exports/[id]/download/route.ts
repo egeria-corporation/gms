@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Streams a finished export file. The console layout's guard doesn't run for route handlers, so this checks
 // the tenant, a staff role (with MFA) and the export row under RLS before reading from storage.
 import { getRuntime } from '@gms/actions';

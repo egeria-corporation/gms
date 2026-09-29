@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Regression: actions that read agent_policies under RLS must never select llm_key_ref (gms_authenticated has no
 // column grant on it), or Postgres answers 42501 and every submission / policy update fails as "forbidden".
 import { randomUUID } from 'node:crypto';

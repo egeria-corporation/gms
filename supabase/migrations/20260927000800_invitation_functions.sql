@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Security-definer functions for flows where the caller is not yet a member:
 -- accepting a workspace invitation and accepting an application collaborator invitation.
 -- Each validates that the signed-in email matches the invitation before granting anything.

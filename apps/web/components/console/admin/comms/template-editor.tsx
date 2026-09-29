@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // CM-01 editor: key/name/subject/markdown body, merge-field picker, unknown-token warning, and a branded
 // preview rendered on the server.

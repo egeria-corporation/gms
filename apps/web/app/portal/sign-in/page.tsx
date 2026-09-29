@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-01 Sign in (states: check email; expired link).
 import { Card, CardContent, CardDescription, CardHeader } from '@gms/ui';
 import type { Metadata } from 'next';

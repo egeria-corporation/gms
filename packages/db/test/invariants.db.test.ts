@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // SQL invariants (triggers, CHECK constraints, append-only tables) plus regression tests for the
 // security fixes in supabase/migrations/20260927000700_rls_fixes.sql. Every scenario rolls back.
 import type { RawBuilder } from 'kysely';

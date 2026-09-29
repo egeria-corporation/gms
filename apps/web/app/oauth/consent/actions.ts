@@ -1,5 +1,5 @@
 'use server';
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // O-01 decisions. The pending request id comes from the form; the person comes from the session (never the form).
 import { completeAuthorization, denyAuthorization } from '@gms/agents';
 import { redirect } from 'next/navigation';

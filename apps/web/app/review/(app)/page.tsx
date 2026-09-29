@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // D-01 Reviewer queue: my assignments (gms.reviewer_queue) grouped by review stage, with due dates, status and
 // the next step (declare conflicts → start → continue → view submitted).
 // ?state= empty (no assignments) | all-done (every assignment shown as submitted) | error

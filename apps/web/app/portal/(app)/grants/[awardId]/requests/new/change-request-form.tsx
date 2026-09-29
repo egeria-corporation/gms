@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Button, Field, Input, RadioGroup, RadioOption, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@gms/ui';
 import { useRouter } from 'next/navigation';

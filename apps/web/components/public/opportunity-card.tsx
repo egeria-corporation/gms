@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { formatInZone, formatMoney } from '@gms/domain';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, DeadlineChip, StatusChip } from '@gms/ui';
 import Link from 'next/link';

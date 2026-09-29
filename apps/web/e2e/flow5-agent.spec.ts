@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 5 — Agent: Maya connects "Grant Writer Assistant" with a token (B-13) → the agent sets up her
 // application over MCP → save_answers → request_submission returns approval_required → Maya confirms on B-14 →
 // Submitted → the audit log shows "Grant Writer Assistant, acting for Maya Chen". A staff agent (acting for Priya,

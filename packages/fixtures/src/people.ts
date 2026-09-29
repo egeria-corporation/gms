@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The named demo people. Every person and address is fictional; emails use the reserved .example TLD.
 import { createHash } from 'node:crypto';
 import type { WorkspaceRole } from '@gms/domain';

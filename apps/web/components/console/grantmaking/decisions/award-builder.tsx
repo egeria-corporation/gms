@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-06 award builder form: amount, period, purpose, conditions, flags and the payment schedule editor
 // (add / remove / Move up / Move down, "Split evenly", live total that must equal the amount). Saves with

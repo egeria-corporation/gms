@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-09 Application detail: status tracker, receipt, message thread (every status; info requested).
 import { APPLICATION_STATUS, formatInZone, type ApplicationStatus } from '@gms/domain';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, DescriptionList, PageHeader, Section, StatusChip } from '@gms/ui';

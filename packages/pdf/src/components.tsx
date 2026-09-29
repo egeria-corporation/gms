@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared PDF building blocks. Only built-in PDF fonts (Helvetica/Times) are used, so nothing is fetched at render time
 // (except an optional https logo). Helvetica's digits are all the same width, so right-aligned money columns line up.
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Pipeline filter bar: every filter lives in the URL (status, opportunity, stage, program, tags, from/to,
 // agent, dupes, q) so views can be saved and shared. The page reads the same params on the server.

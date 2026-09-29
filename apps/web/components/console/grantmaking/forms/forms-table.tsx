@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // FB-01 forms list: name, kind, published version, draft in progress, where it is used, last modified; kind
 // filter and archived toggle in the URL; rename and archive/restore (forms.update).

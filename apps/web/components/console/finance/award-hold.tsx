@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Award payment hold: put on hold (reason required) or release. Held awards can't have payments batched.
 import {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared setup for @gms/agents DB tests: a fresh database, a runtime bound to it, two workspaces and people.
 import { randomUUID } from 'node:crypto';
 import { createRuntime, type ActionContext, type Runtime, type WorkspaceRef } from '@gms/actions';

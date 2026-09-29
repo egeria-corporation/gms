@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Version diffs for the builder ("what changed since v3?") and the notice staff see before
 // publishing a new version for a competition that is already open.
 import { type Condition, type Field, type FieldLocation, type FormModel, listFields, listInfoBlocks } from './model';

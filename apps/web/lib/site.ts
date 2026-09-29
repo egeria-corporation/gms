@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { config, sourceLink } from './config';
 
 /** "Powered by GMS · Source code" (AGPL §13): always linked to the exact running version. */

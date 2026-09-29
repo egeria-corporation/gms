@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Deterministic RLS "world": two workspaces, every principal the RLS model knows about, and at least
 // one workspace-A row in every public table. Built with the service connection (bypasses RLS).
 //

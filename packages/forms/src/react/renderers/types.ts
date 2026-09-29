@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { FileScanStatus } from '@gms/ui';
 import type * as React from 'react';
 import type { CompiledForm, FieldMeta, JsonSchema } from '../../compile';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // E-01 docket items: order (Move up / Move down → board.reorder_docket with the full ordered list), remove
 // (board.remove_docket_item), amounts, review aggregates, vote tallies with voters, and outcomes after close.

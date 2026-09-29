@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,7 +17,23 @@ export interface MigrationFile {
   name: string;
   path: string;
   sql: string;
+  /** sha256 of the file with its SPDX license comment normalized (license headers are not schema). */
   checksum: string;
+  /** Checksums this file had before the normalization (full-text hashes under either AGPL identifier). */
+  legacyChecksums: string[];
+}
+
+const SPDX_LINE = /^--\s*SPDX-License-Identifier:.*$/m;
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+/** Checksum that ignores the SPDX header, so relicensing headers never looks like a schema change. */
+export function migrationChecksum(sqlText: string): string {
+  return sha256(sqlText.replace(SPDX_LINE, '-- SPDX-License-Identifier'));
+}
+
+function legacyChecksums(sqlText: string): string[] {
+  if (!SPDX_LINE.test(sqlText)) return [sha256(sqlText)];
+  return ['AGPL-3.0-only', 'AGPL-3.0-or-later'].map((id) => sha256(sqlText.replace(SPDX_LINE, `-- SPDX-License-Identifier: ${id}`)));
 }
 
 export function listMigrations(dir = join(repoRoot(), 'supabase', 'migrations')): MigrationFile[] {
@@ -31,7 +47,8 @@ export function listMigrations(dir = join(repoRoot(), 'supabase', 'migrations'))
         name: f.slice(15, -4),
         path: join(dir, f),
         sql: sqlText,
-        checksum: createHash('sha256').update(sqlText).digest('hex'),
+        checksum: migrationChecksum(sqlText),
+        legacyChecksums: legacyChecksums(sqlText),
       };
     });
 }
@@ -71,6 +88,11 @@ export async function migrate(opts: MigrateOptions): Promise<{ applied: string[]
     for (const m of listMigrations()) {
       const prev = done.get(m.version);
       if (prev) {
+        if (prev !== 'supabase' && prev !== m.checksum && m.legacyChecksums.includes(prev)) {
+          // Recorded before checksums ignored the license header: same schema, upgrade the stored checksum.
+          await client.query('update gms_meta.schema_migrations set checksum = $1 where version = $2', [m.checksum, m.version]);
+          continue;
+        }
         if (prev !== 'supabase' && prev !== m.checksum) {
           throw new Error(
             `migration ${m.version}_${m.name} changed after it was applied. Migrations are forward-only: add a new migration instead.`,

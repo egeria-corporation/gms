@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // AES fallback + Supabase Vault ref routing. The plain-Postgres tier has no Vault, so the test database gets a
 // minimal emulation of Vault's public surface (vault.create_secret, vault.secrets, vault.decrypted_secrets).
 import { sql } from '@gms/db';

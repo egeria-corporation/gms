@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-02 Program detail: budgets per fiscal year (budget vs committed vs paid vs remaining), set a budget,
 // the program's opportunities and awards, and the Mercury account payments come from.
 // ?state= no-budget | over-budget | no-account | not-found

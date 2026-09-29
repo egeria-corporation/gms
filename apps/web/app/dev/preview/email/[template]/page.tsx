@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-01 Email preview: one template rendered server-side with the workspace brand (or a fictional preset).
 import {
   previewProps,

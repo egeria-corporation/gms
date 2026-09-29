@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The agent capability catalog: curated tools (named for agents) + tools generated from the action registry,
 // filtered per caller (role, scopes, client tool allowlist, workspace tier overrides). Shared by MCP, A2A and
 // /api/v1 so every surface exposes — and refuses — exactly the same things.

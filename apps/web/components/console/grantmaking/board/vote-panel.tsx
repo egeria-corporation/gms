@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // E-02 voting on one docket item (board.vote — R3, people only). Choose approve / decline / abstain /
 // recuse, then press "Record my vote" (the explicit confirm step). Shows "Your vote: … recorded …".

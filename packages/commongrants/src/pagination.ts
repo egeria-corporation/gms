@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Pagination, sorting and filter parsing plus the CommonGrants response envelopes.
 // Shapes follow @common-grants/core 0.4 (pagination.tsp, sorting.tsp, responses/success.tsp).
 import type { FieldIssue } from '@gms/domain';

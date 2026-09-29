@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/fixtures: deterministic, fictional demo data for GMS (`pnpm seed`).
 import { getRuntime, type Runtime } from '@gms/actions';
 import { sql, type Database } from '@gms/db';

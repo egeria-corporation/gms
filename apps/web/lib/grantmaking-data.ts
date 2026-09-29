@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-side reads and view helpers shared by the grantmaking console, the reviewer workspace and the
 // board portal. Everything here reads under RLS (callers pass the `trx` from `rls()`); mutations never
 // happen here (they go through `act()` in 'use server' files).

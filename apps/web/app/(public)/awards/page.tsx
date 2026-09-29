@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-05 Awarded grants (optional transparency, fed by awards; state: empty).
 import { NextLink } from '@/components/next-link';
 import { formatDateOnly, formatMoneyShort } from '@gms/domain';

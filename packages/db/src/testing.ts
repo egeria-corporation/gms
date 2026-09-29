@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Test harness: isolated databases per test file, user factories, and RLS helpers.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Kysely, PostgresDialect, sql } from 'kysely';

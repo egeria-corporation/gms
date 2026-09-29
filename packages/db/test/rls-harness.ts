@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Runs one RLS probe (principal x table x op) in a transaction that always rolls back.
 import { sql, type Database, type RequestClaims, type Tx } from '../src/client';
 import type { Op, Row, TableSpec } from './rls-expectations';

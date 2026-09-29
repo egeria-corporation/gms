@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // SecretStore fallback: AES-256-GCM (key from GMS_ENCRYPTION_KEY) with ciphertext in gms_private.secrets.
 import { getDb, sql, type Database } from '@gms/db';
 import { decrypt, encrypt } from '../crypto';

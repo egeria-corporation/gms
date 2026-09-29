@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-02: BoardShell with the tenant brand, account menu and AGPL footer, shared by the board pages.
 // A Server Component (no 'use client'): pages pass their own section nav and context.
 import { BoardShell } from '@gms/ui';

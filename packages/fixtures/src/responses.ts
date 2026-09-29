@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Realistic, valid form answers built from the LOI fixture shapes (@gms/forms fixtures): budgets whose lines
 // add up to the request, word limits respected, attestation signed. Validated against the compiled form.
 import { validateResponses, type CompiledForm, type ResponseData } from '@gms/forms';

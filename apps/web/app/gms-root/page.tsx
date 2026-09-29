@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Platform directory (root host): foundations on this GMS with open opportunities (states: empty, not-set-up).
 // Public information only: brand display name and the count of open, public opportunities.
 import { getRuntime, originFor } from '@gms/actions';

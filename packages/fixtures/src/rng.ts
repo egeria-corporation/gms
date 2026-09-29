@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Small deterministic PRNG (mulberry32) with helpers. Every seed section forks its own stream by name,
 // so adding data to one section never changes what another section generates.
 import { createHash } from 'node:crypto';

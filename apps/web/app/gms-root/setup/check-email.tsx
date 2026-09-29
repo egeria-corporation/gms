@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // "Check your email" after setup (state: check-email). Server-safe (no hooks), rendered by the wizard or the page.
 import { Alert, Card, CardContent, CardHeader, DescriptionList } from '@gms/ui';
 import { MailCheck } from 'lucide-react';

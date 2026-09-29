@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Pure, immutable editing operations on a builder model: add, update, move, duplicate, delete and
 // restore elements and pages. The form builder UI calls these; they never mutate their input.
 // React-free so they can be unit tested in node.

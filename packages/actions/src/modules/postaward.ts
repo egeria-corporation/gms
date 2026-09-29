@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Post-award: grantee reports (draft → submit → accept / revisions), overdue tracking + payment holds,
 // change requests (extension / amendment / budget change), site visits; due diligence (IRS status, OFAC).
 import { sql, type Tx } from '@gms/db';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Setup wizard model, shared by the client wizard (per-step validation) and the server action
 // (re-validates everything before running setup.initialize). Pure TS: no server or browser APIs.
 import { ROLE_LABELS, WORKSPACE_ROLES, type WorkspaceRole } from '@gms/domain';

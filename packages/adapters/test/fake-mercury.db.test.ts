@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { randomUUID } from 'node:crypto';
 import { sql } from '@gms/db';
 import { createTestDatabase, type TestDatabase } from '@gms/db/testing';

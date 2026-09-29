@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Screen catalog: every screen in the GMS spec with its route and documented `?state=` values.
 // Drives /dev/catalog and screenshot tooling. Pure data (no server imports) so tests can load it.
 

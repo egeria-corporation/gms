@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The builder model: the source of truth a staff member edits in the form builder.
 // It is stored in `form_versions.builder_model` and compiled into JSON Schema,
 // a JSON Forms UI schema, `field_meta` and CommonGrants mappings (see compile.ts).

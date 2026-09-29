@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Admin extras: brand asset uploads, integrations settings (email domain, OpenGrants syndication),
 // race-safe first-run setup (F-01…F-05, `pnpm run setup`) and operator view auditing (G-02).
 import { randomBytes } from 'node:crypto';

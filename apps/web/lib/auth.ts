@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Session + viewer for the current request. Sessions come from the AuthAdapter (Supabase Auth, or the
 // TestAuthAdapter in GMS_AUTH_MODE=test); RLS claims come only from a verified session.
 import 'server-only';

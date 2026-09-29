@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Thin bridge to @gms/forms so action modules depend on one small surface.
 import {
   compileForm,

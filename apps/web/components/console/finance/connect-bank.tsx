@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-08 client parts: choose how to pay (Mercury token mode, Mercury OAuth — pending partner approval, or pay
 // outside GMS) and map programs to paying accounts. Both are people-only and ask for authenticator step-up.

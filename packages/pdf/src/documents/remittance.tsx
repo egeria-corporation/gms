@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-04: remittance advice sent with each payment.
 
 import { Text, View } from '@react-pdf/renderer';

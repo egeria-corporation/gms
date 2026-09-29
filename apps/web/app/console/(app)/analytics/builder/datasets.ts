@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Curated datasets for the report builder (AN-02): the only fields a report can group, filter or sum.
 // Pure metadata, shared by the server query and the client form.
 import { APPLICATION_STATUS, AWARD_STATUS, PAYMENT_STATUS, REPORT_STATUS } from '@gms/domain';

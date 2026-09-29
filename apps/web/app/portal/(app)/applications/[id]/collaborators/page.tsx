@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-07 Collaborators.
 import { PageHeader } from '@gms/ui';
 import type { Metadata } from 'next';

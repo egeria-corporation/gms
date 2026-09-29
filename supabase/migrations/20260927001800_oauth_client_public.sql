@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- OAuth consent: let the consenting person see the client they are about to connect.
 --
 -- `oauth.grant_consent` runs under RLS as the person. agent_clients_select only shows clients the person owns,

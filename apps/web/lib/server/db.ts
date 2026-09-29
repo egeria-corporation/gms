@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Reads for pages run under RLS as the viewer (or anon). Mutations never happen here: use act().
 import 'server-only';
 import { getRuntime } from '@gms/actions';

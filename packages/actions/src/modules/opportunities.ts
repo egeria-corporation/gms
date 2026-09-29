@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Programs & budgets, opportunities (Draft → Forecasted → Open → Closed → Archived), competitions (stages),
 // eligibility rules, invitations to later stages, per-applicant extensions, and the schedule tick.
 import { randomUUID } from 'node:crypto';

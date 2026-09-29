@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { redirect } from 'next/navigation';
 import { requireViewer } from '@/lib/auth';
 

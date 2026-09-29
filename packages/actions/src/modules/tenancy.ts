@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Workspace settings, branding, team & roles, profile, notifications, account requests.
 import { createHash, randomBytes } from 'node:crypto';
 import { sql } from '@gms/db';

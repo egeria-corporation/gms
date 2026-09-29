@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- "Notify me" on forecasted opportunities: signed-in people subscribe; the worker emails them when it opens.
 create table public.opportunity_subscriptions (
   id uuid primary key default gen_random_uuid(),

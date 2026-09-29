@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { relativeTime } from '@gms/domain';
 import { Button, CommandPalette, Popover, PopoverContent, PopoverTrigger, type CommandPaletteGroup } from '@gms/ui';

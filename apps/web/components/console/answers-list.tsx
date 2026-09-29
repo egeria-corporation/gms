@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Read-only answers of a submitted form, rendered generically from the form version's `field_meta` (label, type,
 // options, columns) and the submission data. Plain text only — never injects HTML.
 import { formatDateOnly, formatMoney } from '@gms/domain';

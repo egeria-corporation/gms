@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Long-lived worker for local development and self-hosting on a server: graphile-worker with a crontab,
 // plus LISTEN gms_outbox so domain events fan out within a second.
 import { getRuntime } from '@gms/actions';

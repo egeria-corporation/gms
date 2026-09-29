@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-12 Extension / amendment / budget-change request.
 import { PageHeader } from '@gms/ui';
 import type { Metadata } from 'next';

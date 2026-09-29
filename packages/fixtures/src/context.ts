@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared state and helpers for the seed steps: the runtime/executor, the anchor clock, deterministic ids and
 // random streams, batched inserts, historical audit entries, and action contexts for people and agents.
 import { randomUUID } from 'node:crypto';

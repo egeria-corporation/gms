@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The RLS matrix: for every public table (and the public_awards view), which principals may
 // select / insert / update / delete the workspace-A row seeded by world.ts. Everyone not listed
 // must be denied. Used by rls-matrix.db.test.ts and scripts/rls-report.ts.

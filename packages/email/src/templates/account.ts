@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Sign-in, invites and agent confirmations.
 
 import { formatInZone, ROLE_LABELS, type WorkspaceRole } from '@gms/domain';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The seed's fixed "now" anchor and date helpers. Relative dates are computed from the anchor only,
 // so a run with the same anchor (GMS_SEED_NOW) produces the same data.
 import { zonedTimeToUtc } from '@gms/domain';

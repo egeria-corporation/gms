@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Maps the lucide icon names used in @gms/domain statuses to lucide-react components.
 // Explicit imports keep bundles small (no whole-library icon map).
 import {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/forms — framework-agnostic form core: builder model, compiler, validation, rules, lint,
 // version diffs, CommonGrants mapping/import, the question bank and templates.
 export * from './model';

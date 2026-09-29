@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Badge, Button, cn, Input } from '@gms/ui';
 import { Plus } from 'lucide-react';

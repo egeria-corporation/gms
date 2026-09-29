@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 import { decideApproval, getRuntime } from '@gms/actions';
 import { isDomainError, toProblem, type ProblemDetails } from '@gms/domain';

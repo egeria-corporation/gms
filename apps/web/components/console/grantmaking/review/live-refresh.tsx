@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-04 live aggregates: re-renders the server page every 5 seconds while the tab is visible.
 // Supabase Realtime isn't available in this environment (embedded Postgres / plain-Postgres tiers), so the

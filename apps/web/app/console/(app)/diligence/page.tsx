@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // PA-03 Diligence: per grantee, IRS exempt status and OFAC screening; potential matches need a person's review
 // (people-only); run checks; expenditure-responsibility / grants-to-individuals flags per award.
 // ?state= (non-production): match · empty · error

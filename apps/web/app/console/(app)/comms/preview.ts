@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-side branded preview for staff-written messages (templates and bulk messages).
 import 'server-only';
 import { findMergeTokens, MERGE_FIELDS, renderEmail } from '@gms/email';

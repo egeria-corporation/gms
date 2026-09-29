@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Dollar input <-> integer cents, and the small input masks (EIN, UEI, phone) used by the
 // renderers. React-free so it can be unit tested in node.
 

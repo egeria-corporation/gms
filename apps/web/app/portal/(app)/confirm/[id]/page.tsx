@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-14 Agent confirmation (full preview + attestation; confirm / reject / expired; mobile; opened from email).
 import type { RiskTier } from '@gms/domain';
 import { Alert, PageHeader } from '@gms/ui';

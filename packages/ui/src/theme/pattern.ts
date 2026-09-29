@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Default imagery: deterministic geometric SVG patterns derived from the brand color (no stock photos).
 import { generateScale, isHexColor } from './color';
 import { DEFAULT_BRAND_COLORS } from './neutrals';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Framework-agnostic CommonGrants route handling (`/common-grants/*`).
 //
 // Reads always run under RLS via `withRls(ctx.claims, …, ctx.db)`, so anonymous callers only see

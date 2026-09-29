@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-05 Approval request detail (opened from the "approval needed" email or the inbox): full preview with
 // confirm / reject for people allowed to decide (states: confirmed, rejected, expired).
 import { Alert, Button, DescriptionList, PageHeader } from '@gms/ui';

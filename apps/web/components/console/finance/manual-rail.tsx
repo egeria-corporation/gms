@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Manual rail: record one payment made outside GMS, or import many from a CSV (parsed in the browser, then
 // sent as rows to payments.import_csv). Nothing here moves money.

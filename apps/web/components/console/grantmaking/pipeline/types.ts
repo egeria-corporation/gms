@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Serializable shapes passed from the pipeline page (Server Component) to its client components.
 
 /** Statuses shown as columns on the pipeline board (in_progress and withdrawn are left off). */

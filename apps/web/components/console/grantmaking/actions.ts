@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Shared grantmaking server actions: saved table views, and bulk decline with a letter preview (used by
 // the pipeline C-06 and decisions R-05). Screen-specific actions live next to their pages.

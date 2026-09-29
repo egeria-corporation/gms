@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // zod v4 → JSON Schema (2020-12) for tool input/output schemas and OpenAPI components.
 import { z } from 'zod';
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Dev mailer: captures every message in the dev_outbox table (viewable at /dev/mail). Never delivers.
 import { getDb, type Database } from '@gms/db';
 import type { MailMessage, Mailer, MailResult } from '../types';

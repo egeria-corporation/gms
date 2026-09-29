@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // FB-01 import a CommonGrants form (JSON Schema + UI Schema, form-library style) into a new draft form and list
 // the fields that could not be mapped.

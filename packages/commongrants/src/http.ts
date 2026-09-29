@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // HTTP helpers: JSON responses, RFC 9457 problem responses that also satisfy the CommonGrants
 // error envelope ({ status, message, errors }), and Cache-Control policy.
 import { DomainError, toProblem, type ErrorCode, type FieldIssue } from '@gms/domain';

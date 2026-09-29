@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Client helpers shared by the finance screens: URL-driven filters and pagination (server-side paging, never
 // infinite scroll), a polite live region for action results, and a runner for server actions that handles

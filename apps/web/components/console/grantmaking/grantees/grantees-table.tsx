@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-08 grantee list: organizations that applied to this workspace, server-paged with URL state.
 import { Badge, CheckboxField, EmptyState, Field, MoneyDisplay, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, StatusChip, type ColumnDefFor } from '@gms/ui';

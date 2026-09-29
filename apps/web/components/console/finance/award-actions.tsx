@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Award detail client parts: activate (people-only), the agreement workflow (generate → send → grantee signs →
 // countersign with typed name, people-only with step-up), close/cancel, and amendments (draft, approve/reject).

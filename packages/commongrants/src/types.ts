@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CommonGrants wire (JSON) types. Dates are ISO strings on the wire; the SDK's zod schemas
 // parse them into `Date`s, so these are written by hand to describe exactly what we emit.
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Condition evaluation, flag folding and translation to JSON Schema.
 // evaluateCondition() and conditionToSchema() must agree on every input: the JSON Schema `if`
 // clauses and the JSON Forms rules are generated from the same conditions the server evaluates.

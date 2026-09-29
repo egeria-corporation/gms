@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: the Ops Assistant proposes payment batches and gets a clear, per-installment reason for everything it
 // can't pay — an overdue report that holds payments, or an installment that would exceed the award.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

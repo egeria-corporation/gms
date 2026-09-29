@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The logic editor's working copy of a rule: a flat list of clauses joined by "all" or "any",
 // converted to and from the model's Condition shape, plus validation (incomplete clauses and
 // circular rules). React-free.

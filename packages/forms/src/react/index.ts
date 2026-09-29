@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/forms/react — client components for GMS forms, built on @gms/ui:
 // the form renderer (<GmsForm>, pager, progress rail), autosave and conflict handling, and the
 // form builder. Everything here is framework-agnostic React (no next/* imports).

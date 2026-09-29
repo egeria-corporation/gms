@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import nodemailer from 'nodemailer';
 import { describe, expect, it } from 'vitest';
 import { GuardedMailer, bareAddress, isDeliverableOutsideProduction, parseAllowlist } from '../src/mail/guard';

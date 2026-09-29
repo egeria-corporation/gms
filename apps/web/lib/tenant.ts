@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Tenant resolution: the proxy sets x-gms-host-kind / x-gms-tenant-slug / x-gms-host; this module looks the
 // workspace up (slug or custom domain) and caches it briefly.
 import 'server-only';

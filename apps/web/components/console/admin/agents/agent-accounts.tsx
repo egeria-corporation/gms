@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-04: foundation-owned agent accounts: list, create (R3 + step-up, key shown once), pause/resume/revoke.
 import { formatInZone, SCOPES, STAFF_SCOPES, type Scope } from '@gms/domain';

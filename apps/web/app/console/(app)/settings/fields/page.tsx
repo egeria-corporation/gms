@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-08 Custom fields & taxonomies (states: empty).
 import { PageHeader, Section } from '@gms/ui';
 import type { Metadata } from 'next';

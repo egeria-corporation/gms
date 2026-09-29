@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Mercury JSON shapes (as documented at https://docs.mercury.com/reference) and the mapping to the PaymentRail
 // interface types. Shared by MercuryRail and FakeMercury (which stores Mercury-shaped JSON), so both rails
 // produce identical interface objects. Amounts on the wire are dollars (2 decimals); GMS uses integer cents.

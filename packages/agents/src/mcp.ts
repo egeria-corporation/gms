@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // MCP server at /mcp — stateless Streamable HTTP, hand-rolled JSON-RPC with the SDK's types.
 //
 // Why hand-rolled: the installed @modelcontextprotocol/sdk (1.30.1) implements protocol revisions up to

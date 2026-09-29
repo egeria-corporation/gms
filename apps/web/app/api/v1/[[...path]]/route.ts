@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Platform API /api/v1 (OpenAPI 3.1 at /api/v1/openapi.json), generated from the action registry.
 import { handleApiV1 } from '@gms/agents';
 import { agentEnv } from '@/lib/server/agent-env';

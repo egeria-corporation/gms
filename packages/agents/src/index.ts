@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // @gms/agents — framework-agnostic (Request → Response) handlers for the agent surfaces. The Next app mounts
 // them in route handlers and builds an AgentEnv per request (tenant from the host, runtime from getRuntime()).
 import type { ActionContext, Executor } from '@gms/actions';

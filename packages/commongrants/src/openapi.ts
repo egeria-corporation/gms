@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OpenAPI 3.1 document for the CommonGrants routes GMS implements (served at /common-grants/openapi.json).
 // Component schemas are generated from the same zod schemas the contract tests validate against,
 // so the document and the tests cannot drift apart.
@@ -250,7 +250,7 @@ export function buildOpenApi(origin: string): JsonObject {
       description:
         'CommonGrants 0.4 routes implemented by GMS. Tags mark each route as CG "required", "optional", "experimental", or a "gms-extension". ' +
         'GMS extras are carried in `customFields` (see the GMS CommonGrants plugin). Errors are RFC 9457 problem details that also carry the CG `status`/`message`/`errors` fields.',
-      license: { name: 'AGPL-3.0-only', identifier: 'AGPL-3.0-only' },
+      license: { name: 'AGPL-3.0-or-later', identifier: 'AGPL-3.0-or-later' },
     },
     servers: [{ url: origin.replace(/\/$/, '') }],
     tags: [

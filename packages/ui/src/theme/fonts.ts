@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Curated heading fonts. All are self-hosted via Fontsource (imported in styles.css); no font CDN.
 
 export interface HeadingFont {

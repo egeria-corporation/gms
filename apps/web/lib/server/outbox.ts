@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // In-process fast path: after an action commits, drain the outbox soon (the worker/cron is the backstop).
 // Safe to run concurrently with the worker: events are claimed with FOR UPDATE SKIP LOCKED.
 import 'server-only';

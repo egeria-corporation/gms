@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Per-tenant discovery documents for AI agents: /llms.txt, /llms-full.txt, /agents.md and opportunity markdown
 // (/opportunities/{slug}.md and `Accept: text/markdown`). Everything is read as an anonymous visitor (RLS).
 import { ANON_CLAIMS, withRls } from '@gms/db';

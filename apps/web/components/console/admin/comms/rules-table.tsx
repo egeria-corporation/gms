@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // CM-03 rules table with inline enable/disable and an add/edit dialog (comms.save_rule).
 import {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Starts the database for local development using the first tier that works:
 //   1. local Supabase (supabase CLI + Docker)  2. remote dev project (DATABASE_URL/SUPABASE_DB_URL)  3. embedded Postgres.
 // Then applies migrations.

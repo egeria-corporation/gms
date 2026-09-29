@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Process-wide runtime: adapters + executor, shared by the web app, the worker, scripts and tests.
 import { createAdapters, paymentRailFor, type AdapterSet } from '@gms/adapters';
 import { getDb, type Database } from '@gms/db';

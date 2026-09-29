@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // People (auth users + profiles + TOTP factors), the three workspaces, their brands, settings and teams.
 import { seedTotpFactor } from '@gms/adapters';
 import { sql } from '@gms/db';

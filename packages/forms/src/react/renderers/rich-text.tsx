@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Button, cn, Field, SimpleTooltip, Tabs, TabsContent, TabsList, TabsTrigger, Textarea, TooltipProvider } from '@gms/ui';
 import { Bold, Italic, Link, List, ListOrdered, type LucideIcon } from 'lucide-react';

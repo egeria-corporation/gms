@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Bulk decline (decisions.bulk_decline, R3 — people only) with a preview of the exact letter applicants
 // get. The preview is rendered on the server with the real email template and shown in a sandboxed iframe.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Awards from the awarded applications: 38 active + 4 completed at Halcyon (plus an amendment and a supplement),
 // two at Marigold. Payment schedules, conditions, agreements with placeholder PDFs, and signatures whose hash
 // equals the agreement's document hash.

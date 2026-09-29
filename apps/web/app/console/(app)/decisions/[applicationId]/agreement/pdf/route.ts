@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-07: streams the generated agreement PDF (the exact bytes the grantee signs) for inline preview on the
 // console agreement page. Staff only; the agreement row is read under RLS first.
 import { getRuntime } from '@gms/actions';

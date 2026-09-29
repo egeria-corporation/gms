@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-08: custom field definitions (exposed in CommonGrants customFields) with an add/edit dialog.
 import {

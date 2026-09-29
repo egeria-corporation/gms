@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OpenAI-compatible Chat Completions via fetch (OPENAI_API_KEY, optional OPENAI_BASE_URL for compatible
 // servers such as local inference gateways). Optional features only.
 import { fetchWithRetry, isRecord, readJson, redact, type FetchLike } from '../http';

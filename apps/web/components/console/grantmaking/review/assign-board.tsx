@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-02 assignment board: applications × assigned reviewers (status chips), manual assign / unassign, the
 // round-robin auto-assign plan (dry run → review → apply), reviewer load vs capacity (inline edit) and

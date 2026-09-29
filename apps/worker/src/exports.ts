@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Background exports: curated datasets to CSV/XLSX, the 990-PF grants-paid schedule, and the full
 // workspace export (JSON + CommonGrants bundle, zipped).
 import { crc32 } from 'node:zlib';

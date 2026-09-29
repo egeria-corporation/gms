@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Decisions (recommend vs. final), awards (drafts, activation, amendments/supplements, schedules, holds),
 // agreements (generate → send → click-to-sign → countersign), board dockets and votes.
 import { createHash, randomUUID } from 'node:crypto';

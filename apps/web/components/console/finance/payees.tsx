@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-02 client parts: the payee table (reissue expired invites) and the "awarded, not invited" list.
 import { formatDateOnly } from '@gms/domain';

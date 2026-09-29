@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 1 — Applicant: eligibility → sign in → org setup (EIN prefill) → LOI with autosave and budget
 // validation → submit → receipt email in the dev outbox → status Submitted.
 import { expect, test } from '@playwright/test';

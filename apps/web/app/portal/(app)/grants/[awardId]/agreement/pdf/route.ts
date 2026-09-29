@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Streams the exact agreement PDF the grantee signs (access checked under RLS first).
 import { getRuntime } from '@gms/actions';
 import { rls } from '@/lib/server/db';

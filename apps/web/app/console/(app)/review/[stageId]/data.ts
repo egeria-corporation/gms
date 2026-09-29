@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server reads shared by the stage pages (R-02 assign, R-03 progress, R-04 panel). All under RLS as staff.
 import 'server-only';
 import type { Tx } from '@gms/db';

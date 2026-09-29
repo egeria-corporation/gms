@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-10 Grant hub: accept & sign, bank onboarding (Mercury invite), payments, reports.
 import { formatDateOnly, formatInZone, PAYMENT_METHOD_LABELS, type PaymentMethod } from '@gms/domain';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, DescriptionList, MoneyDisplay, PageHeader, Section, StatusChip, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@gms/ui';

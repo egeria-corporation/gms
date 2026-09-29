@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // DS-03 Form renderer modes. The React renderer (@gms/forms/react) hasn't landed in this build yet, so each mode
 // shows a labeled placeholder describing what will render there, driven by the real FORM_TEMPLATES metadata.
 import { FORM_TEMPLATES, listFields } from '@gms/forms';

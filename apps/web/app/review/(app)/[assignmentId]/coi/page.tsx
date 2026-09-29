@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // D-02 Conflict-of-interest gate. Shows only what gms.reviewer_queue returns (title, organization unless
 // blind, opportunity) — never application content — and records the declaration (review.declare_coi).
 // Already declared → no conflict: redirect to the review; conflict: the recusal confirmation.

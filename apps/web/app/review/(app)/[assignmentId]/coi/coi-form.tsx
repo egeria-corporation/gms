@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // D-02 conflict-of-interest declaration: "no conflict" unlocks the application; "conflict" (with a required
 // explanation) recuses the reviewer.

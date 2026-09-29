@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Branded email + in-app notifications for the worker. Every email is recorded in email_deliveries.
 import { originFor, type Runtime } from '@gms/actions';
 import type { Database } from '@gms/db';

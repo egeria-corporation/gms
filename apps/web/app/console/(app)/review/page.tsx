@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-01 Review stages & rubrics: stages grouped by opportunity / competition (rubric, blind, reviewers per
 // application, due date, status, submitted vs assigned) with create/edit, and the rubric list (builder at
 // /console/review/rubrics/new and /console/review/rubrics/[rubricId]).

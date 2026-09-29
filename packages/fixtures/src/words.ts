@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Hand-written word lists for generated demo data. Everything is fictional: place names are invented
 // (Alder, Bramble and Cinder Counties), and organization names are assembled from neutral parts.
 

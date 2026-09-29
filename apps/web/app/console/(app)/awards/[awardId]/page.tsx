@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Award detail (finance/program side): summary, payment schedule with each installment's payment, payments,
 // agreement + signatures (generate, send, countersign), activation, amendments, hold, close, reports, activity.
 // ?state= (non-production): draft · countersign · on-hold · report-overdue · completed · error

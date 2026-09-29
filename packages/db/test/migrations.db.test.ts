@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Migrations apply cleanly from zero, are recorded in gms_meta.schema_migrations, re-running is a
 // no-op, and editing an applied migration is detected.
 import { randomBytes } from 'node:crypto';
@@ -38,7 +38,7 @@ describe('migrations', () => {
     const versions = files.map((f) => f.version);
     expect(new Set(versions).size).toBe(versions.length);
     expect([...versions].sort()).toEqual(versions);
-    for (const f of files) expect(f.sql.startsWith('-- SPDX-License-Identifier: AGPL-3.0-only')).toBe(true);
+    for (const f of files) expect(f.sql.startsWith('-- SPDX-License-Identifier: AGPL-3.0-or-later')).toBe(true);
   });
 
   it('apply cleanly from zero on a fresh database', async () => {

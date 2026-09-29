@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // E-01: add an application with an approve recommendation (not already on a docket) to this docket
 // (board.add_docket_item), with the recommended amount and a short recommendation for the board.

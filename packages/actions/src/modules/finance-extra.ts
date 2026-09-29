@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Finance extras: inbound bank webhooks. The route handler never touches tables; it hands the raw body and the
 // signature header to this system action, which finds the workspace whose signing secret verifies the body,
 // stores the event once (de-duplicated by provider + event id) and returns its id for processing.

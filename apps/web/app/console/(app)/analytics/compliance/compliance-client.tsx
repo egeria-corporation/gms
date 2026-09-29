@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { formatMoney, parseMoneyToCents } from '@gms/domain';
 import { Alert, Button, DescriptionList, Field, Input, toast } from '@gms/ui';

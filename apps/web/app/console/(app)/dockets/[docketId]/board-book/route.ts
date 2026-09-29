@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E-01 board book PDF for a docket (H-05 `board_book`): items in discussion order with requested vs
 // recommended amounts, review score summaries, per-criterion averages and anonymized reviewer excerpts
 // ("Reviewer 1"). Staff only; everything is read under RLS.

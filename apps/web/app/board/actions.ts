@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // E-02 board voting. board.vote is R3 (people only): for a signed-in board member it runs directly and
 // records the voter and time; agents can never vote.

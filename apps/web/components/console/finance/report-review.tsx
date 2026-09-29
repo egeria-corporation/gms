@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // PA-02 client parts: accept / request revisions (with indicator capture) and change-request decisions.
 import { formatDateOnly, formatMoney } from '@gms/domain';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Runs before every request: resolves the tenant hint from the host, assigns a request id and a CSP nonce,
 // and sets security headers. No database access here (see lib/tenant.ts for the DB lookup).
 import { NextResponse, type NextRequest } from 'next/server';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { getAction, listActions } from '@gms/actions';
 import { ALL_SCOPES } from '@gms/domain';
 import { createAjv } from '@gms/forms';

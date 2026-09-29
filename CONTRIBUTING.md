@@ -31,7 +31,7 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm test:db && pnpm build && pnpm e
 ```
 
 - Add tests with your change. New tables need RLS policies **and** entries in the RLS matrix (`packages/db/test/rls-expectations.ts`).
-- Every source file starts with `// SPDX-License-Identifier: AGPL-3.0-only`.
+- Every source file starts with `// SPDX-License-Identifier: AGPL-3.0-or-later`.
 - Use conventional commit messages (`feat(portal): …`, `fix(payments): …`).
 - Copy for applicants is warm and plain (about an 8th-grade reading level); staff copy is concise with verbs on buttons.
 

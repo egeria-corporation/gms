@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { ArrowLeft } from 'lucide-react';
 import * as React from 'react';
 import { SkipLink } from '../components/skip-link';

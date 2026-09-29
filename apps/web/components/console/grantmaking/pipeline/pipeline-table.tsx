@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-06 pipeline table: server-paged UrlDataTable with duplicate flags, the "Via agent" badge and bulk actions
 // (advance, decline, assign reviewers, message, tag).

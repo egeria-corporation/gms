@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm doctor`: detects capabilities, prints which adapters are active, and writes ENVIRONMENT.md.
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';

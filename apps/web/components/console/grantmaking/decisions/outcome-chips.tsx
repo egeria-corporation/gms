@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Icon + text + color chips for decision outcomes, docket statuses, board votes and docket outcomes.
 // Shared by the decisions (R-05..R-07), dockets (E-01) and board (E-02) screens.
 import { ToneChip } from '@gms/ui';

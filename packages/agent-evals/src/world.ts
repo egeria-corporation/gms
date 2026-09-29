@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A small, fictional Halcyon Foundation for agent evals: one open opportunity with the Youth Arts LOI form, an
 // applicant with a verified-EIN organization, a PAT for "Grant Writer Assistant" acting for her, and a
 // foundation-owned "Ops Assistant" agent account (owned by Helen, the executive director). Built on a fresh test database.

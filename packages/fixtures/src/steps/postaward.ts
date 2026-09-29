@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Post-award: 25 report requirements across every status (with submissions), indicators, change requests
 // and site visits.
 import { json, type Row, type SeedContext } from '../context';

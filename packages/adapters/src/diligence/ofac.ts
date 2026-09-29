@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OFAC SDN importer. The legacy https://www.treasury.gov/ofac/downloads/sdn.csv now redirects to the Sanctions
 // List Service export below (checked 2026-09-27). SDN.CSV has no header row; columns:
 //   ent_num, SDN_Name, SDN_Type, Program, Title, Call_Sign, Vess_type, Tonnage, GRT, Vess_flag, Vess_owner, Remarks

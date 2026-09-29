@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Live integration tests. They only run when sandbox credentials exist and NEVER touch Mercury production:
 // MercuryRail refuses production without GMS_ALLOW_MERCURY_PRODUCTION, and these tests require MERCURY_ENV=sandbox.
 import { randomUUID } from 'node:crypto';

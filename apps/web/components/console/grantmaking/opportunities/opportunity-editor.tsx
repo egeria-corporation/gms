@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-04 editor tabs: Details, Eligibility, Stages & forms, Distribution. The tab is kept in the URL (`?tab=`)
 // without a server round trip so a reload or shared link opens the same tab.

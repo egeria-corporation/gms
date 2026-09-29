@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared status metadata and small helpers for the review screens (console R-01…R-04 and the reviewer
 // workspace D-01…D-03). Pure TS: safe on the server and the client.
 import type { StatusMeta } from '@gms/domain';

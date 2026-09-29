@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // In-memory demo models for the builder's documented states (`?state=` on /console/forms/[formId]). They are
 // built from a copy of the current model and never saved.
 import { FormModelSchema, listFields, templateModel, type FormModel } from '@gms/forms';

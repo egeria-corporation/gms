@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-06 web component: <script src="https://<foundation>/embed/widget.js" async></script><gms-opportunities></gms-opportunities>
 import { requireTenant } from '@/lib/tenant';
 

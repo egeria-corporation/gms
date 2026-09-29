@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OAuth discovery (RFC 9728 protected-resource metadata, RFC 8414 AS metadata) and GMS's built-in OAuth 2.1
 // authorization server, used when the Supabase OAuth 2.1 server is not available.
 //

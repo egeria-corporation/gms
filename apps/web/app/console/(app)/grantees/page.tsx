@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-08 Grantees (CRM list): every organization that has applied to this workspace, with application and award
 // counts, total awarded, latest status, EIN, diligence summary, tags and relationship owner.
 // URL: page/size/sort/dir/q (UrlDataTable), `tag`, `active=1` (has an active award).

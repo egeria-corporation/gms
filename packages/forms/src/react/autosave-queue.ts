@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The autosave engine behind useAutosave(): debounced partial saves of changed fields only, one
 // request in flight at a time (later changes queue up), offline detection with retry and backoff,
 // and conflict reporting. React-free (timers and the online check are injectable) so it can be

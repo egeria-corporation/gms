@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // IRS importers:
 //  - EO BMF extract: regional CSVs eo1.csv…eo4.csv at https://www.irs.gov/pub/irs-soi/ (header row; EIN, NAME,
 //    CITY, STATE, SUBSECTION, RULING (YYYYMM), DEDUCTIBILITY, FOUNDATION, STATUS, NTEE_CD, …), streamed.

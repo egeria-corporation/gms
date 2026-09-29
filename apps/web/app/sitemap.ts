@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { MetadataRoute } from 'next';
 import { listOpportunities } from '@/lib/public-data';
 import { getTenant } from '@/lib/tenant';

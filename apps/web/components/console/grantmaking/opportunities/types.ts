@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Serializable props shared by the opportunity editor (C-04) and publish (C-05) screens.
 
 export const APPLICANT_TYPES = [

@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Grantees submit reports under their own RLS, but report_requirements is staff-writable only.
 -- This narrow security-definer function lets an org member (or a person whose agent's request they
 -- confirmed) move their own requirement to "submitted" once a submitted report_submissions row exists.

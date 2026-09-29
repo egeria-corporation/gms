@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Structured data for search engines and agents. Content is JSON-serialized and '<' is escaped.
 import type { PublicOpportunity } from './public-data';
 import type { Tenant } from './tenant';

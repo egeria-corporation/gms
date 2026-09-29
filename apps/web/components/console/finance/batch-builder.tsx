@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-03 Batch builder: pick the paying account, method and due-before date; preview (a draft batch) shows the
 // exact payments, totals and fees, plus every installment that is blocked and why; then send for approval.

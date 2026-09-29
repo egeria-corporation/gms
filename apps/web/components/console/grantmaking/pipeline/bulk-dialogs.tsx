@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Dialogs for pipeline bulk actions and board moves: assign reviewers (auto plan or manual), draft a bulk
 // message, tag, mark ineligible (R3, applicant-visible reason) and invite to an invite-only stage.

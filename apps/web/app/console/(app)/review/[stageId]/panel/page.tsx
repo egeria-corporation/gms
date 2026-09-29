@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-04 Panel mode: live aggregates (re-rendered every 5 s while visible — see LiveRefresh), per application
 // count / mean / min / max / standard deviation of submitted weighted scores (0–100) with a variance flag,
 // per-criterion means, reviewer calibration (their mean offset vs the panel), recommendation tally, panel notes

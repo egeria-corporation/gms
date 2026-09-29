@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Communications: email template overrides, notification rules, message threads (applications and awards),
 // a sent bulk message, and in-app notifications.
 import { json, type Row, type SeedContext } from '../context';

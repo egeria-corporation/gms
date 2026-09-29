@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Table-based, inline-styled email layout. 600px max width, light + dark safe, no images except the optional logo.
 
 import type { CSSProperties, ReactNode } from 'react';

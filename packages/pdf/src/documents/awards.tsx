@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H-02: award letter and grant agreement.
 
 import { Text, View } from '@react-pdf/renderer';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // TOTP MFA: staff enroll once, then verify each session (aal2) before the console opens.
 import { Card, CardContent, CardHeader } from '@gms/ui';
 import type { Metadata } from 'next';

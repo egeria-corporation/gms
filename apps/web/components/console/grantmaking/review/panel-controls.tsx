@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-04 panel controls: add a panel note for an application (review.panel_note) and manage panel sessions
 // (review.save_panel: schedule, go live, close).

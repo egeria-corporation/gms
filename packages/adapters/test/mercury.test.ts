@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { backoffDelay, DEFAULT_RETRY, fetchWithRetry, parseRetryAfter } from '../src/http';
 import { assertMercuryEnvironmentAllowed, KeyedMutex, MercuryApiError, RailConfigurationError } from '../src/payments/common';

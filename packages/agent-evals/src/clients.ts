@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scripted (no LLM) MCP / A2A / REST clients that drive the framework-agnostic handlers with real HTTP requests.
 import { handleA2a, handleApiV1, handleMcp, handleOAuth, type AgentEnv, type OAuthRoute } from '@gms/agents';
 import { ORIGIN } from './world';

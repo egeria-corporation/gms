@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Applications for every opportunity: the flagship's 142 letters of inquiry, ~800 applications from the
 // 2025–2026 cycles, and a few on the open opportunities. Submitted ones get immutable snapshots with receipts,
 // status history, eligibility results and decisions.

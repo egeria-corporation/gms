@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Start (or resume) an application to an opportunity's open stage.
 import { formatInZone } from '@gms/domain';
 import { Alert, Button, DeadlineChip, PageHeader } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Brand input for PDFs. Structurally compatible with @gms/email's Brand, so callers can pass the same object.
 
 export interface Brand {

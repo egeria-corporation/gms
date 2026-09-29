@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Agents (packages/agents): let a status change made by an agent acting for an applicant be recorded.
 --
 -- recordStatus() writes status_history rows for agent actors as actor_type = 'agent' and actor_id = the agent

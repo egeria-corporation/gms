@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Manual rail: record a payment made outside GMS, import payments from CSV, export payments as CSV.
 // ?state= (non-production): no-awards · error
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, DeniedState, ErrorState, PageHeader } from '@gms/ui';

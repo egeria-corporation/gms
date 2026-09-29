@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Capability detection shared by `pnpm doctor` and `pnpm db:up`.
 import { execSync } from 'node:child_process';
 import { loadDotEnv } from '../../packages/db/src/env';

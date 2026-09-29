@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // D-03 rubric panel: a radio scale per criterion (with point labels and guidance), optional comments, overall
 // comment, private note, recommendation, a live weighted score, "Save draft" (review.save) and "Submit review"

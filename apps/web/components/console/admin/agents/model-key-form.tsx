@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-04: optional model-provider key for built-in assistants (R3 + step-up). The key is never shown back.
 import {

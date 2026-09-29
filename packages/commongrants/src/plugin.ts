@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The GMS CommonGrants plugin: the custom fields GMS adds to CG models, and its custom search filters.
 //
 // `definePlugin` in @common-grants/sdk 0.8 only supports the Opportunity schema

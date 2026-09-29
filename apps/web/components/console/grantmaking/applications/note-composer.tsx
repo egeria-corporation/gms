@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Adds a staff-only internal note (notes.add) to an application or an organization.
 import { Button, Field, Textarea, toast } from '@gms/ui';

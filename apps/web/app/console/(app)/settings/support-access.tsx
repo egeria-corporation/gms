@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Button, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, toast, ToneChip } from '@gms/ui';
 import { CircleX, Clock, ShieldCheck } from 'lucide-react';

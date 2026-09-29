@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-05: record a (non-final) recommendation — approve with an amount, decline or defer — with a reason.
 // Recommendations feed the board docket and never notify the applicant.

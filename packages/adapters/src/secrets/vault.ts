@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // SecretStore backed by Supabase Vault (GMS_SECRET_STORE=vault). Secrets are created with
 // vault.create_secret(value, name, description) and read from vault.decrypted_secrets; refs are "vault:<uuid>".
 // Refs created earlier by the AES fallback ("aes:<uuid>") keep working: they are routed to AesSecretStore,

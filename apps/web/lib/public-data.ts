@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Public (anonymous, RLS-enforced) queries for the funding site, feeds and agent discovery files.
 import 'server-only';
 import { sql } from '@gms/db';

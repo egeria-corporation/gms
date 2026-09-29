@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Reviewer workspace guard: a reviewer (or program staff) in this tenant, signed in with TOTP (aal2) because
 // reviewers see applicant personal information.
 import 'server-only';

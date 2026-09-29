@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-06: audit rows plus the "View change" drawer (before/after JSON side by side and a key-level diff).
 // JSON is rendered as text inside <pre>, so React escapes it.

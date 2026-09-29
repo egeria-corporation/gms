@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- 1. award_ceiling_cents must see all child awards regardless of the caller's RLS (used by public_awards
 --    and by the payment ceiling trigger). It only returns a number, never row data.
 -- 2. Board members may change their vote while a docket is in session.

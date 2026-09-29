@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Button, cn, EmptyState, ToneChip } from '@gms/ui';
 import { Archive, CircleCheck, PenLine, Plus } from 'lucide-react';

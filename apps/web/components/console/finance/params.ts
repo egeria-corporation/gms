@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-side helpers for finance pages: URL paging/filter parsing and role checks. Pure (no React).
 import type { WorkspaceRole } from '@gms/domain';
 

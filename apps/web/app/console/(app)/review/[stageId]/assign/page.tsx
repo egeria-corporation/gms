@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-02 Assignment board: applications in the stage's competition (submitted / under review) × assigned
 // reviewers, reviewer load vs capacity, the round-robin auto-assign plan (dry run → apply), manual assign /
 // unassign, declared conflicts of interest highlighted.

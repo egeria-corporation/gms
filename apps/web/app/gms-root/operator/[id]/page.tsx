@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // G-02 Operator: tenant detail (states: no-access, access-granted). Multi-tenant mode only; platform operators only.
 // Tenant data is shown only while the workspace has granted this operator time-boxed support access, and
 // every render of that panel is recorded in the tenant's audit log (operator.record_view).

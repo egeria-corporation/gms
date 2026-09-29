@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { cn } from '@gms/ui';
 import Link from 'next/link';
 import { BRAND_PRESETS, type BrandChoice, type BrandPresetKey } from './preview-brand';

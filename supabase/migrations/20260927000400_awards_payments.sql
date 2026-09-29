@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Decisions, board dockets & votes, awards (with amendments), agreements & signatures,
 -- bank connections, payees (no bank numbers ever), schedules, batches, payments, reconciliation.
 

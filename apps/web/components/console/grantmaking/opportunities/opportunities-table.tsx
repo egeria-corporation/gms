@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-03 opportunities table (server mode, state in the URL) with status and program filters.
 import { OPPORTUNITY_STATUS, formatInZone, type OpportunityStatus } from '@gms/domain';

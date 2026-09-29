@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { PaginatedSchema, SortedResultsInfoSchema } from '@common-grants/sdk/schemas';
 import { zonedTimeToUtc } from '@gms/domain';
 import { describe, expect, it } from 'vitest';

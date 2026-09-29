@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CM-01 Email template editor (states: new). Key "new" creates a template; the branded preview is rendered on the server.
 import { MERGE_FIELDS } from '@gms/email';
 import { PageHeader } from '@gms/ui';

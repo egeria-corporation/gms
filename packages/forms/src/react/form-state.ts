@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // React-free helpers behind <GmsForm>: stable DOM ids, error indexing, per-page progress,
 // UI-schema rule evaluation and plain-text answer formatting. Visibility and requiredness always
 // come from the same functions the server uses (visibleFields / requiredFields).

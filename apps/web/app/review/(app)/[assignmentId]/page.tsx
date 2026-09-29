@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // D-03 Review an application: the application (read only through gms.reviewer_submission — blind fields
 // masked on blind stages) on the left, the rubric in the side panel from 1024px (score, comments, private
 // note, recommendation, live weighted score, save draft / submit) and panel notes.

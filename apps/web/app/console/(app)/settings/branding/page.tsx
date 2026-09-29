@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-01 Branding: live preview across a public page, a form, an email and an award letter; colors, heading
 // font, logo, email sender (states: contrast-autofix, unsaved, conflict).
 import { HEADING_FONTS, PageHeader } from '@gms/ui';

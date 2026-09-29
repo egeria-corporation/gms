@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // MCP server (stateless Streamable HTTP, JSON-RPC). See packages/agents/src/mcp.ts.
 import { handleMcp } from '@gms/agents';
 import { agentEnv } from '@/lib/server/agent-env';

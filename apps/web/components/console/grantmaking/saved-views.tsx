@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Saved views for a console table: apply a named set of URL filters, or save the current one (views.save).
 import {

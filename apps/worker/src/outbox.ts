@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Transactional outbox fan-out: notifications, emails, outbound webhooks, and follow-on system actions.
 import { createHmac, randomUUID } from 'node:crypto';
 import { systemContext, WEBHOOK_EVENTS_LIST, type Runtime } from '@gms/actions';

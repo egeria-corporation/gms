@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // G-01 Operator: tenants (states: empty). Multi-tenant mode only; platform operators only.
 import { originFor } from '@gms/actions';
 import {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // R-05 / R-06 / R-07 server actions: recommendations, final decisions, award drafting/activation,
 // amendments and agreements. Every mutation goes through act() (executor: validation, roles, RLS, audit).

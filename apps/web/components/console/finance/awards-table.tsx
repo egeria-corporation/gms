@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Awards list: status + flag chips (Agreement pending, On hold, Report overdue), amounts, URL filters, paging.
 import { AWARD_FLAGS, AWARD_STATUS, formatDateOnly } from '@gms/domain';

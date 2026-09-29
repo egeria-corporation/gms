@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-08 Bank connection: provider choice (Mercury token mode, fake/sandbox; OAuth pending partner approval;
 // or pay outside GMS), account → program mapping, webhook status.
 // ?state= (non-production): not-connected · connected · webhook-failing · error

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Response validation: Ajv 2020 with GMS keywords, applicant-friendly messages, save vs submit modes.
 import type { AnySchemaObject, ErrorObject, ValidateFunction } from 'ajv';
 import type { DataValidationCxt } from 'ajv/dist/types/index.js';

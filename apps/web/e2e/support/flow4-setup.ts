@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 4 precondition, run with tsx by flow4-payments.spec.ts (a separate process: generating the agreement
 // renders a React PDF). Through the real action layer it creates a fresh grantee organization, submits an LOI for
 // it, awards it with one installment, activates the award, and has the agreement signed and countersigned; then it

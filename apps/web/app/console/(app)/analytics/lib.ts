@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Helpers shared by the analytics screens (AN-01…AN-03).
 import { APPLICATION_STATUS, type ApplicationStatus } from '@gms/domain';
 

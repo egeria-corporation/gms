@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Server-side sample email in the draft brand (for the sandboxed iframe preview on S-01 and in setup).
 import 'server-only';
 import { previewProps, renderEmail } from '@gms/email';

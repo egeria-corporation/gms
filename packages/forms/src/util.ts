@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Small helpers shared by the forms core. Not part of the public API surface beyond the types.
 import { formatMoney } from '@gms/domain';
 

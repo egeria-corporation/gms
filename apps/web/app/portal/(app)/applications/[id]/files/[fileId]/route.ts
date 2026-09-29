@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Download an application attachment the signed-in person can see (checked under RLS first).
 import { getRuntime } from '@gms/actions';
 import { rls } from '@/lib/server/db';

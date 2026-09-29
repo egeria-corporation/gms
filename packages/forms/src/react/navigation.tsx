@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Button, cn, ProgressRail, type RailPage, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@gms/ui';
 import { ArrowLeft, ArrowRight } from 'lucide-react';

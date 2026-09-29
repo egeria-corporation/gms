@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-04 Eligibility: the pre-check questions (opportunities.set_eligibility). Config shapes match the evaluator
 // in packages/domain/src/eligibility.ts: yes_no {required}, number_max {max, unit}, number_min {min},

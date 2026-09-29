@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-01 rubric builder — edit an existing rubric. Locked (read-only, "Duplicate rubric") once any reviewer
 // has scored with it.
 // ?state= weights-invalid (lowers the first weight by 10 points) | locked (shows the locked notice)

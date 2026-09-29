@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // P-04 Batch approval: the exact payments, totals, source account + mask, method and fees; maker-checker
 // decision panel; approvals so far.
 // ?state= (non-production): awaiting-approval · creator · needs-second-approval · approved · submitted · rejected · error

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // CM-02 history: bulk messages with a delivery breakdown per message and an expandable recipient list
 // (loaded on demand) showing each delivery status, with the bounce reason.

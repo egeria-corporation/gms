@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Anthropic Messages API via fetch. Used only by optional features (drafting, summaries); output is always
 // labeled as a draft by the UI and applicant text is quoted/labeled by the caller.
 import { fetchWithRetry, isRecord, readJson, redact, type FetchLike } from '../http';

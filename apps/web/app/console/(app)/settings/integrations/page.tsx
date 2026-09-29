@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S-03 Integrations: Mercury (bank), email sending domain with DNS records, SSO (flag-gated), OpenGrants
 // syndication (states: dns-pending, dns-verified).
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader, Switch, ToneChip } from '@gms/ui';

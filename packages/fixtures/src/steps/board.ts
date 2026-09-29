@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Board dockets: a closed March 2026 meeting that approved Food Security grants, and a meeting in session today
 // with Rapid Response recommendations and some votes already cast.
 import type { Row, SeedContext } from '../context';

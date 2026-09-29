@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A deliberately small, safe Markdown subset for info blocks, attestation statements and
 // "formatted text" answers: paragraphs, headings, bulleted and numbered lists, block quotes,
 // **bold**, *italic*, `code` and [links](https://…). It parses to a tree that is rendered as React

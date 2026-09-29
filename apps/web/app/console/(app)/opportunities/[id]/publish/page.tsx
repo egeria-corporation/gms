@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-05 Review & publish: the readiness checklist (mirrors the server checks in opportunities.publish), the
 // lifecycle timeline Draft → Forecasted → Open → Closed → Archived in the workspace timezone, publish,
 // status changes allowed by opportunityMachine, and invitations to invite-only stages.

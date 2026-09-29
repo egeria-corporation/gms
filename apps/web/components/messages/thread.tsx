@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // Threaded messages between an applicant and the foundation (used in the portal and the console).
 import { formatInZone } from '@gms/domain';

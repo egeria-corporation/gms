@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // Grantee CRM (C-08) server actions: relationship profile (tags, owner, summary) and site visits.
 // Internal notes on an organization use addNoteAction from ../applications/actions.ts.

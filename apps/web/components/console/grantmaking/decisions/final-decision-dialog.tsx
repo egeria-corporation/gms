@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-05: record the final decision (decisions.record_final — R3, people only; no step-up). Two steps: choose,
 // then a confirmation that restates exactly what will happen. Approve → Awarded + a draft award (then the

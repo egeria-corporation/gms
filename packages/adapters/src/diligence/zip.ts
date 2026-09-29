@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Minimal ZIP reader (central directory + stored/deflate entries) for the IRS Pub 78 and revocation downloads,
 // so importing them needs no extra dependency. Not a general-purpose unzip: no zip64, no encryption.
 import { inflateRawSync } from 'node:zlib';

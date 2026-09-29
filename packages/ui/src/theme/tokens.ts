@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Machine-readable description of the design tokens, used by the /dev/design-system page.
 import { SCALE_STEPS } from './color';
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // FB-01 Forms: every form with its kind, published version, draft in progress, the stages that use it and when
 // it last changed. Create blank / from a template, import CommonGrants JSON, rename, archive.
 // Filters: `kind`, `archived=1`.   ?state= empty | import-error (opens the import dialog with a parse error)

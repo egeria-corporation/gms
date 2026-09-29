@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // E-01: create a board docket (board.create_docket), optionally auto-assembled from pending approve
 // recommendations (all opportunities, or one). Reports how many items were assembled, then opens the docket.

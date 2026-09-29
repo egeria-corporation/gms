@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-04 Details: the CommonGrants opportunity fields. Money is typed in dollars and saved as integer cents;
 // dates are wall-clock times in the workspace timezone (the action converts them).

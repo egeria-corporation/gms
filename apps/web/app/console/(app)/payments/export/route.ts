@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CSV export of payments (read-only, under RLS as the viewer). Same columns as the manual-rail import.
 import { paymentsToCsv, type PaymentCsvRow } from '@gms/adapters';
 import type { PaymentMethod } from '@gms/domain';

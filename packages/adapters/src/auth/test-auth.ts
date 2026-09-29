@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // TestAuthAdapter: magic links + TOTP MFA backed by gms_private.test_auth_* tables.
 // Only for the plain-Postgres tier and tests: requires GMS_AUTH_MODE=test and refuses production deploys.
 import { getDb, sql, type Database } from '@gms/db';

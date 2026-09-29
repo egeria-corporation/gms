@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import * as React from 'react';
 import { AppLink, type LinkComponent } from '../lib/link';
 import { cn, initials } from '../lib/utils';

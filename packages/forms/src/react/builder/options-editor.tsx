@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Button, Input } from '@gms/ui';
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';

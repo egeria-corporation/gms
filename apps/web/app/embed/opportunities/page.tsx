@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A-06 Embeddable opportunity list (iframe route). Links open the foundation's site in the top window.
 import { DeadlineChip, StatusChip } from '@gms/ui';
 import { listOpportunities } from '@/lib/public-data';

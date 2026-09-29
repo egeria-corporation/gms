@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Analytics data layer (M8). Each metric is defined ONCE here, as a materialized view in the `analytics`
 -- schema, and reused by the dashboards (AN-01), the report builder (AN-02) and BI tools (Metabase via the
 -- read-only gms_analytics role; see docs/analytics.md).

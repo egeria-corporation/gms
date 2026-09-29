@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CommonGrants API (https://commongrants.org) for this tenant.
 import { getRuntime } from '@gms/actions';
 import { handleCommonGrants } from '@gms/commongrants';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // In-memory emulation of the Mercury HTTP API, built from recorded-shape JSON fixtures, used as the `fetch`
 // of MercuryRail in unit and contract tests. It implements the documented semantics GMS relies on.
 import accountFixture from './fixtures/mercury/account.json';

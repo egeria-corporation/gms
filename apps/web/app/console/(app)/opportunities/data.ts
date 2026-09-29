@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Reads for the opportunity editor (C-04) and publish screen (C-05), under RLS and scoped to the workspace.
 import 'server-only';
 import type { Tx } from '@gms/db';

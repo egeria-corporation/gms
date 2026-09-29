@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 6 — Branding: the owner changes colors in S-01 → a color that fails contrast is auto-corrected with a
 // warning → the public site updates to the corrected color. Restores the original colors afterwards.
 import { expect, test, type Page } from '@playwright/test';

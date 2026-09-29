@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // R-07 agreement actions: generate / regenerate the PDF (agreements.generate) and send it for signature
 // (agreements.send, R2) after a confirmation naming the grantee organization admins who will be emailed.

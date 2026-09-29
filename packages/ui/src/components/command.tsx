@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Command as CommandPrimitive } from 'cmdk';
 import { Search } from 'lucide-react';

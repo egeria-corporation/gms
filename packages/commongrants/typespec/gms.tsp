@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // GMS extensions to the CommonGrants 0.4 models (@common-grants/core).
 //
 // Best effort: this file documents the custom fields GMS emits so other implementers can type them.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // C-03…C-05 opportunities: details, eligibility, stages & forms, distribution, duplicate, publish, status
 // changes and invitations to invite-only stages. Every mutation runs through act() (executor, RLS, audit).

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-08 Submission receipt (reference number + timestamp; receipt email sent).
 import { formatInZone } from '@gms/domain';
 import { Alert, Button, Card, CardContent, DescriptionList, PageHeader } from '@gms/ui';

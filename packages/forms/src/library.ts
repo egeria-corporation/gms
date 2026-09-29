@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The default question bank and form templates, including the flagship
 // "Youth Arts Fund 2027 — Letter of Inquiry". All sample data is fictional.
 import { defineForm, type Field, type FieldInput, FieldSchema, type FormModel } from './model';

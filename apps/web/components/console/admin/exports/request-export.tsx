@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-09: "Request full export" (owners and admins only).
 import { Alert, Button, toast } from '@gms/ui';

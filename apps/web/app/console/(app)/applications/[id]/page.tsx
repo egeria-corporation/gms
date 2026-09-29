@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // C-07 Application detail (staff): header (status, reference, organization, stage, amount, deadline/extension,
 // agent-submitted treatment), tabs for answers, eligibility, attachments, activity, messages and internal
 // notes, plus staff actions and the H-03 packet PDF.

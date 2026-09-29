@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use server';
 // S-08 Custom fields & taxonomies.
 import { revalidatePath } from 'next/cache';

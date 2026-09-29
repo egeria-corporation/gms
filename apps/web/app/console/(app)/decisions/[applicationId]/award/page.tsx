@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R-06 Award builder: amount, period, purpose, conditions, flags and the payment schedule for an
 // application's award (awards.draft, with program budget warnings); activation (awards.activate, R3, people
 // only); and, once active, amendments and supplements as child awards (awards.amend) — approved on the award page.

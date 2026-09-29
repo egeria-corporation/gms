@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Billing stub for self-hosted and v1 deployments: every workspace is on the self_hosted plan.
 import type { BillingAdapter } from '../types';
 

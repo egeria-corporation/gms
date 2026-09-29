@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { RequestClaims, Tx } from '@gms/db';
 import type { Actor, RiskTier, Scope, WorkspaceRole } from '@gms/domain';
 import type { z } from 'zod';

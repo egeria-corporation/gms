@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Read models for agents. Reads are not mutations: they run as the person under RLS (withRls), never as service.
 import type { ActionContext, ActionRole } from '@gms/actions';
 import { sql, withRls, type Tx } from '@gms/db';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // OpenAPI 3.1 and Arazzo 1.0 documents generated from the action registry and the REST aliases.
 import { actionAudience, listActions, type AnyAction } from '@gms/actions';
 import { RISK_TIER_LABELS, SCOPES } from '@gms/domain';
@@ -185,7 +185,7 @@ export function openApiDocument(env: AgentEnv): JsonObject {
         'People always confirm consequential (R2) actions: agents get `202` with a `confirmUrl`. People-only (R3) actions cannot be called with any token.',
         `Errors are RFC 9457 problem details. Agent guide: ${origin}/agents.md`,
       ].join('\n\n'),
-      license: { name: 'AGPL-3.0-only', identifier: 'AGPL-3.0-only' },
+      license: { name: 'AGPL-3.0-or-later', identifier: 'AGPL-3.0-or-later' },
     },
     servers: [{ url: `${origin}/api/v1` }],
     security: [{ oauth2: [] }, { bearerAuth: [] }],
@@ -477,5 +477,5 @@ export function arazzoDocument(env: AgentEnv): JsonObject {
 }
 
 export function arazzoYaml(env: AgentEnv): string {
-  return `# SPDX-License-Identifier: AGPL-3.0-only\n${stringify(arazzoDocument(env), { lineWidth: 0 })}`;
+  return `# SPDX-License-Identifier: AGPL-3.0-or-later\n${stringify(arazzoDocument(env), { lineWidth: 0 })}`;
 }

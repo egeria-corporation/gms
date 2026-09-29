@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Bearer-token resolution shared by /api/v1, /mcp, /a2a and the CommonGrants write routes.
 //
 // Accepted credentials (Authorization: Bearer <token> only; never query strings):

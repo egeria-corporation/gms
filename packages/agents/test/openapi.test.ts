@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { actionAudience, listActions, type Runtime } from '@gms/actions';
 import { createAjv } from '@gms/forms';
 import { describe, expect, it } from 'vitest';

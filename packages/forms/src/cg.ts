@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CommonGrants mapping: well-known paths, prefill from an applicant profile, and CG export/import.
 import { parseMoneyToCents } from '@gms/domain';
 import type { CgTransform, CompiledForm } from './compile';

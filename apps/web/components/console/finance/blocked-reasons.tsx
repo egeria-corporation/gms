@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Why an installment can't be paid yet: icon + text + color, with the next step.
 import { ToneChip } from '@gms/ui';
 import { AlarmClock, CircleAlert, CircleSlash, FileSignature, PauseCircle, PiggyBank, ShieldAlert, ShieldX, UserX, type LucideIcon } from 'lucide-react';

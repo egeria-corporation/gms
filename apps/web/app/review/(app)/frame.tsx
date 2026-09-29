@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The ReviewerShell with this tenant's brand, account menu and footer, shared by the reviewer pages.
 import { ReviewerShell } from '@gms/ui';
 import type { ReactNode } from 'react';

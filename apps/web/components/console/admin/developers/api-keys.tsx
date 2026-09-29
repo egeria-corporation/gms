@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // S-07: workspace API keys. Creating one is people-only (R3 + step-up); the key is shown once.
 import { formatInZone, SCOPES, STAFF_SCOPES, type Scope } from '@gms/domain';

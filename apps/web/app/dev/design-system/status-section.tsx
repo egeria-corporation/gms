@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // DS-04 Status & actor system.
 import { RISK_TIER_LABELS, STATUS_SETS, type RiskTier, type StatusKind, type StatusMeta } from '@gms/domain';
 import {

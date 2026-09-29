@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // RFC 4180 CSV: an incremental parser (quotes may span chunk boundaries; used for streamed IRS/OFAC files)
 // and a writer that neutralizes spreadsheet formula injection.
 

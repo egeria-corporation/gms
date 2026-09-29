@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // RSS 2.0 feed of published opportunities.
 import { formatMoney } from '@gms/domain';
 import { listOpportunities } from '@/lib/public-data';

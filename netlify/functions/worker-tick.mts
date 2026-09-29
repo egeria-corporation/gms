@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Netlify Scheduled Function: every minute, drain queued jobs and run time-based work (≤ 30s budget).
 import type { Config } from '@netlify/functions';
 import { tick } from '../../apps/worker/src/tick';

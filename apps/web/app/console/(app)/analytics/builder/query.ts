@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Runs a report-builder config under RLS with the shared report-definition query (packages/actions admin-extra),
 // so the page and the export worker compute the same numbers.
 import 'server-only';

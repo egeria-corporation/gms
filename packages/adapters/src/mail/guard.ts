@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // GuardedMailer: outside production deploys, real mailers (Resend/SMTP) may only deliver to Resend's test
 // addresses (…@resend.dev) or to hosts listed in GMS_EMAIL_ALLOWLIST. Everything else is captured in the dev
 // outbox with the tag redirected=true, so development and demo data can never email a real person.

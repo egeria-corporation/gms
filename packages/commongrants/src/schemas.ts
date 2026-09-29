@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // CommonGrants contract schemas.
 //
 // `@common-grants/sdk` 0.8 ships zod schemas for the Opportunity model, the shared fields

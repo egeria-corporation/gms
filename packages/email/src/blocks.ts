@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The content model every template produces. One model renders to both HTML and plain text,
 // so the text/plain part can never drift from the HTML part.
 

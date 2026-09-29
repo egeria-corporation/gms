@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Merge fields for staff-authored messages: {{applicant.first_name}}-style tokens.
 
 import { escapeHtml } from './escape';

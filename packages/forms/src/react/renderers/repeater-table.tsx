@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { formatMoney } from '@gms/domain';
 import { Button, cn, Field, FieldSet, Input, MoneyDisplay, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-06 Review before submit (+ attestation and AI-disclosure per workspace policy).
 import { compileForm, FormModelSchema } from '@gms/forms';
 import { formatInZone } from '@gms/domain';

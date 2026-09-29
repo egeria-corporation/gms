@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The single way UI server actions mutate data: build the human ActionContext for this request and run the
 // action through the executor (validation, roles, RLS, audit, outbox).
 import 'server-only';

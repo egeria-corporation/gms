@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Scenario: the foundation's "Ops Assistant" agent account (acting for Helen, the owner) over MCP and /api/v1.
 import { getAction } from '@gms/actions';
 import { LOI_VALID_RESPONSE } from '@gms/forms';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-13 Connected agents (applicant): list, scopes, activity, pause, revoke.
 import { formatInZone } from '@gms/domain';
 import { ActorBadge, PageHeader, Section } from '@gms/ui';

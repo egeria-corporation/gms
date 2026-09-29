@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared status chips for the operator console.
 import { ToneChip } from '@gms/ui';
 import { CircleAlert, CircleCheck, CirclePause, Clock, Hourglass } from 'lucide-react';

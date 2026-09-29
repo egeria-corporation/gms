@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Applicant organizations (the applicant commons): the named demo orgs, ~120 generated orgs with verified or
 // unverified EINs, and a pool of "alumni" orgs that only appear in past cycles. Each has an org_admin user.
 import { FIXTURE_IRS_RECORDS } from '@gms/adapters';

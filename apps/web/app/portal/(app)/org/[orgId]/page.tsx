@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-03 Organization profile & document vault (expiry nudges).
 import { formatMoney } from '@gms/domain';
 import { Alert, Badge, Card, CardContent, CardHeader, CardTitle, DescriptionList, PageHeader, Section } from '@gms/ui';

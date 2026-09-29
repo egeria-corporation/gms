@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Discovery documents for agents. The proxy rewrites /.well-known/{oauth-*,agent-card.json}, /llms.txt,
 // /llms-full.txt, /agents.md and /opportunities/{slug}.md (or Accept: text/markdown) here.
 import { handleDiscovery } from '@gms/agents';

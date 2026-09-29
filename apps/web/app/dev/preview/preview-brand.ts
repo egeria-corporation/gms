@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Brand used by the email and PDF preview routes: the current workspace's brand, or a fictional preset.
 import 'server-only';
 import { sourceLink } from '@/lib/config';

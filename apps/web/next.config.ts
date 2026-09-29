@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { execSync } from 'node:child_process';
 import type { NextConfig } from 'next';
 

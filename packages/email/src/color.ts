@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Small WCAG color helpers so tenant brand colors stay readable in light and dark mode.
 
 export interface Rgb {

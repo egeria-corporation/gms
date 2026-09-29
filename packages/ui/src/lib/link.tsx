@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Framework-agnostic links. Pass Next's <Link> as `linkComponent` to get client-side navigation.
 import type * as React from 'react';
 

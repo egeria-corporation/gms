@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { ReactNode } from 'react';
 import { BrandStyle } from '@/lib/brand-style';
 import { requestMeta, requireTenant } from '@/lib/tenant';

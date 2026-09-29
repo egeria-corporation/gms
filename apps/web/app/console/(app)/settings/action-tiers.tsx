@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { RISK_TIER_LABELS, TIER_ORDER, type RiskTier } from '@gms/domain';
 import { Badge, CheckboxField, Input, RiskChip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, toast } from '@gms/ui';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // SMTP mailer (nodemailer) configured from SMTP_URL, e.g. smtps://user:pass@smtp.example.org:465.
 // Outside production deploys it is always wrapped by GuardedMailer (./guard.ts).
 import nodemailer, { type Transporter } from 'nodemailer';

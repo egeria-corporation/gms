@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Labels, tones and icons for communications screens (bulk messages, deliveries, notification rules).
 import type { Tone } from '@gms/domain';
 import { CircleCheck, Clock, Flag, Loader, MailX, PencilLine, Send, TriangleAlert, type LucideIcon } from 'lucide-react';

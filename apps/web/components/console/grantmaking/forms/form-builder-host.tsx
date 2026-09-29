@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // FB-01…FB-08 host for the FormBuilder: saves the draft version (forms.save_draft with optimistic concurrency),
 // publishes (save, then forms.publish), loads older versions for the compare view, and starts a new version.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-15 Account: notifications, data export, delete request.
 import { Button, PageHeader, Section } from '@gms/ui';
 import { Bot, Download } from 'lucide-react';

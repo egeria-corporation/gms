@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Plain-language descriptions of audit entries for finance timelines.
 import type { Actor, Tone } from '@gms/domain';
 

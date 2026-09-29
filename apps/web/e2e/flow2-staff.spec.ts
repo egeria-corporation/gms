@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // E2E flow 2 — Staff: Jordan (program officer) builds a form in the console builder (FB-01/FB-02) and publishes
 // it → creates an opportunity (C-04), attaches the form to its first stage and schedules it to open a few minutes
 // from now → publishes it (C-05), so it is Forecasted → it shows on the public site and in

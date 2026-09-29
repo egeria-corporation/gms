@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 export { renderEmail, type RenderedEmail } from './render';
 export { DEFAULT_SOURCE_URL, resolveBrand, type Brand, type ResolvedBrand } from './brand';
 export { templates, previewProps, TEMPLATE_KEYS } from './templates';

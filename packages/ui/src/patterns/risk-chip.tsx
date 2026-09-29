@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { RISK_TIER_LABELS, type RiskTier, type Tone } from '@gms/domain';
 import { Eye, Hand, ShieldAlert, Undo2, type LucideIcon } from 'lucide-react';
 import * as React from 'react';

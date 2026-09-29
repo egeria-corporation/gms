@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // B-10 (accept & sign): review the award letter/agreement PDF and click-to-sign.
 import { agreementAttestation } from '@gms/actions/modules';
 import { formatInZone } from '@gms/domain';

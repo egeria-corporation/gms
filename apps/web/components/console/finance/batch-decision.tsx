@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // P-04 decision panel. Maker-checker: the creator never sees an Approve button. Approval is people-only (R3)
 // and asks for a fresh authenticator code (useStepUp) before it runs.

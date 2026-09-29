@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The ONLY place in GMS allowed to use dangerouslySetInnerHTML (enforced by eslint).
 import DOMPurify from 'isomorphic-dompurify';
 import * as React from 'react';

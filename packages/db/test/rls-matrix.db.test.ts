@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The RLS matrix: every public table x every principal x {select, insert, update, delete},
 // asserted exactly against packages/db/test/rls-expectations.ts. Every probe rolls back.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

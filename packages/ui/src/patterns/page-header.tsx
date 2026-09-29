@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import * as React from 'react';
 import { Breadcrumb, type BreadcrumbItem } from '../components/breadcrumb';
 import type { LinkComponent } from '../lib/link';

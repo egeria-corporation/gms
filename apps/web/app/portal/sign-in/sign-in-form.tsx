@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { Alert, Button, Field, Input } from '@gms/ui';
 import { MailCheck } from 'lucide-react';

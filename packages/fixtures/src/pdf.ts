@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A tiny, deterministic placeholder PDF (one page of Helvetica text). The seed stores one per agreement and
 // records its SHA-256, so signature hashes bind to real bytes without rendering the full agreement template.
 import { createHash } from 'node:crypto';

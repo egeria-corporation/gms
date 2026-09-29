@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Passage retrieval over an opportunity's published text (description, eligibility, guidelines, FAQ) with a
 // small BM25 ranker. Used by the A2A `answer_opportunity_question` skill to answer with citations.
 

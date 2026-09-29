@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 import { CircleAlert, FileText, LoaderCircle, ShieldAlert, ShieldCheck, Upload, X, type LucideIcon } from 'lucide-react';
 import * as React from 'react';

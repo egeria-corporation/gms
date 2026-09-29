@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // MercuryRail: the real Mercury API client (sandbox in development; production only behind an explicit
 // double opt-in). fetch-based with an injectable fetch for tests. Docs: https://docs.mercury.com/reference
 //

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Streams one application attachment to staff. Access is checked under RLS (the attachment row must be
 // visible to the viewer, in this workspace, on this application); infected files are refused.
 import { getRuntime } from '@gms/actions';

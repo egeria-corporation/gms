@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Periodic work. Used by the long-lived worker (graphile-worker crontab) and by the Netlify scheduled
 // function (worker-tick), which calls runScheduled() once a minute.
 import { expireApprovals, systemContext, type Runtime } from '@gms/actions';

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // FB-01 create a form: blank, from a built-in template (FORM_TEMPLATES) or a workspace template; opens the
 // builder on the new draft.

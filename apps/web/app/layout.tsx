@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { Toaster } from '@gms/ui';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';

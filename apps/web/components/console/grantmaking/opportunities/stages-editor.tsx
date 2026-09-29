@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 // C-04 Stages & forms: the opportunity's competitions (stages) in order, each with its window, access and
 // caps, and the forms attached to it (pinned to a published version).
