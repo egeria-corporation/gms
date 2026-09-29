@@ -4,7 +4,8 @@
 import { getDb, sql, type Database } from '@gms/db';
 import { jwtVerify, SignJWT } from 'jose';
 import { authenticator } from 'otplib';
-import { decrypt, deriveKey, encrypt, isProductionDeploy, randomToken, sha256Hex } from '../crypto';
+import { isInternetFacing } from '@gms/domain';
+import { decrypt, deriveKey, encrypt, randomToken, sha256Hex } from '../crypto';
 import type { AuthAdapter, CookieJar, Mailer, Session, TotpFactor } from '../types';
 
 export const SESSION_COOKIE = 'gms_session';
@@ -24,8 +25,8 @@ export function assertTestAuthAllowed(): void {
   if (process.env.GMS_AUTH_MODE !== 'test') {
     throw new Error('TestAuthAdapter requires GMS_AUTH_MODE=test.');
   }
-  if (isProductionDeploy()) {
-    throw new Error('TestAuthAdapter is never allowed in production deployments.');
+  if (isInternetFacing()) {
+    throw new Error('TestAuthAdapter is never allowed on an internet-facing deployment (production, staging or preview).');
   }
 }
 

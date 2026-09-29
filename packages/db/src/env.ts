@@ -40,3 +40,13 @@ export function databaseUrl(): string {
   loadDotEnv();
   return process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || EMBEDDED_URL;
 }
+
+/**
+ * A session-mode connection for work that needs one: the graphile-worker queue (LISTEN/NOTIFY, advisory locks)
+ * and migrations. On Supabase, DATABASE_URL is the transaction pooler (port 6543, right for serverless requests)
+ * and DATABASE_SESSION_URL the session pooler (port 5432). Falls back to DATABASE_URL.
+ */
+export function sessionDatabaseUrl(): string {
+  loadDotEnv();
+  return process.env.DATABASE_SESSION_URL || databaseUrl();
+}

@@ -180,6 +180,7 @@ export async function buildWorld(db: Database): Promise<World> {
     { workspace_id: wsA, endpoint_id: id('webhook:A'), event_id: 'evt-1', event_type: 'application.submitted', payload: json({}) },
     true,
   );
+  await seed('deployment_requests', 'deploy:A', { workspace_id: wsA, requested_by: u('ownerA'), kind: 'custom_domain', desired_domain: 'grants.a.rls.example', details: 'Our own domain, please.', contact_email: 'owner@a.rls.example' }, true);
   await seed('exports', 'export:A', { workspace_id: wsA, kind: 'applications', requested_by: u('programOfficerA') }, true);
   await seed(
     'custom_field_definitions',

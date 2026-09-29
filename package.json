@@ -30,7 +30,8 @@
     "build": "turbo run build",
     "e2e": "pnpm --filter @gms/web e2e",
     "shots": "pnpm --filter @gms/web shots",
-    "evals": "vitest run --project evals"
+    "evals": "vitest run --project evals",
+    "operator:add": "tsx scripts/operator-add.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

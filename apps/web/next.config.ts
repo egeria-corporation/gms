@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { execSync } from 'node:child_process';
 import type { NextConfig } from 'next';
+import { deployConfigProblems, deployedEnvironment } from './lib/deploy-config';
 
-// Never ship the test auth adapter to a production deploy.
-if (process.env.GMS_AUTH_MODE === 'test' && (process.env.CONTEXT === 'production' || process.env.GMS_ENV === 'production')) {
-  throw new Error('GMS_AUTH_MODE=test is not allowed in production builds.');
+// Deployed environments (production, staging) must be fully configured: never ship test sign-in, captured-only
+// email, a local database or a derived encryption key.
+const problems = deployConfigProblems(process.env);
+if (problems.length) {
+  throw new Error(`This ${deployedEnvironment(process.env)} build is not configured:\n- ${problems.join('\n- ')}`);
 }
 
 function gitSha(): string {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Transactional outbox fan-out: notifications, emails, outbound webhooks, and follow-on system actions.
 import { createHmac, randomUUID } from 'node:crypto';
-import { systemContext, WEBHOOK_EVENTS_LIST, type Runtime } from '@gms/actions';
+import { originFor, systemContext, WEBHOOK_EVENTS_LIST, type Runtime } from '@gms/actions';
 import { sql, type Outbox } from '@gms/db';
 import { addBusinessDays } from '@gms/domain';
 import type { Selectable } from 'kysely';
@@ -23,6 +23,31 @@ async function runSystem(rt: Runtime, ws: WorkspaceInfo | null, actionId: string
 type Handler = (rt: Runtime, ev: OutboxRow, ws: WorkspaceInfo | null, p: Payload) => Promise<void>;
 
 const handlers: Record<string, Handler> = {
+  async 'deployment.requested'(rt, ev, ws) {
+    // Custom deployment requests go to the platform team (GMS_SUPPORT_EMAIL); without it they are visible only
+    // in the operator console.
+    const to = process.env.GMS_SUPPORT_EMAIL?.trim();
+    if (!to || !ws || !ev.entity_id) return;
+    const r = await rt.db
+      .selectFrom('deployment_requests as d')
+      .leftJoin('profiles as p', 'p.id', 'd.requested_by')
+      .select(['d.kind', 'd.desired_domain', 'd.details', 'd.contact_email', 'd.created_at', 'p.full_name'])
+      .where('d.id', '=', ev.entity_id)
+      .executeTakeFirst();
+    if (!r) return;
+    await sendTemplate(rt, null, to, 'deployment_request', {
+      foundationName: ws.name,
+      workspaceSlug: ws.slug,
+      requesterName: r.full_name ?? r.contact_email,
+      contactEmail: r.contact_email,
+      kind: r.kind as 'custom_domain' | 'dedicated' | 'other',
+      desiredDomain: r.desired_domain,
+      details: r.details,
+      requestedAt: r.created_at,
+      timeZone: ws.timezone,
+      operatorUrl: `${originFor(null)}/operator/${ws.id}`,
+    });
+  },
   async 'application.submitted'(rt, ev, ws, p) {
     if (!ws || !ev.entity_id) return;
     const app = await rt.db

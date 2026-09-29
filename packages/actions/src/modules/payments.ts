@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PaymentRail, RailPaymentMethod } from '@gms/adapters/types';
 import { sql, type Tx } from '@gms/db';
-import { batchMachine, DomainError, formatMoney, mercuryFeeCents, paymentMachine, PAYMENT_METHOD_LABELS, type PaymentMethod } from '@gms/domain';
+import { batchMachine, DomainError, formatMoney, isProductionEnvironment, mercuryFeeCents, paymentMachine, PAYMENT_METHOD_LABELS, type PaymentMethod } from '@gms/domain';
 import { z } from 'zod';
 import { defineAction, type RunContext } from '../define';
 import { DateOnly, found, IdOut, json, Ok, transition, uid, uuid, ws } from './lib';
@@ -42,6 +42,9 @@ export const connectBank = defineAction({
   idempotent: true,
   async run(input, ctx) {
     const w = ws(ctx);
+    if (input.provider === 'mercury' && input.environment === 'fake' && isProductionEnvironment()) {
+      throw new DomainError('forbidden', 'The simulated bank is only for testing. Connect Mercury or record payments with the manual rail.');
+    }
     if (input.provider === 'mercury' && input.environment === 'sandbox' && !input.apiToken) {
       throw new DomainError('validation_failed', 'Paste a Mercury sandbox API token.', {}, [{ pointer: '/apiToken', message: 'Required for the sandbox.' }]);
     }

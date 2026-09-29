@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { agentConfirmationRequest, collaboratorInvite, magicLink, staffInvite } from './account';
+import { agentConfirmationRequest, collaboratorInvite, deploymentRequest, magicLink, staffInvite } from './account';
 import { deadlineReminder, revisionsRequested, statusChange, submissionReceipt } from './applications';
 import {
   agreementReady,
@@ -32,6 +32,7 @@ export const templates = {
   bulk_message: bulkMessage,
   staff_invite: staffInvite,
   approval_needed: approvalNeeded,
+  deployment_request: deploymentRequest,
 } as const;
 
 export type TemplateKey = keyof typeof templates;

@@ -48,6 +48,7 @@ import {
   type TenantRow,
 } from '../data';
 import { HEALTH_CHIP, WorkspaceStatusChip } from '../ui';
+import { setDeploymentRequestStatus } from './actions';
 import { TenantControls, type FlagRow } from './tenant-controls';
 
 export const metadata: Metadata = { title: 'Tenant detail' };
@@ -116,6 +117,18 @@ export default async function OperatorTenantPage({ params, searchParams }: { par
     }
   }
 
+  // Custom deployment requests are addressed to the platform team, so they show without a support grant.
+  const deployments = preview
+    ? []
+    : await getRuntime()
+        .db.selectFrom('deployment_requests as d')
+        .leftJoin('profiles as p', 'p.id', 'd.requested_by')
+        .select(['d.id', 'd.kind', 'd.desired_domain', 'd.details', 'd.contact_email', 'd.status', 'd.created_at', 'p.full_name'])
+        .where('d.workspace_id', '=', tenant.id)
+        .orderBy('d.created_at', 'desc')
+        .limit(20)
+        .execute();
+
   const h = HEALTH_CHIP[healthLevel(tenant.health)];
   const origin = originFor(tenant.slug);
 
@@ -170,6 +183,48 @@ export default async function OperatorTenantPage({ params, searchParams }: { par
               />
             )}
           </Section>
+
+          {deployments.length ? (
+            <Section title="Custom deployment requests" description="Requests for the foundation’s own domain or a dedicated deployment. Reply to the contact by email; status changes are audited in the workspace’s log.">
+              <ul className="grid gap-3">
+                {deployments.map((d) => (
+                  <li key={d.id} className="grid gap-2 rounded-lg border bg-card p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong>
+                        {d.kind === 'custom_domain' ? 'Own domain' : d.kind === 'dedicated' ? 'Dedicated deployment' : 'Other'}
+                        {d.desired_domain ? ` · ${d.desired_domain}` : ''}
+                      </strong>
+                      <span className="text-muted-foreground">
+                        {d.status === 'new' ? 'New' : d.status === 'in_review' ? 'In review' : 'Closed'} · {formatDateTime(d.created_at, { dateStyle: 'medium' })}
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{d.details}</p>
+                    <p className="text-muted-foreground">
+                      From {d.full_name ?? 'a workspace admin'} · <a className="underline underline-offset-2" href={`mailto:${d.contact_email}`}>{d.contact_email}</a>
+                    </p>
+                    <form action={setDeploymentRequestStatus} className="flex flex-wrap gap-2">
+                      <input type="hidden" name="requestId" value={d.id} />
+                      <input type="hidden" name="workspaceId" value={tenant.id} />
+                      {d.status !== 'in_review' ? (
+                        <Button type="submit" name="status" value="in_review" size="sm" variant="outline">
+                          Mark in review
+                        </Button>
+                      ) : null}
+                      {d.status !== 'closed' ? (
+                        <Button type="submit" name="status" value="closed" size="sm" variant="outline">
+                          Close
+                        </Button>
+                      ) : (
+                        <Button type="submit" name="status" value="new" size="sm" variant="ghost">
+                          Reopen
+                        </Button>
+                      )}
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
 
           <Section title="Workspace controls" description="Feature flags, status and plan. Changes are audited in the workspace’s log with your name.">
             <TenantControls workspaceId={tenant.id} name={tenant.displayName} flags={flags} status={tenant.status} plan={tenant.plan} readOnly={preview} />

@@ -82,7 +82,8 @@ describe('OpenAPI 3.1', () => {
   });
 
   it('marks R3 actions people-only and not callable by agents', () => {
-    const r3 = listActions().filter((a) => a.riskTier === 'R3');
+    // System-only actions (run by the server itself) are never in the API document; see the test above.
+    const r3 = listActions().filter((a) => a.riskTier === 'R3' && actionAudience(a) !== 'system');
     expect(r3.map((a) => a.id)).toContain('payments.approve_batch');
     for (const a of r3) {
       const op = doc.paths[`/actions/${a.id}`]!.post!;

@@ -11,6 +11,8 @@ import { requireStaff } from '@/lib/auth';
 import { rls } from '@/lib/server/db';
 import { forcedState } from '@/lib/site';
 import { requireTenant } from '@/lib/tenant';
+import { config } from '@/lib/config';
+import { DeploymentRequest, type DeploymentRequestRow } from './deployment-request';
 import { SupportAccess, type SupportGrantRow } from './support-access';
 import { ActionTiers, type ActionTierRow } from './action-tiers';
 import { WorkspaceForm } from './workspace-form';
@@ -54,8 +56,24 @@ export default async function WorkspaceSettingsPage({ searchParams }: { searchPa
         .limit(10)
         .execute(),
     ]);
-    return { ws, settings, grants };
+    const deployments = config.customDomains
+      ? []
+      : await trx
+          .selectFrom('deployment_requests')
+          .select(['id', 'kind', 'desired_domain', 'status', 'created_at'])
+          .where('workspace_id', '=', tenant.id)
+          .orderBy('created_at', 'desc')
+          .limit(10)
+          .execute();
+    return { ws, settings, grants, deployments };
   });
+  const deploymentRows: DeploymentRequestRow[] = data.deployments.map((d) => ({
+    id: d.id,
+    kind: d.kind as DeploymentRequestRow['kind'],
+    desiredDomain: d.desired_domain,
+    status: d.status as DeploymentRequestRow['status'],
+    createdAt: d.created_at,
+  }));
 
   // Platform operators aren't visible to tenants under RLS; list them (name + email only) for admins choosing whom to grant.
   const operators = canEdit
@@ -117,6 +135,11 @@ export default async function WorkspaceSettingsPage({ searchParams }: { searchPa
         >
           <SupportAccess grants={grants} operators={operators.map((o) => ({ id: o.user_id, label: `${o.full_name || o.email} (${o.email})` }))} canEdit={canEdit} timeZone={tenant.timezone} />
         </Section>
+        {config.customDomains ? null : (
+          <Section title="Custom domain or dedicated deployment" description="Ask for your own domain or a separate GMS deployment for your foundation.">
+            <DeploymentRequest requests={deploymentRows} canEdit={canEdit} defaultEmail={viewer.email} host={new URL(tenant.origin).host} timeZone={tenant.timezone} />
+          </Section>
+        )}
         <Section
           title="Action risk tiers"
           description="Each action GMS can take has a risk tier. You can raise a tier for this workspace — for example, so agents must ask a person before saving answers — but never lower one. Raising a tier asks for your authenticator code."

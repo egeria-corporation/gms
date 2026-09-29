@@ -43,6 +43,7 @@ describe('templates', () => {
         'bulk_message',
         'collaborator_invite',
         'deadline_reminder',
+        'deployment_request',
         'magic_link',
         'message_notification',
         'payee_onboarding',

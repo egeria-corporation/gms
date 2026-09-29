@@ -44,3 +44,9 @@ export async function revokeSupportAccessAction(id: string) {
   revalidatePath(PATH);
   return r;
 }
+
+export async function requestCustomDeploymentAction(input: { kind: 'custom_domain' | 'dedicated' | 'other'; desiredDomain: string; details: string; contactEmail: string }) {
+  const r = await act<{ id: string }>('deployments.request', input);
+  revalidatePath(PATH);
+  return r;
+}

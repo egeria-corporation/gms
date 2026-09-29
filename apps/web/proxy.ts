@@ -62,7 +62,7 @@ export function proxy(request: NextRequest) {
     return new NextResponse('Not found', { status: 404 });
   }
   const rootPath = res.kind === 'root' || (gms.mode === 'single' && pathname.startsWith('/setup'));
-  const passThrough = /^\/(?:_next|api\/storage|auth|fonts|brand|webhooks)(?:\/|$)/.test(pathname) || pathname.includes('.');
+  const passThrough = /^\/(?:_next|api\/storage|api\/health|auth|fonts|brand|webhooks)(?:\/|$)/.test(pathname) || pathname.includes('.');
   if (!rootPath && isDiscoveryPath(pathname, request.headers.get('accept'))) {
     // Agent discovery documents are served by one route handler; it rebuilds the public URL from x-gms-pathname.
     const url = request.nextUrl.clone();

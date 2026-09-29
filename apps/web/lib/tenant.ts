@@ -67,7 +67,11 @@ async function load(key: { slug?: string; host?: string }): Promise<Tenant | nul
     ]);
   let customDomain: string | null = null;
   if (key.slug) q = q.where('w.slug', '=', key.slug);
-  else {
+  else if (!config.customDomains) {
+    // Hosted service: unknown hosts never resolve to a tenant.
+    ttlCache.set(cacheKey, { at: Date.now(), tenant: null });
+    return null;
+  } else {
     customDomain = key.host ?? null;
     q = q.where('w.id', 'in', (eb) => eb.selectFrom('workspace_domains').select('workspace_id').where('hostname', '=', key.host ?? '').where('verified_at', 'is not', null));
   }

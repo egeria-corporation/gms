@@ -3,11 +3,11 @@
 // is safe to serve (RLS on every table, no privileges leaked to Supabase's anon/authenticated roles, the
 // request roles exist) and that the database has what this version expects. Exits non-zero on any failure.
 import pg from 'pg';
-import { databaseUrl, loadDotEnv } from '../packages/db/src/env';
+import { loadDotEnv, sessionDatabaseUrl } from '../packages/db/src/env';
 import { listMigrations, migrate } from '../packages/db/src/migrate';
 
 loadDotEnv();
-const url = databaseUrl();
+const url = sessionDatabaseUrl();
 const failures: string[] = [];
 const ok = (m: string) => console.log(`  ✓ ${m}`);
 const fail = (m: string) => {

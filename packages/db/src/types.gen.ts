@@ -608,6 +608,19 @@ export interface DemographicResponses {
   last_modified_at: Generated<Timestamp>;
 }
 
+export interface DeploymentRequests {
+  id: Generated<string>;
+  workspace_id: string;
+  requested_by: string | null;
+  kind: string;
+  desired_domain: string | null;
+  details: string;
+  contact_email: string;
+  status: Generated<string>;
+  created_at: Generated<Timestamp>;
+  last_modified_at: Generated<Timestamp>;
+}
+
 export interface DevOutbox {
   id: Generated<string>;
   workspace_id: string | null;
@@ -1695,6 +1708,7 @@ export interface DB {
   custom_field_definitions: CustomFieldDefinitions;
   decisions: Decisions;
   demographic_responses: DemographicResponses;
+  deployment_requests: DeploymentRequests;
   dev_outbox: DevOutbox;
   diligence_checks: DiligenceChecks;
   docket_items: DocketItems;
