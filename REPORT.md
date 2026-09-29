@@ -107,7 +107,7 @@ All decisions are in `DECISIONS.md` (date · decision · reason · how to revers
 
 **Other defaults (no confirmation needed):** embedded Postgres tier for development and tests; MCP and A2A hand-rolled on the official types (stateless 2026-07-28; A2A v1.0 JSON shapes not verified against the final spec text); frame policy `'self'` so GMS can show its own PDF previews; the console follows the OS light/dark preference.
 
-**Still open:** the security contact address in `docs/security.md` is a placeholder.
+**Security contact:** support@opengrants.io (`SECURITY.md`, `docs/security.md`).
 
 ## 8. Known issues and deferred items
 
@@ -128,7 +128,6 @@ All decisions are in `DECISIONS.md` (date · decision · reason · how to revers
 4. **Email:** verify the sending domain (SPF, DKIM, DMARC) in Resend; point the Resend webhook at `/webhooks/email`.
 5. **SAML SSO:** Supabase paid feature; flag-gated in GMS.
 6. **SOC 2 path:** the audit log, access reviews (team page), MFA enforcement, support-access grants and data export give a starting control set; add vendor reviews, incident response and change-management evidence.
-7. **Security contact:** replace the placeholder address in `docs/security.md`.
 
 ## 10. Links
 

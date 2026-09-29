@@ -4,7 +4,7 @@ GMS handles applicants' personal information, foundations' financial data, and i
 
 ## Reporting a vulnerability
 
-Please email **security@egeria.example** (replace with the project's security contact before launch) with a description, reproduction steps and the affected version (shown in every page footer). Don't open a public issue. We aim to acknowledge reports within two business days and to publish an advisory with the fix.
+Please email **support@opengrants.io** with a description, reproduction steps and the affected version (shown in every page footer). Don't open a public issue. We aim to acknowledge reports within two business days and to publish an advisory with the fix.
 
 ## Threat model (summary)
 
