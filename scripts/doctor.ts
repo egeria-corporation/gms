@@ -1,5 +1,6 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // `pnpm doctor`: detects capabilities, prints which adapters are active, and writes ENVIRONMENT.md.
+import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -33,8 +34,14 @@ const live = {
   'Resend (delivered@resend.dev)': Boolean(e.RESEND_API_KEY),
   'Supabase Auth magic link': Boolean(e.SUPABASE_URL && e.SUPABASE_SERVICE_ROLE_KEY),
   'Netlify preview deploy': Boolean(e.NETLIFY_AUTH_TOKEN && e.NETLIFY_SITE_ID),
-  'GitHub push / draft PR': Boolean(e.GITHUB_TOKEN) || tools.gh !== null,
+  // Pushing needs a configured remote as well as credentials (gh login or GITHUB_TOKEN).
+  'GitHub push / draft PR': hasGitRemote() && (Boolean(e.GITHUB_TOKEN) || tools.gh !== null),
 };
+
+function hasGitRemote(): boolean {
+  const r = spawnSync('git', ['remote'], { cwd: repoRoot(), encoding: 'utf8' });
+  return r.status === 0 && r.stdout.trim().length > 0;
+}
 
 const lines: string[] = [];
 lines.push('# ENVIRONMENT', '');
@@ -60,7 +67,7 @@ lines.push(
   '## Notes',
   '',
   '- Docker Desktop is installed but its daemon did not start during this run, so tier 1 (local Supabase) was not used.',
-  '- No Supabase, Mercury, Resend, Netlify or GitHub credentials were present; every external dependency ran on its fake adapter.',
+  '- No Supabase, Mercury, Resend or Netlify credentials were present; every external dependency ran on its fake adapter. The repository has no git remote, so nothing was pushed.',
   '',
 );
 writeFileSync(join(repoRoot(), 'ENVIRONMENT.md'), lines.join('\n'));

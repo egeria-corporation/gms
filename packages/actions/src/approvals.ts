@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Confirming or rejecting an agent's R2 request. Confirmation always happens inside GMS, by a person.
 import { createHash } from 'node:crypto';
 import { sql, withRls, withService, type Database } from '@gms/db';

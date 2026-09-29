@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // State machines for every status column. The action executor calls assertTransition()
 // before writing a status change; the database CHECK constraints only guard the value set.
 import { DomainError } from './errors';

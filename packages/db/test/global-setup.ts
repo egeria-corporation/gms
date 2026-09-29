@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Ensures a Postgres server is reachable for DB tests; starts the embedded one when needed.
 import pg from 'pg';
 import { loadDotEnv } from '../src/env';

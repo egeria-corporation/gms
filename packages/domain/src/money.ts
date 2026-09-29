@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Money is always integer cents + ISO currency. Never floats in storage or arithmetic.
 
 export interface Money {

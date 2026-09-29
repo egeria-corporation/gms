@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import {
+  addBusinessDays,
   APPLICATION_STATUS,
   applicationMachine,
   assertTransition,
@@ -70,6 +71,13 @@ describe('state machines', () => {
 });
 
 describe('dates', () => {
+  it('adds business days from the calendar day in the workspace timezone', () => {
+    // Friday 5:30 PM in Los Angeles is already Saturday in UTC; counting starts from Friday.
+    expect(addBusinessDays('2027-03-06T01:30:00Z', 1, 'America/Los_Angeles')).toBe('2027-03-08');
+    expect(addBusinessDays('2027-03-06T01:30:00Z', 3, 'America/Los_Angeles')).toBe('2027-03-10');
+    expect(addBusinessDays('2027-03-02T17:30:00Z', 3, 'America/Los_Angeles')).toBe('2027-03-05');
+    expect(addBusinessDays(new Date('2027-03-02T17:30:00Z'), 10, 'UTC')).toBe('2027-03-16');
+  });
   it('converts PT wall-clock deadlines to UTC across DST', () => {
     expect(zonedTimeToUtc('2026-12-05T17:00', 'America/Los_Angeles').toISOString()).toBe('2026-12-06T01:00:00.000Z');
     expect(zonedTimeToUtc('2026-07-01T17:00', 'America/Los_Angeles').toISOString()).toBe('2026-07-02T00:00:00.000Z');

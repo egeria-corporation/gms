@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { databaseUrl, loadDotEnv } from '../packages/db/src/env';
 import { dropDatabase, ensureDatabase, migrate } from '../packages/db/src/migrate';
 

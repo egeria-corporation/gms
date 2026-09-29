@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# GMS on Netlify: Next.js runtime + a scheduled worker tick every minute + background functions.
+[build]
+  base = "/"
+  command = "pnpm install --frozen-lockfile && pnpm --filter @gms/web build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "11.18.0"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["pg", "graphile-worker", "@react-pdf/renderer", "exceljs"]
+
+# Production must never run with the test auth adapter (next.config.ts also refuses to build).
+[context.production.environment]
+  GMS_ENV = "production"
+
+[context.deploy-preview.environment]
+  GMS_ENV = "preview"

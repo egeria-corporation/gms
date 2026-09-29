@@ -2,10 +2,22 @@
   "name": "@gms/agent-evals",
   "version": "0.1.0",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p tsconfig.json" },
-  "dependencies": { "@gms/agents": "workspace:*", "@modelcontextprotocol/sdk": "^1.30.1" },
-  "devDependencies": {  }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@gms/actions": "workspace:*",
+    "@gms/agents": "workspace:*",
+    "@gms/db": "workspace:*",
+    "@gms/domain": "workspace:*",
+    "@gms/forms": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {}
 }

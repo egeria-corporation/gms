@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Eligibility pre-check rules (A-04, check_eligibility tool, A2A skill).
 
 export type EligibilityRuleKind = 'yes_no' | 'number_max' | 'number_min' | 'select_in' | 'multi_any';

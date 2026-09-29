@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Canonical statuses, exact UI labels, and tones. Status is always shown as icon + text + color.
 
 export type Tone = 'neutral' | 'info' | 'progress' | 'success' | 'warning' | 'danger' | 'muted' | 'agent';
@@ -58,6 +58,15 @@ export const AWARD_FLAGS = def({
   report_overdue: { label: 'Report overdue', tone: 'danger', icon: 'alarm-clock' },
 });
 export type AwardFlag = keyof typeof AWARD_FLAGS;
+
+export const AGREEMENT_STATUS = def({
+  draft: { label: 'Draft', tone: 'muted', icon: 'file-pen-line' },
+  sent: { label: 'Awaiting signature', tone: 'info', icon: 'file-signature' },
+  signed: { label: 'Signed by grantee', tone: 'progress', icon: 'user-check' },
+  countersigned: { label: 'Fully signed', tone: 'success', icon: 'badge-check' },
+  void: { label: 'Void', tone: 'muted', icon: 'circle-slash' },
+});
+export type AgreementStatus = keyof typeof AGREEMENT_STATUS;
 
 export const PAYEE_STATUS = def({
   invite_sent: { label: 'Invite sent', tone: 'info', icon: 'mail' },
@@ -134,6 +143,7 @@ export const STATUS_SETS = {
   review: REVIEW_STATUS,
   award: AWARD_STATUS,
   awardFlag: AWARD_FLAGS,
+  agreement: AGREEMENT_STATUS,
   payee: PAYEE_STATUS,
   payment: PAYMENT_STATUS,
   batch: BATCH_STATUS,

@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- GMS foundation: extensions, roles, helper functions, tenancy, identity,
 -- applicant commons, platform tables (audit, outbox, webhooks) and agent tables.
 --

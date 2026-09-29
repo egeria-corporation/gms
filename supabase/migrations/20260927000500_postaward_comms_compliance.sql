@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Post-award reporting, change requests, site visits, communications, due diligence & sanctions.
 
 create table public.report_requirements (

@@ -1,0 +1,11 @@
+{
+  "id": "evt_0000000000000000",
+  "resourceType": "transaction",
+  "resourceId": "txn_0000000000000000",
+  "operationType": "update",
+  "resourceVersion": 2,
+  "occurredAt": "2026-09-27T12:10:00.000Z",
+  "changedPaths": ["status", "postedAt"],
+  "mergePatch": { "postedAt": "2026-09-27T12:10:00.000Z", "status": "sent" },
+  "previousValues": { "postedAt": null, "status": "pending" }
+}

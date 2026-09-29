@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import type { RequestClaims, Tx } from '@gms/db';
 import type { Actor, RiskTier, Scope, WorkspaceRole } from '@gms/domain';
 import type { z } from 'zod';
@@ -32,6 +32,8 @@ export interface ActionContext {
   /** Verified claims used for RLS. System actors run with the service role instead. */
   claims: RequestClaims;
   aal: 'aal1' | 'aal2';
+  /** When the person last verified their authenticator (ISO). Step-up actions need this to be recent. */
+  stepUpAt?: string | null;
   requestId: string;
   channel: Channel;
   ip?: string | null;
@@ -101,7 +103,10 @@ const registry = new Map<string, AnyAction>();
 
 export function defineAction<I extends z.ZodType, O extends z.ZodType>(def: ActionDefinition<I, O>): ActionDefinition<I, O> {
   if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(def.id)) throw new Error(`invalid action id: ${def.id}`);
-  if (registry.has(def.id) && registry.get(def.id) !== (def as unknown as AnyAction)) {
+  // Hot reload re-evaluates action modules while this registry survives, so outside production a
+  // re-registration replaces the old definition. Duplicate ids across modules are caught statically by
+  // packages/actions/test/registry.test.ts.
+  if (registry.has(def.id) && registry.get(def.id) !== (def as unknown as AnyAction) && process.env.NODE_ENV === 'production') {
     throw new Error(`duplicate action id: ${def.id}`);
   }
   if (def.riskTier === 'R3' && def.roles.includes('public')) throw new Error(`${def.id}: R3 actions cannot be public`);

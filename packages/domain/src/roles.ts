@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Workspace roles, applicant org roles, agent scopes, and risk tiers.
 
 export const WORKSPACE_ROLES = ['owner', 'admin', 'program_officer', 'finance', 'reviewer', 'board', 'auditor'] as const;

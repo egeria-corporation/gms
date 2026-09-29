@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The single path for every mutation: UI server actions, /api/v1, MCP, A2A, CommonGrants apply routes, workers.
 import { createHash, randomBytes } from 'node:crypto';
 import { getDb, sql, withRls, withService, type Database, type Tx } from '@gms/db';
@@ -13,7 +13,7 @@ import {
   type Scope,
   type WorkspaceRole,
 } from '@gms/domain';
-import { z } from 'zod';
+import { type z } from 'zod';
 import type { ActionContext, AnyAction, ApprovalPreview, AuditEntry, RunContext } from './define';
 import { getAction } from './define';
 import type { ActionDeps } from './deps';
@@ -125,8 +125,12 @@ export function createExecutor(deps: ActionDeps, opts: { db?: Database } = {}): 
         riskTier: 'R3',
       });
     }
-    if (action.stepUp && ctx.actor.type === 'human' && ctx.aal !== 'aal2') {
-      throw new DomainError('step_up_required', 'Confirm with your authenticator app to continue.', { requiredAal: 'aal2' });
+    if (action.stepUp && ctx.actor.type === 'human') {
+      const windowS = Number(process.env.GMS_STEP_UP_WINDOW_S ?? 900);
+      const fresh = ctx.stepUpAt ? deps.clock().getTime() - Date.parse(ctx.stepUpAt) <= windowS * 1000 : false;
+      if (ctx.aal !== 'aal2' || !fresh) {
+        throw new DomainError('step_up_required', 'Confirm with your authenticator app to continue.', { requiredAal: 'aal2', windowSeconds: windowS });
+      }
     }
 
     // 4. Idempotency replay.
@@ -218,7 +222,14 @@ export function createExecutor(deps: ActionDeps, opts: { db?: Database } = {}): 
     } catch (err) {
       if (isDomainError(err)) throw err;
       const mapped = fromPgError(err);
-      if (mapped) throw mapped;
+      if (mapped) {
+        // Outside production, keep the database's own message to make policy failures debuggable.
+        if (process.env.NODE_ENV !== 'production' && process.env.GMS_ENV !== 'production') {
+          const e = err as { message?: string; table?: string; constraint?: string };
+          (mapped.details as Record<string, unknown>).pg = { message: e.message, table: e.table, constraint: e.constraint };
+        }
+        throw mapped;
+      }
       throw err;
     }
   }

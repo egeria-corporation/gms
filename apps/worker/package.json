@@ -2,10 +2,36 @@
   "name": "@gms/worker",
   "version": "0.1.0",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p tsconfig.json" },
-  "dependencies": { "@gms/db": "workspace:*", "@gms/domain": "workspace:*", "@gms/actions": "workspace:*", "@gms/adapters": "workspace:*", "@gms/email": "workspace:*", "@gms/pdf": "workspace:*", "@gms/commongrants": "workspace:*", "graphile-worker": "^0.18.0", "exceljs": "^4.4.0" },
-  "devDependencies": {  }
+  "exports": {
+    ".": "./src/tasks.ts",
+    "./outbox": "./src/outbox.ts",
+    "./exports": "./src/exports.ts",
+    "./tick": "./src/tick.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "tick": "tsx -e \"import('./src/tick.ts').then(m=>m.tick()).then(r=>{console.log(r);process.exit(0)})\""
+  },
+  "dependencies": {
+    "@gms/db": "workspace:*",
+    "@gms/domain": "workspace:*",
+    "@gms/actions": "workspace:*",
+    "@gms/adapters": "workspace:*",
+    "@gms/email": "workspace:*",
+    "@gms/pdf": "workspace:*",
+    "@gms/commongrants": "workspace:*",
+    "graphile-worker": "^0.18.0",
+    "exceljs": "^4.4.0",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.20.6",
+    "@netlify/functions": "^6.0.0"
+  }
 }

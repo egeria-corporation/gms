@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Typed domain errors that map 1:1 onto RFC 9457 problem details.
 
 export type ErrorCode =

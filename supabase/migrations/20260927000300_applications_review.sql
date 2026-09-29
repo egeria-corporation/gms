@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Applications, submissions (immutable), collaborators, attachments, eligibility results,
 -- review stages, rubrics, assignments, COI, reviews, panels.
 

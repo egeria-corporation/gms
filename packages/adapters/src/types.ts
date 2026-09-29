@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Interfaces for every external dependency. Each has a real implementation and a fake.
 // Tests default to fakes; live tests run only when credentials exist.
 
@@ -258,6 +258,8 @@ export interface CookieJar {
   get(name: string): string | undefined;
   set(name: string, value: string, opts: CookieOptions): void;
   delete(name: string): void;
+  /** All request cookies (used by Supabase SSR, which stores sessions in chunked cookies). */
+  getAll?(): { name: string; value: string }[];
 }
 
 export interface CookieOptions {
@@ -275,6 +277,8 @@ export interface Session {
   aal: 'aal1' | 'aal2';
   sessionId: string;
   expiresAt: string;
+  /** When the authenticator (TOTP) was last verified in this session; drives step-up freshness. */
+  mfaAt?: string | null;
   /** Verified claims to pass to RLS (withRls). */
   claims: { sub: string; role: 'authenticated'; email: string; aal: 'aal1' | 'aal2'; session_id: string; [k: string]: unknown };
 }

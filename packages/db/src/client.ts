@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import pg from 'pg';
 import { databaseUrl } from './env';
@@ -10,7 +10,9 @@ pg.types.setTypeParser(1700, (v) => Number(v)); // numeric
 pg.types.setTypeParser(1082, (v) => v); // date
 pg.types.setTypeParser(1114, (v) => new Date(v + 'Z').toISOString()); // timestamp
 pg.types.setTypeParser(1184, (v) => new Date(v).toISOString()); // timestamptz
-pg.types.setTypeParser(1016, (v) => (pg.types.getTypeParser(1007) as (s: string) => number[])(v)); // int8[] like int4[]
+const INT8_ARRAY = 1016 as unknown as Parameters<typeof pg.types.setTypeParser>[0];
+const INT4_ARRAY = 1007 as unknown as Parameters<typeof pg.types.getTypeParser>[0];
+pg.types.setTypeParser(INT8_ARRAY, (v: string) => (pg.types.getTypeParser(INT4_ARRAY) as (s: string) => number[])(v)); // int8[] as numbers
 
 export type Database = Kysely<DB>;
 export type Tx = Transaction<DB>;

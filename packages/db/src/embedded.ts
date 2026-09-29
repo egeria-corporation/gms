@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Tier-3 database: a real Postgres started from the embedded-postgres npm binaries.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -86,11 +86,22 @@ export async function startEmbedded(opts: { port?: number; dataDir?: string; log
   const logFile = join(dirname(dataDir), 'postgres.log');
   // pg_ctl leaves the server holding inherited handles, so never wait on it: spawn detached and poll.
   const { spawn } = await import('node:child_process');
-  const child = spawn(
-    bin.pg_ctl,
-    ['-D', dataDir, '-l', logFile, '-o', `-p ${port} -c listen_addresses=127.0.0.1 -c max_connections=200`, 'start'],
-    { detached: true, stdio: 'ignore', windowsHide: true },
-  );
+  const args = ['-D', dataDir, '-l', logFile, '-o', `-p ${port} -c listen_addresses=127.0.0.1 -c max_connections=200`, 'start'];
+  const child =
+    process.platform === 'win32'
+      ? // On Windows a "detached" child still dies when the launching console closes (0xC000013A), so hand the
+        // start to PowerShell's Start-Process, which creates a fully independent process.
+        spawn(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `Start-Process -WindowStyle Hidden -FilePath '${bin.pg_ctl.replace(/'/g, "''")}' -ArgumentList @(${args.map((a) => `'"${a.replace(/'/g, "''")}"'`).join(',')})`,
+          ],
+          { stdio: 'ignore', windowsHide: true },
+        )
+      : spawn(bin.pg_ctl, args, { detached: true, stdio: 'ignore' });
   child.unref();
   for (let i = 0; i < 150; i++) {
     if (await isUp(port)) return url;

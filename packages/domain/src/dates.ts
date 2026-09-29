@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Timezone-aware deadline helpers. Deadlines are stored as timestamptz and displayed in the workspace timezone.
 
 /** Returns the UTC offset (minutes) of `tz` at the given instant. */
@@ -119,6 +119,24 @@ export function relativeTime(iso: string | Date, now = new Date()): string {
   if (abs < 2592000) return rtf.format(Math.round(diff / 86400), 'day');
   if (abs < 31536000) return rtf.format(Math.round(diff / 2592000), 'month');
   return rtf.format(Math.round(diff / 31536000), 'year');
+}
+
+/**
+ * The date ("2027-03-05") `days` business days after the instant `from`, counted from its calendar day in `tz`.
+ * Skips Saturdays and Sundays (not bank holidays), so it's an estimate.
+ */
+export function addBusinessDays(from: string | Date, days: number, tz: string): string {
+  const d = typeof from === 'string' ? new Date(from) : from;
+  const local = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const [y, m, day] = local.split('-').map(Number);
+  const cur = new Date(Date.UTC(y!, m! - 1, day!));
+  let left = days;
+  while (left > 0) {
+    cur.setUTCDate(cur.getUTCDate() + 1);
+    const wd = cur.getUTCDay();
+    if (wd !== 0 && wd !== 6) left--;
+  }
+  return cur.toISOString().slice(0, 10);
 }
 
 /** Fiscal year for a date given the workspace's fiscal year start month (1-12). FY is named by its end year. */
