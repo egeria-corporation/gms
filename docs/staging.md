@@ -9,7 +9,8 @@ Deployed 2026-11-10 from a Claude Code cloud session. Production (`gms.opengrant
 | Jobs Worker | `gms-jobs-staging` (crons and the `gms-events-staging` queue consumer) |
 | Database and auth | Supabase project `gms-staging` (`xjgyeotefkjqhiusuuan`, us-east-1), migrations 0001–0014 and `supabase/seed.sql` applied |
 | Storage | R2 `gms-attachments-staging`, `gms-ledger-archive-staging`, `gms-exports-staging`; KV `gms-staging-RATE_LIMIT`; queues `gms-events-staging`, `gms-events-dlq-staging` |
-| Passport | Points at `https://passport.opengrants.io`. No GMS client is registered there yet, so Passport consent, prefill and payments do not work |
+| Passport | Points at `https://passport.opengrants.io`, redeployed from `main` on 2026-11-10 (API and jobs Workers, migration 0052). No GMS client is registered there yet, so Passport consent, prefill and payments do not work |
+| Email | Resend domain `gms-staging.opengrants.io` created, **not verified** until its four DNS records are added. A sending-only key (`gms-staging`) is set on both Workers |
 
 ## How this differs from the production layout
 
@@ -62,8 +63,10 @@ API: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `OAUTH_KI
 `OAUTH_SIGNING_KEY_JWK`, `CREDENTIALS_ENCRYPTION_KEY`, `WEBHOOK_SECRET_KEY`. Jobs: the Supabase pair
 and the two encryption keys. The generated keys exist only in Cloudflare; they were not saved anywhere else.
 
+Also set on both: `RESEND_API_KEY`, `RESEND_FROM` (`noreply@gms-staging.opengrants.io`).
+
 Not set yet: `PASSPORT_GMS_CLIENT_ID`, `PASSPORT_GMS_CLIENT_SECRET`, `PASSPORT_WEBHOOK_SECRET`,
-`RESEND_API_KEY`, `RESEND_FROM`, `RESEND_INBOUND_SECRET`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
+`RESEND_INBOUND_SECRET`, `COMPOSIO_API_KEY`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
 
 ## Known limits on staging
 

@@ -69,6 +69,8 @@ PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
 ASSISTANT_ENABLED = "false"
+# Composio auth config for the funder Google Workspace connector (an identifier, not a secret).
+COMPOSIO_GOOGLE_AUTH_CONFIG_ID = "ac_fDKkT7ucr-hy"
 
 [[env.staging.r2_buckets]]
 binding = "ATTACHMENTS"
