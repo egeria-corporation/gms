@@ -115,6 +115,7 @@ webhooks from Passport, Resend and Mercury) and `ledger_archives` (hash-chained 
 | `0007_oauth_integrations` | `api_clients`, `oauth_clients_dynamic`, `oauth_grants`, `oauth_codes`, `oauth_refresh_tokens`, `mcp_connections`, `approvals`, `custom_mcp_servers`, `connector_accounts`, `webhook_subscriptions`, `webhook_deliveries`, `inbound_events`, `assist_calls` |
 | `0008_ledger` | `ledger_events`, `ledger_archives`, append-only triggers |
 | `0009_rls` | RLS helper functions, RLS + grants + `updated_at` triggers on every table, policies |
+| `0013_tranche_release_request` | `tranches.release_request`: the rail and payee credential id/version sent with a facilitated release, so a retry repeats the identical request. No bank data |
 
 A migration that adds a table must enable RLS, set its grants and add the `updated_at` trigger
 itself; `supabase/tests/database/00_schema.test.sql` fails otherwise.

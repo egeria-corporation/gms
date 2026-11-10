@@ -16,7 +16,7 @@ import { pollOrgChanges } from "./services/grantees.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
-import { payeeFactsOf, refreshDisbursed, type PayeeFacts } from "./services/payments.ts";
+import { STUCK_RELEASE_MS, payeeFactsOf, reconcileReleasing, refreshDisbursed, type PayeeFacts } from "./services/payments.ts";
 import { evaluateRequirement, sendDueReminders } from "./services/requirements.ts";
 import type { Row } from "./services/repos/types.ts";
 import { applyTrancheUpdate, toPaymentsTranche } from "./services/tranches.ts";
@@ -60,6 +60,26 @@ export async function evaluateTranchesDue(base: BaseContext): Promise<{ awards: 
     }
   });
   return { awards: awards.length, due, failed };
+}
+
+/**
+ * Payments left in `releasing` longer than the threshold are reconciled with Passport: the same
+ * request under the same Idempotency-Key, so the answer is the disbursement Passport already holds
+ * or the one the person released. A tranche Passport cannot confirm stays where it is for the next run.
+ */
+export async function reconcileStuckReleases(base: BaseContext, olderThanMs: number = STUCK_RELEASE_MS): Promise<{ stuck: number; resolved: number; unconfirmed: number; failed: number }> {
+  const cutoff = base.now().getTime() - olderThanMs;
+  const stuck = (await base.repos.table("tranches").find({ status: "releasing" }, { limit: 500 })).filter((t) => t.mode === "facilitated" && (!t.released_at || Date.parse(t.released_at) <= cutoff));
+  let resolved = 0;
+  let unconfirmed = 0;
+  const failed = await each(stuck, async (t) => {
+    const award = await base.repos.table("awards").one({ id: t.award_id });
+    if (!award) return;
+    const out = await reconcileReleasing(sys(base, "tranche-reconcile", t.workspace_id), t, award);
+    if (out.result === "unconfirmed") unconfirmed++;
+    else resolved++;
+  });
+  return { stuck: stuck.length, resolved, unconfirmed, failed };
 }
 
 /** Open and close reporting windows, then send whatever reminder is due. Safe to run any number of times. */

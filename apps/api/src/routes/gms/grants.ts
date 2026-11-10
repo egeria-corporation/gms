@@ -107,8 +107,10 @@ grantRoutes.get("/my/awards", async (c) => {
   const { items, total } = await awards.listMyAwards(await svc(c), p, { status: q(c, "status") });
   return c.json(paginated(items, pageInfo(p.page, p.pageSize, total)));
 });
-grantRoutes.get("/my/awards/:id", async (c) => c.json(ok(await awards.getAward(await svc(c), awardId(c), "recipient"))));
+grantRoutes.get("/my/awards/:id", async (c) => c.json(ok(await awards.getMyAward(await svc(c), awardId(c)))));
 grantRoutes.get("/my/awards/:id/schedule", async (c) => c.json(ok((await awards.getAward(await svc(c), awardId(c), "recipient")).tranches)));
+// Where Passport would pay this grant: bank name and last four digits, read live, never stored.
+grantRoutes.get("/my/awards/:id/payout-destination", async (c) => c.json(ok(await awards.getMyPayoutDestinationForAward(await svc(c), awardId(c)))));
 grantRoutes.post("/my/awards/:id/accept", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c)))));
 grantRoutes.post("/my/awards/:id/amendments", async (c) => c.json(created(await awards.requestAmendment(await svc(c), awardId(c), parse(awards.amendmentInput, await jsonBody(c)))), 201));
 

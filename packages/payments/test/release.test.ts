@@ -90,8 +90,34 @@ describe("facilitated release", () => {
     const out = await releaseFacilitated(d, ctx());
     expect(out).toMatchObject({ result: "refused", status: "held", code: "credential_version_stale" });
     expect(p.creates).toHaveLength(2);
-    expect(d.updates.map((u) => u.path)).toEqual([["releasing"], ["failed", "due"], ["held"]]);
-    expect(d.updates[2]!.patch).toEqual({ status: "held", holdReason: "credential_version_stale" });
+    // The empty path is the note of the re-resolved request, so a later retry repeats it exactly.
+    expect(d.updates.map((u) => u.path)).toEqual([["releasing"], [], ["failed", "due"], ["held"]]);
+    expect(d.updates[1]!.patch).toEqual({ releaseRequest: { rail: "auto", credentialId: "pc_01JALDERCREEK0000000000000", credentialVersion: 4 } });
+    expect(d.updates[3]!.patch).toEqual({ status: "held", holdReason: "credential_version_stale" });
+  });
+
+  it("remembers what it asked Passport for, and a retry of a releasing tranche repeats exactly that", async () => {
+    const first = deps(fakePassport({ create: [new PassportUnavailableError("timeout")] }));
+    const unconfirmed = await releaseFacilitated(first, ctx({ rail: "instant" }));
+    expect(unconfirmed).toEqual({ result: "unconfirmed", status: "releasing" });
+    expect(first.updates[0]!.patch).toMatchObject({ status: "releasing", releaseRequest: { rail: "instant", credentialId: "pc_01JALDERCREEK0000000000000", credentialVersion: 4 } });
+
+    // Later the credential has moved on and the workspace default rail is different: the retry still sends the first request.
+    const p = fakePassport({ credentials: [credential({ version: 9 })], create: [disbursement()] });
+    const d = deps(p);
+    const out = await releaseFacilitated(d, ctx({ rail: "auto", tranche: tranche({ status: "releasing", mode: "facilitated", releaseRequest: { rail: "instant", credentialId: "pc_01JALDERCREEK0000000000000", credentialVersion: 4 } }) }));
+    expect(out).toMatchObject({ result: "accepted", status: "initiated" });
+    expect(p.creates).toHaveLength(1);
+    expect(p.creates[0]!).toMatchObject({ key: "trn_0001", req: { rail: "instant", credentialVersion: 4 } });
+    expect(d.updates.map((u) => u.path)).toEqual([["initiated"]]);
+  });
+
+  it("leaves a releasing tranche alone when Passport holds a different request under its key", async () => {
+    const p = fakePassport({ create: [new PassportApiError(422, "idempotency_key_reused", "This Idempotency-Key was used for a different request")] });
+    const d = deps(p);
+    const out = await releaseFacilitated(d, ctx({ tranche: tranche({ status: "releasing", mode: "facilitated" }) }));
+    expect(out).toEqual({ result: "unconfirmed", status: "releasing" });
+    expect(d.updates).toHaveLength(0);
   });
 
   it("returns a refused tranche to due", async () => {

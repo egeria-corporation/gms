@@ -42,6 +42,7 @@ moneyRoutes.get("/tranches", async (c) => {
 });
 moneyRoutes.get("/tranches/:id/readiness", async (c) => c.json(ok(await payments.getTrancheReadiness(await svc(c), trancheId(c)))));
 moneyRoutes.post("/tranches/:id/release", async (c) => c.json(ok(await payments.releaseTranche(await svc(c), trancheId(c), parse(payments.releaseInput, await jsonBody(c))))));
+moneyRoutes.post("/tranches/:id/reconcile", async (c) => c.json(ok(await payments.reconcileTranche(await svc(c), trancheId(c)))));
 moneyRoutes.post("/tranches/:id/record-external", async (c) => c.json(ok(await payments.recordExternalPayment(await svc(c), trancheId(c), parse(payments.externalInput, await jsonBody(c))))));
 moneyRoutes.post("/tranches/:id/hold", async (c) => c.json(ok(await payments.holdTranche(await svc(c), trancheId(c), parse(payments.holdInput, await jsonBody(c))))));
 moneyRoutes.post("/tranches/:id/release-hold", async (c) => c.json(ok(await payments.unholdTranche(await svc(c), trancheId(c)))));

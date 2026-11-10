@@ -15,6 +15,7 @@ import { passportFacts, primaryEmail } from "./apply.ts";
 import { STAFF_ROLES, emitFor, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
+import { normalizePreferences } from "./notifications.ts";
 import type { PageRequest } from "./programs.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
@@ -229,6 +230,29 @@ async function reminderEmail(ctx: ServiceContext, r: Req, award: Award, offsetDa
 }
 
 /**
+ * Who in the grantee's workspace is mailed a report reminder, by their notification preferences
+ * (category `requirement`): `immediate` members now, digest members later, email-off members never.
+ * Without a directory of addresses nobody can be resolved and the caller falls back to the
+ * organization's address.
+ */
+async function reminderRecipients(ctx: ServiceContext, workspaceId: string | null): Promise<{ immediate: { key: string; email: string }[]; deferred: number }> {
+  const out = { immediate: [] as { key: string; email: string }[], deferred: 0 };
+  const directory = ctx.ports.directory;
+  if (!workspaceId || !directory) return out;
+  const now = ctx.now().getTime();
+  const members = (await ctx.repos.table("workspace_members").find({ workspace_id: workspaceId })).filter((m) => !m.expires_at || Date.parse(m.expires_at) > now);
+  const people = await directory.lookup(members.map((m) => m.user_id));
+  for (const m of members) {
+    const prefs = normalizePreferences(m.notification_preferences as never);
+    const email = people.get(m.user_id)?.email;
+    if (!email || !prefs.channels.requirement.email) continue;
+    if (prefs.digest === "daily" || prefs.digest === "weekly") out.deferred++;
+    else out.immediate.push({ key: m.user_id, email });
+  }
+  return out;
+}
+
+/**
  * Send whatever reminder is due for one requirement. Idempotent per (requirement, due date,
  * offset): the row in `reminder_sends` is claimed before the email goes out, and the same key is
  * the mail provider's idempotency key, so a retried job never sends twice.
@@ -247,10 +271,25 @@ export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ s
       now: ctx.now(),
       send: async (reminder) => {
         const { to, rendered } = await reminderEmail(ctx, r, award, reminder.offsetDays);
-        if (!to) throw new Error("no_recipient_email");
-        return (await mailer.send({ from, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${reminder.idempotencyKey}:${r.due_at}` })).id;
+        const key = `${reminder.idempotencyKey}:${r.due_at}`;
+        const who = await reminderRecipients(ctx, award.recipient_workspace_id);
+        // Each member who wants report mail at once gets their own copy. Members on a digest read it
+        // there (the grantee's ledger event below feeds it). The organization's address is used only
+        // when no member has opted in, so a reminder is never silently dropped.
+        const list = who.immediate.length ? who.immediate : who.deferred > 0 ? [] : to ? [{ key: "org", email: to }] : [];
+        if (!list.length && who.deferred === 0) throw new Error("no_recipient_email");
+        let first: string | null = null;
+        for (const x of list) {
+          const sent = await mailer.send({ from, to: [x.email], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${key}:${x.key}` });
+          first ??= sent.id;
+        }
+        return first ?? `digest:${key}`;
       },
-      onSent: (reminder, messageId) => audit(ctx, "requirement.reminder_sent", "requirement", r.id, { offsetDays: reminder.offsetDays, messageId, awardId: r.award_id }, r.workspace_id),
+      onSent: async (reminder, messageId) => {
+        await audit(ctx, "requirement.reminder_sent", "requirement", r.id, { offsetDays: reminder.offsetDays, messageId, awardId: r.award_id }, r.workspace_id);
+        // The grantee's own record of the reminder: their in-app notification and their digest read it.
+        if (award.recipient_workspace_id) await audit(ctx, "requirement.reminder", "requirement", r.id, { offsetDays: reminder.offsetDays, title: r.title, dueAt: r.due_at, awardId: r.award_id }, award.recipient_workspace_id);
+      },
     },
   );
   return { sent: out.sent?.offsetDays ?? null, skipped: out.skipped };

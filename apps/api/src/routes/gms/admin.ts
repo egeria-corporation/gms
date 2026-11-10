@@ -24,6 +24,7 @@ adminRoutes.get("/webhooks", async (c) => c.json(ok(await integrations.listWebho
 adminRoutes.post("/webhooks", async (c) => c.json(created(await integrations.createWebhook(await svc(c), parse(integrations.webhookInput, await jsonBody(c)))), 201));
 adminRoutes.delete("/webhooks/:id", async (c) => c.json(ok(await integrations.deleteWebhook(await svc(c), id(c, "Webhook")))));
 adminRoutes.get("/webhooks/:id/deliveries", async (c) => c.json(ok(await integrations.listWebhookDeliveries(await svc(c), id(c, "Webhook")))));
+adminRoutes.post("/webhooks/:id/deliveries/:deliveryId/replay", async (c) => c.json(created(await integrations.replayWebhookDelivery(await svc(c), id(c, "Webhook"), bareUuid(c.req.param("deliveryId"), "Delivery"))), 201));
 
 // ---- API clients ----
 adminRoutes.get("/api-clients", async (c) => c.json(ok(await integrations.listApiClients(await svc(c)))));

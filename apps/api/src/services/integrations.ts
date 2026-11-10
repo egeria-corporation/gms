@@ -7,7 +7,7 @@ import { decryptSecret, encryptSecret } from "@gms/passport-client";
 import { WEBHOOK_EVENT_TYPES, encryptSecret as encryptWebhookSecret, generateWebhookSecret, isDeliverableUrl } from "@gms/webhooks";
 import { z } from "zod";
 import { generateClientSecret, hashSecret } from "../auth/crypto.ts";
-import { SCOPES, type Scope } from "../auth/scopes.ts";
+import { SCOPES, scopesForRole, type Scope } from "../auth/scopes.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -52,10 +52,30 @@ export async function listWebhookDeliveries(ctx: ServiceContext, id: string) {
   return (await ctx.webhooks.listDeliveries(id, 100)).map((d) => ({ id: d.id, eventId: d.eventId, eventType: d.eventType, status: d.status, attempts: d.attempts, lastStatusCode: d.lastStatusCode, lastError: d.lastError, nextAttemptAt: d.nextAttemptAt, deliveredAt: d.deliveredAt, createdAt: d.createdAt }));
 }
 
+/**
+ * Send one delivery again: a new delivery row with the same event and the exact same signed body,
+ * due now. The original row stays as the record of what happened. People only.
+ */
+export async function replayWebhookDelivery(ctx: ServiceContext, id: string, deliveryId: string) {
+  const ws = await admin(ctx, { person: true });
+  const sub = await ctx.webhooks.getSubscription(id);
+  if (!sub || sub.workspaceId !== ws.id) throw notFound("Webhook");
+  if (!sub.active) throw new ApiError(409, "webhook_inactive", "This webhook is no longer active");
+  const original = await ctx.webhooks.getDelivery(deliveryId);
+  if (!original || original.subscriptionId !== id) throw notFound("Delivery");
+  const now = ctx.now().toISOString();
+  const replay = { id: crypto.randomUUID(), subscriptionId: id, eventId: original.eventId, eventType: original.eventType, payload: original.payload, status: "pending" as const, attempts: 0, nextAttemptAt: now, lastStatusCode: null, lastError: null, deliveredAt: null, createdAt: now };
+  await ctx.webhooks.insertDelivery(replay);
+  await audit(ctx, "webhook.delivery_replayed", "webhook_subscription", id, { deliveryId: replay.id, replayOf: original.id, eventId: original.eventId, eventType: original.eventType });
+  return { id: replay.id, replayOf: original.id, eventId: replay.eventId, eventType: replay.eventType, status: replay.status, attempts: 0, nextAttemptAt: now, createdAt: now };
+}
+
 // ------------------------------------------------------------------------------------ API clients
 
 /** Scopes a workspace API client can never hold: the human gates stay with people. */
 const NEVER_FOR_CLIENTS: readonly string[] = ["approvals:bypass"];
+/** Submit and sign rights, and workspace administration, never ride on an applicant workspace's token. */
+export const NEVER_FOR_APPLICANT_CLIENTS: readonly string[] = ["applications:submit", "agreements:write", "workspace:admin"];
 export const apiClientInput = z.object({ name: z.string().trim().min(1).max(120), scopes: z.array(z.string()).min(1).max(SCOPES.length) }).strict();
 
 const clientView = (c: Row<"api_clients">) => ({ id: c.id, name: c.name, scopes: c.allowed_scopes, createdAt: c.created_at, lastUsedAt: c.last_used_at, revokedAt: c.revoked_at });
@@ -70,6 +90,13 @@ export async function createApiClient(ctx: ServiceContext, input: z.output<typeo
   const ws = await admin(ctx, { person: true });
   const unknown = input.scopes.filter((s) => !(SCOPES as readonly string[]).includes(s) || NEVER_FOR_CLIENTS.includes(s));
   if (unknown.length) throw new ApiError(422, "invalid_scope", `These scopes cannot be granted to an API client: ${unknown.join(", ")}`);
+  if (ws.kind === "applicant") {
+    // An applicant's token reads and drafts. Submitting and signing stay with a person, so the
+    // scopes that carry them are never issued, and nothing outside the applicant's own vocabulary is.
+    const allowed = scopesForRole("applicant", "admin") as readonly string[];
+    const refused = input.scopes.filter((s) => NEVER_FOR_APPLICANT_CLIENTS.includes(s) || !allowed.includes(s));
+    if (refused.length) throw new ApiError(422, "invalid_scope", `An applicant workspace's token cannot carry: ${refused.join(", ")}. Tokens never submit or sign`);
+  }
   const secret = generateClientSecret();
   const row = await ctx.repos.table("api_clients").insert({ workspace_id: ws.id, name: input.name, client_secret_hash: await hashSecret(secret), allowed_scopes: [...new Set(input.scopes)] as Scope[], created_by: ctx.actor.userId });
   await audit(ctx, "api_client.created", "api_client", row.id, { name: row.name, scopes: row.allowed_scopes });

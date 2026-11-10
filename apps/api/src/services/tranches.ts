@@ -28,6 +28,7 @@ export const toPaymentsTranche = (t: TrancheRow): PaymentsTranche => ({
   releasedBy: t.released_by,
   releasedAt: t.released_at,
   external: t.external as PaymentsTranche["external"],
+  releaseRequest: (t.release_request as unknown as PaymentsTranche["releaseRequest"]) ?? null,
 });
 
 /** The machine actions that take a tranche from one status to the next one on an update's path. */
@@ -127,6 +128,7 @@ export async function applyTrancheUpdate(ctx: ServiceContext, update: TrancheUpd
     ...(p.releasedBy !== undefined && isUuid(ctx.actor.userId) ? { released_by: ctx.actor.userId } : {}),
     ...(p.external ? { external: p.external as unknown as TrancheRow["external"] } : {}),
     ...(p.dueAt ? { due_at: p.dueAt } : {}),
+    ...(p.releaseRequest ? { release_request: p.releaseRequest as unknown as TrancheRow["release_request"] } : {}),
   };
   if (Object.keys(facts).length) [row] = [(await ctx.repos.table("tranches").update({ id: row.id }, facts))[0] ?? row];
   return required(await ctx.repos.table("tranches").one({ id: row.id }), "Tranche");

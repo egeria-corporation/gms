@@ -3,7 +3,7 @@
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
 import { MercuryBankFeed } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, sendDigests, syncPassport, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendDigests, syncPassport, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -62,7 +62,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
 /** Which jobs a cron expression runs. Keep in step with `[triggers]` in wrangler.toml. */
 export const SCHEDULES = {
   "*/5 * * * *": ["webhooks"],
-  "*/15 * * * *": ["tranches", "requirements"],
+  "*/15 * * * *": ["tranches", "tranche-reconcile", "requirements"],
   "0 * * * *": ["passport"],
   "0 */6 * * *": ["mercury"],
   "30 2 * * *": ["org-changes", "ledger-archive"],
@@ -78,6 +78,8 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return deliverWebhooks(base);
     case "tranches":
       return evaluateTranchesDue(base);
+    case "tranche-reconcile":
+      return reconcileStuckReleases(base);
     case "requirements":
       return evaluateRequirements(base);
     case "passport":

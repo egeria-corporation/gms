@@ -54,11 +54,11 @@ Implemented responses are validated against the compiled OpenAPI document in
 |---|---|---|
 | `GET /opportunities`, `GET /opportunities/{oppId}`, `POST /opportunities/search` | public for published; a token for the owning workspace also reads drafts | Implemented. `OpportunityDetails` carries the competitions the caller may see; `awards` arrive with phase 3 |
 | `GET /competitions/{compId}` | public for open/closed under a published opportunity; token for drafts | Implemented. Stages in `customFields.gms.value.stages` |
-| `GET /forms`, `GET /forms/{formId}` (`?version=`) | public for form versions pinned by a public competition; token for the workspace's other versions | Implemented |
+| `GET /forms`, `GET /forms/{formId}` (`?version=`) | public for form versions pinned by a public competition; token for the workspace's other versions | Implemented. A report form pinned by a requirement is readable, at the pinned version, by the grantee who owes the report and the funder who asked for it; everyone else gets 404 |
 | `POST /applications/start` | `applications:write`, applicant workspace | Implemented. Body `{ competitionId, organizationId?, title? }`. Creates the draft, prefills the first stage's forms from the cached Passport record (provenance `passport`), stores an eligibility preview in `customFields.gms.value.eligibility` (`preview: true`). `201`; starting again returns the same application with `200` |
 | `GET /applications/{appId}` | the applicant; the funder once it has been submitted | Implemented. Anyone else gets `404` |
 | `GET /applications/{appId}/forms/{formId}`, `PUT …` | applicant, `applications:write` to write | Implemented. `PUT { response }` merges; validation errors come back in the response and never fail the save. Passport-owned fields are not editable (the ignored paths are listed in `customFields.gmsRejected`). Edits by an agent are marked `agent:<client>` |
-| `PUT /applications/{appId}/submit` | `applications:submit` (human-gated for agents through MCP) | Implemented. Re-validates the stage's forms (`422` lists what is missing), runs the rules, stamps `verificationLevel` and the attestation URL, locks the stage's responses, records the applicant → funder consent, sends the acknowledgment, emits `application.submitted` |
+| `PUT /applications/{appId}/submit` | `applications:submit`, a person (an agent or API-client token gets `403 approval_required`; agents submit through the MCP tool, which files the approval) | Implemented. Re-validates the stage's forms (`422` lists what is missing), runs the rules, stamps `verificationLevel` and the attestation URL, locks the stage's responses, records the applicant → funder consent, sends the acknowledgment, emits `application.submitted` |
 | `POST /applications/search` | `applications:read` | Implemented. The applicant's own applications, or the funder's submitted ones |
 | `GET /awards`, `GET /awards/{awdId}`, `POST /awards/search` | funder or recipient (`awards:read`) | Implemented. `AwardBase`; `funding.disbursedAmount` is the cached Passport value, absent until Passport reports one |
 | `GET /orgs`, `GET /orgs/{orgId}` | `org:read` | Placeholder (phase 2) |
@@ -76,6 +76,7 @@ Implemented:
 | `GET /gms/workspaces`, `POST /gms/workspaces` | session | List the person's workspaces; create one and become its admin. Brand accent is contrast-checked (WCAG AA) and falls back to the system accent with a warning |
 | `GET /gms/workspaces/{id}` | any member; tokens need `workspace:admin` | |
 | `PATCH /gms/workspaces/{id}`, `GET/POST …/members`, `PATCH/DELETE …/members/{userId}`, `POST …/invitations` | `workspace:admin`, role `admin` to change | A workspace always keeps one admin. The invitation token is returned once; only its hash is stored. Sending the invitation email arrives with `@gms/notify` wiring |
+| `DELETE /gms/workspaces/{id}/members/me` | person, any role | Leave the workspace. Refused for the last admin and for any agent or token |
 | `POST /gms/invitations/accept` | session | `{ token }`; one use, expires |
 | `POST /gms/workspaces/{id}/passport/link`, `DELETE …/link` | funder `admin`, signed-in person only | Verifies the client against Passport (funding sources) before saving; secret stored AES-GCM encrypted, never returned |
 | `GET /gms/workspaces/{id}/passport/status` | `workspace:admin`, funder | Live check: `pass`, `fail` or `unknown` (Passport unreachable) |
@@ -95,18 +96,18 @@ Implemented:
 | `POST /gms/my/applications/{id}/sections/assign` | `applications:write` | `{ formId, sections: { key: userId \| null } }` |
 | `GET/POST /gms/my/applications/{id}/comments`, `POST …/comments/{commentId}/resolve` | `applications:*` | Field comments inside the applicant team; never visible to the funder |
 | `GET/POST /gms/my/applications/{id}/attachments` | `applications:*` | Upload (`contentBase64`, up to 25 MB, SHA-256 computed) or a Passport locker reference (no copy) |
-| `GET/POST /gms/my/answers`, `PATCH /gms/my/answers/{id}` | `library:*` | Editing saves a new version |
+| `GET/POST /gms/my/answers`, `PATCH /gms/my/answers/{id}` | `library:*` | Editing saves a new version. Each `usedIn` entry carries `applicationTitle` and `funderName` |
 | `GET /gms/discover/competitions` | `discovery` | Open competitions with the caller's eligibility |
 | `POST /gms/discover/opengrants/{search,match,eligibility,alerts}` | `discovery` | Proxied to the hosted OpenGrants MCP with the organization's type, region, mission and revenue band; cached 15 minutes per organization and query; listings that point at a GMS opportunity carry `gms` |
 | `GET/POST /gms/discover/saved` | `discovery` | Saved listings |
 | `GET /gms/applications` | `applications:read`, funder | Filters `competitionId`, `stage`, `status` (comma list), `eligibility` (`true`/`false`/`unknown`), `level`, `tag`, `assignee` (user id or `unassigned`), `q`; `sortBy`, `sortOrder`; also returns `counts` by status. Reviewers see assigned applications only |
 | `GET /gms/applications/{id}`, `POST …/eligibility` | `applications:read` | Responses with provenance, eligibility results, the consented Passport record, timeline. Reviewers get masked responses; external reviewers no organization |
 | `POST /gms/applications/{id}/advance`, `…/request-revision`, `…/tags`, `…/assign` | `applications:write` | Through the application machine; a revision unlocks the current stage and emails the applicant |
-| `POST /gms/applications/{id}/decline` | `applications:write` and `decisions:write` | Records a committed decision, then declines and sends the letter |
+| `POST /gms/applications/{id}/decline` | `applications:write` and `decisions:write`, a person (tokens get `403 approval_required`, also for bulk decline) | Records a committed decision, then declines and sends the letter |
 | `POST /gms/applications/bulk` | `applications:write` | `{ action, applicationIds, params }`; each application succeeds or fails on its own |
 | `GET/POST /gms/threads`, `POST /gms/threads/{id}/messages` | `messages:*` | Shared thread, or the caller's side's internal thread (never shown to the other side) |
 | `GET/POST /gms/tasks`, `PATCH /gms/tasks/{id}` | `messages:*` | |
-| `GET /gms/approvals`, `GET /gms/approvals/{id}`, `POST /gms/approvals/{id}/decision` | people in the workspace; deciding needs the gated tool's scope | `{ approve, note? }`. Approving runs the original call once as the approver; the approval ends `executed` or `failed` |
+| `GET /gms/approvals`, `GET /gms/approvals/{id}`, `POST /gms/approvals/{id}/decision` | list: people; read: the requester (person or agent), people holding the gated tool's scope, admins and auditors (404 otherwise); deciding needs the gated tool's scope | `{ approve, note? }`. Approving runs the original call once as the approver; the approval ends `executed` or `failed` |
 
 ### Review to award (phase 3)
 
@@ -132,7 +133,8 @@ communications are **people only**: a client-credentials or delegated (agent) to
 | `POST /gms/awards/{id}/activate`, `/suspend`, `/resume`, `/complete`, `/cancel` | `awards:write` (staff) | Through the award machine; suspend holds due tranches, cancel cancels open ones |
 | `GET/POST /gms/awards/{id}/amendments`, `PATCH /gms/amendments/{id}` | `awards:*` | Extension moves the end date; supplemental creates a child award; Passport is patched when mirrored |
 | `GET /gms/awards/{id}/letter.pdf` | `awards:read` | Award letter PDF |
-| `GET /gms/my/awards`, `/my/awards/{id}`, `/my/awards/{id}/schedule` | `awards:read` (recipient) | |
+| `GET /gms/my/awards`, `/my/awards/{id}`, `/my/awards/{id}/schedule` | `awards:read` (recipient) | The detail carries `payoutDestination` |
+| `GET /gms/my/awards/{id}/payout-destination` | `awards:read` (recipient) | Bank name and last four digits, read live from Passport with the grantee's consent, never stored. `state`: `ok`, `none`, `not_linked`, `not_shared` (the consent lacks `payee:read`), `unknown` (Passport unreachable) |
 | `POST /gms/my/awards/{id}/accept` (also `POST /gms/awards/{id}/accept-offer`) | `awards:write` (recipient admin, person) | Then mirrors the award to Passport when `PASSPORT_AWARD_WRITE=true`; a failed mirror never undoes acceptance |
 | `POST /gms/my/awards/{id}/amendments` | `awards:write` (recipient) | |
 | `POST /gms/awards/{id}/agreements` | `agreements:write` (staff) | Draft from a template version; refused while a live agreement exists |
@@ -156,9 +158,10 @@ Release, record-external and bank match are **human only**: the service refuses 
 | `POST /gms/tranches/{id}/release` | `payments:release` (person) | `{ rail?, confirmDuplicate? }`. Idempotent: the tranche id is Passport's `Idempotency-Key`. `409 not_ready` carries the failing checks |
 | `POST /gms/tranches/{id}/record-external` | `payments:release` (person) | `{ reference, paidAt, destinationLast4 }` → Passport resolve mode |
 | `POST /gms/tranches/{id}/hold`, `…/release-hold`, `…/cancel` | `payments:release` | `release-hold` is an addition to the build prompt |
+| `POST /gms/tranches/{id}/reconcile` | person, role `finance` or `admin` | Resolves a tranche stuck in `releasing` by repeating the identical request under the same Idempotency-Key. An addition to the build prompt |
 | `GET /gms/payments/readiness`, `GET /gms/payments/alerts` | `payments:read` | Payments center |
 | `GET /gms/bank-transactions`, `POST /gms/bank-transactions/{id}/match` | `payments:read` / `payments:release` (person) | Matching calls record-external |
-| `GET/POST /gms/awards/{id}/requirements`, `PATCH /gms/requirements/{id}`, `POST …/waive`, `POST …/remind` | `requirements:read` / `requirements:write` | |
+| `GET/POST /gms/awards/{id}/requirements`, `PATCH /gms/requirements/{id}`, `POST …/waive`, `POST …/remind` | `requirements:read` / `requirements:write` | Reminders go to each member of the grantee's workspace by their notification preferences (category `requirement`): at once, in their digest, or not at all. The organization's address is used only when no member has opted in |
 | `GET /gms/requirements/due` | `requirements:read` | |
 | `GET /gms/submissions`, `GET /gms/submissions/{id}`, `POST …/accept`, `POST …/return` | `requirements:*` | Accepting makes `onReportAccepted` tranches due. `GET /gms/submissions` is an addition |
 | `GET/PUT /gms/awards/{id}/budget`, `GET /gms/awards/{id}/variance` | `awards:read` / `awards:write` | |
@@ -175,10 +178,11 @@ Release, record-external and bank match are **human only**: the service refuses 
 | `GET /gms/directory/suggest` | `grantees:read` | Addition |
 | `GET /common-grants/orgs`, `GET /common-grants/orgs/{id}`, `POST /common-grants/orgs/search` | `grantees:read` | Consented organizations only |
 | `GET /gms/analytics/portfolio`, `GET /gms/analytics/cycle/{competitionId}` | `analytics:read` | |
-| `GET /gms/exports/990pf`, `POST /gms/exports/bundle`, `POST /gms/imports/csv` | `analytics:read` / `workspace:admin` | CSV cells are guarded against formula injection |
+| `GET /gms/exports/990pf`, `POST /gms/exports/bundle`, `POST /gms/imports/csv` | `analytics:read` / `workspace:admin` | CSV cells are guarded against formula injection. `exports/bundle` in an applicant workspace exports that organization's own applications, reports, answers and organization reference |
 | `POST /gms/imports/bundle` | `workspace:admin`, admin in person | Restore a bundle written by `gms export`: `{ gms: <gms.json> }`. Rows keep their ids; existing rows are left alone; applications and awards whose applicant workspace is not on this instance are skipped and counted |
 | `GET/POST/DELETE /gms/webhooks`, `GET /gms/webhooks/{id}/deliveries` | `workspace:admin` | The secret is shown once |
-| `GET/POST/DELETE /gms/api-clients` | `workspace:admin` (create/revoke: person) | |
+| `POST /gms/webhooks/{id}/deliveries/{deliveryId}/replay` | `workspace:admin`, person | A new delivery with the same event and body |
+| `GET/POST/DELETE /gms/api-clients` | `workspace:admin` (create/revoke: person) | Works for applicant workspaces too; their tokens never carry `applications:submit`, `agreements:write` or `workspace:admin` |
 | `GET /gms/mcp-connections`, `DELETE /gms/mcp-connections/{id}` | session | Both sides. An admin sees and revokes every agent connected to the workspace; any other member their own (`mine`). Revoking also revokes the OAuth grant. Only a person revokes |
 | `GET/POST/DELETE /gms/custom-mcp-servers`, `GET/PATCH /gms/custom-mcp-servers/{id}[/tools]` | `workspace:admin` | Private and non-HTTPS URLs are refused |
 | `GET/POST/DELETE /gms/connectors/{provider}`, `POST /gms/connectors/{provider}/sync` | `payments:read` / `payments:release` | `mercury`, `google_workspace`. See `docs/connectors.md` |

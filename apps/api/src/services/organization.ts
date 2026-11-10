@@ -245,7 +245,9 @@ async function consentedPassport(ctx: ServiceContext, workspaceId: string, row: 
 async function passportFailure(ctx: ServiceContext, linkId: string, e: unknown): Promise<never> {
   if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now");
   if (e instanceof PassportAuthError) {
-    await ctx.repos.table("passport_links").update({ id: linkId }, { revoked_at: ctx.now().toISOString() });
+    const [gone] = await ctx.repos.table("passport_links").update({ id: linkId, revoked_at: null }, { revoked_at: ctx.now().toISOString() });
+    // The workspace lost its link to Passport: an access change, so it is on the ledger.
+    if (gone) await audit(ctx, "passport.unlinked", "workspace", gone.workspace_id, { mode: "applicant_consent", reason: "consent_refused_by_passport" }, gone.workspace_id);
     throw new ApiError(409, "passport_consent_revoked", "Passport no longer accepts this workspace's consent. Connect to Passport again");
   }
   if (e instanceof PassportApiError) throw new ApiError(502, "passport_refused", "Passport refused the request for this organization");
@@ -318,6 +320,64 @@ export async function getMyReadiness(ctx: ServiceContext) {
   const failing = checks.filter((c) => c.state === "fail").length;
   const unknown = checks.filter((c) => c.state === "unknown").length;
   return { level, linked, syncedAt: row.org_projection_at, checks, summary: { pass: checks.length - failing - unknown, fail: failing, unknown, ready: failing === 0 && unknown === 0 } };
+}
+
+// ------------------------------------------------------------------------------------ payout destination
+
+/**
+ * Where Passport would pay this organization, as the grantee may see it on a grant: bank name and
+ * last four digits only. Read live from Passport with the workspace's own consent and never stored.
+ * `unknown` (Passport unreachable) is its own state; it is never shown as "no destination".
+ */
+export interface PayoutDestinationView {
+  /** ok: read · none: no active destination · not_linked · not_shared: the consent does not cover payee status · unknown: Passport unreachable. */
+  state: "ok" | "none" | "not_linked" | "not_shared" | "unknown";
+  bankName: string | null;
+  last4: string | null;
+  /** Passport's status for the active destination, e.g. `active`. */
+  status: string | null;
+  level: string | null;
+  pendingChange: { state: string | null; bankName: string | null; last4: string | null; requestedAt: string | null; coolingOffUntil: string | null } | null;
+  freezeUntil: string | null;
+  manageUrl: string | null;
+  reason: string;
+}
+
+export async function payoutDestinationFor(ctx: ServiceContext, workspaceId: string): Promise<PayoutDestinationView> {
+  const row = required(await ctx.repos.table("workspaces").one({ id: workspaceId }), "Workspace");
+  const manageUrl = ctx.config.passportBaseUrl && row.passport_org_id ? `${ctx.config.passportBaseUrl}/orgs/${row.passport_org_id}` : null;
+  // What Passport's own events have told the GMS: display facts only, used when the live read is not possible.
+  const told = (row.settings as { passportPayee?: { pendingDestinationChange?: { bankName: string | null; last4: string | null; requestedAt: string } | null } } | null)?.passportPayee?.pendingDestinationChange ?? null;
+  const toldPending = told ? { state: null, bankName: told.bankName, last4: told.last4, requestedAt: told.requestedAt, coolingOffUntil: null } : null;
+  const empty = { bankName: null, last4: null, status: null, level: row.verification_level, pendingChange: toldPending, freezeUntil: null, manageUrl };
+  const link = await liveLink(ctx, workspaceId);
+  if (!link || !row.passport_org_id) return { ...empty, state: "not_linked", reason: "Connect this workspace to Passport to see where payments go" };
+  let passport: PassportClient;
+  try {
+    ({ passport } = await consentedPassport(ctx, workspaceId, row));
+  } catch {
+    return { ...empty, state: "unknown", reason: "Passport is not configured on this server" };
+  }
+  try {
+    const cred = await passport.getPayeeCredential(row.passport_org_id);
+    const d = cred.payoutDestination;
+    const p = cred.changeControl?.pendingChange ?? null;
+    const pendingChange = p ? { state: p.state, bankName: p.bankName, last4: p.last4, requestedAt: p.requestedAt, coolingOffUntil: p.coolingOffUntil } : toldPending;
+    const base = { level: cred.level, pendingChange, freezeUntil: cred.changeControl?.freezeUntil ?? null, manageUrl };
+    if (!d) return { ...base, state: "none", bankName: null, last4: null, status: null, reason: "No payout destination is active in Passport" };
+    return { ...base, state: "ok", bankName: d.bankName, last4: d.last4, status: d.status, reason: "Read from Passport just now" };
+  } catch (e) {
+    if (e instanceof PassportApiError && (e.status === 403 || e.status === 401)) return { ...empty, state: "not_shared", reason: "This workspace's Passport consent does not include payee status. Manage the destination in Passport" };
+    if (e instanceof PassportApiError && e.status === 404) return { ...empty, state: "none", reason: "No payout destination is active in Passport" };
+    if (e instanceof PassportAuthError) return { ...empty, state: "not_linked", reason: "Passport no longer accepts this workspace's consent. Connect to Passport again" };
+    return { ...empty, state: "unknown", reason: "Passport can't be reached right now" };
+  }
+}
+
+/** The grantee's own destination display for the workspace they are signed in to. */
+export async function getMyPayoutDestination(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "awards:read", kind: "applicant" });
+  return payoutDestinationFor(ctx, ws.id);
 }
 
 // ------------------------------------------------------------------------------------ who has access

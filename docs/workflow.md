@@ -60,6 +60,12 @@ document SHA-256 equal to the one that was sent.
 settled` with `mode = resolve`; `cancel` from scheduled, due, ready, held or failed. `release` is
 funder-only and needs a passed readiness check and an idempotency key.
 
+A release that got no answer from Passport leaves the tranche in `releasing`. It is resolved by
+reconciling (`POST /gms/tranches/{id}/reconcile`, or the `tranche-reconcile` job after 15 minutes):
+the identical request is repeated under the same Idempotency-Key and the tranche follows Passport's
+answer through the transitions above (`initiated`, `passport_hold`, or `refused` then `retry`).
+See `docs/runbook.md`, "Reconciling a release".
+
 Passport can park a disbursement itself while a destination change is in flight, after the GMS has
 released it. `passport_hold` moves `releasing → held` and keeps the Passport disbursement id;
 `resume_release` (`held → releasing`) and `passport_released` (`held → initiated`) follow Passport's
@@ -96,4 +102,29 @@ callers of these machines for awards:
 
 Machine patches that have no column (`accepted_at`, `suspend_reason`, `cancel_reason`,
 `void_reason`) are kept in the ledger entry of the transition, not on the row.
+
+## Human gates on every surface
+
+The gated actions are gated in the service layer, not only in the MCP dispatcher, so no client can
+go around them:
+
+| Action | An agent or API-client token over REST | Over MCP |
+|---|---|---|
+| Sign, countersign, accept an award, commit decisions, send a communication, release or reconcile a payment, record an external payment, confirm a bank match, leave a workspace | Refused: `403 human_only` | Becomes an approval request; runs as the person who approves it (sign, accept and release never run for an agent) |
+| Submit an application, decline an application (single or bulk) | Refused: `403 approval_required`, unless the token carries `approvals:bypass` | Becomes an approval request; runs as the approver |
+
+`approvals:bypass` cannot be obtained through consent and cannot be put on a workspace API client.
+Gates a workspace adds in its settings apply to MCP tool calls; they are not yet applied to the
+matching REST routes.
+
+Approvals are read through the service layer too: the agent that asked, people who hold the gated
+tool's scope, and the workspace's admins and auditors. Anyone else gets 404.
+
+## Who may sign
+
+The grantee's signer must be an `admin` of the applicant workspace, signed in, typing their name.
+The GMS does not check the name against the organization's representatives: Passport lists
+representatives only to a signed-in member of the organization
+(`GET /passport/orgs/{orgId}/representatives`, session only), not to a consented client. When
+Passport exposes them to consented clients, the signer check should require a match.
 

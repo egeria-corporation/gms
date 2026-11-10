@@ -8,7 +8,7 @@ import { archiveLedger, deliverWebhooks, pollBanks, syncPassport } from "../src/
 import type { BaseContext } from "../src/services/context.ts";
 import { BASE, ORG_RIVERBEND, PASSPORT, RESEND_WEBHOOK_SECRET, TEST_CREDENTIALS_KEY, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
 import type { ALDER_ORG} from "./scenario.ts";
-import { ORG_ALDER, scenario, type Scenario } from "./scenario.ts";
+import { ORG_ALDER, USER_APPLICANT, USER_APPLICANT_EDITOR, scenario, type Scenario } from "./scenario.ts";
 
 let h: Harness;
 let s: Scenario;
@@ -274,5 +274,82 @@ describe("ledger archive", () => {
     // The ledger itself was not changed by archiving.
     expect((await verifyArchive(objects.get(first.key)!.replace("application.submit", "application.tampered"))).ok).toBe(false);
     void ORG_RIVERBEND;
+  });
+});
+
+describe("fix-ups: replay, applicant tokens, applicant export, leaving", () => {
+  it("replays a webhook delivery as a new row with the same signed body", async () => {
+    const hook = await data<{ id: string }>(admin, "POST", "/gms/webhooks", { url: "https://hooks.example/gms" });
+    const original = crypto.randomUUID();
+    const payload = JSON.stringify({ id: "evt_9", type: "tranche.due" });
+    await h.webhooks.insertDelivery({ id: original, subscriptionId: hook.id, eventId: "evt_9", eventType: "tranche.due", payload, status: "exhausted", attempts: 9, nextAttemptAt: null, lastStatusCode: 500, lastError: "HTTP 500", deliveredAt: null, createdAt: h.clock.now.toISOString() });
+    const replay = await s.call<{ data: { id: string; replayOf: string; status: string; eventId: string } }>(admin, "POST", `/gms/webhooks/${hook.id}/deliveries/${original}/replay`);
+    expect(replay.status).toBe(201);
+    expect(replay.body.data).toMatchObject({ replayOf: original, status: "pending", eventId: "evt_9" });
+    const seen: string[] = [];
+    const out = await deliverWebhooks(base(), (async (_url: string, init?: RequestInit) => {
+      seen.push(String(init?.body));
+      return new Response(null, { status: 204 });
+    }) as unknown as typeof fetch);
+    expect(out).toMatchObject({ attempted: 1, delivered: 1 });
+    expect(seen).toEqual([payload]);
+    // The original stays as the record; the replay is on the ledger.
+    expect((await h.webhooks.getDelivery(original))!.status).toBe("exhausted");
+    expect(h.ledger.events.filter((e) => e.eventType === "webhook.delivery_replayed")).toHaveLength(1);
+    // Not for a non-admin, another webhook's delivery, or a token.
+    expect((await s.call(s.funder, "POST", `/gms/webhooks/${hook.id}/deliveries/${original}/replay`)).status).toBe(403);
+    expect((await s.call(admin, "POST", `/gms/webhooks/${hook.id}/deliveries/${crypto.randomUUID()}/replay`)).status).toBe(404);
+    const token = await h.forge({ scope: "workspace:admin" });
+    expect((await h.request(`/gms/webhooks/${hook.id}/deliveries/${original}/replay`, { method: "POST", headers: bearer(token).headers })).status).toBe(403);
+  });
+
+  it("issues an applicant workspace's token without submit or sign rights", async () => {
+    const applicantAdmin = await headers(USER_APPLICANT, WS_APPLICANT);
+    const ok = await s.call<{ data: { id: string; clientSecret: string; scopes: string[] } }>(applicantAdmin, "POST", "/gms/api-clients", { name: "Board dashboard sync", scopes: ["applications:read", "awards:read", "requirements:read"] });
+    expect(ok.status).toBe(201);
+    expect(ok.body.data.clientSecret).toMatch(/^gms_cs_/);
+    for (const scope of ["applications:submit", "agreements:write", "workspace:admin", "payments:release"]) {
+      const refused = await s.call<{ errors: { code: string }[] }>(applicantAdmin, "POST", "/gms/api-clients", { name: "Too much", scopes: ["applications:read", scope] });
+      expect([scope, refused.status]).toEqual([scope, 422]);
+    }
+    const list = await data<{ id: string; name: string }[]>(applicantAdmin, "GET", "/gms/api-clients");
+    expect(list.map((c) => c.name)).toEqual(["Board dashboard sync"]);
+    expect((await data<{ revokedAt: string | null }>(applicantAdmin, "DELETE", `/gms/api-clients/${ok.body.data.id}`)).revokedAt).not.toBeNull();
+    // An editor cannot mint tokens.
+    expect((await s.call(s.editor, "POST", "/gms/api-clients", { name: "x", scopes: ["applications:read"] })).status).toBe(403);
+  });
+
+  it("exports an applicant workspace's own applications, reports and organization reference", async () => {
+    const applicantAdmin = await headers(USER_APPLICANT, WS_APPLICANT);
+    await s.call(applicantAdmin, "POST", "/gms/my/answers", { title: "Need statement", body: "Families travel 46 miles." });
+    const out = await data<{ written: boolean; prefix: string; files: string[]; counts: { applications: number; answers: number; orgs: number } }>(applicantAdmin, "POST", "/gms/exports/bundle");
+    expect(out).toMatchObject({ written: true, files: ["commongrants.json", "gms.json", "attachments/manifest.json"], counts: { applications: 1, answers: 1, orgs: 1 } });
+    const cg = JSON.parse(h.exported.get(`${out.prefix}/commongrants.json`)!) as { applications: { id: string }[]; orgs: { passportOrgId: string }[] };
+    expect(cg.applications).toHaveLength(1);
+    expect(cg.orgs[0]!.passportOrgId).toBe(ORG_ALDER);
+    const gms = h.exported.get(`${out.prefix}/gms.json`)!;
+    // Their own answers are there; the funder's side of the file is not.
+    expect(gms).toContain("Families travel 46 miles.");
+    expect(gms).not.toMatch(/"reviews"|"decisions"|"rubrics"|assigned_to_user_id|"tags"/);
+    expect((await s.call(s.editor, "POST", "/gms/exports/bundle")).status).toBe(403);
+    expect(h.ledger.events.filter((e) => e.eventType === "export.bundle" && e.workspaceId === WS_APPLICANT)).toHaveLength(1);
+  });
+
+  it("lets a member leave, but not the last admin and not an agent on their behalf", async () => {
+    const editor = await headers(USER_APPLICANT_EDITOR, WS_APPLICANT);
+    const agent = await h.forge({ sub: USER_APPLICANT_EDITOR, client_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", scope: "applications:read", "https://gms.opengrants.io/workspace_id": WS_APPLICANT });
+    const viaAgent = await h.request(`/gms/workspaces/${WS_APPLICANT}/members/me`, { method: "DELETE", headers: bearer(agent).headers });
+    expect(viaAgent.status).toBe(403);
+    expect(await data<{ left: boolean }>(editor, "DELETE", `/gms/workspaces/${WS_APPLICANT}/members/me`)).toEqual({ left: true });
+    expect(await h.repos.table("workspace_members").one({ workspace_id: WS_APPLICANT, user_id: USER_APPLICANT_EDITOR })).toBeNull();
+    expect(h.ledger.events.filter((e) => e.eventType === "member.left")).toHaveLength(1);
+    // Gone means gone: the same session no longer reaches the workspace.
+    expect((await s.call(editor, "GET", `/gms/workspaces/${WS_APPLICANT}`)).status).toBeGreaterThanOrEqual(403);
+    // The only admin cannot leave until someone else is one.
+    const sole = await headers(USER_APPLICANT, WS_APPLICANT);
+    const refused = await s.call<{ errors: { code: string }[] }>(sole, "DELETE", `/gms/workspaces/${WS_APPLICANT}/members/me`);
+    expect(refused.status).toBe(409);
+    await h.repos.table("workspace_members").update({ workspace_id: WS_APPLICANT, user_id: USER_OFFICER }, { role: "admin" });
+    expect(await data<{ left: boolean }>(sole, "DELETE", `/gms/workspaces/${WS_APPLICANT}/members/me`)).toEqual({ left: true });
   });
 });

@@ -12,7 +12,7 @@ import { fanOut, isWebhookEventType } from "@gms/webhooks";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -313,6 +313,7 @@ export const revisionOf = (e: Ev) => ((e.payload as { revision?: { requestedAt: 
 export async function submitApplication(ctx: ServiceContext, appId: string): Promise<ApplicationBase> {
   const { app, side } = await access(ctx, appId, "applications:submit");
   if (side !== "applicant") throw new ApiError(403, "forbidden", "Only the applicant can submit an application");
+  requireApproval(ctx, "Submitting an application");
   const competition = required(await ctx.repos.table("competitions").one({ id: app.competition_id }), "Competition");
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
   const applicant = required(await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id }), "Workspace");

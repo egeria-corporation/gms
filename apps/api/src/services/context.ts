@@ -159,6 +159,18 @@ export async function authorize(ctx: ServiceContext, need: Need): Promise<Servic
   return ws;
 }
 
+/**
+ * A human gate that holds on every surface (CLAUDE.md: gated tools cannot be bypassed by any client).
+ * Over MCP an agent's gated call becomes an approval request and later runs as the person who
+ * approved it; the same action called directly over REST with an agent or API-client token is
+ * refused here, unless the token carries the explicit `approvals:bypass` grant.
+ */
+export function requireApproval(ctx: ServiceContext, what: string): void {
+  if (ctx.actor.kind === "user" || ctx.actor.kind === "system") return;
+  if (ctx.scopes.includes("approvals:bypass")) return;
+  throw forbidden("approval_required", `${what} needs a person's approval. Call the MCP tool, which files the approval request, or do it in the GMS`);
+}
+
 /** Append one ledger event for the caller's workspace (or `workspaceId` when it is being created). */
 export async function audit(ctx: ServiceContext, eventType: string, subjectType: string, subjectId: string, data: Record<string, unknown> = {}, workspaceId?: string): Promise<void> {
   await record(ctx.ledger, { workspaceId: workspaceId ?? ctx.workspace?.id ?? null, actor: ctx.actor.ledger, eventType, subjectType, subjectId, data }, { now: ctx.now });

@@ -2055,6 +2055,7 @@ export type Database = {
           mode: string | null;
           passport_disbursement_id: string | null;
           passport_status: string | null;
+          release_request: Json | null;
           released_at: string | null;
           released_by: string | null;
           schedule_id: string;
@@ -2077,6 +2078,7 @@ export type Database = {
           mode?: string | null;
           passport_disbursement_id?: string | null;
           passport_status?: string | null;
+          release_request?: Json | null;
           released_at?: string | null;
           released_by?: string | null;
           schedule_id: string;
@@ -2099,6 +2101,7 @@ export type Database = {
           mode?: string | null;
           passport_disbursement_id?: string | null;
           passport_status?: string | null;
+          release_request?: Json | null;
           released_at?: string | null;
           released_by?: string | null;
           schedule_id?: string;

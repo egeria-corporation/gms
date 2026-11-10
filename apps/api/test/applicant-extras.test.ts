@@ -2,8 +2,10 @@
 // What the applicant screens read back: section assignments, library answers inserted into a form,
 // the revision diff, notifications and the member's connected agents.
 import { beforeEach, describe, expect, it } from "vitest";
-import { USER_ADMIN, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
-import { USER_APPLICANT, USER_APPLICANT_EDITOR, scenario, type Scenario } from "./scenario.ts";
+import { encryptSecret, fixtureFetch, type Fixture } from "@gms/passport-client";
+import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
+import { CLIENT_AGENT, TEST_CREDENTIALS_KEY, USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
+import { ORG_ALDER, USER_APPLICANT, USER_APPLICANT_EDITOR, scenario, type Scenario } from "./scenario.ts";
 
 let h: Harness;
 let s: Scenario;
@@ -149,5 +151,68 @@ describe("letters and settings", () => {
     const settings = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings as Record<string, unknown>;
     expect(settings).not.toHaveProperty("fiscalYearStart");
     expect(settings.defaultCurrency).toBe("USD");
+  });
+});
+
+describe("fix-ups: where an answer was used, locker attachments, and the gates over REST", () => {
+  it("names the application and the funder on each use of a library answer", async () => {
+    const a = await s.call<{ data: { id: string } }>(s.applicant, "POST", "/gms/my/answers", { title: "Need statement", body: "Per the county assessment, families travel 46 miles." });
+    const r = await s.call<{ data: { answer: { usedIn: { applicationTitle: string | null; funderName: string | null; path: string }[] } } }>(s.applicant, "POST", `/gms/my/applications/${appId}/forms/${s.loiFormId}/insert-answer`, { answerId: a.body.data.id, path: "/need" });
+    const app = (await h.repos.table("applications").one({ id: appUuid }))!;
+    expect(r.body.data.answer.usedIn).toEqual([expect.objectContaining({ path: "/need", applicationTitle: app.title, funderName: "Riverbend Community Foundation" })]);
+    const list = await s.call<{ data: { id: string; usedIn: { applicationTitle: string | null; funderName: string | null }[] }[] }>(s.applicant, "GET", "/gms/my/answers");
+    expect(list.body.data.find((x) => x.id === a.body.data.id)!.usedIn[0]).toMatchObject({ applicationTitle: app.title, funderName: "Riverbend Community Foundation" });
+    // The stored record stays ids only; names are looked up when the library is read.
+    expect(JSON.stringify((await h.repos.table("answers").one({ id: a.body.data.id }))!.used_in)).not.toContain("Riverbend");
+  });
+
+  it("attaches a Passport locker document by id: name and hash come from Passport, no bytes are copied", async () => {
+    await h.repos.table("passport_links").insert({ workspace_id: WS_APPLICANT, mode: "applicant_consent", client_id: "gms-test-client", refresh_token_enc: await encryptSecret("rt-first", TEST_CREDENTIALS_KEY), scopes: ["org:read"], linked_by_user_id: USER_APPLICANT, linked_at: "2027-02-03T00:00:00Z", last_ok_at: "2027-02-03T00:00:00Z" });
+    const DOC = "0193a1c0-0000-7000-8000-0000000d0c01";
+    const token: Fixture = { method: "POST", path: "/oauth/token", status: 200, body: { access_token: "passport-consented-token-for-tests", refresh_token: "rt-next", token_type: "Bearer", expires_in: 600, scope: "org:read" } };
+    const docs = [
+      { id: DOC, kind: "determination_letter", name: "IRS determination letter.pdf", mimeType: "application/pdf", sha256: "a".repeat(64), source: "upload", uploadedAt: "2027-01-12T17:00:00Z", expiresAt: null, lastModifiedAt: "2027-01-12T17:00:00Z" },
+      { id: "0193a1c0-0000-7000-8000-0000000d0c03", kind: "other", name: "Board roster (Drive)", mimeType: "application/vnd.google-apps.document", sha256: null, source: "google_drive", uploadedAt: "2027-02-10T17:00:00Z", expiresAt: null, lastModifiedAt: "2027-02-10T17:00:00Z" },
+    ];
+    const fx = fixtureFetch([token, { method: "GET", path: `/passport/orgs/${ORG_ALDER}/documents`, status: 200, body: { status: 200, message: "Success", items: docs, paginationInfo: { page: 1, pageSize: 2, totalItems: 2, totalPages: 1 } } }]);
+    h.passport.fetch = fx.fetch;
+
+    // The caller names only the id; a name or hash it might invent is not accepted alongside it.
+    const ref = await s.call<{ data: { id: string; name: string; mime: string; sha256: string; source: string; passportDocumentId: string; size: number } }>(s.applicant, "POST", `/gms/my/applications/${appId}/attachments`, { passportDocumentId: DOC });
+    expect(ref.status).toBe(201);
+    expect(ref.body.data).toMatchObject({ name: "IRS determination letter.pdf", mime: "application/pdf", sha256: "a".repeat(64), source: "passport_locker", passportDocumentId: DOC, size: 0 });
+    expect(h.storage.files.size).toBe(0);
+    const listed = await s.call<{ data: { passportDocumentId: string | null }[] }>(s.applicant, "GET", `/gms/my/applications/${appId}/attachments`);
+    expect(listed.body.data.map((d) => d.passportDocumentId)).toEqual([DOC]);
+    expect(h.ledger.events.filter((e) => e.eventType === "document.attached")).toHaveLength(1);
+    // The funder sees the reference on the application once it is submitted.
+    await submit();
+    const theirs = await s.call<{ data: { passportDocumentId: string | null; sha256: string }[] }>(s.funder, "GET", `/gms/my/applications/${appId}/attachments`);
+    expect(theirs.body.data).toEqual([expect.objectContaining({ passportDocumentId: DOC, sha256: "a".repeat(64) })]);
+    // A document with no recorded hash cannot be pinned, and an unknown id is not found.
+    await h.repos.table("applications").update({ id: appUuid }, { status: "draft" });
+    expect((await s.call(s.applicant, "POST", `/gms/my/applications/${appId}/attachments`, { passportDocumentId: "0193a1c0-0000-7000-8000-0000000d0c03" })).status).toBe(422);
+    expect((await s.call(s.applicant, "POST", `/gms/my/applications/${appId}/attachments`, { passportDocumentId: "0193a1c0-0000-7000-8000-0000000d0cff" })).status).toBe(404);
+  });
+
+  it("refuses an agent's direct submit and decline over REST; a person's still work", async () => {
+    const agent = await h.forge({ sub: USER_APPLICANT, client_id: CLIENT_AGENT, scope: "applications:read applications:write applications:submit", [WORKSPACE_CLAIM]: WS_APPLICANT });
+    const viaAgent = await h.request(`/common-grants/applications/${appUuid}/submit`, { method: "PUT", headers: bearer(agent).headers });
+    expect(viaAgent.status).toBe(403);
+    expect(((await viaAgent.json()) as { errors: { code: string }[] }).errors[0]!.code).toBe("approval_required");
+    expect((await h.repos.table("applications").one({ id: appUuid }))!.status).toBe("draft");
+    expect((await submit()).status).toBe(200);
+
+    const funderAgent = await h.forge({ sub: USER_OFFICER, client_id: CLIENT_AGENT, scope: "applications:read applications:write decisions:write", [WORKSPACE_CLAIM]: WS_FUNDER });
+    const json = { ...bearer(funderAgent).headers, "Content-Type": "application/json" };
+    const decline = await h.request(`/gms/applications/${appId}/decline`, { method: "POST", headers: json, body: JSON.stringify({ rationale: "Outside the service area." }) });
+    expect(decline.status).toBe(403);
+    const bulk = await h.request("/gms/applications/bulk", { method: "POST", headers: json, body: JSON.stringify({ action: "decline", applicationIds: [appId], params: { rationale: "Outside the service area." } }) });
+    expect(bulk.status).toBe(403);
+    expect((await h.repos.table("applications").one({ id: appUuid }))!.status).toBe("submitted");
+    // Tagging is not gated, so the same agent token may do it.
+    const tag = await h.request("/gms/applications/bulk", { method: "POST", headers: json, body: JSON.stringify({ action: "tag", applicationIds: [appId], params: { add: ["rural"] } }) });
+    expect(tag.status).toBe(200);
+    expect((await s.call(s.funder, "POST", `/gms/applications/${appId}/decline`, { rationale: "Outside the service area." })).status).toBe(200);
   });
 });

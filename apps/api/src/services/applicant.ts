@@ -197,13 +197,31 @@ const KEY = /^[a-z0-9][a-z0-9_.-]{0,98}$/;
 export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default("") }).strict();
 export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional() }).strict();
 
+/**
+ * Answers as the library shows them: each use names the application and the funder, so a person
+ * can tell where an answer went without opening anything.
+ */
+async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
+  const appIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { applicationId?: string }[] | null) ?? []).map((u) => u.applicationId).filter((x): x is string => typeof x === "string")))];
+  const apps = appIds.length ? await ctx.repos.table("applications").find({ id: appIds }) : [];
+  const funders = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.workspace_id))] }) : [];
+  return rows.map((r) => {
+    const v = answerView(r);
+    const usedIn = ((r.used_in as unknown as Record<string, unknown>[] | null) ?? []).map((u) => {
+      const app = apps.find((a) => a.id === u.applicationId);
+      return { ...u, applicationTitle: app?.title ?? null, funderName: (app && funders.find((f) => f.id === app.workspace_id)?.display_name) ?? null };
+    });
+    return { ...v, usedIn };
+  });
+}
+
 /** The latest version of each answer. */
 export async function listAnswers(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "library:read", kind: "applicant" });
   const rows = await ctx.repos.table("answers").find({ workspace_id: ws.id }, { orderBy: "version", ascending: false });
   const latest = new Map<string, Row<"answers">>();
   for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r);
-  return [...latest.values()].sort((a, b) => a.title.localeCompare(b.title)).map(answerView);
+  return answerViews(ctx, [...latest.values()].sort((a, b) => a.title.localeCompare(b.title)));
 }
 
 export async function createAnswer(ctx: ServiceContext, input: z.output<typeof answerInput>) {
@@ -219,7 +237,7 @@ export async function updateAnswer(ctx: ServiceContext, answerId: string, input:
   const current = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
   const versions = await ctx.repos.table("answers").find({ workspace_id: ws.id, key: current.key }, { orderBy: "version", ascending: false, limit: 1 });
   const next = await ctx.repos.table("answers").insert({ workspace_id: ws.id, key: current.key, title: input.title ?? current.title, body: input.body ?? current.body, version: (versions[0]?.version ?? current.version) + 1, used_in: current.used_in });
-  return answerView(next);
+  return (await answerViews(ctx, [next]))[0]!;
 }
 
 type Use = { applicationId: string; formId: string; path: string; version: number; insertedAt: string };
@@ -248,7 +266,7 @@ export async function insertAnswer(ctx: ServiceContext, appId: string, formUuid:
     if (kept.length !== (other.used_in as unknown[]).length) await ctx.repos.table("answers").update({ id: other.id }, { used_in: kept as unknown as Row<"answers">["used_in"] });
   }
   const [saved] = await ctx.repos.table("answers").update({ id: answer.id }, { used_in: uses as unknown as Row<"answers">["used_in"] });
-  return { formResponse, path: input.path, provenance: "library" as const, changed: changed.length > 0, answer: answerView(saved ?? answer) };
+  return { formResponse, path: input.path, provenance: "library" as const, changed: changed.length > 0, answer: (await answerViews(ctx, [saved ?? answer]))[0]! };
 }
 
 // ------------------------------------------------------------------------------------ discovery

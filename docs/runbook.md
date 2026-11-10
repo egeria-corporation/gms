@@ -33,13 +33,38 @@ Symptoms: a subscriber says it missed an event.
 
 1. `GET /gms/webhooks/{id}/deliveries` (workspace admin) shows each attempt, status code and the
    next attempt time. Deliveries retry with backoff for 24 hours, then stop.
-2. To send a stopped delivery again, set it due (SQL, service role):
-   `update webhook_deliveries set status = 'pending', next_attempt_at = now() where id = '<delivery id>';`
-   The next `*/5` run of the jobs Worker sends it with a fresh timestamp and signature.
+2. To send a delivery again, a workspace admin (a person, not a token) calls
+   `POST /gms/webhooks/{id}/deliveries/{deliveryId}/replay`. It adds a new delivery with the same
+   event and the exact same body, due now; the original row stays as the record. The next `*/5` run
+   of the jobs Worker sends it with a fresh timestamp and signature, and the replay is on the ledger
+   (`webhook.delivery_replayed`).
 3. If every delivery to one subscriber fails with 401/403, its secret is out of step: delete the
    subscription and create it again; the new secret is shown once.
 
-There is no replay endpoint yet; step 2 is the supported way until one exists.
+Subscribers should treat `X-GMS-Delivery` as the delivery id and the event `id` in the body as the
+idempotency key: a replay carries the same event id.
+
+## Reconciling a release
+
+A tranche is `releasing` between "the GMS asked Passport to pay" and "Passport answered". If the
+answer never arrived (a timeout, or the Worker stopped between the two writes), the tranche stays
+there. Reconciling repeats the identical request (same amount, credential id and version, and rail,
+kept on the tranche in `release_request`) under the tranche's own Idempotency-Key `trn_<id>`:
+
+| Passport's answer | What the tranche does |
+|---|---|
+| The disbursement it already holds (`Idempotent-Replayed: true`) | Follows its status: `initiated`, or `held` if Passport parked it |
+| A new disbursement (the first request never arrived) | Same: this is the payment the person released |
+| A refusal | `failed`, then back to `due`; nothing moved |
+| No answer again | Stays `releasing`; `result: "unconfirmed"`. Try later |
+| `idempotency_key_reused` | Stays `releasing`. Passport holds a payment under this key made with different details. Look it up in Passport before doing anything else; do not cancel the tranche |
+
+It can never pay twice: Passport keys the payment on the tranche id. The route is a human gate
+(finance or admin, signed in; tokens are refused with `human_only`). Every run is on the ledger as
+`tranche.reconciled` with the result; the job's runs carry the actor `system:tranche-reconcile`.
+Tranches released before migration `0013` have no `release_request`; they are reconciled with the
+workspace's default rail and the current credential, which Passport may answer with
+`idempotency_key_reused` if the original used something else.
 
 ## Replay an inbound webhook (Passport or Resend)
 
@@ -66,7 +91,7 @@ Start with `GET /gms/tranches/{id}/readiness`: it lists the seven checks with a 
 |---|---|---|
 | `due` / `ready`, release disabled | A readiness check fails or is `unknown` | Fix what the check names. `unknown` means Passport could not be reached: see "Passport link recovery" |
 | `held` | A hold with a reason: pending destination change, freeze window, level below L3, or a manual hold | Destination changes and freeze windows clear on their own when Passport sends `payee.destination.changed`. A manual hold clears with `POST /gms/tranches/{id}/release-hold` |
-| `releasing` for more than a few minutes | The request to Passport was sent and no answer was recorded | Look the disbursement up in Passport by its idempotency key (`trn_<tranche id>`). If it exists, the tranche moves on with the next `disbursement.status.changed` event (replay it if it failed, see above). If Passport has no such disbursement, stop and report it: there is no supported way to move a tranche out of `releasing` by hand yet |
+| `releasing` for more than a few minutes | The request to Passport was sent and no answer was recorded | Reconcile it: a finance member or admin calls `POST /gms/tranches/{id}/reconcile` (the Payments center offers it), and the jobs Worker does the same every 15 minutes for releases older than 15 minutes. See "Reconciling a release" below |
 | `initiated` for days | Passport accepted it; settlement is pending or the webhook was missed | Check `inbound_events` for a failed `disbursement.status.changed` and replay it; compare with the disbursement's status in Passport |
 | `failed` / `returned` | Passport refused, or the bank returned the payment | Read `passport_status` and the ledger for the tranche. A failed tranche goes back to `due` once the cause is fixed; a returned one needs the payee's destination corrected in Passport first |
 | `settled` with `passport_status = unverified` | Recorded in resolve mode, and Passport could not match the destination's last four digits | Confirm the payment reference with finance. Nothing was sent by the GMS |

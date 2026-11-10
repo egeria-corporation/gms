@@ -107,12 +107,31 @@ export async function cgGetForm(ctx: PublicContext, id: string, version?: number
     const row = version === undefined ? rows.sort((a, b) => a.version - b.version)[rows.length - 1] : rows.find((r) => r.version === version);
     if (row) return projectForm(row as unknown as FormRow);
   }
-  if (!pins) throw notFound("Form");
+  if (!pins || (version !== undefined && !pins.has(version))) {
+    // A report form is pinned by a requirement, not a competition. The grantee who owes the report
+    // and the funder who asked for it may read the pinned version; nobody else learns it exists.
+    const pinned = viewer ? await requirementFormVersions(ctx, id, viewer.workspaceId) : new Set<number>();
+    if (!pinned.size && !pins) throw notFound("Form");
+    const all = new Set<number>([...(pins ?? []), ...pinned]);
+    const want = version ?? Math.max(...all);
+    if (!all.has(want)) throw notFound("Form");
+    const report = await ctx.repos.table("forms").one({ id, version: want });
+    if (!report) throw notFound("Form");
+    return projectForm(report as unknown as FormRow);
+  }
   const v = version ?? Math.max(...pins);
-  if (!pins.has(v)) throw notFound("Form");
   const row = await ctx.repos.table("forms").one({ id, version: v });
   if (!row) throw notFound("Form");
   return projectForm(row as unknown as FormRow);
+}
+
+/** Versions of a form pinned by requirements on awards the workspace gave or received. */
+async function requirementFormVersions(ctx: PublicContext, formId: string, workspaceId: string): Promise<Set<number>> {
+  const reqs = await ctx.repos.table("requirements").find({ form_id: formId });
+  if (!reqs.length) return new Set();
+  const awards = await ctx.repos.table("awards").find({ id: [...new Set(reqs.map((r) => r.award_id))] });
+  const mine = new Set(awards.filter((a) => a.recipient_workspace_id === workspaceId || a.workspace_id === workspaceId).map((a) => a.id));
+  return new Set(reqs.filter((r) => mine.has(r.award_id) && r.form_version !== null).map((r) => r.form_version as number));
 }
 
 const brandOf = (w: Row<"workspaces">) => {

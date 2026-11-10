@@ -154,6 +154,7 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
  * the EXPORTS bucket when one is configured, and always summarized in the response.
  */
 export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean } = {}) {
+  if (ctx.workspace?.kind === "applicant") return exportApplicantBundle(ctx, opts);
   // A workspace admin in person, or the operator's `gms export` (a system actor built by the CLI).
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
   const funder = (await ctx.repos.table("workspaces").one({ id: ws.id }))!;
@@ -198,6 +199,69 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     written = true;
   }
   const counts = { opportunities: opps.length, competitions: comps.length, forms: forms.length, applications: cgApplications.length, awards: cgAwards.length, orgs: applicants.length, attachments: attachments.length };
+  await audit(ctx, "export.bundle", "workspace", ws.id, { ...counts, written });
+  return { prefix: written ? prefix : null, written, files: Object.keys(files), counts, ...(opts.inline || !written ? { bundle: files } : {}) };
+}
+
+/**
+ * The applicant's own bundle: everything the organization entered here. Its applications as
+ * CommonGrants records with their answers, the grants it received, its reports, its answer
+ * library, and its organization as a reference into Passport (the GMS's cached copy is included,
+ * Passport stays the source). Reviews, scores and funder-internal notes are never part of it.
+ */
+async function exportApplicantBundle(ctx: ServiceContext, opts: { inline?: boolean }) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "applicant", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
+  const me = (await ctx.repos.table("workspaces").one({ id: ws.id }))!;
+  const [apps, awards, answers, documents] = await Promise.all([
+    ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { limit: 10000 }),
+    ctx.repos.table("awards").find({ recipient_workspace_id: ws.id }, { limit: 10000 }),
+    ctx.repos.table("answers").find({ workspace_id: ws.id }, { limit: 10000 }),
+    ctx.repos.table("documents").find({ owner_workspace_id: ws.id }, { limit: 10000 }),
+  ]);
+  const awardIds = awards.map((a) => a.id);
+  const [requirements, allSubmissions, budgets] = awardIds.length
+    ? await Promise.all([ctx.repos.table("requirements").find({ award_id: awardIds }, { limit: 10000 }), ctx.repos.table("submissions").find({ award_id: awardIds }, { limit: 10000 }), ctx.repos.table("budgets").find({ award_id: awardIds }, { limit: 10000 })])
+    : [[], [], []];
+  // A copy shared with another funder belongs to that funder's workspace; the original is the applicant's.
+  const submissions = allSubmissions.filter((s) => !s.shared_from_submission_id);
+  const appIds = apps.map((a) => a.id);
+  const subIds = submissions.map((s) => s.id);
+  const responses = [
+    ...(appIds.length ? await ctx.repos.table("form_responses").find({ application_id: appIds }, { limit: 10000 }) : []),
+    ...(subIds.length ? await ctx.repos.table("form_responses").find({ submission_id: subIds }, { limit: 10000 }) : []),
+  ];
+  const funderIds = [...new Set([...apps.map((a) => a.workspace_id), ...awards.map((a) => a.workspace_id)])];
+  const funders = funderIds.length ? await ctx.repos.table("workspaces").find({ id: funderIds }) : [];
+  const cgApplications = [];
+  for (const a of apps) cgApplications.push(await projectApplication(ctx, a).catch(() => ({ id: a.id, title: a.title, status: { value: a.cg_status } })));
+  const commonGrants = {
+    protocol: "CommonGrants v0.5.0",
+    applications: cgApplications,
+    awards: awards.map((a) => a.cg ?? { id: a.id, title: a.title, status: { value: a.cg_status } }),
+    // The organization is a reference into Passport; the cached projection is a convenience copy.
+    orgs: [{ passportOrgId: me.passport_org_id, name: me.display_name, verificationLevel: me.verification_level, projection: me.org_projection, projectionAt: me.org_projection_at }],
+  };
+  const gms = {
+    exportedAt: ctx.now().toISOString(),
+    workspace: { id: me.id, handle: me.handle, displayName: me.display_name, kind: "applicant" },
+    funders: funders.map((f) => ({ id: f.id, handle: f.handle, name: f.display_name })),
+    applications: apps.map((a) => ({ id: a.id, title: a.title, status: a.status, stage: a.stage, funderWorkspaceId: a.workspace_id, submittedAt: a.submitted_at, requestedAmountMinor: a.requested_amount_minor, currency: a.currency })),
+    formResponses: responses.map((r) => ({ id: r.id, applicationId: r.application_id, submissionId: r.submission_id, formId: r.form_id, formVersion: r.form_version, status: r.status, response: r.response, provenance: r.provenance })),
+    awards: awards.map((a) => ({ id: a.id, title: a.title, status: a.status, funderWorkspaceId: a.workspace_id, funding: a.funding, keyDates: a.key_dates })),
+    requirements: requirements.map((r) => ({ id: r.id, awardId: r.award_id, type: r.type, title: r.title, dueAt: r.due_at, status: r.status })),
+    submissions: submissions.map((s) => ({ id: s.id, requirementId: s.requirement_id, awardId: s.award_id, status: s.status, submittedAt: s.submitted_at })),
+    budgets: budgets.map((b) => ({ id: b.id, awardId: b.award_id, kind: b.kind, lines: b.lines, source: b.source })),
+    answers: answers.map((a) => ({ id: a.id, key: a.key, title: a.title, body: a.body, version: a.version })),
+  };
+  const attachments = documents.map((d) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, subjectType: d.subject_type, subjectId: d.subject_id, passportDocumentId: d.passport_document_id }));
+  const prefix = `exports/${ws.id}/${ctx.now().toISOString().replace(/[:.]/g, "-")}`;
+  const files = { "commongrants.json": commonGrants, "gms.json": gms, "attachments/manifest.json": attachments };
+  let written = false;
+  if (ctx.ports.exports) {
+    for (const [name, body] of Object.entries(files)) await ctx.ports.exports.put(`${prefix}/${name}`, JSON.stringify(body), "application/json");
+    written = true;
+  }
+  const counts = { applications: apps.length, awards: awards.length, reports: submissions.length, answers: answers.length, orgs: 1, attachments: attachments.length };
   await audit(ctx, "export.bundle", "workspace", ws.id, { ...counts, written });
   return { prefix: written ? prefix : null, written, files: Object.keys(files), counts, ...(opts.inline || !written ? { bundle: files } : {}) };
 }

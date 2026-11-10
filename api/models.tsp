@@ -747,6 +747,70 @@ model AnswerUse {
   path: string;
   version: int32;
   insertedAt: utcDateTime;
+
+  /** Title of the application the answer went into; null if it can no longer be read */
+  applicationTitle?: string | null;
+
+  /** Display name of the funder that application was sent to */
+  funderName?: string | null;
+}
+
+/** The grantee's view of one grant: the detail plus where Passport would pay it. */
+model MyAwardDetail {
+  ...GmsAwardDetail;
+  payoutDestination: PayoutDestinationView;
+}
+
+/** A payout destination as the GMS may show it: a bank name and the last four digits, nothing more. */
+model PayoutDestinationView {
+  /** `ok` read from Passport · `none` no active destination · `not_linked` · `not_shared` the consent does not cover payee status · `unknown` Passport unreachable */
+  state: "ok" | "none" | "not_linked" | "not_shared" | "unknown";
+
+  bankName: string | null;
+  last4: string | null;
+
+  /** Passport's status for the active destination */
+  status: string | null;
+
+  /** Passport assurance level */
+  level: string | null;
+
+  /** A destination change that has not taken effect yet */
+  pendingChange: PendingDestinationChangeView | null;
+
+  /** No destination becomes active before this time */
+  freezeUntil: utcDateTime | null;
+
+  /** Where the organization manages its destination (Passport) */
+  manageUrl: string | null;
+
+  reason: string;
+}
+
+model PendingDestinationChangeView {
+  state: string | null;
+  bankName: string | null;
+  last4: string | null;
+  requestedAt: utcDateTime | null;
+  coolingOffUntil: utcDateTime | null;
+}
+
+model LeftWorkspace {
+  left: boolean;
+}
+
+model WebhookReplay {
+  id: string;
+
+  /** The delivery this one repeats */
+  replayOf: string;
+
+  eventId: string;
+  eventType: string;
+  status: string;
+  attempts: int32;
+  nextAttemptAt: utcDateTime;
+  createdAt: utcDateTime;
 }
 
 model MemberNotification {

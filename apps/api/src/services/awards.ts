@@ -13,6 +13,7 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
@@ -183,6 +184,24 @@ export async function getAward(ctx: ServiceContext, awardId: string, side?: "fun
   const found = await accessAward(ctx, awardId, "awards:read");
   if (side && found.side !== side) throw notFound("Award");
   return awardDetail(ctx, found.award);
+}
+
+/**
+ * The grantee's view of one grant: the detail plus where Passport would pay it (bank name and last
+ * four digits, read live with the grantee's own consent; never stored by the GMS).
+ */
+export async function getMyAward(ctx: ServiceContext, awardId: string) {
+  const found = await accessAward(ctx, awardId, "awards:read");
+  if (found.side !== "recipient" || !found.award.recipient_workspace_id) throw notFound("Award");
+  const [detail, payoutDestination] = await Promise.all([awardDetail(ctx, found.award), payoutDestinationFor(ctx, found.award.recipient_workspace_id)]);
+  return { ...detail, payoutDestination };
+}
+
+/** `/gms/my/awards/{id}/schedule` with the destination display the Payments tab shows beside it. */
+export async function getMyPayoutDestinationForAward(ctx: ServiceContext, awardId: string) {
+  const found = await accessAward(ctx, awardId, "awards:read");
+  if (found.side !== "recipient" || !found.award.recipient_workspace_id) throw notFound("Award");
+  return payoutDestinationFor(ctx, found.award.recipient_workspace_id);
 }
 
 // ------------------------------------------------------------------------------------ creation

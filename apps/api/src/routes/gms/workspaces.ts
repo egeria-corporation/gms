@@ -37,6 +37,8 @@ workspaceRoutes.post("/workspaces/:workspaceId/members", async (c) => c.json(cre
 workspaceRoutes.patch("/workspaces/:workspaceId/members/:userId", async (c) =>
   c.json(ok(await workspaces.updateMember(await svc(c), ws(c), bareUuid(c.req.param("userId"), "Member"), parse(workspaces.memberPatch, await jsonBody(c))))),
 );
+// Registered before `/:userId` so "me" is never read as a member id.
+workspaceRoutes.delete("/workspaces/:workspaceId/members/me", async (c) => c.json(ok(await workspaces.leaveWorkspace(await svc(c), ws(c)))));
 workspaceRoutes.delete("/workspaces/:workspaceId/members/:userId", async (c) => {
   await workspaces.removeMember(await svc(c), ws(c), bareUuid(c.req.param("userId"), "Member"));
   return c.json(ok({ removed: true }));

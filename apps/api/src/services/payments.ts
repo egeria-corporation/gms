@@ -286,6 +286,48 @@ export async function releaseTranche(ctx: ServiceContext, trancheId: string, inp
   }
 }
 
+/** A release is "stuck" when it has been `releasing` this long without an answer from Passport. */
+export const STUCK_RELEASE_MS = 15 * 60 * 1000;
+
+/**
+ * Resolve a tranche left in `releasing` (Passport did not answer, or the Worker stopped between the
+ * two writes). It repeats the identical release request under the tranche's own Idempotency-Key:
+ * Passport answers with the disbursement it already holds (never a second payment), or creates the
+ * one the person asked for, or refuses. The tranche then follows that answer through the machine
+ * (initiated, held at Passport, or failed and back to due). If Passport still cannot be reached,
+ * nothing changes. No authorization here: callers are `reconcileTranche` (a person) and the job.
+ */
+export async function reconcileReleasing(ctx: ServiceContext, tranche: TrancheRow, award: Award) {
+  if (tranche.status !== "releasing" || tranche.mode !== "facilitated") throw new ApiError(409, "not_releasing", `Only a payment that is releasing can be reconciled; this one is ${tranche.status.replace(/_/g, " ")}`);
+  const r = await evaluateTranche(ctx, tranche, award);
+  if (!r.award || !r.passport) throw new ApiError(409, "not_mirrored", "Connect Passport to reconcile this payment");
+  let outcome: Awaited<ReturnType<typeof releaseFacilitated>>;
+  try {
+    outcome = await releaseFacilitated({ passport: r.passport, now: ctx.now, apply: async (u) => void (await applyTrancheUpdate(ctx, u, "system")) }, { tranche: toPaymentsTranche(tranche), award: r.award, readiness: r.summary, actor: ctx.actor.id });
+  } catch (e) {
+    // Passport unreachable before anything was sent: still unconfirmed, still safe to try again.
+    if (e instanceof ReleaseBlockedError && e.code === "passport_unavailable") outcome = { result: "unconfirmed", status: "releasing" };
+    else if (e instanceof ReleaseBlockedError) throw blocked(e);
+    else throw e;
+  }
+  const after = required(await ctx.repos.table("tranches").one({ id: tranche.id }), "Tranche");
+  await audit(ctx, "tranche.reconciled", "tranche", tranche.id, { result: outcome.result, status: after.status, ...(outcome.result === "accepted" ? { replayed: outcome.replayed, passportDisbursementId: outcome.disbursement.id } : {}), ...(outcome.result === "refused" ? { code: outcome.code } : {}) }, tranche.workspace_id);
+  return {
+    result: outcome.result,
+    tranche: trancheView(after),
+    ...(outcome.result === "accepted" ? { replayed: outcome.replayed } : {}),
+    ...(outcome.result === "refused" ? { code: outcome.code, message: outcome.message } : {}),
+    ...(outcome.result === "unconfirmed" ? { message: "Passport has not confirmed this payment. Nothing changed; reconcile again later, or check the payment in Passport." } : {}),
+  };
+}
+
+/** A finance person or admin reconciles a payment stuck in `releasing`. A human gate, like the release itself. */
+export async function reconcileTranche(ctx: ServiceContext, trancheId: string) {
+  if (ctx.actor.kind !== "user") throw humanOnly("Reconciling a payment");
+  const { tranche, award } = await loadTranche(ctx, trancheId, "payments:release", FINANCE_ROLES);
+  return reconcileReleasing(ctx, tranche, award);
+}
+
 export const externalInput = z.object({ reference: z.string().trim().min(1).max(200), paidAt: z.iso.datetime({ offset: true }).or(z.iso.date()), destinationLast4: z.string().regex(/^[0-9]{4}$/, "Enter the last four digits only"), bankTransactionId: z.string().optional() }).strict();
 
 /** Resolve mode: record a tranche the funder paid through its own bank, and tell Passport. */
@@ -448,8 +490,11 @@ export async function refreshDisbursed(ctx: ServiceContext, award: Award): Promi
   }
   const disbursed = moneyToMinor(remote.funding?.disbursedAmount);
   if (disbursed === null) return null;
+  const before = minorOf(fundingOf(award).disbursedAmount);
   const funding = { ...fundingOf(award), disbursedAmount: toMoney(disbursed, currencyOf(award)) };
   await ctx.repos.table("awards").update({ id: award.id }, { funding: funding as unknown as Award["funding"], disbursed_at: ctx.now().toISOString() });
+  // A money figure changed on the award, so the ledger says so, and says whose number it is.
+  if (before !== disbursed) await audit(ctx, "award.disbursed_refreshed", "award", award.id, { fromMinor: before, toMinor: disbursed, currency: currencyOf(award), source: "passport", passportAwardId: award.passport_award_id }, award.workspace_id);
   return disbursed;
 }
 

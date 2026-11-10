@@ -9,39 +9,29 @@ import { authenticate } from "../../auth/middleware.ts";
 import type { WorkspaceKind } from "../../auth/scopes.ts";
 import { ApiError, notFound, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { parse } from "../../lib/input.ts";
-import { approvalFromRow, approvalUuid } from "../../services/mcp-layer.ts";
-import { jsonBody, page } from "../http.ts";
+import * as approvals from "../../services/approvals.ts";
+import type { approvalFromRow } from "../../services/mcp-layer.ts";
+import { jsonBody, page, svc } from "../http.ts";
 import { dispatcherFor, registry } from "../mcp.ts";
 
 export const approvalRoutes = new Hono<AppEnv>();
 approvalRoutes.use("/approvals", authenticate());
 approvalRoutes.use("/approvals/*", authenticate());
 
-const STATUSES = ["pending", "approved", "rejected", "executed", "failed", "expired"];
 const view = (a: ReturnType<typeof approvalFromRow>, webBaseUrl: string) => {
   const tool = registry.get(a.side, a.tool);
   return { ...a, scope: tool?.scope ?? null, description: tool?.description ?? null, url: `${webBaseUrl.replace(/\/$/, "")}/approvals/${a.id}` };
 };
 
+const scopeOf: approvals.ScopeOfTool = (side, tool) => registry.get(side, tool)?.scope ?? null;
+
 approvalRoutes.get("/approvals", async (c) => {
-  const p = c.get("principal");
-  if (!p.role) throw new ApiError(403, "person_required", "Approvals are listed and resolved by people in the workspace");
-  const status = c.req.query("status");
-  if (status && !STATUSES.includes(status)) throw new ApiError(400, "bad_request", `status must be one of ${STATUSES.join(", ")}`);
   const pg = page(c);
-  const repo = c.get("deps").repos.table("approvals");
-  const where = { workspace_id: p.workspaceId, ...(status ? { status } : {}) };
-  const [rows, total] = await Promise.all([repo.find(where, { orderBy: "created_at", ascending: false, limit: pg.pageSize, offset: pg.offset }), repo.count(where)]);
-  return c.json(paginated(rows.map((r) => view(approvalFromRow(r), c.env.WEB_BASE_URL)), pageInfo(pg.page, pg.pageSize, total)));
+  const { items, total } = await approvals.listApprovals(await svc(c), pg, { status: c.req.query("status") }, scopeOf);
+  return c.json(paginated(items.map((a) => view(a, c.env.WEB_BASE_URL)), pageInfo(pg.page, pg.pageSize, total)));
 });
 
-approvalRoutes.get("/approvals/:id", async (c) => {
-  const p = c.get("principal");
-  const uuid = approvalUuid(c.req.param("id"));
-  const row = uuid ? await c.get("deps").repos.table("approvals").one({ id: uuid, workspace_id: p.workspaceId }) : null;
-  if (!row) throw notFound("Approval");
-  return c.json(ok(view(approvalFromRow(row), c.env.WEB_BASE_URL)));
-});
+approvalRoutes.get("/approvals/:id", async (c) => c.json(ok(view(await approvals.getApproval(await svc(c), c.req.param("id"), scopeOf), c.env.WEB_BASE_URL))));
 
 const decisionInput = z.object({ approve: z.boolean(), note: z.string().trim().max(2000).optional() }).strict();
 

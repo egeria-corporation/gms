@@ -4,6 +4,7 @@ import { escapeHtml } from "@gms/notify";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { APPLICANT_ROLES, FUNDER_ROLES, roleRequiresMfa, type WorkspaceKind } from "../auth/scopes.ts";
+import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import type { Row } from "./repos/types.ts";
@@ -202,6 +203,23 @@ export async function removeMember(ctx: ServiceContext, workspaceId: string, use
   if (current.role === "admin") await assertAnotherAdmin(ctx, workspaceId, userId);
   await ctx.repos.table("workspace_members").remove({ workspace_id: workspaceId, user_id: userId });
   await audit(ctx, "member.removed", "workspace", workspaceId, { userId, role: current.role });
+}
+
+/**
+ * A person leaves a workspace. Their Passport account and the organization's record are untouched.
+ * Refused for the last admin, and for anything but a signed-in person (an agent cannot quit for you).
+ */
+export async function leaveWorkspace(ctx: ServiceContext, workspaceId: string) {
+  if (ctx.actor.kind !== "user" || !ctx.actor.userId) throw forbidden("human_only", "Leaving a workspace must be done by a signed-in person, never by an agent or API client");
+  await authorize(ctx, { person: true, owner: workspaceId, what: "Workspace" });
+  const userId = ctx.actor.userId;
+  const current = required(await ctx.repos.table("workspace_members").one({ workspace_id: workspaceId, user_id: userId }), "Member");
+  if (current.role === "admin") await assertAnotherAdmin(ctx, workspaceId, userId);
+  await ctx.repos.table("workspace_members").remove({ workspace_id: workspaceId, user_id: userId });
+  // The agents this person connected lose the workspace with them.
+  await ctx.repos.table("mcp_connections").update({ workspace_id: workspaceId, user_id: userId, revoked_at: null }, { revoked_at: ctx.now().toISOString() });
+  await audit(ctx, "member.left", "workspace", workspaceId, { userId, role: current.role });
+  return { left: true };
 }
 
 export const invitationInput = z

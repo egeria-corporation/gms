@@ -35,6 +35,17 @@ export interface Tranche {
   releasedBy: string | null;
   releasedAt: string | null;
   external: ExternalPaymentRecord | null;
+  /**
+   * What the facilitated release asked Passport for. Passport replays a disbursement only for the
+   * identical request under the same Idempotency-Key, so a retry repeats these. Never bank data.
+   */
+  releaseRequest?: ReleaseRequestRecord | null;
+}
+
+export interface ReleaseRequestRecord {
+  rail: "auto" | "standard" | "instant";
+  credentialId: string;
+  credentialVersion: number;
 }
 
 export type TranchePatch = Partial<Omit<Tranche, "id" | "awardId" | "seq" | "amountMinor" | "currency" | "condition" | "idempotencyKey">>;

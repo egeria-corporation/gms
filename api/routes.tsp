@@ -293,6 +293,10 @@ namespace GMS.Routes.Custom {
     @patch @route("/workspaces/{id}/members/{userId}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op updateMember(@path id: CommonGrants.Types.uuid, @path userId: CommonGrants.Types.uuid, @body body: MergePatch): OkT<Member> | BadRequest | AuthErrors | NotFound;
 
+    /** Leave the workspace. People only; refused for the last admin. Passport is not affected. */
+    @delete @route("/workspaces/{id}/members/me") @useAuth(UserSession)
+    op leaveWorkspace(@path id: CommonGrants.Types.uuid): OkT<LeftWorkspace> | AuthErrors | NotFound | Conflict;
+
     @delete @route("/workspaces/{id}/members/{userId}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op removeMember(@path id: CommonGrants.Types.uuid, @path userId: CommonGrants.Types.uuid): NoContentResponse | AuthErrors | NotFound | Conflict;
 
@@ -643,6 +647,13 @@ namespace GMS.Routes.Custom {
     @post @route("/tranches/{id}/record-external") @useAuth(UserSession)
     op recordExternal(@path id: GmsId, @body body: ExternalPaymentInput): OkT<ExternalPaymentResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /** Resolve a payment stuck in `releasing`: the identical request is repeated under the same
+     * Idempotency-Key, so Passport answers with the disbursement it holds or the one that was
+     * released, never a second payment. People only (finance, admin).
+     */
+    @post @route("/tranches/{id}/reconcile") @useAuth(UserSession)
+    op reconcile(@path id: GmsId): OkT<ReleaseResult> | AuthErrors | NotFound | Conflict;
+
     @post @route("/tranches/{id}/hold") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
     op hold(@path id: GmsId, @body body: ReasonBody): OkT<PaymentTranche> | BadRequest | AuthErrors | NotFound | Conflict;
 
@@ -827,6 +838,10 @@ namespace GMS.Routes.Custom {
 
     @get @route("/webhooks/{id}/deliveries") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op listDeliveries(@path id: string): OkT<WebhookDeliveryView[]> | AuthErrors | NotFound;
+
+    /** Send one delivery again as a new delivery with the same signed body. People only. */
+    @post @route("/webhooks/{id}/deliveries/{deliveryId}/replay") @useAuth(UserSession)
+    op replayDelivery(@path id: string, @path deliveryId: string): CreatedT<WebhookReplay> | AuthErrors | NotFound | Conflict;
 
     /** Agents connected to the workspace, on either side: all of them for an admin, the caller's own otherwise. */
     @get @route("/mcp-connections") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
@@ -1026,7 +1041,13 @@ namespace GMS.Routes.Custom {
     op myAwards(...PageParams): PaginatedT<GmsAward> | AuthErrors;
 
     @get @route("/my/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op myAward(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;
+    op myAward(@path id: GmsId): OkT<MyAwardDetail> | AuthErrors | NotFound;
+
+    /** Where Passport would pay this grant: bank name and last four digits, read live with the
+     * grantee's own consent and never stored by the GMS.
+     */
+    @get @route("/my/awards/{id}/payout-destination") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op myPayoutDestination(@path id: GmsId): OkT<PayoutDestinationView> | AuthErrors | NotFound;
 
     /** People only: the recipient workspace's admin accepts; an agent's accept runs after a person approves it. */
     @post @route("/my/awards/{id}/accept") @useAuth(UserSession)

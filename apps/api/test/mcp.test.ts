@@ -3,7 +3,7 @@
 // the human gate resolved by a person in /gms/approvals.
 import { beforeEach, describe, expect, it } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
-import { AGENT_REDIRECT, CLIENT_AGENT, USER_AUDITOR, USER_OFFICER, VERIFIER, WEB, WS_APPLICANT, WS_FUNDER, authorizeAs, bearer, clientCredentialsToken, form, harness, type Harness } from "./helpers.ts";
+import { AGENT_REDIRECT, CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, VERIFIER, WEB, WS_APPLICANT, WS_FUNDER, authorizeAs, bearer, clientCredentialsToken, form, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
 
 let h: Harness;
@@ -127,6 +127,20 @@ describe("funder agent", () => {
 
     const list = await s.call<{ items: { id: string; tool: string; status: string; requestedBy: { clientId: string } }[] }>(s.funder, "GET", "/gms/approvals?status=pending");
     expect(list.body.items).toEqual([expect.objectContaining({ id: pending.approvalId, tool: "decline_application", status: "pending", requestedBy: { userId: USER_OFFICER, clientId: CLIENT_AGENT } })]);
+
+    // Who may read it: the people who could approve it, admins and auditors, and the agent that asked.
+    // A reviewer (no decisions scope) and another agent see nothing; a guess answers 404.
+    const reviewerId = "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e";
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: reviewerId, role: "reviewer" });
+    const reviewer = { ...bearer(await h.session(reviewerId)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
+    expect((await s.call<{ items: unknown[] }>(reviewer, "GET", "/gms/approvals")).body.items).toEqual([]);
+    expect((await s.call(reviewer, "GET", `/gms/approvals/${pending.approvalId}`)).status).toBe(404);
+    const auditorRead = { ...bearer(await h.session(USER_AUDITOR)).headers, "X-GMS-Workspace": WS_FUNDER };
+    expect((await s.call<{ items: unknown[] }>(auditorRead, "GET", "/gms/approvals")).body.items).toHaveLength(1);
+    expect((await h.request(`/gms/approvals/${pending.approvalId}`, { headers: bearer(agent).headers })).status).toBe(200);
+    expect((await h.request("/gms/approvals", { headers: bearer(agent).headers })).status).toBe(403);
+    const otherAgent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "applications:read", [WORKSPACE_CLAIM]: WS_FUNDER });
+    expect((await h.request(`/gms/approvals/${pending.approvalId}`, { headers: bearer(otherAgent).headers })).status).toBe(404);
 
     // An agent cannot approve its own request, and a role without the scope cannot either.
     const self = await h.request(`/gms/approvals/${pending.approvalId}/decision`, { method: "POST", headers: { ...bearer(agent).headers, "Content-Type": "application/json" }, body: JSON.stringify({ approve: true }) });

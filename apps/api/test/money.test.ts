@@ -4,10 +4,10 @@
 import { encryptSecret, fixtureFetch, signPassportPayload, type Fixture } from "@gms/passport-client";
 import { beforeEach, describe, expect, it } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
-import { evaluateRequirements, evaluateTranchesDue } from "../src/jobs.ts";
+import { evaluateRequirements, evaluateTranchesDue, reconcileStuckReleases } from "../src/jobs.ts";
 import type { BaseContext } from "../src/services/context.ts";
 import { CLIENT_AGENT, ORG_RIVERBEND, PASSPORT, PASSPORT_WEBHOOK_SECRET, TEST_CREDENTIALS_KEY, USER_ADMIN, USER_OFFICER, WEB, BASE, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
-import { ORG_ALDER, scenario, type Scenario } from "./scenario.ts";
+import { ORG_ALDER, USER_APPLICANT, USER_APPLICANT_EDITOR, scenario, type Scenario } from "./scenario.ts";
 
 const FINANCE = "70000000-0000-4000-8000-000000000001";
 const PASSPORT_AWARD = "0193a1c0-0000-7000-8000-00000000aa01";
@@ -513,6 +513,144 @@ describe("requirements and reports", () => {
     const rows = await h.repos.table("tranches").find({ award_id: award, status: "due" });
     expect(rows).toHaveLength(1);
     expect(h.ledger.events.filter((e) => e.eventType === "tranche.mark_due").pop()!.actor).toBe("system:tranche-due");
+  });
+});
+
+describe("reconciling a payment stuck in releasing", () => {
+  const stick = async () => {
+    const inner = fx.fetch;
+    let calls = 0;
+    h.passport.fetch = (input, init) => {
+      if (String(input).endsWith("/passport/disbursements") && ++calls === 1) return Promise.reject(new Error("timeout"));
+      return inner(input, init);
+    };
+    const first = await data<{ result: string }>(finance, "POST", `/gms/tranches/${t1}/release`, { rail: "instant" });
+    expect(first.result).toBe("unconfirmed");
+    expect((await tranche(t1)).status).toBe("releasing");
+  };
+
+  it("repeats the identical request under the same key and follows Passport's answer", async () => {
+    await stick();
+    expect((await tranche(t1)).release_request).toEqual({ rail: "instant", credentialId: "pc_01JALDERCREEK0000000000000", credentialVersion: 4 });
+    const out = await data<{ result: string; tranche: { status: string; passportDisbursementId: string } }>(finance, "POST", `/gms/tranches/${t1}/reconcile`);
+    expect(out).toMatchObject({ result: "accepted", tranche: { status: "initiated", passportDisbursementId: DSB } });
+    const posts = fx.calls.filter((c) => c.method === "POST" && c.path === "/passport/disbursements");
+    // One recorded call (the first never reached the fixture): same key, and the rail the person chose.
+    expect(posts.map((c) => [c.headers["idempotency-key"], (c.body as { rail: string }).rail])).toEqual([[t1, "instant"]]);
+    expect(ledger("tranche.reconciled")).toHaveLength(1);
+    // Nothing left to reconcile.
+    expect((await s.call(finance, "POST", `/gms/tranches/${t1}/reconcile`)).status).toBe(409);
+  });
+
+  it("changes nothing while Passport still cannot confirm, and is a human gate", async () => {
+    await stick();
+    h.passport.fetch = () => Promise.reject(new Error("down"));
+    const still = await data<{ result: string; tranche: { status: string } }>(finance, "POST", `/gms/tranches/${t1}/reconcile`);
+    expect(still).toMatchObject({ result: "unconfirmed", tranche: { status: "releasing" } });
+    const agent = await h.forge({ sub: FINANCE, client_id: CLIENT_AGENT, scope: "payments:read payments:release approvals:bypass", [WORKSPACE_CLAIM]: WS_FUNDER });
+    const viaAgent = await h.request(`/gms/tranches/${t1}/reconcile`, { method: "POST", headers: bearer(agent).headers });
+    expect(viaAgent.status).toBe(403);
+    expect(((await viaAgent.json()) as { errors: { code: string }[] }).errors[0]!.code).toBe("human_only");
+    expect((await s.call(s.funder, "POST", `/gms/tranches/${t1}/reconcile`)).status).toBe(403);
+  });
+
+  it("is resolved by the job once the release has been stuck past the threshold", async () => {
+    await stick();
+    h.passport.fetch = fx.fetch;
+    const job = (): BaseContext => ({ ...base(), config: { ...base().config, passportFetch: h.passport.fetch } });
+    // Still fresh: the person may be retrying, so the job leaves it.
+    expect(await reconcileStuckReleases(job())).toMatchObject({ stuck: 0, resolved: 0 });
+    h.clock.now = new Date(h.clock.now.getTime() + 16 * 60 * 1000);
+    expect(await reconcileStuckReleases(job())).toMatchObject({ stuck: 1, resolved: 1, unconfirmed: 0, failed: 0 });
+    expect((await tranche(t1)).status).toBe("initiated");
+    expect(ledger("tranche.reconciled").at(-1)!.actor).toBe("system:tranche-reconcile");
+    expect(await reconcileStuckReleases(job())).toMatchObject({ stuck: 0 });
+  });
+});
+
+describe("what the grantee sees of the destination and the report form", () => {
+  const consentToken: Fixture = { method: "POST", path: "/oauth/token", status: 200, body: { access_token: "passport-consented-token-for-tests", refresh_token: "rt-next", token_type: "Bearer", expires_in: 600, scope: "org:read payee:read" } };
+  const linkApplicant = async () => {
+    await h.repos.table("passport_links").insert({ workspace_id: WS_APPLICANT, mode: "applicant_consent", client_id: "gms-test-client", refresh_token_enc: await encryptSecret("rt-first", TEST_CREDENTIALS_KEY), scopes: ["org:read", "payee:read"], linked_by_user_id: USER_APPLICANT, linked_at: "2027-02-03T00:00:00Z", last_ok_at: "2027-02-03T00:00:00Z" });
+  };
+  type Dest = { state: string; bankName: string | null; last4: string | null; status: string | null; pendingChange: { bankName: string | null; last4: string | null } | null; freezeUntil: string | null };
+
+  it("shows bank name and last four read live from Passport, and nothing else about the bank", async () => {
+    await linkApplicant();
+    h.passport.fetch = fixtureFetch([consentToken, PAYEE({ changeControl: { pendingChange: { destinationId: "d2", state: "cooling_off", bankName: "Harbor Bank", last4: "9911", requestedAt: "2027-04-10T00:00:00Z", coolingOffUntil: "2027-04-17T00:00:00Z" }, freezeUntil: "2027-04-20T00:00:00Z", lastChangedAt: null } })]).fetch;
+    const d = await data<Dest>(s.applicant, "GET", `/gms/my/awards/${awardId}/payout-destination`);
+    expect(d).toMatchObject({ state: "ok", bankName: "River City Credit Union", last4: "4821", status: "active", pendingChange: { bankName: "Harbor Bank", last4: "9911" }, freezeUntil: "2027-04-20T00:00:00Z" });
+    expect(JSON.stringify(d)).not.toMatch(/tok_|token|holder/i);
+    const detail = await data<{ payoutDestination: Dest; tranches: unknown[] }>(s.applicant, "GET", `/gms/my/awards/${awardId}`);
+    expect(detail.payoutDestination.state).toBe("ok");
+    expect(detail.tranches).toHaveLength(2);
+    // Read, never kept: no row of the GMS holds it.
+    expect(JSON.stringify(await h.repos.table("workspaces").one({ id: WS_APPLICANT }))).not.toContain("River City");
+    expect(JSON.stringify(await h.repos.table("awards").one({ id: award }))).not.toContain("4821");
+    // The funder has no such route for someone else's grant.
+    expect((await s.call(s.funder, "GET", `/gms/my/awards/${awardId}/payout-destination`)).status).toBeGreaterThanOrEqual(403);
+  });
+
+  it("says unknown when Passport is unreachable, not-shared when the consent lacks it, and not-linked without a link", async () => {
+    expect((await data<Dest>(s.applicant, "GET", `/gms/my/awards/${awardId}/payout-destination`)).state).toBe("not_linked");
+    await linkApplicant();
+    h.passport.fetch = () => Promise.reject(new Error("down"));
+    expect(await data<Dest>(s.applicant, "GET", `/gms/my/awards/${awardId}/payout-destination`)).toMatchObject({ state: "unknown", bankName: null, last4: null });
+    h.passport.fetch = fixtureFetch([consentToken, { method: "GET", path: `/passport/payees/${ORG_ALDER}`, status: 403, body: { status: 403, message: "Insufficient scope", errors: [{ code: "insufficient_scope" }] } }]).fetch;
+    expect((await data<Dest>(s.applicant, "GET", `/gms/my/awards/${awardId}/payout-destination`)).state).toBe("not_shared");
+    // The grant itself still loads when the destination cannot be read.
+    expect((await data<{ payoutDestination: Dest }>(s.applicant, "GET", `/gms/my/awards/${awardId}`)).payoutDestination.state).toBe("not_shared");
+  });
+
+  it("lets the grantee and the funder read a report form pinned by a requirement, and nobody else", async () => {
+    const form = reportFormId.slice(4);
+    const mine = await s.call<{ data: { id: string; jsonSchema: { properties: Record<string, unknown> } } }>(s.applicant, "GET", `/common-grants/forms/${form}`);
+    expect(mine.status).toBe(200);
+    expect(Object.keys(mine.body.data.jsonSchema.properties)).toContain("progress");
+    expect((await s.call(s.applicant, "GET", `/common-grants/forms/${form}?version=1`)).status).toBe(200);
+    expect((await s.call(s.applicant, "GET", `/common-grants/forms/${form}?version=7`)).status).toBe(404);
+    expect((await s.call(s.funder, "GET", `/common-grants/forms/${form}`)).status).toBe(200);
+    // Not public, and not for a workspace with no award that asks for it.
+    expect((await h.request(`/common-grants/forms/${form}`)).status).toBe(404);
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: FINANCE, role: "observer" });
+    expect((await s.call(await headers(FINANCE, WS_OTHER), "GET", `/common-grants/forms/${form}`)).status).toBe(404);
+  });
+});
+
+describe("report reminders follow each member's preferences", () => {
+  const withDirectory = (): BaseContext => ({ ...base(), ports: { ...base().ports, directory: h.directory } });
+  const prefs = (user: string, p: Record<string, unknown>) => h.repos.table("workspace_members").update({ workspace_id: WS_APPLICANT, user_id: user }, { notification_preferences: p as never });
+
+  it("mails members who want it now, leaves digest members to their digest, and never mails members who turned it off", async () => {
+    h.directory.users.set(USER_APPLICANT, { email: "maria.santos@aldercreekfs.example", name: "Maria Santos" });
+    h.directory.users.set(USER_APPLICANT_EDITOR, { email: "jamal.reed@aldercreekfs.example", name: "Jamal Reed" });
+    // The harness's third member of the applicant workspace turns report email off; Jamal is on a daily digest.
+    await prefs(USER_OFFICER, { digest: "immediate", channels: { requirement: { inApp: true, email: false } } });
+    await prefs(USER_APPLICANT_EDITOR, { digest: "daily", channels: {} });
+    h.clock.now = new Date("2027-11-16T09:00:00Z");
+    expect(await evaluateRequirements(withDirectory())).toMatchObject({ reminders: 1, failed: 0 });
+    expect(h.mailer.sent.map((m) => m.to)).toEqual([["maria.santos@aldercreekfs.example"]]);
+    // The grantee's own ledger carries the reminder, which is what the digest and the bell read.
+    const own = h.ledger.events.filter((e) => e.eventType === "requirement.reminder" && e.workspaceId === WS_APPLICANT);
+    expect(own).toHaveLength(1);
+    // A retry sends nothing more.
+    expect((await evaluateRequirements(withDirectory())).reminders).toBe(0);
+    expect(h.mailer.sent).toHaveLength(1);
+  });
+
+  it("sends nothing at once when everyone who wants it is on a digest, and falls back to the organization only when nobody opted in", async () => {
+    h.directory.users.set(USER_APPLICANT, { email: "maria.santos@aldercreekfs.example", name: "Maria Santos" });
+    await prefs(USER_APPLICANT, { digest: "weekly", channels: {} });
+    await prefs(USER_OFFICER, { digest: "immediate", channels: { requirement: { inApp: true, email: false } } });
+    h.clock.now = new Date("2027-11-16T09:00:00Z");
+    expect((await evaluateRequirements(withDirectory())).reminders).toBe(1);
+    expect(h.mailer.sent).toHaveLength(0);
+
+    // Next offset: every member has now turned report email off, so the organization's address gets it.
+    await prefs(USER_APPLICANT, { digest: "immediate", channels: { requirement: { inApp: true, email: false } } });
+    h.clock.now = new Date("2027-12-02T09:00:00Z");
+    expect((await evaluateRequirements(withDirectory())).reminders).toBe(1);
+    expect(h.mailer.sent.map((m) => m.to)).toEqual([["info@aldercreekfs.example"]]);
   });
 });
 

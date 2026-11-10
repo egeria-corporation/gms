@@ -121,15 +121,22 @@ export async function releaseFacilitated(deps: ReleaseDeps, ctx: ReleaseContext)
     await deps.apply({ trancheId: tranche.id, path, patch: { ...patch, status }, ...(reason ? { reason } : {}) });
   };
 
-  if (!resuming) await move("releasing", { mode: "facilitated", releasedBy: ctx.actor, releasedAt: deps.now().toISOString(), holdReason: null });
+  // A retry repeats the request that was first sent: Passport replays a disbursement only when the
+  // same Idempotency-Key arrives with the same body, and answers `idempotency_key_reused` otherwise.
+  const first = resuming ? (tranche.releaseRequest ?? null) : null;
+  const rail: PassportRail = first?.rail ?? ctx.rail ?? "auto";
+  let sent: { id: string; version: number } = first ? { id: first.credentialId, version: first.credentialVersion } : { id: credential.id, version: credential.version };
+  const remember = (c: { id: string; version: number }) => ({ rail, credentialId: c.id, credentialVersion: c.version });
 
-  const request = (c: PayeeCredential): CreateDisbursementRequest => ({
+  if (!resuming) await move("releasing", { mode: "facilitated", releasedBy: ctx.actor, releasedAt: deps.now().toISOString(), holdReason: null, releaseRequest: remember(sent) });
+
+  const request = (c: { id: string; version: number }): CreateDisbursementRequest => ({
     awardId: passportAwardId,
     recipientOrgId: award.recipientOrgId,
     credentialId: c.id,
     credentialVersion: c.version,
     amount: minorToMoney(tranche.amountMinor, tranche.currency),
-    rail: ctx.rail ?? "auto",
+    rail,
     mode: "facilitated",
     memo: memoFor(award, tranche),
     feePaidBy: "source",
@@ -137,7 +144,7 @@ export async function releaseFacilitated(deps: ReleaseDeps, ctx: ReleaseContext)
 
   for (let attempt = 1; ; attempt++) {
     try {
-      const { disbursement, replayed } = await deps.passport.createDisbursement(request(credential), tranche.idempotencyKey);
+      const { disbursement, replayed } = await deps.passport.createDisbursement(request(sent), tranche.idempotencyKey);
       const target = trancheStatusFor(disbursement.status);
       await move(
         target,
@@ -152,6 +159,9 @@ export async function releaseFacilitated(deps: ReleaseDeps, ctx: ReleaseContext)
           // at Passport, so the same Idempotency-Key is still free.
           try {
             credential = await deps.passport.getPayeeCredential(award.recipientOrgId);
+            sent = { id: credential.id, version: credential.version };
+            // Nothing is stored at Passport for the refused request, so the next attempt's request is the one to remember.
+            await deps.apply({ trancheId: tranche.id, path: [], patch: { releaseRequest: remember(sent) } });
             continue;
           } catch (again) {
             if (!(again instanceof PassportUnavailableError)) throw again;
@@ -162,6 +172,9 @@ export async function releaseFacilitated(deps: ReleaseDeps, ctx: ReleaseContext)
         return { result: "refused", status: "held", code: e.code, message: "The payee credential changed while this payment was being released. Review the grantee's payee status, then release again." };
       }
       if (e instanceof PassportUnavailableError) return { result: "unconfirmed", status: "releasing" };
+      // Passport holds a disbursement under this key made with a different request. That is not a
+      // refusal: money may be moving. Leave the tranche where it is for a person to look at.
+      if (e instanceof PassportApiError && e.code === "idempotency_key_reused") return { result: "unconfirmed", status: "releasing" };
       if (e instanceof PassportApiError) {
         await move("failed", { passportStatus: "refused" }, e.code);
         return { result: "refused", status, code: e.code, message: e.message };

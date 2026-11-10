@@ -11,7 +11,7 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, responsesOf, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
-import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
@@ -230,6 +230,7 @@ export const declineInput = z.object({ rationale: z.string().trim().max(5000).op
 export async function declineApplication(ctx: ServiceContext, appId: string, input: z.output<typeof declineInput>) {
   const { app, ws } = await funderApp(ctx, appId, "applications:write");
   await authorize(ctx, { scope: "decisions:write", kind: "funder" });
+  requireApproval(ctx, "Declining an application");
   const at = ctx.now().toISOString();
   const decision = await ctx.repos.table("decisions").insert({ workspace_id: ws.id, competition_id: app.competition_id, application_id: app.id, stage: app.stage, outcome: "decline", rationale: input.rationale ?? null, currency: app.currency, proposed_by: ctx.actor.id, decided_by: ctx.actor.userId, committed_at: at });
   let updated: App;
@@ -285,6 +286,7 @@ export const bulkInput = z
 /** One action over many applications. Each application succeeds or fails on its own; nothing is rolled back. */
 export async function bulkApplications(ctx: ServiceContext, input: z.output<typeof bulkInput>, uuids: string[]) {
   await authorize(ctx, { scope: "applications:write", kind: "funder" });
+  if (input.action === "decline") requireApproval(ctx, "Declining applications");
   const bad = (e: z.ZodError) => new ApiError(400, "bad_request", "params is not valid for this action", e.issues.map((i) => ({ code: "invalid_field", field: `params.${i.path.map(String).join(".")}`, detail: i.message })));
   const params = <S extends z.ZodType>(schema: S): z.output<S> => {
     const r = schema.safeParse(input.params);
