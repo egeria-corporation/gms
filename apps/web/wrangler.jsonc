@@ -7,5 +7,12 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
+  },
+  "env": {
+    // gms-staging.opengrants.io. The API Worker's routes on the same host take the API paths.
+    "staging": {
+      "name": "gms-web-staging",
+      "routes": [{ "pattern": "gms-staging.opengrants.io", "custom_domain": true }]
+    }
   }
 }

@@ -22,6 +22,8 @@ One line each: date · decision · why.
 - 2026-11-10 · Owner decision: Passport is the portable identity / common app and the GMS leverages it. Where Passport cannot yet serve the GMS (profile read for consented clients, funder award routes), Passport is changed rather than the GMS working around it · see the Passport PR from branch `claude/gms-integration`.
 - 2026-11-10 · The tranche machine gains `releasing → held` and `held → releasing|initiated` · Passport creates a held disbursement itself during a destination change.
 - 2026-11-10 · Owner decision: the applicant's Passport consent includes `payee:read` in addition to `org:read org.changes:read org.changes:write` · applicants see their own payout destination status (bank name and last four) in the GMS, as the design shows. This widens the consent in the build prompt's decision table; `PASSPORT_APPLICANT_PAYEE_READ=false` turns it off. Organizations that consented before this change see the panel as not shared until they reconnect.
+- 2026-11-10 · Supabase sessions are verified against the project's published signing keys (ES256/RS256, JWKS), with the legacy HS256 secret still accepted; a bearer is treated as a session by its issuer, not its algorithm · new Supabase projects sign sessions asymmetrically, which the first staging deploy showed.
+- 2026-11-10 · Staging (`gms-staging.opengrants.io`) is served by a generated front Worker with the web app embedded and a service binding to the API, and `/openapi.json` falls back to the exports bucket · the session's deploy token could not upload static assets or edit zone routes. Production keeps the route layout. See `docs/staging.md`.
 
 ## Open differences with Passport (need an owner decision)
 

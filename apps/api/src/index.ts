@@ -62,10 +62,18 @@ function ports(env: Env): ServicePorts {
   };
 }
 
-/** The compiled OpenAPI document ships as a static asset (`pnpm --filter @gms/api build:openapi`). */
+/** Where the OpenAPI document sits in the EXPORTS bucket when the Worker is deployed without static assets. */
+export const OPENAPI_OBJECT_KEY = "site/openapi.json";
+
+/**
+ * The compiled OpenAPI document ships as a static asset (`pnpm --filter @gms/api build:openapi`).
+ * A deployment without the asset binding serves the same file from the EXPORTS bucket.
+ */
 async function openapi(env: Env): Promise<unknown | null> {
   const res = await env.ASSETS?.fetch(new Request("https://assets.local/openapi.json"));
-  return res?.ok ? ((await res.json()) as unknown) : null;
+  if (res?.ok) return (await res.json()) as unknown;
+  const stored = await env.EXPORTS?.get(OPENAPI_OBJECT_KEY);
+  return stored ? ((await stored.json()) as unknown) : null;
 }
 
 const app = createApp(depsFor);

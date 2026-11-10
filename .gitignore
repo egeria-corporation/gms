@@ -20,3 +20,7 @@ supabase/.temp
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# generated front Worker (scripts/build-front-worker.mjs) and session-only wrangler configs
+apps/web/.front-worker/
+wrangler.session.toml

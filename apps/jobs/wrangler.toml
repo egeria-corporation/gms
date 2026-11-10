@@ -43,9 +43,9 @@ bucket_name = "gms-exports-dev"
 name = "gms-jobs-staging"
 
 [env.staging.vars]
-GMS_BASE_URL = "https://staging.gms.opengrants.io"
-WEB_BASE_URL = "https://staging.gms.opengrants.io"
-PASSPORT_BASE_URL = "https://test.passport.opengrants.io"
+GMS_BASE_URL = "https://gms-staging.opengrants.io"
+WEB_BASE_URL = "https://gms-staging.opengrants.io"
+PASSPORT_BASE_URL = "https://passport.opengrants.io"
 
 [env.staging.triggers]
 crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]

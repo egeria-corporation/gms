@@ -4,12 +4,11 @@
 // (delegated token). All three resolve to a Principal with a workspace and a set of scopes, and
 // routes ask one question: `requireScope("payments:release")`.
 import { formatActor, type Actor } from "@gms/ledger";
-import { decodeProtectedHeader } from "jose";
 import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnv } from "../app.ts";
 import { keyRing } from "../lib/keys.ts";
 import { roleRequiresMfa, scopesForRole } from "./scopes.ts";
-import { verifySupabaseSession, type SessionUser } from "./session.ts";
+import { isSessionToken, verifySupabaseSession, type SessionConfig, type SessionUser } from "./session.ts";
 import { authError, checkScope, checkWorkspaceBinding, forbidden, verifyAccessToken } from "./verify.ts";
 
 export const WORKSPACE_HEADER = "X-GMS-Workspace";
@@ -39,13 +38,11 @@ function bearer(c: Context<AppEnv>): string | null {
   return m ? m[1]! : null;
 }
 
-function tokenAlg(token: string): string | null {
-  try {
-    return decodeProtectedHeader(token).alg ?? null;
-  } catch {
-    return null;
-  }
-}
+const sessionConfig = (c: Context<AppEnv>): SessionConfig => ({
+  jwtSecret: c.env.SUPABASE_JWT_SECRET,
+  supabaseUrl: c.env.SUPABASE_URL,
+  keys: c.get("deps").sessionKeys,
+});
 
 /** The workspace a request names: `:workspaceId` in the path, else the X-GMS-Workspace header. */
 const namedWorkspace = (c: Context<AppEnv>): string | null => c.req.param("workspaceId") ?? c.req.header(WORKSPACE_HEADER) ?? null;
@@ -55,8 +52,8 @@ export function requireUser(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const token = bearer(c);
     if (!token) throw authError("missing_token", "Sign in to continue");
-    if (tokenAlg(token) !== "HS256") throw authError("session_required", "This action needs a signed-in person, not an API token");
-    c.set("user", await verifySupabaseSession(token, c.env.SUPABASE_JWT_SECRET, c.get("deps").now()));
+    if (!isSessionToken(token, c.env.SUPABASE_URL)) throw authError("session_required", "This action needs a signed-in person, not an API token");
+    c.set("user", await verifySupabaseSession(token, sessionConfig(c), c.get("deps").now()));
     await next();
   };
 }
@@ -104,8 +101,8 @@ export function authenticate(): MiddlewareHandler<AppEnv> {
     const token = bearer(c);
     if (!token) throw authError("missing_token", "A bearer token is required");
     const principal =
-      tokenAlg(token) === "HS256"
-        ? await principalFromSession(c, await verifySupabaseSession(token, c.env.SUPABASE_JWT_SECRET, c.get("deps").now()))
+      isSessionToken(token, c.env.SUPABASE_URL)
+        ? await principalFromSession(c, await verifySupabaseSession(token, sessionConfig(c), c.get("deps").now()))
         : await principalFromToken(c, token);
     c.set("principal", principal);
     await next();
