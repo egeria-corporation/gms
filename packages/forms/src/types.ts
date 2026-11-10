@@ -88,6 +88,10 @@ export interface ControlOptions {
   reviewerVisible?: boolean;
   /** Default false. True masks the value for external reviewers. */
   pii?: boolean;
+  /** True on a numeric report field whose values add up across accepted reports (program outcome totals). */
+  outcome?: boolean;
+  /** What an outcome counts, e.g. "people served". */
+  unit?: string;
   [key: string]: Json | undefined;
 }
 export interface UiControl {
@@ -123,6 +127,10 @@ export type MappingSchema = { [key: string]: MappingFunction | MappingSchema };
 export interface FieldMeta {
   reviewerVisible?: boolean;
   pii?: boolean;
+  /** True on a numeric report field whose values add up across accepted reports (program outcome totals). */
+  outcome?: boolean;
+  /** What an outcome counts, e.g. "people served". */
+  unit?: string;
 }
 
 export interface FormDefinition {

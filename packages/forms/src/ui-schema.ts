@@ -49,7 +49,7 @@ export function validateUiSchema(ui: unknown, jsonSchema: FormSchema): Definitio
         else {
           const o = el.options;
           if (o.widget !== undefined && !(WIDGETS as readonly unknown[]).includes(o.widget)) err(`${path}/options/widget`, `unknown widget ${JSON.stringify(o.widget)}`);
-          for (const k of ["reviewerVisible", "pii"]) if (o[k] !== undefined && typeof o[k] !== "boolean") err(`${path}/options/${k}`, "must be true or false");
+          for (const k of ["reviewerVisible", "pii", "outcome"]) if (o[k] !== undefined && typeof o[k] !== "boolean") err(`${path}/options/${k}`, "must be true or false");
         }
       }
       return;

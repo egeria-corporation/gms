@@ -4,6 +4,7 @@ import "@common-grants/core";
 import "./models.tsp";
 import "./money.tsp";
 import "./insights.tsp";
+import "./launch.tsp";
 
 using TypeSpec.Http;
 using CommonGrants.Responses;
@@ -547,9 +548,14 @@ namespace GMS.Routes.Custom {
     @get @route("/awards/{id}/letter.pdf") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op letterPdf(@path id: GmsId): Pdf | AuthErrors | NotFound;
 
-    /** Recipient accepts the offer; the GMS then mirrors the award to Passport. People only. */
+    /**
+     * Recipient accepts the offer; the GMS then mirrors the award to Passport. People only. When
+     * Passport lists verified representatives for the organization, `name` is required and must be
+     * one of theirs (422 `signer_name_required`, 403 `not_a_representative`); otherwise the admin
+     * role stands. The answer carries `signerAuthority`, which is also ledgered.
+     */
     @post @route("/awards/{id}/accept-offer") @useAuth(UserSession)
-    op acceptOffer(@path id: GmsId): OkT<AcceptedAward> | AuthErrors | NotFound | Conflict;
+    op acceptOffer(@path id: GmsId, @body body?: AcceptOfferInput): OkT<AcceptedAward> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
     /** Requires an executed agreement unless the award carries `noAgreementRequired`. */
     @post @route("/awards/{id}/activate") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
@@ -602,7 +608,13 @@ namespace GMS.Routes.Custom {
     @post @route("/agreements/{id}/send") @useAuth(GmsOAuth<["agreements:write"]> | UserSession)
     op send(@path id: GmsId): OkT<SentAgreement> | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    /** Grantee click-to-sign: typed name, attestation, network address, time and document hash go to the ledger. People only; the offer must be accepted first. */
+    /**
+     * Grantee click-to-sign: typed name, attestation, network address, time and document hash go to
+     * the ledger. People only; the offer must be accepted first. When Passport lists verified
+     * representatives the typed name must match one (403 `not_a_representative`), compared without
+     * case, accents or spacing; otherwise the admin role stands. The rule applied is returned as
+     * `signerAuthority`, kept on the signature record and ledgered (`agreement.signer_checked`).
+     */
     @post @route("/agreements/{id}/sign") @useAuth(UserSession)
     op sign(@path id: GmsId, @body body: SignRequest): OkT<Agreement> | BadRequest | AuthErrors | NotFound | Conflict;
 
@@ -641,7 +653,9 @@ namespace GMS.Routes.Custom {
     op readiness(@path id: GmsId): OkT<TrancheReadinessView> | AuthErrors | NotFound;
 
     /** Facilitated release through Passport with the tranche id as the Idempotency-Key. People only:
-     * any agent or API-client token is refused with `human_only`.
+     * any agent or API-client token is refused with `human_only`. Answers 409
+     * `facilitated_payments_disabled` when the server runs without facilitated payments
+     * (`PAYMENTS_FACILITATED` is not `true`); record the payment with `record-external` instead.
      */
     @post @route("/tranches/{id}/release") @useAuth(UserSession)
     op release(@path id: GmsId, @body body: ReleaseInput): OkT<ReleaseResult> | BadRequest | AuthErrors | NotFound | Conflict;
@@ -1022,6 +1036,71 @@ namespace GMS.Routes.Custom {
     op deleteAlert(@path alertId: CommonGrants.Types.uuid): OkT<Record<unknown>> | AuthErrors | NotFound;
   }
 
+  @tag("Launch")
+  namespace Launch {
+    /** What this server has switched on. No token. */
+    @get @route("/config")
+    op config(): OkT<InstallConfig>;
+
+    /** The signed-in person's own sessions, newest activity first. No workspace is named. */
+    @get @route("/me/sessions") @useAuth(UserSession)
+    op listSessions(): OkT<AccountSession[]> | AuthErrors;
+
+    /** End another of the caller's sessions. 409 `current_session` for the one in use; another person's session answers 404. */
+    @delete @route("/me/sessions/{id}") @useAuth(UserSession)
+    op endSession(@path id: CommonGrants.Types.uuid): OkT<EndedSession> | AuthErrors | NotFound | Conflict;
+
+    /** The organization's verified representatives, read live from Passport with the workspace's consent. Never stored. */
+    @get @route("/me/representatives") @useAuth(GmsOAuth<["org:read"]> | UserSession)
+    op representatives(): OkT<Representatives> | AuthErrors;
+
+    @get @route("/programs/{id}/budget-categories") @useAuth(GmsOAuth<["programs:read"]> | UserSession)
+    op getBudgetCategories(@path id: CommonGrants.Types.uuid): OkT<BudgetCategories> | AuthErrors | NotFound;
+
+    /** The funder's budget categories for awards under the program (also `defaults.budgetCategories` on the program). */
+    @put @route("/programs/{id}/budget-categories") @useAuth(GmsOAuth<["programs:write"]> | UserSession)
+    op putBudgetCategories(@path id: CommonGrants.Types.uuid, @body body: BudgetCategoriesInput): OkT<BudgetCategories> | BadRequest | AuthErrors | NotFound;
+
+    /** The grantee's category mapping, as the funder reads it. */
+    @get @route("/awards/{id}/budget-mapping") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op budgetMapping(@path id: GmsId): OkT<BudgetMapping> | AuthErrors | NotFound;
+
+    @get @route("/my/awards/{id}/budget-mapping") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op myBudgetMapping(@path id: GmsId): OkT<BudgetMapping> | AuthErrors | NotFound;
+
+    /** The grantee maps its own budget categories to the funder's; variance then compares by the funder's categories. 422 `unknown_budget_category` for a category the funder does not have. */
+    @put @route("/my/awards/{id}/budget-mapping") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
+    op putMyBudgetMapping(@path id: GmsId, @body body: BudgetMappingInput): OkT<BudgetMapping> | BadRequest | AuthErrors | NotFound | Unprocessable;
+
+    @get @route("/my/awards/{id}/variance") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op myVariance(@path id: GmsId): OkT<BudgetVariance> | AuthErrors | NotFound;
+
+    /** Who signed, for the grantee. Its admins see the network address of their own organization's signer only. */
+    @get @route("/my/awards/{id}/signatures") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op myAwardSignatures(@path id: GmsId): OkT<SignatureRecord[]> | AuthErrors | NotFound;
+
+    /** The funder's named contacts. */
+    @get @route("/contacts") @useAuth(GmsOAuth<["programs:read"]> | UserSession)
+    op contacts(): OkT<FunderContact[]> | AuthErrors;
+
+    /** Replace the funder's named contacts. Admins only. */
+    @put @route("/contacts") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op putContacts(@body body: FunderContactsInput): OkT<FunderContact[]> | BadRequest | AuthErrors;
+
+    /**
+     * Save an award letter, an agreement or an application snapshot as a PDF into a Drive folder the
+     * person picked. Admins and program officers, people only. 409 `drive_folder_unavailable` when
+     * Google will not take the file; 422 `connector_scope_rejected` or `connector_scope_unverified`
+     * when the connection cannot be used.
+     */
+    @post @route("/connectors/google_workspace/export") @useAuth(UserSession)
+    op exportToDrive(@body body: DriveExportInput): CreatedT<DriveExportResult> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
+
+    /** People in the funder's Google directory, for invite suggestions. Admins only. 409 `connector_not_connected` before Google is connected. */
+    @get @route("/connectors/google_workspace/directory") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op searchDirectory(@query q?: string): OkT<DirectoryPersonSuggestion[]> | AuthErrors | Conflict | Unprocessable;
+  }
+
   @tag("Assistant")
   namespace Assist {
     /** Whether the assistant is on and the workspace's remaining monthly quota. */
@@ -1167,7 +1246,7 @@ namespace GMS.Routes.Custom {
 
     /** People only: the recipient workspace's admin accepts; an agent's accept runs after a person approves it. */
     @post @route("/my/awards/{id}/accept") @useAuth(UserSession)
-    op acceptAward(@path id: GmsId): OkT<AcceptedAward> | AuthErrors | NotFound | Conflict;
+    op acceptAward(@path id: GmsId, @body body?: AcceptOfferInput): OkT<AcceptedAward> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
     @post @route("/my/awards/{id}/amendments") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
     op requestAmendment(@path id: GmsId, @body body: AmendmentInput): CreatedT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;

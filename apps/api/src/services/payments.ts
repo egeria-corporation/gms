@@ -156,11 +156,22 @@ export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, 
   };
 }
 
-const readinessView = (r: Readiness) => ({ ...r.summary, banner: r.banner, destination: r.destination });
+/** Why a release is refused while the install pays outside the GMS. One message for REST, MCP and the screens. */
+export const FACILITATED_OFF = "Payments through Passport are switched off on this server. Pay the grantee outside the GMS, then record the payment on the tranche";
+export const facilitatedDisabled = () => new ApiError(409, "facilitated_payments_disabled", FACILITATED_OFF);
+
+/**
+ * With facilitated payments off a tranche is never releasable: it is paid elsewhere and recorded
+ * here. The checks still show, so the funder sees whether the grantee could be paid through Passport.
+ */
+const readinessView = (ctx: ServiceContext, r: Readiness) =>
+  ctx.config.facilitatedPayments
+    ? { ...r.summary, mode: "facilitated" as const, modeNote: null, banner: r.banner, destination: r.destination }
+    : { ...r.summary, releasable: false, mode: "resolve" as const, modeNote: `${FACILITATED_OFF}.`, banner: r.banner, destination: r.destination };
 
 export async function getTrancheReadiness(ctx: ServiceContext, trancheId: string) {
   const { tranche, award } = await loadTranche(ctx, trancheId, "payments:read", PAYMENT_READERS);
-  return { tranche: trancheView(tranche), ...readinessView(await evaluateTranche(ctx, tranche, award)) };
+  return { tranche: trancheView(tranche), ...readinessView(ctx, await evaluateTranche(ctx, tranche, award)) };
 }
 
 // ------------------------------------------------------------------------------------ schedule
@@ -259,6 +270,7 @@ export const releaseInput = z.object({ confirmDuplicate: z.boolean().optional(),
  * Idempotency-Key, so repeating the call can never pay twice.
  */
 export async function releaseTranche(ctx: ServiceContext, trancheId: string, input: z.output<typeof releaseInput> = {}) {
+  if (!ctx.config.facilitatedPayments) throw facilitatedDisabled();
   if (ctx.actor.kind !== "user") throw humanOnly("Releasing a payment");
   const { tranche, award, ws } = await loadTranche(ctx, trancheId, "payments:release", FINANCE_ROLES);
   if (award.status !== "active") throw new ApiError(409, "award_not_active", `Payments are released on active awards; this award is ${award.status}`);
@@ -323,6 +335,7 @@ export async function reconcileReleasing(ctx: ServiceContext, tranche: TrancheRo
 
 /** A finance person or admin reconciles a payment stuck in `releasing`. A human gate, like the release itself. */
 export async function reconcileTranche(ctx: ServiceContext, trancheId: string) {
+  if (!ctx.config.facilitatedPayments) throw facilitatedDisabled();
   if (ctx.actor.kind !== "user") throw humanOnly("Reconciling a payment");
   const { tranche, award } = await loadTranche(ctx, trancheId, "payments:release", FINANCE_ROLES);
   return reconcileReleasing(ctx, tranche, award);
@@ -405,9 +418,9 @@ export async function paymentsReadiness(ctx: ServiceContext) {
     const award = awards.find((a) => a.id === t.award_id);
     if (!award) continue;
     const r = await evaluateTranche(ctx, t, award);
-    items.push({ tranche: trancheView(t), award: { id: apiId("award", award.id), title: award.title }, ...readinessView(r) });
+    items.push({ tranche: trancheView(t), award: { id: apiId("award", award.id), title: award.title }, ...readinessView(ctx, r) });
   }
-  return { items, totals: { dueMinor: rows.reduce((s, t) => s + t.amount_minor, 0), releasable: items.filter((i) => i.releasable).length, blocked: items.filter((i) => !i.releasable).length } };
+  return { facilitatedPayments: !!ctx.config.facilitatedPayments, items, totals: { dueMinor: rows.reduce((s, t) => s + t.amount_minor, 0), releasable: items.filter((i) => i.releasable).length, blocked: items.filter((i) => !i.releasable).length } };
 }
 
 /** Alerts for the Payments center: holds, failures, returns, unverified records and pending destination changes. */

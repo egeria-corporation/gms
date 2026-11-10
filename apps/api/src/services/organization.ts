@@ -21,6 +21,7 @@ import {
   type CgOrganization,
   type OrgProfile,
   type ProfileField,
+  type VerifiedRepresentative,
 } from "@gms/passport-client";
 import { readPassportFields } from "@gms/protocol";
 import { z } from "zod";
@@ -221,7 +222,8 @@ async function liveLink(ctx: ServiceContext, workspaceId: string) {
 export async function getMyOrganization(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  return { ...view(row, !!(await liveLink(ctx, ws.id))), editUrl: editUrl(ctx, row) };
+  const reps = await readRepresentatives(ctx, ws.id);
+  return { ...view(row, !!(await liveLink(ctx, ws.id))), editUrl: editUrl(ctx, row), representatives: { state: reps.state, items: reps.items.map(representativeView) } };
 }
 
 /** A Passport client acting with the workspace's stored consent. The rotated refresh token is persisted on use. */
@@ -425,4 +427,79 @@ export async function listMyFunders(ctx: ServiceContext) {
       awards: awards.filter((a) => a.workspace_id === f.id).length,
     };
   });
+}
+
+// ------------------------------------------------------------------------------- representatives
+
+/** `ok`: Passport answered. `not_linked`: no consent on file. `not_shared`: the consent does not cover it. `unknown`: Passport could not be reached. */
+export type RepresentativesState = "ok" | "not_linked" | "not_shared" | "unknown";
+
+/**
+ * The organization's verified representatives, read from Passport with the workspace's consent.
+ * Never cached and never stored: who may sign for an organization is Passport's to say.
+ */
+async function readRepresentatives(ctx: ServiceContext, workspaceId: string): Promise<{ state: RepresentativesState; items: VerifiedRepresentative[] }> {
+  const row = await ctx.repos.table("workspaces").one({ id: workspaceId });
+  if (!row?.passport_org_id) return { state: "not_linked", items: [] };
+  let passport: PassportClient;
+  try {
+    passport = (await consentedPassport(ctx, workspaceId, row)).passport;
+  } catch (e) {
+    if (e instanceof ApiError) return { state: "not_linked", items: [] };
+    throw e;
+  }
+  try {
+    return { state: "ok", items: await passport.listVerifiedRepresentatives(row.passport_org_id) };
+  } catch (e) {
+    if (e instanceof PassportAuthError) return { state: "not_shared", items: [] };
+    if (e instanceof PassportApiError) return { state: e.status === 401 || e.status === 403 || e.status === 404 ? "not_shared" : "unknown", items: [] };
+    if (e instanceof PassportUnavailableError) return { state: "unknown", items: [] };
+    throw e;
+  }
+}
+
+const representativeView = (r: VerifiedRepresentative) => ({ id: r.id, name: r.fullName, title: r.title || null, role: r.role, isControlOfficer: r.isControlOfficer, verified: true, verificationLevel: r.verificationLevel, verifiedAt: r.verifiedAt });
+
+/** The people Passport has verified as able to act for this organization. No contact details. */
+export async function getMyRepresentatives(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
+  const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const read = await readRepresentatives(ctx, ws.id);
+  return { state: read.state, items: read.items.map(representativeView), manageUrl: editUrl(ctx, row) };
+}
+
+/** Names compare without case, accents, punctuation or extra spaces. */
+export const normalizeName = (name: string): string =>
+  name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/** Which rule let a person sign for the recipient organization. Stored on the signature and the ledger. */
+export interface SignerAuthority {
+  rule: "passport_representative" | "admin_role";
+  /** Why the admin-role rule applied instead of the Passport check. */
+  reason: "passport_not_linked" | "representatives_not_shared" | "passport_unavailable" | "no_verified_representatives" | null;
+  representativeId: string | null;
+  verificationLevel: string | null;
+}
+
+const FALLBACK_REASON = { not_linked: "passport_not_linked", not_shared: "representatives_not_shared", unknown: "passport_unavailable" } as const;
+
+/**
+ * May this typed legal name sign for the recipient organization? When Passport lists verified
+ * representatives, the name must be one of theirs. When it cannot say (no consent, consent does
+ * not cover it, unreachable, none verified yet), the caller's admin role, already checked, stands.
+ */
+export async function checkSigner(ctx: ServiceContext, workspaceId: string, typedName: string | null): Promise<SignerAuthority> {
+  const read = await readRepresentatives(ctx, workspaceId);
+  if (read.state !== "ok") return { rule: "admin_role", reason: FALLBACK_REASON[read.state], representativeId: null, verificationLevel: null };
+  if (!read.items.length) return { rule: "admin_role", reason: "no_verified_representatives", representativeId: null, verificationLevel: null };
+  if (!typedName?.trim()) throw new ApiError(422, "signer_name_required", "Type your full legal name. It must match one of your organization's verified representatives in Passport");
+  const typed = normalizeName(typedName);
+  const match = read.items.find((r) => normalizeName(r.fullName) === typed);
+  if (!match) throw new ApiError(403, "not_a_representative", "That name is not one of your organization's verified representatives in Passport. A verified representative must sign, using their legal name as Passport has it");
+  return { rule: "passport_representative", reason: null, representativeId: match.id, verificationLevel: match.verificationLevel };
 }

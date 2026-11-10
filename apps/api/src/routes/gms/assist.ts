@@ -9,10 +9,16 @@ import { ok } from "../../lib/errors.ts";
 import { uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as assist from "../../services/assist.ts";
-import { jsonBody, svc } from "../http.ts";
+import { config, jsonBody, svc } from "../http.ts";
 
 export const assistRoutes = new Hono<AppEnv>();
 assistRoutes.use("/assist/*", authenticate());
+// Switched off, every drafting route is simply not there (404), whatever the body says. Only
+// `/assist/status` answers, so the web app knows to hide its panels.
+assistRoutes.use("/assist/*", async (c, next) => {
+  if (!c.req.path.endsWith("/assist/status") && !assist.assistantOn({ config: config(c), ports: c.get("deps").ports?.(c.env) ?? {} })) throw assist.assistantDisabled();
+  await next();
+});
 assistRoutes.use("/my/answers/:id/adapt", authenticate());
 
 const summarizeInput = z.object({ applicationId: z.string().min(1).max(100) }).strict();

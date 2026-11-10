@@ -136,6 +136,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `RESEND_API_KEY`, `RESEND_FROM` | both | Step 4. `RESEND_FROM` like `Riverbend Grants <grants@mail.example.org>` |
 | `RESEND_INBOUND_SECRET` | api | Step 4 |
 | `ANTHROPIC_API_KEY` | api | Only with `ASSISTANT_ENABLED = "true"` |
+| `PAYMENTS_FACILITATED` | api, jobs | Plain variable, default `"false"`. `"true"` turns on release through Passport; otherwise payments are recorded after being paid outside the GMS |
 | `OPENGRANTS_API_KEY` | api | Optional |
 
 Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_URL`,

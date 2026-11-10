@@ -10,6 +10,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { passportFacts, primaryEmail, sendLetter } from "./apply.ts";
 import { STAFF_ROLES, accessAward, agreementSummary, awardDetail, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, latestAgreement, minorOf, printMoney, readDefaults, type Agreement, type Award } from "./awards.ts";
+import { checkSigner } from "./organization.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 
 async function parties(ctx: ServiceContext, award: Award) {
@@ -181,8 +182,12 @@ export async function signAgreement(ctx: ServiceContext, agreementId: string, in
   if (side !== "recipient") throw notFound("Agreement");
   if (award.status === "offered") throw new ApiError(409, "offer_not_accepted", "Accept the award offer before signing the agreement");
   if (award.status !== "accepted") throw new ApiError(409, "invalid_status", `An award that is ${award.status} has no agreement to sign`);
-  const signed = await transition(ctx, agreement, "sign", "applicant", { documentSha256: agreement.document_sha256, signature: signatureOf(ctx, agreement, input, ip) });
-  return agreementView(signed);
+  const signature = signatureOf(ctx, agreement, input, ip);
+  // Passport says who may sign for the organization; where it cannot, the admin role stands.
+  const authority = await checkSigner(ctx, award.recipient_workspace_id!, input.name);
+  const signed = await transition(ctx, agreement, "sign", "applicant", { documentSha256: agreement.document_sha256, signature: { ...signature, authority } });
+  await audit(ctx, "agreement.signer_checked", "agreement", agreement.id, { awardId: award.id, rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId }, award.workspace_id);
+  return { ...agreementView(signed), signerAuthority: authority };
 }
 
 /**

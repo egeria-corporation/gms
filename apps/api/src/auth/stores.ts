@@ -68,6 +68,7 @@ export interface Membership {
   /** Consultant / external reviewer restrictions (application, award, competition ids). */
   scope: Record<string, unknown> | null;
   expiresAt: string | null;
+  lastActiveAt?: string | null;
 }
 
 export interface MembershipStore {

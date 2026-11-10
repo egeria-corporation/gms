@@ -30,7 +30,7 @@ describe("assistant off", () => {
       expect(r.status).toBe(404);
       expect(r.body.errors[0]!.code).toBe("assistant_disabled");
     }
-    expect((await s.call<{ data: { enabled: boolean } }>(s.funder, "GET", "/gms/assist/status")).body.data).toEqual({ enabled: false, quota: null });
+    expect((await s.call<{ data: { enabled: boolean } }>(s.funder, "GET", "/gms/assist/status")).body.data).toEqual({ enabled: false, model: null, monthlyQuota: null, used: null, quota: null });
     expect(h.llm.requests).toHaveLength(0);
   });
 });

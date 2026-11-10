@@ -41,6 +41,14 @@ adminRoutes.patch("/custom-mcp-servers/:id", async (c) => c.json(ok(await integr
 adminRoutes.delete("/custom-mcp-servers/:id", async (c) => c.json(ok(await integrations.removeMcpServer(await svc(c), id(c, "MCP server")))));
 
 // ---- connectors (Mercury read-only, Google Workspace through Composio) ----
+// Registered before `/connectors/:provider/...` so the fixed paths win.
+adminRoutes.post("/connectors/google_workspace/export", async (c) => {
+  // The web's earlier names (`kind`, `id`, `award_letter`) are accepted alongside the documented ones.
+  const b = (await jsonBody(c)) as Record<string, unknown>;
+  const kind = b.documentKind ?? (b.kind === "award_letter" ? "letter" : b.kind);
+  return c.json(created(await integrations.exportToDrive(await svc(c), parse(integrations.driveExportInput, { documentKind: kind, subjectId: b.subjectId ?? b.id, folderId: b.folderId }))), 201);
+});
+adminRoutes.get("/connectors/google_workspace/directory", async (c) => c.json(ok(await integrations.searchDirectory(await svc(c), c.req.query("q") ?? ""))));
 adminRoutes.get("/connectors/:provider", async (c) => c.json(ok(await integrations.getConnector(await svc(c), integrations.providerOf(c.req.param("provider"))))));
 adminRoutes.post("/connectors/:provider", async (c) => c.json(ok(await integrations.connect(await svc(c), integrations.providerOf(c.req.param("provider")), parse(integrations.connectorInput, await jsonBody(c))))));
 adminRoutes.delete("/connectors/:provider", async (c) => c.json(ok(await integrations.disconnect(await svc(c), integrations.providerOf(c.req.param("provider"))))));

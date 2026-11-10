@@ -6,6 +6,8 @@ import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
 import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
+import { bareUuid } from "../lib/ids.ts";
+import * as sessions from "../services/sessions.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
@@ -15,11 +17,18 @@ import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { moneyRoutes } from "./gms/money.ts";
-import { userSvc } from "./http.ts";
+import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
+
+/** What this server has switched on. No token: the web app reads it before sign-in to decide which controls to show. */
+const features = (c: Parameters<typeof config>[0]) => {
+  const cfg = config(c);
+  return { facilitatedPayments: !!cfg.facilitatedPayments, assistantEnabled: !!cfg.assistantEnabled };
+};
+gms.get("/config", (c) => c.json(ok(features(c))));
 
 /** The signed-in person and the workspaces they can open (workspace switcher, routing by handle). */
 gms.get("/me", requireUser(), async (c) => {
@@ -30,10 +39,15 @@ gms.get("/me", requireUser(), async (c) => {
       userId: user.userId,
       email: user.email,
       mfaVerified: user.aal === "aal2",
+      features: features(c),
       workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel })),
     }),
   );
 });
+
+/** The signed-in person's own sessions. No workspace: a session belongs to the person. */
+gms.get("/me/sessions", requireUser(), async (c) => c.json(ok(await sessions.listMySessions(userSvc(c), c.get("user").sessionId ?? null))));
+gms.delete("/me/sessions/:id", requireUser(), async (c) => c.json(ok(await sessions.endMySession(userSvc(c), bareUuid(c.req.param("id"), "Session"), c.get("user").sessionId ?? null))));
 
 /** What this caller is, in this workspace: the same answer for a person, an API client and an agent. */
 gms.get("/whoami", authenticate(), (c) => {

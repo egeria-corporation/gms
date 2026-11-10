@@ -15,6 +15,7 @@ import type { WorkspaceKind } from "../auth/scopes.ts";
 import { trimSlash } from "../env.ts";
 import { ApiError } from "../lib/errors.ts";
 import { RepoApprovalStore, createResourceReader, createServiceLayer, type ContextBase } from "../services/mcp-layer.ts";
+import { FACILITATED_OFF } from "../services/payments.ts";
 import { config } from "./http.ts";
 
 type C = Context<AppEnv>;
@@ -108,6 +109,11 @@ async function handle(c: C, ctx: CallContext, req: RpcRequest): Promise<unknown 
     }
     case "tools/call": {
       if (typeof params.name !== "string") return rpcError(req.id, -32602, "params.name is required");
+      // With payments through Passport switched off there is nothing for a person to approve: say so
+      // now, as the REST route does, instead of filing an approval request that can only fail.
+      if (params.name === "release_tranche" && c.env.PAYMENTS_FACILITATED !== "true") {
+        return rpcResult(req.id, toolContent({ ok: false, error: { code: "conflict", message: `${FACILITATED_OFF} (facilitated_payments_disabled).` } }));
+      }
       return rpcResult(req.id, toolContent(await dispatcherFor(c).call(ctx, params.name, params.arguments ?? {})));
     }
     case "resources/list":

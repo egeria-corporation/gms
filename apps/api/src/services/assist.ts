@@ -11,6 +11,7 @@ import {
   AssistDeclinedError,
   AssistUnavailableError,
   compareToRubric as compare,
+  DEFAULT_ASSISTANT_MODEL,
   DEFAULT_MONTHLY_QUOTA,
   draftLetter as letter,
   monthStart,
@@ -47,11 +48,16 @@ async function quota(ctx: ServiceContext, ws: ServiceWorkspace) {
   return quotaState(recent.filter((c) => c.created_at >= since).length, limit, ctx.now());
 }
 
+/** On only when the server switched it on and has a model to call. */
+export const assistantOn = (ctx: Pick<ServiceContext, "config" | "ports">): boolean => !!ctx.config.assistantEnabled && !!ctx.ports.llm;
+export const assistantDisabled = disabled;
+
 /** Whether the assistant is on for this caller, and how much of the month's quota is left. */
 export async function assistStatus(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "assist" });
-  const enabled = !!ctx.config.assistantEnabled && !!ctx.ports.llm;
-  return { enabled, quota: enabled ? await quota(ctx, ws) : null };
+  const enabled = assistantOn(ctx);
+  const q = enabled ? await quota(ctx, ws) : null;
+  return { enabled, model: enabled ? (ctx.config.assistantModel ?? DEFAULT_ASSISTANT_MODEL) : null, monthlyQuota: q?.limit ?? null, used: q?.used ?? null, quota: q };
 }
 
 /** Flag, quota, one model call, log. The caller has already been authorized for the material. */

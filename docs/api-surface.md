@@ -296,3 +296,66 @@ The applicant's Passport consent asks for `payee:read` as well as the three org 
 panel can read bank name and last four digits. Set `PASSPORT_APPLICANT_PAYEE_READ=false` to leave it out. The GMS
 client registered at Passport must list `payee:read` in its allowed scopes.
 
+
+## Launch preparation
+
+Switches, the signer rule and the data behind the screens that were partial. Tests: `apps/api/test/launch.test.ts`,
+`apps/api/test/composio.test.ts`; database: `supabase/migrations/0015_launch_prep.sql`, `supabase/tests/database/03_own_sessions.test.sql`.
+
+### Switches
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/config` | Implemented | No token. `{ facilitatedPayments, assistantEnabled }`. The same object is `features` on `GET /gms/me` |
+| `POST /gms/tranches/{id}/release` | Implemented | With `PAYMENTS_FACILITATED` unset or not `true` (the default): `409 facilitated_payments_disabled`, checked before anything else. The MCP `release_tranche` tool answers `conflict` with the same message, and the reconcile job does nothing |
+| `GET /gms/tranches/{id}/readiness`, `GET /gms/payments/readiness` | Implemented | Each tranche carries `mode` (`facilitated` or `resolve`) and `modeNote`; in `resolve` mode `releasable` is false. The center also returns `facilitatedPayments` |
+| `POST /gms/tranches/{id}/record-external` | Implemented | Unchanged and available in both modes. It still needs the award's Passport mirror (`409 not_mirrored` without one) |
+| `GET /gms/assist/status` | Implemented | `{ enabled, model, monthlyQuota, used, quota }`; `model` is `ASSISTANT_MODEL` or the built-in default, and the three are null when off |
+| `POST /gms/assist/*` | Implemented | Off: `404 assistant_disabled` on every drafting route, before the body is read |
+
+### Who may sign for the grantee
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/me/representatives` | Implemented | `org:read`, applicant. `{ state, items[{ id, name, title, role, isControlOfficer, verified, verificationLevel, verifiedAt }], manageUrl }`, read live from Passport `GET /passport/orgs/{orgId}/verified-representatives` with the workspace's consent. `state`: `ok`, `not_linked`, `not_shared`, `unknown`. Never stored, no contact details |
+| `GET /gms/me/organization` | Implemented | Adds `representatives: { state, items }` |
+| `POST /gms/my/awards/{id}/accept`, `POST /gms/awards/{id}/accept-offer` | Implemented | Optional body `{ name }`. When Passport lists verified representatives the name is required (`422 signer_name_required`) and must match one (`403 not_a_representative`). The answer adds `signerAuthority { rule, reason, representativeId, verificationLevel }`; ledger `award.acceptance_signer_checked` |
+| `POST /gms/agreements/{id}/sign` | Implemented | The typed `name` is checked the same way. `signerAuthority` is returned, kept on the signature record (`authority`) and ledgered as `agreement.signer_checked` |
+
+Names are compared without case, accents, punctuation or extra spaces. The rule is `passport_representative` when the name
+matched, and `admin_role` (the earlier rule: an admin of the recipient workspace) when Passport could not say, with the reason:
+`passport_not_linked`, `representatives_not_shared`, `passport_unavailable` or `no_verified_representatives`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/awards/{id}/signatures` | Implemented | `ip` is returned to funder `admin` and `finance` only; other roles and API clients get `ip: null`, `ipVisible: false`. Adds `signerRule`, `signerRuleReason` |
+| `GET /gms/my/awards/{id}/signatures` | Implemented | The grantee's view. Its admins see the address of the grantee's own signer; the funder's signer's address is never returned here |
+
+### Budgets, programs, people
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET` / `PUT /gms/programs/{id}/budget-categories` | Implemented | `{ categories: string[] }` (up to 50 unique names). Stored as `defaults.budgetCategories`, which `PATCH /gms/programs/{id}` also accepts and validates (`422 invalid_budget_categories`). Programs return `budgetCategories` |
+| `GET /gms/awards/{id}/budget-mapping`, `GET /gms/my/awards/{id}/budget-mapping` | Implemented | `{ awardId, categories, mapping[{ category, ownCategory }] }`. `categories` is the program's list, else the approved budget's categories |
+| `PUT /gms/my/awards/{id}/budget-mapping` | Implemented | Grantee only. `{ mapping[{ category, ownCategory }] }`; several of the grantee's categories may map to one of the funder's. `422 unknown_budget_category` |
+| `GET /gms/awards/{id}/variance`, `GET /gms/my/awards/{id}/variance` | Implemented | Actuals are folded into the funder's categories through the mapping. Adds `mapping` and `unmappedCategories` |
+| `GET /gms/programs`, `GET` / `PATCH /gms/programs/{id}` | Implemented | Programs return `ownerUserId`, `ownerName`, `owner { userId, name }`. `ownerUserId` is writable and must be a member of the workspace (`422 owner_not_a_member`); null clears it |
+| `GET /gms/programs/{id}/rollup` | Implemented | Adds `owner` and `outcomes { reportsAccepted, totals[{ key, label, unit, total, reports }] }`: numeric report fields marked `outcome: true` (form `fieldMeta`, or the control's options, with an optional `unit`), added up over accepted reports |
+| `GET /gms/me/sessions` | Implemented | Session, no workspace. `[{ id, createdAt, lastActiveAt, userAgent, device, ip, aal, mfa, current }]`, the caller's own sessions only |
+| `DELETE /gms/me/sessions/{id}` | Implemented | Ends another of the caller's sessions. `409 current_session` for the one in use; anyone else's session is `404`. Ledgered |
+| `GET /gms/workspaces/{id}/members` | Implemented | Members return `lastActiveAt` (written at most once every 15 minutes per member, on authenticated requests by a person) and `organization` |
+| `POST /gms/workspaces/{id}/invitations` | Implemented | Optional `organizationName` for the `consultant` role (`422 organization_for_consultants` otherwise); kept as `scope.organization` on the invitation and the membership |
+| `GET /gms/contacts` | Implemented | Funder. The workspace's named contacts, `[{ name, title, email, phone, public }]`, kept in `settings.contacts` |
+| `PUT /gms/contacts` | Implemented | Funder admin. `{ contacts[] }` (at most 20) replaces the list. Ledgered |
+| `GET /gms/my/funders/detail` | Implemented | Each funder adds `contacts[]` (all of them) and `contactEmail` |
+| `GET /gms/public/funders/{handle}` | Implemented | `funder` adds `contactEmail` (`settings.contactEmail`, else the published organization address) and `contacts[]` (public ones only) |
+| `POST /gms/applications/{id}/interview` | Implemented | `{ slots[], note?, location? }`. The state returned, and `interview` in both follow-ups routes, lists `proposed.slotOptions[{ id, at }]` beside `proposed.slots[]` |
+| `POST /gms/my/applications/{id}/interview/confirm` | Implemented | `{ slotId }` (`slot_1`…) or `{ slot }` (the time); `confirmed` returns `{ slot, slotId, at }` |
+
+### Google Workspace
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/connectors/google_workspace/export` | Implemented | Funder `admin` or `program_officer`, people only. `{ documentKind: "letter" \| "agreement" \| "snapshot", subjectId, folderId }` → `201 { documentKind, subjectId, fileId, fileName, url }`. The PDF comes from the same service as the download. Ledger `connector.drive_export`. `409 drive_folder_unavailable`, `422 connector_scope_rejected`, `422 connector_scope_unverified` |
+| `GET /gms/connectors/google_workspace/directory?q=` | Implemented | Funder admin. Up to 20 `{ email, name }`. `409 connector_not_connected`; scope refusals as above. `GET /gms/directory/suggest` stays as the quiet variant that returns `[]` on any failure |
+| `POST /gms/connectors/google_workspace` | Implemented | The Composio link now returns to `/w/{handle}/settings/connectors?connected=google_workspace`. A connection whose scopes Composio does not report is refused: `422 connector_scope_unverified` |

@@ -8,6 +8,7 @@ import { primaryEmail } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { JsonObject } from "@gms/forms";
 import type { Row } from "./repos/types.ts";
+import { contactsOf } from "./workspaces.ts";
 
 /** One answer to "who can see our record": funders by consent, connected agents, and the team. */
 export async function whoHasAccess(ctx: ServiceContext) {
@@ -62,6 +63,9 @@ export async function myFundersDetail(ctx: ServiceContext) {
       openItems,
       documents: agreements.filter((g) => awardIds.has(g.award_id) && g.status !== "draft").map((g) => ({ kind: "agreement", name: `Grant agreement v${g.version}${g.status === "executed" ? " (executed)" : ""}`, awardId: apiId("award", g.award_id), agreementId: apiId("agreement", g.id), sha256: g.document_sha256, at: g.executed_at ?? g.updated_at })),
       // The funder's public contact, from its own published record. Never a person's private address.
+      // The people the funder named for the organizations it works with.
+      contacts: contactsOf(f),
+      contactEmail: typeof (f.settings as { contactEmail?: unknown } | null)?.contactEmail === "string" ? (f.settings as { contactEmail: string }).contactEmail : primaryEmail(org),
       contact: { email: primaryEmail(org), website: typeof (org.socials as { website?: unknown } | undefined)?.website === "string" ? ((org.socials as { website: string }).website) : null, page: `${ctx.config.webBaseUrl}/f/${f.handle}` },
     };
   });

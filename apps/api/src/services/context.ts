@@ -2,6 +2,7 @@
 // The service layer's contract. Every REST route and every MCP tool builds a ServiceContext and
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
+import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
 import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
@@ -63,6 +64,13 @@ export interface ServiceConfig {
   applicantPayeeRead?: boolean;
   /** ASSISTANT_ENABLED. When false the assist routes answer 404 and the web app hides its panels. */
   assistantEnabled?: boolean;
+  /**
+   * PAYMENTS_FACILITATED. When false (the default) the GMS never asks Passport to move money:
+   * a tranche is paid outside the GMS and recorded afterwards (resolve mode). Releases are refused.
+   */
+  facilitatedPayments?: boolean;
+  /** ASSISTANT_MODEL when set; the assistant package's default applies otherwise. */
+  assistantModel?: string | null;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
@@ -82,6 +90,8 @@ export interface ServicePorts {
   directory?: UserDirectory;
   /** The model behind the drafting assistant (Anthropic API). */
   llm?: LlmClient;
+  /** A person's own sign-in sessions (Supabase Auth). */
+  sessions?: SessionsPort;
 }
 
 export interface ServiceContext {

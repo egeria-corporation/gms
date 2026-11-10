@@ -12,7 +12,7 @@ import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/auth/stores.ts";
 import type { Env } from "../src/env.ts";
-import { FixtureOpenGrantsClient, MemoryFileStorage, MemoryUserDirectory, type OpenGrantsListing } from "../src/services/ports.ts";
+import { FixtureOpenGrantsClient, MemoryFileStorage, MemorySessions, MemoryUserDirectory, type OpenGrantsListing } from "../src/services/ports.ts";
 import { MemoryRepos } from "../src/services/repos/memory.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
@@ -53,13 +53,15 @@ export interface Harness {
   llmAnswer: { value: unknown };
   /** Objects written to the EXPORTS bucket, by key. */
   exported: Map<string, string>;
+  /** Sign-in sessions as Supabase Auth would hold them. */
+  sessions: MemorySessions;
   /** Names and emails of people, as the auth provider would answer. */
   directory: MemoryUserDirectory;
   clock: { now: Date };
   privateKey: CryptoKey;
   kid: string;
   request: (path: string, init?: RequestInit) => Promise<Response>;
-  session: (userId: string, opts?: { aal?: "aal1" | "aal2"; exp?: number }) => Promise<string>;
+  session: (userId: string, opts?: { aal?: "aal1" | "aal2"; exp?: number; sessionId?: string }) => Promise<string>;
   /** Sign an arbitrary access token with the server's key, to probe one claim at a time. */
   forge: (claims: Record<string, unknown>, opts?: { key?: CryptoKey; kid?: string; typ?: string }) => Promise<string>;
 }
@@ -80,7 +82,9 @@ export async function harness(): Promise<Harness> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk: JWK = await exportJWK(privateKey);
   const kid = "oauth-test-1";
-  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY, PASSPORT_GMS_CLIENT_ID: "gms-test-client", PASSPORT_GMS_CLIENT_SECRET: "gms-test-client-secret-not-real", RESEND_FROM: "OpenGrants GMS <notices@gms.test>", WEBHOOK_SECRET_KEY: TEST_CREDENTIALS_KEY, PASSPORT_WEBHOOK_SECRET, RESEND_INBOUND_SECRET: RESEND_WEBHOOK_SECRET };
+  // Payments through Passport are off by default in production; the harness turns them on so the
+  // release path is exercised. Tests of the default set `h.env.PAYMENTS_FACILITATED = "false"`.
+  const env: Env = { PAYMENTS_FACILITATED: "true", GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY, PASSPORT_GMS_CLIENT_ID: "gms-test-client", PASSPORT_GMS_CLIENT_SECRET: "gms-test-client-secret-not-real", RESEND_FROM: "OpenGrants GMS <notices@gms.test>", WEBHOOK_SECRET_KEY: TEST_CREDENTIALS_KEY, PASSPORT_WEBHOOK_SECRET, RESEND_INBOUND_SECRET: RESEND_WEBHOOK_SECRET };
 
   const clients: OAuthClient[] = [
     {
@@ -134,6 +138,7 @@ export async function harness(): Promise<Harness> {
   const llmAnswer: { value: unknown } = { value: {} };
   const llm = new FakeLlmClient(() => llmAnswer.value);
   const exported = new Map<string, string>();
+  const sessions = new MemorySessions();
   const directory = new MemoryUserDirectory();
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
   directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
@@ -147,7 +152,7 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants, directory, bank, workspaceApps, mcpDirectory, llm, exports: { put: async (key, body) => void exported.set(key, body) } }),
+    ports: () => ({ mailer, storage, openGrants, directory, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key, body) => void exported.set(key, body) } }),
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -172,13 +177,14 @@ export async function harness(): Promise<Harness> {
     llm,
     llmAnswer,
     exported,
+    sessions,
     directory,
     clock,
     privateKey,
     kid,
     request: async (path, init) => app.request(`${BASE}${path}`, init, env),
     session: (userId, opts = {}) =>
-      new SignJWT({ aal: opts.aal ?? "aal2", email: "person@riverbendcf.example", role: "authenticated" })
+      new SignJWT({ aal: opts.aal ?? "aal2", email: "person@riverbendcf.example", role: "authenticated", ...(opts.sessionId ? { session_id: opts.sessionId } : {}) })
         .setProtectedHeader({ alg: "HS256", typ: "JWT" })
         .setSubject(userId)
         .setAudience("authenticated")

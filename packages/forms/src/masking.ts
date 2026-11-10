@@ -8,8 +8,8 @@ import { collectControls } from "./ui-schema.ts";
 export const PII_MASK = "••••••";
 
 /** Field flags by JSON pointer: UI control options overlaid with the form's `fieldMeta`. */
-export function fieldMetaFor(form: Pick<FormDefinition, "uiSchema" | "fieldMeta">): Record<string, Required<FieldMeta>> {
-  const out: Record<string, Required<FieldMeta>> = {};
+export function fieldMetaFor(form: Pick<FormDefinition, "uiSchema" | "fieldMeta">): Record<string, Required<Pick<FieldMeta, "reviewerVisible" | "pii">>> {
+  const out: Record<string, Required<Pick<FieldMeta, "reviewerVisible" | "pii">>> = {};
   for (const c of collectControls(form.uiSchema)) {
     out[c.path] = { reviewerVisible: c.options?.reviewerVisible !== false, pii: c.options?.pii === true };
   }
@@ -48,4 +48,29 @@ export function maskForReviewer(
     }
   }
   return { response: out, removed: removed.sort(), masked: masked.sort() };
+}
+
+export interface OutcomeField {
+  /** JSON pointer of the field in a response. */
+  path: string;
+  /** The field's own name, the last segment of the pointer. */
+  key: string;
+  label: string;
+  unit: string | null;
+}
+
+/** The fields a report form marks as outcome metrics (`outcome: true` in `fieldMeta` or the control's options). */
+export function outcomeFields(form: Pick<FormDefinition, "uiSchema" | "fieldMeta">): OutcomeField[] {
+  const found = new Map<string, OutcomeField>();
+  const keyOf = (path: string) => parsePointer(path).at(-1) ?? path;
+  const labels = new Map<string, string>();
+  for (const c of collectControls(form.uiSchema)) {
+    if (c.label) labels.set(c.path, c.label);
+    if (c.options?.outcome === true) found.set(c.path, { path: c.path, key: keyOf(c.path), label: c.label ?? keyOf(c.path), unit: typeof c.options.unit === "string" ? c.options.unit : null });
+  }
+  for (const [path, meta] of Object.entries(form.fieldMeta ?? {})) {
+    if (meta.outcome === true) found.set(path, { path, key: keyOf(path), label: labels.get(path) ?? keyOf(path), unit: meta.unit ?? found.get(path)?.unit ?? null });
+    else if (meta.outcome === false) found.delete(path);
+  }
+  return [...found.values()].sort((a, b) => a.path.localeCompare(b.path));
 }

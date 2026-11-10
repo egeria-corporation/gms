@@ -6,6 +6,7 @@ import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { STAFF_ROLES, accessAward, currencyOf, fundingOf, minorOf } from "./awards.ts";
 import { audit, type ServiceContext } from "./context.ts";
+import { budgetCategoriesOf } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
 type Budget = Row<"budgets">;
@@ -62,13 +63,67 @@ export async function putBudget(ctx: ServiceContext, awardId: string, input: z.o
   return view(saved);
 }
 
-/** Approved versus reported actuals, by category. A positive variance is money not yet spent. */
+// ------------------------------------------------------------------------- category mapping
+
+type Award = Row<"awards">;
+const mappingOf = (award: Award): Record<string, string> => {
+  const raw = award.budget_category_mapping;
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === "string")) : {};
+};
+const mappingList = (m: Record<string, string>) => Object.entries(m).map(([ownCategory, category]) => ({ category, ownCategory })).sort((a, b) => a.category.localeCompare(b.category) || a.ownCategory.localeCompare(b.ownCategory));
+
+/** The funder's categories for this award: the program's list, else the approved budget's. */
+async function funderCategories(ctx: ServiceContext, award: Award): Promise<string[]> {
+  const fromProgram = award.program_id ? budgetCategoriesOf(await ctx.repos.table("programs").one({ id: award.program_id })) : [];
+  if (fromProgram.length) return fromProgram;
+  const approved = (await ctx.repos.table("budgets").find({ award_id: award.id, kind: "approved" })).pop();
+  return approved ? [...new Set(linesOf(approved).map((l) => l.category))] : [];
+}
+
+/** `category` is the funder's; `ownCategory` is the name in the grantee's own books. Several of the grantee's may map to one of the funder's. */
+export const budgetMappingInput = z
+  .object({ mapping: z.array(z.object({ category: z.string().trim().min(1).max(100), ownCategory: z.string().trim().min(1).max(100) }).strict()).max(200) })
+  .strict()
+  .refine((m) => new Set(m.mapping.map((x) => x.ownCategory.toLowerCase())).size === m.mapping.length, "Each of your categories can map to one funder category only");
+
+/** Both sides read the mapping; only the grantee sets it. */
+export async function getBudgetMapping(ctx: ServiceContext, awardId: string) {
+  const { award } = await accessAward(ctx, awardId, "awards:read");
+  return { awardId: apiId("award", award.id), categories: await funderCategories(ctx, award), mapping: mappingList(mappingOf(award)) };
+}
+
+export async function putBudgetMapping(ctx: ServiceContext, awardId: string, input: z.output<typeof budgetMappingInput>) {
+  const { award, side } = await accessAward(ctx, awardId, "awards:write");
+  if (side !== "recipient") throw new ApiError(403, "forbidden", "The grantee maps its own budget categories");
+  const categories = await funderCategories(ctx, award);
+  const unknown = input.mapping.filter((m) => !categories.includes(m.category)).map((m) => m.category);
+  if (unknown.length) throw new ApiError(422, "unknown_budget_category", `Not one of the funder's budget categories: ${[...new Set(unknown)].join(", ")}`, [{ code: "invalid", field: "mapping" }]);
+  const next = Object.fromEntries(input.mapping.map((m) => [m.ownCategory, m.category]));
+  await ctx.repos.table("awards").update({ id: award.id }, { budget_category_mapping: next as Award["budget_category_mapping"] });
+  await audit(ctx, "budget.categories_mapped", "award", award.id, { mapped: input.mapping.length }, award.workspace_id);
+  return { awardId: apiId("award", award.id), categories, mapping: mappingList(next) };
+}
+
+/**
+ * Approved versus reported actuals, by the funder's category. The grantee's own categories are
+ * folded into the funder's through the award's mapping. A positive variance is money not yet spent.
+ */
 export async function getVariance(ctx: ServiceContext, awardId: string) {
   const b = await getBudget(ctx, awardId);
+  const { award } = await accessAward(ctx, awardId, "awards:read");
+  const mapping = mappingOf(award);
+  const known = new Set(await funderCategories(ctx, award));
+  const unmapped = new Set<string>();
   const approved = new Map<string, number>();
   const actual = new Map<string, number>();
   for (const l of b.approved?.lines ?? []) approved.set(l.category, (approved.get(l.category) ?? 0) + l.amountMinor);
-  for (const a of b.actuals) for (const l of a.lines) actual.set(l.category, (actual.get(l.category) ?? 0) + l.amountMinor);
+  for (const a of b.actuals) {
+    for (const l of a.lines) {
+      const category = mapping[l.category] ?? l.category;
+      if (known.size && !known.has(category)) unmapped.add(l.category);
+      actual.set(category, (actual.get(category) ?? 0) + l.amountMinor);
+    }
+  }
   const categories = [...new Set([...approved.keys(), ...actual.keys()])].map((category) => {
     const ap = approved.get(category) ?? 0;
     const ac = actual.get(category) ?? 0;
@@ -76,5 +131,5 @@ export async function getVariance(ctx: ServiceContext, awardId: string) {
   });
   const ap = categories.reduce((s, c) => s + c.approvedMinor, 0);
   const ac = categories.reduce((s, c) => s + c.actualMinor, 0);
-  return { awardId: b.awardId, currency: b.currency, hasApprovedBudget: !!b.approved, periods: b.actuals.map((a) => ({ periodStart: a.periodStart, periodEnd: a.periodEnd, totalMinor: a.totalMinor })), categories, totals: { approvedMinor: ap, actualMinor: ac, varianceMinor: ap - ac, over: ac > ap } };
+  return { awardId: b.awardId, currency: b.currency, hasApprovedBudget: !!b.approved, periods: b.actuals.map((a) => ({ periodStart: a.periodStart, periodEnd: a.periodEnd, totalMinor: a.totalMinor })), categories, mapping: mappingList(mapping), unmappedCategories: [...unmapped].sort(), totals: { approvedMinor: ap, actualMinor: ac, varianceMinor: ap - ac, over: ac > ap } };
 }
