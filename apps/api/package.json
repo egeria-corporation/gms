@@ -9,7 +9,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "keygen": "node --experimental-strip-types scripts/keygen.ts"
+    "keygen": "node --experimental-strip-types scripts/keygen.ts",
+    "build:openapi": "node scripts/build-openapi.mjs"
   },
   "dependencies": {
     "@gms/db": "workspace:*",
