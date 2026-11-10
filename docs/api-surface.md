@@ -16,7 +16,9 @@ v1 build prompt (§9) against what the Worker answers today.
 | Error envelope | `{ status, message, errors: [{ code, detail?, field? }] }`; `errors[0].code` is stable |
 | OAuth endpoints | RFC shapes instead: RFC 6749 §5.2 errors on `/oauth/token`, RFC 7591 on `/oauth/register` |
 | Pagination | `page` (from 1), `pageSize` (default 100, max 100) |
-| Callers | A signed-in person (Supabase session bearer + `X-GMS-Workspace` header), a workspace API client (client-credentials token) or an agent acting for a person (authorization-code token). All resolve to one `Principal` and pass the same `requireScope` check |
+| Callers | A signed-in person (Supabase session bearer + `X-GMS-Workspace` header), a workspace API client (client-credentials token) or an agent acting for a person (authorization-code token). All resolve to one `Principal`; the route builds a `ServiceContext` from it and calls a service function, which makes the one `authorize()` check (scope, role, workspace kind, ownership, consent) |
+| Ids | `/gms` routes use prefixed ids (`opp_`, `cmp_`, `frm_` + UUID) and accept the bare UUID too; `/common-grants` routes use bare UUIDs. Programs, rubrics, workspaces and users have no prefix |
+| Someone else's record | `404`, never `403`, so ids cannot be probed |
 | Workspace binding | Tokens carry `https://gms.opengrants.io/workspace_id` and are refused against any other workspace. Sessions name the workspace in `X-GMS-Workspace` (or a `:workspaceId` path segment) and must be members |
 | Delegated tokens | Scopes are re-intersected with the person's current role on every request and every refresh |
 | MFA | Funder `admin` / `finance` and applicant `admin` sessions must be `aal2` |
@@ -32,56 +34,65 @@ v1 build prompt (§9) against what the Worker answers today.
 | `GET /.well-known/oauth-protected-resource` (and `/mcp` suffix) | Implemented | RFC 9728; what an MCP client reads first |
 | `GET /.well-known/agent.json` | Implemented | Capabilities `mcp`, `commongrants:0.5.0`; lists human-gated actions |
 | `GET /llms.txt`, `GET /llms-full.txt` | Implemented | Static text today; tool list to be generated from the `@gms/mcp` registry |
-| `POST /oauth/token` | Implemented | `client_credentials`; `authorization_code` + PKCE S256; `refresh_token` with rotation |
+| `POST /oauth/token` | Implemented | `client_credentials`; `authorization_code` + PKCE S256; `refresh_token` with rotation. A rotated refresh token used again revokes the whole consent |
 | `GET /oauth/authorize` | Implemented | Validates the request, signs it, redirects to `{WEB_BASE_URL}/oauth/consent?req=…` |
 | `GET /oauth/authorize/request` | Implemented | Session. What the consent screen shows: client, scopes, gated actions, the person's workspaces and what each can grant |
 | `POST /oauth/authorize/decision` | Implemented | Session. `{ req, approve, workspaceId, scopes? }` → `{ redirectTo }`; consent is ledgered |
 | `POST /oauth/register` | Implemented | Dynamic client registration: public clients, loopback or allow-listed HTTPS redirect hosts (`OAUTH_DCR_REDIRECT_HOSTS` extends the list) |
-| `GET /openapi.json` | Placeholder | Serve the compiled TypeSpec document |
-| `GET /sitemap.xml` | Placeholder | Phase 1 |
+| `GET /openapi.json` | Implemented | The compiled TypeSpec document, shipped as a static asset (`pnpm spec:compile && pnpm --filter @gms/api build:openapi`); `503` when it has not been built |
+| `GET /sitemap.xml` | Implemented | Active funder pages and published opportunities with `publish.sitemap` and `publish.publicPage` on |
 | `POST /webhooks/passport`, `POST /webhooks/resend` | Placeholder | Phases 2 and 4. Signing/verification helpers exist in `@gms/webhooks` and `@gms/passport-client` |
 | `/mcp` (Streamable HTTP) | Placeholder | Phase 5 |
-| `GET /f/{handle}`, `/f/{handle}/o/{slug}` | Served by `apps/web` | Public read routes that feed them arrive with phase 1 |
+| `GET /f/{handle}`, `/f/{handle}/o/{slug}` | Served by `apps/web` | Data comes from `GET /gms/public/funders/{handle}` and `…/opportunities/{slug}` below |
 
-## Protocol routes (`/common-grants/…`) — all placeholder
+## Protocol routes (`/common-grants/…`)
 
-| Route | Auth | Phase |
+Implemented responses are validated against the compiled OpenAPI document in
+`apps/api/test/contract.test.ts`.
+
+| Route | Auth | Status |
 |---|---|---|
-| `GET /opportunities`, `GET /opportunities/{oppId}`, `POST /opportunities/search` | public for published; token for drafts | 1 |
-| `GET /competitions/{compId}` | public for open/closed; token for drafts | 1 |
-| `GET /forms`, `GET /forms/{formId}` | public for forms of published competitions | 1 |
-| `POST /applications/start` | `applications:write` | 2 |
-| `GET /applications/{appId}` | applicant, or funder with visibility | 2 |
-| `PUT /applications/{appId}/forms/{formId}`, `GET …` | applicant | 2 |
-| `PUT /applications/{appId}/submit` | `applications:submit` (human-gated for agents) | 2 |
-| `POST /applications/search` | funder or applicant | 2 |
-| `GET /awards`, `GET /awards/{awdId}`, `POST /awards/search` | funder or recipient | 3 |
-| `GET /orgs`, `GET /orgs/{orgId}` | `org:read` | 2 |
-| `PATCH /orgs/{orgId}`, `POST /orgs/{orgId}/changes`, `GET /orgs/{orgId}/changes[/{changeId}]` | token; forwarded to Passport | 6 |
+| `GET /opportunities`, `GET /opportunities/{oppId}`, `POST /opportunities/search` | public for published; a token for the owning workspace also reads drafts | Implemented. `OpportunityDetails` carries the competitions the caller may see; `awards` arrive with phase 3 |
+| `GET /competitions/{compId}` | public for open/closed under a published opportunity; token for drafts | Implemented. Stages in `customFields.gms.value.stages` |
+| `GET /forms`, `GET /forms/{formId}` (`?version=`) | public for form versions pinned by a public competition; token for the workspace's other versions | Implemented |
+| `POST /applications/start` | `applications:write` | Placeholder (phase 2) |
+| `GET /applications/{appId}` | applicant, or funder with visibility | Placeholder (phase 2) |
+| `PUT /applications/{appId}/forms/{formId}`, `GET …` | applicant | Placeholder (phase 2) |
+| `PUT /applications/{appId}/submit` | `applications:submit` (human-gated for agents) | Placeholder (phase 2) |
+| `POST /applications/search` | funder or applicant | Placeholder (phase 2) |
+| `GET /awards`, `GET /awards/{awdId}`, `POST /awards/search` | funder or recipient | Placeholder (phase 3) |
+| `GET /orgs`, `GET /orgs/{orgId}` | `org:read` | Placeholder (phase 2) |
+| `PATCH /orgs/{orgId}`, `POST /orgs/{orgId}/changes`, `GET /orgs/{orgId}/changes[/{changeId}]` | token; forwarded to Passport | Placeholder (phase 6) |
 
 ## GMS routes (`/gms/…`)
 
-Implemented now:
+Implemented:
 
-| Route | Auth | Notes |
+| Routes | Auth | Notes |
 |---|---|---|
-| `GET /gms/me` | session | The person and the workspaces they can open (workspace switcher) |
+| `GET /gms/me` | session | The person and the workspaces they can open |
 | `GET /gms/whoami` | any caller | The resolved principal: kind, workspace, role, effective scopes |
 | `GET /gms/ledger` | role `admin` or `auditor`; tokens need `workspace:admin` | Filters `subjectType`, `subjectId`, `eventType`, `from`, `to`; the workspace always comes from the principal |
+| `GET /gms/workspaces`, `POST /gms/workspaces` | session | List the person's workspaces; create one and become its admin. Brand accent is contrast-checked (WCAG AA) and falls back to the system accent with a warning |
+| `GET /gms/workspaces/{id}` | any member; tokens need `workspace:admin` | |
+| `PATCH /gms/workspaces/{id}`, `GET/POST …/members`, `PATCH/DELETE …/members/{userId}`, `POST …/invitations` | `workspace:admin`, role `admin` to change | A workspace always keeps one admin. The invitation token is returned once; only its hash is stored. Sending the invitation email arrives with `@gms/notify` wiring |
+| `POST /gms/invitations/accept` | session | `{ token }`; one use, expires |
+| `POST /gms/workspaces/{id}/passport/link`, `DELETE …/link` | funder `admin`, signed-in person only | Verifies the client against Passport (funding sources) before saving; secret stored AES-GCM encrypted, never returned |
+| `GET /gms/workspaces/{id}/passport/status` | `workspace:admin`, funder | Live check: `pass`, `fail` or `unknown` (Passport unreachable) |
+| `GET/POST /gms/programs`, `GET/PATCH /gms/programs/{id}` | `programs:*`, funder | Budget changes are ledgered with both values |
+| `GET/POST /gms/rubrics` | `reviews:*`, funder | Workspace rubrics plus the shared library |
+| `GET/POST /gms/opportunities`, `GET/PATCH /gms/opportunities/{id}`, `POST …/publish`, `…/close`, `…/preview` | `opportunities:*`, funder | Publish validates and stores the CommonGrants projection and emits `opportunity.published` |
+| `GET/POST /gms/competitions`, `GET/PATCH /gms/competitions/{id}`, `PUT …/stages`, `…/forms`, `…/rubric`, `POST …/launch-check`, `…/open`, `…/close` | `competitions:*`, funder | Launch check returns the readiness checklist shape (`key`, `state`, `label`, `reason`, `fixHref`); `open` is refused until every line passes. `forms` on an open competition needs `migrate: true` (re-validation of in-progress responses arrives with phase 2) |
+| `GET/POST /gms/forms`, `GET/PATCH /gms/forms/{id}`, `POST …/versions`, `…/publish`, `GET /gms/forms/library`, `POST /gms/forms/{id}/test-fill` | `forms:*` | Definitions are checked by `@gms/forms` on every save; published versions are immutable |
+| `POST /gms/eligibility/evaluate` | `applications:read` | Rules from the body or an opportunity; an applicant's cached Passport record is read only with a live consent |
+| `GET /gms/public/funders/{handle}`, `GET /gms/public/funders/{handle}/opportunities/{slug}` | none | Published fields only, edge-cacheable. Not in the TypeSpec document yet |
 
 Placeholder (every other `/gms/*` path answers 501). Funder side:
 
 | Routes | Scope | Phase |
 |---|---|---|
-| `GET/POST /workspaces`, `GET/PATCH /workspaces/{id}`, members, invitations | `workspace:admin` | 1 |
-| `POST /workspaces/{id}/passport/link`, `GET …/passport/status`, `DELETE …/link` | `workspace:admin` | 1 |
-| `GET/POST /programs`, `GET/PATCH /programs/{id}` | `programs:*` | 1 |
-| `GET/POST /opportunities`, `GET/PATCH /opportunities/{id}`, `POST …/publish`, `…/close`, `…/preview` | `opportunities:*` | 1 |
-| `GET/POST /competitions`, `GET/PATCH /competitions/{id}`, `PUT …/stages`, `…/forms`, `…/rubric`, `POST …/launch-check`, `…/open`, `…/close` | `competitions:*` | 1 |
-| `GET/POST /forms`, `GET/PATCH /forms/{id}`, `POST …/versions`, `…/publish`, `GET /forms/library`, `POST /forms/{id}/test-fill` | `forms:*` | 1 |
-| `POST /eligibility/evaluate` | `applications:read` | 1 |
 | `GET /applications`, `GET /applications/{id}`, `POST …/advance`, `…/request-revision`, `…/decline`, `…/tags`, `…/assign`, `POST /applications/bulk` | `applications:*` | 2–3 |
-| `GET/POST /rubrics`, `GET/POST /review-assignments`, `POST /review-assignments/auto`, `PATCH /review-assignments/{id}`, `GET /reviews`, `GET /competitions/{id}/ranking` | `reviews:*` | 3 |
+| `GET/POST /review-assignments`, `POST /review-assignments/auto`, `PATCH /review-assignments/{id}`, `GET /reviews`, `GET /competitions/{id}/ranking` | `reviews:*` | 3 |
 | `POST /decisions/propose`, `GET /decisions`, `POST /decisions/commit`, `GET /competitions/{id}/allocation` | `decisions:write` | 3 |
 | `GET /awards`, `GET /awards/{id}`, `POST …/accept-offer`, `…/activate`, `…/suspend`, `…/complete`, `…/cancel`, `…/amendments`, `PATCH /amendments/{id}` | `awards:*` | 3 |
 | `POST /awards/{id}/agreements`, `POST /agreements/{id}/send`, `…/sign`, `…/countersign`, `…/void`, `GET …/pdf` | `agreements:*` | 3 |
