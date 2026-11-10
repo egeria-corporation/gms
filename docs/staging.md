@@ -63,7 +63,8 @@ API: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `OAUTH_KI
 `OAUTH_SIGNING_KEY_JWK`, `CREDENTIALS_ENCRYPTION_KEY`, `WEBHOOK_SECRET_KEY`. Jobs: the Supabase pair
 and the two encryption keys. The generated keys exist only in Cloudflare; they were not saved anywhere else.
 
-Also set on both: `RESEND_API_KEY`, `RESEND_FROM` (`noreply@gms-staging.opengrants.io`).
+Also set on both: `RESEND_API_KEY`, `RESEND_FROM` (`noreply@gms-staging.opengrants.io`). API only:
+`COMPOSIO_GOOGLE_AUTH_CONFIG_ID` (kept as a secret, as Passport does, so it stays out of the repository).
 
 Not set yet: `PASSPORT_GMS_CLIENT_ID`, `PASSPORT_GMS_CLIENT_SECRET`, `PASSPORT_WEBHOOK_SECRET`,
 `RESEND_INBOUND_SECRET`, `COMPOSIO_API_KEY`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
