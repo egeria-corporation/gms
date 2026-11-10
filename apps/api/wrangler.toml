@@ -1,0 +1,118 @@
+# OpenGrants GMS API Worker. Secrets are set with `wrangler secret put <NAME>` (see .dev.vars.example
+# for the names); only non-secret variables and bindings live here. Self-hosters: replace the ids
+# and routes in [env.production] with your own (docs/self-host.md).
+name = "gms-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+GMS_BASE_URL = "http://localhost:8787"
+WEB_BASE_URL = "http://localhost:5173"
+OAUTH_ISSUER = "http://localhost:8787"
+ASSISTANT_ENABLED = "false"
+
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "gms-attachments-dev"
+
+[[r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive-dev"
+
+[[r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports-dev"
+
+[[queues.producers]]
+binding = "GMS_EVENTS"
+queue = "gms-events-dev"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "00000000000000000000000000000000"
+
+# ---- staging ----
+[env.staging]
+name = "gms-api-staging"
+
+[env.staging.vars]
+GMS_BASE_URL = "https://staging.gms.opengrants.io"
+WEB_BASE_URL = "https://staging.gms.opengrants.io"
+OAUTH_ISSUER = "https://staging.gms.opengrants.io"
+PASSPORT_BASE_URL = "https://test.passport.opengrants.io"
+PASSPORT_ISSUER = "https://test.passport.opengrants.io"
+OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
+ASSISTANT_ENABLED = "false"
+
+[[env.staging.r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "gms-attachments-staging"
+
+[[env.staging.r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive-staging"
+
+[[env.staging.r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports-staging"
+
+[[env.staging.queues.producers]]
+binding = "GMS_EVENTS"
+queue = "gms-events-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "00000000000000000000000000000000"
+
+# ---- production ----
+# The API shares the web app's origin: the Worker takes the API path prefixes, static assets serve the rest.
+[env.production]
+name = "gms-api"
+workers_dev = false
+routes = [
+  { pattern = "gms.opengrants.io/common-grants/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/gms/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/oauth/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/.well-known/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/mcp*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/webhooks/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/llms.txt", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/llms-full.txt", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/openapi.json", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/sitemap.xml", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/health", zone_name = "opengrants.io" },
+]
+
+[env.production.vars]
+GMS_BASE_URL = "https://gms.opengrants.io"
+WEB_BASE_URL = "https://gms.opengrants.io"
+OAUTH_ISSUER = "https://gms.opengrants.io"
+PASSPORT_BASE_URL = "https://passport.opengrants.io"
+PASSPORT_ISSUER = "https://passport.opengrants.io"
+OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
+ASSISTANT_ENABLED = "false"
+
+[[env.production.r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "gms-attachments"
+
+[[env.production.r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive"
+
+[[env.production.r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports"
+
+[[env.production.queues.producers]]
+binding = "GMS_EVENTS"
+queue = "gms-events"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "00000000000000000000000000000000"

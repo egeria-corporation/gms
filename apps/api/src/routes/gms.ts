@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// /gms routes. Phase 0 ships the two that exercise the whole authorization path end to end
+// (who am I; the workspace ledger). Every other /gms route answers 501 in the CommonGrants error
+// shape until its phase lands; see docs/api-surface.md.
+import { Hono } from "hono";
+import type { AppEnv } from "../app.ts";
+import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
+import { LEDGER_ROLES, roleRequiresMfa } from "../auth/scopes.ts";
+import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
+
+export const gms = new Hono<AppEnv>();
+
+/** The signed-in person and the workspaces they can open (workspace switcher). */
+gms.get("/me", requireUser(), async (c) => {
+  const user = c.get("user");
+  const nowMs = c.get("deps").now().getTime();
+  const memberships = await c.get("deps").members.listForUser(user.userId);
+  return c.json(
+    ok({
+      userId: user.userId,
+      email: user.email,
+      mfaVerified: user.aal === "aal2",
+      workspaces: memberships
+        .filter((m) => !m.expiresAt || Date.parse(m.expiresAt) > nowMs)
+        .map((m) => ({ id: m.workspaceId, name: m.workspaceName, kind: m.workspaceKind, role: m.role, requiresMfa: roleRequiresMfa(m.workspaceKind, m.role) })),
+    }),
+  );
+});
+
+/** What this caller is, in this workspace: the same answer for a person, an API client and an agent. */
+gms.get("/whoami", authenticate(), (c) => {
+  const p = c.get("principal");
+  return c.json(ok({ kind: p.kind, userId: p.userId, clientId: p.clientId, workspaceId: p.workspaceId, role: p.role, scopes: p.scopes }));
+});
+
+/** Workspace-visible audit ledger: admins and auditors; API clients need `workspace:admin`. */
+gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
+  const p = c.get("principal");
+  const { page, pageSize, offset } = parsePagination({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
+  const iso = (k: "from" | "to") => {
+    const v = c.req.query(k);
+    if (v === undefined) return undefined;
+    if (Number.isNaN(Date.parse(v))) throw new ApiError(400, "bad_request", `${k} must be an ISO 8601 timestamp`, [{ code: "invalid_parameter", field: k }]);
+    return new Date(v).toISOString();
+  };
+  // The workspace always comes from the principal, never from the query string.
+  const query = { workspaceId: p.workspaceId, subjectType: c.req.query("subjectType"), subjectId: c.req.query("subjectId"), eventType: c.req.query("eventType"), from: iso("from"), to: iso("to") };
+  const { ledger } = c.get("deps");
+  const [items, total] = await Promise.all([ledger.list({ ...query, limit: pageSize, offset }), ledger.count(query)]);
+  return c.json(paginated(items, pageInfo(page, pageSize, total)));
+});
+
+gms.all("*", (c) => {
+  throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
+});

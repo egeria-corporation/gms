@@ -8,7 +8,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "keygen": "node --experimental-strip-types scripts/keygen.ts"
   },
   "dependencies": {
     "@gms/db": "workspace:*",
@@ -22,6 +23,7 @@
     "@gms/rules": "workspace:*",
     "@gms/webhooks": "workspace:*",
     "@gms/workflow": "workspace:*",
+    "@supabase/supabase-js": "2.118.0",
     "hono": "4.13.14",
     "jose": "6.2.13",
     "zod": "4.6.7"
