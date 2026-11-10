@@ -108,6 +108,7 @@ function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
 }
 
 function ReadinessExplained() {
+  const { facilitatedPayments } = useAppConfig();
   return (
     <section className="card" aria-labelledby="explained-h">
       <div className="card-h">
@@ -127,7 +128,7 @@ function ReadinessExplained() {
             <CircleX className="ic" aria-hidden="true" />
             <div>
               <div className="l">Fail</div>
-              <div className="r">Blocks release. The row says what clears it and when.</div>
+              <div className="r">{facilitatedPayments ? "Blocks release." : "Something to settle with the grantee before you pay."} The row says what clears it and when.</div>
             </div>
             <span></span>
           </div>
@@ -135,7 +136,7 @@ function ReadinessExplained() {
             <CircleDashed className="ic" aria-hidden="true" />
             <div>
               <div className="l">Unknown</div>
-              <div className="r">Could not be checked (Passport unreachable). Treated as blocking, never as pass.</div>
+              <div className="r">Could not be checked (Passport unreachable). {facilitatedPayments ? "Treated as blocking, never as pass." : "Never shown as a pass."}</div>
             </div>
             <span></span>
           </div>
@@ -574,7 +575,11 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     {d.center.items.map((item) => (
                       <DueItem key={item.tranche.id} item={item} row={d.rows.find((r) => r.id === item.tranche.id)} base={base} onChanged={changed} />
                     ))}
-                    <p className="notice">Payments are released one at a time. Each release is confirmed by a person and paid through OpenGrants Passport to the payee’s verified destination.</p>
+                    <p className="notice">
+                      {facilitatedPayments
+                        ? "Payments are released one at a time. Each release is confirmed by a person and paid through OpenGrants Passport to the payee’s verified destination."
+                        : "Payments are recorded one at a time, by a person. Passport checks the last four digits you enter against the payee’s verified destination; a payment it cannot verify is kept as unverified."}
+                    </p>
                   </div>
                   <aside style={{ display: "flex", flexDirection: "column", gap: "16px" }} aria-label="Upcoming payments and how readiness works">
                     <NextThirtyDays rows={d.rows} now={new Date()} />
