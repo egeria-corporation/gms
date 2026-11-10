@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { MemoryLedgerStore } from "@gms/ledger";
+import { MemoryKv } from "@gms/mcp";
+import { MemoryMailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
 import { MemoryWebhookStore } from "@gms/webhooks";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
@@ -8,6 +10,7 @@ import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/auth/stores.ts";
 import type { Env } from "../src/env.ts";
+import { FixtureOpenGrantsClient, MemoryFileStorage, type OpenGrantsListing } from "../src/services/ports.ts";
 import { MemoryRepos } from "../src/services/repos/memory.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
@@ -37,6 +40,9 @@ export interface Harness {
   ledger: MemoryLedgerStore;
   /** Set to answer Passport calls from recorded fixtures. */
   passport: { fetch?: FetchLike };
+  mailer: MemoryMailer;
+  storage: MemoryFileStorage;
+  openGrants: FixtureOpenGrantsClient;
   clock: { now: Date };
   privateKey: CryptoKey;
   kid: string;
@@ -50,12 +56,16 @@ export const ORG_RIVERBEND = "0190a000-0000-7000-8000-000000000001";
 // AES-256-GCM test key: the bytes 0..31, base64url. Not a real key.
 export const TEST_CREDENTIALS_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 export const PASSPORT = "https://passport.test";
+export const OPENGRANTS_LISTINGS: OpenGrantsListing[] = [
+  { id: "og-1", title: "Rural Health Access Fund", funder: "Northwind Family Foundation", url: "https://opengrants.example/grants/og-1", summary: "Operating support for rural clinics" },
+  { id: "og-2", title: "Community Health Grants 2027", funder: "Riverbend Community Foundation", url: "https://app.gms.test/f/riverbend/o/community-health-2027", summary: "Health navigation" },
+];
 
 export async function harness(): Promise<Harness> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk: JWK = await exportJWK(privateKey);
   const kid = "oauth-test-1";
-  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY };
+  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY, PASSPORT_GMS_CLIENT_ID: "gms-test-client", PASSPORT_GMS_CLIENT_SECRET: "gms-test-client-secret-not-real", RESEND_FROM: "OpenGrants GMS <notices@gms.test>" };
 
   const clients: OAuthClient[] = [
     {
@@ -99,6 +109,10 @@ export async function harness(): Promise<Harness> {
   const ledger = new MemoryLedgerStore();
   const webhooks = new MemoryWebhookStore();
   const passport: { fetch?: FetchLike } = {};
+  const mailer = new MemoryMailer();
+  const storage = new MemoryFileStorage();
+  const openGrants = new FixtureOpenGrantsClient(OPENGRANTS_LISTINGS);
+  const kv = new MemoryKv();
   const deps: Deps = {
     auth,
     members,
@@ -109,6 +123,8 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
+    ports: () => ({ mailer, storage, openGrants }),
+    kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
   const app = createApp(() => deps);
@@ -123,6 +139,9 @@ export async function harness(): Promise<Harness> {
     webhooks,
     ledger,
     passport,
+    mailer,
+    storage,
+    openGrants,
     clock,
     privateKey,
     kid,

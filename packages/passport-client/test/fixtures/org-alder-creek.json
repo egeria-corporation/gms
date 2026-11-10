@@ -1,0 +1,29 @@
+{
+  "method": "GET",
+  "path": "/common-grants/orgs/0193a1c0-0000-7000-8000-0000000000a1",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "data": {
+      "id": "0193a1c0-0000-7000-8000-0000000000a1",
+      "name": "Alder Creek Family Services",
+      "orgType": { "term": "Nonprofits", "class": "Organization types", "code": "EA000000" },
+      "status": { "value": "active" },
+      "identifiers": { "org:us:ein": { "id": "001234567" } },
+      "mission": "Health navigation and family support for rural households in the Alder Creek valley.",
+      "yearFounded": "1998",
+      "addresses": { "primary": { "street1": "418 Mill Road", "city": "Alder Creek", "stateOrProvince": "OR", "region": "OR", "country": "US", "postalCode": "97000" } },
+      "emails": { "primary": "info@aldercreekfs.example" },
+      "phones": { "primary": { "countryCode": "+1", "number": "5035550142" } },
+      "socials": { "website": "https://aldercreekfs.example" },
+      "customFields": {
+        "verificationLevel": { "name": "verificationLevel", "fieldType": "string", "value": "L3" },
+        "verifiedAt": { "name": "verifiedAt", "fieldType": "string", "value": "2027-01-12T17:20:00Z" },
+        "attestation": { "name": "attestation", "fieldType": "string", "value": "https://passport.test/passport/orgs/0193a1c0-0000-7000-8000-0000000000a1/attestation" }
+      },
+      "createdAt": "2026-11-02T18:00:00Z",
+      "lastModifiedAt": "2027-01-12T17:20:00Z"
+    }
+  }
+}

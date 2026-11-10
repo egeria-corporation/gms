@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // /llms.txt and /llms-full.txt: what the GMS is, how an agent authenticates, what it can do and
-// where a person has to approve. Later phases generate the tool list from the `@gms/mcp` registry;
-// until the MCP server lands this text describes the contract, and says so.
+// where a person has to approve. The tool lists and input schemas are generated from the
+// `@gms/mcp` registry, the same one the /mcp endpoint serves.
+import { createRegistry, llmsToolSections } from "@gms/mcp";
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { DEFAULT_GATED_TOOLS, SCOPES, SCOPE_DESCRIPTIONS } from "../auth/scopes.ts";
 import { trimSlash } from "../env.ts";
 
-const FUNDER_TOOLS =
-  "list_programs, get_program, list_opportunities, get_opportunity, create_opportunity, update_opportunity, publish_opportunity, list_competitions, get_competition, create_competition, set_stage_forms, set_rubric, list_forms, get_form, create_form, update_form, set_prefill_mapping, list_applications, get_application, run_eligibility, advance_application, request_revision, decline_application, tag_application, list_review_assignments, assign_reviewer, get_scores, rank_applications, propose_decision, commit_decisions, list_awards, get_award, create_award_from_application, amend_award, close_award, generate_agreement, send_agreement, get_agreement_status, list_tranches, check_payment_readiness, release_tranche, record_external_payment, list_requirements, review_submission, accept_submission, return_submission, send_reminders, list_grantees, get_grantee, get_passport_status, list_pending_org_changes, accept_org_change, portfolio_summary, cycle_metrics, export_990pf_grant_list, draft_letter, summarize_application, compare_to_rubric, get_approval";
-const APPLICANT_TOOLS =
-  "get_my_organization, get_passport_readiness, find_competitions, check_eligibility, search_opengrants, match_opengrants, create_funding_alert, list_applications, get_application, start_application, fill_form_response, attach_document, insert_answer, validate_application, submit_application, withdraw_application, list_awards, get_award, accept_award, sign_agreement, request_amendment, list_requirements, draft_submission, submit_requirement, share_submission_with_funder, list_answers, save_answer, adapt_answer, list_messages, reply, get_approval";
+const registry = createRegistry();
+const names = (side: "funder" | "applicant") => registry.list(side).map((t) => t.name).join(", ");
 
 function summary(base: string): string {
   return `# OpenGrants GMS
@@ -49,9 +48,9 @@ Calling one returns \`{ "status": "pending_approval", "approvalId": "…", "url"
 
 ## Tools
 
-Funder workspace: ${FUNDER_TOOLS}.
+Funder workspace: ${names("funder")}.
 
-Applicant workspace: ${APPLICANT_TOOLS}.
+Applicant workspace: ${names("applicant")}.
 
 Resources: gms://opportunity/{id}, gms://competition/{id}, gms://form/{id}, gms://application/{id}, gms://award/{id}, gms://org/{id}.
 Prompts: triage-cohort, write-decline-letter, prepare-report, fill-application-from-passport.
@@ -63,6 +62,8 @@ Full reference: ${base}/llms-full.txt
 function full(base: string): string {
   const scopes = SCOPES.map((s) => `- \`${s}\`: ${SCOPE_DESCRIPTIONS[s]}`).join("\n");
   return `${summary(base)}
+${llmsToolSections(registry, { full: true })}
+
 ## Scopes
 
 ${scopes}

@@ -1,0 +1,23 @@
+{
+  "method": "GET",
+  "path": "/passport/orgs/0193a1c0-0000-7000-8000-0000000000a1/profile",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "data": {
+      "orgId": "0193a1c0-0000-7000-8000-0000000000a1",
+      "handle": "alder-creek",
+      "level": "L3",
+      "fields": [
+        { "path": "/name", "value": "Alder Creek Family Services", "source": "irs_bmf", "sourceRef": "eo_bmf_2026-10", "fetchedAt": "2027-01-10T08:00:00Z", "confidence": 1, "confirmedAt": "2027-01-12T17:20:00Z" },
+        { "path": "/profile/financials/annualOperatingBudget", "value": 2400000, "source": "member", "fetchedAt": "2027-01-12T17:20:00Z", "confidence": 1, "confirmedAt": "2027-01-12T17:20:00Z" },
+        { "path": "/profile/financials/annualRevenue", "value": 2310000, "source": "irs_990", "sourceRef": "990_2025", "fetchedAt": "2027-01-10T08:00:00Z", "confidence": 0.95, "confirmedAt": "2027-01-12T17:20:00Z" },
+        { "path": "/profile/financials/fiscalYearEnd", "value": "06-30", "source": "member", "fetchedAt": "2027-01-12T17:20:00Z", "confidence": 1, "confirmedAt": "2027-01-12T17:20:00Z" },
+        { "path": "/profile/staff/fullTimeEquivalent", "value": 18, "source": "member", "fetchedAt": "2027-01-12T17:20:00Z", "confidence": 1, "confirmedAt": "2027-01-12T17:20:00Z" }
+      ],
+      "createdAt": "2026-11-02T18:00:00Z",
+      "lastModifiedAt": "2027-01-12T17:20:00Z"
+    }
+  }
+}

@@ -12,12 +12,16 @@ import { trimSlash, type Env } from "./env.ts";
 import { ApiError, errorResponse, notFound, notImplemented } from "./lib/errors.ts";
 import { log, loggablePath } from "./lib/log.ts";
 import { agentdocs } from "./routes/agentdocs.ts";
+import { cgApplications } from "./routes/apply.ts";
 import { authorize } from "./routes/authorize.ts";
 import { gms } from "./routes/gms.ts";
+import { mcp } from "./routes/mcp.ts";
 import { OAuthError, oauth, oauthErrorResponse } from "./routes/oauth.ts";
 import { commonGrants, sitemap } from "./routes/public.ts";
 import { register } from "./routes/register.ts";
 import { wellknown } from "./routes/wellknown.ts";
+import type { KvPort } from "@gms/mcp";
+import type { ServicePorts } from "./services/context.ts";
 import type { Repos } from "./services/repos/types.ts";
 
 export interface Deps {
@@ -30,6 +34,10 @@ export interface Deps {
   now: () => Date;
   /** Recorded Passport responses in tests; the platform fetch otherwise. */
   passportFetch?: FetchLike;
+  /** Mail, file storage and the OpenGrants discovery client; absent ports degrade (no mail sent, no upload). */
+  ports?: (env: Env) => ServicePorts;
+  /** Rate-limit counters for MCP tokens (Workers KV in production). */
+  kv?: (env: Env) => KvPort;
   /** The compiled OpenAPI document (a static asset of the Worker); null when it has not been built. */
   openapi?: (env: Env) => Promise<unknown | null>;
 }
@@ -112,6 +120,7 @@ export function createApp(makeDeps: DepsFactory) {
 
   // Protocol reads that are implemented; every other protocol route answers 501 until its phase lands.
   app.route("/common-grants", commonGrants);
+  app.route("/common-grants", cgApplications);
   app.get("/sitemap.xml", sitemap);
   app.get("/openapi.json", async (c) => {
     const doc = await c.get("deps").openapi?.(c.env);
@@ -129,7 +138,7 @@ export function createApp(makeDeps: DepsFactory) {
     return r;
   };
   app.route("/common-grants", placeholder("This CommonGrants protocol route"));
-  app.route("/mcp", placeholder("The MCP server"));
+  app.route("/mcp", mcp);
   app.route("/webhooks", placeholder("Inbound webhooks"));
 
   app.notFound(() => {

@@ -71,6 +71,9 @@ importers:
       '@gms/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@gms/notify':
+        specifier: workspace:*
+        version: link:../../packages/notify
       '@gms/passport-client':
         specifier: workspace:*
         version: link:../../packages/passport-client
@@ -154,6 +157,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       '@gms/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow

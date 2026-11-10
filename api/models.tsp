@@ -452,7 +452,12 @@ model EligibilityRequest {
 }
 
 model EligibilityRuleResult {
-  rule: string;
+  /** The leaf rule that was evaluated: `{ path, op, value, ... }` */
+  rule: Record<unknown>;
+
+  /** The rule's plain-language label */
+  label: string;
+
   outcome: TriState;
   actual?: unknown;
   explain: string;
@@ -469,22 +474,104 @@ model EligibilityResult {
 // Applications, reviews, decisions
 // #########################################################
 
+/** An application in the funder's inbox. The detail route adds the optional fields. */
 model GmsApplication {
   id: PrefixedId;
+  title: string;
   competitionId: PrefixedId;
   opportunityId: PrefixedId;
-  applicantWorkspaceId: CommonGrants.Types.uuid;
-  applicantName: string;
   stage: string;
   status: ApplicationStatus;
-  requestedAmount?: Money;
-  submittedAt?: utcDateTime;
-  verificationLevelAtSubmit?: VerificationLevel;
-  attestationUrl?: url;
-  eligibility?: EligibilityResult;
+
+  /** The outcome of the eligibility rules at the last evaluation; `unknown` flags it for a person. */
+  eligibility: boolean | "unknown" | null;
+
+  requestedAmountMinor: int64 | null;
+  currency: string;
   tags: string[];
-  assignedToUserId?: CommonGrants.Types.uuid;
-  cg: ApplicationBase;
+  assignedToUserId: CommonGrants.Types.uuid | null;
+  submittedAt: utcDateTime | null;
+  verificationLevelAtSubmit: VerificationLevel | null;
+  applicant: {
+    workspaceId: CommonGrants.Types.uuid;
+    name: string | null;
+    handle: string | null;
+
+    /** The applicant's current Passport level; null once their consent is revoked. */
+    level: VerificationLevel | null;
+  };
+  updatedAt: utcDateTime;
+
+  /** Detail only. */
+  attestationUrl?: url | null;
+
+  /** Detail only: the rule-by-rule results. */
+  eligibilityResults?: EligibilityResult | null;
+
+  decisionId?: CommonGrants.Types.uuid | null;
+
+  /** Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
+  organization?: {
+    `projection`: OrganizationBase;
+    level: VerificationLevel | null;
+    verifiedAt: utcDateTime | null;
+    syncedAt: utcDateTime | null;
+    levelChangedSinceSubmit: boolean;
+  } | null;
+
+  /** Detail only. Reviewers get reviewer-visible fields; external reviewers also lose PII. */
+  formResponses?: InboxFormResponse[];
+
+  timeline?: ApplicationEvent[];
+}
+
+model InboxFormResponse {
+  formId: PrefixedId;
+  formVersion: int32;
+  formTitle: string | null;
+  stage: string | null;
+  status: "notStarted" | "inProgress" | "complete";
+  response: Record<unknown>;
+
+  /** JSON pointer → `passport` | `library` | `prior_submission` | `qbo` | `user` | `agent:<client>` */
+  provenance: Record<string>;
+
+  validationErrors: unknown[];
+  lockedAt: utcDateTime | null;
+
+  /** Paths hidden or masked for this viewer. */
+  masked: string[];
+}
+
+model ApplicationEvent {
+  id: CommonGrants.Types.uuid;
+  type: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  fromStage: string | null;
+  toStage: string | null;
+  payload?: Record<unknown>;
+  actor?: string;
+  at: utcDateTime;
+
+  /** The revision request's message, on the applicant's status view. */
+  message?: string | null;
+}
+
+/** What an action on an application returns: the fields it changed. */
+model ApplicationActionResult {
+  id: PrefixedId;
+  status?: ApplicationStatus;
+  stage?: string;
+  tags?: string[];
+  assignedToUserId?: CommonGrants.Types.uuid | null;
+  decisionId?: CommonGrants.Types.uuid;
+
+  /** Whether the templated letter went out, and why not when it did not. */
+  letter?: {
+    sent: boolean;
+    reason?: string;
+  };
 }
 
 model AdvanceRequest {
@@ -503,6 +590,9 @@ model RevisionRequest {
 model DeclineRequest {
   rationale?: string;
   letterTemplateId?: string;
+
+  /** Send the decline letter (default true). */
+  sendLetter?: boolean;
 }
 
 model TagsRequest {
@@ -517,15 +607,78 @@ model AssignRequest {
 model BulkApplicationRequest {
   applicationIds: GmsId[];
   action: "advance" | "decline" | "tag" | "assign";
+
+  /** The body the single-application route takes for this action. */
   params?: Record<unknown>;
 }
 
+/** Each application succeeds or fails on its own; nothing is rolled back. */
 model BulkResult {
+  action: "advance" | "decline" | "tag" | "assign";
+  requested: int32;
   succeeded: string[];
   failed: {
     id: string;
     message: string;
   }[];
+  lettersSent: int32;
+}
+
+/** An application as its applicant sees it in the list. */
+model MyApplication {
+  id: PrefixedId;
+  title: string;
+  status: ApplicationStatus;
+  stage: {
+    key: string;
+    label: string;
+    closes: utcDateTime | null;
+  };
+  funder: {
+    workspaceId: CommonGrants.Types.uuid;
+    name: string | null;
+    handle: string | null;
+    brand: Brand;
+  };
+  opportunity: {
+    id: PrefixedId;
+    title: string | null;
+  };
+
+  /** Forms of the current stage and how many validate. */
+  forms: {
+    total: int32;
+    complete: int32;
+  };
+  submittedAt: utcDateTime | null;
+  updatedAt: utcDateTime;
+}
+
+model ApplicationStatusView {
+  id: PrefixedId;
+  title: string;
+  status: ApplicationStatus;
+  stage: string;
+  submittedAt: utcDateTime | null;
+  stages: {
+    key: string;
+    label: string;
+    opens: utcDateTime | null;
+    closes: utcDateTime | null;
+    state: "done" | "current" | "upcoming";
+  }[];
+  timeline: ApplicationEvent[];
+}
+
+/** A funder the applicant has applied to on the GMS. */
+model MyFunder {
+  workspaceId: CommonGrants.Types.uuid;
+  name: string;
+  handle: string;
+  brand: Brand;
+  since: utcDateTime | null;
+  applications: int32;
+  awards: int32;
 }
 
 model RubricCriterion {
@@ -936,25 +1089,186 @@ model ProposeChangeRequest {
 
 model Consent {
   id: string;
-  applicantWorkspaceId: CommonGrants.Types.uuid;
-  funderWorkspaceId: CommonGrants.Types.uuid;
-  funderName?: string;
+  funder: {
+    workspaceId: CommonGrants.Types.uuid;
+    name: string | null;
+    handle: string | null;
+  };
   basis: "application" | "passport_grant" | "shared_submission";
   scopes: string[];
   grantedAt: utcDateTime;
-  revokedAt?: utcDateTime;
+  revokedAt: utcDateTime | null;
 }
 
-/** Passport readiness shown to an applicant: level plus what is missing for the next one. */
+/** One line of a readiness checklist. `unknown` is a state of its own: it is never folded into pass or fail. */
+model ReadinessCheck {
+  key: string;
+  state: "pass" | "fail" | "unknown";
+  label: string;
+  reason: string;
+
+  /** Where to fix it (a path in the web app or a Passport URL); null when nothing needs fixing. */
+  fixHref: string | null;
+}
+
+/** Passport readiness shown to an applicant: the level and what each next step needs. */
 model ApplicantReadiness {
-  verificationLevel: VerificationLevel;
-  payeeReady: boolean;
-  lines: ReadinessLine[];
+  level: VerificationLevel | null;
+
+  /** Whether the workspace holds a live Passport consent. */
+  linked: boolean;
+
+  syncedAt: utcDateTime | null;
+  checks: ReadinessCheck[];
+  summary: {
+    pass: int32;
+    fail: int32;
+    `unknown`: int32;
+    ready: boolean;
+  };
+}
+
+/** The applicant's organization as cached from Passport. Read-only here: edits happen in Passport. */
+model MyOrganization {
+  workspaceId: CommonGrants.Types.uuid;
+  handle: string;
+  displayName: string;
+  passportOrgId: CommonGrants.Types.uuid | null;
+  linked: boolean;
+  level: VerificationLevel | null;
+  verifiedAt: utcDateTime | null;
+
+  /** URL of the signed Passport attestation */
+  attestationUrl: url | null;
+
+  /** CommonGrants `OrganizationBase`, exactly as Passport served it. */
+  organization: OrganizationBase | null;
+
+  /** Common App profile (budget, fiscal year end, staff count, 990 figures) folded into an object. Confirmed fields only. */
+  profile: Record<unknown> | null;
+
+  /** JSON pointer of each profile field → where Passport got the value. */
+  profileSources: Record<string>;
+
+  syncedAt: utcDateTime | null;
+
+  /** Where to edit the record in Passport. */
+  editUrl: url | null;
+}
+
+model ConsentStartRequest {
+  /** An applicant workspace the caller administers that has no Passport organization yet. */
+  workspaceId?: CommonGrants.Types.uuid;
+
+  /** Path in the web app to land on afterwards. */
+  returnTo?: string;
 }
 
 model ConsentStart {
   /** Passport authorization URL (authorization code + PKCE) */
   authorizeUrl: url;
+
+  scopes: string[];
+  expiresInSeconds: int32;
+}
+
+/** A workspace as the signed-in person sees it in the switcher. */
+model MyWorkspace {
+  id: CommonGrants.Types.uuid;
+  handle: string;
+  kind: WorkspaceKind;
+  role: MemberRole;
+  displayName: string;
+
+  /** Same as `displayName`. */
+  name: string;
+
+  brand: Brand;
+
+  /** Whether this role needs two-step verification before the workspace opens. */
+  requiresMfa: boolean;
+
+  passportOrgId: CommonGrants.Types.uuid | null;
+  verificationLevel: VerificationLevel | null;
+}
+
+/** The signed-in person and the workspaces they can open. */
+model Me {
+  userId: CommonGrants.Types.uuid;
+  email: string | null;
+  mfaVerified: boolean;
+  workspaces: MyWorkspace[];
+}
+
+/** What a caller is in a workspace: the same answer for a person, an API client and an agent. */
+model WhoAmI {
+  kind: "user" | "client" | "delegated";
+  userId: CommonGrants.Types.uuid | null;
+  clientId: string | null;
+  workspaceId: CommonGrants.Types.uuid;
+  role: MemberRole | null;
+  scopes: string[];
+}
+
+/** Published data behind a funder's public page. */
+model FunderPage {
+  funder: Record<unknown>;
+  opportunities: Record<unknown>[];
+}
+
+/** Published data behind an opportunity's public page, including the plain-language eligibility lines. */
+model OpportunityPage {
+  funder: Record<unknown>;
+  opportunity: Record<unknown>;
+  competitions?: Record<unknown>[];
+  eligibility?: string[];
+}
+
+model SavedListingInput {
+  source: "gms" | "opengrants";
+  externalId: string;
+  title: string;
+  url?: url;
+  listing?: Record<unknown>;
+}
+
+model SavedListing {
+  id: CommonGrants.Types.uuid;
+  source: "gms" | "opengrants";
+  externalId: string;
+  title: string;
+  url: string | null;
+  gmsOpportunityId?: GmsId | null;
+  savedAt: utcDateTime;
+}
+
+model ThreadInput {
+  subjectType?: "application";
+  subjectId: GmsId;
+
+  /** `internal` opens the caller's side's private thread; the other side never sees it. */
+  visibility?: "shared" | "internal";
+}
+
+model TaskPatch {
+  title?: string;
+  assigneeUserId?: CommonGrants.Types.uuid | null;
+  dueAt?: utcDateTime | null;
+  done?: boolean;
+}
+
+/** One JSON-RPC 2.0 message of the Model Context Protocol (or a batch of up to 20). */
+model McpMessage {
+  jsonrpc: "2.0";
+  id?: string | int32 | null;
+  method?: string;
+  params?: Record<unknown>;
+  result?: unknown;
+  error?: {
+    code: int32;
+    message: string;
+    data?: unknown;
+  };
 }
 
 // #########################################################
@@ -966,31 +1280,37 @@ model Thread {
   subjectType: "application" | "award" | "requirement";
   subjectId: string;
   visibility: "shared" | "funder_internal" | "applicant_internal";
-  lastMessageAt?: utcDateTime;
-  messages?: Message[];
+  title?: string | null;
+  funderWorkspaceId?: CommonGrants.Types.uuid | null;
+  applicantWorkspaceId?: CommonGrants.Types.uuid | null;
+  messages: Message[];
+  updatedAt: utcDateTime;
 }
 
 model Message {
   id: string;
+
+  /** Ledger actor: `user:<id>` or `user:<id>/client:<id>` */
   author: string;
+
+  authorUserId?: CommonGrants.Types.uuid | null;
   body: string;
-  attachments?: string[];
   createdAt: utcDateTime;
 }
 
 model MessageInput {
   body: string;
-  attachments?: string[];
 }
 
 model Task {
   id: string;
-  subjectType?: string;
-  subjectId?: string;
+  subjectType: string | null;
+  subjectId: string | null;
   title: string;
-  assigneeUserId?: CommonGrants.Types.uuid;
-  dueAt?: utcDateTime;
-  doneAt?: utcDateTime;
+  assigneeUserId: CommonGrants.Types.uuid | null;
+  dueAt: utcDateTime | null;
+  doneAt: utcDateTime | null;
+  createdAt: utcDateTime;
 }
 
 model TaskInput {
@@ -1042,29 +1362,47 @@ model SendResult {
   queued: int32;
 }
 
+/** A field comment inside the applicant team. */
 model Comment {
-  id?: string;
-  formId?: string;
-  fieldPath?: string;
+  id: string;
   body: string;
-  resolvedAt?: utcDateTime;
+  author: string;
+  authorUserId: CommonGrants.Types.uuid | null;
+  formId: PrefixedId | null;
+
+  /** JSON pointer of the field the comment is about */
+  fieldPath: string | null;
+
+  resolvedAt: utcDateTime | null;
+  createdAt: utcDateTime;
+}
+
+model CommentInput {
+  body: string;
+  formId?: GmsId;
+  fieldPath?: string;
 }
 
 model SectionAssignment {
   formId: GmsId;
 
-  /** Section key → user id */
-  sections: Record<CommonGrants.Types.uuid>;
+  /** Section key → user id; null clears the assignment */
+  sections: Record<CommonGrants.Types.uuid | null>;
 }
 
+/** Either the file itself (up to 25 MB, base64) or a reference into the Passport locker, which is never copied. */
 model AttachmentInput {
   name: string;
   mime: string;
-  size: int64;
-  sha256: Sha256;
 
-  /** A reference into the Passport document locker instead of an upload */
+  /** The file bytes, base64. The server computes the size and SHA-256. */
+  contentBase64?: string;
+
+  /** A reference into the Passport document locker instead of an upload; `size` and `sha256` are then required. */
   passportDocumentId?: string;
+
+  size?: int64;
+  sha256?: Sha256;
 }
 
 model Document {
@@ -1073,11 +1411,10 @@ model Document {
   mime: string;
   size: int64;
   sha256: Sha256;
-  storage: "supabase" | "r2";
-  passportDocumentId?: string;
-
-  /** Short-lived signed upload or download URL */
-  url?: url;
+  source: "upload" | "passport_locker";
+  passportDocumentId: string | null;
+  scanStatus: "not_scanned" | "clean" | "infected";
+  uploadedAt: utcDateTime;
 }
 
 model Answer {
@@ -1086,7 +1423,9 @@ model Answer {
   title: string;
   body: string;
   version: int32;
-  usedIn?: string[];
+  usedIn?: unknown[];
+  words: int32;
+  updatedAt: utcDateTime;
 }
 
 model AnswerInput {
@@ -1099,10 +1438,40 @@ model AnswerInput {
 // Discovery (OpenGrants) and assistant
 // #########################################################
 
+/** A competition open on this GMS, with the caller's eligibility. */
 model DiscoverCompetition {
-  competition: CompetitionBase;
-  funderName: string;
+  competitionId: CommonGrants.Types.uuid;
+  opportunity: {
+    id: PrefixedId;
+    slug: string;
+    title: string;
+    description: string;
+    funding: Record<unknown>;
+  };
+  funder: {
+    name: string | null;
+    handle: string | null;
+    brand: Brand;
+  };
+  stage: {
+    key: string;
+    label: string;
+    closes: utcDateTime | null;
+  } | null;
+
+  /** Number of forms in the first stage */
+  forms: int32;
+
   eligibility: EligibilityResult;
+
+  /** The caller's application to this competition, when one exists. */
+  application: {
+    id: PrefixedId;
+    status: ApplicationStatus;
+  } | null;
+
+  /** The opportunity's public page */
+  url: url | null;
 }
 
 /** Query passed to the OpenGrants hosted MCP with the applicant's organization context. */
@@ -1112,8 +1481,11 @@ model OpenGrantsQuery {
 }
 
 model OpenGrantsResults {
+  /** Listings as OpenGrants returned them, each with `gms` set when it can be applied to here. */
   results: Record<unknown>[];
-  cachedAt?: utcDateTime;
+
+  /** Served from the 15-minute cache for this organization and query. */
+  cached: boolean;
 }
 
 model AssistRequest {
@@ -1292,19 +1664,43 @@ model LedgerEvent {
 
 /** A human gate for an agent action. */
 model Approval {
+  /** `apr_<uuid>` */
   id: string;
+
+  workspaceId: CommonGrants.Types.uuid;
+  side: "funder" | "applicant";
   tool: string;
-  clientId: string;
-  requestedBy: string;
-  inputs: Record<unknown>;
 
-  /** What approving will do, e.g. "will send 14 letters" */
-  impact?: string;
+  /** The scope a person needs to approve it (the tool's scope). */
+  scope?: string | null;
 
-  status: "pending" | "approved" | "rejected" | "expired";
+  description?: string | null;
+
+  /** The agent call that is waiting: the person it acts for and the OAuth client. */
+  requestedBy: {
+    userId: string;
+    clientId: string | null;
+  };
+
+  /** The tool input, as the agent sent it. */
+  input: unknown;
+
+  /** `approved` is the instant between a person's yes and the call finishing; it ends as `executed` or `failed`. */
+  status: "pending" | "approved" | "rejected" | "executed" | "failed" | "expired";
+
+  createdAt: utcDateTime;
   decidedBy?: string;
   decidedAt?: utcDateTime;
-  result?: Record<unknown>;
+  note?: string;
+
+  /** What the approved call returned (status `executed`). */
+  result?: unknown;
+
+  /** Why the approved call did not go through (status `failed`). */
+  error?: string;
+
+  /** The approval's page in the web app. */
+  url?: url;
 }
 
 // #########################################################

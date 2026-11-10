@@ -140,13 +140,35 @@ export interface CgOrgChange {
   [key: string]: unknown;
 }
 
+export const GMS_AWARD_REGISTRY = "org:opengrants:gms";
+
 /** The parts of a CommonGrants `AwardBase` the GMS reads. */
 export interface CgAward {
   id: string;
   title?: string;
   status?: { value: string; customValue?: string };
   funding?: { requestedAmount?: Money; awardedAmount?: Money; disbursedAmount?: Money };
+  /** `systemId` is Passport's own id; the id the GMS sent comes back under `otherIds["org:opengrants:gms"]`. */
+  identifiers?: { systemId?: { registry?: { code?: string }; id?: string }; otherIds?: Record<string, { id?: string } | undefined> };
   [key: string]: unknown;
+}
+
+/** The GMS award id (`awd_…`) Passport holds for a mirrored award, or null. */
+export const gmsAwardIdOf = (award: Pick<CgAward, "identifiers">): string | null => award.identifiers?.otherIds?.[GMS_AWARD_REGISTRY]?.id ?? null;
+
+/** Body of `POST /passport/funders/{orgId}/awards`: a CommonGrants `AwardBase` without `disbursedAmount`. */
+export interface FunderAwardInput {
+  title: string;
+  description?: string | null;
+  status?: { value: "awarded" | "completed" | "cancelled" | "custom"; customValue?: string };
+  funding: { awardedAmount: Money; requestedAmount?: Money };
+  /** By Passport org id or by EIN; an organization that is not on Passport is refused. */
+  recipientOrganizations: { primary: { id: string } | { identifiers: { "org:us:ein": { id: string } } } };
+  keyDates?: { awardDate?: { date: string }; periodOfPerformance?: { startDate?: string; endDate?: string } };
+  parent?: { id: string };
+  /** HTTPS URL of the award in the GMS. */
+  source?: string;
+  identifiers?: { systemId: { registry: { code: string }; id: string } };
 }
 
 export const PASSPORT_EVENTS = [

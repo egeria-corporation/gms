@@ -3,11 +3,13 @@
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
+import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
 import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import type { FileStorage, OpenGrantsClient } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
 export interface ServiceActor {
@@ -37,6 +39,17 @@ export interface ServiceConfig {
   credentialsKey: string | null;
   /** Injected in tests (recorded fixtures); the platform `fetch` otherwise. */
   passportFetch?: FetchLike;
+  /** The GMS's own Passport client ("OpenGrants GMS"), used for applicant consent; null when not configured. */
+  passportClient: { id: string; secret: string } | null;
+  /** RESEND_FROM; null when outbound mail is not configured. */
+  mailFrom: string | null;
+}
+
+/** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
+export interface ServicePorts {
+  mailer?: Mailer;
+  storage?: FileStorage;
+  openGrants?: OpenGrantsClient;
 }
 
 export interface ServiceContext {
@@ -49,6 +62,7 @@ export interface ServiceContext {
   webhooks: WebhookStore;
   now: () => Date;
   config: ServiceConfig;
+  ports: ServicePorts;
 }
 
 export function makeActor(kind: ServiceActor["kind"], userId: string | null, clientId: string | null): ServiceActor {

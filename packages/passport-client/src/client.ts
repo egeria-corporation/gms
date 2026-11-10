@@ -3,7 +3,9 @@
 // recorded-fixture mode share one code path. The client never sees bank or identity numbers:
 // Passport returns the bank name and last four digits only.
 import { PassportFeatureDisabledError, PassportUnavailableError, toPassportError } from "./errors.ts";
+import type { OrgProfile } from "./profile.ts";
 import type { FetchLike, TokenProvider } from "./tokens.ts";
+import { GMS_AWARD_REGISTRY } from "./types.ts";
 import type {
   CgAward,
   CgOrgChange,
@@ -11,6 +13,7 @@ import type {
   CreateDisbursementRequest,
   Disbursement,
   Envelope,
+  FunderAwardInput,
   FunderSource,
   PaginatedEnvelope,
   PassportEventType,
@@ -143,11 +146,11 @@ export class PassportClient {
   }
 
   /**
-   * Common App profile fields beyond `OrganizationBase` (budget, fiscal year end, staff count, 990 figures).
-   * Passport serves this route to user sessions only today; an OAuth token gets 401/403 until Passport
-   * opens it to `org:read` (see docs/payments.md).
+   * The Common App profile beyond `OrganizationBase` (budget, fiscal year end, staff count, 990
+   * figures): confirmed fields only, each with its provenance. Scope `org:read`, under the same
+   * consent rule as `getOrg`. Fold `fields` with `profileToObject` for prefill and eligibility.
    */
-  getOrgProfile(orgId: string): Promise<Record<string, unknown>> {
+  getOrgProfile(orgId: string): Promise<OrgProfile> {
     return this.data({ method: "GET", path: `/passport/orgs/${seg(orgId)}/profile` });
   }
 
@@ -157,13 +160,28 @@ export class PassportClient {
     return this.data({ method: "GET", path: `/common-grants/awards/${seg(awardId)}` });
   }
 
-  /** Mirror a GMS award into Passport on acceptance (build prompt §10.6). */
-  createFunderAward(funderOrgId: string, award: Record<string, unknown>): Promise<CgAward> {
-    if (!this.awardWrite) throw new PassportFeatureDisabledError("award:write");
-    return this.data({ method: "POST", path: `/passport/funders/${seg(funderOrgId)}/awards`, body: award });
+  /**
+   * Find the Passport award mirrored from a GMS award. Passport returns the caller's id under
+   * `identifiers.otherIds["org:opengrants:gms"]`; `identifiers.systemId` stays Passport's own.
+   */
+  async findAwardBySystemId(systemId: string, registry: string = GMS_AWARD_REGISTRY): Promise<CgAward | null> {
+    const { body } = await this.request<PaginatedEnvelope<CgAward>>({ method: "GET", path: "/common-grants/awards", query: { systemId, registry } });
+    return body.items[0] ?? null;
   }
 
-  patchFunderAward(funderOrgId: string, awardId: string, patch: Record<string, unknown>): Promise<CgAward> {
+  /**
+   * Mirror a GMS award into Passport on acceptance (scope `award:write`; build prompt §10.6).
+   * Posting the same `identifiers.systemId` again returns the award created the first time.
+   * Passport refuses `recipientIndividual` (422) and a recipient it cannot resolve (422 `recipient_not_found`).
+   */
+  async createFunderAward(funderOrgId: string, award: FunderAwardInput): Promise<{ award: CgAward; created: boolean }> {
+    if (!this.awardWrite) throw new PassportFeatureDisabledError("award:write");
+    const { body, res } = await this.request<Envelope<CgAward>>({ method: "POST", path: `/passport/funders/${seg(funderOrgId)}/awards`, body: award });
+    return { award: body.data, created: res.status === 201 };
+  }
+
+  /** Merge-patch an award. Lowering `awardedAmount` below what was disbursed is refused (409 `award_amount_below_disbursed`). */
+  patchFunderAward(funderOrgId: string, awardId: string, patch: Partial<FunderAwardInput>): Promise<CgAward> {
     if (!this.awardWrite) throw new PassportFeatureDisabledError("award:write");
     return this.data({ method: "PATCH", path: `/passport/funders/${seg(funderOrgId)}/awards/${seg(awardId)}`, body: patch });
   }

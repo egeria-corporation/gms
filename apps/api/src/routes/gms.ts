@@ -4,27 +4,28 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
-import { LEDGER_ROLES, roleRequiresMfa } from "../auth/scopes.ts";
+import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
+import { listMyWorkspaces } from "../services/workspaces.ts";
+import { applicationRoutes } from "./gms/applications.ts";
+import { approvalRoutes } from "./gms/approvals.ts";
 import { designRoutes } from "./gms/design.ts";
+import { userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
 
-/** The signed-in person and the workspaces they can open (workspace switcher). */
+/** The signed-in person and the workspaces they can open (workspace switcher, routing by handle). */
 gms.get("/me", requireUser(), async (c) => {
   const user = c.get("user");
-  const nowMs = c.get("deps").now().getTime();
-  const memberships = await c.get("deps").members.listForUser(user.userId);
+  const mine = await listMyWorkspaces(userSvc(c));
   return c.json(
     ok({
       userId: user.userId,
       email: user.email,
       mfaVerified: user.aal === "aal2",
-      workspaces: memberships
-        .filter((m) => !m.expiresAt || Date.parse(m.expiresAt) > nowMs)
-        .map((m) => ({ id: m.workspaceId, name: m.workspaceName, kind: m.workspaceKind, role: m.role, requiresMfa: roleRequiresMfa(m.workspaceKind, m.role) })),
+      workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel })),
     }),
   );
 });
@@ -56,6 +57,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 gms.route("/public", publicPages);
 gms.route("/", workspaceRoutes);
 gms.route("/", designRoutes);
+gms.route("/", applicationRoutes);
+gms.route("/", approvalRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

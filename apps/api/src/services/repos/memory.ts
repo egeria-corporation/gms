@@ -8,7 +8,7 @@ type AnyRow = Record<string, unknown>;
 
 /** Column defaults from supabase/migrations, for the tables the services write. */
 const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
-  workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, verification_level: null, status: "active" }),
+  workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, verification_level: null, status: "active" }),
   workspace_members: () => ({ scope: {}, expires_at: null, mfa_enrolled_at: null, invited_by: null }),
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),
@@ -43,6 +43,36 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
     published_at: null,
   }),
   competitions: () => ({ description: null, instructions: null, status: "draft", key_dates: {}, stages: [], forms: {}, validation: {}, accepted_applicant_types: [], cg: null }),
+  applications: () => ({
+    title: "",
+    status: "draft",
+    cg_status: "inProgress",
+    cg_custom_value: null,
+    submitted_at: null,
+    verification_level_at_submit: null,
+    attestation_url: null,
+    eligibility: null,
+    requested_amount_minor: null,
+    currency: "USD",
+    tags: [],
+    assigned_to_user_id: null,
+    withdrawn_at: null,
+    decision_id: null,
+    cg: null,
+  }),
+  form_responses: () => ({ application_id: null, submission_id: null, stage: null, response: {}, status: "notStarted", validation_errors: [], provenance: {}, section_assignments: {}, locked_at: null }),
+  application_events: () => ({ from_stage: null, to_stage: null, from_status: null, to_status: null, payload: {} }),
+  decisions: () => ({ stage: null, amount_minor: null, currency: "USD", conditions: [], rationale: null, letter_template_id: null, proposed_by: null, decided_by: null, committed_at: null }),
+  review_assignments: () => ({ status: "assigned", coi: {}, due_at: null }),
+  threads: () => ({ funder_workspace_id: null, applicant_workspace_id: null, visibility: "shared", title: null }),
+  messages: () => ({ author_user_id: null, attachments: [], email_message_id: null, field_ref: null, resolved_at: null, resolved_by: null }),
+  tasks: () => ({ subject_type: null, subject_id: null, assignee_user_id: null, due_at: null, done_at: null, created_by: null }),
+  documents: () => ({ subject_type: null, subject_id: null, passport_document_id: null, scan_status: "not_scanned", uploaded_by: null }),
+  answers: () => ({ body: "", version: 1, used_in: [] }),
+  discover_saved: () => ({ url: null, listing: {}, gms_opportunity_id: null, saved_by: null }),
+  templates: () => ({ workspace_id: null, version: 1 }),
+  approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
+  awards: () => ({ recipient_workspace_id: null, status: "offered" }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -54,6 +84,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   opportunities: [{ columns: ["workspace_id", "slug"] }],
   forms: [{ columns: ["id", "version"] }],
   rubrics: [{ columns: ["id", "version"] }],
+  answers: [{ columns: ["workspace_id", "key", "version"] }],
+  discover_saved: [{ columns: ["workspace_id", "source", "external_id"] }],
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

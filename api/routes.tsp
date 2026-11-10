@@ -249,6 +249,20 @@ namespace GMS.Routes.Orgs {
 namespace GMS.Routes.Custom {
   @tag("Workspaces")
   namespace Workspaces {
+    /** The signed-in person and the workspaces they can open, each with its handle, kind, role and brand. */
+    @get @route("/me") @useAuth(UserSession)
+    op me(): OkT<Me> | AuthErrors;
+
+    /** What this caller is in its workspace. */
+    @get @route("/whoami") @useAuth(GmsOAuth<[]> | UserSession)
+    op whoami(): OkT<WhoAmI> | AuthErrors;
+
+    /** Accept an emailed invitation; the caller becomes a member with the invited role. */
+    @post @route("/invitations/accept") @useAuth(UserSession)
+    op acceptInvitation(@body body: {
+      token: string;
+    }): OkT<Workspace> | BadRequest | AuthErrors | NotFound;
+
     /** Workspaces the caller is a member of. */
     @get @route("/workspaces") @useAuth(UserSession)
     op list(...PageParams): PaginatedT<Workspace> | AuthErrors;
@@ -429,21 +443,25 @@ namespace GMS.Routes.Custom {
     op read(@path id: GmsId): OkT<GmsApplication> | AuthErrors | NotFound;
 
     /** Move to a stage whose `entryFrom` includes the current stage. */
+    /** Re-run the opportunity's eligibility rules against the application as it stands. */
+    @post @route("/applications/{id}/eligibility") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op rerunEligibility(@path id: GmsId): OkT<EligibilityResult> | AuthErrors | NotFound;
+
     @post @route("/applications/{id}/advance") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op advance(@path id: GmsId, @body body: AdvanceRequest): OkT<GmsApplication> | BadRequest | AuthErrors | NotFound | Conflict;
+    op advance(@path id: GmsId, @body body: AdvanceRequest): OkT<ApplicationActionResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @post @route("/applications/{id}/request-revision") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op requestRevision(@path id: GmsId, @body body: RevisionRequest): OkT<GmsApplication> | BadRequest | AuthErrors | NotFound | Conflict;
+    op requestRevision(@path id: GmsId, @body body: RevisionRequest): OkT<ApplicationActionResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
     /** Declines and queues the letter. Sending is human-gated for agents. */
     @post @route("/applications/{id}/decline") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op decline(@path id: GmsId, @body body: DeclineRequest): OkT<GmsApplication> | PendingApproval | AuthErrors | NotFound | Conflict;
+    op decline(@path id: GmsId, @body body: DeclineRequest): OkT<ApplicationActionResult> | PendingApproval | AuthErrors | NotFound | Conflict;
 
     @post @route("/applications/{id}/tags") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op tag(@path id: GmsId, @body body: TagsRequest): OkT<GmsApplication> | AuthErrors | NotFound;
+    op tag(@path id: GmsId, @body body: TagsRequest): OkT<ApplicationActionResult> | AuthErrors | NotFound;
 
     @post @route("/applications/{id}/assign") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op assign(@path id: GmsId, @body body: AssignRequest): OkT<GmsApplication> | AuthErrors | NotFound;
+    op assign(@path id: GmsId, @body body: AssignRequest): OkT<ApplicationActionResult> | AuthErrors | NotFound;
 
     @post @route("/applications/bulk") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op bulk(@body body: BulkApplicationRequest): OkT<BulkResult> | PendingApproval | BadRequest | AuthErrors;
@@ -672,16 +690,23 @@ namespace GMS.Routes.Custom {
   @tag("Communication")
   namespace Communication {
     @get @route("/threads") @useAuth(GmsOAuth<["messages:read"]> | UserSession)
-    op listThreads(...PageParams, @query subjectType?: string, @query subjectId?: string): PaginatedT<Thread> | AuthErrors;
+    op listThreads(@query subjectType?: "application", @query subjectId: GmsId): OkT<Thread[]> | BadRequest | AuthErrors | NotFound;
+
+    /** Get or create the shared thread of an application, or the caller's side's internal one. */
+    @post @route("/threads") @useAuth(GmsOAuth<["messages:write"]> | UserSession)
+    op openThread(@body body: ThreadInput): OkT<Thread> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/threads/{id}/messages") @useAuth(GmsOAuth<["messages:write"]> | UserSession)
     op postMessage(@path id: string, @body body: MessageInput): CreatedT<Message> | BadRequest | AuthErrors | NotFound;
 
     @get @route("/tasks") @useAuth(GmsOAuth<["messages:read"]> | UserSession)
-    op listTasks(...PageParams): PaginatedT<Task> | AuthErrors;
+    op listTasks(@query open?: boolean, @query mine?: boolean): OkT<Task[]> | AuthErrors;
 
     @post @route("/tasks") @useAuth(GmsOAuth<["messages:write"]> | UserSession)
     op createTask(@body body: TaskInput): CreatedT<Task> | BadRequest | AuthErrors;
+
+    @patch @route("/tasks/{id}") @useAuth(GmsOAuth<["messages:write"]> | UserSession)
+    op updateTask(@path id: CommonGrants.Types.uuid, @body body: TaskPatch): OkT<Task> | BadRequest | AuthErrors | NotFound;
 
     @get @route("/templates") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
     op listTemplates(...PageParams, @query kind?: string): PaginatedT<Template> | AuthErrors;
@@ -773,15 +798,17 @@ namespace GMS.Routes.Custom {
     @get @route("/ledger") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op ledger(...PageParams, @query subjectType?: string, @query subjectId?: string, @query eventType?: string): PaginatedT<LedgerEvent> | AuthErrors;
 
-    /** Pending and resolved human gates. */
-    @get @route("/approvals") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    /** Pending and resolved human gates of the workspace, newest first. People only. */
+    @get @route("/approvals") @useAuth(UserSession)
     op listApprovals(...PageParams, @query status?: string): PaginatedT<Approval> | AuthErrors;
 
     /** Agents poll this after a gated call returns `pending_approval`. */
     @get @route("/approvals/{id}") @useAuth(GmsOAuth<[]> | UserSession)
     op readApproval(@path id: string): OkT<Approval> | AuthErrors | NotFound;
 
-    /** Approve or reject. Human-only; no token can call it. */
+    /** Approve or reject. Human-only: no token can call it, and the person needs the gated tool's
+     * scope. Approving runs the original call once, as the approver; the result is `executed` or `failed`.
+     */
     @post @route("/approvals/{id}/decision") @useAuth(UserSession)
     op decideApproval(@path id: string, @body body: {
       approve: boolean;
@@ -812,24 +839,35 @@ namespace GMS.Routes.Custom {
   namespace Applicant {
     /** Build the Passport authorization URL (auth code + PKCE; `org:read org.changes:read org.changes:write`). */
     @post @route("/passport/consent/start") @useAuth(UserSession)
-    op consentStart(): OkT<ConsentStart> | AuthErrors;
+    op consentStart(@body body?: ConsentStartRequest): OkT<ConsentStart> | BadRequest | AuthErrors | NotFound;
 
-    /** Exchange the code, cache the projection and create or link the applicant workspace. */
+    /** Passport sends the browser here. Exchanges the code, caches the organization and its Common
+     * App profile, and creates or links the applicant workspace. Always redirects into the web app:
+     * `?passport=linked&ws=<handle>` or `?passport=error&reason=<code>`.
+     */
     @get @route("/passport/consent/callback")
-    op consentCallback(@query code: string, @query state: string): Redirect | BadRequest;
+    op consentCallback(@query code?: string, @query state?: string, @query error?: string): Redirect;
 
     @get @route("/me/organization") @useAuth(GmsOAuth<["org:read"]> | UserSession)
-    op myOrganization(): OkT<OrganizationBase> | AuthErrors | NotFound;
+    op myOrganization(): OkT<MyOrganization> | AuthErrors | NotFound;
 
     @get @route("/me/readiness") @useAuth(GmsOAuth<["org:read"]> | UserSession)
     op myReadiness(): OkT<ApplicantReadiness> | AuthErrors | NotFound;
 
-    @post @route("/me/organization/refresh") @useAuth(UserSession)
-    op refreshOrganization(): OkT<OrganizationBase> | AuthErrors | NotFound;
+    /** Re-read the organization and profile from Passport with the stored consent. */
+    @post @route("/me/organization/refresh") @useAuth(GmsOAuth<["org:read"]> | UserSession)
+    op refreshOrganization(): OkT<MyOrganization> | AuthErrors | NotFound | Conflict;
+
+    /** Discovery items the workspace saved. */
+    @get @route("/discover/saved") @useAuth(GmsOAuth<["discovery"]> | UserSession)
+    op listSaved(): OkT<SavedListing[]> | AuthErrors;
+
+    @post @route("/discover/saved") @useAuth(GmsOAuth<["discovery"]> | UserSession)
+    op saveListing(@body body: SavedListingInput): CreatedT<SavedListing> | BadRequest | AuthErrors;
 
     /** Competitions open on this GMS, each with an eligibility preview for the applicant. */
     @get @route("/discover/competitions") @useAuth(GmsOAuth<["discovery"]> | UserSession)
-    op discoverCompetitions(...PageParams): PaginatedT<DiscoverCompetition> | AuthErrors;
+    op discoverCompetitions(): OkT<DiscoverCompetition[]> | AuthErrors;
 
     @post @route("/discover/opengrants/search") @useAuth(GmsOAuth<["discovery"]> | UserSession)
     op openGrantsSearch(@body body: OpenGrantsQuery): OkT<OpenGrantsResults> | BadRequest | AuthErrors;
@@ -841,26 +879,36 @@ namespace GMS.Routes.Custom {
     op openGrantsEligibility(@body body: OpenGrantsQuery): OkT<OpenGrantsResults> | BadRequest | AuthErrors;
 
     @post @route("/discover/opengrants/alerts") @useAuth(GmsOAuth<["discovery"]> | UserSession)
-    op openGrantsAlerts(@body body: OpenGrantsQuery): CreatedT<OpenGrantsResults> | BadRequest | AuthErrors;
+    op openGrantsAlerts(@body body: OpenGrantsQuery): OkT<OpenGrantsResults> | BadRequest | AuthErrors;
 
     @get @route("/my/applications") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
-    op myApplications(...PageParams): PaginatedT<GmsApplication> | AuthErrors;
+    op myApplications(): OkT<MyApplication[]> | AuthErrors;
 
     @post @route("/my/applications/{id}/sections/assign") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op assignSections(@path id: GmsId, @body body: SectionAssignment): OkT<SectionAssignment> | BadRequest | AuthErrors | NotFound;
 
+    /** Field comments of the applicant team. Never visible to the funder. */
+    @get @route("/my/applications/{id}/comments") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op listComments(@path id: GmsId): OkT<Comment[]> | AuthErrors | NotFound;
+
+    @post @route("/my/applications/{id}/comments/{commentId}/resolve") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
+    op resolveComment(@path id: GmsId, @path commentId: CommonGrants.Types.uuid): OkT<Comment> | AuthErrors | NotFound;
+
+    @get @route("/my/applications/{id}/attachments") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op listAttachments(@path id: GmsId): OkT<Document[]> | AuthErrors | NotFound;
+
     @post @route("/my/applications/{id}/comments") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op comment(@path id: GmsId, @body body: Comment): CreatedT<Comment> | BadRequest | AuthErrors | NotFound;
+    op comment(@path id: GmsId, @body body: CommentInput): CreatedT<Comment> | BadRequest | AuthErrors | NotFound;
 
     /** Register an upload (Supabase Storage up to 25 MB, R2 above) or reference a Passport locker document. */
     @post @route("/my/applications/{id}/attachments") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op attach(@path id: GmsId, @body body: AttachmentInput): CreatedT<Document> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/my/applications/{id}/withdraw") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op withdraw(@path id: GmsId): OkT<GmsApplication> | AuthErrors | NotFound | Conflict;
+    op withdraw(@path id: GmsId): OkT<ApplicationActionResult> | AuthErrors | NotFound | Conflict;
 
     @get @route("/my/applications/{id}/status") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
-    op applicationStatus(@path id: GmsId): OkT<GmsApplication> | AuthErrors | NotFound;
+    op applicationStatus(@path id: GmsId): OkT<ApplicationStatusView> | AuthErrors | NotFound;
 
     @get @route("/my/awards") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op myAwards(...PageParams): PaginatedT<GmsAward> | AuthErrors;
@@ -911,13 +959,15 @@ namespace GMS.Routes.Custom {
 
     /** Which funders may read which of the applicant's data. */
     @get @route("/my/consents") @useAuth(UserSession)
-    op listConsents(...PageParams): PaginatedT<Consent> | AuthErrors;
+    op listConsents(): OkT<Consent[]> | AuthErrors;
 
     @delete @route("/my/consents/{id}") @useAuth(UserSession)
-    op revokeConsent(@path id: string): NoContentResponse | AuthErrors | NotFound;
+    op revokeConsent(@path id: string): OkT<{
+      revoked: boolean;
+    }> | AuthErrors | NotFound;
 
     @get @route("/my/funders") @useAuth(UserSession)
-    op myFunders(...PageParams): PaginatedT<Workspace> | AuthErrors;
+    op myFunders(): OkT<MyFunder[]> | AuthErrors;
   }
 }
 
@@ -997,6 +1047,34 @@ namespace GMS.Routes.Infrastructure {
   @get
   @route("/llms-full.txt")
   op llmsFull(): PlainText;
+
+  /** Published data behind `/f/{handle}`: the funder's brand and its listed opportunities. No token. */
+  @summary("Funder public page data")
+  @get
+  @route("/gms/public/funders/{handle}")
+  op funderPage(@path handle: string): OkT<FunderPage> | NotFound;
+
+  /** Published data behind `/f/{handle}/o/{slug}`. No token; published fields only. */
+  @summary("Opportunity public page data")
+  @get
+  @route("/gms/public/funders/{handle}/opportunities/{slug}")
+  op opportunityPage(@path handle: string, @path slug: string): OkT<OpportunityPage> | NotFound;
+
+  /** The MCP server: Streamable HTTP, stateless. POST one JSON-RPC message (or a batch) and read
+   * the answer as JSON; notifications answer 202. A 401 carries `WWW-Authenticate` pointing at
+   * `/.well-known/oauth-protected-resource`. Tokens are bound to a person, a workspace and scopes;
+   * gated tools return `{ status: "pending_approval", approvalId, url }`.
+   */
+  @summary("Model Context Protocol endpoint")
+  @post
+  @route("/mcp")
+  @useAuth(GmsOAuth<[]>)
+  op mcp(@body body: McpMessage | McpMessage[]): {
+    @statusCode statusCode: 200;
+    @body body: McpMessage | McpMessage[];
+  } | {
+    @statusCode statusCode: 202;
+  } | Unauthorized | Forbidden;
 
   /** Funder pages and open opportunities, for the OpenGrants importer. */
   @summary("Sitemap")

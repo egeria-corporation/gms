@@ -1,0 +1,304 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Applicant workflow beyond the protocol routes: the applications list and status timeline,
+// section assignments, field comments, attachments, withdrawing, the answer library, and finding
+// funding (open competitions here, and OpenGrants through its hosted MCP).
+import { readPath } from "@gms/protocol";
+import { z } from "zod";
+import { ApiError } from "../lib/errors.ts";
+import { apiId } from "../lib/ids.ts";
+import { type App, access, passportFacts, responsesOf, runRules, stageForms, stagesOf, transitionApp } from "./apply.ts";
+import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { OpenGrantsUnavailableError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
+import type { Row } from "./repos/types.ts";
+
+type Ws = Row<"workspaces">;
+const MAX_UPLOAD = 25 * 1024 * 1024;
+
+async function applicantApp(ctx: ServiceContext, appId: string, scope: "applications:read" | "applications:write") {
+  const found = await access(ctx, appId, scope);
+  if (found.side !== "applicant") throw new ApiError(403, "wrong_workspace_kind", "This action belongs to applicant workspaces");
+  return found;
+}
+
+// ------------------------------------------------------------------------------------ my applications
+
+export async function listMyApplications(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "applications:read", kind: "applicant" });
+  let apps = await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { orderBy: "updated_at", ascending: false });
+  if (ws.role === "consultant") apps = apps.filter((a) => ((ws.memberScope?.applicationIds as string[] | undefined) ?? []).includes(a.id));
+  if (!apps.length) return [];
+  const funders = await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.workspace_id))] });
+  const competitions = await ctx.repos.table("competitions").find({ id: [...new Set(apps.map((a) => a.competition_id))] });
+  const opportunities = await ctx.repos.table("opportunities").find({ id: [...new Set(apps.map((a) => a.opportunity_id))] });
+  const out = [];
+  for (const a of apps) {
+    const funder = funders.find((f) => f.id === a.workspace_id);
+    const competition = competitions.find((c) => c.id === a.competition_id);
+    const stage = competition ? stagesOf(competition).find((s) => s.key === a.stage) : undefined;
+    const current = (await responsesOf(ctx, a.id)).filter((r) => r.stage === a.stage);
+    out.push({
+      id: apiId("application", a.id),
+      title: a.title,
+      status: a.status,
+      stage: { key: a.stage, label: stage?.label ?? a.stage, closes: stage?.closes ?? null },
+      funder: { workspaceId: a.workspace_id, name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+      opportunity: { id: apiId("opportunity", a.opportunity_id), title: opportunities.find((o) => o.id === a.opportunity_id)?.title ?? null },
+      forms: { total: current.length, complete: current.filter((r) => r.status === "complete").length },
+      submittedAt: a.submitted_at,
+      updatedAt: a.updated_at,
+    });
+  }
+  return out;
+}
+
+/** The status page: where the application is in the competition's stages, and what has happened. */
+export async function getMyApplicationStatus(ctx: ServiceContext, appId: string) {
+  const { app } = await applicantApp(ctx, appId, "applications:read");
+  const competition = required(await ctx.repos.table("competitions").one({ id: app.competition_id }), "Competition");
+  const events = await ctx.repos.table("application_events").find({ application_id: app.id }, { orderBy: "created_at" });
+  const stages = stagesOf(competition);
+  const at = stages.findIndex((s) => s.key === app.stage);
+  return {
+    id: apiId("application", app.id),
+    title: app.title,
+    status: app.status,
+    stage: app.stage,
+    submittedAt: app.submitted_at,
+    stages: stages.map((s, i) => ({ key: s.key, label: s.label, opens: s.opens ?? null, closes: s.closes ?? null, state: i < at ? "done" : i === at ? "current" : "upcoming" })),
+    // The applicant sees what happened, not the funder's working notes.
+    timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, at: e.created_at, message: e.type === "request_revision" ? ((e.payload as { message?: string }).message ?? null) : null })),
+  };
+}
+
+export async function withdrawApplication(ctx: ServiceContext, appId: string) {
+  const { app } = await applicantApp(ctx, appId, "applications:write");
+  await authorize(ctx, { scope: "applications:write", kind: "applicant", roles: ["admin", "editor"] });
+  const updated = await transitionApp(ctx, app, "withdraw", "applicant", {});
+  return { id: apiId("application", app.id), status: updated.status };
+}
+
+// ------------------------------------------------------------------------------------ sections, comments
+
+/** Section key → the teammate who owns it; null clears the assignment. */
+export const sectionAssignInput = z.object({ formId: z.string(), sections: z.record(z.string().trim().min(1).max(200), z.uuid().nullable()) }).strict();
+
+export async function assignSection(ctx: ServiceContext, appId: string, formUuid: string, input: z.output<typeof sectionAssignInput>) {
+  const { app, ws } = await applicantApp(ctx, appId, "applications:write");
+  const row = required(await ctx.repos.table("form_responses").one({ application_id: app.id, form_id: formUuid }), "Form response");
+  const assignments = { ...(row.section_assignments as Record<string, string>) };
+  for (const [section, userId] of Object.entries(input.sections)) {
+    if (userId && !(await ctx.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: userId }))) throw new ApiError(422, "not_a_member", "That person is not a member of this workspace");
+    if (userId) assignments[section] = userId;
+    else delete assignments[section];
+  }
+  await ctx.repos.table("form_responses").update({ id: row.id }, { section_assignments: assignments });
+  return { formId: apiId("form", formUuid), sections: assignments };
+}
+
+async function commentThread(ctx: ServiceContext, app: App, create: boolean) {
+  const where = { subject_type: "application", subject_id: app.id, visibility: "applicant_internal", applicant_workspace_id: app.applicant_workspace_id };
+  const existing = await ctx.repos.table("threads").one(where);
+  if (existing || !create) return existing;
+  return ctx.repos.table("threads").insert({ ...where, workspace_id: app.applicant_workspace_id, title: "Team comments" });
+}
+
+const commentView = (m: Row<"messages">) => {
+  const ref = m.field_ref as { formId?: string; path?: string } | null;
+  return { id: m.id, body: m.body, author: m.author, authorUserId: m.author_user_id, formId: ref?.formId ? apiId("form", ref.formId) : null, fieldPath: ref?.path ?? null, resolvedAt: m.resolved_at, createdAt: m.created_at };
+};
+
+export async function listComments(ctx: ServiceContext, appId: string) {
+  const { app } = await applicantApp(ctx, appId, "applications:read");
+  const thread = await commentThread(ctx, app, false);
+  return thread ? (await ctx.repos.table("messages").find({ thread_id: thread.id }, { orderBy: "created_at" })).map(commentView) : [];
+}
+
+export const commentInput = z.object({ body: z.string().trim().min(1).max(5000), formId: z.string().optional(), fieldPath: z.string().max(500).optional() }).strict();
+
+export async function addComment(ctx: ServiceContext, appId: string, input: z.output<typeof commentInput>, formUuid?: string) {
+  const { app } = await applicantApp(ctx, appId, "applications:write");
+  const thread = (await commentThread(ctx, app, true))!;
+  const row = await ctx.repos.table("messages").insert({ thread_id: thread.id, author: ctx.actor.id, author_user_id: ctx.actor.userId, body: input.body, field_ref: formUuid ? { formId: formUuid, path: input.fieldPath ?? "" } : null });
+  return commentView(row);
+}
+
+export async function resolveComment(ctx: ServiceContext, appId: string, commentId: string) {
+  const { app } = await applicantApp(ctx, appId, "applications:write");
+  const thread = required(await commentThread(ctx, app, false), "Comment");
+  const [row] = await ctx.repos.table("messages").update({ id: commentId, thread_id: thread.id }, { resolved_at: ctx.now().toISOString(), resolved_by: ctx.actor.userId });
+  return commentView(required(row, "Comment"));
+}
+
+// ------------------------------------------------------------------------------------ attachments
+
+const docView = (d: Row<"documents">) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, source: d.passport_document_id ? "passport_locker" : "upload", passportDocumentId: d.passport_document_id, scanStatus: d.scan_status, uploadedAt: d.created_at });
+
+export const attachmentInput = z.union([
+  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), contentBase64: z.string().min(1) }).strict(),
+  // A file already in the Passport locker is referenced by id; the GMS keeps no copy.
+  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), passportDocumentId: z.string().min(1).max(200), size: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
+]);
+
+export async function listAttachments(ctx: ServiceContext, appId: string) {
+  const { app } = await access(ctx, appId, "applications:read");
+  return (await ctx.repos.table("documents").find({ subject_type: "application", subject_id: app.id }, { orderBy: "created_at" })).map(docView);
+}
+
+export async function attachDocument(ctx: ServiceContext, appId: string, input: z.output<typeof attachmentInput>) {
+  const { app } = await applicantApp(ctx, appId, "applications:write");
+  if (app.status !== "draft" && app.status !== "revision_requested") throw new ApiError(409, "application_locked", "Attachments can be added while the application is a draft or a revision is requested");
+  const common = { workspace_id: app.workspace_id, owner_workspace_id: app.applicant_workspace_id, subject_type: "application", subject_id: app.id, name: input.name, mime: input.mime, uploaded_by: ctx.actor.userId };
+  let row: Row<"documents">;
+  if ("passportDocumentId" in input) {
+    row = await ctx.repos.table("documents").insert({ ...common, size: input.size, sha256: input.sha256, storage: "supabase", path: `passport:${input.passportDocumentId}`, passport_document_id: input.passportDocumentId });
+  } else {
+    if (!ctx.ports.storage) throw new ApiError(503, "storage_unavailable", "File storage is not configured on this server");
+    let bytes: Uint8Array;
+    try {
+      bytes = Uint8Array.from(atob(input.contentBase64), (c) => c.charCodeAt(0));
+    } catch {
+      throw new ApiError(400, "bad_request", "contentBase64 is not valid base64");
+    }
+    if (bytes.byteLength > MAX_UPLOAD) throw new ApiError(413, "too_large", "Files up to 25 MB can be attached");
+    const sha256 = await sha256Hex(bytes);
+    const stored = await ctx.ports.storage.put(`applications/${app.id}/${sha256}`, bytes, input.mime);
+    row = await ctx.repos.table("documents").insert({ ...common, size: bytes.byteLength, sha256, storage: stored.storage, path: stored.path });
+  }
+  await audit(ctx, "document.attached", "application", app.id, { documentId: row.id, sha256: row.sha256, source: row.passport_document_id ? "passport_locker" : "upload" }, app.workspace_id);
+  return docView(row);
+}
+
+// ------------------------------------------------------------------------------------ answer library
+
+const answerView = (a: Row<"answers">) => ({ id: a.id, key: a.key, title: a.title, body: a.body, version: a.version, usedIn: a.used_in, words: a.body.trim() ? a.body.trim().split(/\s+/).length : 0, updatedAt: a.updated_at });
+const KEY = /^[a-z0-9][a-z0-9_.-]{0,98}$/;
+export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default("") }).strict();
+export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional() }).strict();
+
+/** The latest version of each answer. */
+export async function listAnswers(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "library:read", kind: "applicant" });
+  const rows = await ctx.repos.table("answers").find({ workspace_id: ws.id }, { orderBy: "version", ascending: false });
+  const latest = new Map<string, Row<"answers">>();
+  for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r);
+  return [...latest.values()].sort((a, b) => a.title.localeCompare(b.title)).map(answerView);
+}
+
+export async function createAnswer(ctx: ServiceContext, input: z.output<typeof answerInput>) {
+  const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
+  const key = input.key ?? (input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "answer");
+  const row = await guardWrite("An answer with this key", () => ctx.repos.table("answers").insert({ workspace_id: ws.id, key, title: input.title, body: input.body }));
+  return answerView(row);
+}
+
+/** Editing an answer saves a new version; applications that used the old one keep what they inserted. */
+export async function updateAnswer(ctx: ServiceContext, answerId: string, input: z.output<typeof answerPatch>) {
+  const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
+  const current = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
+  const versions = await ctx.repos.table("answers").find({ workspace_id: ws.id, key: current.key }, { orderBy: "version", ascending: false, limit: 1 });
+  const next = await ctx.repos.table("answers").insert({ workspace_id: ws.id, key: current.key, title: input.title ?? current.title, body: input.body ?? current.body, version: (versions[0]?.version ?? current.version) + 1, used_in: current.used_in });
+  return answerView(next);
+}
+
+// ------------------------------------------------------------------------------------ discovery
+
+function orgContext(ws: Ws): OrgSearchContext {
+  const { org, profile } = passportFacts(ws);
+  const revenue = Number(readPath(profile, "financials.annualRevenue") ?? readPath(profile, "financials.annualOperatingBudget"));
+  const band = !Number.isFinite(revenue) || revenue <= 0 ? undefined : revenue < 250_000 ? "under_250k" : revenue < 1_000_000 ? "250k_1m" : revenue < 5_000_000 ? "1m_5m" : "over_5m";
+  const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  return { orgType: text(readPath(org, "orgType.code")), region: text(readPath(org, "addresses.primary.region")) ?? text(readPath(org, "addresses.primary.stateOrProvince")), mission: text(org.mission)?.slice(0, 500), revenueBand: band };
+}
+
+/** Competitions open on this GMS, each with the caller's eligibility. `unknown` is shown as such. */
+export async function discoverCompetitions(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  const me = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const open = await ctx.repos.table("competitions").find({ status: "open" }, { orderBy: "created_at", ascending: false, limit: 500 });
+  const mine = await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id });
+  const out = [];
+  for (const c of open) {
+    const opp = await ctx.repos.table("opportunities").one({ id: c.opportunity_id });
+    if (!opp?.published_at) continue;
+    const funder = await ctx.repos.table("workspaces").one({ id: c.workspace_id });
+    const eligibility = await runRules(ctx, opp.id, me, []);
+    const first = stagesOf(c)[0];
+    const started = mine.find((a) => a.competition_id === c.id && a.status !== "withdrawn");
+    out.push({
+      competitionId: c.id,
+      opportunity: { id: apiId("opportunity", opp.id), slug: opp.slug, title: opp.title, description: opp.description, funding: opp.funding },
+      funder: { name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+      stage: first ? { key: first.key, label: first.label, closes: first.closes ?? null } : null,
+      forms: Object.keys(stageForms(c, first?.key ?? "application")).length,
+      eligibility: { eligible: eligibility.eligible, results: eligibility.results },
+      application: started ? { id: apiId("application", started.id), status: started.status } : null,
+      url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
+    });
+  }
+  return out;
+}
+
+const CACHE_TTL_MS = 15 * 60 * 1000;
+/** Per-isolate result cache: OpenGrants answers for one org and query are reused for 15 minutes. */
+const cache = new Map<string, { at: number; value: { items: OpenGrantsListing[] } }>();
+export const clearDiscoveryCache = () => cache.clear();
+
+export const openGrantsInput = z.record(z.string(), z.unknown());
+
+export async function openGrants(ctx: ServiceContext, tool: OpenGrantsTool, args: z.output<typeof openGrantsInput>) {
+  const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  if (!ctx.ports.openGrants) throw new ApiError(503, "opengrants_not_configured", "OpenGrants discovery is not configured on this server");
+  const me = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const key = `${ws.id}|${tool}|${JSON.stringify(args)}`;
+  const now = ctx.now().getTime();
+  const hit = tool === "alerts" ? undefined : cache.get(key);
+  let value = hit && now - hit.at < CACHE_TTL_MS ? hit.value : undefined;
+  const cached = !!value;
+  if (!value) {
+    try {
+      const r = await ctx.ports.openGrants.call(tool, args, orgContext(me));
+      value = { items: r.items };
+    } catch (e) {
+      if (e instanceof OpenGrantsUnavailableError) throw new ApiError(503, "opengrants_unavailable", "OpenGrants can't be reached right now");
+      throw e;
+    }
+    if (tool !== "alerts") cache.set(key, { at: now, value });
+  }
+  // A listing that points back at a GMS opportunity can be applied to here.
+  const results = [];
+  for (const l of value.items) results.push({ ...l, gms: await matchGmsOpportunity(ctx, l) });
+  return { results, cached };
+}
+
+async function matchGmsOpportunity(ctx: ServiceContext, l: OpenGrantsListing) {
+  for (const candidate of [l.source, l.url]) {
+    if (typeof candidate !== "string") continue;
+    const page = new RegExp(`^${ctx.config.webBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/f/([a-z0-9-]+)/o/([a-z0-9-]+)`).exec(candidate);
+    const api = /\/common-grants\/opportunities\/([0-9a-f-]{36})/i.exec(candidate);
+    let opp = api ? await ctx.repos.table("opportunities").one({ id: api[1]!.toLowerCase() }) : null;
+    if (!opp && page) {
+      const funder = await ctx.repos.table("workspaces").one({ handle: page[1]!, kind: "funder" });
+      opp = funder ? await ctx.repos.table("opportunities").one({ workspace_id: funder.id, slug: page[2]! }) : null;
+    }
+    if (opp?.published_at) {
+      const competition = (await ctx.repos.table("competitions").find({ opportunity_id: opp.id, status: "open" }, { limit: 1 }))[0];
+      return { opportunityId: apiId("opportunity", opp.id), competitionId: competition?.id ?? null };
+    }
+  }
+  return null;
+}
+
+export const saveListingInput = z.object({ source: z.enum(["gms", "opengrants"]), externalId: z.string().min(1).max(300), title: z.string().trim().min(1).max(500), url: z.url().optional(), listing: z.record(z.string(), z.unknown()).default({}) }).strict();
+
+export async function saveListing(ctx: ServiceContext, input: z.output<typeof saveListingInput>) {
+  const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  const gms = await matchGmsOpportunity(ctx, { id: input.externalId, title: input.title, url: input.url, source: typeof input.listing.source === "string" ? input.listing.source : undefined });
+  const existing = await ctx.repos.table("discover_saved").one({ workspace_id: ws.id, source: input.source, external_id: input.externalId });
+  const row = existing ?? (await ctx.repos.table("discover_saved").insert({ workspace_id: ws.id, source: input.source, external_id: input.externalId, title: input.title, url: input.url ?? null, listing: input.listing as Row<"discover_saved">["listing"], gms_opportunity_id: gms ? gms.opportunityId.replace(/^opp_/, "") : null, saved_by: ctx.actor.userId }));
+  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at };
+}
+
+export async function listSaved(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  return (await ctx.repos.table("discover_saved").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false })).map((r) => ({ id: r.id, source: r.source, externalId: r.external_id, title: r.title, url: r.url, gmsOpportunityId: r.gms_opportunity_id ? apiId("opportunity", r.gms_opportunity_id) : null, savedAt: r.created_at }));
+}

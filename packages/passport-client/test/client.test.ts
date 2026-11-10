@@ -1,17 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import {
+  APPLICANT_CONSENT_SCOPES,
   CredentialVersionStaleError,
+  GMS_AWARD_REGISTRY,
+  PASSPORT_ORG_CLAIM,
   PassportApiError,
   PassportClient,
   PassportFeatureDisabledError,
   PassportUnavailableError,
+  buildAuthorizeUrl,
   clientCredentialsTokens,
+  createPkce,
   decryptSecret,
   encryptSecret,
+  exchangeAuthorizationCode,
   fixtureFetch,
+  gmsAwardIdOf,
   minorToMoney,
   moneyToMinor,
+  profileSources,
+  profileToObject,
   refreshTokenTokens,
   staticToken,
   type Fixture,
@@ -122,10 +131,44 @@ describe("PassportClient", () => {
   });
 
   it("keeps the award mirror behind its flag", async () => {
-    expect(() => client([]).c.createFunderAward("f", {})).toThrow(PassportFeatureDisabledError);
+    const input = { title: "T", funding: { awardedAmount: minorToMoney(100) }, recipientOrganizations: { primary: { id: ORG } } };
+    await expect(client([]).c.createFunderAward("f", input)).rejects.toBeInstanceOf(PassportFeatureDisabledError);
     const { c, fx } = client([{ method: "PATCH", path: "/passport/funders/f/awards/a", status: 200, body: { status: 200, message: "Success", data: { id: "a" } } }], true);
     await c.patchFunderAward("f", "a", { title: "New title" });
     expect(fx.calls[0]!.headers["content-type"]).toBe("application/merge-patch+json");
+  });
+
+  it("mirrors an award and reads the GMS id back from otherIds", async () => {
+    const FUNDER = "0193a1c0-0000-7000-8000-0000000000f1";
+    const created = loadFixture("award-created");
+    const { c, fx } = client([created, { method: "GET", path: "/common-grants/awards", status: 200, body: { status: 200, message: "Success", items: [(created.body as { data: unknown }).data], paginationInfo: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } } }], true);
+    const gmsId = "awd_0193b000-0000-7000-8000-000000000001";
+    const { award, created: isNew } = await c.createFunderAward(FUNDER, {
+      title: "Mobile Health Navigation for Rural Families",
+      funding: { awardedAmount: minorToMoney(15_000_000), requestedAmount: minorToMoney(15_000_000) },
+      recipientOrganizations: { primary: { id: ORG } },
+      identifiers: { systemId: { registry: { code: GMS_AWARD_REGISTRY }, id: gmsId } },
+    });
+    expect(isNew).toBe(true);
+    expect(gmsAwardIdOf(award)).toBe(gmsId);
+    expect(award.identifiers?.systemId?.id).toBe(AWARD);
+    expect((await c.findAwardBySystemId(gmsId))?.id).toBe(AWARD);
+    expect(fx.calls[1]!.path).toBe(`/common-grants/awards?systemId=${gmsId}&registry=${encodeURIComponent(GMS_AWARD_REGISTRY)}`);
+  });
+
+  it("reads the organization as CommonGrants serves it, with the Passport level in customFields", async () => {
+    const { c } = client([loadFixture("org-alder-creek")]);
+    const org = await c.getOrg(ORG);
+    expect(org).toMatchObject({ name: "Alder Creek Family Services", orgType: { code: "EA000000" }, identifiers: { "org:us:ein": { id: "001234567" } } });
+    expect((org.customFields as Record<string, { value: string }>).verificationLevel!.value).toBe("L3");
+  });
+
+  it("reads the Common App profile and folds its fields for prefill and rules", async () => {
+    const { c } = client([loadFixture("profile-alder-creek")]);
+    const profile = await c.getOrgProfile(ORG);
+    expect(profile.level).toBe("L3");
+    expect(profileToObject(profile.fields)).toEqual({ name: "Alder Creek Family Services", financials: { annualOperatingBudget: 2_400_000, annualRevenue: 2_310_000, fiscalYearEnd: "06-30" }, staff: { fullTimeEquivalent: 18 } });
+    expect(profileSources(profile.fields)["/profile/financials/annualRevenue"]).toBe("irs_990");
   });
 
   it("returns the Location of a proposed org change", async () => {
@@ -164,5 +207,44 @@ describe("money", () => {
     expect(moneyToMinor({ amount: "150000.5", currency: "USD" })).toBe(15_000_050);
     expect(moneyToMinor({ amount: "1e3", currency: "USD" })).toBeNull();
     expect(moneyToMinor(undefined)).toBeNull();
+  });
+});
+
+describe("profileToObject", () => {
+  it("ignores unsafe and malformed pointers and never replaces a branch with a leaf", () => {
+    const out = profileToObject([
+      { path: "/financials/annualRevenue", value: 5 },
+      { path: "/financials", value: "oops" },
+      { path: "/__proto__/polluted", value: true },
+      { path: "no-slash", value: 1 },
+      { path: "/a~1b/c~0d", value: "escaped" },
+    ]);
+    expect(out).toEqual({ financials: { annualRevenue: 5 }, "a/b": { "c~d": "escaped" } });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+describe("applicant consent", () => {
+  const jwt = (claims: Record<string, unknown>) => `h.${btoa(JSON.stringify(claims)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}.s`;
+
+  it("builds the authorization URL with PKCE and the consent scopes", async () => {
+    const { verifier, challenge } = await createPkce();
+    expect(verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const url = new URL(buildAuthorizeUrl({ baseUrl: `${BASE}/`, clientId: "gms", redirectUri: "https://gms.test/gms/passport/consent/callback", state: "st", codeChallenge: challenge }));
+    expect(url.origin + url.pathname).toBe(`${BASE}/oauth/authorize`);
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ response_type: "code", client_id: "gms", scope: APPLICANT_CONSENT_SCOPES.join(" "), state: "st", code_challenge: challenge, code_challenge_method: "S256" });
+  });
+
+  it("exchanges the code and reads the consented organization from the token", async () => {
+    const fx = fixtureFetch([{ method: "POST", path: "/oauth/token", status: 200, body: { access_token: jwt({ [PASSPORT_ORG_CLAIM]: ORG }), refresh_token: "rt-1", expires_in: 600, scope: "org:read org.changes:read" } }]);
+    const tokens = await exchangeAuthorizationCode({ baseUrl: BASE, clientId: "gms", clientSecret: "s", code: "c", codeVerifier: "v", redirectUri: "https://gms.test/cb", fetch: fx.fetch });
+    expect(tokens).toMatchObject({ orgId: ORG, refreshToken: "rt-1", scopes: ["org:read", "org.changes:read"] });
+    expect(String(fx.calls[0]!.body)).toContain("grant_type=authorization_code");
+    expect(String(fx.calls[0]!.body)).toContain("code_verifier=v");
+  });
+
+  it("reports a refused code as an auth error", async () => {
+    const fx = fixtureFetch([{ method: "POST", path: "/oauth/token", status: 400, body: { error: "invalid_grant", error_description: "Code expired" } }]);
+    await expect(exchangeAuthorizationCode({ baseUrl: BASE, clientId: "gms", clientSecret: "s", code: "c", codeVerifier: "v", redirectUri: "https://gms.test/cb", fetch: fx.fetch })).rejects.toMatchObject({ name: "PassportAuthError", oauthError: "invalid_grant" });
   });
 });

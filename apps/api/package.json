@@ -17,6 +17,7 @@
     "@gms/forms": "workspace:*",
     "@gms/ledger": "workspace:*",
     "@gms/mcp": "workspace:*",
+    "@gms/notify": "workspace:*",
     "@gms/passport-client": "workspace:*",
     "@gms/payments": "workspace:*",
     "@gms/protocol": "workspace:*",
