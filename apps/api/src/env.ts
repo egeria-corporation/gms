@@ -39,6 +39,8 @@ export interface Env {
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;
 
+  /** Static assets of this Worker (the compiled OpenAPI document). */
+  ASSETS?: Fetcher;
   ATTACHMENTS?: R2Bucket;
   LEDGER_ARCHIVE?: R2Bucket;
   EXPORTS?: R2Bucket;

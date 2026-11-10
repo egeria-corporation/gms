@@ -60,6 +60,12 @@ document SHA-256 equal to the one that was sent.
 settled` with `mode = resolve`; `cancel` from scheduled, due, ready, held or failed. `release` is
 funder-only and needs a passed readiness check and an idempotency key.
 
+Passport can park a disbursement itself while a destination change is in flight, after the GMS has
+released it. `passport_hold` moves `releasing → held` and keeps the Passport disbursement id;
+`resume_release` (`held → releasing`) and `passport_released` (`held → initiated`) follow Passport's
+release of that hold. Both need the disbursement id, so a hold the GMS placed before release (no
+disbursement yet) can only go back to `due` through `release_hold`.
+
 ## Requirement and submission
 
 Requirement: `scheduled → due → overdue`; `due|overdue → submitted → under_review → accepted |

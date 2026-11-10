@@ -115,7 +115,7 @@ describe("signed-in people", () => {
 
   it("expired memberships lose access", async () => {
     const h = await seeded();
-    h.members.memberships.find((m) => m.userId === USER_AUDITOR)!.expiresAt = new Date(h.clock.now.getTime() - 1000).toISOString();
+    await h.repos.table("workspace_members").update({ user_id: USER_AUDITOR }, { expires_at: new Date(h.clock.now.getTime() - 1000).toISOString() });
     expect(await code(await h.request("/gms/ledger", bearer(await h.session(USER_AUDITOR), { [WORKSPACE_HEADER]: WS_FUNDER })))).toBe("membership_expired");
   });
 

@@ -216,25 +216,28 @@ export interface WebhookDb {
   from(table: "webhook_subscriptions" | "webhook_deliveries"): any;
 }
 
+/** `webhook_subscriptions` (supabase/migrations/0007). */
 interface SubscriptionRow {
   id: string;
   workspace_id: string;
   url: string;
-  event_types: string[] | null;
+  events: string[] | null;
   secret_enc: string;
   active: boolean;
 }
 
+/** `webhook_deliveries` (0007 + 0010). `payload` is jsonb; `attempt` counts attempts made so far. */
 interface DeliveryRow {
   id: string;
+  workspace_id: string;
   subscription_id: string;
   event_id: string;
-  event_type: string;
-  payload: string;
+  event: string;
+  payload: unknown;
   status: DeliveryStatus;
-  attempts: number;
+  attempt: number;
   next_attempt_at: string | null;
-  last_status_code: number | null;
+  status_code: number | null;
   last_error: string | null;
   delivered_at: string | null;
   created_at: string;
@@ -244,7 +247,7 @@ const toSubscription = (r: SubscriptionRow): WebhookSubscription => ({
   id: r.id,
   workspaceId: r.workspace_id,
   url: r.url,
-  eventTypes: r.event_types ?? [],
+  eventTypes: r.events ?? [],
   secretEnc: r.secret_enc,
   active: r.active,
 });
@@ -253,12 +256,13 @@ const toDelivery = (r: DeliveryRow): WebhookDelivery => ({
   id: r.id,
   subscriptionId: r.subscription_id,
   eventId: r.event_id,
-  eventType: r.event_type,
-  payload: r.payload,
+  eventType: r.event,
+  // The body is signed when it is sent, so re-serializing the stored JSON is safe.
+  payload: typeof r.payload === "string" ? r.payload : JSON.stringify(r.payload),
   status: r.status,
-  attempts: r.attempts,
+  attempts: r.attempt,
   nextAttemptAt: r.next_attempt_at,
-  lastStatusCode: r.last_status_code,
+  lastStatusCode: r.status_code,
   lastError: r.last_error,
   deliveredAt: r.delivered_at,
   createdAt: r.created_at,
@@ -268,12 +272,12 @@ const DELIVERY_COLUMNS: Record<keyof WebhookDelivery, keyof DeliveryRow> = {
   id: "id",
   subscriptionId: "subscription_id",
   eventId: "event_id",
-  eventType: "event_type",
+  eventType: "event",
   payload: "payload",
   status: "status",
-  attempts: "attempts",
+  attempts: "attempt",
   nextAttemptAt: "next_attempt_at",
-  lastStatusCode: "last_status_code",
+  lastStatusCode: "status_code",
   lastError: "last_error",
   deliveredAt: "delivered_at",
   createdAt: "created_at",
@@ -281,7 +285,11 @@ const DELIVERY_COLUMNS: Record<keyof WebhookDelivery, keyof DeliveryRow> = {
 
 function toRow(patch: Partial<WebhookDelivery>): Partial<DeliveryRow> {
   const row: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(patch)) row[DELIVERY_COLUMNS[k as keyof WebhookDelivery]] = v;
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === "payload") row.payload = JSON.parse(v as string) as unknown;
+    else if (k === "lastError") row.last_error = typeof v === "string" ? v.slice(0, 500) : v;
+    else row[DELIVERY_COLUMNS[k as keyof WebhookDelivery]] = v;
+  }
   return row as Partial<DeliveryRow>;
 }
 
@@ -302,7 +310,10 @@ export class SupabaseWebhookStore implements WebhookStore {
     return row ? toSubscription(row) : null;
   }
   async insertDelivery(d: WebhookDelivery) {
-    SupabaseWebhookStore.check(await this.db.from("webhook_deliveries").insert(toRow(d)), "delivery insert");
+    // A delivery row carries its workspace (RLS and the workspace's delivery log read it from there).
+    const sub = await this.getSubscription(d.subscriptionId);
+    if (!sub) throw new Error("delivery insert failed: unknown subscription");
+    SupabaseWebhookStore.check(await this.db.from("webhook_deliveries").insert({ ...toRow(d), workspace_id: sub.workspaceId }), "delivery insert");
   }
   async getDelivery(id: string) {
     const row = SupabaseWebhookStore.check<DeliveryRow | null>(await this.db.from("webhook_deliveries").select("*").eq("id", id).maybeSingle(), "delivery read");

@@ -2,6 +2,8 @@
 // The GMS API Worker: /common-grants/*, /gms/*, /oauth/*, /.well-known/*, /mcp, /webhooks/*.
 // `createApp` takes a dependency factory so tests run the real routes over in-memory stores.
 import type { LedgerStore } from "@gms/ledger";
+import type { FetchLike } from "@gms/passport-client";
+import type { WebhookStore } from "@gms/webhooks";
 import { Hono } from "hono";
 import type { Principal } from "./auth/middleware.ts";
 import type { SessionUser } from "./auth/session.ts";
@@ -13,14 +15,23 @@ import { agentdocs } from "./routes/agentdocs.ts";
 import { authorize } from "./routes/authorize.ts";
 import { gms } from "./routes/gms.ts";
 import { OAuthError, oauth, oauthErrorResponse } from "./routes/oauth.ts";
+import { commonGrants, sitemap } from "./routes/public.ts";
 import { register } from "./routes/register.ts";
 import { wellknown } from "./routes/wellknown.ts";
+import type { Repos } from "./services/repos/types.ts";
 
 export interface Deps {
   auth: AuthStore;
   members: MembershipStore;
   ledger: LedgerStore;
+  /** The service layer's data access; the only way routes reach tables beyond the auth stores. */
+  repos: Repos;
+  webhooks: WebhookStore;
   now: () => Date;
+  /** Recorded Passport responses in tests; the platform fetch otherwise. */
+  passportFetch?: FetchLike;
+  /** The compiled OpenAPI document (a static asset of the Worker); null when it has not been built. */
+  openapi?: (env: Env) => Promise<unknown | null>;
 }
 
 export type AppEnv = {
@@ -60,7 +71,7 @@ export function createApp(makeDeps: DepsFactory) {
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
     const path = new URL(c.req.url).pathname;
-    const open = path.startsWith("/.well-known/") || path.startsWith("/oauth/token") || path.startsWith("/oauth/register") || path.startsWith("/mcp") || path.startsWith("/common-grants/") || path === "/llms.txt" || path === "/llms-full.txt" || path === "/openapi.json";
+    const open = path.startsWith("/.well-known/") || path.startsWith("/gms/public/") || path === "/sitemap.xml" || path.startsWith("/oauth/token") || path.startsWith("/oauth/register") || path.startsWith("/mcp") || path.startsWith("/common-grants/") || path === "/llms.txt" || path === "/llms-full.txt" || path === "/openapi.json";
     const allow = open ? "*" : origin && c.env.WEB_BASE_URL && origin === trimSlash(c.env.WEB_BASE_URL) ? origin : null;
     if (c.req.method === "OPTIONS") {
       const res = new Response(null, { status: 204 });
@@ -99,6 +110,16 @@ export function createApp(makeDeps: DepsFactory) {
   app.route("/oauth", register);
   app.route("/gms", gms);
 
+  // Protocol reads that are implemented; every other protocol route answers 501 until its phase lands.
+  app.route("/common-grants", commonGrants);
+  app.get("/sitemap.xml", sitemap);
+  app.get("/openapi.json", async (c) => {
+    const doc = await c.get("deps").openapi?.(c.env);
+    if (!doc) throw new ApiError(503, "openapi_unavailable", "The OpenAPI document has not been built for this deployment");
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json(doc as Record<string, unknown>);
+  });
+
   // Seams for later phases. Each answers 501 in the CommonGrants error shape.
   const placeholder = (what: string) => {
     const r = new Hono<AppEnv>();
@@ -107,15 +128,9 @@ export function createApp(makeDeps: DepsFactory) {
     });
     return r;
   };
-  app.route("/common-grants", placeholder("CommonGrants protocol routes"));
+  app.route("/common-grants", placeholder("This CommonGrants protocol route"));
   app.route("/mcp", placeholder("The MCP server"));
   app.route("/webhooks", placeholder("Inbound webhooks"));
-  app.get("/openapi.json", () => {
-    throw notImplemented("The OpenAPI document");
-  });
-  app.get("/sitemap.xml", () => {
-    throw notImplemented("The sitemap");
-  });
 
   app.notFound(() => {
     throw notFound("Route");

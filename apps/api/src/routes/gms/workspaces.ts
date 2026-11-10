@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// /gms/workspaces and team routes. Each handler parses input, builds the ServiceContext and calls
+// one service function; authorization lives in the service.
+import { Hono } from "hono";
+import { z } from "zod";
+import type { AppEnv } from "../../app.ts";
+import { authenticate, requireUser } from "../../auth/middleware.ts";
+import { created, ok } from "../../lib/errors.ts";
+import { bareUuid } from "../../lib/ids.ts";
+import { parse } from "../../lib/input.ts";
+import * as passport from "../../services/passport-link.ts";
+import * as workspaces from "../../services/workspaces.ts";
+import { jsonBody, svc, userSvc } from "../http.ts";
+
+export const workspaceRoutes = new Hono<AppEnv>();
+const ws = (c: { req: { param(name: string): string | undefined } }) => bareUuid(c.req.param("workspaceId"), "Workspace");
+
+workspaceRoutes.get("/workspaces", requireUser(), async (c) => c.json(ok(await workspaces.listMyWorkspaces(userSvc(c)))));
+workspaceRoutes.post("/workspaces", requireUser(), async (c) => c.json(created(await workspaces.createWorkspace(userSvc(c), parse(workspaces.createWorkspaceInput, await jsonBody(c)))), 201));
+workspaceRoutes.post("/invitations/accept", requireUser(), async (c) => {
+  const { token } = parse(z.object({ token: z.string().min(10).max(200) }).strict(), await jsonBody(c));
+  return c.json(ok(await workspaces.acceptInvitation(userSvc(c), token)));
+});
+
+workspaceRoutes.use("/workspaces/:workspaceId/*", authenticate());
+workspaceRoutes.use("/workspaces/:workspaceId", authenticate());
+
+workspaceRoutes.get("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.getWorkspace(await svc(c), ws(c)))));
+workspaceRoutes.patch("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.updateWorkspace(await svc(c), ws(c), parse(workspaces.updateWorkspaceInput, await jsonBody(c))))));
+
+workspaceRoutes.get("/workspaces/:workspaceId/members", async (c) => c.json(ok(await workspaces.listMembers(await svc(c), ws(c)))));
+workspaceRoutes.post("/workspaces/:workspaceId/members", async (c) => c.json(created(await workspaces.addMember(await svc(c), ws(c), parse(workspaces.memberInput, await jsonBody(c)))), 201));
+workspaceRoutes.patch("/workspaces/:workspaceId/members/:userId", async (c) =>
+  c.json(ok(await workspaces.updateMember(await svc(c), ws(c), bareUuid(c.req.param("userId"), "Member"), parse(workspaces.memberPatch, await jsonBody(c))))),
+);
+workspaceRoutes.delete("/workspaces/:workspaceId/members/:userId", async (c) => {
+  await workspaces.removeMember(await svc(c), ws(c), bareUuid(c.req.param("userId"), "Member"));
+  return c.json(ok({ removed: true }));
+});
+workspaceRoutes.post("/workspaces/:workspaceId/invitations", async (c) => c.json(created(await workspaces.createInvitation(await svc(c), ws(c), parse(workspaces.invitationInput, await jsonBody(c)))), 201));
+
+workspaceRoutes.post("/workspaces/:workspaceId/passport/link", async (c) => c.json(created(await passport.linkPassport(await svc(c), ws(c), parse(passport.linkInput, await jsonBody(c)))), 201));
+workspaceRoutes.get("/workspaces/:workspaceId/passport/status", async (c) => c.json(ok(await passport.passportStatus(await svc(c), ws(c)))));
+workspaceRoutes.delete("/workspaces/:workspaceId/passport/link", async (c) => c.json(ok(await passport.unlinkPassport(await svc(c), ws(c)))));

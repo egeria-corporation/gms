@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { MemoryLedgerStore } from "@gms/ledger";
+import type { FetchLike } from "@gms/passport-client";
+import { MemoryWebhookStore } from "@gms/webhooks";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { createApp, type Deps } from "../src/app.ts";
 import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
-import { MemoryAuthStore, MemoryMembershipStore, type Membership, type OAuthClient } from "../src/auth/stores.ts";
+import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/auth/stores.ts";
 import type { Env } from "../src/env.ts";
+import { MemoryRepos } from "../src/services/repos/memory.ts";
+import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
 export const BASE = "https://gms.test";
 export const WEB = "https://app.gms.test";
@@ -27,8 +31,12 @@ export interface Harness {
   app: ReturnType<typeof createApp>;
   env: Env;
   auth: MemoryAuthStore;
-  members: MemoryMembershipStore;
+  members: MembershipStore;
+  repos: MemoryRepos;
+  webhooks: MemoryWebhookStore;
   ledger: MemoryLedgerStore;
+  /** Set to answer Passport calls from recorded fixtures. */
+  passport: { fetch?: FetchLike };
   clock: { now: Date };
   privateKey: CryptoKey;
   kid: string;
@@ -38,13 +46,16 @@ export interface Harness {
   forge: (claims: Record<string, unknown>, opts?: { key?: CryptoKey; kid?: string; typ?: string }) => Promise<string>;
 }
 
-const member = (workspaceId: string, kind: "funder" | "applicant", name: string, userId: string, role: string): Membership => ({ workspaceId, workspaceKind: kind, workspaceName: name, userId, role, scope: null, expiresAt: null });
+export const ORG_RIVERBEND = "0190a000-0000-7000-8000-000000000001";
+// AES-256-GCM test key: the bytes 0..31, base64url. Not a real key.
+export const TEST_CREDENTIALS_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
+export const PASSPORT = "https://passport.test";
 
 export async function harness(): Promise<Harness> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk: JWK = await exportJWK(privateKey);
   const kid = "oauth-test-1";
-  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET };
+  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY };
 
   const clients: OAuthClient[] = [
     {
@@ -73,15 +84,33 @@ export async function harness(): Promise<Harness> {
     },
   ];
   const auth = new MemoryAuthStore(clients);
-  const members = new MemoryMembershipStore([
-    member(WS_FUNDER, "funder", "Riverbend Community Foundation", USER_ADMIN, "admin"),
-    member(WS_FUNDER, "funder", "Riverbend Community Foundation", USER_OFFICER, "program_officer"),
-    member(WS_FUNDER, "funder", "Riverbend Community Foundation", USER_AUDITOR, "auditor"),
-    member(WS_APPLICANT, "applicant", "Alder Creek Family Services", USER_OFFICER, "editor"),
-  ]);
-  const ledger = new MemoryLedgerStore();
   const clock = { now: new Date("2027-04-16T17:00:00Z") };
-  const deps: Deps = { auth, members, ledger, now: () => clock.now };
+  const repos = new MemoryRepos(() => clock.now);
+  const workspace = (id: string, kind: "funder" | "applicant", handle: string, name: string, extra: Record<string, unknown> = {}) => repos.table("workspaces").insert({ id, kind, handle, display_name: name, ...extra });
+  await workspace(WS_FUNDER, "funder", "riverbend", "Riverbend Community Foundation", { passport_org_id: ORG_RIVERBEND, brand: { accent: "#1F6F8B", onAccent: "#FFFFFF" } });
+  await workspace(WS_OTHER, "funder", "cascade-county", "Cascade County Health Department");
+  await workspace(WS_APPLICANT, "applicant", "alder-creek", "Alder Creek Family Services");
+  const member = (workspaceId: string, userId: string, role: string) => repos.table("workspace_members").insert({ workspace_id: workspaceId, user_id: userId, role });
+  await member(WS_FUNDER, USER_ADMIN, "admin");
+  await member(WS_FUNDER, USER_OFFICER, "program_officer");
+  await member(WS_FUNDER, USER_AUDITOR, "auditor");
+  await member(WS_APPLICANT, USER_OFFICER, "editor");
+  const members = new RepoMembershipStore(repos);
+  const ledger = new MemoryLedgerStore();
+  const webhooks = new MemoryWebhookStore();
+  const passport: { fetch?: FetchLike } = {};
+  const deps: Deps = {
+    auth,
+    members,
+    ledger,
+    repos,
+    webhooks,
+    now: () => clock.now,
+    get passportFetch() {
+      return passport.fetch;
+    },
+    openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
+  };
   const app = createApp(() => deps);
 
   const iat = () => Math.floor(clock.now.getTime() / 1000);
@@ -90,7 +119,10 @@ export async function harness(): Promise<Harness> {
     env,
     auth,
     members,
+    repos,
+    webhooks,
     ledger,
+    passport,
     clock,
     privateKey,
     kid,

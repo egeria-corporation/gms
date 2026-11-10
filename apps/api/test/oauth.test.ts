@@ -189,8 +189,19 @@ describe("refresh tokens", () => {
     expect(res.status).toBe(200);
     const second = (await res.json()) as { refresh_token: string; scope: string };
     expect(second.refresh_token).not.toBe(first.refresh_token);
+    const third = await refresh(h, second.refresh_token);
+    expect(third.status).toBe(200);
+    expect((await refresh(h, second.refresh_token)).status).toBe(400);
+  });
+
+  it("revokes the whole consent when a rotated token is used again", async () => {
+    const h = await harness();
+    const first = await tokens(h);
+    const second = (await (await refresh(h, first.refresh_token)).json()) as { refresh_token: string };
+    // The first token already worked once. Seeing it again means it leaked, so its successor dies too.
     expect((await refresh(h, first.refresh_token)).status).toBe(400);
-    expect((await refresh(h, second.refresh_token)).status).toBe(200);
+    expect((await refresh(h, second.refresh_token)).status).toBe(400);
+    expect(h.auth.grants[0]!.revokedAt).not.toBeNull();
   });
 
   it("cannot widen scope, and follows the person's current role", async () => {
@@ -199,7 +210,7 @@ describe("refresh tokens", () => {
     const wider = await refresh(h, t.refresh_token, { scope: "payments:release" });
     expect(await wider.json()).toMatchObject({ error: "invalid_scope" });
     // The officer is moved to observer: decisions:write and applications:write drop out at the next refresh.
-    h.members.memberships.find((m) => m.userId === USER_OFFICER && m.workspaceId === WS_FUNDER)!.role = "observer";
+    await h.repos.table("workspace_members").update({ user_id: USER_OFFICER, workspace_id: WS_FUNDER }, { role: "observer" });
     const res = await refresh(h, t.refresh_token);
     expect(((await res.json()) as { scope: string }).scope).toBe("applications:read");
     // ...and the access token already issued loses them immediately.
@@ -212,7 +223,7 @@ describe("refresh tokens", () => {
     const t = await tokens(h);
     await h.auth.revokeGrant(h.auth.grants[0]!.id, h.clock.now.toISOString());
     expect((await refresh(h, t.refresh_token)).status).toBe(400);
-    h.members.memberships.splice(h.members.memberships.findIndex((m) => m.userId === USER_OFFICER && m.workspaceId === WS_FUNDER), 1);
+    await h.repos.table("workspace_members").remove({ user_id: USER_OFFICER, workspace_id: WS_FUNDER });
     expect((await h.request("/gms/whoami", bearer(t.access_token))).status).toBe(403);
   });
 });

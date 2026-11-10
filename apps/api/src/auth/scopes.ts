@@ -40,6 +40,9 @@ export const SCOPES = [
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 
+/** What a dynamically registered client may ever ask for. Workspace administration stays with people and workspace API clients. */
+export const DYNAMIC_CLIENT_SCOPES: string[] = SCOPES.filter((s) => s !== "workspace:admin");
+
 /** Granted only by an explicit admin choice; lets a client skip human gates on MCP tools (§10.9). */
 export const APPROVALS_BYPASS_SCOPE = "approvals:bypass";
 

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// /gms routes. Phase 0 ships the two that exercise the whole authorization path end to end
-// (who am I; the workspace ledger). Every other /gms route answers 501 in the CommonGrants error
-// shape until its phase lands; see docs/api-surface.md.
+// /gms routes. Handlers build a ServiceContext and call the service layer (src/services); the
+// routes for later phases answer 501 in the CommonGrants error shape. See docs/api-surface.md.
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
 import { LEDGER_ROLES, roleRequiresMfa } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
+import { designRoutes } from "./gms/design.ts";
+import { workspaceRoutes } from "./gms/workspaces.ts";
+import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
 
@@ -49,6 +51,11 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
   const [items, total] = await Promise.all([ledger.list({ ...query, limit: pageSize, offset }), ledger.count(query)]);
   return c.json(paginated(items, pageInfo(page, pageSize, total)));
 });
+
+// Published data for the funder pages: no token.
+gms.route("/public", publicPages);
+gms.route("/", workspaceRoutes);
+gms.route("/", designRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

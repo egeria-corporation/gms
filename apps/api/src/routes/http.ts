@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Glue between a Hono request and the service layer: build the ServiceContext from the
+// authenticated Principal (or the signed-in person), and read JSON bodies and pagination.
+import type { Context } from "hono";
+import type { AppEnv } from "../app.ts";
+import type { WorkspaceKind } from "../auth/scopes.ts";
+import { trimSlash } from "../env.ts";
+import { badRequest, notFound, parsePagination } from "../lib/errors.ts";
+import { makeActor, type ServiceConfig, type ServiceContext } from "../services/context.ts";
+import type { PublicContext } from "../services/public.ts";
+
+type C = Context<AppEnv>;
+
+export function config(c: C): ServiceConfig {
+  const deps = c.get("deps");
+  return {
+    baseUrl: trimSlash(c.env.GMS_BASE_URL),
+    webBaseUrl: trimSlash(c.env.WEB_BASE_URL),
+    passportBaseUrl: c.env.PASSPORT_BASE_URL ? trimSlash(c.env.PASSPORT_BASE_URL) : null,
+    credentialsKey: c.env.CREDENTIALS_ENCRYPTION_KEY ?? null,
+    ...(deps.passportFetch ? { passportFetch: deps.passportFetch } : {}),
+  };
+}
+
+const base = (c: C) => {
+  const deps = c.get("deps");
+  return { repos: deps.repos, ledger: deps.ledger, webhooks: deps.webhooks, now: deps.now, config: config(c) };
+};
+
+/** The context for a workspace-bound caller. Use after `authenticate()`. */
+export async function svc(c: C): Promise<ServiceContext> {
+  const p = c.get("principal");
+  const ws = await c.get("deps").repos.table("workspaces").one({ id: p.workspaceId });
+  if (!ws) throw notFound("Workspace");
+  return {
+    ...base(c),
+    actor: makeActor(p.kind, p.userId, p.clientId),
+    workspace: { id: ws.id, kind: ws.kind as WorkspaceKind, role: p.role, memberScope: p.memberScope },
+    scopes: p.scopes,
+  };
+}
+
+/** The context for a signed-in person who has not named a workspace. Use after `requireUser()`. */
+export function userSvc(c: C): ServiceContext {
+  return { ...base(c), actor: makeActor("user", c.get("user").userId, null), workspace: null, scopes: [] };
+}
+
+export const publicCtx = (c: C): PublicContext => {
+  const deps = c.get("deps");
+  return { repos: deps.repos, now: deps.now, config: config(c) };
+};
+
+/** The JSON body; an empty body is `{}` so routes with all-optional input need none. */
+export async function jsonBody(c: C): Promise<unknown> {
+  const text = await c.req.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw badRequest("The request body is not valid JSON");
+  }
+}
+
+export const page = (c: C) => parsePagination({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
+
+/** `?version=` as a positive integer, or undefined. */
+export function versionQuery(c: C): number | undefined {
+  const raw = c.req.query("version");
+  if (raw === undefined) return undefined;
+  if (!/^\d{1,6}$/.test(raw) || Number(raw) < 1) throw badRequest("version must be a positive integer", [{ code: "invalid_parameter", field: "version" }]);
+  return Number(raw);
+}

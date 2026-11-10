@@ -7,6 +7,9 @@ export type TrancheAction =
   | "mark_ready"
   | "hold"
   | "release_hold"
+  | "passport_hold"
+  | "resume_release"
+  | "passport_released"
   | "release"
   | "initiated"
   | "refused"
@@ -78,6 +81,31 @@ export const trancheMachine = createMachine<TrancheStatus, TrancheAction, Tranch
       actors: ["system", "passport"],
       guard: (ctx) => (ctx.passportDisbursementId ? null : "Passport did not return a disbursement id."),
       patch: (c) => ({ passport_disbursement_id: c.passportDisbursementId, passport_status: c.passportStatus ?? null }),
+    },
+    // Passport accepted the release but parked the disbursement itself (a destination change is in
+    // flight). The disbursement exists at Passport, so the tranche keeps its id while held.
+    passport_hold: {
+      from: ["releasing"],
+      to: "held",
+      actors: ["system", "passport"],
+      guard: (ctx) => (ctx.holdReason?.trim() ? null : "A hold needs a reason."),
+      patch: (c) => ({ hold_reason: c.holdReason, passport_disbursement_id: c.passportDisbursementId ?? null, passport_status: c.passportStatus ?? "held" }),
+    },
+    // The funder (or Passport) released a Passport-side hold: the same disbursement goes back in flight.
+    resume_release: {
+      from: ["held"],
+      to: "releasing",
+      actors: ["funder", "system", "passport"],
+      guard: (ctx) => (ctx.passportDisbursementId ? null : "Only a tranche held at Passport can resume; release a GMS hold instead."),
+      patch: (c) => ({ hold_reason: null, passport_status: c.passportStatus ?? null }),
+    },
+    // Passport reports the held disbursement as initiated without a separate resume step.
+    passport_released: {
+      from: ["held"],
+      to: "initiated",
+      actors: ["system", "passport"],
+      guard: (ctx) => (ctx.passportDisbursementId ? null : "Passport did not return a disbursement id."),
+      patch: (c) => ({ hold_reason: null, passport_disbursement_id: c.passportDisbursementId, passport_status: c.passportStatus ?? null }),
     },
     // Passport refused the release.
     refused: { from: ["releasing"], to: "failed", actors: ["system", "passport"], patch: (c) => ({ passport_status: c.passportStatus ?? null }) },

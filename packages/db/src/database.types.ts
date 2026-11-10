@@ -2102,8 +2102,10 @@ export type Database = {
           event: string;
           event_id: string;
           id: string;
+          last_error: string | null;
           next_attempt_at: string | null;
           payload: Json;
+          status: string;
           status_code: number | null;
           subscription_id: string;
           updated_at: string;
@@ -2116,8 +2118,10 @@ export type Database = {
           event: string;
           event_id?: string;
           id?: string;
+          last_error?: string | null;
           next_attempt_at?: string | null;
           payload: Json;
+          status?: string;
           status_code?: number | null;
           subscription_id: string;
           updated_at?: string;
@@ -2130,8 +2134,10 @@ export type Database = {
           event?: string;
           event_id?: string;
           id?: string;
+          last_error?: string | null;
           next_attempt_at?: string | null;
           payload?: Json;
+          status?: string;
           status_code?: number | null;
           subscription_id?: string;
           updated_at?: string;

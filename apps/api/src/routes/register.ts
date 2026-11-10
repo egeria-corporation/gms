@@ -4,7 +4,7 @@
 // host allow-list. Responses use the RFC 7591 shapes.
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
-import { SCOPES, parseScopeString } from "../auth/scopes.ts";
+import { DYNAMIC_CLIENT_SCOPES, parseScopeString } from "../auth/scopes.ts";
 import type { Env } from "../env.ts";
 
 /** Hosts of well-known MCP clients. Self-hosters extend this with OAUTH_DCR_REDIRECT_HOSTS. */
@@ -12,8 +12,7 @@ export const KNOWN_REDIRECT_HOSTS = ["claude.ai", "claude.com"] as const;
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const MAX_REDIRECTS = 10;
 
-/** What a dynamically registered client may ever ask for. Workspace administration stays with people and workspace API clients. */
-export const DYNAMIC_CLIENT_SCOPES: string[] = SCOPES.filter((s) => s !== "workspace:admin");
+export { DYNAMIC_CLIENT_SCOPES };
 
 export function redirectAllowed(uri: string, env: Pick<Env, "OAUTH_DCR_REDIRECT_HOSTS">): boolean {
   let u: URL;

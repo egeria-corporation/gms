@@ -49,6 +49,10 @@ export interface AuthStore {
   /** Atomically mark the code used and return it; null if unknown or already used. */
   consumeCode(codeHash: string, now: string): Promise<AuthCode | null>;
   saveGrant(grant: OAuthGrant): Promise<void>;
+  /**
+   * The grant a refresh token belongs to. A token that was already rotated returns its grant
+   * revoked (and revokes it): a refresh token works once, so reuse means it leaked.
+   */
   getGrantByTokenHash(tokenHash: string): Promise<OAuthGrant | null>;
   /** Replace the refresh token of a live grant; false if it was rotated or revoked meanwhile. */
   rotateGrant(id: string, fromTokenHash: string, toTokenHash: string, expiresAt: string): Promise<boolean>;
@@ -74,6 +78,8 @@ export interface MembershipStore {
 export class MemoryAuthStore implements AuthStore {
   readonly codes: AuthCode[] = [];
   readonly grants: OAuthGrant[] = [];
+  /** Rotated refresh-token hash → grant id. A rotated token that shows up again revokes the grant. */
+  private readonly rotated = new Map<string, string>();
   constructor(readonly clients: OAuthClient[] = []) {}
 
   async getClient(clientId: string) {
@@ -96,11 +102,16 @@ export class MemoryAuthStore implements AuthStore {
   }
   async getGrantByTokenHash(tokenHash: string) {
     const g = this.grants.find((x) => x.tokenHash === tokenHash);
-    return g ? { ...g } : null;
+    if (g) return { ...g };
+    const reused = this.grants.find((x) => x.id === this.rotated.get(tokenHash));
+    if (!reused) return null;
+    reused.revokedAt ??= new Date().toISOString();
+    return { ...reused, tokenHash };
   }
   async rotateGrant(id: string, fromTokenHash: string, toTokenHash: string, expiresAt: string) {
     const g = this.grants.find((x) => x.id === id && x.tokenHash === fromTokenHash && x.revokedAt === null);
     if (!g) return false;
+    this.rotated.set(fromTokenHash, id);
     g.tokenHash = toTokenHash;
     g.expiresAt = expiresAt;
     return true;

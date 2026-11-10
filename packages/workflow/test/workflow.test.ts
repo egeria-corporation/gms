@@ -231,6 +231,9 @@ describe("tranche machine", () => {
         "ready>release>releasing",
         "releasing>initiated>initiated",
         "releasing>refused>failed",
+        "releasing>passport_hold>held",
+        "held>resume_release>releasing",
+        "held>passport_released>initiated",
         "failed>retry>due",
         "initiated>settle>settled",
         "initiated>fail>failed",
@@ -270,6 +273,22 @@ describe("tranche machine", () => {
     expect(r.writes[0]?.patch).toMatchObject({ mode: "facilitated", idempotency_key: "trn_1", released_by: "user:f1" });
     expect(r.writes[1]?.patch).toMatchObject({ passport_disbursement_id: "dsb_1" });
     expect(r.writes[3]?.patch).toMatchObject({ mode: "resolve", external: { reference: "CHK-1" } });
+  });
+  it("follows a hold that Passport places on a disbursement during a destination change", async () => {
+    const r = recorder();
+    const held = { holdReason: "Destination change in flight", passportDisbursementId: "dsb_9", passportStatus: "held" };
+    expect(trancheMachine.check("releasing", "passport_hold", passport, {})).toMatchObject({ ok: false, reason: "A hold needs a reason." });
+    expect(trancheMachine.check("releasing", "passport_hold", funder, held)).toMatchObject({ ok: false, code: "actor_not_allowed" });
+    await trancheMachine.transition({ id: "trn_3", status: "releasing" }, "passport_hold", passport, held, r.ports);
+    // A GMS hold has no disbursement at Passport, so it cannot resume straight into flight.
+    expect(trancheMachine.check("held", "resume_release", funder, {})).toMatchObject({ ok: false, code: "guard_failed" });
+    expect(trancheMachine.check("held", "passport_released", passport, {})).toMatchObject({ ok: false, code: "guard_failed" });
+    await trancheMachine.transition({ id: "trn_3", status: "held" }, "resume_release", funder, { passportDisbursementId: "dsb_9" }, r.ports);
+    await trancheMachine.transition({ id: "trn_4", status: "held" }, "passport_released", passport, { passportDisbursementId: "dsb_10", passportStatus: "initiated" }, r.ports);
+    expect(r.writes.map((w) => `${w.from}>${w.to}`)).toEqual(["releasing>held", "held>releasing", "held>initiated"]);
+    expect(r.writes[0]?.patch).toMatchObject({ hold_reason: "Destination change in flight", passport_disbursement_id: "dsb_9", passport_status: "held" });
+    expect(r.writes[1]?.patch).toMatchObject({ hold_reason: null });
+    expect(r.writes[2]?.patch).toMatchObject({ hold_reason: null, passport_disbursement_id: "dsb_10" });
   });
 });
 
