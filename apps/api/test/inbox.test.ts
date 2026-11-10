@@ -225,6 +225,13 @@ describe("applicant extras", () => {
     expect((await s.call<{ data: unknown[] }>(s.applicant, "GET", `/gms/my/applications/${appId}/attachments`)).body.data).toHaveLength(2);
   });
 
+  it("refuses a locker reference by id alone when the workspace is not linked to Passport", async () => {
+    await h.repos.table("applications").update({ id: appUuid }, { status: "draft" });
+    const r = await s.call<{ errors: { code: string }[] }>(s.applicant, "POST", `/gms/my/applications/${appId}/attachments`, { passportDocumentId: "0193a1c0-0000-7000-8000-0000000d0c01" });
+    expect(r.status).toBe(409);
+    expect(r.body.errors[0]!.code).toBe("passport_not_linked");
+  });
+
   it("assigns a section to a teammate and withdraws", async () => {
     const { USER_APPLICANT_EDITOR } = await import("./scenario.ts");
     const a = await s.call<{ data: { sections: Record<string, string> } }>(s.applicant, "POST", `/gms/my/applications/${appId}/sections/assign`, { formId: s.loiFormId, sections: { Budget: USER_APPLICANT_EDITOR, Narrative: null } });

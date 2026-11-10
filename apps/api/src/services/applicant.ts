@@ -5,10 +5,11 @@
 import { parsePointer, setAt, type JsonObject } from "@gms/forms";
 import { readPath } from "@gms/protocol";
 import { z } from "zod";
-import { ApiError } from "../lib/errors.ts";
+import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, access, passportFacts, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { listMyDocuments } from "./organization.ts";
 import { OpenGrantsUnavailableError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -146,6 +147,8 @@ export const attachmentInput = z.union([
   z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), contentBase64: z.string().min(1) }).strict(),
   // A file already in the Passport locker is referenced by id; the GMS keeps no copy.
   z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), passportDocumentId: z.string().min(1).max(200), size: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
+  // By id alone: the name, type and hash are read from the Passport locker, not taken from the caller.
+  z.object({ passportDocumentId: z.string().min(1).max(200) }).strict(),
 ]);
 
 export async function listAttachments(ctx: ServiceContext, appId: string) {
@@ -156,8 +159,18 @@ export async function listAttachments(ctx: ServiceContext, appId: string) {
 export async function attachDocument(ctx: ServiceContext, appId: string, input: z.output<typeof attachmentInput>) {
   const { app } = await applicantApp(ctx, appId, "applications:write");
   if (app.status !== "draft" && app.status !== "revision_requested") throw new ApiError(409, "application_locked", "Attachments can be added while the application is a draft or a revision is requested");
-  const common = { workspace_id: app.workspace_id, owner_workspace_id: app.applicant_workspace_id, subject_type: "application", subject_id: app.id, name: input.name, mime: input.mime, uploaded_by: ctx.actor.userId };
+  const base = { workspace_id: app.workspace_id, owner_workspace_id: app.applicant_workspace_id, subject_type: "application", subject_id: app.id, uploaded_by: ctx.actor.userId };
   let row: Row<"documents">;
+  if (!("name" in input)) {
+    const doc = (await listMyDocuments(ctx)).find((d) => d.id === input.passportDocumentId);
+    if (!doc) throw notFound("Passport locker document");
+    if (!doc.sha256) throw new ApiError(422, "document_not_attachable", "This locker document has no recorded hash, so it cannot be pinned to an application. Upload the file to the Passport locker first");
+    // Passport records no size for locker documents; 0 marks "not held here".
+    row = await ctx.repos.table("documents").insert({ ...base, name: doc.name ?? doc.kind, mime: doc.mimeType ?? "application/octet-stream", size: 0, sha256: doc.sha256, storage: "supabase", path: `passport:${doc.id}`, passport_document_id: doc.id });
+    await audit(ctx, "document.attached", "application", app.id, { documentId: row.id, sha256: row.sha256, source: "passport_locker" }, app.workspace_id);
+    return docView(row);
+  }
+  const common = { ...base, name: input.name, mime: input.mime };
   if ("passportDocumentId" in input) {
     row = await ctx.repos.table("documents").insert({ ...common, size: input.size, sha256: input.sha256, storage: "supabase", path: `passport:${input.passportDocumentId}`, passport_document_id: input.passportDocumentId });
   } else {

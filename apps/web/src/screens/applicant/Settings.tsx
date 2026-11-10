@@ -1,291 +1,175 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Workspace settings for the signed-in member: which events reach them in this workspace, in the
+// app and by email, and how email is batched. Account-level settings live in Account settings.
+import { useState } from "react";
 import { Link } from "react-router";
-import { Download, Key } from "lucide-react";
+import type { NotificationPreferences } from "../../api/applicantMore.ts";
+import { useMoreMutation, useMoreQuery } from "../../api/applicantMoreHooks.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+
+/** The events an applicant workspace produces, in the order people meet them. */
+export const EVENTS: { key: string; label: string; detail: string }[] = [
+  { key: "application", label: "Application status changes", detail: "Submitted, under review, revision requested, withdrawn" },
+  { key: "decision", label: "Decisions", detail: "Accepted, declined or waitlisted" },
+  { key: "award", label: "Awards and amendments", detail: "Offers, acceptance, amendment decisions" },
+  { key: "agreement", label: "Agreements", detail: "Sent for signature, countersigned, executed" },
+  { key: "payment", label: "Payments", detail: "Sent, settled or paused; bank name and last four only" },
+  { key: "requirement", label: "Report reminders", detail: "A requirement is coming due or overdue" },
+  { key: "submission", label: "Report reviews", detail: "A report was accepted or returned with comments" },
+  { key: "organization", label: "Organization and consent", detail: "Passport record changes, funders asking to read more" },
+  { key: "approval", label: "Approvals", detail: "An agent is waiting for your decision" },
+  { key: "agent", label: "Agent activity", detail: "Agents connected or disconnected" },
+];
+const DIGESTS: { value: NotificationPreferences["digest"]; label: string }[] = [
+  { value: "immediate", label: "Send each email at once" },
+  { value: "daily", label: "Daily digest" },
+  { value: "weekly", label: "Weekly digest" },
+  { value: "off", label: "No email" },
+];
+
+function Preferences({ initial }: { initial: NotificationPreferences }) {
+  const [prefs, setPrefs] = useState(initial);
+  const save = useMoreMutation((api, next: NotificationPreferences) => api.saveNotificationPreferences(next));
+  const update = async (next: NotificationPreferences) => {
+    setPrefs(next);
+    const saved = await save.run(next);
+    if (saved) setPrefs(saved);
+  };
+  const channel = (key: string) => prefs.channels[key] ?? { inApp: true, email: true };
+  const toggle = (key: string, which: "inApp" | "email") => void update({ ...prefs, channels: { ...prefs.channels, [key]: { ...channel(key), [which]: !channel(key)[which] } } });
+  return (
+    <div className="card" id="notifications">
+      <div className="card-h">
+        <div>
+          <h2 style={{ fontSize: "18px" }}>Notifications</h2>
+          <p className="small muted">Per event, for you, in this workspace. Email can be sent at once or in a digest.</p>
+        </div>
+        <SaveNote state={save.state} />
+      </div>
+      <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+        <table className="tbl" style={{ fontSize: "15px" }}>
+          <caption className="sr">Notification preferences by event</caption>
+          <thead>
+            <tr>
+              <th scope="col">Event</th>
+              <th scope="col">In-app</th>
+              <th scope="col">Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            {EVENTS.map((e) => (
+              <tr key={e.key}>
+                <td style={{ whiteSpace: "normal" }}>
+                  <div className="ent">
+                    <span className="nm">{e.label}</span>
+                    <span className="small muted">{e.detail}</span>
+                  </div>
+                </td>
+                <td>
+                  <button type="button" className={`tog${channel(e.key).inApp ? " on" : ""}`} role="switch" aria-checked={channel(e.key).inApp} aria-label={`${e.label}, in-app`} onClick={() => toggle(e.key, "inApp")}></button>
+                </td>
+                <td>
+                  <button type="button" className={`tog${channel(e.key).email ? " on" : ""}`} role="switch" aria-checked={channel(e.key).email} aria-label={`${e.label}, email`} onClick={() => toggle(e.key, "email")}></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="card-f" style={{ gap: "14px", flexWrap: "wrap" }}>
+        <label className="lbl" htmlFor="digest">
+          Email digest
+        </label>
+        <select className="sel" id="digest" style={{ maxWidth: "260px" }} value={prefs.digest} onChange={(e) => void update({ ...prefs, digest: e.target.value as NotificationPreferences["digest"] })}>
+          {DIGESTS.map((d) => (
+            <option key={d.value} value={d.value}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+        <span className="help">In-app choices take effect now. Email delivery follows these choices once email notifications are switched on for your workspace.</span>
+      </div>
+      {save.error ? (
+        <div style={{ padding: "0 20px 16px" }}>
+          <ErrorBanner error={save.error} title="Your preferences were not saved" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function Settings() {
+  const ws = useWorkspace("applicant");
+  const base = `/w/${ws.handle}`;
+  const query = useMoreQuery((api) => api.notificationPreferences(), [ws.id]);
   return (
     <>
-      <title>{"Settings — Alder Creek Family Services"}</title>
+      <title>{`Settings — ${ws.name}`}</title>
       <ApplicantShell active="Settings">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/alder-creek">Dashboard</Link>
-            <span>›</span>
-            <span>Settings</span>
-          </div>
+          <nav className="crumbs" aria-label="Breadcrumb">
+            <Link to={base}>Dashboard</Link>
+            <span aria-hidden="true">›</span>
+            <span aria-current="page">Settings</span>
+          </nav>
           <div className="ph">
             <div>
               <div className="title">
                 <h1>Workspace settings</h1>
               </div>
               <div className="meta">
-                <span>Alder Creek Family Services</span>
-                <span>·</span>
+                <span>{ws.name}</span>
+                <span aria-hidden="true">·</span>
                 <span>
-                  Account-level settings (profile, MFA, sessions, connected agents) live in{" "}
-                  <Link to="/account/agents">Account settings</Link>
+                  Account-level settings (profile, authenticator, sessions, connected agents) live in <Link to="/account/agents">Account settings</Link>
                 </span>
               </div>
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="card" id="notifications">
-              <div className="card-h">
-                <div>
-                  <h2 style={{ fontSize: "18px" }}>Notifications</h2>
-                  <p className="small muted">
-                    Per event, for you. In-app notifications always appear in the bell; email can be sent at once or in a digest.
-                  </p>
-                </div>
-              </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                <table className="tbl" style={{ fontSize: "15px" }}>
-                  <thead>
-                    <tr>
-                      <th>Event</th>
-                      <th>In-app</th>
-                      <th>Email</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Application status changes</span>
-                          <span className="small muted">Submitted, under review, revision requested, decision</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-label="Application status changes, in-app"
-                        ></button>
-                      </td>
-                      <td>
-                        <button
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-label="Application status changes, email"
-                        ></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Messages from funders</span>
-                          <span className="small muted">Shared thread replies</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Messages from funders, in-app"></button>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Messages from funders, email"></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Revision requests</span>
-                          <span className="small muted">Always sent by email as well</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-label="Revision requests, in-app"
-                          disabled
-                        ></button>
-                      </td>
-                      <td>
-                        <button
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-label="Revision requests, email"
-                          disabled
-                        ></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Report reminders</span>
-                          <span className="small muted">14, 7 and 1 day before a requirement is due</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Report reminders, in-app"></button>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Report reminders, email"></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Payment sent</span>
-                          <span className="small muted">Amount, funder, bank name and last4</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Payment sent, in-app"></button>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Payment sent, email"></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Consent requests from funders</span>
-                          <span className="small muted">A funder asks to read more of your Passport record</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Consent requests, in-app"></button>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Consent requests, email"></button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <div className="ent">
-                          <span className="nm">Agent activity</span>
-                          <span className="small muted">Drafts and proposals made by connected agents</span>
-                        </div>
-                      </td>
-                      <td>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Agent activity, in-app"></button>
-                      </td>
-                      <td>
-                        <button className="tog" role="switch" aria-checked="false" aria-label="Agent activity, email"></button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="card-f" style={{ gap: "14px", flexWrap: "wrap" }}>
-                <label className="lbl" htmlFor="digest">
-                  Email digest
-                </label>
-                <select className="sel" id="digest" style={{ maxWidth: "220px" }}>
-                  <option>Daily at 8:00 AM PT</option>
-                  <option>Weekly on Monday</option>
-                  <option>Off — send each email at once</option>
-                </select>
-                <span className="help">Revision requests and payment confirmations are always sent immediately.</span>
-              </div>
-            </div>
+            <Loaded query={query} label="Loading your preferences">
+              {(prefs) => <Preferences initial={prefs} />}
+            </Loaded>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div className="card" id="tokens">
+              <div className="card" id="agents">
                 <div className="card-h">
                   <div>
-                    <h2 style={{ fontSize: "18px" }}>API tokens</h2>
-                    <p className="small muted">
-                      For scripts and integrations. Agents connect through MCP instead (
-                      <Link to="/w/alder-creek/team">Team & access → Agents</Link>).
-                    </p>
+                    <h2 style={{ fontSize: "18px" }}>Agents and integrations</h2>
+                    <p className="small muted">Agents connect through MCP with your permissions and can be revoked at any time.</p>
                   </div>
                 </div>
-                <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                  <table className="tbl" style={{ fontSize: "14px" }}>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Scopes</th>
-                        <th>Created</th>
-                        <th>Last used</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="b">Board dashboard sync</td>
-                        <td>
-                          <div className="row wrap" style={{ gap: "4px" }}>
-                            <span className="tag">grants:read</span>
-                            <span className="tag">reports:read</span>
-                          </div>
-                        </td>
-                        <td>Jan 9, 2027</td>
-                        <td>Yesterday</td>
-                        <td>
-                          <button className="btn btn-sm btn-danger">Revoke</button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="b">QuickBooks bridge</td>
-                        <td>
-                          <div className="row wrap" style={{ gap: "4px" }}>
-                            <span className="tag">budget:write</span>
-                          </div>
-                        </td>
-                        <td>Mar 2, 2027</td>
-                        <td>Today 6:10 AM</td>
-                        <td>
-                          <button className="btn btn-sm btn-danger">Revoke</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="card-f" style={{ gap: "12px", flexWrap: "wrap" }}>
-                  <button className="btn btn-primary">
-                    <Key className="ic" aria-hidden="true" />
-                    Create token
-                  </button>
-                  <span className="help">The secret is shown once, at creation. Tokens never carry submit or sign rights.</span>
+                <div className="card-b" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <Link to="/account/agents" className="btn btn-secondary">
+                    Connected agents
+                  </Link>
+                  <Link to="/agents" className="btn btn-secondary">
+                    How agents connect
+                  </Link>
                 </div>
               </div>
               <div className="card" id="exports">
                 <div className="card-h">
                   <div>
-                    <h2 style={{ fontSize: "18px" }}>Exports</h2>
-                    <p className="small muted">
-                      Everything you have entered is yours to take. Exports are generated and emailed to you as a link.
-                    </p>
+                    <h2 style={{ fontSize: "18px" }}>Your data</h2>
+                    <p className="small muted">Everything you enter is yours to take.</p>
                   </div>
                 </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }}>
-                    <Download className="ic" aria-hidden="true" />
-                    Export all applications (CommonGrants JSON)
-                  </button>
-                  <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }}>
-                    <Download className="ic" aria-hidden="true" />
-                    Export reports (CSV)
-                  </button>
-                  <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }}>
-                    <Download className="ic" aria-hidden="true" />
-                    Export organization snapshot (PDF)
-                  </button>
-                  <span className="help">Last export: applications, Apr 2, 2027 by Jamal Reed.</span>
+                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }}>
+                  <p>Each application and award is readable as CommonGrants JSON through the API, and your organization record lives in Passport, where you can export it.</p>
+                  <p className="help">A one-click export of the whole applicant workspace is not available yet.</p>
                 </div>
               </div>
-              <div className="card" style={{ borderColor: "#F1B4B4" }}>
+              <div className="card" style={{ borderColor: "var(--s-dng-bd)" }}>
                 <div className="card-h">
-                  <h2 style={{ fontSize: "18px", color: "#9B1C1C" }}>Danger zone</h2>
+                  <h2 style={{ fontSize: "18px", color: "var(--s-dng-fg)" }}>Leaving this workspace</h2>
                 </div>
-                <div
-                  className="card-b"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}
-                >
-                  <div>
-                    <div className="b">Leave this workspace</div>
-                    <div className="help">
-                      You lose access to Alder Creek Family Services on the GMS. Another owner must exist first; your Passport account is
-                      not affected.
-                    </div>
-                  </div>
-                  <button className="btn btn-danger">Leave workspace</button>
+                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <p>
+                    An admin removes members under <Link to={`${base}/team`}>Team &amp; access</Link>. Leaving does not affect your Passport account or the organization's record.
+                  </p>
                 </div>
               </div>
             </div>

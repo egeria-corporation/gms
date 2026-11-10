@@ -3,7 +3,7 @@
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
 import { MercuryBankFeed } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, syncPassport, SupabaseRepos, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, sendDigests, syncPassport, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -52,6 +52,8 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
     ports: {
       ...(env.RESEND_API_KEY ? { mailer: new ResendMailer(env.RESEND_API_KEY) } : {}),
       bank: new MercuryBankFeed(),
+      // Member addresses for notification email and digests.
+      directory: new SupabaseUserDirectory(db as unknown as ConstructorParameters<typeof SupabaseUserDirectory>[0]),
       ...(exportsBucket ? { exports: { put: async (key: string, body: string, contentType: string) => void (await exportsBucket.put(key, body, { httpMetadata: { contentType } })) } } : {}),
     },
   };
@@ -64,6 +66,9 @@ export const SCHEDULES = {
   "0 * * * *": ["passport"],
   "0 */6 * * *": ["mercury"],
   "30 2 * * *": ["org-changes", "ledger-archive"],
+  // 15:00 UTC is 8 AM Pacific in winter, 7 AM in summer.
+  "0 15 * * *": ["digest-daily"],
+  "5 15 * * 1": ["digest-weekly"],
 } as const;
 export type JobName = (typeof SCHEDULES)[keyof typeof SCHEDULES][number];
 
@@ -81,6 +86,10 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return syncPassport(base, { orgChanges: true });
     case "mercury":
       return pollBanks(base);
+    case "digest-daily":
+      return sendDigests(base, "daily");
+    case "digest-weekly":
+      return sendDigests(base, "weekly");
     case "ledger-archive": {
       const bucket = env.LEDGER_ARCHIVE;
       if (!bucket) return { skipped: "LEDGER_ARCHIVE is not bound" };

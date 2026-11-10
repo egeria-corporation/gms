@@ -35,6 +35,19 @@ jobs:
         run: pnpm spec:check
       - name: Unit tests (contract tests validate against the compiled spec)
         run: pnpm test
+      - name: Build the web app (writes the CSP `_headers` file)
+        run: pnpm --filter @gms/web build
+        env:
+          VITE_API_BASE_URL: https://gms.opengrants.io
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+      - name: Bundle the Workers (wrangler deploy --dry-run; no account or deploy)
+        run: |
+          pnpm --filter @gms/api build:openapi
+          pnpm --filter @gms/api exec wrangler deploy --dry-run --outdir .wrangler/dry-run
+          pnpm --filter @gms/jobs exec wrangler deploy --dry-run --outdir .wrangler/dry-run
+          pnpm --filter @gms/web exec wrangler deploy --dry-run
+          grep -q "Content-Security-Policy" apps/web/dist/_headers
 
   integration:
     # Integration suites and pgTAP against a real Supabase stack (Postgres, Auth, Storage) started in the job.

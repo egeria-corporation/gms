@@ -13,7 +13,7 @@ const WINDOW = 200;
 const MAX_READ_IDS = 500;
 /** Ledger events worth a person's attention, by first segment. Routine bookkeeping stays in the ledger. */
 export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent"] as const;
-type Category = (typeof CATEGORIES)[number];
+export type Category = (typeof CATEGORIES)[number];
 const CATEGORY_OF: Record<string, Category> = {
   application: "application", decision: "decision", award: "award", agreement: "agreement", amendment: "award",
   tranche: "payment", payment: "payment", payee: "payment", requirement: "requirement", submission: "submission",
@@ -50,6 +50,8 @@ async function member(ctx: ServiceContext): Promise<{ ws: ServiceWorkspace; row:
 }
 
 const prefsOf = (row: Row<"workspace_members">) => normalize(row.notification_preferences as Partial<Preferences>);
+/** A membership's stored preferences with every category filled in. */
+export const normalizePreferences = (stored: Partial<Preferences> | null | undefined) => normalize(stored ?? {});
 const channel = z.object({ inApp: z.boolean().default(true), email: z.boolean().default(true) }).strict();
 export const preferencesInput = z.object({ digest: z.enum(["immediate", "daily", "weekly", "off"]).default("immediate"), channels: z.partialRecord(z.enum(CATEGORIES), channel).default({}) }).strict();
 type Preferences = z.output<typeof preferencesInput>;
@@ -92,6 +94,16 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
     }
   }
   return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, WINDOW);
+}
+
+/**
+ * A member's notifications without a request: the digest job reads them as that member would see
+ * them (same derivation, same consultant scoping), newest first.
+ */
+export async function deriveFor(base: Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">, m: Row<"workspace_members">, ws: Row<"workspaces">) {
+  const actor = { kind: "user" as const, userId: m.user_id, clientId: null, ledger: { kind: "user" as const, userId: m.user_id }, id: `user:${m.user_id}` };
+  const workspace: ServiceWorkspace = { id: ws.id, kind: ws.kind as ServiceWorkspace["kind"], role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null };
+  return derive({ ...base, actor, workspace, scopes: [] }, workspace);
 }
 
 export async function listNotifications(ctx: ServiceContext, opts: { unread?: boolean } = {}) {

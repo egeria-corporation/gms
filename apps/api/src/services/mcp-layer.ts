@@ -8,6 +8,7 @@ import { ServiceError, type Actor as McpActor, type Approval, type ApprovalStatu
 import { ApiError } from "../lib/errors.ts";
 import { uuidOf } from "../lib/ids.ts";
 import * as applicant from "./applicant.ts";
+import * as assist from "./assist.ts";
 import * as apply from "./apply.ts";
 import * as agreements from "./agreements.ts";
 import * as analytics from "./analytics.ts";
@@ -126,7 +127,27 @@ const IMPLEMENTED: Impl = {
       i.recipients.map((r) => ({ ...(r.applicationId ? { applicationUuid: app(r.applicationId) } : {}), ...(r.awardId ? { awardUuid: awd(r.awardId) } : {}), ...(r.applicantWorkspaceId ? { applicantWorkspaceId: r.applicantWorkspaceId } : {}) })),
     ),
   // A draft only: the letter is rendered for a person to read and is never sent by this tool.
-  draftLetter: (ctx, i) => templates.renderTemplate(ctx, i.templateId ?? `builtin:${i.kind === "award" ? "award_agreement" : i.kind}`, { fields: {}, ...(i.applicationId ? { applicationUuid: app(i.applicationId) } : {}), ...(i.awardId ? { awardUuid: awd(i.awardId) } : {}) }),
+  // With the assistant on, the model drafts from the template; otherwise the template is rendered as is.
+  draftLetter: (ctx, i) => {
+    const templateId = i.templateId ?? `builtin:${i.kind === "award" ? "award_agreement" : i.kind}`;
+    if (ctx.config.assistantEnabled && ctx.ports.llm) return assist.draftLetter(ctx, { templateId, purpose: i.kind, context: i.instructions ? { instructions: i.instructions } : {} }, i.applicationId ? app(i.applicationId) : undefined);
+    return templates.renderTemplate(ctx, i.templateId ?? `builtin:${i.kind === "award" ? "award_agreement" : i.kind}`, { fields: {}, ...(i.applicationId ? { applicationUuid: app(i.applicationId) } : {}), ...(i.awardId ? { awardUuid: awd(i.awardId) } : {}) });
+  },
+  summarizeApplication: (ctx, i) => assist.summarize(ctx, app(i.applicationId)),
+  compareToRubric: async (ctx, i) => {
+    const appUuid = app(i.applicationId);
+    let rubricId = i.rubricId;
+    if (!rubricId) {
+      // Default to the rubric of the stage the application is in.
+      const row = await ctx.repos.table("applications").one({ id: appUuid, workspace_id: ctx.workspace?.id ?? "" });
+      const comp = row ? await ctx.repos.table("competitions").one({ id: row.competition_id }) : null;
+      const stage = (Array.isArray(comp?.stages) ? (comp.stages as { key?: string; rubricId?: string }[]) : []).find((st) => st.key === row?.stage);
+      rubricId = stage?.rubricId?.replace(/^rub_/, "");
+    }
+    if (!rubricId) throw new ServiceError("invalid_input", "This application's stage has no rubric. Name a rubricId.");
+    return assist.compareToRubric(ctx, appUuid, rubricId);
+  },
+  adaptAnswer: (ctx, i) => assist.adaptAnswer(ctx, { answerId: i.answerId, question: i.question, limits: { ...(i.maxWords ? { maxWords: i.maxWords } : {}), ...(i.maxCharacters ? { maxCharacters: i.maxCharacters } : {}) } }),
 
   // ---- applicant ----
   getMyOrganization: (ctx, i) => (i.refresh ? org.refreshMyOrganization(ctx) : org.getMyOrganization(ctx)),

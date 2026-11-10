@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Funder dashboard: what needs a person today. Counts, the pipeline of each competition by stage,
-// committed money by program, open tasks and agent requests awaiting approval. Payee alerts
-// (holds, level changes) arrive with payments; until then the card says so instead of guessing.
+// committed money by program, open tasks, agent requests awaiting approval, and payee alerts
+// (holds, destination changes, level drops) as Passport reports them.
 import { Link } from "react-router";
 import { Bot, Briefcase, ClipboardCheck, Eye, Gavel, Info } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -25,6 +25,8 @@ export default function Dashboard() {
   const awards = useApiQuery((api) => api.listAwards(), []);
   const tasks = useApiQuery((api) => api.listTasks({ open: true, mine: true }), []);
   const approvals = useApiQuery((api) => api.listApprovals("pending"), []);
+  const alerts = useApiQuery((api) => api.paymentAlerts(), []);
+  const payments = useApiQuery((api) => api.paymentsReadiness(), []);
   const done = useApiMutation((api, t: Task) => api.updateTask(t.id, { done: true }));
 
   const counts = apps.data?.counts ?? {};
@@ -259,14 +261,23 @@ export default function Dashboard() {
                         Payments
                       </Link>
                     </div>
-                    <div className="card-b">
-                      <div className="bnr bnr-neu">
-                        <Info className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="t">Payee alerts arrive with payments</div>
-                          <div className="d">Holds, destination changes and level drops from Passport will show here once this workspace releases payments.</div>
+                    <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {alerts.status === "error" && <ErrorBanner error={alerts.error} onRetry={alerts.reload} />}
+                      {alerts.data?.slice(0, 4).map((al, i) => (
+                        <div key={`${al.kind}-${i}`} className={`bnr ${al.tone === "danger" ? "bnr-dng" : al.tone === "warn" ? "bnr-warn" : "bnr-neu"}`} role="status">
+                          <Info className="ic" aria-hidden="true" />
+                          <div>
+                            <div className="t">{al.title}</div>
+                            <div className="d">{al.detail}</div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                      {alerts.data && !alerts.data.length && <p className="muted small">No holds, destination changes or level drops right now.</p>}
+                      {payments.data && (
+                        <p className="small muted">
+                          {formatMinor(payments.data.totals.dueMinor)} due · {payments.data.totals.releasable} ready to release · {payments.data.totals.blocked} blocked
+                        </p>
+                      )}
                     </div>
                   </section>
                 </div>

@@ -10,9 +10,12 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "keygen": "node --experimental-strip-types scripts/keygen.ts",
-    "build:openapi": "node scripts/build-openapi.mjs"
+    "build:openapi": "node scripts/build-openapi.mjs",
+    "gms": "node --experimental-transform-types --no-warnings scripts/gms.ts",
+    "create-api-client": "node --experimental-transform-types --no-warnings scripts/create-api-client.ts"
   },
   "dependencies": {
+    "@gms/assist": "workspace:*",
     "@gms/connectors": "workspace:*",
     "@gms/db": "workspace:*",
     "@gms/documents": "workspace:*",

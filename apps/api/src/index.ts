@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Worker entry: wires Supabase-backed stores. The service-role client is created once per isolate;
 // every store query filters by workspace explicitly (RLS is on for every table regardless).
+import { AnthropicLlmClient } from "@gms/assist";
 import { HttpMcpDirectory, MercuryBankFeed } from "@gms/connectors";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
@@ -55,6 +56,8 @@ function ports(env: Env): ServicePorts {
     // production implementation yet (see docs/connectors.md), so that port stays unset.
     bank: new MercuryBankFeed(),
     mcpDirectory: new HttpMcpDirectory(),
+    // The drafting assistant exists only when it is switched on and has a key.
+    ...(env.ASSISTANT_ENABLED === "true" && env.ANTHROPIC_API_KEY ? { llm: new AnthropicLlmClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ASSISTANT_MODEL ?? null }) } : {}),
     ...(env.EXPORTS ? { exports: { put: async (key: string, body: string, contentType: string) => void (await env.EXPORTS!.put(key, body, { httpMetadata: { contentType } })) } } : {}),
   };
 }

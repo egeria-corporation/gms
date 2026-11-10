@@ -252,3 +252,17 @@ export interface WebhookSubscription {
   /** Shown once, at creation. Store it encrypted (see `encryptSecret`). */
   secret: string;
 }
+
+/** A reference to a document in an organization's Passport locker: display metadata, never bytes. */
+export interface LockerDocument {
+  id: string;
+  kind: string;
+  name: string | null;
+  mimeType: string | null;
+  /** Lowercase hex; null when Passport only references the file (for example in the org's Drive). */
+  sha256: string | null;
+  source: string;
+  uploadedAt: string;
+  expiresAt: string | null;
+  lastModifiedAt: string;
+}

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 import { useServices, type Services } from "../app/services.tsx";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
-import { createMockApplicantApi } from "../mocks/applicant.ts";
+import { createMockApplicantApi, seedApplicantStore, type ApplicantStore } from "../mocks/applicant.ts";
 import { createHttpApplicantApi, type ApplicantApi } from "./applicant.ts";
 import { createRealtimeHub, createSupabaseRealtime, type Realtime } from "./applicantRealtime.ts";
 import type { Mutation, Query, QueryState } from "./hooks.ts";
@@ -19,12 +19,21 @@ export function provideApplicantApi(services: Pick<Services, "auth">, api: Appli
   ports.set(services.auth, { api, workspace: { id: null } });
 }
 
+// Mock mode: one store per services object, shared with the rest of the applicant port
+// (api/applicantMoreHooks.ts) so a grant, its schedule and its reports are one story.
+const mockStores = new WeakMap<object, ApplicantStore>();
+export function mockApplicantStore(services: Pick<Services, "auth">): ApplicantStore {
+  let store = mockStores.get(services.auth);
+  if (!store) mockStores.set(services.auth, (store = seedApplicantStore()));
+  return store;
+}
+
 function portFor(services: Pick<Services, "auth" | "mock">) {
   let port = ports.get(services.auth);
   if (!port) {
     const workspace = { id: null as string | null };
     const api = services.mock
-      ? createMockApplicantApi({ session: () => services.auth.getSession() })
+      ? createMockApplicantApi({ session: () => services.auth.getSession(), store: mockApplicantStore(services) })
       : createHttpApplicantApi({
           baseUrl: env.apiBaseUrl,
           token: async () => (await services.auth.getSession())?.accessToken ?? null,

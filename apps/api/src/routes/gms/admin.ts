@@ -62,4 +62,6 @@ adminRoutes.get("/exports/990pf", async (c) => {
   return c.json(ok(json));
 });
 adminRoutes.post("/exports/bundle", async (c) => c.json(ok(await analytics.exportBundle(await svc(c), { inline: c.req.query("inline") === "true" }))));
+// Restore a bundle written by `gms export` (JSON body: `{ gms: <gms.json> }`).
+adminRoutes.post("/imports/bundle", async (c) => c.json(ok(await analytics.importBundle(await svc(c), (await jsonBody(c)) as { gms?: unknown }))));
 adminRoutes.post("/imports/csv", async (c) => c.json(ok(await analytics.importAwardsCsv(await svc(c), parse(analytics.importInput, await jsonBody(c))))));

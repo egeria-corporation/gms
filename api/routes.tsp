@@ -893,17 +893,26 @@ namespace GMS.Routes.Custom {
 
   @tag("Assistant")
   namespace Assist {
+    /** Whether the assistant is on and the workspace's remaining monthly quota. */
+    @get @route("/assist/status") @useAuth(GmsOAuth<["assist"]> | UserSession)
+    op status(): OkT<AssistStatus> | AuthErrors;
+
+    /**
+     * Every assist route returns a draft and changes nothing. All answer 404 `assistant_disabled`
+     * when the assistant is off, 429 `assist_quota_exhausted` when the month's quota is spent, and
+     * 422 `assistant_declined` when the model declines.
+     */
     @post @route("/assist/summarize") @useAuth(GmsOAuth<["assist"]> | UserSession)
-    op summarize(@body body: AssistRequest): OkT<AssistDraft> | BadRequest | AuthErrors | NotFound;
+    op summarize(@body body: SummarizeRequest): OkT<ApplicationSummaryDraft> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/assist/compare-rubric") @useAuth(GmsOAuth<["assist"]> | UserSession)
-    op compareRubric(@body body: AssistRequest): OkT<AssistDraft> | BadRequest | AuthErrors | NotFound;
+    op compareRubric(@body body: CompareRubricRequest): OkT<RubricComparisonDraft> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/assist/draft-letter") @useAuth(GmsOAuth<["assist"]> | UserSession)
-    op draftLetter(@body body: AssistRequest): OkT<AssistDraft> | BadRequest | AuthErrors | NotFound;
+    op draftLetter(@body body: DraftLetterRequest): OkT<LetterDraft> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/assist/adapt-answer") @useAuth(GmsOAuth<["assist"]> | UserSession)
-    op adaptAnswer(@body body: AssistRequest): OkT<AssistDraft> | BadRequest | AuthErrors | NotFound;
+    op adaptAnswer(@body body: AdaptAnswerRequest): OkT<AdaptedAnswerDraft> | BadRequest | AuthErrors | NotFound;
   }
 
   // #########################################################
@@ -925,6 +934,10 @@ namespace GMS.Routes.Custom {
 
     @get @route("/me/organization") @useAuth(GmsOAuth<["org:read"]> | UserSession)
     op myOrganization(): OkT<MyOrganization> | AuthErrors | NotFound;
+
+    /** The organization's Passport locker as references (never bytes), read live with the stored consent. */
+    @get @route("/me/documents") @useAuth(GmsOAuth<["org:read"]> | UserSession)
+    op myDocuments(): OkT<LockerDocumentRef[]> | AuthErrors | NotFound | Conflict;
 
     @get @route("/me/readiness") @useAuth(GmsOAuth<["org:read"]> | UserSession)
     op myReadiness(): OkT<ApplicantReadiness> | AuthErrors | NotFound;
@@ -1065,7 +1078,7 @@ namespace GMS.Routes.Custom {
     op updateAnswer(@path id: string, @body body: MergePatch): OkT<Answer> | BadRequest | AuthErrors | NotFound;
 
     @post @route("/my/answers/{id}/adapt") @useAuth(GmsOAuth<["library:read", "assist"]> | UserSession)
-    op adaptAnswer(@path id: string, @body body: AssistRequest): OkT<AssistDraft> | BadRequest | AuthErrors | NotFound;
+    op adaptAnswer(@path id: string, @body body: AdaptAnswerBody): OkT<AdaptedAnswerDraft> | BadRequest | AuthErrors | NotFound;
 
     /** Which funders may read which of the applicant's data. */
     @get @route("/my/consents") @useAuth(UserSession)

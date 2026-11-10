@@ -15,7 +15,7 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 
 const OPEN: MyApplication["status"][] = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
-interface DashboardData {
+export interface DashboardData {
   readiness: ApplicantReadiness;
   applications: MyApplication[];
   awards: AwardDetail[];
@@ -23,7 +23,7 @@ interface DashboardData {
   tasks: Task[];
 }
 
-async function loadDashboard(api: ApplicantApi): Promise<DashboardData> {
+export async function loadDashboard(api: ApplicantApi): Promise<DashboardData> {
   const [readiness, applications, awardList, tasks] = await Promise.all([api.readiness(), api.applications(), api.awards(), api.tasks()]);
   const active = applications.filter((a) => OPEN.includes(a.status));
   const [awards, threads] = await Promise.all([
@@ -143,7 +143,7 @@ function ApplicationCard({ app, base }: { app: MyApplication; base: string }) {
 
 const CONDITION: Record<string, string> = { onExecution: "on execution", onReportAccepted: "after report accepted", onDate: "on a date", manual: "released by funder" };
 
-function Payments({ awards, base, phone }: { awards: AwardDetail[]; base: string; phone: boolean }) {
+export function Payments({ awards, base, phone }: { awards: AwardDetail[]; base: string; phone: boolean }) {
   const rows = awards.flatMap((w) => w.tranches.map((t) => ({ w, t })));
   if (!rows.length) return null;
   return (
@@ -208,7 +208,7 @@ function Payments({ awards, base, phone }: { awards: AwardDetail[]; base: string
   );
 }
 
-function ReportsDue({ awards, base }: { awards: AwardDetail[]; base: string }) {
+export function ReportsDue({ awards, base }: { awards: AwardDetail[]; base: string }) {
   const rows = awards
     .flatMap((w) => w.requirements.filter((r) => !["accepted", "waived"].includes(r.status)).map((r) => ({ w, r })))
     .sort((a, b) => (a.r.dueAt ?? "9").localeCompare(b.r.dueAt ?? "9"));
@@ -248,7 +248,7 @@ function ReportsDue({ awards, base }: { awards: AwardDetail[]; base: string }) {
   );
 }
 
-function Messages({ threads, applications, base }: { threads: Thread[]; applications: MyApplication[]; base: string }) {
+export function Messages({ threads, applications, base }: { threads: Thread[]; applications: MyApplication[]; base: string }) {
   const latest = threads
     .flatMap((t) => t.messages.map((m) => ({ t, m })))
     .sort((a, b) => b.m.createdAt.localeCompare(a.m.createdAt))
@@ -285,7 +285,7 @@ function Messages({ threads, applications, base }: { threads: Thread[]; applicat
   );
 }
 
-function Tasks({ tasks, applications, base }: { tasks: Task[]; applications: MyApplication[]; base: string }) {
+export function Tasks({ tasks, applications, base }: { tasks: Task[]; applications: MyApplication[]; base: string }) {
   if (!tasks.length) return null;
   return (
     <section className="card" aria-labelledby="task-h">

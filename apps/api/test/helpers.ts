@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { FakeLlmClient } from "@gms/assist";
 import { FixtureBankFeed, FixtureMcpDirectory, FixtureWorkspaceApps } from "@gms/connectors";
 import { MemoryLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
@@ -47,6 +48,9 @@ export interface Harness {
   bank: FixtureBankFeed;
   workspaceApps: FixtureWorkspaceApps;
   mcpDirectory: FixtureMcpDirectory;
+  /** The assistant's model. Off until a test sets `env.ASSISTANT_ENABLED = "true"`; `llmAnswer` is what it returns. */
+  llm: FakeLlmClient;
+  llmAnswer: { value: unknown };
   /** Objects written to the EXPORTS bucket, by key. */
   exported: Map<string, string>;
   /** Names and emails of people, as the auth provider would answer. */
@@ -127,6 +131,8 @@ export async function harness(): Promise<Harness> {
   const bank = new FixtureBankFeed();
   const workspaceApps = new FixtureWorkspaceApps();
   const mcpDirectory = new FixtureMcpDirectory();
+  const llmAnswer: { value: unknown } = { value: {} };
+  const llm = new FakeLlmClient(() => llmAnswer.value);
   const exported = new Map<string, string>();
   const directory = new MemoryUserDirectory();
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
@@ -141,7 +147,7 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants, directory, bank, workspaceApps, mcpDirectory, exports: { put: async (key, body) => void exported.set(key, body) } }),
+    ports: () => ({ mailer, storage, openGrants, directory, bank, workspaceApps, mcpDirectory, llm, exports: { put: async (key, body) => void exported.set(key, body) } }),
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -163,6 +169,8 @@ export async function harness(): Promise<Harness> {
     bank,
     workspaceApps,
     mcpDirectory,
+    llm,
+    llmAnswer,
     exported,
     directory,
     clock,

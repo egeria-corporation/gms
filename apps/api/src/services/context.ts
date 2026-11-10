@@ -2,6 +2,7 @@
 // The service layer's contract. Every REST route and every MCP tool builds a ServiceContext and
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
+import type { LlmClient } from "@gms/assist";
 import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Mailer } from "@gms/notify";
@@ -54,6 +55,8 @@ export interface ServiceConfig {
   inboundDomain?: string | null;
   /** Mirror accepted awards into Passport (`POST /passport/funders/{orgId}/awards`). Off until Passport serves the route. */
   passportAwardWrite?: boolean;
+  /** ASSISTANT_ENABLED. When false the assist routes answer 404 and the web app hides its panels. */
+  assistantEnabled?: boolean;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
@@ -71,6 +74,8 @@ export interface ServicePorts {
   openGrants?: OpenGrantsClient;
   /** Names and emails for member lists. */
   directory?: UserDirectory;
+  /** The model behind the drafting assistant (Anthropic API). */
+  llm?: LlmClient;
 }
 
 export interface ServiceContext {

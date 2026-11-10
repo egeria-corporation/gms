@@ -220,11 +220,9 @@ export async function getMyOrganization(ctx: ServiceContext) {
   return { ...view(row, !!(await liveLink(ctx, ws.id))), editUrl: editUrl(ctx, row) };
 }
 
-/** Re-read the organization and profile from Passport with the stored consent. */
-export async function refreshMyOrganization(ctx: ServiceContext) {
-  const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
-  const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  const link = await liveLink(ctx, ws.id);
+/** A Passport client acting with the workspace's stored consent. The rotated refresh token is persisted on use. */
+async function consentedPassport(ctx: ServiceContext, workspaceId: string, row: Ws) {
+  const link = await liveLink(ctx, workspaceId);
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   if (!link?.refresh_token_enc || !row.passport_org_id) throw new ApiError(409, "passport_not_linked", "Connect this workspace to Passport first");
   if (!baseUrl || !key || !client) throw new ApiError(503, "passport_not_configured", "Passport linking is not configured on this server");
@@ -240,9 +238,46 @@ export async function refreshMyOrganization(ctx: ServiceContext) {
       await ctx.repos.table("passport_links").update({ id: link.id }, { refresh_token_enc: await encryptSecret(rt, key) });
     },
   });
+  return { link, passport: new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch }) };
+}
+
+/** Turn a failed Passport read into the answer the applicant should see; a withdrawn consent unlinks the workspace. */
+async function passportFailure(ctx: ServiceContext, linkId: string, e: unknown): Promise<never> {
+  if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now");
+  if (e instanceof PassportAuthError) {
+    await ctx.repos.table("passport_links").update({ id: linkId }, { revoked_at: ctx.now().toISOString() });
+    throw new ApiError(409, "passport_consent_revoked", "Passport no longer accepts this workspace's consent. Connect to Passport again");
+  }
+  if (e instanceof PassportApiError) throw new ApiError(502, "passport_refused", "Passport refused the request for this organization");
+  throw e;
+}
+
+/**
+ * The organization's Passport locker, as references. The GMS never copies a locker document: an
+ * attachment keeps the Passport document id, name and hash. Not cached, so a document removed in
+ * Passport stops being offered at once.
+ */
+export async function listMyDocuments(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
+  const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const { link, passport } = await consentedPassport(ctx, ws.id, row);
+  try {
+    const docs = await passport.listOrgDocuments(row.passport_org_id!);
+    // A document without a recorded hash (a Drive reference) cannot be pinned to an application.
+    return docs.map((d) => ({ id: d.id, kind: d.kind, name: d.name, mimeType: d.mimeType, sha256: d.sha256, source: d.source, uploadedAt: d.uploadedAt, expiresAt: d.expiresAt, attachable: d.sha256 !== null }));
+  } catch (e) {
+    return passportFailure(ctx, link.id, e);
+  }
+}
+
+/** Re-read the organization and profile from Passport with the stored consent. */
+export async function refreshMyOrganization(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
+  const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const { link, passport } = await consentedPassport(ctx, ws.id, row);
   let read;
   try {
-    read = await readPassport(new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch }), row.passport_org_id);
+    read = await readPassport(passport, row.passport_org_id!);
   } catch (e) {
     if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now. The cached record is unchanged");
     if (e instanceof PassportAuthError) {

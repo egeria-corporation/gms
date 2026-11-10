@@ -29,7 +29,7 @@ import {
 import { useWorkspace, type Workspace } from "../app/workspace.tsx";
 import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
 
-interface RailItem {
+export interface RailItem {
   label: string;
   icon: LucideIcon;
   /** Path under `/w/:handle`. */
@@ -45,7 +45,7 @@ interface ShellProps {
   children: ReactNode;
 }
 
-function tenantStyle(ws: Workspace): CSSProperties {
+export function tenantStyle(ws: Workspace): CSSProperties {
   return { "--tenant": ws.brand.accent, "--on-tenant": ws.brand.onAccent } as CSSProperties;
 }
 
@@ -128,7 +128,7 @@ function funderRail(ws: Workspace): RailItem[] {
   ];
 }
 
-const APPLICANT_RAIL: RailItem[] = [
+export const APPLICANT_RAIL: RailItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "" },
   { label: "Organization", icon: Building, path: "/organization" },
   { label: "Find funding", icon: Search, path: "/find" },
@@ -142,7 +142,7 @@ const APPLICANT_RAIL: RailItem[] = [
 ];
 
 /** Bottom tabs shown at phone width in the applicant workspace. */
-const APPLICANT_TABS: Array<RailItem & { rail: string[] }> = [
+export const APPLICANT_TABS: Array<RailItem & { rail: string[] }> = [
   { label: "Home", icon: House, path: "", rail: ["Dashboard"] },
   { label: "Apply", icon: FileText, path: "/applications", rail: ["Applications", "Find funding"] },
   { label: "Grants", icon: Award, path: "/grants", rail: ["My grants"] },

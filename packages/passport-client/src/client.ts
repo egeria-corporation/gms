@@ -7,6 +7,7 @@ import type { OrgProfile } from "./profile.ts";
 import type { FetchLike, TokenProvider } from "./tokens.ts";
 import { GMS_AWARD_REGISTRY } from "./types.ts";
 import type {
+  LockerDocument,
   CgAward,
   CgOrgChange,
   CgOrganization,
@@ -152,6 +153,15 @@ export class PassportClient {
    */
   getOrgProfile(orgId: string): Promise<OrgProfile> {
     return this.data({ method: "GET", path: `/passport/orgs/${seg(orgId)}/profile` });
+  }
+
+  /**
+   * References to the documents in the organization's Passport locker (scope `org:read`, same
+   * consent rule as `getOrgProfile`). Passport withholds tax-identity and officer-proofing kinds
+   * from consented clients, and never returns bytes or storage locations.
+   */
+  async listOrgDocuments(orgId: string): Promise<LockerDocument[]> {
+    return (await this.request<PaginatedEnvelope<LockerDocument>>({ method: "GET", path: `/passport/orgs/${seg(orgId)}/documents` })).body.items ?? [];
   }
 
   // --------------------------------------------------------------------------------- CommonGrants: awards

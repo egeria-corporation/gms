@@ -163,6 +163,15 @@ describe("PassportClient", () => {
     expect((org.customFields as Record<string, { value: string }>).verificationLevel!.value).toBe("L3");
   });
 
+  it("lists references without bytes or storage locations", async () => {
+    const { c, fx } = client([loadFixture("documents-alder-creek")]);
+    const docs = await c.listOrgDocuments(ORG);
+    expect(docs.map((d) => d.kind)).toEqual(["determination_letter", "audit", "other"]);
+    expect(docs[2]!.sha256).toBeNull();
+    expect(fx.calls.at(-1)!.path).toBe(`/passport/orgs/${ORG}/documents`);
+    expect(JSON.stringify(docs)).not.toMatch(/storage|path/i);
+  });
+
   it("reads the Common App profile and folds its fields for prefill and rules", async () => {
     const { c } = client([loadFixture("profile-alder-creek")]);
     const profile = await c.getOrgProfile(ORG);

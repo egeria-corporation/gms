@@ -147,6 +147,27 @@ describe("the cached organization", () => {
     expect(none.checks.map((c) => c.state)).toEqual(["fail", "unknown", "unknown", "unknown", "unknown"]);
   });
 
+  it("lists the Passport locker as references and marks what can be attached", async () => {
+    const { who, ws } = await linked();
+    const docs = [
+      { id: "0193a1c0-0000-7000-8000-0000000d0c01", kind: "determination_letter", name: "IRS determination letter.pdf", mimeType: "application/pdf", sha256: "a".repeat(64), source: "upload", uploadedAt: "2027-01-12T17:00:00Z", expiresAt: null, lastModifiedAt: "2027-01-12T17:00:00Z" },
+      { id: "0193a1c0-0000-7000-8000-0000000d0c03", kind: "other", name: "Board roster (Drive)", mimeType: "application/vnd.google-apps.document", sha256: null, source: "google_drive", uploadedAt: "2027-02-10T17:00:00Z", expiresAt: null, lastModifiedAt: "2027-02-10T17:00:00Z" },
+    ];
+    const fx = fixtureFetch([token(2), { method: "GET", path: `/passport/orgs/${ORG_ALDER}/documents`, status: 200, body: { status: 200, message: "Success", items: docs, paginationInfo: { page: 1, pageSize: 2, totalItems: 2, totalPages: 1 } } }]);
+    h.passport.fetch = fx.fetch;
+    const r = await h.request("/gms/me/documents", { headers: who });
+    expect(r.status).toBe(200);
+    const list = ((await r.json()) as { data: { id: string; attachable: boolean; sha256: string | null }[] }).data;
+    expect(list.map((d) => [d.id.slice(-2), d.attachable])).toEqual([["01", true], ["03", false]]);
+    expect(JSON.stringify(list)).not.toMatch(/storage|path/i);
+    // The rotated refresh token is kept, as on any consented read.
+    const link = (await h.repos.table("passport_links").one({ workspace_id: ws.id, revoked_at: null }))!;
+    expect(await decryptSecret(link.refresh_token_enc!, TEST_CREDENTIALS_KEY)).toBe("rt-2");
+
+    h.passport.fetch = () => Promise.reject(new Error("down"));
+    expect((await h.request("/gms/me/documents", { headers: who })).status).toBe(503);
+  });
+
   it("refreshes from Passport and persists the rotated refresh token", async () => {
     const { who, ws } = await linked();
     const moved = { ...ALDER_ORG, customFields: { ...ALDER_ORG.customFields, verificationLevel: { name: "verificationLevel", fieldType: "string", value: "L2" } } };

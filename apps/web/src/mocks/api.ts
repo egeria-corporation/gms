@@ -24,6 +24,7 @@ import { slugify } from "../lib/format.ts";
 import { FIXTURE_WORKSPACES, MOCK_MEMBERSHIPS } from "./fixtures.ts";
 import { seedStore, type Store, type WorkspaceData } from "./store.ts";
 import { createMockFunderApi } from "./funder.ts";
+import { createMockFunderMoneyApi } from "./funderMoney.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -465,6 +466,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     },
 
     ...createMockFunderApi({ ws, now, fail: (status, message, errors = []) => new ApiError(status, message, errors) }),
+    ...createMockFunderMoneyApi({ ws, now, fail: (status, message, errors = []) => new ApiError(status, message, errors) }),
 
     async evaluateEligibility(input) {
       const w = await ws();

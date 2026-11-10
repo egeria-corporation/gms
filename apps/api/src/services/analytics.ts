@@ -10,7 +10,8 @@ import { currencyOf, fundingOf, keyDatesOf, listCgAwards, minorOf, type Award } 
 import { audit, authorize, type ServiceContext } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import { projectOrThrow } from "./opportunities.ts";
-import type { Row } from "./repos/types.ts";
+import type { TableName } from "@gms/db";
+import { RepoError, type Row } from "./repos/types.ts";
 
 const COMMITTED = ["accepted", "active", "suspended", "completed"];
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -153,7 +154,8 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
  * the EXPORTS bucket when one is configured, and always summarized in the response.
  */
 export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean } = {}) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
+  // A workspace admin in person, or the operator's `gms export` (a system actor built by the CLI).
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
   const funder = (await ctx.repos.table("workspaces").one({ id: ws.id }))!;
   const t = <N extends Parameters<typeof ctx.repos.table>[0]>(name: N) => ctx.repos.table(name).find({ workspace_id: ws.id } as never, { limit: 10000 });
   const [opps, comps, forms, apps, awards, programs, rubrics, decisions, agreements, tranches, requirements, submissions, budgets, amendments, templates, documents, assignments] = await Promise.all([t("opportunities"), t("competitions"), t("forms"), t("applications"), t("awards"), t("programs"), t("rubrics"), t("decisions"), t("agreements"), t("tranches"), t("requirements"), t("submissions"), t("budgets"), t("amendments"), t("templates"), t("documents"), t("review_assignments")]);
@@ -184,7 +186,9 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     orgs: applicants.map((w) => ({ passportOrgId: w.passport_org_id, name: w.display_name, projection: consents.some((c) => c.applicant_workspace_id === w.id) ? w.org_projection : null })),
   };
   const strip = <R extends { workspace_id?: string }>(rows: R[]) => rows;
-  const gms = { exportedAt: ctx.now().toISOString(), workspace: { id: funder.id, handle: funder.handle, displayName: funder.display_name, brand: funder.brand }, programs, rubrics, formResponses: responses, reviewAssignments: assignments, reviews, decisions, agreements: strip(agreements), tranches, requirements, submissions, budgets, amendments, templates };
+  const gms = { exportedAt: ctx.now().toISOString(), workspace: { id: funder.id, handle: funder.handle, displayName: funder.display_name, brand: funder.brand }, programs, rubrics, formResponses: responses, reviewAssignments: assignments, reviews, decisions, agreements: strip(agreements), tranches, requirements, submissions, budgets, amendments, templates,
+    // The workspace's own rows behind the CommonGrants projections, so `gms import` restores them exactly.
+    records: { opportunities: opps, competitions: comps, forms, applications: apps, awards } };
   const attachments = documents.map((d) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, storage: d.storage, path: d.path, subjectType: d.subject_type, subjectId: d.subject_id, passportDocumentId: d.passport_document_id }));
   const prefix = `exports/${ws.id}/${ctx.now().toISOString().replace(/[:.]/g, "-")}`;
   const files = { "commongrants.json": commonGrants, "gms.json": gms, "attachments/manifest.json": attachments };
@@ -307,3 +311,85 @@ export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeo
 }
 
 export type { Row };
+
+// ------------------------------------------------------------------------------------ bundle import
+
+type AnyRow = Record<string, unknown> & { id?: unknown };
+const rowsOf = (v: unknown): AnyRow[] => (Array.isArray(v) ? v.filter((r): r is AnyRow => typeof r === "object" && r !== null && typeof (r as AnyRow).id === "string") : []);
+
+/**
+ * `gms import`: restore a bundle written by `gms export` into a funder workspace (a move between
+ * instances, or a restore). Rows keep their ids and are inserted in dependency order; a row whose
+ * id already exists is left alone, so an import can be re-run. Applications and awards need their
+ * applicant workspace on this instance (matched by id): those that do not have one are skipped
+ * with everything that hangs off them, and counted. Nothing imported can be paid: tranches arrive
+ * in the status they were exported in, and release still goes through the readiness checks.
+ */
+export async function importBundle(ctx: ServiceContext, bundle: { gms?: unknown }) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
+  const g = (bundle.gms ?? {}) as Record<string, unknown>;
+  const records = (g.records ?? {}) as Record<string, unknown>;
+  if (!g.workspace || !g.records) throw new ApiError(422, "not_a_bundle", "This is not a GMS export bundle (gms.json with `workspace` and `records` is required)");
+  const counts: Record<string, { inserted: number; existing: number; skipped: number }> = {};
+  const kept = new Map<string, Set<string>>();
+  // Each step: table, rows, and the parents a row needs (column → table whose imported/existing ids it must be in).
+  const steps: { table: TableName; rows: AnyRow[]; needs?: Record<string, TableName>; workspaceColumn?: boolean }[] = [
+    { table: "programs", rows: rowsOf(g.programs) },
+    { table: "rubrics", rows: rowsOf(g.rubrics) },
+    { table: "templates", rows: rowsOf(g.templates) },
+    { table: "forms", rows: rowsOf(records.forms) },
+    { table: "opportunities", rows: rowsOf(records.opportunities) },
+    { table: "competitions", rows: rowsOf(records.competitions), needs: { opportunity_id: "opportunities" } },
+    { table: "applications", rows: rowsOf(records.applications), needs: { competition_id: "competitions", applicant_workspace_id: "workspaces" } },
+    { table: "form_responses", rows: rowsOf(g.formResponses), needs: { application_id: "applications" } },
+    { table: "review_assignments", rows: rowsOf(g.reviewAssignments), needs: { application_id: "applications" } },
+    { table: "reviews", rows: rowsOf(g.reviews), needs: { assignment_id: "review_assignments" }, workspaceColumn: false },
+    { table: "decisions", rows: rowsOf(g.decisions), needs: { application_id: "applications" } },
+    { table: "awards", rows: rowsOf(records.awards), needs: { recipient_workspace_id: "workspaces" } },
+    { table: "agreements", rows: rowsOf(g.agreements), needs: { award_id: "awards" } },
+    { table: "requirements", rows: rowsOf(g.requirements), needs: { award_id: "awards" } },
+    { table: "tranches", rows: rowsOf(g.tranches), needs: { award_id: "awards" } },
+    { table: "submissions", rows: rowsOf(g.submissions), needs: { requirement_id: "requirements" } },
+    { table: "budgets", rows: rowsOf(g.budgets) },
+    { table: "amendments", rows: rowsOf(g.amendments), needs: { award_id: "awards" } },
+  ];
+  const known = async (table: TableName, id: unknown): Promise<boolean> => {
+    if (id === null || id === undefined) return true;
+    if (typeof id !== "string") return false;
+    if (kept.get(table)?.has(id)) return true;
+    return !!(await ctx.repos.table(table).one({ id } as never));
+  };
+  for (const step of steps) {
+    const c = (counts[step.table] = { inserted: 0, existing: 0, skipped: 0 });
+    const ids = kept.get(step.table) ?? new Set<string>();
+    kept.set(step.table, ids);
+    for (const row of step.rows) {
+      const id = row.id as string;
+      // Form versions share an id; the pair (id, version) is the key.
+      const where = step.table === "forms" ? { id, version: row.version } : { id };
+      if (await ctx.repos.table(step.table).one(where as never)) {
+        c.existing++;
+        ids.add(id);
+        continue;
+      }
+      let ok = true;
+      for (const [column, parent] of Object.entries(step.needs ?? {})) if (!(await known(parent, row[column]))) ok = false;
+      if (!ok) {
+        c.skipped++;
+        continue;
+      }
+      const insert = { ...row, ...(step.workspaceColumn === false || !("workspace_id" in row) || row.workspace_id === null ? {} : { workspace_id: ws.id }) };
+      try {
+        await ctx.repos.table(step.table).insert(insert as never);
+        c.inserted++;
+        ids.add(id);
+      } catch (e) {
+        if (!(e instanceof RepoError)) throw e;
+        c.skipped++;
+      }
+    }
+  }
+  const totals = Object.values(counts).reduce((a, c) => ({ inserted: a.inserted + c.inserted, existing: a.existing + c.existing, skipped: a.skipped + c.skipped }), { inserted: 0, existing: 0, skipped: 0 });
+  await audit(ctx, "import.bundle", "workspace", ws.id, { from: (g.workspace as { handle?: unknown }).handle ?? null, ...totals });
+  return { counts, ...totals };
+}

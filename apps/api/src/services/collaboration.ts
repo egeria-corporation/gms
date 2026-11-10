@@ -4,8 +4,10 @@
 // thread is never returned to the other side.
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
+import { apiId } from "../lib/ids.ts";
 import { access } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { mailMembers } from "./member-mail.ts";
 import type { Row } from "./repos/types.ts";
 
 type Thread = Row<"threads">;
@@ -54,6 +56,34 @@ export async function openThread(ctx: ServiceContext, input: z.output<typeof thr
   return threadView(thread, await ctx.repos.table("messages").find({ thread_id: thread.id }, { orderBy: "created_at" }));
 }
 
+/**
+ * Email the people who should hear about a new message: on a shared thread, both workspaces (the
+ * author aside); on an internal thread, the author's own team. Each member's preferences decide
+ * whether they get it now, in a digest, or not by email. Replies to the email come back into the
+ * thread (`thread+<id>@…`, handled by the Resend inbound webhook).
+ */
+async function notifyThread(ctx: ServiceContext, thread: Thread, ws: ServiceWorkspace, message: Row<"messages">) {
+  const targets = [...new Set(thread.visibility === "shared" ? [thread.funder_workspace_id, thread.applicant_workspace_id] : [ws.id])].filter((id): id is string => !!id);
+  const sender = await ctx.repos.table("workspaces").one({ id: ws.id });
+  const app = thread.subject_type === "application" ? await ctx.repos.table("applications").one({ id: thread.subject_id }) : null;
+  const replyTo = ctx.config.inboundDomain ? `thread+${thread.id}@${ctx.config.inboundDomain}` : undefined;
+  for (const workspaceId of targets) {
+    const target = workspaceId === ws.id ? sender : await ctx.repos.table("workspaces").one({ id: workspaceId });
+    if (!target) continue;
+    const link = app ? `${ctx.config.webBaseUrl}/w/${target.handle}/applications/${apiId("application", app.id)}` : `${ctx.config.webBaseUrl}/w/${target.handle}`;
+    await mailMembers(ctx, {
+      workspaceId,
+      category: "application",
+      subject: `New message${app?.title ? ` about ${app.title}` : ""} from ${sender?.display_name ?? "a collaborator"}`,
+      text: message.body.slice(0, 2000),
+      link,
+      exceptUserId: ctx.actor.userId,
+      ...(replyTo ? { replyTo } : {}),
+      idempotencyKey: `message:${message.id}`,
+    });
+  }
+}
+
 export const messageInput = z.object({ body: z.string().trim().min(1).max(10_000) }).strict();
 
 export async function postMessage(ctx: ServiceContext, threadId: string, input: z.output<typeof messageInput>) {
@@ -64,6 +94,7 @@ export async function postMessage(ctx: ServiceContext, threadId: string, input: 
   const row = await ctx.repos.table("messages").insert({ thread_id: thread.id, author: ctx.actor.id, author_user_id: ctx.actor.userId, body: input.body });
   await ctx.repos.table("threads").update({ id: thread.id }, {});
   await audit(ctx, "message.posted", thread.subject_type, thread.subject_id, { threadId: thread.id, visibility: thread.visibility, messageId: row.id });
+  await notifyThread(ctx, thread, ws, row);
   return messageView(row);
 }
 

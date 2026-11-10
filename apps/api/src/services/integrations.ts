@@ -131,7 +131,7 @@ export const mcpServerPatch = z.object({ allowedTools: z.array(z.string().min(1)
 
 const serverView = (s: Row<"custom_mcp_servers">) => ({ id: s.id, name: s.name, url: s.url, hasAuth: s.auth !== null, allowedTools: s.allowed_tools, readOnly: s.read_only, createdAt: s.created_at });
 
-async function authHeaderOf(ctx: ServiceContext, s: Row<"custom_mcp_servers">): Promise<string | null> {
+export async function authHeaderOf(ctx: Pick<ServiceContext, "config">, s: Row<"custom_mcp_servers">): Promise<string | null> {
   const enc = (s.auth as { headerEnc?: string } | null)?.headerEnc;
   return enc && ctx.config.credentialsKey ? decryptSecret(enc, ctx.config.credentialsKey) : null;
 }

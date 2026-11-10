@@ -89,6 +89,7 @@ Implemented:
 | `POST /gms/passport/consent/start` | session | `{ workspaceId?, returnTo? }` → `{ authorizeUrl, scopes, expiresInSeconds }`. PKCE verifier and initiator travel in `state`, sealed with `CREDENTIALS_ENCRYPTION_KEY` (10 minutes) |
 | `GET /gms/passport/consent/callback` | none (the sealed `state`) | Exchanges the code, caches the organization and its Common App profile, creates or links the applicant workspace, stores the refresh token encrypted. Always `302` to the web app: `?passport=linked&ws=<handle>` or `?passport=error&reason=…` |
 | `GET /gms/me/organization`, `POST /gms/me/organization/refresh`, `GET /gms/me/readiness` | `org:read`, applicant | The cached `OrganizationBase`, the folded profile with per-field sources, the level, and the readiness checklist (`pass`/`fail`/`unknown`) |
+| `GET /gms/me/documents` | `org:read`, applicant | The organization's Passport locker as references (id, kind, name, type, SHA-256, `attachable`), read live with the stored consent. Never bytes. Needs Passport's `GET /passport/orgs/{orgId}/documents` (egeria-corporation/passport#1) |
 | `GET /gms/my/consents`, `DELETE /gms/my/consents/{id}`, `GET /gms/my/funders` | `org:read` / applicant `admin` to revoke / `applications:read` | Who may read the cached record, and the funders applied to |
 | `GET /gms/my/applications`, `GET …/{id}/status`, `POST …/{id}/withdraw` | `applications:*`, applicant | List with funder, stage and progress; the status timeline; withdraw |
 | `POST /gms/my/applications/{id}/sections/assign` | `applications:write` | `{ formId, sections: { key: userId \| null } }` |
@@ -175,6 +176,7 @@ Release, record-external and bank match are **human only**: the service refuses 
 | `GET /common-grants/orgs`, `GET /common-grants/orgs/{id}`, `POST /common-grants/orgs/search` | `grantees:read` | Consented organizations only |
 | `GET /gms/analytics/portfolio`, `GET /gms/analytics/cycle/{competitionId}` | `analytics:read` | |
 | `GET /gms/exports/990pf`, `POST /gms/exports/bundle`, `POST /gms/imports/csv` | `analytics:read` / `workspace:admin` | CSV cells are guarded against formula injection |
+| `POST /gms/imports/bundle` | `workspace:admin`, admin in person | Restore a bundle written by `gms export`: `{ gms: <gms.json> }`. Rows keep their ids; existing rows are left alone; applications and awards whose applicant workspace is not on this instance are skipped and counted |
 | `GET/POST/DELETE /gms/webhooks`, `GET /gms/webhooks/{id}/deliveries` | `workspace:admin` | The secret is shown once |
 | `GET/POST/DELETE /gms/api-clients` | `workspace:admin` (create/revoke: person) | |
 | `GET /gms/mcp-connections`, `DELETE /gms/mcp-connections/{id}` | session | Both sides. An admin sees and revokes every agent connected to the workspace; any other member their own (`mine`). Revoking also revokes the OAuth grant. Only a person revokes |
@@ -205,8 +207,9 @@ Not built: `GET /gms/me/documents`. Passport (branch `claude/gms-integration`) h
 
 | Routes | Scope | Phase |
 |---|---|---|
-| `POST /gms/assist/summarize`, `/compare-rubric`, `/draft-letter`, `/adapt-answer` | `assist` | 5 |
-| `POST /gms/my/answers/{id}/adapt` | `library:read`, `assist` | 5 |
+| `GET /gms/assist/status` | `assist` | Implemented. `{ enabled, quota }`; the web app hides the assistant when `enabled` is false |
+| `POST /gms/assist/summarize`, `/compare-rubric`, `/draft-letter`, `/adapt-answer` | `assist` | Implemented. Drafts only. 404 `assistant_disabled` unless `ASSISTANT_ENABLED=true` and a model key is set; 429 `assist_quota_exhausted`; 422 `assistant_declined`. Every call is logged in `assist_calls` |
+| `POST /gms/my/answers/{id}/adapt` | `library:read`, `assist` | Implemented. Same as `/assist/adapt-answer` with the answer in the path |
 
 ## MCP (`POST /mcp`)
 

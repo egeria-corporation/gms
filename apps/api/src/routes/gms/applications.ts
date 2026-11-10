@@ -31,7 +31,7 @@ applicationRoutes.get("/passport/consent/callback", async (c) => {
   return c.redirect(outcome.redirect, 302);
 });
 
-for (const prefix of ["me/organization", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
+for (const prefix of ["me/organization", "me/documents", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
   applicationRoutes.use(`/${prefix}`, authenticate());
   applicationRoutes.use(`/${prefix}/*`, authenticate());
 }
@@ -39,6 +39,8 @@ for (const prefix of ["me/organization", "me/readiness", "me/notification-prefer
 // ---- the applicant's organization, as cached from Passport ----
 applicationRoutes.get("/me/organization", async (c) => c.json(ok(await org.getMyOrganization(await svc(c)))));
 applicationRoutes.post("/me/organization/refresh", async (c) => c.json(ok(await org.refreshMyOrganization(await svc(c)))));
+// The Passport locker, as references the editor can attach. Never bytes.
+applicationRoutes.get("/me/documents", async (c) => c.json(ok(await org.listMyDocuments(await svc(c)))));
 applicationRoutes.get("/me/readiness", async (c) => c.json(ok(await org.getMyReadiness(await svc(c)))));
 applicationRoutes.get("/my/consents", async (c) => c.json(ok(await org.listMyConsents(await svc(c)))));
 applicationRoutes.delete("/my/consents/:consentId", async (c) => c.json(ok(await org.revokeMyConsent(await svc(c), bareUuid(c.req.param("consentId"), "Consent")))));

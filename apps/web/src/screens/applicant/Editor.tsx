@@ -9,6 +9,7 @@ import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, L
 import type { FormDefinition, JsonObject } from "@gms/forms";
 import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantQuery, useRealtime } from "../../api/applicantHooks.ts";
+import { useMoreApi } from "../../api/applicantMoreHooks.ts";
 import type { Peer } from "../../api/applicantRealtime.ts";
 import { ApiError } from "../../api/client.ts";
 import type { Checklist } from "../../api/types.ts";
@@ -17,6 +18,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, closesPhrase, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
+import { PhoneShell } from "../../components/PhoneShell.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
@@ -67,10 +69,11 @@ const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` :
 type SaveState = "idle" | "saving" | "saved" | "error";
 type PanelTab = "validation" | "comments" | "assignments";
 
-function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolean }) {
+function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit: boolean; phone: boolean }) {
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const api = useApplicantApi();
+  const more = useMoreApi();
   const realtime = useRealtime();
   const { sessionState } = useServices();
   const navigate = useNavigate();
@@ -92,6 +95,8 @@ function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolea
   const [submitOpen, setSubmitOpen] = useState(openSubmit);
   const [submit, setSubmit] = useState<{ state: "idle" | "sending"; error?: unknown }>({ state: "idle" });
   const [libraryOpen, setLibraryOpen] = useState(false);
+  // Phone: the validation, comments and assignments panel is a sheet above the bottom tabs.
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // The last response the server gave for each form, and what is on screen now.
   const baseline = useRef<Record<string, JsonObject>>(Object.fromEntries(app.forms.map((f) => [f.formId, f.response])));
@@ -178,13 +183,22 @@ function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolea
     return { documentId: doc.id, name: doc.name, size: doc.size };
   };
 
+  // Inserting goes through the library route so the field is recorded as "From library" and the
+  // answer knows where it was used.
   const insertAnswer = async (answer: Answer, field: string) => {
     if (!active) return;
-    const next = { ...(local.current[activeFormId] ?? active.response), [field]: answer.body };
-    local.current[activeFormId] = next;
-    setForms((prev) => ({ ...prev, [activeFormId]: { ...prev[activeFormId]!, response: next } }));
     setLibraryOpen(false);
     await push(activeFormId);
+    const sent = local.current[activeFormId] ?? active.response;
+    setSave({ state: "saving" });
+    try {
+      const saved = await more.insertAnswer(app.id, activeFormId, { answerId: answer.id, path: `/${field}` });
+      adopt(saved, sent);
+      setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
+      room.current?.saved(activeFormId);
+    } catch (error) {
+      setSave({ state: "error", error });
+    }
   };
 
   const stageErrors = editableForms.flatMap((f) => (forms[f.formId]?.validationErrors ?? []).map((e) => ({ formId: f.formId, ...e })));
@@ -267,7 +281,7 @@ function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolea
       <div className="card" style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
         <FunderChip name={summary?.funder.name} accent={accentOf(summary?.funder.brand)} />
         <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: "0" }}>
-          <h1 style={{ fontSize: "20px" }}>{app.title}</h1>
+          {phone ? <h2 style={{ fontSize: "20px" }}>{app.title}</h2> : <h1 style={{ fontSize: "20px" }}>{app.title}</h1>}
           <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
             {summary?.opportunity.title && <span>{summary.opportunity.title}</span>}
             <span>·</span>
@@ -325,8 +339,22 @@ function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolea
         </Notice>
       )}
 
+      {phone && (
+        <nav className="pillrow" aria-label="Sections" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "4px 0", scrollbarWidth: "none" }}>
+          {sections.map((sec) => {
+            const st = sectionState(sec, active.response, errors);
+            const Icon = SEC_ICON[st.state];
+            return (
+              <a key={sec.label} href={`#${slug(sec.label)}`} className="fchip" style={{ height: "36px", flex: "none", textDecoration: "none", ...(st.state === "done" ? { color: "var(--s-ok-fg)" } : {}) }}>
+                <Icon className="ic ic-sm" aria-hidden="true" />
+                {sec.label}
+              </a>
+            );
+          })}
+        </nav>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "248px minmax(0, 1fr) 320px", gap: "20px", alignItems: "start" }}>
-        <aside className="card" style={{ padding: "12px" }}>
+        <aside className="card" style={{ padding: "12px", ...(phone ? { display: "none" } : {}) }}>
           <div className="eyebrow" style={{ padding: "4px 10px 10px" }}>
             Sections · {sections.filter((s) => sectionState(s, active.response, errors).state === "done").length} of {sections.length} complete
           </div>
@@ -496,8 +524,22 @@ function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolea
           })}
         </div>
 
-        <aside style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
-          <div className="card">
+        <aside
+          {...(phone ? { className: "sheet", "aria-label": "Validation and comments" } : {})}
+          style={{ display: "flex", flexDirection: "column", gap: phone ? "0" : "16px", minWidth: 0, ...(phone ? { position: "sticky", bottom: "64px", zIndex: 3, maxHeight: "70vh", overflowY: sheetOpen ? "auto" : "hidden" } : {}) }}
+        >
+          {phone && (
+            <>
+              <div className="grab" aria-hidden="true"></div>
+              <button type="button" className="row" aria-expanded={sheetOpen} aria-controls="ed-sheet" style={{ width: "100%", minHeight: "44px", padding: "0 16px", border: 0, background: "transparent", font: "inherit", fontWeight: 700, color: "var(--og-navy-dark)", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setSheetOpen(!sheetOpen)}>
+                <span>
+                  Validation{stageErrors.length ? ` · ${stageErrors.length} to fix` : " · nothing to fix"} · Comments {openComments.length}
+                </span>
+                <span className="small muted">{sheetOpen ? "Hide" : "Show"}</span>
+              </button>
+            </>
+          )}
+          <div id="ed-sheet" className="card" style={phone ? { border: 0, borderRadius: 0, display: sheetOpen ? undefined : "none" } : undefined}>
             <div style={{ padding: "0 12px" }}>
               <Tabs<PanelTab>
                 label="Application panel"
@@ -839,30 +881,37 @@ const keyOf = (data: object): number => {
   return keys.get(data)!;
 };
 
-export default function Editor({ openSubmit = false }: { openSubmit?: boolean }) {
+export default function Editor({ openSubmit = false, phone = false }: { openSubmit?: boolean; phone?: boolean }) {
   const ws = useWorkspace("applicant");
   const { appId = "" } = useParams();
   const query = useApplicantQuery((api) => loadEditor(api, appId), [appId, ws.id]);
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
+  const body = (
+    <main className="main" style={phone ? { flex: 1 } : { gap: "16px" }}>
+      <Loaded query={query} label="Opening the application">
+        {(data) =>
+          data.app.status === "draft" || data.app.status === "revision_requested" ? (
+            // A fresh read from the server remounts the body, so its state starts from that read.
+            <EditorBody key={keyOf(data)} data={data} openSubmit={openSubmit} phone={phone} />
+          ) : (
+            <Notice tone="info" title="This application has been submitted and can no longer be edited">
+              <Link to={`/w/${ws.handle}/applications/${data.app.id}`}>See where it stands</Link>
+            </Notice>
+          )
+        }
+      </Loaded>
+    </main>
+  );
   return (
     <>
       <title>{query.status === "ready" ? `${query.data.app.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
-      <ApplicantShell active="Applications">
-        <main className="main" style={{ gap: "16px" }}>
-          <Loaded query={query} label="Opening the application">
-            {(data) =>
-              data.app.status === "draft" || data.app.status === "revision_requested" ? (
-                // A fresh read from the server remounts the body, so its state starts from that read.
-                <EditorBody key={keyOf(data)} data={data} openSubmit={openSubmit} />
-              ) : (
-                <Notice tone="info" title="This application has been submitted and can no longer be edited">
-                  <Link to={`/w/${ws.handle}/applications/${data.app.id}`}>See where it stands</Link>
-                </Notice>
-              )
-            }
-          </Loaded>
-        </main>
-      </ApplicantShell>
+      {phone ? (
+        <PhoneShell title="Application" active="Applications">
+          {body}
+        </PhoneShell>
+      ) : (
+        <ApplicantShell active="Applications">{body}</ApplicantShell>
+      )}
     </>
   );
 }

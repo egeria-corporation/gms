@@ -1,0 +1,50 @@
+{
+  "method": "GET",
+  "path": "/passport/orgs/0193a1c0-0000-7000-8000-0000000000a1/documents",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "items": [
+      {
+        "id": "0193a1c0-0000-7000-8000-0000000d0c01",
+        "kind": "determination_letter",
+        "name": "IRS determination letter.pdf",
+        "mimeType": "application/pdf",
+        "sha256": "3f9a00000000000000000000000000000000000000000000000000000000c21e",
+        "source": "upload",
+        "uploadedAt": "2027-01-12T17:00:00Z",
+        "expiresAt": null,
+        "lastModifiedAt": "2027-01-12T17:00:00Z"
+      },
+      {
+        "id": "0193a1c0-0000-7000-8000-0000000d0c02",
+        "kind": "audit",
+        "name": "FY2026 audited financials.xlsx",
+        "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "sha256": "8b100000000000000000000000000000000000000000000000000000000077d4",
+        "source": "upload",
+        "uploadedAt": "2027-02-02T17:00:00Z",
+        "expiresAt": null,
+        "lastModifiedAt": "2027-02-02T17:00:00Z"
+      },
+      {
+        "id": "0193a1c0-0000-7000-8000-0000000d0c03",
+        "kind": "other",
+        "name": "Board roster (Drive)",
+        "mimeType": "application/vnd.google-apps.document",
+        "sha256": null,
+        "source": "google_drive",
+        "uploadedAt": "2027-02-10T17:00:00Z",
+        "expiresAt": null,
+        "lastModifiedAt": "2027-02-10T17:00:00Z"
+      }
+    ],
+    "paginationInfo": {
+      "page": 1,
+      "pageSize": 3,
+      "totalItems": 3,
+      "totalPages": 1
+    }
+  }
+}

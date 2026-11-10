@@ -8,6 +8,8 @@ import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
 import { deliverDue } from "@gms/webhooks";
 import { NO_AGREEMENT_REQUIRED } from "@gms/workflow";
+import { scopesForRole } from "./auth/scopes.ts";
+import { exportBundle, importBundle } from "./services/analytics.ts";
 import { latestAgreement, retryAwardMirrors } from "./services/awards.ts";
 import { audit, systemContext, type BaseContext, type ServiceContext } from "./services/context.ts";
 import { pollOrgChanges } from "./services/grantees.ts";
@@ -21,6 +23,8 @@ import { applyTrancheUpdate, toPaymentsTranche } from "./services/tranches.ts";
 
 export type { BaseContext } from "./services/context.ts";
 export { processInbound } from "./services/inbound.ts";
+export { sendDigests } from "./services/member-mail.ts";
+export { SupabaseUserDirectory } from "./services/ports.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";
 export { McpOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
@@ -151,4 +155,29 @@ export type QueueMessage = { kind: "passport_event"; inboundEventId: string } | 
 export async function handleQueueMessage(base: BaseContext, message: QueueMessage): Promise<void> {
   if (message.kind === "passport_event") await processInbound(base, message.inboundEventId);
   else if (message.kind === "webhook_delivery") await deliverWebhooks(base);
+}
+
+// ------------------------------------------------------------------------------------ operator CLI
+
+
+/**
+ * The context `scripts/gms.ts` runs in: the instance operator, holding the service-role key,
+ * acting on one funder workspace with an admin's scopes. Ledgered as `system:cli`.
+ */
+async function operatorContext(base: BaseContext, workspaceId: string): Promise<ServiceContext> {
+  const ws = await base.repos.table("workspaces").one({ id: workspaceId });
+  if (!ws) throw new Error(`No workspace ${workspaceId}`);
+  if (ws.kind !== "funder") throw new Error("Bundles are exported from and imported into funder workspaces");
+  const ctx = systemContext(base, { job: "cli" }, { id: ws.id, kind: "funder" });
+  return { ...ctx, workspace: { ...ctx.workspace!, role: "admin" }, scopes: scopesForRole("funder", "admin") };
+}
+
+/** `gms export --workspace <id>`: the same bundle the Settings export writes, returned inline. */
+export async function exportWorkspaceBundle(base: BaseContext, workspaceId: string) {
+  return exportBundle(await operatorContext(base, workspaceId), { inline: true });
+}
+
+/** `gms import <dir> --workspace <id>`. */
+export async function importWorkspaceBundle(base: BaseContext, workspaceId: string, bundle: { gms?: unknown }) {
+  return importBundle(await operatorContext(base, workspaceId), bundle);
 }

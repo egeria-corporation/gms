@@ -343,8 +343,11 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
     comments: (id) => get(`${my(id)}/comments`),
     addComment: (id, input) => call("POST", `${my(id)}/comments`, input),
     resolveComment: (id, commentId) => call("POST", `${my(id)}/comments/${e(commentId)}/resolve`, {}),
-    // The Worker has no route that reads section assignments back yet; they are known only after a write.
-    sections: async (_id, formId) => ({ formId, sections: {} }),
+    sections: async (id, formId) => {
+      const rows = await get<{ formId: string; sections: Record<string, string | null> }[]>(`${my(id)}/sections`);
+      const row = rows.find((r) => bare(r.formId) === bare(formId));
+      return { formId, sections: Object.fromEntries(Object.entries(row?.sections ?? {}).filter((x): x is [string, string] => typeof x[1] === "string")) };
+    },
     assignSections: (id, formId, sections) => call("POST", `${my(id)}/sections/assign`, { formId, sections }),
     attachments: (id) => get(`${my(id)}/attachments`),
     attach: (id, input) => call("POST", `${my(id)}/attachments`, input),

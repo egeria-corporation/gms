@@ -1,343 +1,278 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import {
-  Bell,
-  Bot,
-  Check,
-  ChevronDown,
-  CircleQuestionMark,
-  Info,
-  Lock,
-  Monitor,
-  Plus,
-  RefreshCw,
-  Search,
-  Shield,
-  ShieldCheck,
-  Smartphone,
-  User,
-} from "lucide-react";
+// Account settings for the signed-in person: who they are, their authenticator, this session, and
+// the agents connected on their behalf in each workspace (each can be revoked here).
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { Bell, Bot, KeyRound, LogOut, MonitorSmartphone, ShieldCheck, User } from "lucide-react";
+import type { McpConnection } from "../../api/applicantMore.ts";
+import { useMoreApi, useMoreQuery } from "../../api/applicantMoreHooks.ts";
+import { roleTitle, type MeWorkspace } from "../../api/client.ts";
+import { useServices } from "../../app/services.tsx";
+import { signInPath } from "../../auth/RequireAuth.tsx";
+import { AccountShell } from "../../components/AccountShell.tsx";
+import { timeAgo } from "../../components/applicant.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
+import { ErrorBanner, Loading } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
+
+function Agents({ ws }: { ws: MeWorkspace }) {
+  const api = useMoreApi(ws.id);
+  const query = useMoreQuery((a) => a.connections(ws.id), [ws.id], ws.id);
+  const [confirm, setConfirm] = useState<McpConnection | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const revoke = async (c: McpConnection) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.revokeConnection(c.id, ws.id);
+      if (query.status === "ready") query.set(query.data.filter((x) => x.id !== c.id));
+      setConfirm(null);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ borderTop: "1px solid var(--og-gray-200)" }}>
+      <div className="row" style={{ gap: "10px", padding: "12px 20px 4px", flexWrap: "wrap" }}>
+        <h3 style={{ fontSize: "14px" }}>{ws.name}</h3>
+        <span className="role">{ws.kind === "funder" ? "Funder" : "Applicant"}</span>
+        <span className="small muted">{roleTitle(ws.role)}</span>
+      </div>
+      {query.status === "loading" && (
+        <div style={{ padding: "0 20px" }}>
+          <Loading label="Loading connected agents" />
+        </div>
+      )}
+      {query.status === "error" && (
+        <div style={{ padding: "12px 20px" }}>
+          <ErrorBanner error={query.error} onRetry={query.reload} />
+        </div>
+      )}
+      {query.status === "ready" && query.data.length === 0 && <p className="small muted" style={{ padding: "4px 20px 16px" }}>No agent is connected to this workspace.</p>}
+      {query.status === "ready" && query.data.length > 0 && (
+        <ul>
+          {query.data.map((c) => (
+            <li key={c.id} style={{ display: "grid", gridTemplateColumns: "36px minmax(0, 1fr) auto", gap: "14px", alignItems: "center", padding: "12px 20px", borderTop: "1px solid var(--og-gray-100)" }}>
+              <span className="av av-a" aria-hidden="true">
+                <Bot className="ic" aria-hidden="true" />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div className="b">
+                  {c.clientName ?? c.clientId}
+                  {!c.mine && <span className="tag" style={{ marginLeft: "8px" }}>Connected by a teammate</span>}
+                </div>
+                <div className="small muted">
+                  Connected {formatDate(c.createdAt)} · {c.lastUsedAt ? `last used ${timeAgo(c.lastUsedAt)}` : "never used"}
+                </div>
+                <div className="row wrap" style={{ gap: "4px", marginTop: "6px" }}>
+                  {c.scopes.map((s) => (
+                    <span key={s} className="tag">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button className="btn btn-sm btn-danger" type="button" onClick={() => setConfirm(c)}>
+                Revoke<span className="sr"> {c.clientName ?? c.clientId} in {ws.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Dialog open={!!confirm} onClose={() => setConfirm(null)} labelledBy={`revoke-${ws.handle}`}>
+        <div className="hd">
+          <h2 id={`revoke-${ws.handle}`} style={{ fontSize: "18px" }}>
+            Revoke {confirm?.clientName ?? confirm?.clientId}?
+          </h2>
+        </div>
+        <div className="bd">
+          <p>The agent loses access to {ws.name} at once and has to be connected again to come back. Work it already drafted stays.</p>
+          {error ? <ErrorBanner error={error} title="The agent was not revoked" /> : null}
+        </div>
+        <div className="ft">
+          <button className="btn btn-secondary" type="button" onClick={() => setConfirm(null)}>
+            Cancel
+          </button>
+          <button className="btn btn-danger-solid" type="button" disabled={busy} onClick={() => confirm && void revoke(confirm)}>
+            Revoke access
+          </button>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function AccountSettings() {
+  const { auth, sessionState, meState, reloadMe } = useServices();
+  const navigate = useNavigate();
+  const [factors, setFactors] = useState<string[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    auth.listTotpFactors().then(
+      (f) => live && setFactors(f),
+      () => live && setFactors([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [auth]);
+  const session = sessionState.status === "signedIn" ? sessionState.session : null;
   return (
     <>
-      <title>{"Account settings — Connected agents"}</title>
-      <div className="gms" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <header className="topbar">
-          <Link to="/w/riverbend" className="logo">
-            <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
-            <span className="suffix">GMS</span>
-          </Link>
-          <Link to="/workspaces" className="ws">
-            Riverbend Community Foundation<span className="role">Funder</span>
-            <ChevronDown className="ic" aria-hidden="true" />
-          </Link>
-          <div className="search">
-            <Search className="ic" aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Search applications, awards, grantees, opportunities"
-              placeholder="Search applications, awards, grantees, opportunities"
-            />
-            <span className="kbd">⌘K</span>
-          </div>
-          <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-            <Link to="/notifications" className="iconbtn" aria-label="Notifications, 3 unread">
-              <Bell className="ic ic-md" aria-hidden="true" />
-              <span className="dot"></span>
-            </Link>
-            <button className="iconbtn" aria-label="Help">
-              <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
-            </button>
-            <Link to="/account/agents" className="av" aria-label="Account: Dana Ortiz" aria-current="page">
-              DO
-            </Link>
-          </div>
-        </header>
-        <main style={{ flex: "1 1 auto", padding: "28px 40px 48px", display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div className="ph">
-            <div>
-              <div className="crumbs">
-                <Link to="/w/riverbend">Riverbend</Link>
-                <span>›</span>
-                <span>Account</span>
-              </div>
-              <h1 style={{ marginTop: "6px" }}>Account settings</h1>
-              <div className="meta">
-                <span>Dana Ortiz · dana@riverbendcf.example</span>
-                <span>·</span>
-                <span>Member of 2 workspaces</span>
-              </div>
+      <title>Account settings — OpenGrants GMS</title>
+      <AccountShell active="account">
+        <div className="ph">
+          <div>
+            <div className="title">
+              <h1>Account settings</h1>
+            </div>
+            <div className="meta">
+              <span>{session?.email}</span>
+              <span aria-hidden="true">·</span>
+              <span>These settings follow you across every workspace.</span>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
-            <nav className="card rail" style={{ borderRight: "1px solid #D6DEDE", flex: "none" }} aria-label="Account sections">
-              <ul>
-                <li>
-                  <a href="#profile">
-                    <User className="ic" aria-hidden="true" />
-                    Profile
-                  </a>
-                </li>
-                <li>
-                  <a href="#security">
-                    <Shield className="ic" aria-hidden="true" />
-                    Security
-                  </a>
-                </li>
-                <li>
-                  <a href="#sessions">
-                    <Monitor className="ic" aria-hidden="true" />
-                    Sessions
-                  </a>
-                </li>
-                <li>
-                  <a href="#agents" className="on" aria-current="page">
-                    <Bot className="ic" aria-hidden="true" />
-                    Connected agents
-                    <span className="count" style={{ background: "#EEF3F3", color: "#4A5C5A" }}>
-                      2
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <Link to="/notifications">
-                    <Bell className="ic" aria-hidden="true" />
-                    Notifications
-                  </Link>
-                </li>
-              </ul>
-            </nav>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: "0" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
-                <section className="card" id="profile">
-                  <div className="card-h">
-                    <h3>Profile</h3>
-                    <button className="btn btn-sm btn-secondary">Edit</button>
-                  </div>
-                  <div className="card-b">
-                    <dl className="kv" style={{ gridTemplateColumns: "120px minmax(0, 1fr)" }}>
-                      <dt>Name</dt>
-                      <dd className="row" style={{ gap: "8px" }}>
-                        <span className="av av-sm">DO</span>Dana Ortiz
-                      </dd>
-                      <dt>Email</dt>
-                      <dd>
-                        dana@riverbendcf.example{" "}
-                        <span className="bdg bdg-ok" style={{ marginLeft: "6px" }}>
-                          <Check className="ic" aria-hidden="true" />
-                          Verified
-                        </span>
-                      </dd>
-                      <dt>Time zone</dt>
-                      <dd>Pacific Time (America/Los_Angeles)</dd>
-                      <dt>Language</dt>
-                      <dd>English (US)</dd>
-                      <dt>Workspaces</dt>
-                      <dd>
-                        <div className="col" style={{ gap: "4px" }}>
-                          <span className="row" style={{ gap: "6px" }}>
-                            Riverbend Community Foundation<span className="role">Program officer</span>
-                          </span>
-                          <span className="row" style={{ gap: "6px" }}>
-                            Alder Creek Family Services<span className="role">Viewer</span>
-                          </span>
-                        </div>
-                      </dd>
-                    </dl>
-                  </div>
-                </section>
-                <section className="card" id="security">
-                  <div className="card-h">
-                    <h3>Multi-factor authentication</h3>
-                    <span className="bdg bdg-ok">
-                      <ShieldCheck className="ic" aria-hidden="true" />
-                      Enabled
-                    </span>
-                  </div>
-                  <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <dl className="kv" style={{ gridTemplateColumns: "120px minmax(0, 1fr)" }}>
-                      <dt>Method</dt>
-                      <dd>Authenticator app · added Jan 9, 2027</dd>
-                      <dt>Recovery codes</dt>
-                      <dd>8 of 10 unused</dd>
-                      <dt>Required by</dt>
-                      <dd>Riverbend Community Foundation (workspace policy)</dd>
-                    </dl>
-                    <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-                      <button className="btn btn-sm btn-secondary">
-                        <RefreshCw className="ic" aria-hidden="true" />
-                        Regenerate recovery codes
-                      </button>
-                      <button className="btn btn-sm btn-secondary">Change method</button>
-                      <button className="btn btn-sm btn-danger">Disable MFA</button>
-                    </div>
-                    <span className="help">Disabling is blocked while a workspace policy requires MFA.</span>
-                  </div>
-                </section>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
+          <nav className="card snav" aria-label="Account sections" style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
+            <a href="#profile">
+              <span className="row">
+                <User className="ic" aria-hidden="true" />
+                Profile
+              </span>
+            </a>
+            <a href="#security">
+              <span className="row">
+                <KeyRound className="ic" aria-hidden="true" />
+                Security
+              </span>
+            </a>
+            <a href="#sessions">
+              <span className="row">
+                <MonitorSmartphone className="ic" aria-hidden="true" />
+                Sessions
+              </span>
+            </a>
+            <a href="#agents" className="on" aria-current="true">
+              <span className="row">
+                <Bot className="ic" aria-hidden="true" />
+                Connected agents
+              </span>
+            </a>
+            <Link to="/notifications">
+              <span className="row">
+                <Bell className="ic" aria-hidden="true" />
+                Notifications
+              </span>
+            </Link>
+          </nav>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: 0 }}>
+            <section className="card" id="profile" aria-labelledby="profile-h">
+              <div className="card-h">
+                <h2 id="profile-h" style={{ fontSize: "15px" }}>
+                  Profile
+                </h2>
               </div>
-              <section className="card" id="sessions">
-                <div className="card-h">
-                  <h3>Sessions</h3>
-                  <button className="btn btn-sm btn-danger">Sign out of all other sessions</button>
-                </div>
-                <div className="tbl-wrap" style={{ border: "0", borderRadius: "0 0 12px 12px" }}>
-                  <table className="tbl">
-                    <thead>
-                      <tr>
-                        <th>Device</th>
-                        <th>Location</th>
-                        <th>Last active</th>
-                        <th>Signed in</th>
-                        <th style={{ width: "100px" }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="row" style={{ gap: "8px" }}>
-                          <Monitor className="ic" aria-hidden="true" />
-                          Chrome on macOS
-                          <span className="bdg bdg-ok" style={{ marginLeft: "4px" }}>
-                            <Check className="ic" aria-hidden="true" />
-                            This device
-                          </span>
-                        </td>
-                        <td>Sacramento, CA</td>
-                        <td>Now</td>
-                        <td>May 25, 2027</td>
-                        <td></td>
-                      </tr>
-                      <tr>
-                        <td className="row" style={{ gap: "8px" }}>
-                          <Smartphone className="ic" aria-hidden="true" />
-                          Safari on iOS
-                        </td>
-                        <td>Folsom, CA</td>
-                        <td>3 hours ago</td>
-                        <td>May 18, 2027</td>
-                        <td>
-                          <button className="btn btn-sm btn-secondary">Revoke</button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="row" style={{ gap: "8px" }}>
-                          <Monitor className="ic" aria-hidden="true" />
-                          Firefox on Linux
-                        </td>
-                        <td>Portland, OR</td>
-                        <td>6 days ago</td>
-                        <td>Apr 30, 2027</td>
-                        <td>
-                          <button className="btn btn-sm btn-secondary">Revoke</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-              <section className="card" id="agents">
-                <div className="card-h">
-                  <div>
-                    <h3>Connected agents</h3>
-                    <p className="small muted" style={{ marginTop: "2px" }}>
-                      MCP clients acting as you. Each has a scope list and, where a tool is gated, needs a human approval before the action
-                      lands.
-                    </p>
-                  </div>
-                  <Link to="/oauth/consent" className="btn btn-primary">
-                    <Plus className="ic" aria-hidden="true" />
-                    Connect an agent
-                  </Link>
-                </div>
-                <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                  <table className="tbl">
-                    <thead>
-                      <tr>
-                        <th>Agent</th>
-                        <th>Client</th>
-                        <th>Workspace</th>
-                        <th>Scopes</th>
-                        <th>Last used</th>
-                        <th style={{ width: "100px" }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <div className="row" style={{ gap: "10px" }}>
-                            <span className="av av-sm av-a">
-                              <Bot className="ic ic-sm" aria-hidden="true" />
-                            </span>
-                            <div className="ent">
-                              <span className="nm">Riverbend Triage Agent</span>
-                              <span className="small muted">Connected Mar 1, 2027 · 1 approval pending</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>Claude</td>
-                        <td>
-                          Riverbend Community Foundation <span className="role">Funder</span>
-                        </td>
-                        <td>
-                          <div className="row wrap" style={{ gap: "4px" }}>
-                            <span className="tag mono">applications:read</span>
-                            <span className="tag mono">applications:propose</span>
-                            <span className="tag mono">letters:draft</span>
-                          </div>
-                        </td>
-                        <td>2 min ago</td>
-                        <td>
-                          <button className="btn btn-sm btn-danger">Revoke</button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <div className="row" style={{ gap: "10px" }}>
-                            <span className="av av-sm av-a">
-                              <Bot className="ic ic-sm" aria-hidden="true" />
-                            </span>
-                            <div className="ent">
-                              <span className="nm">Grants drafting agent</span>
-                              <span className="small muted">Connected Apr 3, 2027</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>Cursor</td>
-                        <td>
-                          Alder Creek Family Services <span className="role">Applicant</span>
-                        </td>
-                        <td>
-                          <div className="row wrap" style={{ gap: "4px" }}>
-                            <span className="tag mono">applications:write</span>
-                            <span className="tag" style={{ background: "#FCEFD3", color: "#7A4A00" }}>
-                              <Lock className="ic ic-sm" aria-hidden="true" style={{ marginRight: "4px" }} />
-                              submit gated
-                            </span>
-                          </div>
-                        </td>
-                        <td>3 days ago</td>
-                        <td>
-                          <button className="btn btn-sm btn-danger">Revoke</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="card-f" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-                  <span className="notice">
-                    <Info className="ic" aria-hidden="true" />
-                    Revoking an agent cancels its pending approvals and removes its token immediately. Records it already touched keep their
-                    attribution line.
+              <div className="card-b">
+                <dl className="kv" style={{ fontSize: "14px" }}>
+                  <dt>Email</dt>
+                  <dd>{session?.email ?? "—"}</dd>
+                  <dt>Sign-in</dt>
+                  <dd>One-time code or magic link sent to this email</dd>
+                </dl>
+                <p className="help" style={{ marginTop: "10px" }}>
+                  Your organization's details are kept in OpenGrants Passport, not here.
+                </p>
+              </div>
+            </section>
+
+            <section className="card" id="security" aria-labelledby="security-h">
+              <div className="card-h">
+                <h2 id="security-h" style={{ fontSize: "15px" }}>
+                  Multi-factor authentication
+                </h2>
+                {factors === null ? null : factors.length > 0 ? (
+                  <span className="bdg bdg-ok">
+                    <ShieldCheck className="ic" aria-hidden="true" />
+                    Authenticator on
                   </span>
-                  <Link to="/w/riverbend/settings/mcp" className="small b">
-                    Workspace-wide agent settings and human gates →
+                ) : (
+                  <span className="bdg bdg-warn">
+                    <KeyRound className="ic" aria-hidden="true" />
+                    Not set up
+                  </span>
+                )}
+              </div>
+              <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <p>
+                  {factors && factors.length > 0
+                    ? `An authenticator app is enrolled. This session is ${session?.aal === "aal2" ? "verified with it" : "not yet verified with it"}.`
+                    : "Funder admins and finance, and applicant admins, need an authenticator app before their workspace opens."}
+                </p>
+                {(!factors || factors.length === 0 || session?.aal !== "aal2") && (
+                  <Link to={signInPath("/account/agents", "mfa")} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
+                    {factors && factors.length > 0 ? "Verify this session" : "Set up an authenticator"}
                   </Link>
+                )}
+              </div>
+            </section>
+
+            <section className="card" id="sessions" aria-labelledby="sessions-h">
+              <div className="card-h">
+                <h2 id="sessions-h" style={{ fontSize: "15px" }}>
+                  Sessions
+                </h2>
+              </div>
+              <div className="card-b" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+                <div>
+                  <div className="b">This browser</div>
+                  <div className="help">Signed in as {session?.email}. Sessions on other devices are not listed here; signing in again with a new code replaces them.</div>
                 </div>
-              </section>
-            </div>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={async () => {
+                    await auth.signOut();
+                    navigate("/signin");
+                  }}
+                >
+                  <LogOut className="ic" aria-hidden="true" />
+                  Sign out
+                </button>
+              </div>
+            </section>
+
+            <section className="card" id="agents" aria-labelledby="agents-h">
+              <div className="card-h">
+                <div>
+                  <h2 id="agents-h" style={{ fontSize: "15px" }}>
+                    Connected agents
+                  </h2>
+                  <p className="small muted">Agents act with your permissions, never more. Submitting, signing, accepting an award and releasing money always come back to a person.</p>
+                </div>
+                <Link to="/agents" className="btn btn-secondary btn-sm">
+                  How agents connect
+                </Link>
+              </div>
+              {meState.status === "loading" && (
+                <div style={{ padding: "0 20px" }}>
+                  <Loading label="Loading your workspaces" />
+                </div>
+              )}
+              {meState.status === "error" && (
+                <div style={{ padding: "16px 20px" }}>
+                  <ErrorBanner error={meState.error} onRetry={reloadMe} />
+                </div>
+              )}
+              {meState.status === "ready" && meState.me.workspaces.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>You do not belong to a workspace yet.</p>}
+              {meState.status === "ready" && meState.me.workspaces.map((ws) => <Agents key={ws.id} ws={ws} />)}
+            </section>
           </div>
-        </main>
-      </div>
+        </div>
+      </AccountShell>
     </>
   );
 }

@@ -20,8 +20,9 @@ WEB_BASE_URL = "http://localhost:5173"
 #   hourly  Passport sync: award mirror retry, disbursed amounts, payee level and status
 #   every 6 h  Mercury poll (read-only)
 #   02:30 UTC  organization-change poll and the ledger archive
+#   15:00 UTC daily, 15:05 UTC Mondays  notification digests (daily, weekly)
 [triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *"]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
 
 [[queues.consumers]]
 queue = "gms-events-dev"
@@ -47,7 +48,7 @@ WEB_BASE_URL = "https://staging.gms.opengrants.io"
 PASSPORT_BASE_URL = "https://test.passport.opengrants.io"
 
 [env.staging.triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *"]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
 
 [[env.staging.queues.consumers]]
 queue = "gms-events-staging"
@@ -73,7 +74,7 @@ WEB_BASE_URL = "https://gms.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
 
 [env.production.triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *"]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
 
 [[env.production.queues.consumers]]
 queue = "gms-events"

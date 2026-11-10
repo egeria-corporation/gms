@@ -1,287 +1,203 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { CSSProperties } from "react";
-import { Link } from "react-router";
-import {
-  Award,
-  BadgeCheck,
-  Bell,
-  Building,
-  Calendar,
-  Check,
-  ClipboardCheck,
-  Download,
-  FileText,
-  House,
-  Info,
-  Landmark,
-  Mail,
-  Menu,
-  PenLine,
-  ShieldCheck,
-} from "lucide-react";
+// A grant at phone width, as the 390px artboard draws it: a summary card, stacked amounts, a
+// scrolling tab row, one card per tranche, the payment destination and the agreement. Same data as
+// the desktop screen (../grant.tsx).
+import { Link, useParams } from "react-router";
+import { Award as AwardIcon, Download, Info, Landmark } from "lucide-react";
+import { useWorkspace } from "../../../app/workspace.tsx";
+import { accentOf, FunderChip, isNotFound } from "../../../components/applicant.tsx";
+import { NotFound } from "../../../components/NotFound.tsx";
+import { PhoneShell } from "../../../components/PhoneShell.tsx";
+import { StatusBadge } from "../../../components/status.tsx";
+import { EmptyState, ErrorBanner, Loading } from "../../../components/ui.tsx";
+import { formatDate, formatMinor } from "../../../lib/format.ts";
+import { AmendmentsCard, BudgetTable, conditionText, expectedText, HoldBanner, PayeeChip, periodOf, totals, useGrant, type GrantData } from "../grant.tsx";
 
-export default function GrantPhone() {
+function Grant({ data, base, reload }: { data: GrantData; base: string; reload: () => void }) {
+  const { award, schedule, requirements, payee } = data;
+  const t = totals(data);
+  const period = periodOf(award.keyDates);
+  const destination = payee.bankName && payee.last4 ? `${payee.bankName} •••• ${payee.last4}` : payee.status === "active" ? "Verified destination on file in Passport" : "No verified destination";
   return (
     <>
-      <title>{"Grant detail — phone"}</title>
-      <div
-        className="gms gms-applicant gms-phone"
-        style={
-          {
-            "--tenant": "#1F6F8B",
-            "--on-tenant": "#FFFFFF",
-            minHeight: "100vh",
-            display: "flex",
-            flexDirection: "column",
-            background: "#F7FAFA",
-            position: "relative",
-          } as CSSProperties
-        }
-      >
-        <header className="phone-bar">
-          <button className="iconbtn" aria-label="Menu" style={{ width: "44px", height: "44px" }}>
-            <Menu className="ic ic-md" aria-hidden="true" />
-          </button>
-          <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "24px", height: "24px" }} />
-          <h1 style={{ fontSize: "17px", flex: 1, minWidth: "0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            My grants
-          </h1>
-          <Link to="/notifications" className="iconbtn" aria-label="Notifications, 2 unread" style={{ width: "44px", height: "44px" }}>
-            <Bell className="ic ic-md" aria-hidden="true" />
-            <span className="dot"></span>
-          </Link>
-          <Link
-            to="/account/agents"
-            className="av av-t"
-            aria-label="Account: Maria Santos"
-            style={{ width: "36px", height: "36px", fontSize: "12px" }}
-          >
-            MS
-          </Link>
-        </header>
-        <main className="main" style={{ flex: 1 }}>
-          <div className="card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <span className="chip" style={{ alignSelf: "flex-start" }}>
-              <span className="tdot" aria-hidden="true"></span>Riverbend Community Foundation
+      <div className="card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <FunderChip name={award.funder.name} accent={accentOf(award.funder.brand)} style={{ alignSelf: "flex-start" }} />
+        <h2 style={{ fontSize: "20px", lineHeight: 1.3 }}>{award.title}</h2>
+        <div className="row wrap" style={{ gap: "8px" }}>
+          <StatusBadge kind="award" status={award.status} large />
+          {period && (
+            <span className="small muted">
+              {formatDate(period.start)} – {formatDate(period.end)}
             </span>
-            <h2 style={{ fontSize: "20px", lineHeight: 1.3 }}>Mobile Health Navigation for Rural Families</h2>
-            <div className="row wrap" style={{ gap: "8px" }}>
-              <span className="bdg bdg-ok bdg-lg">
-                <BadgeCheck className="ic" aria-hidden="true" />
-                Active
-              </span>
-              <span className="small muted">Jul 1, 2027 – Jun 30, 2028</span>
-            </div>
-            <span className="mono muted">awd_01J2Q7 · Community Health 2027</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div className="stat" style={{ padding: "14px 16px" }}>
-              <span className="stat-l">Awarded</span>
-              <span className="stat-v" style={{ fontSize: "26px" }}>
-                $150,000
-              </span>
-            </div>
-            <div className="stat" style={{ padding: "14px 16px" }}>
-              <span className="stat-l">Received</span>
-              <span className="stat-v" style={{ fontSize: "26px" }}>
-                $75,000
-              </span>
-              <span className="stat-d">1 of 3 tranches settled</span>
-            </div>
-            <div className="stat" style={{ padding: "14px 16px" }}>
-              <span className="stat-l">Remaining</span>
-              <span className="stat-v" style={{ fontSize: "26px" }}>
-                $75,000
-              </span>
-              <span className="stat-d">Released as reports are accepted</span>
-            </div>
-          </div>
-          <nav className="tabs tabrow" aria-label="Grant sections" style={{ scrollbarWidth: "none", margin: "0 -16px", padding: "0 16px" }}>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Agreement
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab on" aria-current="true" style={{ minHeight: "44px" }}>
-              Payments
-            </Link>
-            <Link to="/w/alder-creek/reports" className="tab" style={{ minHeight: "44px" }}>
-              Reports
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Budget
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Amendments
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Documents
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Messages
-            </Link>
-            <Link to="/w/alder-creek/grants/awd_01J2Q7" className="tab" style={{ minHeight: "44px" }}>
-              Closeout
-            </Link>
-          </nav>
-          <section style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-labelledby="sched-h">
-            <h3 id="sched-h" style={{ fontSize: "16px" }}>
-              Payment schedule
-            </h3>
-            <div className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                <span className="b" style={{ fontSize: "15px" }}>
-                  Tranche 1 of 3
-                </span>
-                <span className="b" style={{ fontSize: "17px", fontVariantNumeric: "tabular-nums" }}>
-                  $75,000
-                </span>
-              </div>
-              <div className="small muted">Condition: agreement executed</div>
-              <div className="row wrap" style={{ gap: "8px" }}>
-                <span className="bdg bdg-ok">
-                  <BadgeCheck className="ic" aria-hidden="true" />
-                  Settled
-                </span>
-                <span className="small muted">May 25, 2027 · ACH · River City Credit Union •••• 4821</span>
-              </div>
-            </div>
-            <div className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                <span className="b" style={{ fontSize: "15px" }}>
-                  Tranche 2 of 3
-                </span>
-                <span className="b" style={{ fontSize: "17px", fontVariantNumeric: "tabular-nums" }}>
-                  $60,000
-                </span>
-              </div>
-              <div className="small muted">Condition: interim report accepted</div>
-              <div className="row wrap" style={{ gap: "8px" }}>
-                <span className="bdg bdg-neutral">
-                  <Calendar className="ic" aria-hidden="true" />
-                  Scheduled
-                </span>
-                <span className="small muted">
-                  Expected Dec 2027 · <Link to="/w/alder-creek/reports">interim report due Dec 15</Link>
-                </span>
-              </div>
-            </div>
-            <div className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                <span className="b" style={{ fontSize: "15px" }}>
-                  Tranche 3 of 3
-                </span>
-                <span className="b" style={{ fontSize: "17px", fontVariantNumeric: "tabular-nums" }}>
-                  $15,000
-                </span>
-              </div>
-              <div className="small muted">Condition: final report accepted</div>
-              <div className="row wrap" style={{ gap: "8px" }}>
-                <span className="bdg bdg-neutral">
-                  <Calendar className="ic" aria-hidden="true" />
-                  Scheduled
-                </span>
-                <span className="small muted">Expected Jul 2028</span>
-              </div>
-            </div>
-          </section>
-          <section className="card" aria-labelledby="dest-h">
-            <div className="card-h" style={{ padding: "14px 16px" }}>
-              <h3 id="dest-h" style={{ fontSize: "16px" }}>
-                Payment destination
-              </h3>
-              <span className="pay pay-active">
-                <Check className="ic" aria-hidden="true" />
-                Active
-              </span>
-            </div>
-            <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div className="row" style={{ gap: "10px" }}>
-                <Landmark className="ic ic-md" aria-hidden="true" style={{ color: "#145450" }} />
-                <div>
-                  <div className="b" style={{ fontSize: "15px" }}>
-                    River City Credit Union •••• 4821
-                  </div>
-                  <div className="small muted">From Passport · verified Feb 3, 2027</div>
-                </div>
-              </div>
-              <div className="bnr bnr-info" style={{ padding: "10px 12px" }}>
-                <Info className="ic" aria-hidden="true" />
-                <div className="d" style={{ fontSize: "13px", margin: "0" }}>
-                  Expecting a payment? Changes to your bank account take 5 business days —
-                  <Link to="/w/alder-creek/organization">manage in Passport</Link>.
-                </div>
-              </div>
-            </div>
-          </section>
-          <section className="card" aria-labelledby="agr-h">
-            <div className="card-h" style={{ padding: "14px 16px" }}>
-              <h3 id="agr-h" style={{ fontSize: "16px" }}>
-                Agreement
-              </h3>
-              <span className="bdg bdg-ok">
-                <ShieldCheck className="ic" aria-hidden="true" />
-                Executed
-              </span>
-            </div>
-            <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div className="small muted">Signed by Maria Santos May 21, 2027 · countersigned by Dana Ortiz May 24, 2027</div>
-              <Link to="/preview/pdf/agreement" className="btn btn-secondary btn-lg btn-block">
-                <Download className="ic" aria-hidden="true" />
-                Download executed PDF
-              </Link>
-            </div>
-          </section>
-          <section style={{ display: "flex", flexDirection: "column", gap: "8px" }} aria-labelledby="off-h">
-            <span className="eyebrow" id="off-h">
-              State · Offered
-            </span>
-            <div
-              className="card"
-              style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", borderColor: "#B9CFF2" }}
-            >
-              <div className="row wrap" style={{ gap: "8px" }}>
-                <span className="bdg bdg-info bdg-lg">
-                  <Mail className="ic" aria-hidden="true" />
-                  Offered
-                </span>
-                <span className="small muted">Letter received May 19, 2027</span>
-              </div>
-              <p style={{ fontSize: "15px" }}>
-                Riverbend Community Foundation has offered <span className="b">$150,000</span> for Mobile Health Navigation for Rural
-                Families. Review the agreement, then accept and sign. Signing requires an authorized signer — agents cannot sign for you.
-              </p>
-              <Link to="/w/alder-creek/grants/awd_01J2Q7/offer" className="btn btn-primary btn-lg btn-block">
-                Accept award
-              </Link>
-              <Link to="/w/alder-creek/grants/awd_01J2Q7/offer" className="btn btn-secondary btn-lg btn-block">
-                <PenLine className="ic" aria-hidden="true" />
-                Review and sign agreement
-              </Link>
-            </div>
-          </section>
-        </main>
-        <nav className="phone-tabs" aria-label="Primary" style={{ position: "sticky", bottom: "0" }}>
-          <Link to="/w/alder-creek">
-            <House className="ic ic-md" aria-hidden="true" />
-            Home
-          </Link>
-          <Link to="/w/alder-creek/applications/app_01HZX4/edit">
-            <FileText className="ic ic-md" aria-hidden="true" />
-            Apply
-          </Link>
-          <Link to="/w/alder-creek/grants/awd_01J2Q7" className="on" aria-current="page">
-            <Award className="ic ic-md" aria-hidden="true" />
-            Grants
-          </Link>
-          <Link to="/w/alder-creek/reports">
-            <ClipboardCheck className="ic ic-md" aria-hidden="true" />
-            Reports
-          </Link>
-          <Link to="/w/alder-creek/organization">
-            <Building className="ic ic-md" aria-hidden="true" />
-            Org
-          </Link>
-        </nav>
+          )}
+        </div>
       </div>
+
+      <HoldBanner data={data} />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div className="stat" style={{ padding: "14px 16px" }}>
+          <span className="stat-l">Awarded</span>
+          <span className="stat-v" style={{ fontSize: "26px" }}>
+            {formatMinor(t.awarded, award.currency)}
+          </span>
+        </div>
+        <div className="stat" style={{ padding: "14px 16px" }}>
+          <span className="stat-l">Received</span>
+          <span className="stat-v" style={{ fontSize: "26px" }}>
+            {formatMinor(t.received, award.currency)}
+          </span>
+          <span className="stat-d">
+            {t.settledCount} of {schedule.length} tranches settled
+          </span>
+        </div>
+        <div className="stat" style={{ padding: "14px 16px" }}>
+          <span className="stat-l">Remaining</span>
+          <span className="stat-v" style={{ fontSize: "26px" }}>
+            {formatMinor(t.remaining, award.currency)}
+          </span>
+          <span className="stat-d">Released as conditions are met</span>
+        </div>
+      </div>
+
+      <nav className="tabs tabrow" aria-label="Grant sections" style={{ scrollbarWidth: "none", margin: "0 -16px", padding: "0 16px" }}>
+        <Link to={`${base}/grants/${award.id}/offer`} className="tab" style={{ minHeight: "44px" }}>
+          Agreement
+        </Link>
+        <a href="#sched-h" className="tab on" aria-current="true" style={{ minHeight: "44px" }}>
+          Payments
+        </a>
+        <Link to={`${base}/reports`} className="tab" style={{ minHeight: "44px" }}>
+          Reports
+        </Link>
+        <a href="#budget-h" className="tab" style={{ minHeight: "44px" }}>
+          Budget
+        </a>
+        <a href="#amendments" className="tab" style={{ minHeight: "44px" }}>
+          Amendments
+        </a>
+      </nav>
+
+      <section style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-labelledby="sched-h">
+        <h3 id="sched-h" style={{ fontSize: "16px" }}>
+          Payment schedule
+        </h3>
+        {schedule.length === 0 && <p className="small muted">{award.funder.name ?? "Your funder"} has not set a payment schedule yet.</p>}
+        {schedule.map((x) => {
+          const req = requirements.find((r) => r.releasesTrancheId === x.id);
+          return (
+            <div key={x.id} className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
+                <span className="b" style={{ fontSize: "15px" }}>
+                  Tranche {x.seq} of {schedule.length}
+                </span>
+                <span className="b" style={{ fontSize: "17px", fontVariantNumeric: "tabular-nums" }}>
+                  {formatMinor(x.amountMinor, x.currency)}
+                </span>
+              </div>
+              <div className="small muted">Condition: {conditionText(x, requirements).replace(/^(On|When) /, (m) => m.toLowerCase())}</div>
+              <div className="row wrap" style={{ gap: "8px" }}>
+                <StatusBadge kind="tranche" status={x.status} {...(x.status === "held" ? { label: "Paused" } : {})} />
+                <span className="small muted">
+                  {expectedText(x, requirements)}
+                  {x.bankName && x.last4 ? ` · ${x.bankName} •••• ${x.last4}` : ""}
+                  {req && x.status === "scheduled" ? (
+                    <>
+                      {" · "}
+                      <Link to={`${base}/reports`}>{req.title.toLowerCase()}</Link>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="card" aria-labelledby="dest-h">
+        <div className="card-h" style={{ padding: "14px 16px" }}>
+          <h3 id="dest-h" style={{ fontSize: "16px" }}>
+            Payment destination
+          </h3>
+          <PayeeChip payee={payee} />
+        </div>
+        <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div className="row" style={{ gap: "10px" }}>
+            <Landmark className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />
+            <div>
+              <div className="b" style={{ fontSize: "15px" }}>
+                {destination}
+              </div>
+              <div className="small muted">From Passport</div>
+            </div>
+          </div>
+          <div className="bnr bnr-info" style={{ padding: "10px 12px" }}>
+            <Info className="ic" aria-hidden="true" />
+            <div className="d" style={{ fontSize: "13px", margin: "0" }}>
+              Expecting a payment? Changes to your bank account take 5 business days. <Link to={`${base}/organization`}>Manage in Passport</Link>.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {award.agreement && (
+        <section className="card" aria-labelledby="agr-h">
+          <div className="card-h" style={{ padding: "14px 16px" }}>
+            <h3 id="agr-h" style={{ fontSize: "16px" }}>
+              Agreement
+            </h3>
+            <StatusBadge kind="agreement" status={award.agreement.status} />
+          </div>
+          <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div className="small muted">
+              {award.agreement.granteeSignedAt ? `Signed ${formatDate(award.agreement.granteeSignedAt)}` : "Not signed yet"}
+              {award.agreement.funderSignedAt ? ` · countersigned ${formatDate(award.agreement.funderSignedAt)}` : ""}
+            </div>
+            <Link to={`${base}/grants/${award.id}/offer`} className="btn btn-secondary btn-lg btn-block">
+              <Download className="ic" aria-hidden="true" />
+              {award.agreement.status === "executed" ? "Open the executed agreement" : "Review the agreement"}
+            </Link>
+          </div>
+        </section>
+      )}
+
+      <section className="card" aria-labelledby="budget-h">
+        <div className="card-h" style={{ padding: "14px 16px" }}>
+          <h3 id="budget-h" style={{ fontSize: "16px" }}>
+            Budget
+          </h3>
+        </div>
+        <BudgetTable book={data.budget} compact />
+      </section>
+
+      <AmendmentsCard data={data} onSaved={reload} />
+    </>
+  );
+}
+
+export default function GrantPhone() {
+  const ws = useWorkspace("applicant");
+  const base = `/w/${ws.handle}`;
+  const { awardId } = useParams();
+  const query = useGrant(awardId, ws.id);
+  if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
+  return (
+    <>
+      <title>{`My grants — ${ws.name}`}</title>
+      <PhoneShell title="My grants" active="My grants">
+        <main className="main" style={{ flex: 1 }}>
+          {query.status === "loading" && <Loading label="Loading the grant" />}
+          {query.status === "error" && <ErrorBanner error={query.error} onRetry={query.reload} />}
+          {query.status === "ready" &&
+            (query.data ? (
+              <Grant data={query.data} base={base} reload={query.reload} />
+            ) : (
+              <EmptyState icon={AwardIcon} title="No grants yet" actions={<Link to={`${base}/find`} className="btn btn-primary">Find funding</Link>}>
+                When a funder makes an award, the offer and the payment schedule appear here.
+              </EmptyState>
+            ))}
+        </main>
+      </PhoneShell>
     </>
   );
 }

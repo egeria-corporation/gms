@@ -9,6 +9,7 @@ import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } fr
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
+import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
@@ -65,6 +66,7 @@ gms.route("/", approvalRoutes);
 gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", adminRoutes);
+gms.route("/", assistRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

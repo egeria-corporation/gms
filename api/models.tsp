@@ -2079,14 +2079,38 @@ model SectionAssignment {
 }
 
 /** Either the file itself (up to 25 MB, base64) or a reference into the Passport locker, which is never copied. */
+/** A reference to a document in the organization's Passport locker. The GMS holds no copy. */
+model LockerDocumentRef {
+  /** Passport's document id; pass it as `passportDocumentId` to attach the document. */
+  id: string;
+
+  /** Passport's document kind, e.g. `determination_letter`, `audit`, `form_990`. */
+  kind: string;
+
+  name: string | null;
+  mimeType: string | null;
+  sha256: Sha256 | null;
+
+  /** `upload`, `google_drive` or `import`. */
+  source: string;
+
+  uploadedAt: utcDateTime;
+  expiresAt: utcDateTime | null;
+
+  /** False when Passport holds no hash for the file (a Drive reference), so it cannot be pinned to an application. */
+  attachable: boolean;
+}
+
 model AttachmentInput {
-  name: string;
-  mime: string;
+  /** Required for an upload; for a Passport locker reference by id alone the name comes from Passport. */
+  name?: string;
+
+  mime?: string;
 
   /** The file bytes, base64. The server computes the size and SHA-256. */
   contentBase64?: string;
 
-  /** A reference into the Passport document locker instead of an upload; `size` and `sha256` are then required. */
+  /** A reference into the Passport document locker instead of an upload. Sent alone, the server reads the name, type and hash from Passport. */
   passportDocumentId?: string;
 
   size?: int64;
@@ -2176,23 +2200,144 @@ model OpenGrantsResults {
   cached: boolean;
 }
 
-model AssistRequest {
-  /** The application, template, answer or rubric the call works on */
-  subjectId: string;
-
-  rubricId?: string;
-  templateId?: string;
-  question?: string;
-  limits?: Record<unknown>;
+/** Whether the assistant is on for this server and how much of the month is left. */
+model AssistQuota {
+  used: int32;
+  limit: int32;
+  remaining: int32;
+  resetsAt: utcDateTime;
 }
 
-/** A draft produced by the assistant. Never saved as final; the UI labels it. */
-model AssistDraft {
-  draft: string;
-  structured?: Record<unknown>;
+model AssistStatus {
+  /** False when ASSISTANT_ENABLED is off or no model is configured; the web app then hides its panels. */
+  enabled: boolean;
 
-  /** Custom MCP servers whose results informed the draft */
-  provenance?: string[];
+  quota: AssistQuota | null;
+}
+
+/** Fields every assistant answer carries. A draft is never saved, submitted or sent by the call. */
+model AssistDraftBase {
+  draft: true;
+
+  /** `summarize`, `compare_rubric`, `draft_letter` or `adapt_answer` */
+  tool: string;
+
+  /** The model that produced the draft */
+  `model`: string;
+
+  quota: AssistQuota;
+
+  /** Notes from the model, e.g. that the material contained instruction-like text */
+  cautions: string[];
+}
+
+model AssistQuote {
+  field: string;
+
+  /** Verbatim applicant-supplied text */
+  text: string;
+}
+
+model SummarizeRequest {
+  applicationId: GmsId;
+}
+
+model ApplicationSummaryDraft {
+  ...AssistDraftBase;
+  applicationId: GmsId;
+  summary: string;
+  strengths: string[];
+  openQuestions: string[];
+  quotes: AssistQuote[];
+
+  /** What the funder's allow-listed MCP servers said, each with the server it came from */
+  fromExternalSystems: {
+    server: string;
+    note: string;
+  }[];
+
+  /** Names of the custom MCP servers that were consulted */
+  externalServers: string[];
+}
+
+model CompareRubricRequest {
+  applicationId: GmsId;
+  rubricId: CommonGrants.Types.uuid;
+}
+
+model RubricComparisonDraft {
+  ...AssistDraftBase;
+  applicationId: GmsId;
+  rubricId: CommonGrants.Types.uuid;
+
+  /** One entry per rubric criterion. Evidence and gaps only: never a score. */
+  criteria: {
+    key: string;
+    evidence: AssistQuote[];
+    observations: string;
+    gaps: string[];
+  }[];
+}
+
+model DraftLetterRequest {
+  /** A template id, or a built-in such as `builtin:decline` */
+  templateId: string;
+
+  /** What the letter is for, e.g. `decline`, `award`; defaults to `decision` */
+  purpose?: string;
+
+  applicationId?: GmsId;
+
+  /** Funder-supplied facts the letter may use */
+  context?: Record<unknown>;
+
+  tone?: string;
+}
+
+model LetterDraft {
+  ...AssistDraftBase;
+  templateId: string;
+  subject: string;
+
+  /** Markdown. Merge fields from the template stay as written, in double braces. */
+  body: string;
+
+  mergeFieldsUsed: string[];
+}
+
+model AdaptAnswerLimits {
+  maxWords?: int32;
+  maxCharacters?: int32;
+}
+
+model AdaptAnswerBody {
+  question: string;
+
+  /** Help text the funder attached to the question */
+  guidance?: string;
+
+  limits?: AdaptAnswerLimits;
+}
+
+model AdaptAnswerRequest {
+  ...AdaptAnswerBody;
+  answerId: CommonGrants.Types.uuid;
+}
+
+model AdaptedAnswerDraft {
+  ...AssistDraftBase;
+  answerId: CommonGrants.Types.uuid;
+  answerVersion: int32;
+  text: string;
+
+  /** Counted by the server, not the model */
+  wordCount: int32;
+
+  overLimit: boolean;
+  changes: string[];
+
+  /** What the question asks for that the library answer does not contain */
+  missing: string[];
 }
 
 // #########################################################

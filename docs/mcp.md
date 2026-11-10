@@ -210,3 +210,12 @@ Errors use one shape: `{ code, message, issues? }` with `code` one of `unknown_t
   for tests.
 - `protectedResourceMetadata()` and `llmsToolSections()` build the discovery documents from the
   registry, so `/llms.txt` cannot drift from the tools.
+
+## Assistant tools
+
+`draft_letter`, `summarize_application`, `compare_to_rubric` (funder) and `adapt_answer` (applicant)
+call the same service as `/gms/assist/*`. They return drafts and save nothing. With the assistant
+off (`ASSISTANT_ENABLED` not `true`, or no model key) `summarize_application`, `compare_to_rubric`
+and `adapt_answer` answer `not_found`, and `draft_letter` returns the template rendered as is.
+`compare_to_rubric` without a `rubricId` uses the rubric of the stage the application is in. Calls
+count against the workspace's monthly quota like calls from the web app.

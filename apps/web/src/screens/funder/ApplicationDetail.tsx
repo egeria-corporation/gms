@@ -11,12 +11,40 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { InboxApplication, InboxFormResponse, Thread } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
+import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
+
+/** Who on the applicant's team holds each section. Hidden when nothing is assigned or the caller may not see it. */
+function SectionAssignments({ applicationId }: { applicationId: string }) {
+  const sections = useApiQuery((api) => api.applicationSections(applicationId), [applicationId]);
+  const rows = (sections.data ?? []).flatMap((f) => Object.entries(f.sections).map(([section, userId]) => ({ key: `${f.formId}-${section}`, stage: f.stage, section, userId })));
+  if (!rows.length) return null;
+  return (
+    <div className="card">
+      <div className="card-h">
+        <h3>Section assignments</h3>
+        <span className="small muted">Set by the applicant’s team</span>
+      </div>
+      <div className="card-b">
+        <dl className="kv">
+          {rows.map((r) => (
+            <div key={r.key} style={{ display: "contents" }}>
+              <dt>
+                {r.section.replace(/[-_]/g, " ")} <span className="xs muted">· {r.stage}</span>
+              </dt>
+              <dd>Assigned to a team member</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
 
 type RailTab = "applicant" | "eligibility" | "reviews" | "messages" | "activity";
 
@@ -521,7 +549,8 @@ export default function ApplicationDetail() {
                 <Messages applicationId={a.id} />
               </TabPanel>
               <TabPanel idPrefix="rail" tab="activity" active={tab}>
-                <div className="card">
+                <SectionAssignments applicationId={a.id} />
+                <div className="card" style={{ marginTop: "12px" }}>
                   <div className="card-h">
                     <h3>Activity</h3>
                   </div>
@@ -538,6 +567,11 @@ export default function ApplicationDetail() {
                                 {who.name} · {dateTime(e.at)}
                                 {e.toStage ? ` · to ${e.toStage}` : ""}
                               </div>
+                              {e.revision && e.revision.changes.length > 0 && (
+                                <div style={{ marginTop: "8px" }}>
+                                  <RevisionDiff revision={e.revision} />
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

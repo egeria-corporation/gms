@@ -1,3 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Anthropic API wrapper: summarize, compare-to-rubric, draft-letter, adapt-answer
-export {};
+// Drafting assistant: summarize, compare-to-rubric, draft-letter, adapt-answer. Drafts only.
+export * from "./llm.ts";
+export * from "./anthropic.ts";
+export * from "./assist.ts";
+export * from "./quota.ts";

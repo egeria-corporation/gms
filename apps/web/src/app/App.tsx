@@ -10,6 +10,7 @@ import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./wo
 import { NotFound } from "../components/NotFound.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
+const Agents = lazy(() => import("../screens/public/Agents.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
@@ -149,6 +150,7 @@ function AppRoutes() {
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
         <Route path="/signin" element={<SignIn />} />
+        <Route path="/agents" element={<Agents />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         <Route path="/oauth/consent" element={<OAuthConsent />} />
 

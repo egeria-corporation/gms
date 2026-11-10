@@ -42,7 +42,7 @@ describe("dashboard", () => {
     await waitFor(() => expect(within(stat).getByText("6")).toBeInTheDocument());
     expect(screen.getByRole("group", { name: "Community Health Grants 2027 pipeline by stage" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Approval request: Decline 2 applications/ })).toBeInTheDocument();
-    expect(screen.getByText("Payee alerts arrive with payments")).toBeInTheDocument();
+    expect(await screen.findByText("Harbor Light Shelter · destination change pending")).toBeInTheDocument();
     expect(await screen.findByRole("checkbox", { name: /Done: Countersign the Alder Creek agreement/ })).toBeInTheDocument();
   });
 });

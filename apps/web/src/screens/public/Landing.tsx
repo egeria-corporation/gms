@@ -242,7 +242,7 @@ export default function Landing() {
                   Self-host
                 </a>
                 <Link
-                  to="/w/riverbend/settings/mcp"
+                  to="/agents"
                   id="agents"
                   style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
                 >

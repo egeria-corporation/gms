@@ -1,682 +1,403 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import {
-  Calendar,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  CircleCheck,
-  Clock,
-  Database,
-  Eye,
-  FileText,
-  Info,
-  Mail,
-  Plus,
-  RotateCcw,
-  Send,
-  Shield,
-  TriangleExclamationPoint,
-} from "lucide-react";
+// Reporting & compliance: what grantees owe and when, the queue of reports received (including
+// ones a grantee chose to share from another funder), and the review of one report. Accepting a
+// report can make a tranche due, and the screen says so before and after.
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { Bell, CircleCheck, ClipboardCheck, RotateCcw, Share2 } from "lucide-react";
+import type { JsonObject } from "@gms/forms";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { Requirement, Submission } from "../../api/funderMoney.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
+import { ReasonDialog } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { StatusBadge } from "../../components/status.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabPanel } from "../../components/ui.tsx";
+import { FormView } from "../../forms/FormView.tsx";
+import { daysUntil, formatDate } from "../../lib/format.ts";
+import { dateTime } from "./shared.tsx";
 
-export default function Reporting() {
+type Tab = "due" | "received";
+const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : "Grantee");
+const planOf = (r: Requirement): number[] => (Array.isArray(r.reminderPlan) ? (r.reminderPlan as unknown[]).filter((n): n is number => typeof n === "number") : []);
+const planText = (plan: number[]) => plan.map((n) => (n === 0 ? "on the due date" : n < 0 ? `${-n} days before` : `${n} days after`)).join(", ");
+
+function dueText(r: Requirement, now: Date): string {
+  const days = daysUntil(r.dueAt, now);
+  if (days === null) return "No due date";
+  if (days < 0) return `${-days} ${days === -1 ? "day" : "days"} late`;
+  if (days === 0) return "Due today";
+  return `In ${days} ${days === 1 ? "day" : "days"}`;
+}
+
+function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Requirement; onClose: () => void; onSaved: () => void }) {
+  const [text, setText] = useState(planOf(requirement).join(", "));
+  const parsed = text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number);
+  const valid = parsed.length > 0 && parsed.every((n) => Number.isInteger(n) && n >= -365 && n <= 365);
+  const save = useApiMutation((api) => api.updateRequirement(requirement.id, { reminderPlan: parsed }));
   return (
-    <>
-      <title>{"Reporting & compliance — Riverbend funder workspace"}</title>
-      <FunderShell active="Reporting">
-        <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <span>Reporting & compliance</span>
+    <Dialog open onClose={onClose} labelledBy="plan-title">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (await save.run()) onSaved();
+        }}
+      >
+        <div className="hd">
+          <div>
+            <h2 id="plan-title">Reminder plan</h2>
+            <p className="small muted">
+              {requirement.title} · {nameOf(requirement)}
+            </p>
           </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Reporting & compliance</h1>
-              </div>
-              <div className="meta">
-                <span>7 requirements across 5 awards</span>
-                <span>·</span>
-                <span>2 received</span>
-                <span>·</span>
-                <span style={{ color: "#9B1C1C", fontWeight: 700 }}>1 overdue</span>
-              </div>
-            </div>
-            <div className="actions">
-              <div className="seg" role="group" aria-label="View">
-                <Link to="/w/riverbend/reporting" className="on">
-                  Month
-                </Link>
-                <Link to="/w/riverbend/reporting">List</Link>
-              </div>
-              <Link to="/w/riverbend/forms" className="btn btn-secondary">
-                <FileText className="ic" aria-hidden="true" />
-                Report forms
-              </Link>
-              <button className="btn btn-primary">
-                <Plus className="ic" aria-hidden="true" />
-                Add requirement
-              </button>
-            </div>
+        </div>
+        <div className="bd">
+          {save.error !== null && <ErrorBanner error={save.error} />}
+          <Field id="plan-days" label="Days relative to the due date" required help="Comma-separated. Negative numbers are before the due date, 0 is the day itself, positive numbers are after.">
+            <input className="inp" id="plan-days" value={text} onChange={(e) => setText(e.target.value)} />
+          </Field>
+          <p className={valid ? "help" : "err-msg"} role="status">
+            {valid ? `Reminders go out ${planText(parsed)}.` : "Enter whole numbers between -365 and 365."}
+          </p>
+        </div>
+        <div className="ft">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!valid || save.state === "saving"}>
+            Save plan
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function ReportBody({ submission }: { submission: Submission }) {
+  const first = submission.formResponses[0];
+  const form = useApiQuery(async (api) => (first ? api.getForm(first.formId, first.formVersion) : null), [first?.formId, first?.formVersion]);
+  if (!first) return <p className="muted">This report has no form responses.</p>;
+  if (form.status === "loading") return <Loading label="Loading the report" />;
+  if (form.status === "error" || !form.data)
+    return (
+      <dl className="kv">
+        {Object.entries(first.response).map(([k, v]) => (
+          <div key={k} style={{ display: "contents" }}>
+            <dt>{k}</dt>
+            <dd>{typeof v === "string" ? v : JSON.stringify(v)}</dd>
           </div>
-          <div className="tabs" role="tablist" aria-label="Requirement views">
-            <Link to="/w/riverbend/reporting" className="tab on" role="tab" aria-selected="true">
-              All<span className="n">7</span>
-            </Link>
-            <a href="#received" className="tab" role="tab">
-              Received
-              <span className="n" style={{ background: "#E3EDFB", color: "#1E4F8F" }}>
-                2
-              </span>
-            </a>
-            <a href="#overdue" className="tab" role="tab">
-              Overdue
-              <span className="n" style={{ background: "#FBE3E3", color: "#9B1C1C" }}>
-                1
-              </span>
-            </a>
-            <Link to="/w/riverbend/reporting" className="tab" role="tab">
-              Waived
-            </Link>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "400px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="card">
-              <div className="card-h">
-                <div className="row" style={{ gap: "8px" }}>
-                  <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Previous month">
-                    <ChevronLeft className="ic" aria-hidden="true" />
-                  </button>
-                  <h3>May 2027</h3>
-                  <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Next month">
-                    <ChevronRight className="ic" aria-hidden="true" />
-                  </button>
-                </div>
-                <span className="small muted">Today · May 25</span>
-              </div>
-              <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div className="cal" role="grid" aria-label="May 2027 due dates">
-                  <div className="wd">Sun</div>
-                  <div className="wd">Mon</div>
-                  <div className="wd">Tue</div>
-                  <div className="wd">Wed</div>
-                  <div className="wd">Thu</div>
-                  <div className="wd">Fri</div>
-                  <div className="wd">Sat</div>
-                  <div className="d dim">25</div>
-                  <div className="d dim">26</div>
-                  <div className="d dim">27</div>
-                  <div className="d dim">28</div>
-                  <div className="d dim">29</div>
-                  <div className="d dim" style={{ opacity: 1, borderColor: "#F1B4B4" }} title="Apr 30 · Lakeside final report overdue">
-                    30
-                    <div className="dots">
-                      <i style={{ background: "#9B1C1C" }}></i>
-                    </div>
-                  </div>
-                  <div className="d">1</div>
-                  <div className="d">2</div>
-                  <div className="d">3</div>
-                  <div className="d">4</div>
-                  <div className="d">5</div>
-                  <div className="d">6</div>
-                  <div className="d">7</div>
-                  <div className="d">8</div>
-                  <div className="d">9</div>
-                  <div className="d">10</div>
-                  <div className="d">11</div>
-                  <div className="d">12</div>
-                  <div className="d">13</div>
-                  <div className="d">14</div>
-                  <div className="d" title="May 15 · Cedar Hollow progress report accepted">
-                    15
-                    <div className="dots">
-                      <i style={{ background: "#29A79F" }}></i>
-                    </div>
-                  </div>
-                  <div className="d">16</div>
-                  <div className="d">17</div>
-                  <div className="d">18</div>
-                  <div className="d">19</div>
-                  <div className="d" title="May 20 · Northgate progress report">
-                    20
-                    <div className="dots">
-                      <i style={{ background: "#29A79F" }}></i>
-                    </div>
-                  </div>
-                  <div className="d">21</div>
-                  <div className="d">22</div>
-                  <div className="d">23</div>
-                  <div className="d">24</div>
-                  <div className="d today" aria-current="date">
-                    25
-                  </div>
-                  <div className="d">26</div>
-                  <div className="d">27</div>
-                  <div className="d">28</div>
-                  <div className="d">29</div>
-                  <div className="d">30</div>
-                  <div className="d" title="May 31 · Harbor Light quarterly financial due">
-                    31
-                    <div className="dots">
-                      <i style={{ background: "#7A4A00" }}></i>
-                    </div>
-                  </div>
-                  <div className="d dim">1</div>
-                  <div className="d dim">2</div>
-                  <div className="d dim">3</div>
-                  <div className="d dim">4</div>
-                  <div className="d dim">5</div>
-                </div>
-                <div className="row small muted" style={{ gap: "14px", flexWrap: "wrap" }}>
-                  <span className="row" style={{ gap: "5px" }}>
-                    <i style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#7A4A00", display: "inline-block" }}></i>Due
-                  </span>
-                  <span className="row" style={{ gap: "5px" }}>
-                    <i style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#9B1C1C", display: "inline-block" }}></i>
-                    Overdue
-                  </span>
-                  <span className="row" style={{ gap: "5px" }}>
-                    <i style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#29A79F", display: "inline-block" }}></i>
-                    Received / accepted
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="tbl-wrap">
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>Award</th>
-                    <th>Grantee</th>
-                    <th>Requirement</th>
-                    <th>Due</th>
-                    <th>Status</th>
-                    <th>Reminders</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/payments" className="mono">
-                        awd_01J2Q7
-                      </Link>
-                    </td>
-                    <td className="b">Alder Creek Family Services</td>
-                    <td>Interim report · releases tranche 2</td>
-                    <td>Dec 15, 2027</td>
-                    <td>
-                      <span className="bdg bdg-neutral">
-                        <Calendar className="ic" aria-hidden="true" />
-                        Scheduled
-                      </span>
-                    </td>
-                    <td className="small muted">Planned −30 · −7 · −1</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Open</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/payments" className="mono">
-                        awd_01HQ22
-                      </Link>
-                    </td>
-                    <td className="b">Harbor Light Shelter</td>
-                    <td>Interim report (2026)</td>
-                    <td>Jan 15, 2027</td>
-                    <td>
-                      <span className="bdg bdg-ok">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        Accepted
-                      </span>
-                    </td>
-                    <td className="small muted">Jan 20 · Dana Ortiz</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Open</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/payments" className="mono">
-                        awd_01HQ22
-                      </Link>
-                    </td>
-                    <td className="b">Harbor Light Shelter</td>
-                    <td>Quarterly financial</td>
-                    <td>May 31, 2027</td>
-                    <td>
-                      <span className="bdg bdg-warn">
-                        <Clock className="ic" aria-hidden="true" />
-                        Due
-                      </span>
-                    </td>
-                    <td className="small muted">−7 sent May 24 · −1 scheduled</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Open</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/payments" className="mono">
-                        awd_01HQ22
-                      </Link>
-                    </td>
-                    <td className="b">Harbor Light Shelter</td>
-                    <td>Final report · releases tranche 3</td>
-                    <td>Jul 15, 2027</td>
-                    <td>
-                      <span className="bdg bdg-neutral">
-                        <Calendar className="ic" aria-hidden="true" />
-                        Scheduled
-                      </span>
-                    </td>
-                    <td className="small muted">−30 scheduled Jun 15</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Open</button>
-                    </td>
-                  </tr>
-                  <tr style={{ background: "#FFF8F8" }}>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/agreement" className="mono">
-                        awd_01HQ31
-                      </Link>
-                    </td>
-                    <td className="b">
-                      Lakeside Senior Center <span className="xs muted">(2026)</span>
-                    </td>
-                    <td>Final report · releases tranche 2</td>
-                    <td>Apr 30, 2027</td>
-                    <td>
-                      <span className="bdg bdg-dng">
-                        <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                        Overdue · 25 days
-                      </span>
-                    </td>
-                    <td className="small muted">−14 · −7 · −1 sent · overdue +7 sent May 7</td>
-                    <td>
-                      <a href="#overdue" className="btn btn-sm btn-secondary">
-                        <Mail className="ic ic-sm" aria-hidden="true" />
-                        Send reminder
-                      </a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/agreement" className="mono">
-                        awd_01HQ27
-                      </Link>
-                    </td>
-                    <td className="b">
-                      Northgate Housing Trust <span className="xs muted">(2026)</span>
-                    </td>
-                    <td>Progress report · releases tranche 2</td>
-                    <td>May 20, 2027</td>
-                    <td>
-                      <span className="bdg bdg-info">
-                        <Send className="ic" aria-hidden="true" />
-                        Submitted · May 22
-                      </span>
-                    </td>
-                    <td className="small muted">—</td>
-                    <td>
-                      <a href="#received" className="btn btn-sm btn-primary">
-                        Review
-                      </a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <Link to="/w/riverbend/awards/awd_01J2Q7/agreement" className="mono">
-                        awd_01HQ29
-                      </Link>
-                    </td>
-                    <td className="b">
-                      Cedar Hollow Food Bank <span className="xs muted">(2026)</span>
-                    </td>
-                    <td>Progress report</td>
-                    <td>May 15, 2027</td>
-                    <td>
-                      <span className="bdg bdg-ok">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        Accepted
-                      </span>
-                    </td>
-                    <td className="small muted">May 17 · Dana Ortiz</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Open</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="card" id="received">
-              <div className="card-h">
-                <div>
-                  <h3>Received queue</h3>
-                  <p className="small muted">
-                    Submissions waiting for a program officer. Accepting a report that gates a tranche moves that tranche to Due.
-                  </p>
-                </div>
-                <span className="bdg bdg-info">
-                  <Send className="ic" aria-hidden="true" />2 submitted
-                </span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <div
-                  style={{
-                    padding: "14px 20px",
-                    borderBottom: "1px solid #D6DEDE",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                    background: "#F7FAFA",
-                  }}
-                >
-                  <div className="row" style={{ justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-                    <div>
-                      <div className="row" style={{ gap: "8px" }}>
-                        <span className="b" style={{ color: "#0D2A43" }}>
-                          Northgate Housing Trust
-                        </span>
-                        <span className="lvl lvl-3">
-                          <Shield className="ic" aria-hidden="true" />
-                          L3
-                        </span>
-                      </div>
-                      <div className="small muted">
-                        Progress report · awd_01HQ27 · submitted May 22 by Theo Banks · form “Progress report v2”
-                      </div>
-                    </div>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review · you
-                    </span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" }}>
-                    <div className="card" style={{ padding: "12px 14px" }}>
-                      <div className="stat-l">Households served</div>
-                      <div className="stat-v" style={{ fontSize: "22px" }}>
-                        412
-                      </div>
-                      <div className="stat-d">
-                        target 350 ·<span style={{ color: "#0B5E47" }}>+18%</span>
-                      </div>
-                    </div>
-                    <div className="card" style={{ padding: "12px 14px" }}>
-                      <div className="stat-l">Spent to date</div>
-                      <div className="stat-v" style={{ fontSize: "22px" }}>
-                        $48,200
-                      </div>
-                      <div className="stat-d">
-                        of $50,000 tranche 1 ·
-                        <span className="prov prov-qb">
-                          <Database className="ic" aria-hidden="true" />
-                          From QuickBooks
-                        </span>
-                      </div>
-                    </div>
-                    <div className="card" style={{ padding: "12px 14px" }}>
-                      <div className="stat-l">Attachments</div>
-                      <div className="stat-v" style={{ fontSize: "22px" }}>
-                        2
-                      </div>
-                      <div className="stat-d">Budget actuals.xlsx · Photos.pdf</div>
-                    </div>
-                  </div>
-                  <p
-                    className="small"
-                    style={{
-                      borderLeft: "0",
-                      padding: "10px 12px",
-                      background: "#FFFFFF",
-                      border: "1px solid #D6DEDE",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    “Navigators placed 61 households into stable housing this period, ahead of plan. Health screenings were added at intake
-                    in March after the partnership with Copper Valley Clinic began…” <a href="#received">Read full report</a>
-                  </p>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="ret-note">
-                      Return with comment
-                      <span className="muted" style={{ fontWeight: 400 }}>
-                        (only if returning)
-                      </span>
-                    </label>
-                    <textarea
-                      className="ta"
-                      id="ret-note"
-                      style={{ minHeight: "60px" }}
-                      placeholder="What needs to change before this report can be accepted?"
-                    />
-                  </div>
-                  <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-                    <Link to="/w/riverbend/payments/due" className="btn btn-primary">
-                      <Check className="ic" aria-hidden="true" />
-                      Accept report
-                    </Link>
-                    <button className="btn btn-secondary">
-                      <RotateCcw className="ic" aria-hidden="true" />
-                      Return
-                    </button>
-                    <span className="notice">
-                      <Info className="ic" aria-hidden="true" style={{ color: "#1E4F8F" }} />
-                      Accepting releases tranche 2 ($50,000) to<b>Due</b>in the Payments center.
-                    </span>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    padding: "14px 20px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <span className="b" style={{ color: "#0D2A43" }}>
-                        Alder Creek Family Services
-                      </span>
-                      <span className="lvl lvl-3">
-                        <Shield className="ic" aria-hidden="true" />
-                        L3
-                      </span>
-                      <span className="tag">Flow 5 · later in the grant</span>
-                    </div>
-                    <div className="small muted">
-                      Interim report · awd_01J2Q7 · submitted by Jamal Reed · prefilled “From prior report” and “From QuickBooks”
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "8px" }}>
-                    <span className="bdg bdg-info">
-                      <Send className="ic" aria-hidden="true" />
-                      Submitted
-                    </span>
-                    <Link to="/w/riverbend/payments/due" className="btn btn-sm btn-primary">
-                      Accept
-                    </Link>
-                    <button className="btn btn-sm btn-secondary">Review</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="card" id="overdue" style={{ borderColor: "#F1B4B4" }}>
-                <div className="card-h">
-                  <h3>Overdue</h3>
-                  <span className="bdg bdg-dng">
-                    <TriangleExclamationPoint className="ic" aria-hidden="true" />1
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
-                  <div className="row" style={{ justifyContent: "space-between", gap: "10px" }}>
-                    <div>
-                      <div className="b">Lakeside Senior Center · Final report</div>
-                      <div className="small muted">Due Apr 30 · 25 days late · tranche 2 ($15,000) stays Held</div>
-                    </div>
-                    <span className="ck on" role="checkbox" aria-checked="true" aria-label="Select Lakeside Senior Center"></span>
-                  </div>
-                  <div className="row small muted" style={{ gap: "6px" }}>
-                    <Mail className="ic ic-sm" aria-hidden="true" />4 reminders sent · last May 7 · opened, no reply
-                  </div>
-                  <div className="row" style={{ gap: "8px" }}>
-                    <Link to="/preview/email/report-reminder" className="btn btn-primary btn-sm">
-                      <Mail className="ic ic-sm" aria-hidden="true" />
-                      Send reminder to 1
-                    </Link>
-                    <button className="btn btn-ghost btn-sm">Grant extension</button>
-                    <button className="btn btn-ghost btn-sm">Waive</button>
-                  </div>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Report forms</h3>
-                  <Link to="/w/riverbend/forms" className="small b">
-                    Open form builder →
-                  </Link>
-                </div>
-                <ul style={{ display: "flex", flexDirection: "column" }}>
-                  <li
-                    style={{
-                      padding: "10px 20px",
-                      borderBottom: "1px solid #EEF3F3",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <div>
-                      <div className="b">Interim report form v2</div>
-                      <div className="small muted">Reuses the form builder · prefill chips: prior report, QuickBooks</div>
-                    </div>
-                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
-                      Edit
-                    </Link>
-                  </li>
-                  <li
-                    style={{
-                      padding: "10px 20px",
-                      borderBottom: "1px solid #EEF3F3",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <div>
-                      <div className="b">Final report form v3</div>
-                      <div className="small muted">Adds outcomes table and closeout attestation</div>
-                    </div>
-                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
-                      Edit
-                    </Link>
-                  </li>
-                  <li style={{ padding: "10px 20px", display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "13px" }}>
-                    <div>
-                      <div className="b">Quarterly financial v1</div>
-                      <div className="small muted">Budget table only · actuals from QuickBooks</div>
-                    </div>
-                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
-                      Edit
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-              gap: "20px",
-              marginTop: "8px",
-              alignItems: "start",
+        ))}
+      </dl>
+    );
+  const f = form.data;
+  return <FormView form={{ id: f.id, version: f.version, title: f.title, jsonSchema: f.jsonSchema, uiSchema: f.uiSchema, mappingFromCommonGrants: f.mappingFromCommonGrants, mappingToCommonGrants: f.mappingToCommonGrants, fieldMeta: f.fieldMeta }} response={first.response as JsonObject} provenance={first.provenance as Record<string, string>} mode="funder" />;
+}
+
+function Review({ id, releases, onChanged }: { id: string; releases: boolean; onChanged: (note: string) => void }) {
+  const sub = useApiQuery((api) => api.getSubmission(id), [id]);
+  const accept = useApiMutation((api) => api.acceptSubmission(id));
+  const send = useApiMutation((api, note: string) => api.returnSubmission(id, note));
+  const [returning, setReturning] = useState(false);
+  if (sub.status === "loading") return <Loading label="Loading the report" />;
+  if (sub.status === "error") return <ErrorBanner error={sub.error} onRetry={sub.reload} />;
+  const s = sub.data;
+  const open = ["submitted", "under_review"].includes(s.status) && !s.shared;
+  return (
+    <section className="card" aria-labelledby="review-h">
+      <div className="card-h">
+        <div>
+          <h2 id="review-h" style={{ fontSize: "18px" }}>
+            {s.requirement?.title ?? "Report"}
+          </h2>
+          <p className="small muted">
+            {s.submittedAt ? `Submitted ${dateTime(s.submittedAt)}` : "Not submitted"}
+            {s.requirement?.dueAt ? ` · due ${formatDate(s.requirement.dueAt)}` : ""}
+          </p>
+        </div>
+        <div className="row">
+          {s.shared && (
+            <span className="shared-mark">
+              <Share2 className="ic" aria-hidden="true" />
+              Shared by grantee
+            </span>
+          )}
+          <StatusBadge kind="submission" status={s.status} />
+        </div>
+      </div>
+      <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {(accept.error !== null || send.error !== null) && <ErrorBanner error={accept.error ?? send.error} />}
+        {s.shared && <Notice title="Shared for reference">The grantee chose to share this report, written for another funder. There is nothing to accept or return.</Notice>}
+        {s.reviewNote && <Notice tone="neu" title="Review note">{s.reviewNote}</Notice>}
+        <ReportBody submission={s} />
+      </div>
+      {open && (
+        <div className="card-f" style={{ flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={accept.state === "saving"}
+            onClick={async () => {
+              const out = await accept.run();
+              if (out) onChanged(out.trancheDue ? "Report accepted. The tranche it releases is now due in Payments." : "Report accepted.");
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · overdue bulk reminder confirmation</span>
-              <div className="mdl" style={{ width: "auto", boxShadow: "none", border: "1px solid #D6DEDE" }}>
-                <div className="hd">
-                  <div>
-                    <h3 style={{ fontSize: "16px" }}>Send overdue reminder to 1 grantee?</h3>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      Lakeside Senior Center receives the letter below from Riverbend Community Foundation. The send is logged in
-                      Communications.
-                    </p>
+            <CircleCheck className="ic" aria-hidden="true" />
+            Accept report
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => setReturning(true)}>
+            <RotateCcw className="ic" aria-hidden="true" />
+            Return with a note
+          </button>
+          <span className="help">{releases ? "Accepting makes the next tranche due; it is not released until a person releases it." : "Accepting closes this requirement."}</span>
+        </div>
+      )}
+      {returning && (
+        <ReasonDialog
+          title="Return this report"
+          label="What should the grantee change?"
+          action="Return report"
+          onClose={() => setReturning(false)}
+          onSubmit={async (note) => {
+            setReturning(false);
+            if (await send.run(note)) onChanged("Report returned. The grantee can revise and resubmit.");
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+export default function Reporting() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get("tab") === "received" ? "received" : "due";
+  const selected = params.get("submission");
+  const [note, setNote] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Requirement | null>(null);
+  const [waiving, setWaiving] = useState<Requirement | null>(null);
+  const page = useApiQuery(async (api) => {
+    const [requirements, submissions] = await Promise.all([api.listDueRequirements(), api.listSubmissions()]);
+    return { requirements, submissions };
+  }, []);
+  const remind = useApiMutation((api, id: string) => api.remindRequirement(id));
+  const waive = useApiMutation((api, id: string, reason: string) => api.waiveRequirement(id, reason));
+  const now = new Date();
+  const d = page.data;
+  const owed = (d?.requirements ?? []).filter((r) => ["scheduled", "due", "overdue"].includes(r.status)).sort((a, b) => (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9"));
+  const received = (d?.submissions ?? []).filter((s) => s.status !== "draft");
+  const waiting = received.filter((s) => ["submitted", "under_review"].includes(s.status) && !s.shared).length;
+  const requirementFor = (s: Submission) => d?.requirements.find((r) => r.id === s.requirementId);
+  const changed = (message: string) => {
+    setNote(message);
+    page.reload();
+  };
+  const go = (next: Record<string, string | null>) => {
+    const p = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(next)) {
+      if (v === null) p.delete(k);
+      else p.set(k, v);
+    }
+    setParams(p, { replace: true });
+  };
+
+  return (
+    <>
+      <title>{`Reporting & compliance — ${ws.name}`}</title>
+      <FunderShell active="Reporting">
+        <main className="main">
+          <PageHeader
+            crumbs={[{ label: ws.name, to: base }, { label: "Reporting" }]}
+            title="Reporting & compliance"
+            meta={
+              d ? (
+                <>
+                  <span>{owed.filter((r) => r.status === "overdue").length} overdue</span>
+                  <span>·</span>
+                  <span>{owed.filter((r) => r.status === "due").length} due</span>
+                  <span>·</span>
+                  <span>{waiting} waiting for review</span>
+                </>
+              ) : undefined
+            }
+          />
+          {page.status === "loading" && <Loading label="Loading reporting" />}
+          {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
+          {note && <Notice tone="ok" title={note} />}
+          {(remind.error !== null || waive.error !== null) && <ErrorBanner error={remind.error ?? waive.error} />}
+          {d && (
+            <>
+              <Tabs
+                label="Reporting views"
+                idPrefix="reporting"
+                active={tab}
+                onChange={(key) => go({ tab: key, submission: null })}
+                tabs={[
+                  { key: "due", label: "Owed", count: owed.length },
+                  { key: "received", label: "Received", count: waiting },
+                ]}
+              />
+              <TabPanel idPrefix="reporting" tab="due" active={tab}>
+                {!owed.length ? (
+                  <div className="card">
+                    <EmptyState icon={ClipboardCheck} title="Nothing is owed right now">
+                      Requirements appear here from each award’s plan, with reminders scheduled around the due date.
+                    </EmptyState>
                   </div>
-                </div>
-                <div className="bd">
-                  <div className="fld">
-                    <label className="lbl" htmlFor="rem-tpl">
-                      Template
-                    </label>
-                    <select className="sel" id="rem-tpl">
-                      <option>Report overdue v2</option>
-                      <option>Report reminder −7 days v3</option>
-                      <option>Final notice before suspension v1</option>
-                    </select>
+                ) : (
+                  <div className="tbl-wrap">
+                    <table className="tbl" aria-label="Requirements owed">
+                      <thead>
+                        <tr>
+                          <th>Grantee</th>
+                          <th>Requirement</th>
+                          <th>Due</th>
+                          <th>Status</th>
+                          <th>Reminders</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {owed.map((r) => (
+                          <tr key={r.id}>
+                            <td>
+                              <div className="ent">
+                                <span className="nm">{nameOf(r)}</span>
+                                {r.award && (
+                                  <Link to={`${base}/awards/${r.award.id}/payments`} className="small">
+                                    {r.award.title}
+                                  </Link>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              {r.title}
+                              {r.releasesTrancheId && <div className="small muted">Releases a tranche when accepted</div>}
+                            </td>
+                            <td>
+                              {formatDate(r.dueAt)}
+                              <div className={`small ${r.status === "overdue" ? "var-neg b" : "muted"}`}>{dueText(r, now)}</div>
+                            </td>
+                            <td>
+                              <StatusBadge kind="requirement" status={r.status} />
+                            </td>
+                            <td>
+                              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPlan(r)} aria-label={`Edit the reminder plan for ${r.title}, ${nameOf(r)}`}>
+                                {planOf(r).length} planned
+                              </button>
+                            </td>
+                            <td>
+                              <div className="row">
+                                <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(`Reminder sent to ${nameOf(r)}.`)} aria-label={`Send a reminder to ${nameOf(r)} for ${r.title}`}>
+                                  <Bell className="ic" aria-hidden="true" />
+                                  Remind
+                                </button>
+                                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setWaiving(r)} aria-label={`Waive ${r.title} for ${nameOf(r)}`}>
+                                  Waive
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div
-                    style={{
-                      border: "1px solid #D6DEDE",
-                      borderRadius: "8px",
-                      padding: "12px 14px",
-                      fontSize: "13px",
-                      background: "#F7FAFA",
-                    }}
-                  >
-                    <b>Subject:</b> Your final report for Fall Prevention Program is 25 days overdue
-                    <br />
-                    <span className="muted">
-                      Hi Rosa, the final report for awd_01HQ31 was due Apr 30, 2027. The remaining tranche of $15,000 is held until it is
-                      accepted…
-                    </span>
+                )}
+              </TabPanel>
+              <TabPanel idPrefix="reporting" tab="received" active={tab}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1.3fr)", gap: "20px", alignItems: "start" }}>
+                  <div className="tbl-wrap">
+                    <table className="tbl" aria-label="Reports received">
+                      <thead>
+                        <tr>
+                          <th>Report</th>
+                          <th>Received</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {received.map((s) => (
+                          <tr key={s.id} className={selected === s.id ? "sel" : undefined}>
+                            <td>
+                              <div className="ent">
+                                <button type="button" className="btn btn-ghost btn-sm nm" style={{ justifyContent: "flex-start", padding: 0, height: "auto" }} onClick={() => go({ submission: s.id })} aria-current={selected === s.id ? "true" : undefined}>
+                                  {s.requirement?.title ?? "Report"}
+                                </button>
+                                <span className="sub small muted">
+                                  {requirementFor(s) ? nameOf(requirementFor(s)!) : "Another funder’s report"}
+                                  {s.shared && (
+                                    <span className="shared-mark">
+                                      <Share2 className="ic" aria-hidden="true" />
+                                      Shared by grantee
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            </td>
+                            <td>{formatDate(s.submittedAt)}</td>
+                            <td>
+                              <StatusBadge kind="submission" status={s.status} />
+                            </td>
+                          </tr>
+                        ))}
+                        {!received.length && (
+                          <tr>
+                            <td colSpan={3} className="muted">
+                              No reports received yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="row small" style={{ gap: "14px" }}>
-                    <span className="row" style={{ gap: "5px" }}>
-                      <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />1 email queued
-                    </span>
-                    <span className="row" style={{ gap: "5px" }}>
-                      <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      Reminder status → “overdue +25 sent”
-                    </span>
-                  </div>
+                  {selected ? (
+                    <Review
+                      key={selected}
+                      id={selected}
+                      releases={!!requirementFor(received.find((s) => s.id === selected) ?? ({} as Submission))?.releasesTrancheId}
+                      onChanged={(message) => {
+                        changed(message);
+                      }}
+                    />
+                  ) : (
+                    <div className="card">
+                      <EmptyState icon={ClipboardCheck} title="Choose a report to review">
+                        Responses show where each value came from: the grantee’s Passport record, a prior report, or typed for this report.
+                      </EmptyState>
+                    </div>
+                  )}
                 </div>
-                <div className="ft">
-                  <button className="btn btn-secondary">Cancel</button>
-                  <Link to="/preview/email/report-reminder" className="btn btn-primary">
-                    Send reminder
-                  </Link>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · nothing due</span>
-              <div className="card empty" style={{ minHeight: "240px", justifyContent: "center" }}>
-                <Calendar className="ic" aria-hidden="true" />
-                <h3>Nothing due this month</h3>
-                <p>
-                  No requirements are due, received or overdue in June 2027. The next one is Harbor Light Shelter’s final report on Jul 15.
-                </p>
-                <div className="acts">
-                  <button className="btn btn-primary">Add requirement</button>
-                  <Link to="/w/riverbend/reporting" className="small b">
-                    Jump to July
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+              </TabPanel>
+            </>
+          )}
+          {plan && (
+            <ReminderPlanDialog
+              requirement={plan}
+              onClose={() => setPlan(null)}
+              onSaved={() => {
+                setPlan(null);
+                changed("Reminder plan saved.");
+              }}
+            />
+          )}
+          {waiving && (
+            <ReasonDialog
+              title={`Waive ${waiving.title}`}
+              label="Why is this requirement waived?"
+              action="Waive requirement"
+              onClose={() => setWaiving(null)}
+              onSubmit={async (reason) => {
+                const r = waiving;
+                setWaiving(null);
+                if (await waive.run(r.id, reason)) changed(`${r.title} waived for ${nameOf(r)}.`);
+              }}
+            />
+          )}
         </main>
       </FunderShell>
     </>

@@ -1,700 +1,425 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import {
-  ArrowRight,
-  BadgeCheck,
-  Check,
-  ChevronDown,
-  CircleCheck,
-  CircleMinus,
-  Clock,
-  Download,
-  File,
-  Lock,
-  Plus,
-  RefreshCw,
-  Send,
-  Shield,
-  TriangleExclamationPoint,
-} from "lucide-react";
+// The grantee directory: every organization this funder has funded or heard from, with the
+// Passport record it consented to share (read-only here), its level and payee status, the funder's
+// own notes and tags, and changes to its Passport record waiting to be acknowledged. Profile
+// fields are never edited in the GMS; a funder can only propose a change to the organization.
+import { useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router";
+import { CircleCheck, Clock, Lock, Search, Users } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { GranteeDetail, GranteeSummary, OrgChange } from "../../api/funderMoney.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
+import { formatMinor } from "../../lib/format.ts";
+import { dateTime } from "./shared.tsx";
+
+/** Payee status in words and shape, never color alone. Bank name and last four digits only. */
+function PayeeChip({ pending, active }: { pending: boolean; active: boolean }) {
+  if (!active)
+    return (
+      <span className="pay pay-held">
+        <Lock className="ic" aria-hidden="true" />
+        Inactive
+      </span>
+    );
+  if (pending)
+    return (
+      <span className="pay pay-cooling">
+        <Clock className="ic" aria-hidden="true" />
+        Change pending
+      </span>
+    );
+  return (
+    <span className="pay pay-active">
+      <CircleCheck className="ic" aria-hidden="true" />
+      Payee active
+    </span>
+  );
+}
+
+/** Flattens a nested patch into "addresses.primary.street1 → value" rows. */
+export function flattenPatch(patch: unknown, prefix = ""): { path: string; value: string }[] {
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) return [{ path: prefix, value: patch === null ? "(removed)" : Array.isArray(patch) ? patch.join(", ") : String(patch) }];
+  return Object.entries(patch as Record<string, unknown>).flatMap(([k, v]) => flattenPatch(v, prefix ? `${prefix}.${k}` : k));
+}
+const read = (obj: unknown, path: string): string => {
+  const v = path.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), obj);
+  return v === undefined || v === null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v);
+};
+
+function OrgChangeCard({ change, organization, onDone }: { change: OrgChange; organization: Record<string, unknown> | null; onDone: (note: string) => void }) {
+  const accept = useApiMutation((api) => api.acceptOrgChange(change.id));
+  const dismiss = useApiMutation((api) => api.dismissOrgChange(change.id));
+  const rows = flattenPatch(change.patch);
+  return (
+    <div className="diff" data-change={change.id}>
+      <div className="hd">
+        <span>Change at Passport · received {dateTime(change.receivedAt)}</span>
+        <span>{change.status === "pending" ? "Pending" : change.status === "accepted" ? "Accepted" : "Dismissed"}</span>
+      </div>
+      {rows.map((r) => (
+        <div className="cols" key={r.path}>
+          <div>
+            <div className="xs muted">{r.path} · on file here</div>
+            <span className="del">{read(organization, r.path)}</span>
+          </div>
+          <div>
+            <div className="xs muted">{r.path} · now at Passport</div>
+            <span className="ins">{r.value}</span>
+          </div>
+        </div>
+      ))}
+      {(accept.error !== null || dismiss.error !== null) && (
+        <div style={{ padding: "8px 12px" }}>
+          <ErrorBanner error={accept.error ?? dismiss.error} />
+        </div>
+      )}
+      {change.status === "pending" && (
+        <div className="sum">
+          <button type="button" className="btn btn-sm btn-primary" disabled={accept.state === "saving"} onClick={async () => (await accept.run()) && onDone("Change accepted. Your copy of the record now matches Passport, and eligibility was re-checked.")}>
+            Accept change
+          </button>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={dismiss.state === "saving"} onClick={async () => (await dismiss.run()) && onDone("Change dismissed.")}>
+            Dismiss
+          </button>
+          <span>Accepting updates what this workspace shows; the record itself lives in Passport.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProposeDialog({ grantee, onClose, onDone }: { grantee: GranteeDetail; onClose: () => void; onDone: (note: string) => void }) {
+  const [field, setField] = useState("emails.primary");
+  const [value, setValue] = useState("");
+  const [note, setNote] = useState("");
+  const propose = useApiMutation((api) => {
+    const patch = field
+      .split(".")
+      .reverse()
+      .reduce<unknown>((acc, key) => ({ [key]: acc }), value.trim()) as Record<string, unknown>;
+    return api.proposeOrgChange(grantee.workspaceId, { patch, ...(note.trim() ? { note: note.trim() } : {}) });
+  });
+  return (
+    <Dialog open onClose={onClose} labelledBy="propose-title">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const out = await propose.run();
+          if (out) onDone(out.message);
+        }}
+      >
+        <div className="hd">
+          <div>
+            <h2 id="propose-title">Propose a change to {grantee.name}</h2>
+            <p className="small muted">The proposal goes to the organization in Passport. Nothing changes unless they accept it.</p>
+          </div>
+        </div>
+        <div className="bd">
+          {propose.error !== null && <ErrorBanner error={propose.error} title="The proposal was not sent" />}
+          <Field id="propose-field" label="Field" required>
+            <select className="sel" id="propose-field" value={field} onChange={(e) => setField(e.target.value)}>
+              <option value="emails.primary">Primary email</option>
+              <option value="phones.primary.number">Primary phone</option>
+              <option value="addresses.primary.street1">Mailing address, street</option>
+              <option value="addresses.primary.city">Mailing address, city</option>
+              <option value="socials.website">Website</option>
+              <option value="mission">Mission</option>
+            </select>
+          </Field>
+          <Field id="propose-value" label="Proposed value" required help="Bank and identity details can never be proposed here; they change only in Passport, by the organization.">
+            <input className="inp" id="propose-value" value={value} onChange={(e) => setValue(e.target.value)} required />
+          </Field>
+          <Field id="propose-note" label="Note to the organization">
+            <textarea className="ta" id="propose-note" value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+        </div>
+        <div className="ft">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={!value.trim() || propose.state === "saving"}>
+            Send proposal
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: string; onChanged: () => void }) {
+  const detail = useApiQuery((api) => api.getGrantee(workspaceId), [workspaceId]);
+  const [notes, setNotes] = useState<string | null>(null);
+  const [tagText, setTagText] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [proposing, setProposing] = useState(false);
+  const save = useApiMutation((api, patch: { notes?: string | null; tags?: string[] }) => api.updateGrantee(workspaceId, patch));
+  if (detail.status === "loading") return <Loading label="Loading the grantee record" />;
+  if (detail.status === "error") return <ErrorBanner error={detail.error} onRetry={detail.reload} />;
+  const g = detail.data;
+  const org = g.organization;
+  const payee = g.payeeStatus as { bankName?: string | null; last4?: string | null };
+  const pending = g.orgChanges.filter((c) => c.status === "pending");
+  const done = (text: string) => {
+    setMessage(text);
+    detail.reload();
+    onChanged();
+  };
+  const update = async (patch: { notes?: string | null; tags?: string[] }) => {
+    const out = await save.run(patch);
+    if (out) detail.set(out);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <section className="card" aria-labelledby="grantee-h">
+        <div className="card-h">
+          <div className="col" style={{ gap: "4px" }}>
+            <div className="row wrap">
+              <h2 id="grantee-h" style={{ fontSize: "18px" }}>
+                {g.name}
+              </h2>
+              <LevelBadge level={g.verificationLevel} />
+              <PayeeChip pending={g.payee.pendingDestinationChange} active={g.payee.active} />
+            </div>
+            <p className="small muted">
+              {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : "Payee details not available"} · record synced {g.lastSyncedAt ? dateTime(g.lastSyncedAt) : "never"}
+            </p>
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={() => setProposing(true)}>
+            Propose a change
+          </button>
+        </div>
+        <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {message && <Notice tone="ok" title={message} />}
+          {!g.consent && <Notice tone="warn" title="No consent to read this organization’s Passport record">You see only what the organization submitted with its applications. Ask them to grant access under Team &amp; access in their workspace.</Notice>}
+          {org && (
+            <dl className="kv">
+              <dt>Legal name</dt>
+              <dd>
+                {read(org, "name")} <span className="prov prov-passport">From Passport</span>
+              </dd>
+              <dt>EIN</dt>
+              <dd>{read(org, "identifiers.org:us:ein.id")}</dd>
+              <dt>Address</dt>
+              <dd>
+                {read(org, "addresses.primary.street1")}, {read(org, "addresses.primary.city")}, {read(org, "addresses.primary.stateOrProvince")}
+              </dd>
+              <dt>Email</dt>
+              <dd>{read(org, "emails.primary")}</dd>
+              <dt>Mission</dt>
+              <dd>{read(org, "mission")}</dd>
+            </dl>
+          )}
+          <p className="help">This record is read from Passport and cannot be edited here. To correct something, propose a change; the organization decides.</p>
+        </div>
+      </section>
+
+      {g.orgChanges.length > 0 && (
+        <section className="card" aria-labelledby="changes-h">
+          <div className="card-h">
+            <h3 id="changes-h">Changes to the Passport record</h3>
+            <span className="small muted">{pending.length} pending</span>
+          </div>
+          <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {g.orgChanges.map((c) => (
+              <OrgChangeCard key={c.id} change={c} organization={org} onDone={done} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="card" aria-labelledby="notes-h">
+        <div className="card-h">
+          <h3 id="notes-h">Relationship notes</h3>
+          <SaveNote state={save.state} />
+        </div>
+        <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {save.error !== null && <ErrorBanner error={save.error} />}
+          <Field id="grantee-notes" label="Notes" help="Visible to your team only. Never shared with the organization.">
+            <textarea className="ta" id="grantee-notes" value={notes ?? g.notes ?? ""} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== null && notes !== (g.notes ?? "") && update({ notes: notes.trim() ? notes : null })} />
+          </Field>
+          <div className="row wrap" aria-label="Tags">
+            {g.tags.map((t) => (
+              <span key={t} className="tag">
+                {t}
+                <button type="button" className="iconbtn" style={{ width: "18px", height: "18px", marginLeft: "4px" }} aria-label={`Remove tag ${t}`} onClick={() => update({ tags: g.tags.filter((x) => x !== t) })}>
+                  ×
+                </button>
+              </span>
+            ))}
+            <form
+              className="row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const t = tagText.trim();
+                if (!t) return;
+                setTagText("");
+                void update({ tags: [...g.tags, t] });
+              }}
+            >
+              <input className="inp" aria-label="Add a tag" placeholder="Add a tag" value={tagText} onChange={(e) => setTagText(e.target.value)} style={{ height: "28px", width: "140px", fontSize: "12px" }} />
+              <button type="submit" className="btn btn-sm btn-secondary" disabled={!tagText.trim()}>
+                Add
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section className="card" aria-labelledby="history-h">
+        <div className="card-h">
+          <h3 id="history-h">Awards and applications</h3>
+        </div>
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+          <table className="tbl" aria-label="Awards and applications">
+            <thead>
+              <tr>
+                <th>Record</th>
+                <th>Kind</th>
+                <th>Status</th>
+                <th className="num">Awarded</th>
+                <th className="num">Disbursed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.awardList.map((a) => (
+                <tr key={String(a.id)}>
+                  <td>
+                    <Link to={`${base}/awards/${String(a.id)}/payments`} className="b">
+                      {String(a.title)}
+                    </Link>
+                  </td>
+                  <td>Award</td>
+                  <td>
+                    <StatusBadge kind="award" status={String(a.status)} />
+                  </td>
+                  <td className="num">{formatMinor(typeof a.awardedAmountMinor === "number" ? a.awardedAmountMinor : null)}</td>
+                  <td className="num">{formatMinor(typeof a.disbursedAmountMinor === "number" ? a.disbursedAmountMinor : null)}</td>
+                </tr>
+              ))}
+              {g.applicationList.map((a) => (
+                <tr key={String(a.id)}>
+                  <td>
+                    <Link to={`${base}/applications/${String(a.id)}`} className="b">
+                      {String(a.title)}
+                    </Link>
+                  </td>
+                  <td>Application</td>
+                  <td>
+                    <StatusBadge kind="application" status={String(a.status)} />
+                  </td>
+                  <td className="num" />
+                  <td className="num" />
+                </tr>
+              ))}
+              {!g.awardList.length && !g.applicationList.length && (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    No history yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {proposing && (
+        <ProposeDialog
+          grantee={g}
+          onClose={() => setProposing(false)}
+          onDone={(text) => {
+            setProposing(false);
+            done(text);
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function Grantees() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const { granteeId } = useParams();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const list = useApiQuery((api) => api.listGrantees(q ? { q } : {}), [q]);
+  const rows: GranteeSummary[] = list.data ?? [];
+  const selected = rows.find((r) => r.workspaceId === granteeId || `org_${r.handle}` === granteeId || r.handle === granteeId)?.workspaceId ?? (granteeId && !granteeId.startsWith("org_") ? granteeId : rows[0]?.workspaceId);
+  const pendingTotal = rows.reduce((n, r) => n + r.pendingChanges, 0);
+
   return (
     <>
-      <title>{"Grantees — Riverbend funder workspace"}</title>
+      <title>{`Grantees — ${ws.name}`}</title>
       <FunderShell active="Grantees">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <Link to="/w/riverbend/grantees/org_alder-creek">Grantees</Link>
-            <span>›</span>
-            <span>Alder Creek Family Services</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Grantees</h1>
-                <span className="pill-warn">
-                  <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                  Org changes · 1
-                </span>
-              </div>
-              <div className="meta">
-                <span>11 organizations</span>
+          <PageHeader
+            crumbs={[{ label: ws.name, to: base }, { label: "Grantees" }]}
+            title="Grantees"
+            meta={
+              <>
+                <span>{rows.length} organizations</span>
                 <span>·</span>
-                <span>$990,000 awarded all time</span>
-                <span>·</span>
-                <span>Profiles read from Passport with each organization’s consent</span>
-              </div>
-            </div>
-            <div className="actions">
-              <div className="filterbar">
-                <button className="fchip">
-                  Level
-                  <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                </button>
-                <button className="fchip">
-                  Program
-                  <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                </button>
-                <button className="fchip">
-                  Owner
-                  <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                </button>
-                <button className="fchip">
-                  Tags
-                  <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                </button>
-              </div>
-              <button className="btn btn-secondary">
-                <Download className="ic" aria-hidden="true" />
-                Export
-              </button>
+                <span>{pendingTotal} pending record changes</span>
+              </>
+            }
+          />
+          <div className="filterbar">
+            <div className="inp-icon" style={{ flex: "1 1 260px", maxWidth: "360px" }}>
+              <Search className="ic" aria-hidden="true" />
+              <input className="inp" type="search" aria-label="Search grantees" placeholder="Search grantees" defaultValue={q} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })} />
             </div>
           </div>
-          <div className="tbl-wrap">
-            <table className="tbl tbl-compact">
-              <thead>
-                <tr>
-                  <th>Organization</th>
-                  <th>Level</th>
-                  <th>Payee</th>
-                  <th>Programs</th>
-                  <th className="num">Total awarded</th>
-                  <th>Last activity</th>
-                  <th>Owner</th>
-                  <th>Tags</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="sel">
-                  <td>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                        Alder Creek Family Services
-                      </Link>
-                      <span className="pill-warn">
-                        <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                        Org changes (1)
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-3">
-                      <Shield className="ic" aria-hidden="true" />
-                      L3
-                    </span>
-                  </td>
-                  <td>
-                    <span className="pay pay-active">
-                      <Check className="ic" aria-hidden="true" />
-                      Payee active
-                    </span>
-                  </td>
-                  <td>Community Health 2027</td>
-                  <td className="num">$150,000</td>
-                  <td>2 min ago</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Health</span> <span className="tag">Rural</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Harbor Light Shelter
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-3">
-                      <Shield className="ic" aria-hidden="true" />
-                      L3
-                    </span>
-                  </td>
-                  <td>
-                    <span className="pay pay-pending">
-                      <Clock className="ic" aria-hidden="true" />
-                      Pending change
-                    </span>
-                  </td>
-                  <td>Community Health 2026</td>
-                  <td className="num">$95,000</td>
-                  <td>May 20</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Housing</span> <span className="tag">Health</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                        Bayview Youth Collective
-                      </Link>
-                      <span className="tag" style={{ border: "1px dashed #B9C6C6", background: "#fff" }}>
-                        Consent missing
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-2">L2</span>
-                  </td>
-                  <td>
-                    <span className="pay pay-none">
-                      <CircleMinus className="ic" aria-hidden="true" />
-                      No destination
-                    </span>
-                  </td>
-                  <td>
-                    Community Health 2027 <span className="xs muted">(applicant)</span>
-                  </td>
-                  <td className="num">$0</td>
-                  <td>May 19</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Youth</span> <span className="tag">Mental health</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Copper Valley Clinic
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-1">L1</span>
-                  </td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td>
-                    Community Health 2027 <span className="xs muted">(applicant)</span>
-                  </td>
-                  <td className="num">$0</td>
-                  <td>Apr 30</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Health</span> <span className="tag">Rural</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Lakeside Senior Center
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-2">L2</span>
-                  </td>
-                  <td>
-                    <span className="pay pay-active">
-                      <Check className="ic" aria-hidden="true" />
-                      Payee active
-                    </span>
-                  </td>
-                  <td>Community Health 2026 · 2027</td>
-                  <td className="num">$100,000</td>
-                  <td>May 19</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Seniors</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Northgate Housing Trust
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-3">
-                      <Shield className="ic" aria-hidden="true" />
-                      L3
-                    </span>
-                  </td>
-                  <td>
-                    <span className="pay pay-active">
-                      <Check className="ic" aria-hidden="true" />
-                      Payee active
-                    </span>
-                  </td>
-                  <td>Community Health 2026 · 2027</td>
-                  <td className="num">$250,000</td>
-                  <td>May 22</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Housing</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Cedar Hollow Food Bank
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-2">L2</span>
-                  </td>
-                  <td>
-                    <span className="pay pay-active">
-                      <Check className="ic" aria-hidden="true" />
-                      Payee active
-                    </span>
-                  </td>
-                  <td>Community Health 2026</td>
-                  <td className="num">$45,000</td>
-                  <td>May 17</td>
-                  <td>
-                    <span className="av av-sm av-n" title="Marcus Lee">
-                      ML
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Food security</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ color: "#0D2A43" }}>
-                      Willow Creek Legal Aid
-                    </Link>
-                  </td>
-                  <td>
-                    <span className="lvl lvl-2">L2</span>
-                  </td>
-                  <td>
-                    <span className="pay pay-cooling">
-                      <Clock className="ic" aria-hidden="true" />
-                      Cooling off
-                    </span>
-                  </td>
-                  <td>Community Health 2027</td>
-                  <td className="num">$110,000</td>
-                  <td>May 19</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                  <td>
-                    <span className="tag">Legal aid</span> <span className="tag">Health</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "12px",
-                padding: "8px 16px",
-                borderTop: "1px solid #D6DEDE",
-                fontSize: "12px",
-                color: "#4A5C5A",
-              }}
-            >
-              <span>Showing 8 of 11</span>
-              <button className="btn btn-sm btn-secondary">Show all</button>
+          {list.status === "loading" && <Loading label="Loading grantees" />}
+          {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
+          {list.status === "ready" && !rows.length && (
+            <div className="card">
+              <EmptyState icon={Users} title={q ? "No grantees match" : "No grantees yet"}>
+                Organizations appear here once they apply to one of your opportunities.
+              </EmptyState>
             </div>
-          </div>
-          <div className="card">
-            <div className="card-h">
-              <div className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
-                <h2 style={{ fontSize: "18px" }}>Alder Creek Family Services</h2>
-                <span className="lvl lvl-3">
-                  <Shield className="ic" aria-hidden="true" />
-                  L3
-                </span>
-                <span className="pay pay-active">
-                  <Check className="ic" aria-hidden="true" />
-                  Payee active
-                </span>
-                <span className="small muted">Consent granted Jan 12, 2027 · scopes org:read, org.changes:read/write</span>
-              </div>
-              <div className="row" style={{ gap: "8px" }}>
-                <span className="notice">
-                  <BadgeCheck className="ic" aria-hidden="true" style={{ color: "#1E4F8F" }} />
-                  Passport synced 2 min ago
-                </span>
-                <Link to="/w/riverbend/communications" className="btn btn-secondary btn-sm">
-                  Message
-                </Link>
-              </div>
-            </div>
-            <div
-              className="card-b"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr)",
-                gap: "24px",
-                alignItems: "start",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: "10px" }}>
-                    Passport profile · read-only
-                  </div>
-                  <dl className="kv" style={{ gridTemplateColumns: "130px minmax(0, 1fr)", rowGap: "10px" }}>
-                    <dt>Legal name</dt>
-                    <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      Alder Creek Family Services
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </dd>
-                    <dt>Tax status</dt>
-                    <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      501(c)(3) public charity · verified
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </dd>
-                    <dt>Address</dt>
-                    <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      418 Mill Road, Alder Creek, OR
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </dd>
-                    <dt>Primary contact</dt>
-                    <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      Maria Santos · Executive Director · maria@aldercreekfs.example
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </dd>
-                    <dt>Annual budget</dt>
-                    <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      $2,400,000 (FY2026)
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </dd>
-                    <dt>Representatives</dt>
-                    <dd>3 · Maria Santos, Jamal Reed, Board chair (name withheld in scope)</dd>
-                    <dt>Documents</dt>
-                    <dd>4 in locker · determination letter, FY2026 audit, W-9 (verified), board list</dd>
-                    <dt>Payee</dt>
-                    <dd>River City Credit Union •••• 4821 · active since Nov 2025</dd>
-                  </dl>
-                </div>
-                <div className="divider"></div>
-                <dl className="kv" style={{ gridTemplateColumns: "130px minmax(0, 1fr)" }}>
-                  <dt>Relationship owner</dt>
-                  <dd className="row" style={{ gap: "6px" }}>
-                    <span className="av av-sm">DO</span>Dana Ortiz<button className="btn btn-sm btn-ghost">Change</button>
-                  </dd>
-                  <dt>Tags</dt>
-                  <dd className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                    <span className="tag">Health</span>
-                    <span className="tag">Rural</span>
-                    <button className="btn btn-sm btn-ghost">
-                      <Plus className="ic ic-sm" aria-hidden="true" />
-                      Add tag
-                    </button>
-                  </dd>
-                </dl>
-                <div className="msg msg-int">
-                  <span className="av av-sm">DO</span>
-                  <div className="bub">
-                    <div className="hd">
-                      <span className="who">Dana Ortiz</span>
-                      <span>· May 18</span>
-                      <span className="int-mark">
-                        <Lock className="ic" aria-hidden="true" />
-                        Internal
-                      </span>
-                    </div>
-                    <div className="bd">
-                      Strong partner for the rural health cohort; board wants a site visit before tranche 2. Not visible to the grantee.
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div className="tabs" role="tablist" aria-label="History">
-                  <a href="#history" className="tab on" role="tab" aria-selected="true">
-                    Applications<span className="n">1</span>
-                  </a>
-                  <a href="#history" className="tab" role="tab">
-                    Awards<span className="n">1</span>
-                  </a>
-                  <a href="#history" className="tab" role="tab">
-                    Reports<span className="n">0</span>
-                  </a>
-                </div>
-                <div className="tbl-wrap" id="history">
-                  <table className="tbl tbl-compact">
-                    <thead>
-                      <tr>
-                        <th>Application</th>
-                        <th>Stage</th>
-                        <th>Status</th>
-                        <th className="num">Requested</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
+          )}
+          {rows.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "20px", alignItems: "start" }}>
+              <div className="tbl-wrap">
+                <table className="tbl" aria-label="Grantee directory">
+                  <thead>
+                    <tr>
+                      <th>Organization</th>
+                      <th>Payee</th>
+                      <th className="num">Awards</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.workspaceId} className={r.workspaceId === selected ? "sel" : undefined}>
                         <td>
-                          <Link to="/w/riverbend/applications/app_01HZX4" className="b">
-                            Mobile Health Navigation for Rural Families
-                          </Link>
-                          <div className="xs muted">app_01HZX4 · Community Health Grants 2027</div>
-                        </td>
-                        <td>Full proposal</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <CircleCheck className="ic" aria-hidden="true" />
-                            Accepted
-                          </span>
-                        </td>
-                        <td className="num">$150,000</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="tbl-wrap">
-                  <table className="tbl tbl-compact">
-                    <thead>
-                      <tr>
-                        <th>Award</th>
-                        <th>Status</th>
-                        <th className="num">Awarded</th>
-                        <th className="num">Disbursed</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <Link to="/w/riverbend/awards/awd_01J2Q7/payments" className="b">
-                            awd_01J2Q7
-                          </Link>
-                          <div className="xs muted">Jul 1, 2027 – Jun 30, 2028</div>
+                          <div className="ent">
+                            <Link to={`${base}/grantees/${r.workspaceId}${q ? `?q=${encodeURIComponent(q)}` : ""}`} className="nm" aria-current={r.workspaceId === selected ? "true" : undefined}>
+                              {r.name}
+                            </Link>
+                            <span className="sub">
+                              <LevelBadge level={r.verificationLevel} />
+                              {r.pendingChanges > 0 && <span className="pill-warn">{r.pendingChanges} record change</span>}
+                            </span>
+                          </div>
                         </td>
                         <td>
-                          <span className="bdg bdg-ok">
-                            <BadgeCheck className="ic" aria-hidden="true" />
-                            Active
-                          </span>
+                          <PayeeChip pending={r.payee.pendingDestinationChange} active={r.payee.active} />
                         </td>
-                        <td className="num">$150,000</td>
-                        <td className="num">$75,000</td>
+                        <td className="num">{r.awards}</td>
                       </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="empty card" style={{ padding: "20px" }}>
-                  <File className="ic" aria-hidden="true" />
-                  <h3 style={{ fontSize: "14px" }}>No reports yet</h3>
-                  <p className="small">First requirement is the interim report due Dec 15, 2027.</p>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div className="card" style={{ borderColor: "#E9C77D" }}>
-                  <div className="card-h">
-                    <h3>Pending org changes</h3>
-                    <span className="pill-warn">1</span>
-                  </div>
-                  <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                    <div>
-                      <div className="b">Primary contact phone</div>
-                      <div className="row" style={{ gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
-                        <span className="del">(555) 0100</span>
-                        <ArrowRight className="ic ic-sm" aria-hidden="true" />
-                        <span className="ins">(555) 0142</span>
-                      </div>
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        Source: Passport
-                      </span>
-                      Requested by Maria Santos · May 23
-                    </div>
-                    <p className="xs muted">
-                      Accepting updates Riverbend’s copy of the record. Dismissing keeps the old value here only; Passport itself is
-                      unchanged either way.
-                    </p>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <button className="btn btn-primary btn-sm">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                        Accept
-                      </button>
-                      <button className="btn btn-secondary btn-sm">Dismiss</button>
-                    </div>
-                  </div>
-                </div>
-                <div className="card">
-                  <div className="card-h">
-                    <h3>Propose a change</h3>
-                    <span className="small muted">Sent to Passport for the org to approve</span>
-                  </div>
-                  <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div className="fld">
-                      <label className="lbl" htmlFor="pc-field">
-                        Field
-                      </label>
-                      <select className="sel" id="pc-field">
-                        <option>Mailing address</option>
-                        <option>Primary contact</option>
-                        <option>Website</option>
-                        <option>Mission statement</option>
-                        <option>Service area</option>
-                      </select>
-                    </div>
-                    <div className="fld">
-                      <label className="lbl" htmlFor="pc-value">
-                        Proposed value
-                      </label>
-                      <input className="inp" id="pc-value" placeholder="New value" />
-                    </div>
-                    <div className="fld">
-                      <label className="lbl" htmlFor="pc-note">
-                        Note to the organization
-                      </label>
-                      <textarea
-                        className="ta"
-                        id="pc-note"
-                        style={{ minHeight: "64px" }}
-                        placeholder="Why you believe this should change (e.g. returned mail)"
-                      />
-                    </div>
-                    <button className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                      <Send className="ic" aria-hidden="true" />
-                      Send to Passport
-                    </button>
-                  </div>
-                </div>
-              </div>
+              {selected && <Record key={selected} workspaceId={selected} base={base} onChanged={list.reload} />}
             </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-              gap: "20px",
-              marginTop: "8px",
-              alignItems: "start",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · consent missing</span>
-              <div className="card">
-                <div className="card-h">
-                  <div className="row" style={{ gap: "10px" }}>
-                    <h3>Bayview Youth Collective</h3>
-                    <span className="lvl lvl-2">L2</span>
-                    <span className="pay pay-none">
-                      <CircleMinus className="ic" aria-hidden="true" />
-                      No destination
-                    </span>
-                  </div>
-                  <span className="tag" style={{ border: "1px dashed #B9C6C6", background: "#fff" }}>
-                    Consent missing
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="bnr bnr-neu">
-                    <Lock className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="t">This organization has not granted Riverbend access to its Passport profile</div>
-                      <div className="d">
-                        You can see what Bayview submitted in its application, but not its live profile, documents or org changes.
-                        Requesting access asks Bayview’s representative to approve the scopes org:read and org.changes:read/write.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "10px" }}>
-                    <button className="btn btn-primary">
-                      <Shield className="ic" aria-hidden="true" />
-                      Request access
-                    </button>
-                    <Link to="/w/riverbend/applications/app_01HZX4" className="btn btn-ghost">
-                      View application snapshot
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · Passport unavailable</span>
-              <div className="card">
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="row" style={{ gap: "10px" }}>
-                    <h3>Copper Valley Clinic</h3>
-                    <span className="lvl lvl-na">L? unavailable</span>
-                  </div>
-                  <div className="bnr bnr-warn">
-                    <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="t">Passport could not be reached</div>
-                      <div className="d">
-                        Showing Riverbend’s last synced copy from Apr 30, 2027. Level and payee status are unknown until Passport responds;
-                        readiness checks treat them as blocking.
-                      </div>
-                      <div className="clears">
-                        <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                        Retrying automatically · last attempt 40 seconds ago
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </main>
       </FunderShell>
     </>

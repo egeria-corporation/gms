@@ -10,12 +10,13 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
+import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge, statusLook } from "../../components/status.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 
-const load = async (api: ApplicantApi, id: string) => {
+export const loadStatus = async (api: ApplicantApi, id: string) => {
   const [status, list, threads] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id)]);
   return { status, summary: list.find((a) => a.id === status.id), thread: threads[0] ?? null };
 };
@@ -27,20 +28,20 @@ const EVENT: Record<string, { icon: LucideIcon; text: (e: ApplicationEvent) => s
   request_revision: { icon: RotateCcw, text: () => "Revision requested", cls: "tl-warn" },
   withdraw: { icon: LogOut, text: () => "Withdrawn", cls: "" },
 };
-function describe(e: ApplicationEvent) {
+export function describe(e: ApplicationEvent) {
   const known = EVENT[e.type];
   if (known) return { icon: known.icon, text: known.text(e), cls: known.cls };
   if (e.toStatus) return { icon: statusLook("application", e.toStatus).icon, text: statusLook("application", e.toStatus).label, cls: "" };
   return { icon: Eye, text: e.type.replace(/_/g, " "), cls: "" };
 }
 
-const WITHDRAWABLE = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
+export const WITHDRAWABLE = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
 export default function ApplicationStatus() {
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { appId = "" } = useParams();
-  const query = useApplicantQuery((a) => load(a, appId), [appId, ws.id]);
+  const query = useApplicantQuery((a) => loadStatus(a, appId), [appId, ws.id]);
   const [reply, setReply] = useState("");
   const [confirm, setConfirm] = useState(false);
   const send = useApplicantMutation(async (a, thread: Thread | null, body: string) => {
@@ -196,6 +197,14 @@ export default function ApplicationStatus() {
                                 Respond
                               </Link>
                             )}
+                            {status.timeline
+                              .filter((e) => e.type === "submit" && e.revision)
+                              .map((e) => (
+                                <div key={e.id} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                  <div className="b">Your response · {formatDate(e.at)}</div>
+                                  <RevisionDiff revision={e.revision!} />
+                                </div>
+                              ))}
                           </div>
                         </section>
                       )}
