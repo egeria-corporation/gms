@@ -106,3 +106,8 @@ html, body, #root { margin: 0; min-height: 100%; }
 .print .f dd { margin:0 }
 /* S4-PDF-Snapshot */
 .print .src { font-size:10.5px; color:#145450; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-left:6px }
+
+/* ---- 3. interactive states the canvas drew statically ---- */
+/* Real checkboxes sit visually hidden beside the drawn box; show focus on the box. */
+.cb input.sr:focus-visible + .c, .radio input.sr:focus-visible + .r { outline: 2px solid var(--og-teal); outline-offset: 2px; }
+.cb { cursor: pointer; }

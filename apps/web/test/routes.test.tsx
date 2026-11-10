@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/app/App.tsx";
+import { createMockServices } from "../src/app/services.tsx";
+import { demoSession } from "../src/mocks/auth.ts";
 import { viewport } from "./setup.ts";
 
 function open(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <App />
+      <App services={createMockServices({ session: demoSession() })} />
     </MemoryRouter>,
   );
 }
@@ -50,7 +53,7 @@ describe("routes", () => {
     open("/w/riverbend/applications");
     const compact = await screen.findByRole("button", { name: "Compact" });
     expect(compact).toHaveAttribute("aria-pressed", "false");
-    compact.click();
+    await userEvent.click(compact);
     expect(await screen.findByRole("button", { name: "Compact", pressed: true })).toBeInTheDocument();
   });
 

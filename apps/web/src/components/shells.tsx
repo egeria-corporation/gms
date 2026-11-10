@@ -12,7 +12,6 @@ import {
   Briefcase,
   Building,
   ChartColumn,
-  ChevronDown,
   CircleQuestionMark,
   ClipboardCheck,
   FileText,
@@ -28,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useWorkspace, type Workspace } from "../app/workspace.tsx";
+import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
 
 interface RailItem {
   label: string;
@@ -67,10 +67,9 @@ function TopBar({
         <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
         <span className="suffix">GMS</span>
       </Link>
-      <Link to="/workspaces" className="ws">
+      <WorkspaceMenu currentHandle={ws.handle}>
         {ws.name} <span className="role">{roleLabel}</span>
-        <ChevronDown className="ic" aria-hidden="true" />
-      </Link>
+      </WorkspaceMenu>
       <div className="search">
         <Search className="ic" aria-hidden="true" />
         <input type="search" aria-label={searchLabel} placeholder={searchLabel} />

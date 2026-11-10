@@ -1,78 +1,77 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Workspace context: which workspace the URL names, its kind, brand and the signed-in member.
-// Until the API client lands (phase 2) this reads the fixture workspaces that mirror supabase/seed.sql.
-import { createContext, useContext, type ReactNode } from "react";
-import { useParams } from "react-router";
+// Workspace context: the workspace the URL names (`/w/:ws`), loaded through the API port.
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Navigate, useLocation, useParams } from "react-router";
+import { RefreshCw, TriangleExclamationPoint } from "lucide-react";
+import { ApiError, type Workspace, type WorkspaceKind } from "../api/client.ts";
+import { Busy, signInPath } from "../auth/RequireAuth.tsx";
+import { NotFound } from "../components/NotFound.tsx";
+import { useServices } from "./services.tsx";
 
-export type WorkspaceKind = "funder" | "applicant";
-
-export interface Workspace {
-  handle: string;
-  kind: WorkspaceKind;
-  name: string;
-  /** Line under the name in the rail, e.g. "Funder workspace · FY2027". */
-  sub: string;
-  /** Tenant accent; applied only where tenant-* classes and funder chips use it. */
-  brand: { accent: string; onAccent: string };
-  member: { name: string; initials: string; title: string };
-  unreadNotifications: number;
-  pendingApprovals: number;
-}
-
-export const FIXTURE_WORKSPACES: Workspace[] = [
-  {
-    handle: "riverbend",
-    kind: "funder",
-    name: "Riverbend Community Foundation",
-    sub: "Funder workspace · FY2027",
-    brand: { accent: "#1F6F8B", onAccent: "#FFFFFF" },
-    member: { name: "Dana Ortiz", initials: "DO", title: "Program officer" },
-    unreadNotifications: 3,
-    pendingApprovals: 1,
-  },
-  {
-    handle: "cascade-county",
-    kind: "funder",
-    name: "Cascade County Health Department",
-    sub: "Funder workspace · FY2027",
-    brand: { accent: "#7A4F01", onAccent: "#FFFFFF" },
-    member: { name: "Dana Ortiz", initials: "DO", title: "Grants office" },
-    unreadNotifications: 0,
-    pendingApprovals: 0,
-  },
-  {
-    handle: "alder-creek",
-    kind: "applicant",
-    name: "Alder Creek Family Services",
-    sub: "Applicant workspace",
-    brand: { accent: "#1F6F8B", onAccent: "#FFFFFF" },
-    member: { name: "Maria Santos", initials: "MS", title: "Executive Director" },
-    unreadNotifications: 2,
-    pendingApprovals: 0,
-  },
-];
-
-const DEFAULT_BY_KIND: Record<WorkspaceKind, Workspace> = {
-  funder: FIXTURE_WORKSPACES[0]!,
-  applicant: FIXTURE_WORKSPACES[2]!,
-};
+export type { Workspace, WorkspaceKind };
 
 const WorkspaceContext = createContext<Workspace | null>(null);
 
-export function findWorkspace(handle: string | undefined): Workspace | undefined {
-  return FIXTURE_WORKSPACES.find((w) => w.handle === handle);
-}
+type Load =
+  { status: "loading" } | { status: "ready"; workspace: Workspace } | { status: "missing" } | { status: "error"; message: string };
 
-/** Provides the workspace named by the `:ws` route param. */
+/** Provides the workspace named by the `:ws` route param. Assumes a signed-in person (RequireAuth). */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const { ws } = useParams();
-  return <WorkspaceContext.Provider value={findWorkspace(ws) ?? null}>{children}</WorkspaceContext.Provider>;
+  const { ws = "" } = useParams();
+  const { api, meState } = useServices();
+  const location = useLocation();
+  const [load, setLoad] = useState<Load>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    setLoad({ status: "loading" });
+    api.workspace(ws).then(
+      (workspace) => live && setLoad({ status: "ready", workspace }),
+      (error: unknown) => {
+        if (!live) return;
+        if (error instanceof ApiError && (error.status === 404 || error.status === 403)) setLoad({ status: "missing" });
+        else setLoad({ status: "error", message: error instanceof Error ? error.message : "The workspace could not be loaded." });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, ws, attempt]);
+
+  if (meState.status === "ready") {
+    const membership = meState.me.workspaces.find((m) => m.handle === ws);
+    if (membership?.requiresMfa && !meState.me.mfaVerified) {
+      return <Navigate to={signInPath(location.pathname + location.search + location.hash, "mfa")} replace />;
+    }
+  }
+  if (load.status === "loading" || meState.status === "loading") return <Busy />;
+  if (load.status === "missing") return <NotFound />;
+  if (load.status === "error") {
+    return (
+      <div className="gms gms-frame" style={{ alignItems: "center", justifyContent: "center" }}>
+        <div className="empty" role="alert">
+          <TriangleExclamationPoint className="ic" aria-hidden="true" />
+          <h3>This workspace could not be loaded</h3>
+          <p>{load.message}</p>
+          <div className="acts">
+            <button className="btn btn-primary" type="button" onClick={() => setAttempt((n) => n + 1)}>
+              <RefreshCw className="ic" aria-hidden="true" />
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <WorkspaceContext.Provider value={load.workspace}>{children}</WorkspaceContext.Provider>;
 }
 
-/** The current workspace; screens outside `/w/:ws` fall back to the member's default of that kind. */
+/** The current workspace. Shells render only under `/w/:ws`, behind the kind guards in App.tsx. */
 export function useWorkspace(kind: WorkspaceKind): Workspace {
   const current = useContext(WorkspaceContext);
-  return current && current.kind === kind ? current : DEFAULT_BY_KIND[kind];
+  if (!current || current.kind !== kind) throw new Error(`No ${kind} workspace in context`);
+  return current;
 }
 
 export function useCurrentWorkspace(): Workspace | null {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import {
   Ban,
   Bell,
@@ -14,8 +15,19 @@ import {
   Send,
   Star,
 } from "lucide-react";
+import { Dialog } from "../../components/Dialog.tsx";
+
+const COI_STATEMENTS = [
+  "I am not an employee, board member, or contractor of this organization, and have not been in the last three years.",
+  "No member of my household has a financial interest in this organization or this project.",
+  "I have not discussed this application with the applicant outside the review process.",
+];
 
 export default function ReviewerAssignments() {
+  const navigate = useNavigate();
+  // A conflict-of-interest declaration is required before an application opens for scoring.
+  const [open, setOpen] = useState(false);
+  const [checks, setChecks] = useState<boolean[]>(() => COI_STATEMENTS.map(() => false));
   return (
     <>
       <title>{"Reviewer portal — My assignments"}</title>
@@ -91,6 +103,11 @@ export default function ReviewerAssignments() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
             <Link
               to="/review/score/app_01HZX4"
+              aria-haspopup="dialog"
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(true);
+              }}
               className="card"
               style={{
                 padding: "18px 20px",
@@ -229,55 +246,56 @@ export default function ReviewerAssignments() {
             (Submitted)
           </div>
         </main>
-        <div className="ovl" role="dialog" aria-modal="true" aria-labelledby="coi-title">
-          <div className="mdl">
-            <div className="hd">
-              <div>
-                <h3 id="coi-title" style={{ fontSize: "16px" }}>
-                  Before you open Alder Creek Family Services
-                </h3>
-                <p className="small muted" style={{ marginTop: "4px" }}>
-                  Riverbend requires a conflict-of-interest declaration for each application. Your answers are recorded in the audit ledger.
-                </p>
-              </div>
-            </div>
-            <div className="bd">
-              <div className="cb">
-                <span className="c on" aria-hidden="true">
-                  <Check className="ic ic-sm" aria-hidden="true" />
-                </span>
-                <div>
-                  I am not an employee, board member, or contractor of this organization, and have not been in the last three years.
-                </div>
-              </div>
-              <div className="cb">
-                <span className="c on" aria-hidden="true">
-                  <Check className="ic ic-sm" aria-hidden="true" />
-                </span>
-                <div>No member of my household has a financial interest in this organization or this project.</div>
-              </div>
-              <div className="cb">
-                <span className="c" aria-hidden="true"></span>
-                <div>I have not discussed this application with the applicant outside the review process.</div>
-              </div>
-              <p className="small muted">
-                If you have a conflict, choose “I have a conflict”. The application is removed from your queue and the program officer
-                reassigns it; nothing else about your review changes.
+        <Dialog open={open} onClose={() => setOpen(false)} labelledBy="coi-title">
+          <div className="hd">
+            <div>
+              <h3 id="coi-title" style={{ fontSize: "16px" }}>
+                Before you open Alder Creek Family Services
+              </h3>
+              <p className="small muted" style={{ marginTop: "4px" }}>
+                Riverbend requires a conflict-of-interest declaration for each application. Your answers are recorded in the audit ledger.
               </p>
             </div>
-            <div className="ft" style={{ justifyContent: "space-between" }}>
-              <button className="btn btn-ghost">I have a conflict — recuse me</button>
-              <div className="row">
-                <Link to="/review/assignments" className="btn btn-secondary">
-                  Cancel
-                </Link>
-                <Link to="/review/score/app_01HZX4" className="btn btn-primary">
-                  Continue to scoring
-                </Link>
-              </div>
+          </div>
+          <div className="bd">
+            {COI_STATEMENTS.map((text, i) => (
+              <label className="cb" key={text}>
+                <input
+                  type="checkbox"
+                  className="sr"
+                  checked={checks[i] ?? false}
+                  onChange={(e) => setChecks(checks.map((v, j) => (j === i ? e.target.checked : v)))}
+                />
+                <span className={checks[i] ? "c on" : "c"} aria-hidden="true">
+                  {checks[i] && <Check className="ic ic-sm" aria-hidden="true" />}
+                </span>
+                <span>{text}</span>
+              </label>
+            ))}
+            <p className="small muted">
+              If you have a conflict, choose “I have a conflict”. The application is removed from your queue and the program officer
+              reassigns it; nothing else about your review changes.
+            </p>
+          </div>
+          <div className="ft" style={{ justifyContent: "space-between" }}>
+            <button className="btn btn-ghost" type="button" onClick={() => setOpen(false)}>
+              I have a conflict — recuse me
+            </button>
+            <div className="row">
+              <button className="btn btn-secondary" type="button" onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={!checks.every(Boolean)}
+                onClick={() => navigate("/review/score/app_01HZX4")}
+              >
+                Continue to scoring
+              </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       </div>
     </>
   );

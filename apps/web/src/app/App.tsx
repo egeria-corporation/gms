@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
 // funder and applicant workspaces share URL shapes (dashboard, applications/:id).
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import { RequireAuth } from "../auth/RequireAuth.tsx";
+import { createServices, ServicesProvider, type Services } from "./services.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
@@ -59,6 +61,7 @@ const AEditorPhone = lazy(() => import("../screens/applicant/phone/EditorPhone.t
 const AApplicationStatusPhone = lazy(() => import("../screens/applicant/phone/ApplicationStatusPhone.tsx"));
 const AGrantPhone = lazy(() => import("../screens/applicant/phone/GrantPhone.tsx"));
 const AReportsPhone = lazy(() => import("../screens/applicant/phone/ReportsPhone.tsx"));
+const SgFormRenderer = lazy(() => import("../screens/styleguide/FormRenderer.tsx"));
 const SgStatusVocabulary = lazy(() => import("../screens/styleguide/StatusVocabulary.tsx"));
 const SgComponentsA = lazy(() => import("../screens/styleguide/ComponentsA.tsx"));
 const SgComponentsB = lazy(() => import("../screens/styleguide/ComponentsB.tsx"));
@@ -135,7 +138,17 @@ function Preview({ of }: { of: Record<string, ReactNode> }) {
 const f = (el: ReactNode) => <Only kind="funder">{el}</Only>;
 const a = (el: ReactNode) => <Only kind="applicant">{el}</Only>;
 
-export function App() {
+export function App({ services }: { services?: Services }) {
+  // Built once per mount; tests pass their own.
+  const [resolved] = useState(() => services ?? createServices());
+  return (
+    <ServicesProvider services={resolved}>
+      <AppRoutes />
+    </ServicesProvider>
+  );
+}
+
+function AppRoutes() {
   return (
     <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
       <Routes>
@@ -144,73 +157,78 @@ export function App() {
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
-        <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/brand" replace />} />
-        <Route path="/onboarding/funder/brand" element={<FunderOnboarding />} />
-        <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/account" element={<Navigate to="/account/agents" replace />} />
-        <Route path="/account/agents" element={<AccountSettings />} />
         <Route path="/oauth/consent" element={<OAuthConsent />} />
 
-        {/* Reviewer portal: external reviewers have no workspace rail. */}
-        <Route path="/review/assignments" element={<FReviewerAssignments />} />
-        <Route path="/review/score/:appId" element={<FReviewerScoring />} />
+        {/* Everything below needs a signed-in person. */}
+        <Route element={<RequireAuth />}>
+          <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/brand" replace />} />
+          <Route path="/onboarding/funder/brand" element={<FunderOnboarding />} />
+          <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/account" element={<Navigate to="/account/agents" replace />} />
+          <Route path="/account/agents" element={<AccountSettings />} />
 
-        <Route path="/w/:ws" element={<WorkspaceLayout />}>
-          <Route
-            index
-            element={<ByKind funder={<FDashboard />} applicant={<Responsive desktop={<ADashboard />} phone={<ADashboardPhone />} />} />}
-          />
-          <Route
-            path="applications/:appId"
-            element={
-              <ByKind
-                funder={<FApplicationDetail />}
-                applicant={<Responsive desktop={<AApplicationStatus />} phone={<AApplicationStatusPhone />} />}
-              />
-            }
-          />
+          {/* Reviewer portal: external reviewers have no workspace rail. */}
+          <Route path="/review/assignments" element={<FReviewerAssignments />} />
+          <Route path="/review/score/:appId" element={<FReviewerScoring />} />
 
-          {/* Funder workspace */}
-          <Route path="programs" element={f(<FPrograms />)} />
-          <Route path="programs/:programId" element={f(<FPrograms />)} />
-          <Route path="opportunities/:oppId/edit" element={f(<FOpportunityBuilder />)} />
-          <Route path="forms/:formId/edit" element={f(<FFormBuilder />)} />
-          <Route path="competitions/:compId" element={f(<FCompetition />)} />
-          <Route path="competitions/:compId/panel" element={f(<FPanel />)} />
-          <Route path="applications" element={f(<FApplications />)} />
-          <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
-          <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
-          <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
-          <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
-          <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />
-          <Route path="payments" element={<Navigate to="due" replace />} />
-          <Route path="payments/due" element={f(<FPaymentsDue />)} />
-          <Route path="payments/in-flight" element={f(<FPaymentsInFlight />)} />
-          <Route path="reporting" element={f(<FReporting />)} />
-          <Route path="grantees" element={f(<FGrantees />)} />
-          <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
-          <Route path="analytics" element={f(<FAnalytics />)} />
-          <Route path="communications" element={f(<FCommunications />)} />
-          <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
-          <Route path="approvals" element={f(<FApprovals />)} />
+          <Route path="/w/:ws" element={<WorkspaceLayout />}>
+            <Route
+              index
+              element={<ByKind funder={<FDashboard />} applicant={<Responsive desktop={<ADashboard />} phone={<ADashboardPhone />} />} />}
+            />
+            <Route
+              path="applications/:appId"
+              element={
+                <ByKind
+                  funder={<FApplicationDetail />}
+                  applicant={<Responsive desktop={<AApplicationStatus />} phone={<AApplicationStatusPhone />} />}
+                />
+              }
+            />
 
-          {/* Applicant workspace */}
-          <Route path="organization" element={a(<Responsive desktop={<AOrganization />} phone={<AOrganizationPhone />} />)} />
-          <Route path="find" element={a(<AFindFunding />)} />
-          <Route path="applications/:appId/edit" element={a(<Responsive desktop={<AEditor />} phone={<AEditorPhone />} />)} />
-          <Route path="applications/:appId/edit/submit" element={a(<AEditorSubmit />)} />
-          <Route path="applications/:appId/submitted" element={a(<AConfirmation />)} />
-          <Route path="grants/:awardId" element={a(<Responsive desktop={<AGrantPayments />} phone={<AGrantPhone />} />)} />
-          <Route path="grants/:awardId/offer" element={a(<AGrantOffered />)} />
-          <Route path="reports" element={a(<Responsive desktop={<AReports />} phone={<AReportsPhone />} />)} />
-          <Route path="library" element={a(<AAnswerLibrary />)} />
-          <Route path="team" element={a(<ATeamAccess />)} />
-          <Route path="funders" element={a(<AFunders />)} />
-          <Route path="settings" element={a(<ASettings />)} />
+            {/* Funder workspace */}
+            <Route path="programs" element={f(<FPrograms />)} />
+            <Route path="programs/:programId" element={f(<FPrograms />)} />
+            <Route path="opportunities/:oppId/edit" element={f(<FOpportunityBuilder />)} />
+            <Route path="forms/:formId/edit" element={f(<FFormBuilder />)} />
+            <Route path="competitions/:compId" element={f(<FCompetition />)} />
+            <Route path="competitions/:compId/panel" element={f(<FPanel />)} />
+            <Route path="applications" element={f(<FApplications />)} />
+            <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
+            <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
+            <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
+            <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
+            <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />
+            <Route path="payments" element={<Navigate to="due" replace />} />
+            <Route path="payments/due" element={f(<FPaymentsDue />)} />
+            <Route path="payments/in-flight" element={f(<FPaymentsInFlight />)} />
+            <Route path="reporting" element={f(<FReporting />)} />
+            <Route path="grantees" element={f(<FGrantees />)} />
+            <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
+            <Route path="analytics" element={f(<FAnalytics />)} />
+            <Route path="communications" element={f(<FCommunications />)} />
+            <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
+            <Route path="approvals" element={f(<FApprovals />)} />
+
+            {/* Applicant workspace */}
+            <Route path="organization" element={a(<Responsive desktop={<AOrganization />} phone={<AOrganizationPhone />} />)} />
+            <Route path="find" element={a(<AFindFunding />)} />
+            <Route path="applications/:appId/edit" element={a(<Responsive desktop={<AEditor />} phone={<AEditorPhone />} />)} />
+            <Route path="applications/:appId/edit/submit" element={a(<AEditorSubmit />)} />
+            <Route path="applications/:appId/submitted" element={a(<AConfirmation />)} />
+            <Route path="grants/:awardId" element={a(<Responsive desktop={<AGrantPayments />} phone={<AGrantPhone />} />)} />
+            <Route path="grants/:awardId/offer" element={a(<AGrantOffered />)} />
+            <Route path="reports" element={a(<Responsive desktop={<AReports />} phone={<AReportsPhone />} />)} />
+            <Route path="library" element={a(<AAnswerLibrary />)} />
+            <Route path="team" element={a(<ATeamAccess />)} />
+            <Route path="funders" element={a(<AFunders />)} />
+            <Route path="settings" element={a(<ASettings />)} />
+          </Route>
         </Route>
 
         {/* Component reference from the design canvas, and the email / PDF templates */}
+        <Route path="/styleguide/form" element={<SgFormRenderer />} />
         <Route path="/styleguide/status" element={<SgStatusVocabulary />} />
         <Route path="/styleguide/components-a" element={<SgComponentsA />} />
         <Route path="/styleguide/components-b" element={<SgComponentsB />} />

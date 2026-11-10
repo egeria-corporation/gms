@@ -1,140 +1,153 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { CSSProperties } from "react";
-import { Link } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 import { BadgeCheck, Check, CircleCheck, Clock, Globe, Hash, Lock, Mail, PenLine, Send, User, X } from "lucide-react";
+import { Dialog } from "../../components/Dialog.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 
 export default function GrantOffered() {
+  const navigate = useNavigate();
+  const { ws = "alder-creek", awardId = "awd_01J2Q7" } = useParams();
+  const [open, setOpen] = useState(false);
+  const [typedName, setTypedName] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  // Click-to-sign needs both the typed legal name and the attestation.
+  const canSign = typedName.trim().length > 0 && agreed;
+  const sign = () => {
+    if (!canSign) return;
+    setOpen(false);
+    navigate(`/w/${ws}/grants/${awardId}`);
+  };
   return (
     <>
       <title>{"Grant — Offered: accept and sign"}</title>
       <ApplicantShell
         active="My grants"
         overlay={
-          <>
-            <div className="ovl" id="sign" role="dialog" aria-modal="true" aria-labelledby="sign-title" style={{ paddingTop: "72px" }}>
-              <div className="mdl mdl-lg">
-                <div className="hd">
-                  <div>
-                    <h2 id="sign-title" style={{ fontSize: "20px" }}>
-                      Sign the grant agreement
-                    </h2>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      Riverbend Community Foundation · Mobile Health Navigation for Rural Families · $150,000
-                    </p>
+          <Dialog open={open} onClose={() => setOpen(false)} labelledBy="sign-title" size="lg" overlayStyle={{ paddingTop: "72px" }}>
+            <div className="hd">
+              <div>
+                <h2 id="sign-title" style={{ fontSize: "20px" }}>
+                  Sign the grant agreement
+                </h2>
+                <p className="small muted" style={{ marginTop: "4px" }}>
+                  Riverbend Community Foundation · Mobile Health Navigation for Rural Families · $150,000
+                </p>
+              </div>
+              <button className="iconbtn" type="button" aria-label="Close" onClick={() => setOpen(false)}>
+                <X className="ic" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="bd" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <span className="eyebrow">Document</span>
+                <div
+                  style={{
+                    border: "1px solid #D6DEDE",
+                    borderRadius: "8px",
+                    height: "300px",
+                    overflow: "auto",
+                    padding: "16px 18px",
+                    background: "#FFFFFF",
+                    fontSize: "13px",
+                    lineHeight: 1.6,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div className="b" style={{ fontFamily: "var(--font-display)", color: "#0D2A43", fontSize: "15px" }}>
+                    Grant Agreement — Community Health Grants 2027
                   </div>
-                  <button className="iconbtn" aria-label="Close">
-                    <X className="ic" aria-hidden="true" />
-                  </button>
+                  <p>
+                    <span className="b">1. Parties.</span> Riverbend Community Foundation and Alder Creek Family Services.
+                  </p>
+                  <p>
+                    <span className="b">2. Purpose and amount.</span> $150,000 for Mobile Health Navigation for Rural Families, Jul 1, 2027
+                    – Jun 30, 2028.
+                  </p>
+                  <p>
+                    <span className="b">3. Payment schedule.</span> $75,000 on execution; $60,000 on acceptance of the interim report;
+                    $15,000 on acceptance of the final report.
+                  </p>
+                  <p>
+                    <span className="b">4. Use of funds.</span> Funds are restricted to the approved budget; reallocations above 10% of a
+                    category require an amendment.
+                  </p>
+                  <p>
+                    <span className="b">5. Reporting.</span> Interim report due Dec 15, 2027; final report due Jul 15, 2028, each on the
+                    Funder’s report form.
+                  </p>
+                  <p>
+                    <span className="b">6. Records and audit.</span> Grantee keeps financial records for three years after closeout.
+                  </p>
+                  <p className="muted">Clauses 7–12 …</p>
                 </div>
-                <div className="bd" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <span className="eyebrow">Document</span>
-                    <div
-                      style={{
-                        border: "1px solid #D6DEDE",
-                        borderRadius: "8px",
-                        height: "300px",
-                        overflow: "auto",
-                        padding: "16px 18px",
-                        background: "#FFFFFF",
-                        fontSize: "13px",
-                        lineHeight: 1.6,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                      }}
-                    >
-                      <div className="b" style={{ fontFamily: "var(--font-display)", color: "#0D2A43", fontSize: "15px" }}>
-                        Grant Agreement — Community Health Grants 2027
-                      </div>
-                      <p>
-                        <span className="b">1. Parties.</span> Riverbend Community Foundation and Alder Creek Family Services.
-                      </p>
-                      <p>
-                        <span className="b">2. Purpose and amount.</span> $150,000 for Mobile Health Navigation for Rural Families, Jul 1,
-                        2027 – Jun 30, 2028.
-                      </p>
-                      <p>
-                        <span className="b">3. Payment schedule.</span> $75,000 on execution; $60,000 on acceptance of the interim report;
-                        $15,000 on acceptance of the final report.
-                      </p>
-                      <p>
-                        <span className="b">4. Use of funds.</span> Funds are restricted to the approved budget; reallocations above 10% of
-                        a category require an amendment.
-                      </p>
-                      <p>
-                        <span className="b">5. Reporting.</span> Interim report due Dec 15, 2027; final report due Jul 15, 2028, each on the
-                        Funder’s report form.
-                      </p>
-                      <p>
-                        <span className="b">6. Records and audit.</span> Grantee keeps financial records for three years after closeout.
-                      </p>
-                      <p className="muted">Clauses 7–12 …</p>
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px" }}>
-                      <Hash className="ic" aria-hidden="true" />
-                      Document hash sha256 7e2b…40af · 12 pages ·<Link to="/preview/pdf/agreement">open PDF</Link>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                    <div className="fld">
-                      <label className="lbl" htmlFor="typed">
-                        Type your full legal name
-                      </label>
-                      <input
-                        className="inp"
-                        id="typed"
-                        defaultValue="Maria Santos"
-                        style={{ fontFamily: "var(--font-emphasis)", fontStyle: "italic", fontSize: "20px", height: "48px" }}
-                      />
-                      <span className="help">Must match a verified representative: Maria Santos, Executive Director.</span>
-                    </div>
-                    <label className="cb">
-                      <span className="c on">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </span>
-                      <span>I am authorized to sign for Alder Creek Family Services and agree to the terms above.</span>
-                    </label>
-                    <div className="card" style={{ padding: "12px 14px", background: "#F7FAFA" }}>
-                      <div className="eyebrow">What is recorded</div>
-                      <ul style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px", fontSize: "14px" }}>
-                        <li className="row" style={{ gap: "8px" }}>
-                          <User className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                          Typed name · Maria Santos
-                        </li>
-                        <li className="row" style={{ gap: "8px" }}>
-                          <Clock className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                          Time of signing (UTC) · recorded at click
-                        </li>
-                        <li className="row" style={{ gap: "8px" }}>
-                          <Globe className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                          IP address of this session
-                        </li>
-                        <li className="row" style={{ gap: "8px" }}>
-                          <Hash className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                          Document hash · sha256 7e2b…40af
-                        </li>
-                      </ul>
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px" }}>
-                      <Lock className="ic" aria-hidden="true" />
-                      Signing is a human gate: a connected agent can prepare this agreement but can never sign it.
-                    </div>
-                  </div>
+                <div className="row small muted" style={{ gap: "6px" }}>
+                  <Hash className="ic" aria-hidden="true" />
+                  Document hash sha256 7e2b…40af · 12 pages ·<Link to="/preview/pdf/agreement">open PDF</Link>
                 </div>
-                <div className="ft">
-                  <Link to="/w/alder-creek/grants/awd_01J2Q7/offer" className="btn btn-secondary">
-                    Cancel
-                  </Link>
-                  <Link to="/w/riverbend/awards/awd_01J2Q7/agreement" className="btn btn-primary btn-lg">
-                    <PenLine className="ic" aria-hidden="true" />
-                    Sign agreement
-                  </Link>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div className="fld">
+                  <label className="lbl" htmlFor="typed">
+                    Type your full legal name
+                  </label>
+                  <input
+                    className="inp"
+                    id="typed"
+                    autoComplete="name"
+                    value={typedName}
+                    onChange={(e) => setTypedName(e.target.value)}
+                    style={{ fontFamily: "var(--font-emphasis)", fontStyle: "italic", fontSize: "20px", height: "48px" }}
+                  />
+                  <span className="help">Must match a verified representative: Maria Santos, Executive Director.</span>
+                </div>
+                <label className="cb">
+                  <input type="checkbox" className="sr" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+                  <span className={agreed ? "c on" : "c"} aria-hidden="true">
+                    {agreed && <Check className="ic ic-sm" aria-hidden="true" />}
+                  </span>
+                  <span>I am authorized to sign for Alder Creek Family Services and agree to the terms above.</span>
+                </label>
+                <div className="card" style={{ padding: "12px 14px", background: "#F7FAFA" }}>
+                  <div className="eyebrow">What is recorded</div>
+                  <ul style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px", fontSize: "14px" }}>
+                    <li className="row" style={{ gap: "8px" }}>
+                      <User className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
+                      Typed name · {typedName.trim() || "not entered yet"}
+                    </li>
+                    <li className="row" style={{ gap: "8px" }}>
+                      <Clock className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
+                      Time of signing (UTC) · recorded at click
+                    </li>
+                    <li className="row" style={{ gap: "8px" }}>
+                      <Globe className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
+                      IP address of this session
+                    </li>
+                    <li className="row" style={{ gap: "8px" }}>
+                      <Hash className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
+                      Document hash · sha256 7e2b…40af
+                    </li>
+                  </ul>
+                </div>
+                <div className="row small muted" style={{ gap: "6px" }}>
+                  <Lock className="ic" aria-hidden="true" />
+                  Signing is a human gate: a connected agent can prepare this agreement but can never sign it.
                 </div>
               </div>
             </div>
-          </>
+            <div className="ft">
+              <button className="btn btn-secondary" type="button" onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary btn-lg" type="button" disabled={!canSign} onClick={sign}>
+                <PenLine className="ic" aria-hidden="true" />
+                Sign agreement
+              </button>
+            </div>
+          </Dialog>
         }
       >
         <main className="main">
@@ -359,10 +372,10 @@ export default function GrantOffered() {
                   </p>
                 </div>
                 <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-                  <a href="#sign" className="btn btn-primary btn-lg">
+                  <button className="btn btn-primary btn-lg" type="button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
                     <PenLine className="ic" aria-hidden="true" />
                     Review and sign
-                  </a>
+                  </button>
                   <Link to="/preview/pdf/agreement" className="btn btn-secondary btn-lg">
                     Download PDF
                   </Link>
