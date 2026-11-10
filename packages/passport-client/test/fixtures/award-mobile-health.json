@@ -1,0 +1,19 @@
+{
+  "method": "GET",
+  "path": "/common-grants/awards/0193a1c0-0000-7000-8000-00000000aa01",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "data": {
+      "id": "0193a1c0-0000-7000-8000-00000000aa01",
+      "title": "Mobile Health Navigation for Rural Families",
+      "status": { "value": "awarded" },
+      "funding": {
+        "requestedAmount": { "amount": "150000.00", "currency": "USD" },
+        "awardedAmount": { "amount": "150000.00", "currency": "USD" },
+        "disbursedAmount": { "amount": "0.00", "currency": "USD" }
+      }
+    }
+  }
+}

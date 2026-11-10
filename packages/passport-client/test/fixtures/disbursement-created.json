@@ -1,0 +1,31 @@
+{
+  "method": "POST",
+  "path": "/passport/disbursements",
+  "status": 201,
+  "headers": { "Location": "/passport/disbursements/dsb_01JFIXTURE0000000000000000" },
+  "body": {
+    "status": 201,
+    "message": "Created",
+    "data": {
+      "id": "dsb_01JFIXTURE0000000000000000",
+      "awardId": "0193a1c0-0000-7000-8000-00000000aa01",
+      "funderOrgId": "0193a1c0-0000-7000-8000-0000000000f1",
+      "recipientOrgId": "0193a1c0-0000-7000-8000-0000000000a1",
+      "credentialId": "pc_01JALDERCREEK0000000000000",
+      "credentialVersion": 4,
+      "destinationId": "0193a1c0-0000-7000-8000-0000000000d1",
+      "amount": { "amount": "75000.00", "currency": "USD" },
+      "requestedRail": "auto",
+      "rail": "standard",
+      "mode": "facilitated",
+      "status": "initiated",
+      "memo": "Mobile Health Navigation - tranche 1",
+      "fee": { "amount": "5.00", "currency": "USD" },
+      "warrantyEligible": true,
+      "checks": [],
+      "timeline": [{ "status": "initiated", "at": "2027-05-24T16:05:00Z" }],
+      "createdAt": "2027-05-24T16:05:00Z",
+      "lastModifiedAt": "2027-05-24T16:05:00Z"
+    }
+  }
+}
