@@ -1,0 +1,8 @@
+{
+  "paths": [
+    {
+      "path": "apps/api/src/lib/log.ts",
+      "reason": "Log redactor: names bank and identity field names solely to strip them from log lines. It stores nothing."
+    }
+  ]
+}

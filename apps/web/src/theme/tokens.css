@@ -1,0 +1,184 @@
+/* ============================================================
+   OpenGrants Design System — Colors, Type, Tokens
+   Source of truth: outputs/opengrants-design-system.jsx +
+   the 90+ SEO landing pages under outputs/*-grants.html
+   ============================================================ */
+
+/* Brand fonts per the official OpenGrants brand kit:
+   - Ubuntu Bold — headings & logo
+   - Lato         — subheadings & body
+   - Raleway      — emphasis & quotes
+   Loaded from local /fonts TTFs (see @font-face below). */
+
+/* Local alternate fonts (from uploaded brand kit) */
+@font-face { font-family: 'Lato';   src: url('/fonts/Lato-Regular.ttf')  format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lato';   src: url('/fonts/Lato-Bold.ttf')     format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lato';   src: url('/fonts/Lato-Black.ttf')    format('truetype'); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lato';   src: url('/fonts/Lato-Light.ttf')    format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Lato';   src: url('/fonts/Lato-Italic.ttf')   format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Ubuntu'; src: url('/fonts/Ubuntu-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ubuntu'; src: url('/fonts/Ubuntu-Medium.ttf')  format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ubuntu'; src: url('/fonts/Ubuntu-Bold.ttf')    format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ubuntu'; src: url('/fonts/Ubuntu-Light.ttf')   format('truetype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Raleway'; src: url('/fonts/Raleway-Variable.ttf') format('truetype-variations'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Raleway'; src: url('/fonts/Raleway-Italic-Variable.ttf') format('truetype-variations'); font-weight: 100 900; font-style: italic; font-display: swap; }
+
+:root {
+  /* ───────── Primary palette ───────── */
+  --og-teal:        #29A79F; /* primary brand — default stat, card icon */
+  --og-blue:        #4A86E8; /* secondary accent — alternate stat */
+  --og-navy:        #2470B3; /* links, tertiary stat */
+  --og-mint:        #00CC99; /* CTA buttons, success accent */
+
+  /* ───────── Dark tones ───────── */
+  --og-navy-dark:   #0D2A43; /* headlines, CTA gradient start */
+  --og-teal-dark:   #145450; /* subheadings, CTA gradient end, source links */
+
+  /* ───────── Tints (backgrounds, icon plates) ───────── */
+  --og-teal-light:  #C2F0ED; /* link underline, card hover border */
+  --og-teal-soft:   #E1F8F6; /* hero gradient stop, teal icon bg */
+  --og-blue-light:  #D2E1F9; /* blue icon bg */
+  --og-mint-light:  #B3FFEC; /* mint icon bg (tint variant) */
+
+  /* ───────── Neutrals ───────── */
+  --og-white:       #FFFFFF;
+  --og-gray-50:     #F7FAFA; /* resources bg, hover bg */
+  --og-gray-100:    #EEF3F3; /* alt backgrounds */
+  --og-gray-200:    #D6DEDE; /* borders, dividers, stats grid gap */
+  --og-gray-600:    #4A5C5A; /* body text secondary, labels */
+  --og-gray-800:    #1E2D2B; /* body text primary */
+
+  /* ───────── Semantic aliases ───────── */
+  --fg-1:           var(--og-navy-dark); /* headings */
+  --fg-2:           var(--og-gray-800);  /* body */
+  --fg-3:           var(--og-gray-600);  /* secondary, labels */
+  --fg-link:        var(--og-navy);
+  --fg-link-hover:  var(--og-teal);
+  --fg-accent:      var(--og-teal);
+  --bg-page:        var(--og-white);
+  --bg-alt:         var(--og-gray-50);
+  --bg-plate:       var(--og-gray-100);
+  --border-1:       var(--og-gray-200);
+  --border-hover:   var(--og-teal-light);
+
+  /* ───────── Typography families ───────── */
+  --font-display:   'Ubuntu', system-ui, -apple-system, Segoe UI, sans-serif;  /* Headings & logo — Bold 700 */
+  --font-body:      'Lato', system-ui, -apple-system, Segoe UI, sans-serif;    /* Subheadings & body */
+  --font-emphasis:  'Raleway', 'Lato', system-ui, sans-serif;                  /* Emphasis & quotes */
+  --font-mono:      'SF Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+
+  /* ───────── Type scale (tokens) ───────── */
+  --fs-hero-h1:        clamp(2rem, 5vw, 3.25rem);
+  --fs-section-h2:     clamp(1.5rem, 3vw, 2rem);
+  --fs-resource-h2:    clamp(1.3rem, 2.5vw, 1.75rem);
+  --fs-cta-h2:         clamp(1.5rem, 3vw, 2.25rem);
+  --fs-prose-h3:       1.25rem;
+  --fs-card-h3:        1.1rem;
+  --fs-stat-value:     1.75rem;
+  --fs-subtitle:       clamp(1.05rem, 2vw, 1.2rem);
+  --fs-cta-body:       1.05rem;
+  --fs-body:           1rem;       /* 16px */
+  --fs-card-body:      0.9375rem;  /* 15px */
+  --fs-button:         0.9375rem;
+  --fs-resource-link:  0.9375rem;
+  --fs-label:          0.8125rem;  /* 13px */
+  --fs-source:         0.8125rem;
+  --fs-eyebrow:        0.75rem;    /* 12px */
+  --fs-badge:          0.7rem;
+
+  /* ───────── Weights ───────── */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+
+  /* ───────── Line heights ───────── */
+  --lh-tight:   1.15;
+  --lh-snug:    1.25;
+  --lh-normal:  1.4;
+  --lh-body:    1.65;
+  --lh-relaxed: 1.6;
+
+  /* ───────── Spacing ───────── */
+  --space-section:   clamp(3rem, 6vw, 5rem);
+  --space-container: clamp(1rem, 4vw, 2rem);
+  --space-card:      1.75rem;
+  --space-resource:  clamp(2rem, 4vw, 3rem);
+  --space-cta:       clamp(2.5rem, 5vw, 3.5rem) clamp(2rem, 4vw, 3rem);
+  --space-card-gap:  1.25rem;
+  --space-res-gap:   1rem;
+  --content-max:     1120px;
+
+  /* ───────── Radii ───────── */
+  --radius-card:       12px;
+  --radius-stats:      12px;
+  --radius-resource:   16px;
+  --radius-res-item:   10px;
+  --radius-cta:        16px;
+  --radius-icon:       10px;
+  --radius-badge:      8px;
+  --radius-btn:        0px;    /* sharp corners */
+  --radius-accent:     2px;
+
+  /* ───────── Shadows ───────── */
+  --shadow-card-hover:     0 8px 24px rgba(41,167,159,.08);
+  --shadow-resource-hover: 0 4px 12px rgba(41,167,159,.06);
+  --shadow-btn:            0 4px 14px rgba(0,204,153,.3);
+  --shadow-btn-hover:      0 6px 20px rgba(0,204,153,.4);
+
+  /* ───────── Gradients ───────── */
+  --grad-hero: radial-gradient(ellipse 60% 50% at 10% 90%, rgba(0,204,153,.08), transparent 70%),
+               radial-gradient(ellipse 50% 60% at 85% 20%, rgba(74,134,232,.07), transparent 70%),
+               linear-gradient(180deg, #E1F8F6, #FFFFFF);
+  --grad-cta:  linear-gradient(135deg, #0D2A43 0%, #145450 100%);
+  --grad-orb:  radial-gradient(circle, rgba(0,204,153,.15), transparent 70%);
+
+  /* ───────── Transitions ───────── */
+  --t-default:   0.2s ease;
+  --t-hover:     transform 0.15s ease, box-shadow 0.15s ease;
+  --t-card:      border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+
+/* ============================================================
+   Semantic element styles — apply these as base page styles
+   ============================================================ */
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  font-family: var(--font-body);
+  color: var(--fg-2);
+  background: var(--bg-page);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  margin: 0;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-display); color: var(--fg-1); margin: 0; }
+h1 { font-size: var(--fs-hero-h1);     font-weight: var(--fw-bold); line-height: var(--lh-tight); }
+h2 { font-size: var(--fs-section-h2);  font-weight: var(--fw-bold); line-height: var(--lh-snug); }
+h3 { font-size: var(--fs-prose-h3);    font-weight: var(--fw-bold); line-height: 1.3; color: var(--og-teal-dark); }
+h4 { font-size: var(--fs-card-h3);     font-weight: var(--fw-bold); line-height: 1.3; }
+
+p { margin: 0 0 1rem; color: var(--fg-2); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--fg-link); text-decoration-color: var(--og-teal-light); text-underline-offset: 3px; transition: color var(--t-default), text-decoration-color var(--t-default); }
+a:hover { color: var(--fg-link-hover); text-decoration-color: var(--og-teal); }
+
+code, pre, kbd, samp { font-family: var(--font-mono); }
+code { background: var(--og-teal-soft); padding: 2px 6px; border-radius: 4px; font-size: .875em; color: var(--og-teal-dark); }
+pre { background: var(--og-navy-dark); color: var(--og-teal-light); padding: 16px 20px; border-radius: 10px; font-size: 0.8125rem; line-height: 1.6; overflow-x: auto; }
+pre code { background: transparent; color: inherit; padding: 0; }
+
+small, .og-label { font-size: var(--fs-label); color: var(--fg-3); }
+.og-eyebrow {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-size: var(--fs-eyebrow); font-weight: var(--fw-semi);
+  letter-spacing: .08em; text-transform: uppercase; color: var(--og-teal);
+}
+
+/* Hero accent bar — three segments */
+.og-accent { display: inline-flex; gap: 4px; }
+.og-accent span { height: 4px; border-radius: var(--radius-accent); display: block; }
+.og-accent span:nth-child(1) { width: 48px; background: var(--og-teal); }
+.og-accent span:nth-child(2) { width: 24px; background: var(--og-mint); }
+.og-accent span:nth-child(3) { width: 12px; background: var(--og-blue); }

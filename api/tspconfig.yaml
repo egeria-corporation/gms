@@ -1,0 +1,7 @@
+emit:
+  - "@typespec/json-schema"
+  - "@typespec/openapi3"
+# @common-grants/core declares its own `CommonGrants.API` service, so the openapi3 emitter writes one
+# file per service: tsp-output/@typespec/openapi3/openapi.Passport.yaml (ours) and
+# openapi.CommonGrants.API.yaml (the base, ignored). Do not set `output-file`: both services would
+# overwrite the same file.

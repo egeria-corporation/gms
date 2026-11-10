@@ -1,0 +1,16 @@
+{
+  "name": "@gms/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "CommonGrants v0.5.0 projections validated with @common-grants/sdk",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": { "@common-grants/sdk": "0.9.1", "zod": "4.6.7" }
+}

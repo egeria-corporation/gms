@@ -1,0 +1,551 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Awards (build spec §10.1, §10.6, §11.5): the lifecycle lives here, the money lives in Passport.
+// Status changes go through the award machine; `funding.disbursedAmount` is only ever the value
+// last read from Passport, never a sum computed in the GMS.
+import type { FunderAwardInput } from "@gms/passport-client";
+import { buildSchedule, DEFAULT_PLAN, ScheduleError, type PlanItem } from "@gms/payments";
+import { filtered, matchesFilter, parseSearchRequest, projectAward, readPath, sortByPath, toMinor, toMoney, type AwardBase, type AwardRow, type Money } from "@gms/protocol";
+import { awardCgStatus, awardEffects, awardMachine, NO_AGREEMENT_REQUIRED, trancheMachine, type AgreementStatus, type AwardAction, type AwardContext, type AwardStatus, type TrancheStatus } from "@gms/workflow";
+import { fanOut, isWebhookEventType } from "@gms/webhooks";
+import { DEFAULT_REMINDER_PLAN } from "@gms/notify";
+import { z } from "zod";
+import { forbidden } from "../auth/verify.ts";
+import { ApiError, notFound } from "../lib/errors.ts";
+import { apiId } from "../lib/ids.ts";
+import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { payoutDestinationFor } from "./organization.ts";
+import { passportClientFor } from "./passport-link.ts";
+import type { PageRequest } from "./programs.ts";
+import type { Row } from "./repos/types.ts";
+
+export type Award = Row<"awards">;
+export type Agreement = Row<"agreements">;
+export type Tranche = Row<"tranches">;
+type Ws = Row<"workspaces">;
+type Funding = { requestedAmount?: Money; awardedAmount?: Money; disbursedAmount?: Money };
+type KeyDates = { awardDate?: { date?: string }; periodOfPerformance?: { startDate?: string; endDate?: string } };
+
+export const STAFF_ROLES = ["admin", "program_officer"] as const;
+const OPEN_TRANCHES: readonly string[] = ["scheduled", "due", "ready", "held", "releasing", "initiated"];
+
+export const fundingOf = (a: Award): Funding => (a.funding as Funding | null) ?? {};
+export const keyDatesOf = (a: Award): KeyDates => (a.key_dates as KeyDates | null) ?? {};
+export const minorOf = (m: Money | undefined): number | null => (m ? toMinor(m) : null);
+export const currencyOf = (a: Award): string => fundingOf(a).awardedAmount?.currency ?? "USD";
+
+/** `USD 150,000.00`: how amounts are printed in letters and agreements. */
+export function printMoney(minor: number, currency: string): string {
+  const [whole, cents] = toMoney(minor, currency).amount.split(".");
+  return `${currency} ${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${cents ? `.${cents}` : ""}`;
+}
+
+/** Webhooks and the ledger for an award belong to the funder's workspace, whichever side acted. */
+export async function emitFor(ctx: ServiceContext, workspaceId: string, type: string, data: Record<string, unknown>): Promise<void> {
+  if (!isWebhookEventType(type)) return;
+  await fanOut({ id: crypto.randomUUID(), type, workspaceId, occurredAt: ctx.now().toISOString(), data }, { store: ctx.webhooks, now: ctx.now });
+}
+
+/** Ports for the award, agreement and tranche machines, writing each subject to its own table. */
+export function grantPorts(ctx: ServiceContext, workspaceId: string) {
+  const lost = () => new ApiError(409, "conflict", "This record changed while you were working. Reload and try again");
+  return {
+    write: async (c: { subjectType: string; subjectId: string; from: string; to: string; patch: Record<string, unknown> }) => {
+      if (c.subjectType === "award") {
+        const [row] = await ctx.repos.table("awards").update({ id: c.subjectId, status: c.from }, { status: c.to, cg_status: awardCgStatus(c.to as AwardStatus).value });
+        if (!row) throw lost();
+      } else if (c.subjectType === "agreement") {
+        const p = c.patch as { document_sha256?: string; grantee_signature?: unknown; funder_signature?: unknown; executed_at?: string | null };
+        const [row] = await ctx.repos.table("agreements").update({ id: c.subjectId, status: c.from }, {
+          status: c.to,
+          ...(p.document_sha256 ? { document_sha256: p.document_sha256 } : {}),
+          ...(p.grantee_signature ? { grantee_signature: p.grantee_signature as Agreement["grantee_signature"] } : {}),
+          ...(p.funder_signature ? { funder_signature: p.funder_signature as Agreement["funder_signature"] } : {}),
+          ...(p.executed_at ? { executed_at: p.executed_at } : {}),
+        });
+        if (!row) throw lost();
+      } else if (c.subjectType === "tranche") {
+        const p = c.patch as { due_at?: string | null; hold_reason?: string | null };
+        const [row] = await ctx.repos.table("tranches").update({ id: c.subjectId, status: c.from }, { status: c.to, ...(p.due_at ? { due_at: p.due_at } : {}), ...("hold_reason" in p ? { hold_reason: p.hold_reason ?? null } : {}) });
+        if (!row) throw lost();
+      } else throw new Error(`grantPorts cannot write a ${c.subjectType}`);
+    },
+    ledger: (e: { eventType: string; subjectType: string; subjectId: string; data: Record<string, unknown> }) => audit(ctx, e.eventType, e.subjectType, e.subjectId, e.data, workspaceId),
+    emit: (e: { type: string; subjectType: string; subjectId: string; data: Record<string, unknown> }) => emitFor(ctx, workspaceId, e.type, { subjectType: e.subjectType, subjectId: e.subjectId, ...e.data }),
+  };
+}
+
+export async function transitionAward(ctx: ServiceContext, award: Award, action: AwardAction, side: "applicant" | "funder", machineCtx: AwardContext = {}): Promise<Award> {
+  const r = await awardMachine.transition({ id: award.id, status: award.status as AwardStatus }, action, { id: ctx.actor.id, kind: side }, { ...machineCtx, now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
+  if (!r.ok) throw new ApiError(r.code === "actor_not_allowed" ? 403 : 409, r.code, r.reason);
+  return required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
+}
+
+/** Who may see an award, and from which side. 404 for everyone else. */
+export async function accessAward(ctx: ServiceContext, awardId: string, scope: "awards:read" | "awards:write" | "agreements:write"): Promise<{ award: Award; side: "funder" | "recipient"; ws: ServiceWorkspace }> {
+  const ws = await authorize(ctx, { scope });
+  const award = await ctx.repos.table("awards").one({ id: awardId });
+  if (award && award.workspace_id === ws.id && ws.kind === "funder") return { award, side: "funder", ws };
+  if (award && award.recipient_workspace_id === ws.id && ws.kind === "applicant") return { award, side: "recipient", ws };
+  throw notFound("Award");
+}
+
+export const latestAgreement = async (ctx: ServiceContext, awardId: string): Promise<Agreement | null> => (await ctx.repos.table("agreements").find({ award_id: awardId }, { orderBy: "version", ascending: false, limit: 1 }))[0] ?? null;
+
+export const agreementSummary = (g: Agreement) => ({
+  id: apiId("agreement", g.id),
+  version: g.version,
+  status: g.status,
+  documentSha256: g.document_sha256,
+  granteeSignedAt: (g.grantee_signature as { at?: string } | null)?.at ?? null,
+  funderSignedAt: (g.funder_signature as { at?: string } | null)?.at ?? null,
+  executedAt: g.executed_at,
+});
+
+const trancheView = (t: Tranche) => ({ id: apiId("tranche", t.id), seq: t.seq, amountMinor: t.amount_minor, currency: t.currency, condition: t.condition, status: t.status, dueAt: t.due_at, holdReason: t.hold_reason, mode: t.mode, passportStatus: t.passport_status, releasedAt: t.released_at });
+const requirementView = (r: Row<"requirements">) => ({ id: apiId("requirement", r.id), type: r.type, title: r.title, formId: r.form_id ? apiId("form", r.form_id) : null, dueAt: r.due_at, status: r.status, releasesTrancheId: r.releases_tranche_id ? apiId("tranche", r.releases_tranche_id) : null });
+const amendmentView = (m: Row<"amendments">) => ({ id: m.id, awardId: apiId("award", m.award_id), type: m.type, request: m.request, status: m.status, requestedBy: m.requested_by, decidedBy: m.decided_by, decidedAt: m.decided_at, childAwardId: m.child_award_id ? apiId("award", m.child_award_id) : null, createdAt: m.created_at });
+
+function mirrorState(ctx: ServiceContext, a: Award): "synced" | "pending" | "not_applicable" | "disabled" {
+  if (a.passport_award_id) return "synced";
+  if (a.status === "offered" || a.status === "cancelled" || !a.recipient_workspace_id) return "not_applicable";
+  return ctx.config.passportAwardWrite ? "pending" : "disabled";
+}
+
+function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipient: Ws | undefined, consented: boolean) {
+  const f = fundingOf(a);
+  return {
+    id: apiId("award", a.id),
+    title: a.title,
+    description: a.description,
+    status: a.status,
+    currency: currencyOf(a),
+    requestedAmountMinor: minorOf(f.requestedAmount),
+    awardedAmountMinor: minorOf(f.awardedAmount),
+    // The cached Passport value and when it was read. Null until Passport has reported one.
+    disbursedAmountMinor: minorOf(f.disbursedAmount),
+    disbursedAt: a.disbursed_at,
+    keyDates: keyDatesOf(a),
+    conditions: a.conditions,
+    applicationId: a.application_id ? apiId("application", a.application_id) : null,
+    opportunityId: a.opportunity_id ? apiId("opportunity", a.opportunity_id) : null,
+    programId: a.program_id,
+    parentAwardId: a.parent_award_id ? apiId("award", a.parent_award_id) : null,
+    funder: { workspaceId: a.workspace_id, name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? null },
+    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient?.display_name ?? null, handle: recipient?.handle ?? null, level: consented ? (recipient?.verification_level ?? null) : null } : null,
+    recipientIndividual: a.recipient_individual,
+    passport: { awardId: a.passport_award_id, syncedAt: a.passport_synced_at, mirror: mirrorState(ctx, a) },
+    createdAt: a.created_at,
+    updatedAt: a.updated_at,
+  };
+}
+
+async function parties(ctx: ServiceContext, awards: Award[]) {
+  const ids = [...new Set(awards.flatMap((a) => [a.workspace_id, ...(a.recipient_workspace_id ? [a.recipient_workspace_id] : [])]))];
+  const rows = ids.length ? await ctx.repos.table("workspaces").find({ id: ids }) : [];
+  const consents = ids.length ? await ctx.repos.table("consents").find({ applicant_workspace_id: ids, revoked_at: null }) : [];
+  return { ws: (id: string | null) => rows.find((w) => w.id === id), consented: (a: Award) => consents.some((c) => c.applicant_workspace_id === a.recipient_workspace_id && c.funder_workspace_id === a.workspace_id) };
+}
+
+export async function awardDetail(ctx: ServiceContext, a: Award) {
+  const p = await parties(ctx, [a]);
+  const [agreement, tranches, requirements, amendments] = await Promise.all([
+    latestAgreement(ctx, a.id),
+    ctx.repos.table("tranches").find({ award_id: a.id }, { orderBy: "seq" }),
+    ctx.repos.table("requirements").find({ award_id: a.id }, { orderBy: "due_at" }),
+    ctx.repos.table("amendments").find({ award_id: a.id }, { orderBy: "created_at" }),
+  ]);
+  return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map(trancheView), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
+}
+
+export interface AwardFilter {
+  status?: string;
+  programId?: string;
+  recipientWorkspaceId?: string;
+}
+
+async function listFor(ctx: ServiceContext, page: PageRequest, rows: Award[], f: AwardFilter) {
+  const hits = rows.filter((a) => (!f.status || f.status.split(",").includes(a.status)) && (!f.programId || a.program_id === f.programId) && (!f.recipientWorkspaceId || a.recipient_workspace_id === f.recipientWorkspaceId)).sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
+  const slice = hits.slice(page.offset, page.offset + page.pageSize);
+  const p = await parties(ctx, slice);
+  return { items: slice.map((a) => summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a))), total: hits.length };
+}
+
+export async function listAwards(ctx: ServiceContext, page: PageRequest, f: AwardFilter = {}) {
+  const ws = await authorize(ctx, { scope: "awards:read", kind: "funder" });
+  return listFor(ctx, page, await ctx.repos.table("awards").find({ workspace_id: ws.id }, { limit: 5000 }), f);
+}
+
+export async function listMyAwards(ctx: ServiceContext, page: PageRequest, f: AwardFilter = {}) {
+  const ws = await authorize(ctx, { scope: "awards:read", kind: "applicant" });
+  return listFor(ctx, page, await ctx.repos.table("awards").find({ recipient_workspace_id: ws.id }, { limit: 5000 }), f);
+}
+
+export async function getAward(ctx: ServiceContext, awardId: string, side?: "funder" | "recipient") {
+  const found = await accessAward(ctx, awardId, "awards:read");
+  if (side && found.side !== side) throw notFound("Award");
+  return awardDetail(ctx, found.award);
+}
+
+/**
+ * The grantee's view of one grant: the detail plus where Passport would pay it (bank name and last
+ * four digits, read live with the grantee's own consent; never stored by the GMS).
+ */
+export async function getMyAward(ctx: ServiceContext, awardId: string) {
+  const found = await accessAward(ctx, awardId, "awards:read");
+  if (found.side !== "recipient" || !found.award.recipient_workspace_id) throw notFound("Award");
+  const [detail, payoutDestination] = await Promise.all([awardDetail(ctx, found.award), payoutDestinationFor(ctx, found.award.recipient_workspace_id)]);
+  return { ...detail, payoutDestination };
+}
+
+/** `/gms/my/awards/{id}/schedule` with the destination display the Payments tab shows beside it. */
+export async function getMyPayoutDestinationForAward(ctx: ServiceContext, awardId: string) {
+  const found = await accessAward(ctx, awardId, "awards:read");
+  if (found.side !== "recipient" || !found.award.recipient_workspace_id) throw notFound("Award");
+  return payoutDestinationFor(ctx, found.award.recipient_workspace_id);
+}
+
+// ------------------------------------------------------------------------------------ creation
+
+/** What a program sets once so every award starts the same way. All optional. */
+export const programDefaults = z
+  .object({
+    awardPeriod: z.object({ startDate: z.iso.date(), endDate: z.iso.date() }).optional(),
+    agreementTemplateId: z.uuid().optional(),
+    noAgreementRequired: z.boolean().optional(),
+    schedule: z
+      .array(z.object({ percent: z.number().positive().max(100).optional(), amountMinor: z.number().int().positive().optional(), condition: z.object({ type: z.enum(["onExecution", "onReportAccepted", "onDate", "manual"]), date: z.string().optional(), requirementKey: z.string().optional() }) }))
+      .max(24)
+      .optional(),
+    requirements: z
+      .array(z.object({ key: z.string().max(60).optional(), type: z.enum(["report", "document", "milestone", "site_visit", "acknowledgment"]), title: z.string().min(1).max(300), formId: z.uuid().optional(), formVersion: z.number().int().positive().optional(), dueAt: z.iso.datetime({ offset: true }).optional(), dueOffsetDays: z.number().int().min(0).max(3650).optional(), graceDays: z.number().int().min(0).max(365).optional() }))
+      .max(24)
+      .optional(),
+    reminderPlan: z.array(z.number().int()).max(12).optional(),
+  })
+  .loose();
+export type ProgramDefaults = z.output<typeof programDefaults>;
+
+export function readDefaults(program: Row<"programs"> | null): ProgramDefaults {
+  const r = programDefaults.safeParse(program?.defaults ?? {});
+  return r.success ? r.data : {};
+}
+
+export interface NewAward {
+  workspaceId: string;
+  recipientWorkspaceId: string;
+  applicationId: string | null;
+  opportunityId: string | null;
+  programId: string | null;
+  title: string;
+  description?: string | null;
+  awardedMinor: number;
+  requestedMinor?: number | null;
+  currency: string;
+  conditions: string[];
+  period?: { startDate?: string; endDate?: string };
+  parentAwardId?: string | null;
+}
+
+/**
+ * Create an award in `offered`, with its payment schedule and requirements from the program's
+ * defaults. The agreement draft is created by the caller (services/agreements.ts).
+ */
+export async function createOfferedAward(ctx: ServiceContext, input: NewAward, defaults: ProgramDefaults): Promise<Award> {
+  const now = ctx.now();
+  const period = input.period ?? defaults.awardPeriod;
+  const conditions = [...new Set([...input.conditions, ...(defaults.noAgreementRequired ? [NO_AGREEMENT_REQUIRED] : [])])];
+  const award = await ctx.repos.table("awards").insert({
+    workspace_id: input.workspaceId,
+    recipient_workspace_id: input.recipientWorkspaceId,
+    application_id: input.applicationId,
+    opportunity_id: input.opportunityId,
+    program_id: input.programId,
+    parent_award_id: input.parentAwardId ?? null,
+    title: input.title,
+    description: input.description ?? null,
+    status: "offered",
+    cg_status: awardCgStatus("offered").value,
+    conditions,
+    funding: { awardedAmount: toMoney(input.awardedMinor, input.currency), ...(input.requestedMinor != null ? { requestedAmount: toMoney(input.requestedMinor, input.currency) } : {}) } as unknown as Award["funding"],
+    // CommonGrants `AwdTimeline`: each entry is an Event.
+    key_dates: {
+      awardDate: { name: "Award date", eventType: "singleDate", date: now.toISOString().slice(0, 10) },
+      ...(period?.startDate && period.endDate ? { periodOfPerformance: { name: "Period of performance", eventType: "dateRange", startDate: period.startDate, endDate: period.endDate } } : {}),
+    } as Award["key_dates"],
+  });
+
+  // Requirements first: an onReportAccepted tranche names the requirement that releases it.
+  const byKey = new Map<string, string>();
+  for (const [i, r] of (defaults.requirements ?? []).entries()) {
+    const base = period?.endDate && r.dueOffsetDays === undefined && !r.dueAt ? new Date(`${period.endDate}T00:00:00Z`) : null;
+    const dueAt = r.dueAt ?? (r.dueOffsetDays !== undefined ? new Date(now.getTime() + r.dueOffsetDays * 86_400_000).toISOString() : (base?.toISOString() ?? null));
+    const row = await ctx.repos.table("requirements").insert({ workspace_id: input.workspaceId, award_id: award.id, type: r.type, title: r.title, form_id: r.formId ?? null, form_version: r.formId ? (r.formVersion ?? 1) : null, due_at: dueAt, grace_days: r.graceDays ?? 0, reminder_plan: (defaults.reminderPlan ?? [...DEFAULT_REMINDER_PLAN]) as Row<"requirements">["reminder_plan"], status: "scheduled" });
+    byKey.set(r.key ?? String(i), row.id);
+  }
+
+  const plan: PlanItem[] = (defaults.schedule?.length ? defaults.schedule : DEFAULT_PLAN).map((s) => {
+    const key = "requirementKey" in s.condition ? s.condition.requirementKey : undefined;
+    const requirementId = key ? byKey.get(key) : undefined;
+    const condition = s.condition.type === "onReportAccepted" ? { type: "onReportAccepted" as const, ...(requirementId ? { requirementId } : {}) } : s.condition.type === "onDate" ? { type: "onDate" as const, date: ("date" in s.condition ? s.condition.date : undefined) ?? "" } : { type: s.condition.type };
+    return ("amountMinor" in s && s.amountMinor !== undefined ? { amountMinor: s.amountMinor, condition } : { percent: ("percent" in s ? s.percent : undefined) ?? 100, condition }) as PlanItem;
+  });
+  let tranches;
+  try {
+    tranches = buildSchedule({ awardId: award.id, awardedMinor: input.awardedMinor, currency: input.currency, plan, newId: () => crypto.randomUUID() });
+  } catch (e) {
+    if (!(e instanceof ScheduleError)) throw e;
+    // A program default that does not fit this amount must not lose the award: fall back to one payment on execution.
+    await audit(ctx, "award.schedule_default_rejected", "award", award.id, { code: e.code }, input.workspaceId);
+    tranches = buildSchedule({ awardId: award.id, awardedMinor: input.awardedMinor, currency: input.currency, plan: DEFAULT_PLAN, newId: () => crypto.randomUUID() });
+  }
+  const schedule = await ctx.repos.table("payment_schedules").insert({ workspace_id: input.workspaceId, award_id: award.id, currency: input.currency });
+  for (const t of tranches) {
+    const row = await ctx.repos.table("tranches").insert({ id: t.id, workspace_id: input.workspaceId, award_id: award.id, schedule_id: schedule.id, seq: t.seq, amount_minor: t.amountMinor, currency: t.currency, condition: t.condition as unknown as Tranche["condition"], status: "scheduled", due_at: t.dueAt, idempotency_key: `trn_${t.id}` });
+    const releasedBy = t.condition.type === "onReportAccepted" ? t.condition.requirementId : undefined;
+    if (releasedBy) await ctx.repos.table("requirements").update({ id: releasedBy }, { releases_tranche_id: row.id });
+  }
+  await audit(ctx, "award.created", "award", award.id, { applicationId: input.applicationId, awardedMinor: input.awardedMinor, currency: input.currency, tranches: tranches.length, requirements: byKey.size }, input.workspaceId);
+  await emitFor(ctx, input.workspaceId, "award.created", { awardId: award.id, applicationId: input.applicationId, status: "offered" });
+  return award;
+}
+
+// ------------------------------------------------------------------------------------ Passport mirror
+
+function mirrorInput(ctx: ServiceContext, a: Award, recipientOrgId: string, parentPassportId: string | null): FunderAwardInput {
+  const f = fundingOf(a);
+  const k = keyDatesOf(a);
+  const cg = awardCgStatus(a.status as AwardStatus);
+  return {
+    title: a.title,
+    description: a.description,
+    status: { value: cg.value as "awarded" | "completed" | "cancelled", ...(cg.customValue ? { customValue: cg.customValue } : {}) },
+    funding: { awardedAmount: f.awardedAmount!, ...(f.requestedAmount ? { requestedAmount: f.requestedAmount } : {}) },
+    recipientOrganizations: { primary: { id: recipientOrgId } },
+    ...(k.awardDate?.date || k.periodOfPerformance ? { keyDates: { ...(k.awardDate?.date ? { awardDate: { date: k.awardDate.date } } : {}), ...(k.periodOfPerformance ? { periodOfPerformance: { ...(k.periodOfPerformance.startDate ? { startDate: k.periodOfPerformance.startDate } : {}), ...(k.periodOfPerformance.endDate ? { endDate: k.periodOfPerformance.endDate } : {}) } } : {}) } } : {}),
+    ...(parentPassportId ? { parent: { id: parentPassportId } } : {}),
+    source: `${ctx.config.baseUrl}/common-grants/awards/${a.id}`,
+    identifiers: { systemId: { registry: { code: "org:opengrants:gms" }, id: apiId("award", a.id) } },
+  };
+}
+
+export type MirrorResult = { state: "synced"; passportAwardId: string } | { state: "skipped"; reason: string } | { state: "failed"; reason: string };
+
+/**
+ * Create (or, when already mirrored, patch) the award in Passport (§10.6). Never throws: an
+ * accepted award stays accepted when Passport cannot be reached, and the failure is ledgered so
+ * the jobs Worker retries it (`retryAwardMirrors`).
+ */
+export async function mirrorAward(ctx: ServiceContext, award: Award): Promise<MirrorResult> {
+  if (!ctx.config.passportAwardWrite) return { state: "skipped", reason: "Mirroring awards to Passport is not enabled on this server" };
+  if (!award.recipient_workspace_id) return { state: "skipped", reason: "Awards to individuals are not mirrored to Passport" };
+  const [funder, recipient] = await Promise.all([ctx.repos.table("workspaces").one({ id: award.workspace_id }), ctx.repos.table("workspaces").one({ id: award.recipient_workspace_id })]);
+  if (!funder?.passport_org_id) return { state: "skipped", reason: "The funder workspace is not linked to a Passport organization" };
+  if (!recipient?.passport_org_id) return { state: "skipped", reason: "The recipient is not linked to a Passport organization" };
+  try {
+    const passport = await passportClientFor(ctx, award.workspace_id);
+    if (!passport) return { state: "skipped", reason: "Connect Passport to pay: this workspace has no Passport client" };
+    const parent = award.parent_award_id ? await ctx.repos.table("awards").one({ id: award.parent_award_id }) : null;
+    const input = mirrorInput(ctx, award, recipient.passport_org_id, parent?.passport_award_id ?? null);
+    let passportAwardId = award.passport_award_id;
+    if (passportAwardId) {
+      const { recipientOrganizations: _r, identifiers: _i, parent: _p, ...patch } = input;
+      await passport.patchFunderAward(funder.passport_org_id, passportAwardId, patch);
+    } else passportAwardId = (await passport.createFunderAward(funder.passport_org_id, input)).award.id;
+    await ctx.repos.table("awards").update({ id: award.id }, { passport_award_id: passportAwardId, passport_synced_at: ctx.now().toISOString() });
+    await audit(ctx, "award.mirrored", "award", award.id, { passportAwardId }, award.workspace_id);
+    return { state: "synced", passportAwardId };
+  } catch (e) {
+    const reason = e instanceof Error ? e.name : "error";
+    const code = (e as { code?: unknown } | null)?.code;
+    await audit(ctx, "award.mirror_failed", "award", award.id, { error: reason, ...(typeof code === "string" ? { code } : {}) }, award.workspace_id);
+    return { state: "failed", reason: "Passport could not record this award yet. It will be retried" };
+  }
+}
+
+/** Job hook: mirror every accepted or active award of a workspace that Passport does not hold yet. */
+export async function retryAwardMirrors(ctx: ServiceContext, workspaceId: string): Promise<{ tried: number; synced: number }> {
+  const pending = (await ctx.repos.table("awards").find({ workspace_id: workspaceId, status: ["accepted", "active", "suspended"], passport_award_id: null }, { limit: 500 })).filter((a) => a.recipient_workspace_id);
+  let synced = 0;
+  for (const a of pending) if ((await mirrorAward(ctx, a)).state === "synced") synced++;
+  return { tried: pending.length, synced };
+}
+
+// ------------------------------------------------------------------------------------ lifecycle
+
+export const humanOnly = (what: string) => forbidden("human_only", `${what} is a human gate: it must be done by a signed-in person in the GMS, never by an agent or API client`);
+
+/** The recipient accepts the offer. Human-only; acceptance triggers the Passport mirror. */
+export async function acceptOffer(ctx: ServiceContext, awardId: string) {
+  await authorize(ctx, { scope: "awards:write", kind: "applicant", roles: ["admin"], person: true });
+  if (ctx.actor.kind !== "user") throw humanOnly("Accepting an award");
+  const { award, side } = await accessAward(ctx, awardId, "awards:write");
+  if (side !== "recipient") throw notFound("Award");
+  const accepted = await transitionAward(ctx, award, "accept_offer", "applicant");
+  const mirror = awardEffects("accepted").mirrorToPassport ? await mirrorAward(ctx, accepted) : null;
+  const fresh = required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
+  return { ...(await awardDetail(ctx, fresh)), mirror };
+}
+
+async function funderAward(ctx: ServiceContext, awardId: string): Promise<Award> {
+  await authorize(ctx, { scope: "awards:write", kind: "funder", roles: STAFF_ROLES });
+  const { award, side } = await accessAward(ctx, awardId, "awards:write");
+  if (side !== "funder") throw notFound("Award");
+  return award;
+}
+
+const tranchesOf = (ctx: ServiceContext, awardId: string) => ctx.repos.table("tranches").find({ award_id: awardId }, { orderBy: "seq" });
+
+export async function activateAward(ctx: ServiceContext, awardId: string) {
+  const award = await funderAward(ctx, awardId);
+  const agreement = await latestAgreement(ctx, award.id);
+  const active = await transitionAward(ctx, award, "activate", "funder", { agreementStatus: (agreement?.status as AgreementStatus | undefined) ?? null, conditions: award.conditions });
+  // No agreement to execute: the onExecution tranches become due with activation.
+  if (award.conditions.includes(NO_AGREEMENT_REQUIRED)) {
+    for (const t of await tranchesOf(ctx, award.id)) {
+      if (t.status === "scheduled" && (t.condition as { type?: string }).type === "onExecution") await trancheMachine.transition({ id: t.id, status: "scheduled" }, "mark_due", { id: "system:workflow", kind: "system" }, { conditionSatisfied: true, now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
+    }
+  }
+  return awardDetail(ctx, active);
+}
+
+export const reasonInput = z.object({ reason: z.string().trim().min(1).max(5000) }).strict();
+
+export async function suspendAward(ctx: ServiceContext, awardId: string, input: z.output<typeof reasonInput>) {
+  const award = await funderAward(ctx, awardId);
+  const suspended = await transitionAward(ctx, award, "suspend", "funder", { reason: input.reason });
+  for (const t of await tranchesOf(ctx, award.id)) {
+    if (t.status === "due" || t.status === "ready") await trancheMachine.transition({ id: t.id, status: t.status as TrancheStatus }, "hold", { id: ctx.actor.id, kind: "funder" }, { holdReason: `Award suspended: ${input.reason}`, now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
+  }
+  return awardDetail(ctx, suspended);
+}
+
+export async function resumeAward(ctx: ServiceContext, awardId: string) {
+  const award = await funderAward(ctx, awardId);
+  const active = await transitionAward(ctx, award, "resume", "funder");
+  for (const t of await tranchesOf(ctx, award.id)) {
+    if (t.status === "held" && t.hold_reason?.startsWith("Award suspended")) await trancheMachine.transition({ id: t.id, status: "held" }, "release_hold", { id: ctx.actor.id, kind: "funder" }, { now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
+  }
+  return awardDetail(ctx, active);
+}
+
+export async function completeAward(ctx: ServiceContext, awardId: string) {
+  const award = await funderAward(ctx, awardId);
+  const open = (await tranchesOf(ctx, award.id)).filter((t) => OPEN_TRANCHES.includes(t.status)).length;
+  const done = await transitionAward(ctx, award, "complete", "funder", { openTranches: open });
+  if (done.passport_award_id) await mirrorAward(ctx, done);
+  return awardDetail(ctx, done);
+}
+
+export async function cancelAward(ctx: ServiceContext, awardId: string, input: z.output<typeof reasonInput>) {
+  const award = await funderAward(ctx, awardId);
+  const cancelled = await transitionAward(ctx, award, "cancel", "funder", { reason: input.reason });
+  for (const t of await tranchesOf(ctx, award.id)) {
+    if (["scheduled", "due", "ready", "held", "failed"].includes(t.status)) await trancheMachine.transition({ id: t.id, status: t.status as TrancheStatus }, "cancel", { id: ctx.actor.id, kind: "funder" }, { now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
+  }
+  if (cancelled.passport_award_id) await mirrorAward(ctx, cancelled);
+  return awardDetail(ctx, cancelled);
+}
+
+// ------------------------------------------------------------------------------------ amendments
+
+export const amendmentInput = z
+  .object({
+    type: z.enum(["extension", "reallocation", "scope", "supplemental"]),
+    /** extension: `{ newEndDate }`; supplemental: `{ amountMinor }`; reallocation and scope: free-form. */
+    request: z.record(z.string(), z.unknown()).default({}),
+    reason: z.string().trim().min(1).max(5000),
+  })
+  .strict();
+
+export async function requestAmendment(ctx: ServiceContext, awardId: string, input: z.output<typeof amendmentInput>) {
+  const { award, side, ws } = await accessAward(ctx, awardId, "awards:write");
+  if (["offered", "cancelled", "completed"].includes(award.status)) throw new ApiError(409, "invalid_status", `An award that is ${award.status} cannot be amended`);
+  if (input.type === "extension" && !/^\d{4}-\d{2}-\d{2}$/.test(String(input.request.newEndDate ?? ""))) throw new ApiError(422, "invalid", "An extension needs request.newEndDate (YYYY-MM-DD)");
+  if (input.type === "supplemental" && !(Number.isSafeInteger(input.request.amountMinor) && (input.request.amountMinor as number) > 0)) throw new ApiError(422, "invalid", "A supplemental award needs request.amountMinor (minor units)");
+  const row = await ctx.repos.table("amendments").insert({ workspace_id: award.workspace_id, award_id: award.id, type: input.type, request: { ...input.request, reason: input.reason, requestedFrom: side, requestedByWorkspace: ws.id } as Row<"amendments">["request"], requested_by: ctx.actor.userId, status: "requested" });
+  await audit(ctx, "amendment.requested", "award", award.id, { amendmentId: row.id, type: input.type, side }, award.workspace_id);
+  return amendmentView(row);
+}
+
+export const amendmentDecision = z.object({ status: z.enum(["approved", "declined"]), note: z.string().trim().max(5000).optional() }).strict();
+
+/** Approve or decline an amendment. Approval applies it: a new end date, or a supplemental child award; Passport is patched. */
+export async function decideAmendment(ctx: ServiceContext, amendmentId: string, input: z.output<typeof amendmentDecision>) {
+  const ws = await authorize(ctx, { scope: "awards:write", kind: "funder", roles: STAFF_ROLES });
+  const m = required(await ctx.repos.table("amendments").one({ id: amendmentId, workspace_id: ws.id }), "Amendment");
+  if (m.status !== "requested") throw new ApiError(409, "invalid_transition", `This amendment is already ${m.status}`);
+  const award = required(await ctx.repos.table("awards").one({ id: m.award_id }), "Award");
+  const req = m.request as { newEndDate?: string; amountMinor?: number; title?: string };
+  let childId: string | null = null;
+  let mirror: MirrorResult | null = null;
+  if (input.status === "approved") {
+    if (m.type === "extension" && req.newEndDate) {
+      const k = keyDatesOf(award);
+      const [updated] = await ctx.repos.table("awards").update({ id: award.id }, { key_dates: { ...k, periodOfPerformance: { name: "Period of performance", eventType: "dateRange", startDate: k.periodOfPerformance?.startDate ?? k.awardDate?.date ?? req.newEndDate, ...(k.periodOfPerformance ?? {}), endDate: req.newEndDate } } as Award["key_dates"] });
+      if (updated?.passport_award_id) mirror = await mirrorAward(ctx, updated);
+    } else if (m.type === "supplemental" && req.amountMinor) {
+      const program = award.program_id ? await ctx.repos.table("programs").one({ id: award.program_id }) : null;
+      const child = await createOfferedAward(ctx, { workspaceId: award.workspace_id, recipientWorkspaceId: required(award.recipient_workspace_id, "Recipient"), applicationId: award.application_id, opportunityId: award.opportunity_id, programId: award.program_id, title: req.title ?? `${award.title} (supplemental)`, awardedMinor: req.amountMinor, currency: currencyOf(award), conditions: [], period: keyDatesOf(award).periodOfPerformance, parentAwardId: award.id }, { ...readDefaults(program), requirements: [], schedule: undefined });
+      childId = child.id;
+    }
+  }
+  const [row] = await ctx.repos.table("amendments").update({ id: m.id, status: "requested" }, { status: input.status, decided_by: ctx.actor.userId, decided_at: ctx.now().toISOString(), child_award_id: childId });
+  if (!row) throw new ApiError(409, "conflict", "This amendment changed while you were working. Reload and try again");
+  await audit(ctx, `amendment.${input.status}`, "award", award.id, { amendmentId: m.id, type: m.type, childAwardId: childId, ...(input.note ? { note: input.note } : {}) });
+  await emitFor(ctx, award.workspace_id, "award.status.changed", { subjectType: "award", subjectId: award.id, amendmentId: m.id, amendment: input.status });
+  return { ...amendmentView(row), mirror };
+}
+
+export async function listAmendments(ctx: ServiceContext, awardId: string) {
+  const { award } = await accessAward(ctx, awardId, "awards:read");
+  return (await ctx.repos.table("amendments").find({ award_id: award.id }, { orderBy: "created_at" })).map(amendmentView);
+}
+
+// ------------------------------------------------------------------------------------ CommonGrants
+
+async function project(ctx: ServiceContext, a: Award): Promise<AwardBase> {
+  const [funder, recipient, opp, app, parent] = await Promise.all([
+    ctx.repos.table("workspaces").one({ id: a.workspace_id }),
+    a.recipient_workspace_id ? ctx.repos.table("workspaces").one({ id: a.recipient_workspace_id }) : null,
+    a.opportunity_id ? ctx.repos.table("opportunities").one({ id: a.opportunity_id }) : null,
+    a.application_id ? ctx.repos.table("applications").one({ id: a.application_id }) : null,
+    a.parent_award_id ? ctx.repos.table("awards").one({ id: a.parent_award_id }) : null,
+  ]);
+  const row: AwardRow = { id: a.id, title: a.title, description: a.description, status: a.status as AwardRow["status"], funding: fundingOf(a), key_dates: a.key_dates as AwardRow["key_dates"], recipient_individual: a.recipient_individual as AwardRow["recipient_individual"], parent_award_id: a.parent_award_id, created_at: a.created_at, updated_at: a.updated_at };
+  return projectAward(
+    {
+      award: row,
+      funder: funder ? { passport_org_id: funder.passport_org_id, handle: funder.handle, display_name: funder.display_name, legal_name: funder.legal_name, ein: funder.ein } : null,
+      recipient: recipient?.passport_org_id ? { id: recipient.passport_org_id, name: recipient.display_name, ein: recipient.ein } : null,
+      opportunity: opp ? { id: opp.id, title: opp.title } : null,
+      application: app ? { id: app.id, title: app.title } : null,
+      parent: parent ? { id: parent.id, title: parent.title } : null,
+    },
+    { baseUrl: ctx.config.baseUrl },
+  );
+}
+
+const visibleAwards = async (ctx: ServiceContext, ws: ServiceWorkspace) => ctx.repos.table("awards").find(ws.kind === "funder" ? { workspace_id: ws.id } : { recipient_workspace_id: ws.id }, { limit: 2000, orderBy: "created_at", ascending: false });
+
+/** `GET /common-grants/awards`: the caller's awards, as funder or as recipient. */
+export async function listCgAwards(ctx: ServiceContext, page: PageRequest) {
+  const ws = await authorize(ctx, { scope: "awards:read" });
+  const rows = await visibleAwards(ctx, ws);
+  return { items: await Promise.all(rows.slice(page.offset, page.offset + page.pageSize).map((a) => project(ctx, a))), total: rows.length };
+}
+
+export async function getCgAward(ctx: ServiceContext, awardId: string): Promise<AwardBase> {
+  return project(ctx, (await accessAward(ctx, awardId, "awards:read")).award);
+}
+
+const FILTER_PATHS: Record<string, string> = { status: "status.value", title: "title", awardedAmount: "funding.awardedAmount.amount" };
+
+export async function searchCgAwards(ctx: ServiceContext, body: unknown) {
+  const ws = await authorize(ctx, { scope: "awards:read" });
+  const req = parseSearchRequest("awards", body);
+  const all = await Promise.all((await visibleAwards(ctx, ws)).map((a) => project(ctx, a)));
+  const needle = req.search?.toLowerCase();
+  let hits = all.filter((a) => (!needle || a.title.toLowerCase().includes(needle)) && req.parsedFilters.every((f) => matchesFilter(readPath(a, FILTER_PATHS[f.name] ?? f.name), f.operator, f.value)));
+  hits = sortByPath(hits, req.sortInfo.sortBy === "custom" ? "lastModifiedAt" : req.sortInfo.sortBy, req.sortInfo.sortOrder);
+  return filtered(hits.slice(req.page.offset, req.page.offset + req.page.pageSize), req.page, hits.length, req.sortInfo, req.filters);
+}

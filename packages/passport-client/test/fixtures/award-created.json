@@ -1,0 +1,23 @@
+{
+  "method": "POST",
+  "path": "/passport/funders/0193a1c0-0000-7000-8000-0000000000f1/awards",
+  "status": 201,
+  "body": {
+    "status": 201,
+    "message": "Created",
+    "data": {
+      "id": "0193a1c0-0000-7000-8000-00000000aa01",
+      "title": "Mobile Health Navigation for Rural Families",
+      "status": { "value": "awarded" },
+      "funding": {
+        "requestedAmount": { "amount": "150000.00", "currency": "USD" },
+        "awardedAmount": { "amount": "150000.00", "currency": "USD" },
+        "disbursedAmount": { "amount": "0.00", "currency": "USD" }
+      },
+      "identifiers": {
+        "systemId": { "registry": { "code": "org:opengrants:passport" }, "id": "0193a1c0-0000-7000-8000-00000000aa01" },
+        "otherIds": { "org:opengrants:gms": { "id": "awd_0193b000-0000-7000-8000-000000000001" } }
+      }
+    }
+  }
+}

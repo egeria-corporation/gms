@@ -1,0 +1,48 @@
+{
+  "name": "@gms/api",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "keygen": "node --experimental-strip-types scripts/keygen.ts",
+    "build:openapi": "node scripts/build-openapi.mjs",
+    "gms": "node --experimental-transform-types --no-warnings scripts/gms.ts",
+    "create-api-client": "node --experimental-transform-types --no-warnings scripts/create-api-client.ts"
+  },
+  "dependencies": {
+    "@gms/assist": "workspace:*",
+    "@gms/connectors": "workspace:*",
+    "@gms/db": "workspace:*",
+    "@gms/documents": "workspace:*",
+    "@gms/forms": "workspace:*",
+    "@gms/ledger": "workspace:*",
+    "@gms/mcp": "workspace:*",
+    "@gms/notify": "workspace:*",
+    "@gms/passport-client": "workspace:*",
+    "@gms/payments": "workspace:*",
+    "@gms/protocol": "workspace:*",
+    "@gms/review": "workspace:*",
+    "@gms/rules": "workspace:*",
+    "@gms/webhooks": "workspace:*",
+    "@gms/workflow": "workspace:*",
+    "@supabase/supabase-js": "2.118.0",
+    "hono": "4.13.14",
+    "jose": "6.2.13",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261026.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "wrangler": "4.153.0",
+    "yaml": "2.9.1"
+  },
+  "exports": {
+    "./jobs": "./src/jobs.ts"
+  }
+}

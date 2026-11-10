@@ -1,0 +1,91 @@
+# OpenGrants GMS jobs Worker: Cron Triggers and the GMS_EVENTS queue consumer. Secrets are set with
+# `wrangler secret put <NAME>` (the same names as the API Worker); only non-secret variables and
+# bindings live here. Self-hosters: replace the ids in [env.production] with your own.
+name = "gms-jobs"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[observability]
+enabled = true
+
+[vars]
+GMS_BASE_URL = "http://localhost:8787"
+WEB_BASE_URL = "http://localhost:5173"
+
+# Keep in step with SCHEDULES in src/index.ts.
+#   */5   outbound webhook deliveries that are due
+#   */15  tranche due evaluator, requirement due/overdue evaluator and reminders
+#   hourly  Passport sync: award mirror retry, disbursed amounts, payee level and status
+#   every 6 h  Mercury poll (read-only)
+#   02:30 UTC  organization-change poll and the ledger archive
+#   15:00 UTC daily, 15:05 UTC Mondays  notification digests (daily, weekly)
+[triggers]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+
+[[queues.consumers]]
+queue = "gms-events-dev"
+max_batch_size = 10
+max_retries = 8
+dead_letter_queue = "gms-events-dlq-dev"
+
+[[r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive-dev"
+
+[[r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports-dev"
+
+# ---- staging ----
+[env.staging]
+name = "gms-jobs-staging"
+
+[env.staging.vars]
+GMS_BASE_URL = "https://staging.gms.opengrants.io"
+WEB_BASE_URL = "https://staging.gms.opengrants.io"
+PASSPORT_BASE_URL = "https://test.passport.opengrants.io"
+
+[env.staging.triggers]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+
+[[env.staging.queues.consumers]]
+queue = "gms-events-staging"
+max_batch_size = 10
+max_retries = 8
+dead_letter_queue = "gms-events-dlq-staging"
+
+[[env.staging.r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive-staging"
+
+[[env.staging.r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports-staging"
+
+# ---- production ----
+[env.production]
+name = "gms-jobs"
+
+[env.production.vars]
+GMS_BASE_URL = "https://gms.opengrants.io"
+WEB_BASE_URL = "https://gms.opengrants.io"
+PASSPORT_BASE_URL = "https://passport.opengrants.io"
+
+[env.production.triggers]
+crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+
+[[env.production.queues.consumers]]
+queue = "gms-events"
+max_batch_size = 10
+max_retries = 8
+dead_letter_queue = "gms-events-dlq"
+
+[[env.production.r2_buckets]]
+binding = "LEDGER_ARCHIVE"
+bucket_name = "gms-ledger-archive"
+
+[[env.production.r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "gms-exports"

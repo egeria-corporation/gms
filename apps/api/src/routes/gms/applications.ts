@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// /gms routes around applications: the applicant's Passport link and workspace (`/passport`, `/me`,
+// `/my`, `/discover`), the funder's inbox (`/applications`), and threads and tasks for both sides.
+// Each handler parses input, builds the ServiceContext and calls one service function.
+import { Hono } from "hono";
+import { z } from "zod";
+import type { AppEnv } from "../../app.ts";
+import { authenticate, requireUser } from "../../auth/middleware.ts";
+import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
+import { bareUuid, uuidOf } from "../../lib/ids.ts";
+import { parse } from "../../lib/input.ts";
+import * as notifications from "../../services/notifications.ts";
+import * as applicant from "../../services/applicant.ts";
+import * as collab from "../../services/collaboration.ts";
+import * as inbox from "../../services/inbox.ts";
+import * as org from "../../services/organization.ts";
+import type { OpenGrantsTool } from "../../services/ports.ts";
+import { jsonBody, page, publicCtx, svc, userSvc } from "../http.ts";
+
+export const applicationRoutes = new Hono<AppEnv>();
+
+type P = { req: { param(name: string): string | undefined } };
+const appId = (c: P) => uuidOf("application", c.req.param("id"), "Application");
+
+// ---- Passport consent (applicant) ----
+applicationRoutes.post("/passport/consent/start", requireUser(), async (c) => c.json(ok(await org.startConsent(userSvc(c), parse(org.consentStartInput, await jsonBody(c))))));
+// Passport redirects the browser here: no bearer. The sealed `state` names who started the flow.
+applicationRoutes.get("/passport/consent/callback", async (c) => {
+  const deps = c.get("deps");
+  const outcome = await org.completeConsent({ ...publicCtx(c), ledger: deps.ledger, webhooks: deps.webhooks, ports: deps.ports?.(c.env) ?? {} }, { code: c.req.query("code"), state: c.req.query("state"), error: c.req.query("error") });
+  return c.redirect(outcome.redirect, 302);
+});
+
+for (const prefix of ["me/organization", "me/documents", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
+  applicationRoutes.use(`/${prefix}`, authenticate());
+  applicationRoutes.use(`/${prefix}/*`, authenticate());
+}
+
+// ---- the applicant's organization, as cached from Passport ----
+applicationRoutes.get("/me/organization", async (c) => c.json(ok(await org.getMyOrganization(await svc(c)))));
+applicationRoutes.post("/me/organization/refresh", async (c) => c.json(ok(await org.refreshMyOrganization(await svc(c)))));
+// The Passport locker, as references the editor can attach. Never bytes.
+applicationRoutes.get("/me/documents", async (c) => c.json(ok(await org.listMyDocuments(await svc(c)))));
+applicationRoutes.get("/me/readiness", async (c) => c.json(ok(await org.getMyReadiness(await svc(c)))));
+applicationRoutes.get("/my/consents", async (c) => c.json(ok(await org.listMyConsents(await svc(c)))));
+applicationRoutes.delete("/my/consents/:consentId", async (c) => c.json(ok(await org.revokeMyConsent(await svc(c), bareUuid(c.req.param("consentId"), "Consent")))));
+applicationRoutes.get("/my/funders", async (c) => c.json(ok(await org.listMyFunders(await svc(c)))));
+
+// ---- notifications (both sides) ----
+applicationRoutes.get("/notifications", async (c) => c.json(ok(await notifications.listNotifications(await svc(c), { unread: c.req.query("unread") === "true" }))));
+applicationRoutes.post("/notifications/read", async (c) => c.json(ok(await notifications.markRead(await svc(c), parse(notifications.readInput, await jsonBody(c))))));
+applicationRoutes.get("/me/notification-preferences", async (c) => c.json(ok(await notifications.getPreferences(await svc(c)))));
+applicationRoutes.put("/me/notification-preferences", async (c) => c.json(ok(await notifications.putPreferences(await svc(c), parse(notifications.preferencesInput, await jsonBody(c))))));
+
+// ---- the applicant's applications ----
+applicationRoutes.get("/my/applications", async (c) => c.json(ok(await applicant.listMyApplications(await svc(c)))));
+applicationRoutes.get("/my/applications/:id/status", async (c) => c.json(ok(await applicant.getMyApplicationStatus(await svc(c), appId(c)))));
+applicationRoutes.post("/my/applications/:id/withdraw", async (c) => c.json(ok(await applicant.withdrawApplication(await svc(c), appId(c)))));
+applicationRoutes.get("/my/applications/:id/sections", async (c) => c.json(ok(await applicant.listSectionAssignments(await svc(c), appId(c)))));
+applicationRoutes.get("/applications/:id/sections", async (c) => c.json(ok(await applicant.listSectionAssignments(await svc(c), appId(c)))));
+applicationRoutes.post("/my/applications/:id/forms/:formId/insert-answer", async (c) =>
+  c.json(ok(await applicant.insertAnswer(await svc(c), appId(c), uuidOf("form", c.req.param("formId"), "Form"), parse(applicant.insertAnswerInput, await jsonBody(c))))),
+);
+applicationRoutes.post("/my/applications/:id/sections/assign", async (c) => {
+  const input = parse(applicant.sectionAssignInput, await jsonBody(c));
+  return c.json(ok(await applicant.assignSection(await svc(c), appId(c), uuidOf("form", input.formId, "Form"), input)));
+});
+applicationRoutes.get("/my/applications/:id/comments", async (c) => c.json(ok(await applicant.listComments(await svc(c), appId(c)))));
+applicationRoutes.post("/my/applications/:id/comments", async (c) => {
+  const input = parse(applicant.commentInput, await jsonBody(c));
+  return c.json(created(await applicant.addComment(await svc(c), appId(c), input, input.formId ? uuidOf("form", input.formId, "Form") : undefined)), 201);
+});
+applicationRoutes.post("/my/applications/:id/comments/:commentId/resolve", async (c) => c.json(ok(await applicant.resolveComment(await svc(c), appId(c), bareUuid(c.req.param("commentId"), "Comment")))));
+applicationRoutes.get("/my/applications/:id/attachments", async (c) => c.json(ok(await applicant.listAttachments(await svc(c), appId(c)))));
+applicationRoutes.post("/my/applications/:id/attachments", async (c) => c.json(created(await applicant.attachDocument(await svc(c), appId(c), parse(applicant.attachmentInput, await jsonBody(c)))), 201));
+
+// ---- answer library ----
+applicationRoutes.get("/my/answers", async (c) => c.json(ok(await applicant.listAnswers(await svc(c)))));
+applicationRoutes.post("/my/answers", async (c) => c.json(created(await applicant.createAnswer(await svc(c), parse(applicant.answerInput, await jsonBody(c)))), 201));
+applicationRoutes.patch("/my/answers/:answerId", async (c) => c.json(ok(await applicant.updateAnswer(await svc(c), bareUuid(c.req.param("answerId"), "Answer"), parse(applicant.answerPatch, await jsonBody(c))))));
+
+// ---- discovery ----
+applicationRoutes.get("/discover/competitions", async (c) => c.json(ok(await applicant.discoverCompetitions(await svc(c)))));
+applicationRoutes.get("/discover/saved", async (c) => c.json(ok(await applicant.listSaved(await svc(c)))));
+applicationRoutes.post("/discover/saved", async (c) => c.json(created(await applicant.saveListing(await svc(c), parse(applicant.saveListingInput, await jsonBody(c)))), 201));
+for (const tool of ["search", "match", "eligibility", "alerts"] as OpenGrantsTool[]) {
+  applicationRoutes.post(`/discover/opengrants/${tool}`, async (c) => c.json(ok(await applicant.openGrants(await svc(c), tool, parse(applicant.openGrantsInput, await jsonBody(c))))));
+}
+
+// ---- the funder's inbox ----
+applicationRoutes.get("/applications", async (c) => {
+  const p = page(c);
+  const q = (k: string) => c.req.query(k) || undefined;
+  const competition = q("competitionId");
+  const assignee = q("assignee");
+  const { items, total, counts } = await inbox.listApplications(await svc(c), p, {
+    ...(competition ? { competitionId: uuidOf("competition", competition, "Competition") } : {}),
+    stage: q("stage"),
+    status: q("status"),
+    eligibility: q("eligibility"),
+    level: q("level"),
+    tag: q("tag"),
+    ...(assignee ? { assignee: assignee === "unassigned" ? assignee : bareUuid(assignee, "Member") } : {}),
+    q: q("q"),
+    view: q("view"),
+    sortBy: q("sortBy"),
+    sortOrder: q("sortOrder"),
+  });
+  return c.json({ ...paginated(items, pageInfo(p.page, p.pageSize, total)), counts });
+});
+applicationRoutes.post("/applications/bulk", async (c) => {
+  const input = parse(inbox.bulkInput, await jsonBody(c));
+  return c.json(ok(await inbox.bulkApplications(await svc(c), input, input.applicationIds.map((id) => uuidOf("application", id, "Application")))));
+});
+applicationRoutes.get("/applications/:id", async (c) => c.json(ok(await inbox.getApplicationDetail(await svc(c), appId(c)))));
+applicationRoutes.post("/applications/:id/eligibility", async (c) => c.json(ok(await inbox.rerunEligibility(await svc(c), appId(c)))));
+applicationRoutes.post("/applications/:id/advance", async (c) => c.json(ok(await inbox.advanceApplication(await svc(c), appId(c), parse(inbox.advanceInput, await jsonBody(c))))));
+applicationRoutes.post("/applications/:id/request-revision", async (c) => c.json(ok(await inbox.requestRevision(await svc(c), appId(c), parse(inbox.revisionInput, await jsonBody(c))))));
+applicationRoutes.post("/applications/:id/decline", async (c) => c.json(ok(await inbox.declineApplication(await svc(c), appId(c), parse(inbox.declineInput, await jsonBody(c))))));
+applicationRoutes.post("/applications/:id/tags", async (c) => c.json(ok(await inbox.tagApplication(await svc(c), appId(c), parse(inbox.tagsInput, await jsonBody(c))))));
+applicationRoutes.post("/applications/:id/assign", async (c) => c.json(ok(await inbox.assignApplication(await svc(c), appId(c), parse(inbox.assignInput, await jsonBody(c))))));
+
+// ---- threads and tasks ----
+applicationRoutes.get("/threads", async (c) => {
+  const subject = c.req.query("subjectId");
+  const q = parse(collab.threadQuery, { subjectType: c.req.query("subjectType") ?? "application", subjectId: subject ? uuidOf("application", subject, "Application") : undefined });
+  return c.json(ok(await collab.listThreads(await svc(c), q)));
+});
+applicationRoutes.post("/threads", async (c) => {
+  const body = z.object({ subjectType: z.literal("application").default("application"), subjectId: z.string(), visibility: z.enum(["shared", "internal"]).default("shared") }).strict();
+  const input = parse(body, await jsonBody(c));
+  return c.json(ok(await collab.openThread(await svc(c), { ...input, subjectId: uuidOf("application", input.subjectId, "Application") })));
+});
+applicationRoutes.post("/threads/:threadId/messages", async (c) => c.json(created(await collab.postMessage(await svc(c), bareUuid(c.req.param("threadId"), "Thread"), parse(collab.messageInput, await jsonBody(c)))), 201));
+applicationRoutes.get("/tasks", async (c) => c.json(ok(await collab.listTasks(await svc(c), { open: c.req.query("open") === "true", mine: c.req.query("mine") === "true" }))));
+applicationRoutes.post("/tasks", async (c) => c.json(created(await collab.createTask(await svc(c), parse(collab.taskInput, await jsonBody(c)))), 201));
+applicationRoutes.patch("/tasks/:taskId", async (c) => c.json(ok(await collab.updateTask(await svc(c), bareUuid(c.req.param("taskId"), "Task"), parse(collab.taskPatch, await jsonBody(c))))));

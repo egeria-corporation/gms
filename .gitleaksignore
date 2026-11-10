@@ -1,0 +1,8 @@
+# Findings in the history of the superseded Next.js branches (feat/v1, feat/hosted), which the
+# full-history scan also walks. Each is a hardcoded display placeholder, not a credential:
+# PREVIEW_KEY / PREVIEW_SECRET sample values shown on settings pages, and a form library key.
+# Fingerprints are exact (commit:file:rule:line); anything new is still caught.
+1e922b6b8b1311e60ca5285949049aa3d9a3f984:apps/web/app/console/(app)/settings/agents/page.tsx:generic-api-key:35
+1e922b6b8b1311e60ca5285949049aa3d9a3f984:apps/web/app/console/(app)/settings/developers/page.tsx:generic-api-key:41
+1e922b6b8b1311e60ca5285949049aa3d9a3f984:apps/web/app/console/(app)/settings/developers/page.tsx:generic-api-key:42
+f494e4709f6a4e140d66862fface05505c1aa095:packages/forms/src/library.ts:generic-api-key:847

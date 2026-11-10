@@ -1,25 +1,21 @@
 {
   "name": "@gms/db",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
+  "description": "Typed Supabase client, generated types, workspace-scope helpers",
   "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./testing": "./src/testing.ts",
-    "./migrate": "./src/migrate.ts",
-    "./types": "./src/types.gen.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "gen:types": "node scripts/gen-types.mjs"
   },
   "dependencies": {
-    "embedded-postgres": "18.4.0-beta.17",
-    "kysely": "^0.29.6",
-    "pg": "^8.23.0"
-  },
-  "devDependencies": {
-    "@types/pg": "^8.15.6",
-    "kysely-codegen": "^0.20.0"
+    "@supabase/supabase-js": "2.118.0"
   }
 }

@@ -1,0 +1,35 @@
+{
+  "method": "GET",
+  "path": "/passport/payees/0193a1c0-0000-7000-8000-0000000000a1",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "data": {
+      "id": "pc_01JALDERCREEK0000000000000",
+      "version": 4,
+      "organization": {
+        "id": "0193a1c0-0000-7000-8000-0000000000a1",
+        "name": "Alder Creek Family Services",
+        "identifiers": { "ein": { "registry": { "code": "org:us:ein" }, "id": "00-0000001" } }
+      },
+      "level": "L3",
+      "payoutDestination": {
+        "provider": "stripe",
+        "token": "tok_fixture_standard",
+        "tokensByRail": { "standard": "tok_fixture_standard" },
+        "bankName": "River City Credit Union",
+        "last4": "4821",
+        "holderType": "company",
+        "holderNameMatch": "match",
+        "validations": [{ "provider": "stripe", "method": "financial_connections", "at": "2027-01-12T17:00:00Z" }],
+        "verifiedAt": "2027-01-12T17:00:00Z",
+        "status": "active"
+      },
+      "changeControl": { "pendingChange": null, "freezeUntil": null, "lastChangedAt": "2027-01-12T17:00:00Z" },
+      "warranty": { "cap": { "amount": "250000.00", "currency": "USD" }, "termsUrl": "https://passport.example/warranty" },
+      "attestation": "fixture.attestation.jws",
+      "issuedAt": "2027-05-24T16:00:00Z"
+    }
+  }
+}
