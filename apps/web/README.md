@@ -134,20 +134,20 @@ live route. **live**: every section of the artboard renders from the API. **part
 live but the listed sections are absent because no API provides them yet. **static**: fixture
 markup only. Compared by headings, table columns and tabs, not pixel by pixel.
 
-Counts: 22 live, 31 partial, 14 static (67 artboards).
+Counts: 46 live, 7 partial, 14 static (67 artboards). The static ones are reference boards: email and PDF templates and the component styleguide.
 
 | Artboard | Route | Status | Notes |
 |---|---|---|---|
 | public/Landing | `/` | live | |
-| public/FunderPageRiverbend | `/f/:handle` | partial | No "Past awards" table or applying FAQ (no public awards or FAQ route) |
-| public/FunderPageCascade | `/f/:handle` | partial | Same; no forecasted opportunities group |
-| public/OpportunityPage | `/f/:handle/o/:slug` | partial | No Forms and Documents lists; "View as CommonGrants JSON" 404s in mock mode |
+| public/FunderPageRiverbend | `/f/:handle` | live | Past awards (only when the funder turns transparency on) with year filter and CSV, and questions drawn from its open opportunities |
+| public/FunderPageCascade | `/f/:handle` | live | Same screen, driven by the handle; forecasted group shown when the funder has one |
+| public/OpportunityPage | `/f/:handle/o/:slug` | live | Form previews, published guideline documents and FAQ; "View as CommonGrants JSON" opens the record in mock mode too |
 | public/SignIn | `/signin` | live | Steps shown one at a time |
 | public/WorkspaceSwitcher | `/workspaces` | live | |
 | public/FunderOnboarding | `/onboarding/funder/:step` | live | |
-| public/ApplicantOnboarding | `/onboarding/applicant` | partial | No "Invite teammates" or "Connect apps" steps |
-| public/Notifications | `/notifications` | partial | No digest settings |
-| public/AccountSettings | `/account/agents` | partial | No sessions table (location, last active); agents table lacks client and scopes columns |
+| public/ApplicantOnboarding | `/onboarding/applicant` | live | "Invite teammates" and "Connect apps" follow the readiness step; apps connect in Passport, by link |
+| public/Notifications | `/notifications` | live | Digest settings beside the list, per workspace |
+| public/AccountSettings | `/account/agents` | partial | Agents show client, scopes and last use. No sessions table: Supabase gives the browser no list of a person's other sessions |
 | funder/Dashboard | `/w/:ws` | live | Recent activity reads the ledger |
 | funder/Programs | `/w/:ws/programs/:id` | partial | Committed, paid, remaining, committed by status, stage and application counts are live. No Owner column (programs have no owner in the API); outcomes rollup counts accepted reports but does not total outcome figures (no route) |
 | funder/OpportunityBuilder | `/w/:ws/opportunities/:id/edit` | live | Public-card preview and "Test against an org" (typed facts; there is no route to search Passport organizations) |
@@ -171,19 +171,19 @@ Counts: 22 live, 31 partial, 14 static (67 artboards).
 | funder/SettingsMcp | `/w/:ws/settings/mcp` | live | "Connect an agent" restored |
 | funder/Approvals | `/w/:ws/approvals` | live | Request detail: exact inputs, applications affected, letter preview |
 | applicant/Dashboard | `/w/:ws` | live | |
-| applicant/Organization | `/w/:ws/organization` | partial | No documents locker, connected apps, "Who has access" or representatives |
-| applicant/FindFunding | `/w/:ws/find` | partial | No Alerts tab |
+| applicant/Organization | `/w/:ws/organization` | partial | Documents locker (references, read live), apps feeding the record, "Who has access" table. Representatives are explained, not listed: Passport does not share them with consented apps |
+| applicant/FindFunding | `/w/:ws/find` | live | Alerts tab: registered with OpenGrants, remembered with saved listings |
 | applicant/Editor | `/w/:ws/applications/:id/edit` | live | |
 | applicant/EditorSubmit | `/w/:ws/applications/:id/edit/submit` | live | |
 | applicant/Confirmation | `/w/:ws/applications/:id/submitted` | live | Title repeats the competition name in mock mode |
-| applicant/ApplicationStatus | `/w/:ws/applications/:id` | partial | No revision requests, interview scheduling or decision sections |
-| applicant/GrantOffered | `/w/:ws/grants/:id/offer` | partial | No Budget, Amendments, Documents or Closeout tabs |
-| applicant/GrantPayments | `/w/:ws/grants/:id` | partial | No Documents or Messages tabs; no budget category mapping |
-| applicant/Reports | `/w/:ws/reports` | partial | No budget actuals table |
-| applicant/AnswerLibrary | `/w/:ws/library` | partial | No "Adapt to a question" dialog |
-| applicant/TeamAccess | `/w/:ws/team` | partial | Members, consultants and funders are not split into tabs; no MFA, last active or expiry |
-| applicant/Funders | `/w/:ws/funders` | partial | No open items, documents or contact |
-| applicant/Settings | `/w/:ws/settings` | partial | No API tokens, exports or danger zone |
+| applicant/ApplicationStatus | `/w/:ws/applications/:id` | partial | Revision requests with diff, interview and decision sections. Interview times are shown and confirmed in the thread; there is no slot-picking route |
+| applicant/GrantOffered | `/w/:ws/grants/:id/offer` | live | "Before you sign", Documents and Messages; budget, amendments and closeout live on the grant screen |
+| applicant/GrantPayments | `/w/:ws/grants/:id` | partial | Payout destination read live from Passport with every state explained; Documents and Messages. No budget category mapping (no route) |
+| applicant/Reports | `/w/:ws/reports` | live | Budget actuals table beside the report |
+| applicant/AnswerLibrary | `/w/:ws/library` | live | "Adapt to a question" appears when the assistant is on; the draft is copied by the person, never inserted |
+| applicant/TeamAccess | `/w/:ws/team` | partial | Members, Consultants, Funders with access and Agents tabs. "Member since" stands in for last active, and consultants have no organization column (the API has neither) |
+| applicant/Funders | `/w/:ws/funders` | partial | Open items, documents and contact per funder. Contact is the email the funder publishes; named program officers are not exposed |
+| applicant/Settings | `/w/:ws/settings` | live | API tokens (secret shown once, never submit or sign), exports and leaving the workspace |
 | applicant/phone/* (6: Dashboard, Organization, Editor, ApplicationStatus, Grant, Reports) | same routes at 390 | live | Same data as the desktop screens |
 | shared/OAuthConsent | `/oauth/consent` | live | |
 | shared/email/* (6) | `/preview/email/:kind` | static | Reference layouts for `packages/notify` |

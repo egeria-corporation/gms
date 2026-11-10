@@ -198,8 +198,8 @@ export default function Organization() {
                           <Value label="NTEE code" value={text(at(profile, "commonApp.irs.ntee"))} source={src("/commonApp/irs/ntee")} editUrl={org.editUrl} />
                         </div>
                       </section>
-                      <RepresentativesCard editUrl={org.editUrl} />
                       <LockerCard editUrl={org.editUrl} />
+                      <AccessCard consents={consents} base={base} onChanged={query.reload} />
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -275,7 +275,7 @@ export default function Organization() {
                       </section>
 
                       <ConnectedAppsCard sources={(org.profileSources ?? {}) as Record<string, unknown>} editUrl={org.editUrl} />
-                      <AccessCard consents={consents} base={base} onChanged={query.reload} />
+                      <RepresentativesCard editUrl={org.editUrl} />
                     </div>
                   </div>
                 </>
