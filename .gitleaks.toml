@@ -16,4 +16,7 @@ regexes = [
   '''^test-key-0123456789abcdef$''',
   # Illustrative Moov paymentMethodID in the PayeeCredential example of the concept document
   '''^3afc7533-7095-43bb-b21a-5c4dc5568451$''',
+  # Mock-mode authenticator setup key shown by the web app when VITE_USE_MOCKS=true (apps/web/src/mocks/auth.ts)
+  '''^QHX7-R2MP-4TLC-W9KD$''',
+  '''^QHX7R2MP4TLCW9KD$''',
 ]
