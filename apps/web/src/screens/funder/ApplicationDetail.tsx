@@ -1,935 +1,562 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { useState } from "react";
-import { Link } from "react-router";
-import {
-  BadgeCheck,
-  BookOpen,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  CircleCheck,
-  CircleX,
-  Ellipsis,
-  Eye,
-  EyeOff,
-  Info,
-  Lock,
-  Pencil,
-  RefreshCw,
-  RotateCcw,
-  Shield,
-  Sparkles,
-  TriangleExclamationPoint,
-  Upload,
-} from "lucide-react";
+// One application, as the funder works it: the submitted responses with where each value came
+// from, and a right rail with the applicant's Passport record, eligibility, reviews, the shared
+// and internal threads, and the activity timeline. Stage and status change only through the
+// actions here (advance, request a revision, decline).
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useParams } from "react-router";
+import { Bot, CircleCheck, CircleDashed, CircleX, Lock, RefreshCw, Send, User } from "lucide-react";
+import type { FormDefinition, JsonObject } from "@gms/forms";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { InboxApplication, InboxFormResponse, Thread } from "../../api/funder.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
+import { FormView } from "../../forms/FormView.tsx";
+import { formatDate, formatMinor } from "../../lib/format.ts";
+import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
+
+type RailTab = "applicant" | "eligibility" | "reviews" | "messages" | "activity";
+
+/** A plain key/value view for when the form definition cannot be read (for example, an external reviewer's token). */
+function RawResponse({ response }: { response: Record<string, unknown> }) {
+  return (
+    <dl className="kv">
+      {Object.entries(response).map(([k, v]) => (
+        <div key={k} style={{ display: "contents" }}>
+          <dt>{k}</dt>
+          <dd>{typeof v === "string" || typeof v === "number" ? String(v) : JSON.stringify(v)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function ResponseCard({ r, mode = "funder", external = false }: { r: InboxFormResponse; mode?: "funder" | "reviewer"; external?: boolean }) {
+  const form = useApiQuery((api) => api.getForm(r.formId, r.formVersion), [r.formId, r.formVersion]);
+  const anchor = `form-${r.formId}`;
+  return (
+    <section className="card" id={anchor} aria-labelledby={`${anchor}-title`}>
+      <div className="card-h">
+        <div>
+          <h2 id={`${anchor}-title`} style={{ fontSize: "16px" }}>
+            {r.formTitle ?? "Form"}
+          </h2>
+          <p className="small muted">
+            Version {r.formVersion}
+            {r.lockedAt ? ` · locked ${formatDate(r.lockedAt)}` : ""}
+          </p>
+        </div>
+        <span className={r.status === "complete" ? "bdg bdg-ok" : "bdg bdg-neutral"}>
+          {r.status === "complete" ? <CircleCheck className="ic" aria-hidden="true" /> : <Lock className="ic" aria-hidden="true" />}
+          {r.status === "complete" ? "Complete" : r.status === "inProgress" ? "In progress" : "Not started"}
+        </span>
+      </div>
+      <div className="card-b">
+        {form.status === "loading" && <Loading label="Loading form" />}
+        {form.status === "error" && <RawResponse response={r.response} />}
+        {form.status === "ready" && (
+          <FormView
+            form={{ id: form.data.id, version: form.data.version, title: form.data.title, jsonSchema: form.data.jsonSchema, uiSchema: form.data.uiSchema, mappingFromCommonGrants: form.data.mappingFromCommonGrants, mappingToCommonGrants: form.data.mappingToCommonGrants, fieldMeta: form.data.fieldMeta } as FormDefinition}
+            response={r.response as JsonObject}
+            provenance={r.provenance}
+            mode={mode}
+            externalReviewer={external}
+          />
+        )}
+        {r.masked.length > 0 && <p className="notice">{r.masked.length} field(s) are masked for this reviewer.</p>}
+      </div>
+    </section>
+  );
+}
+
+function Messages({ applicationId }: { applicationId: string }) {
+  const threads = useApiQuery((api) => api.listThreads(applicationId), [applicationId]);
+  const [internal, setInternal] = useState(false);
+  const [body, setBody] = useState("");
+  const post = useApiMutation(async (api, text: string) => {
+    const visibility = internal ? "funder_internal" : "shared";
+    const thread = threads.data?.find((t) => t.visibility === visibility) ?? (await api.openThread(applicationId, internal ? "internal" : "shared"));
+    return api.postMessage(thread.id, text);
+  });
+  const thread: Thread | undefined = threads.data?.find((t) => t.visibility === (internal ? "funder_internal" : "shared"));
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!body.trim()) return;
+    if (await post.run(body)) {
+      setBody("");
+      threads.reload();
+    }
+  }
+  return (
+    <div className="card">
+      <div className="card-h">
+        <h3>Messages</h3>
+        <div className="seg" role="group" aria-label="Thread filter">
+          <button type="button" className={internal ? "" : "on"} aria-pressed={!internal} onClick={() => setInternal(false)}>
+            Shared
+          </button>
+          <button type="button" className={internal ? "on" : ""} aria-pressed={internal} onClick={() => setInternal(true)}>
+            <Lock className="ic ic-sm" aria-hidden="true" />
+            Internal
+          </button>
+        </div>
+      </div>
+      <div className="card-b th">
+        {threads.status === "loading" && <Loading label="Loading messages" />}
+        {threads.status === "error" && <ErrorBanner error={threads.error} onRetry={threads.reload} />}
+        {threads.status === "ready" && !thread?.messages.length && <p className="muted small">{internal ? "No internal notes yet. The applicant never sees these." : "No messages with the applicant yet."}</p>}
+        {thread?.messages.map((m) => (
+          <div key={m.id} className={internal ? "msg msg-int" : "msg"}>
+            <span className={m.authorUserId ? "av" : "av av-t"} aria-hidden="true">
+              {m.author
+                .split(/\s+/)
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </span>
+            <div className="bub">
+              <div className="hd">
+                <span className="who">{m.author}</span>
+                <span>· {timeAgo(m.createdAt)}</span>
+                {internal ? (
+                  <span className="int-mark">
+                    <Lock className="ic" aria-hidden="true" />
+                    Internal
+                  </span>
+                ) : (
+                  <span className="shared-mark">Shared</span>
+                )}
+              </div>
+              <div className="bd">{m.body}</div>
+            </div>
+          </div>
+        ))}
+        {post.error !== null && <ErrorBanner error={post.error} />}
+        <form className="composer" onSubmit={submit}>
+          <textarea className="ta" style={{ minHeight: "44px" }} aria-label={internal ? "Write an internal note" : "Write a message to the applicant"} placeholder={internal ? "Internal note: the applicant never sees this" : "Message the applicant"} value={body} onChange={(e) => setBody(e.target.value)} />
+          <button type="submit" className="btn btn-primary" disabled={post.state === "saving" || !body.trim()}>
+            <Send className="ic" aria-hidden="true" />
+            {internal ? "Add note" : "Send"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Reviews({ app, base }: { app: InboxApplication; base: string }) {
+  const { person } = usePeople();
+  const reviews = useApiQuery((api) => api.listReviews(app.id, app.stage), [app.id, app.stage]);
+  const assignments = useApiQuery((api) => api.listAssignments({ applicationId: app.id, stage: app.stage }), [app.id, app.stage]);
+  if (reviews.status === "loading") return <Loading label="Loading reviews" />;
+  if (reviews.status === "error") return <ErrorBanner error={reviews.error} onRetry={reviews.reload} />;
+  const assigned = assignments.data?.filter((a) => a.status !== "recused") ?? [];
+  return (
+    <div className="card">
+      <div className="card-h">
+        <h3>
+          Reviews · {reviews.data.length} of {assigned.length} submitted
+        </h3>
+        <Link to={`${base}/reviews/assign`} className="small b">
+          Assign reviewers
+        </Link>
+      </div>
+      {reviews.data.length === 0 ? (
+        <div className="card-b muted small">No reviews submitted at this stage yet.</div>
+      ) : (
+        <div className="card-b" style={{ padding: 0 }}>
+          <table className="tbl tbl-compact" aria-label="Submitted reviews">
+            <thead>
+              <tr>
+                <th>Reviewer</th>
+                <th className="num">Overall</th>
+                <th>Recommendation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reviews.data.map((r) => (
+                <tr key={r.id}>
+                  <td>{person(r.reviewerUserId)?.name}</td>
+                  <td className="num b">{r.overall === null ? "—" : r.overall.toFixed(1)}</td>
+                  <td style={{ whiteSpace: "normal" }}>
+                    {r.recommendation ?? "—"}
+                    {r.narrative && <div className="small muted">{r.narrative}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Action = { kind: "advance"; toStage: string; label: string } | { kind: "revision" } | { kind: "decline" };
+
+function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication; action: Action; onClose: () => void; onDone: () => void }) {
+  const [text, setText] = useState("");
+  const [fields, setFields] = useState<Record<string, string[]>>({});
+  const [sendLetter, setSendLetter] = useState(true);
+  const run = useApiMutation((api) => {
+    if (action.kind === "advance") return api.advanceApplication(app.id, { toStage: action.toStage, ...(text.trim() ? { note: text.trim() } : {}) });
+    if (action.kind === "revision") return api.requestRevision(app.id, { message: text.trim(), ...(Object.keys(fields).length ? { fields } : {}) });
+    return api.declineApplication(app.id, { sendLetter, ...(text.trim() ? { rationale: text.trim() } : {}) });
+  });
+  const title = action.kind === "advance" ? `Advance to ${action.label}` : action.kind === "revision" ? "Request a revision" : "Decline this application";
+  const needText = action.kind === "revision";
+  const toggleField = (formId: string, path: string) =>
+    setFields((f) => {
+      const cur = f[formId] ?? [];
+      const next = cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path];
+      const { [formId]: _drop, ...rest } = f;
+      return next.length ? { ...rest, [formId]: next } : rest;
+    });
+
+  return (
+    <Dialog open onClose={onClose} labelledBy="action-title">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (await run.run()) onDone();
+        }}
+      >
+        <div className="hd">
+          <h2 id="action-title">{title}</h2>
+        </div>
+        <div className="bd">
+          {run.error !== null && <ErrorBanner error={run.error} />}
+          {action.kind === "advance" && <p>The applicant is invited to the {action.label} stage. Their earlier responses are locked and stay visible to reviewers.</p>}
+          {action.kind === "revision" && (
+            <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend className="lbl">Fields to revise (optional)</legend>
+              <div className="col" style={{ marginTop: "6px" }}>
+                {(app.formResponses ?? []).flatMap((r) =>
+                  Object.keys(r.response).map((k) => (
+                    <label key={`${r.formId}/${k}`} className="row small">
+                      <input type="checkbox" checked={(fields[r.formId] ?? []).includes(`/${k}`)} onChange={() => toggleField(r.formId, `/${k}`)} />
+                      {r.formTitle ?? "Form"} · {k}
+                    </label>
+                  )),
+                )}
+              </div>
+            </fieldset>
+          )}
+          <Field id="action-text" label={action.kind === "revision" ? "What should change" : action.kind === "decline" ? "Reason (recorded with the decision)" : "Note (optional)"} required={needText} help={action.kind === "revision" ? "The applicant sees this message with the request." : undefined}>
+            <textarea className="ta" id="action-text" value={text} onChange={(e) => setText(e.target.value)} required={needText} />
+          </Field>
+          {action.kind === "decline" && (
+            <label className="row">
+              <input type="checkbox" checked={sendLetter} onChange={(e) => setSendLetter(e.target.checked)} />
+              Send the standard decline letter
+            </label>
+          )}
+        </div>
+        <div className="ft">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={action.kind === "decline" ? "btn btn-danger-solid" : "btn btn-primary"} disabled={run.state === "saving" || (needText && !text.trim())}>
+            {action.kind === "advance" ? "Advance" : action.kind === "revision" ? "Send request" : "Decline"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
 
 export default function ApplicationDetail() {
-  const [internal, setInternal] = useState(false);
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const { appId = "" } = useParams();
+  const { person, people } = usePeople();
+  const app = useApiQuery((api) => api.getApplication(appId), [appId]);
+  const competitions = useApiQuery((api) => api.listCompetitions(), []);
+  const [tab, setTab] = useState<RailTab>("applicant");
+  const [action, setAction] = useState<Action | null>(null);
+  const [tag, setTag] = useState("");
+  const tagIt = useApiMutation((api, input: { add?: string[]; remove?: string[] }) => api.tagApplication(appId, input));
+  const assign = useApiMutation((api, userId: string | null) => api.assignApplication(appId, userId));
+  const rerun = useApiMutation((api) => api.rerunEligibility(appId));
+
+  useEffect(() => {
+    const t = window.location.hash.replace("#", "");
+    if (["applicant", "eligibility", "reviews", "messages", "activity"].includes(t)) setTab(t as RailTab);
+  }, []);
+
+  if (app.status === "loading") {
+    return (
+      <FunderShell active="Applications">
+        <main className="main">
+          <Loading label="Loading application" />
+        </main>
+      </FunderShell>
+    );
+  }
+  if (app.status === "error") {
+    return (
+      <FunderShell active="Applications">
+        <main className="main">
+          <ErrorBanner error={app.error} onRetry={app.reload} title="This application could not be loaded" />
+        </main>
+      </FunderShell>
+    );
+  }
+  const a = app.data;
+  const competition = competitions.data?.find((c) => c.id === a.competitionId);
+  const stage = competition?.stages.find((s) => s.key === a.stage);
+  const next = competition?.stages.filter((s) => s.entryFrom.includes(a.stage)) ?? [];
+  const open = !["declined", "accepted", "withdrawn", "draft"].includes(a.status);
+  const org = a.organization;
+  const projection = (org?.projection ?? {}) as { name?: string; mission?: string; addresses?: { primary?: { street1?: string; city?: string; stateOrProvince?: string; postalCode?: string } }; identifiers?: Record<string, { id?: string }> };
+  const address = projection.addresses?.primary;
+  const done = () => {
+    setAction(null);
+    app.reload();
+  };
+
   return (
     <>
-      <title>{"Application detail — Alder Creek Family Services"}</title>
+      <title>{`${a.title} — ${ws.name}`}</title>
       <FunderShell active="Applications">
         <main className="main">
           <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
+            <Link to={base}>{ws.name}</Link>
             <span>›</span>
-            <Link to="/w/riverbend/applications">Applications</Link>
+            <Link to={`${base}/applications`}>Applications</Link>
             <span>›</span>
-            <span>app_01HZX4</span>
+            <span>{a.applicant.name}</span>
           </div>
           <div className="card" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "0" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
                 <div className="row wrap" style={{ gap: "8px" }}>
-                  <Link to="/w/riverbend/grantees/org_alder-creek" className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
-                    Alder Creek Family Services
-                  </Link>
-                  <span className="lvl lvl-3">
-                    <Shield className="ic" aria-hidden="true" />
-                    L3
+                  <span className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
+                    {a.applicant.name}
                   </span>
-                  <span className="pay pay-active">
-                    <Check className="ic" aria-hidden="true" />
-                    Payee active · River City Credit Union •••• 4821
-                  </span>
-                  <a href="#applicant" className="pill-warn">
-                    <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                    Org changes pending (1)
-                  </a>
+                  <LevelBadge level={a.applicant.level ?? a.verificationLevelAtSubmit} />
+                  {org?.levelChangedSinceSubmit && (
+                    <span className="pill-warn">
+                      <RefreshCw className="ic ic-sm" aria-hidden="true" />
+                      Level changed since submit (was {a.verificationLevelAtSubmit})
+                    </span>
+                  )}
+                  {a.tags.map((t) => (
+                    <button key={t} type="button" className="tag" style={{ border: 0, cursor: "pointer" }} aria-label={`Remove tag ${t}`} onClick={async () => (await tagIt.run({ remove: [t] })) && app.reload()}>
+                      {t} ×
+                    </button>
+                  ))}
                 </div>
-                <h1>Mobile Health Navigation for Rural Families</h1>
-                <div className="meta" style={{ marginTop: "0" }}>
-                  <span>Community Health Grants 2027</span>
+                <h1>{a.title}</h1>
+                <div className="row wrap" style={{ gap: "6px 14px", fontSize: "13px", color: "#4A5C5A" }}>
+                  <span>{competition?.title ?? "Competition"}</span>
                   <span>·</span>
                   <span className="row" style={{ gap: "6px" }}>
-                    Full proposal
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
+                    {stage?.label ?? a.stage}
+                    <StatusBadge kind="application" status={a.status} />
                   </span>
                   <span>·</span>
                   <span>
-                    Requested <b style={{ color: "#0D2A43" }}>$150,000</b>
+                    Requested <b style={{ color: "#0D2A43" }}>{formatMinor(a.requestedAmountMinor, a.currency)}</b>
                   </span>
                   <span>·</span>
-                  <span>12 days in stage</span>
-                  <span>·</span>
-                  <span>Submitted Mar 28, 2027 · snapshot v1 · attestation attached</span>
+                  <span className="row" style={{ gap: "6px" }}>
+                    Eligibility <EligibilityMark value={a.eligibility} />
+                  </span>
+                  {a.submittedAt && (
+                    <>
+                      <span>·</span>
+                      <span>Submitted {formatDate(a.submittedAt)}</span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="actions">
-                <Link to="/w/riverbend/reviews/assign" className="btn btn-primary">
-                  Advance to Full → assign reviewers
-                  <ChevronDown className="ic ic-sm caret" aria-hidden="true" />
-                </Link>
-                <button className="btn btn-secondary">Request revision</button>
-                <button className="btn btn-danger">Decline</button>
-                <Link to="/w/riverbend/competitions/community-health-2027/panel" className="btn btn-secondary">
-                  Approve → Award
-                </Link>
-                <button className="iconbtn" aria-label="More actions">
-                  <Ellipsis className="ic" aria-hidden="true" />
-                </button>
+                {open &&
+                  next.map((s) => (
+                    <button key={s.key} type="button" className="btn btn-primary" onClick={() => setAction({ kind: "advance", toStage: s.key, label: s.label })}>
+                      Advance to {s.label}
+                    </button>
+                  ))}
+                {open && (
+                  <>
+                    <button type="button" className="btn btn-secondary" onClick={() => setAction({ kind: "revision" })}>
+                      Request revision
+                    </button>
+                    <button type="button" className="btn btn-danger" onClick={() => setAction({ kind: "decline" })}>
+                      Decline
+                    </button>
+                  </>
+                )}
+                {competition && (
+                  <Link to={`${base}/competitions/${competition.id}/panel`} className="btn btn-secondary">
+                    Panel
+                  </Link>
+                )}
               </div>
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "232px minmax(0, 1fr) 380px", gap: "20px", alignItems: "start" }}>
-            <aside className="card" style={{ padding: "12px" }}>
-              <div className="eyebrow" style={{ padding: "4px 10px 10px" }}>
-                Sections · 8 of 8 complete
-              </div>
-              <nav className="sec" aria-label="Response sections">
-                <a href="#organization" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Organization</div>
-                    <div className="st">From Passport</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#summary" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Project summary</div>
-                    <div className="st">Complete</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#need" className="s-done on" aria-current="true">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Need statement</div>
-                    <div className="st">Complete · 468 words</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm">JR</span>
-                  </span>
-                </a>
-                <a href="#approach" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Approach & activities</div>
-                    <div className="st">Complete</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#budget" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Budget</div>
-                    <div className="st">Complete · consultant</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-g">LF</span>
-                  </span>
-                </a>
-                <a href="#outcomes" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Outcomes & evaluation</div>
-                    <div className="st">Complete</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#attachments" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Attachments</div>
-                    <div className="st">3 files</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm">JR</span>
-                  </span>
-                </a>
-                <a href="#loi" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">LOI responses</div>
-                    <div className="st">Prior stage</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-              </nav>
-              <div className="divider" style={{ margin: "10px 0" }}></div>
-              <div className="small muted" style={{ padding: "0 10px 4px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <Link to="/preview/pdf/application-snapshot">Download snapshot PDF</Link>
-                <a href="#loi">View as CommonGrants JSON</a>
-              </div>
-            </aside>
-            <section style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "0" }}>
-              <div className="card" id="organization">
-                <div className="card-h">
-                  <h3>Organization</h3>
-                  <span className="small muted">Read-only · sourced values are marked</span>
-                </div>
-                <div
-                  className="card-b"
-                  style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px 24px", fontSize: "13px" }}
-                >
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Legal name
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </div>
-                    <p>Alder Creek Family Services</p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Tax status
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </div>
-                    <p>501(c)(3) public charity · verified</p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Mailing address
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </div>
-                    <p>418 Mill Road, Alder Creek, OR</p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Primary contact
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </div>
-                    <p>Maria Santos · Executive Director · maria@aldercreekfs.example</p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Annual operating budget
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </div>
-                    <p>$2,400,000 (FY2026)</p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Requested amount
-                      <span className="prov prov-entered">
-                        <Pencil className="ic" aria-hidden="true" />
-                        Entered
-                      </span>
-                    </div>
-                    <p className="b" style={{ color: "#0D2A43" }}>
-                      $150,000{" "}
-                      <span className="muted" style={{ fontWeight: 400 }}>
-                        · CommonGrants <span className="mono">requestedAmount</span>
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="summary">
-                <div className="card-h">
-                  <h3>Project summary</h3>
-                </div>
-                <div className="card-b" style={{ fontSize: "14px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div className="lbl" style={{ fontSize: "12px" }}>
-                    Summarize the project in two sentences
-                    <span className="prov prov-entered">
-                      <Pencil className="ic" aria-hidden="true" />
-                      Entered
-                    </span>
-                  </div>
-                  <p>
-                    Mobile Health Navigation pairs two community health navigators with a weekly van route across the six unincorporated
-                    communities of the Alder Creek valley. Navigators schedule visits, arrange rides and follow up on referrals so that a
-                    family's first contact with care is not an emergency room visit.
-                  </p>
-                </div>
-              </div>
-              <div className="card" id="need">
-                <div className="card-h">
-                  <h3>Need statement</h3>
-                  <span className="small muted">468 / 500 words</span>
-                </div>
-                <div className="card-b" style={{ fontSize: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div className="lbl" style={{ fontSize: "12px" }}>
-                    What need does this project address?
-                    <span className="prov prov-library">
-                      <BookOpen className="ic" aria-hidden="true" />
-                      From library · “Need”
-                    </span>
-                  </div>
-                  <p>
-                    Families in the Alder Creek valley travel an average of 46 miles to reach a primary care provider, and one in four
-                    households has no reliable vehicle. Over the last three years our intake data shows that missed appointments, not lack
-                    of coverage, is the leading reason children in our programs fall behind on well-child visits and immunizations.
-                  </p>
-                  <p>
-                    Mobile Health Navigation pairs a community health navigator with a scheduled van route across the six unincorporated
-                    communities we serve. Navigators schedule visits, arrange rides, and follow up on referrals so that a family's first
-                    contact with the clinic is not an emergency room visit. The 2026 Riverbend County Community Health Assessment ranks
-                    transportation access as the top barrier to care for rural families, and our pilot with 38 families cut missed
-                    appointments by 41 percent.
-                  </p>
-                </div>
-              </div>
-              <div className="card" id="approach">
-                <div className="card-h">
-                  <h3>Approach & activities</h3>
-                </div>
-                <div className="card-b" style={{ fontSize: "14px", display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Describe the main activities
-                      <span className="prov prov-entered">
-                        <Pencil className="ic" aria-hidden="true" />
-                        Entered
-                      </span>
-                    </div>
-                    <p>
-                      Two navigators cover a weekly route of six stops. Each stop offers scheduling, transport vouchers, and warm hand-offs
-                      to the Copper Valley Clinic telehealth room.
-                    </p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px", marginBottom: "6px" }}>
-                      Key staff
-                    </div>
-                    <div className="tbl-wrap">
-                      <table className="tbl tbl-compact">
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Role on project</th>
-                            <th className="num">FTE</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>Maria Santos</td>
-                            <td>Project director</td>
-                            <td className="num">0.15</td>
-                          </tr>
-                          <tr>
-                            <td>To be hired</td>
-                            <td>Community health navigator (2)</td>
-                            <td className="num">2.00</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="budget">
-                <div className="card-h">
-                  <h3>Budget</h3>
-                  <span className="small muted">Proposed · totals equal requested</span>
-                </div>
-                <div className="card-b" style={{ padding: "0" }}>
-                  <table className="tbl bud">
-                    <thead>
-                      <tr>
-                        <th>Category</th>
-                        <th className="num">From Riverbend</th>
-                        <th className="num">Other sources</th>
-                        <th className="num">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Personnel</td>
-                        <td className="num">$96,000</td>
-                        <td className="num">$24,000</td>
-                        <td className="num">$120,000</td>
-                      </tr>
-                      <tr>
-                        <td>Travel & vehicle</td>
-                        <td className="num">$28,000</td>
-                        <td className="num">$0</td>
-                        <td className="num">$28,000</td>
-                      </tr>
-                      <tr>
-                        <td>Supplies</td>
-                        <td className="num">$11,000</td>
-                        <td className="num">$0</td>
-                        <td className="num">$11,000</td>
-                      </tr>
-                      <tr>
-                        <td>Indirect (10%)</td>
-                        <td className="num">$15,000</td>
-                        <td className="num">$0</td>
-                        <td className="num">$15,000</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td>Total</td>
-                        <td className="num">$150,000</td>
-                        <td className="num">$24,000</td>
-                        <td className="num">$174,000</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-              <div className="card" id="attachments">
-                <div className="card-h">
-                  <h3>Attachments</h3>
-                  <span className="small muted">3 files · hashes recorded at submission</span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div className="doc">
-                    <span className="ft ft-pdf">PDF</span>
-                    <div className="grow">
-                      <div className="nm">IRS determination letter.pdf</div>
-                      <div className="mt">
-                        <span>412 KB</span>
-                        <span>·</span>
-                        <span className="prov prov-passport">
-                          <BadgeCheck className="ic" aria-hidden="true" />
-                          Passport locker
-                        </span>
-                        <span>·</span>
-                        <span className="mono">sha256 3f9a…c21e</span>
-                      </div>
-                    </div>
-                    <a href="#attachments" className="btn btn-sm btn-ghost">
-                      Preview
-                    </a>
-                  </div>
-                  <div className="doc">
-                    <span className="ft ft-pdf">PDF</span>
-                    <div className="grow">
-                      <div className="nm">Letter of support — Copper Valley Clinic.pdf</div>
-                      <div className="mt">
-                        <span>188 KB</span>
-                        <span>·</span>
-                        <span className="prov prov-entered">
-                          <Upload className="ic" aria-hidden="true" />
-                          Uploaded
-                        </span>
-                        <span>·</span>
-                        <span className="mono">sha256 c04d…91ab</span>
-                      </div>
-                    </div>
-                    <a href="#attachments" className="btn btn-sm btn-ghost">
-                      Preview
-                    </a>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="loi" style={{ opacity: ".9" }}>
-                <div className="card-h">
-                  <h3>LOI responses</h3>
-                  <span className="bdg bdg-neutral">
-                    <Lock className="ic" aria-hidden="true" />
-                    Prior stage
-                  </span>
-                </div>
-                <div className="card-b" style={{ fontSize: "13px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Summary of intent
-                    </div>
-                    <p className="muted">
-                      Expand mobile health navigation from a 38-family pilot to the six unincorporated communities of the Alder Creek
-                      valley.
-                    </p>
-                  </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "12px" }}>
-                      Estimated request
-                    </div>
-                    <p className="muted">$140,000 – $150,000 · submitted Feb 21, 2027</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <aside style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "0" }}>
-              <div className="card" id="applicant" style={{ overflow: "hidden" }}>
-                <div className="panel-tabs" role="tablist">
-                  <button className="tab on" role="tab" aria-selected="true">
-                    Applicant
-                  </button>
-                  <button className="tab" role="tab">
-                    Reviews<span className="n">3</span>
-                  </button>
-                  <button className="tab" role="tab">
-                    Eligibility
-                  </button>
-                  <button className="tab" role="tab">
-                    Budget
-                  </button>
-                  <button className="tab" role="tab">
-                    Documents
-                  </button>
-                  <button className="tab" role="tab">
-                    Messages<span className="n">3</span>
-                  </button>
-                  <button className="tab" role="tab">
-                    Activity
-                  </button>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px", fontSize: "13px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <span className="lvl lvl-3">
-                        <Shield className="ic" aria-hidden="true" />
-                        L3
-                      </span>
-                      <span className="b" style={{ color: "#0D2A43" }}>
-                        Passport · payee verified
-                      </span>
-                    </div>
-                    <a href="#applicant" className="small b">
-                      View attestation
-                    </a>
-                  </div>
-                  <ul style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <li className="row" style={{ gap: "8px" }}>
-                      <CircleCheck className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      <span>Identity verified</span>
-                      <span className="muted" style={{ marginLeft: "auto" }}>
-                        Sep 12, 2026
-                      </span>
-                    </li>
-                    <li className="row" style={{ gap: "8px" }}>
-                      <CircleCheck className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      <span>Documents verified</span>
-                      <span className="muted" style={{ marginLeft: "auto" }}>
-                        Sep 14, 2026
-                      </span>
-                    </li>
-                    <li className="row" style={{ gap: "8px" }}>
-                      <CircleCheck className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      <span>Payee verified</span>
-                      <span className="muted" style={{ marginLeft: "auto" }}>
-                        Sep 20, 2026
-                      </span>
-                    </li>
-                  </ul>
-                  <div className="kv">
-                    <dt>Destination</dt>
-                    <dd>
-                      <span className="pay pay-active">
-                        <Check className="ic" aria-hidden="true" />
-                        Active
-                      </span>{" "}
-                      River City Credit Union •••• 4821
-                    </dd>
-                    <dt>Prior awards (Riverbend)</dt>
-                    <dd className="muted">None</dd>
-                    <dt>Prior reports</dt>
-                    <dd className="muted">None</dd>
-                    <dt>Consent</dt>
-                    <dd>org:read · org.changes:read/write · granted Mar 2, 2027</dd>
-                  </div>
-                  <div className="divider"></div>
-                  <div className="eyebrow">Open org changes · 1</div>
-                  <div
-                    className="card"
-                    style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px", background: "#F7FAFA" }}
-                  >
-                    <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                      <span className="b">Primary contact phone changed</span>
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        Source: Passport
-                      </span>
-                    </div>
-                    <div className="muted small">
-                      Maria Santos updated the office line in Passport on Apr 9, 2027. Accept to update your grantee record; the application
-                      snapshot is unchanged.
-                    </div>
-                    <div className="row" style={{ gap: "8px" }}>
-                      <button className="btn btn-sm btn-primary">Accept</button>
-                      <button className="btn btn-sm btn-secondary">Dismiss</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Reviews · 3 of 3 submitted</h3>
-                  <span className="bdg bdg-warn">
-                    <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                    Variance on Feasibility
-                  </span>
-                </div>
-                <div className="card-b" style={{ padding: "0" }}>
-                  <table className="tbl tbl-compact">
-                    <thead>
-                      <tr>
-                        <th>Criterion</th>
-                        <th className="num">PN</th>
-                        <th className="num">ML</th>
-                        <th className="num">HG</th>
-                        <th className="num">Mean</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Need & evidence</td>
-                        <td className="num">5</td>
-                        <td className="num">5</td>
-                        <td className="num">4</td>
-                        <td className="num b">4.7</td>
-                      </tr>
-                      <tr>
-                        <td>Approach</td>
-                        <td className="num">4</td>
-                        <td className="num">5</td>
-                        <td className="num">4</td>
-                        <td className="num b">4.3</td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span className="row" style={{ gap: "6px" }}>
-                            Feasibility
-                            <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" style={{ color: "#7A4A00" }} />
-                          </span>
-                        </td>
-                        <td className="num">4</td>
-                        <td className="num">3</td>
-                        <td className="num">5</td>
-                        <td className="num b">4.0</td>
-                      </tr>
-                      <tr>
-                        <td>Budget realism</td>
-                        <td className="num">3</td>
-                        <td className="num">4</td>
-                        <td className="num">4</td>
-                        <td className="num b">3.7</td>
-                      </tr>
-                      <tr>
-                        <td>Outcomes & evaluation</td>
-                        <td className="num">4</td>
-                        <td className="num">4</td>
-                        <td className="num">5</td>
-                        <td className="num b">4.3</td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td className="b">Weighted mean</td>
-                        <td className="num">4.1</td>
-                        <td className="num">4.3</td>
-                        <td className="num">4.4</td>
-                        <td className="num b">4.4</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                <div
-                  className="card-b"
-                  style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px", borderTop: "1px solid #D6DEDE" }}
-                >
-                  <div className="row wrap" style={{ gap: "6px" }}>
-                    <span className="bdg bdg-ok">
-                      <Check className="ic" aria-hidden="true" />
-                      PN · Fund
-                    </span>
-                    <span className="bdg bdg-ok">
-                      <Check className="ic" aria-hidden="true" />
-                      ML · Fund
-                    </span>
-                    <span className="bdg bdg-warn">
-                      <Info className="ic" aria-hidden="true" />
-                      HG · Fund with reservations
-                    </span>
-                  </div>
-                  <div className="cmt">
-                    <div className="hd">
-                      <span className="av av-sm av-t">PN</span>
-                      <span className="who">Priya Natarajan</span>
-                      <span>· narrative</span>
-                    </div>
-                    <div className="bd">
-                      Strong evidence base and a tested pilot. Hiring two navigators by July is the main risk; recommend a 90-day hiring
-                      milestone tied to tranche 2.
-                    </div>
-                  </div>
-                  <div className="cmt">
-                    <div className="hd">
-                      <span className="av av-sm av-g">HG</span>
-                      <span className="who">Dr. Hollis Grant</span>
-                      <span>· narrative</span>
-                    </div>
-                    <div className="bd">
-                      Clinically sound hand-off model. Reservation: the van lease covers one vehicle for six stops; weather days will erode
-                      coverage in winter.
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Eligibility · all rules pass</h3>
-                  <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700, fontSize: "12px" }}>
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    Pass
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                  <div className="rc-row rc-pass" style={{ borderTop: "0", padding: "4px 0" }}>
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Applicant is a 501(c)(3) in good standing</div>
-                      <div className="r">
-                        Passport <span className="mono">org.taxStatus</span> = 501(c)(3) · verified Sep 14, 2026
-                      </div>
-                    </div>
-                    <span className="fix muted">Rule 1</span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Serves Riverbend County</div>
-                      <div className="r">
-                        <span className="mono">org.serviceArea</span> includes Riverbend County
-                      </div>
-                    </div>
-                    <span className="fix muted">Rule 2</span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Annual budget under $5,000,000</div>
-                      <div className="r">
-                        <span className="mono">org.annualBudget</span> = $2,400,000
-                      </div>
-                    </div>
-                    <span className="fix muted">Rule 3</span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Requested within $50,000 – $150,000</div>
-                      <div className="r">
-                        <span className="mono">requestedAmount</span> = $150,000
-                      </div>
-                    </div>
-                    <span className="fix muted">Rule 4</span>
-                  </div>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Messages</h3>
-                  <div className="seg" role="group" aria-label="Thread filter">
-                    <button className={internal ? "" : "on"} aria-pressed={!internal} onClick={() => setInternal(false)}>
-                      Shared
-                    </button>
-                    <button className={internal ? "on" : ""} aria-pressed={internal} onClick={() => setInternal(true)}>
-                      <Lock className="ic ic-sm" aria-hidden="true" />
-                      Internal
-                    </button>
-                  </div>
-                </div>
-                <div className="card-b th">
-                  {!internal && (
-                    <>
-                      <div className="msg">
-                        <span className="av av-t">MS</span>
-                        <div className="bub">
-                          <div className="hd">
-                            <span className="who">Maria Santos</span>
-                            <span>Alder Creek · Apr 2</span>
-                            <span className="shared-mark">Shared</span>
-                          </div>
-                          <div className="bd">
-                            We attached the Copper Valley Clinic letter of support today. Let us know if the reviewers need the pilot
-                            evaluation as well.
-                          </div>
-                        </div>
-                      </div>
-                      <div className="msg">
-                        <span className="av">DO</span>
-                        <div className="bub">
-                          <div className="hd">
-                            <span className="who">Dana Ortiz</span>
-                            <span>Riverbend · Apr 3</span>
-                            <span className="shared-mark">Shared</span>
-                          </div>
-                          <div className="bd">
-                            Thanks, received. The pilot evaluation would help the Feasibility criterion if you have it.
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {internal && (
-                    <>
-                      <div className="msg msg-int">
-                        <span className="av">DO</span>
-                        <div className="bub">
-                          <div className="hd">
-                            <span className="who">Dana Ortiz</span>
-                            <span>Apr 3</span>
-                            <span className="int-mark">
-                              <Lock className="ic" aria-hidden="true" />
-                              Internal
-                            </span>
-                          </div>
-                          <div className="bd">
-                            Marcus — flag for panel: their 2026 audit shows a 3-month cash reserve. Fine for tranche 1, worth a condition on
-                            tranche 2.
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  <div className="composer">
-                    <textarea
-                      className="ta"
-                      style={{ minHeight: "44px" }}
-                      aria-label="Write a message"
-                      placeholder="Write to Alder Creek Family Services…"
-                    />
-                    <button className="btn btn-primary">Send</button>
-                  </div>
-                </div>
-              </div>
-              <div className="assist">
-                <div className="hd">
-                  <Sparkles className="ic" aria-hidden="true" style={{ color: "#4B2E9E" }} />
-                  Assistant<span className="draft-mark">Draft — review before use</span>
-                  <span className="quota">22 of 60 this month</span>
-                  <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Collapse assistant">
-                    <ChevronUp className="ic" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
-                  <div>
-                    <div className="eyebrow">Summary</div>
-                    <p style={{ marginTop: "4px" }}>
-                      Expands a 38-family pilot to a two-navigator van route across six communities; requests $150,000, mostly personnel;
-                      evidence cites the 2026 county assessment and a 41% drop in missed appointments.
-                    </p>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-                    <div>
-                      <div className="eyebrow" style={{ color: "#0B5E47" }}>
-                        Strengths vs rubric
-                      </div>
-                      <ul style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <li>· Need: county data plus own pilot results</li>
-                        <li>· Approach: clear hand-off to Copper Valley Clinic</li>
-                        <li>· Outcomes: measurable (missed-appointment rate)</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <div className="eyebrow" style={{ color: "#7A4A00" }}>
-                        Risks
-                      </div>
-                      <ul style={{ marginTop: "4px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <li>· Two hires needed before Jul 1</li>
-                        <li>· One vehicle for six stops; weather coverage</li>
-                      </ul>
-                    </div>
-                  </div>
-                  <button className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }}>
-                    Draft reply to applicant
-                  </button>
-                </div>
-              </div>
-            </aside>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-            <span className="eyebrow">States</span>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
-              <div className="card" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
-                <span className="bdg bdg-warn">
-                  <RotateCcw className="ic" aria-hidden="true" />
-                  Revision requested
-                </span>
-                <p className="muted">Applicant responded Apr 11. Changed fields: Budget (Indirect), Attachments (+1).</p>
-                <Link to="/styleguide/components-a" className="b">
-                  View revision diff →
-                </Link>
-              </div>
-              <div className="card" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
-                <span className="bdg bdg-dng">
-                  <CircleX className="ic" aria-hidden="true" />
-                  Declined
-                </span>
-                <div className="doc" style={{ padding: "8px 10px" }}>
-                  <span className="ft">TXT</span>
-                  <div className="grow">
-                    <div className="nm">Letter sent · Standard decline v3</div>
-                    <div className="mt">May 19, 2027 9:04 AM · to maria@aldercreekfs.example</div>
-                  </div>
-                </div>
-              </div>
-              <div className="card" style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
-                <span className="bdg bdg-ok">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  Accepted
-                </span>
-                <p className="muted">Decision committed May 18 · award awd_01J2Q7 created · $150,000.</p>
-                <Link to="/w/riverbend/awards/awd_01J2Q7/agreement" className="b">
-                  Open award →
-                </Link>
-              </div>
-              <div
-                className="card"
-                style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px", background: "#F7FAFA" }}
+            <div className="row wrap" style={{ gap: "12px" }}>
+              <label className="row small">
+                Assignee
+                <select className="sel" style={{ width: "auto", height: "30px" }} value={a.assignedToUserId ?? ""} onChange={async (e) => (await assign.run(e.target.value || null)) && app.reload()}>
+                  <option value="">Unassigned</option>
+                  {people.map((p) => (
+                    <option key={p.userId} value={p.userId}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <form
+                className="row"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (tag.trim() && (await tagIt.run({ add: [tag.trim()] }))) {
+                    setTag("");
+                    app.reload();
+                  }
+                }}
               >
-                <span className="row" style={{ gap: "6px", fontWeight: 700, color: "#0D2A43" }}>
-                  <EyeOff className="ic" aria-hidden="true" />
-                  External reviewer view
-                </span>
-                <p className="muted">
-                  Same screen for Dr. Hollis Grant, with: contact details masked · no Applicant tab · PII-flagged fields hidden · no
-                  Messages or Activity · scoring panel in place of actions.
-                </p>
-                <Link to="/review/score/app_01HZX4" className="b">
-                  Open reviewer scoring →
-                </Link>
-              </div>
+                <input className="inp" style={{ width: "160px", height: "30px" }} aria-label="Add a tag" placeholder="Add a tag" value={tag} onChange={(e) => setTag(e.target.value)} />
+                <button type="submit" className="btn btn-sm btn-secondary" disabled={!tag.trim()}>
+                  Add tag
+                </button>
+              </form>
+              {(tagIt.error !== null || assign.error !== null) && <span className="err-msg">That change did not save. Try again.</span>}
             </div>
+          </div>
+
+          {a.status === "revision_requested" && <Notice tone="warn" title="A revision is with the applicant">Their responses unlock until they resubmit. The earlier version stays in the timeline.</Notice>}
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 380px", gap: "20px", alignItems: "start" }}>
+            <div className="col" style={{ gap: "20px" }}>
+              {(a.formResponses ?? []).length === 0 && <div className="card card-b muted">No responses at this stage yet.</div>}
+              {(a.formResponses ?? []).map((r) => (
+                <ResponseCard key={`${r.formId}:${r.formVersion}`} r={r} />
+              ))}
+            </div>
+
+            <aside className="col" style={{ gap: "16px" }}>
+              <Tabs
+                label="Application panels"
+                idPrefix="rail"
+                active={tab}
+                onChange={setTab}
+                tabs={[
+                  { key: "applicant", label: "Applicant" },
+                  { key: "eligibility", label: "Eligibility" },
+                  { key: "reviews", label: "Reviews" },
+                  { key: "messages", label: "Messages" },
+                  { key: "activity", label: "Activity" },
+                ]}
+              />
+              <TabPanel idPrefix="rail" tab="applicant" active={tab}>
+                <div className="card">
+                  <div className="card-h">
+                    <h3>Applicant</h3>
+                    <LevelBadge level={org?.level ?? a.applicant.level} />
+                  </div>
+                  <div className="card-b">
+                    {org ? (
+                      <dl className="kv">
+                        <dt>Legal name</dt>
+                        <dd>{projection.name ?? a.applicant.name}</dd>
+                        <dt>EIN</dt>
+                        <dd className="mono">{projection.identifiers?.["org:us:ein"]?.id ?? "—"}</dd>
+                        <dt>Address</dt>
+                        <dd>{address ? [address.street1, address.city, address.stateOrProvince, address.postalCode].filter(Boolean).join(", ") : "—"}</dd>
+                        <dt>Mission</dt>
+                        <dd>{projection.mission ?? "—"}</dd>
+                        <dt>Verified</dt>
+                        <dd>{formatDate(org.verifiedAt)}</dd>
+                        <dt>Passport sync</dt>
+                        <dd>{timeAgo(org.syncedAt)}</dd>
+                        <dt>Attestation</dt>
+                        <dd>{a.attestationUrl ? <a href={a.attestationUrl}>Attached at submit ({a.verificationLevelAtSubmit})</a> : "None"}</dd>
+                      </dl>
+                    ) : (
+                      <p className="muted small">The applicant’s Passport record is visible while their consent stands. Level at submit: {a.verificationLevelAtSubmit ?? "unknown"}.</p>
+                    )}
+                  </div>
+                </div>
+              </TabPanel>
+              <TabPanel idPrefix="rail" tab="eligibility" active={tab}>
+                <div className="card">
+                  <div className="card-h">
+                    <h3>Eligibility</h3>
+                    <EligibilityMark value={a.eligibilityResults?.eligible ?? a.eligibility} />
+                  </div>
+                  <div className="card-b">
+                    <ul className="rc">
+                      {(a.eligibilityResults?.results ?? []).map((r, i) => (
+                        <li key={i} className={`rc-row ${r.outcome === "pass" ? "rc-pass" : r.outcome === "fail" ? "rc-fail" : "rc-unk"}`}>
+                          <EligibilityIcon outcome={r.outcome} />
+                          <div>
+                            <div className="l">{r.label}</div>
+                            <div className="r">{r.explain}</div>
+                          </div>
+                          <span className="small b">{r.outcome === "pass" ? "Pass" : r.outcome === "fail" ? "Fail" : "Unknown"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {!a.eligibilityResults?.results.length && <p className="muted small">This opportunity has no eligibility rules.</p>}
+                    <p className="help">An unknown result never declines an application; it flags it for a person.</p>
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={rerun.state === "saving"} onClick={async () => (await rerun.run()) && app.reload()}>
+                      <RefreshCw className="ic" aria-hidden="true" />
+                      Run again
+                    </button>
+                    {rerun.error !== null && <ErrorBanner error={rerun.error} />}
+                  </div>
+                </div>
+              </TabPanel>
+              <TabPanel idPrefix="rail" tab="reviews" active={tab}>
+                <Reviews app={a} base={base} />
+              </TabPanel>
+              <TabPanel idPrefix="rail" tab="messages" active={tab}>
+                <Messages applicationId={a.id} />
+              </TabPanel>
+              <TabPanel idPrefix="rail" tab="activity" active={tab}>
+                <div className="card">
+                  <div className="card-h">
+                    <h3>Activity</h3>
+                  </div>
+                  <div className="card-b">
+                    <div className="tl tl-sm">
+                      {[...(a.timeline ?? [])].reverse().map((e) => {
+                        const who = actorLabel(e.actor, person);
+                        return (
+                          <div key={e.id} className={who.agent ? "tl-i tl-agent" : "tl-i tl-person"}>
+                            <span className="dot">{who.agent ? <Bot className="ic" aria-hidden="true" /> : <User className="ic" aria-hidden="true" />}</span>
+                            <div>
+                              <div className="what">{e.message ?? e.type.replace(/^application\./, "").replace(/[._]/g, " ")}</div>
+                              <div className="who">
+                                {who.name} · {dateTime(e.at)}
+                                {e.toStage ? ` · to ${e.toStage}` : ""}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!a.timeline?.length && <p className="muted small">Nothing recorded yet.</p>}
+                    </div>
+                  </div>
+                </div>
+              </TabPanel>
+            </aside>
           </div>
         </main>
       </FunderShell>
+      {action && <ActionDialog app={a} action={action} onClose={() => setAction(null)} onDone={done} />}
     </>
   );
+}
+
+function EligibilityIcon({ outcome }: { outcome: string }) {
+  const Icon = outcome === "pass" ? CircleCheck : outcome === "fail" ? CircleX : CircleDashed;
+  return <Icon className="ic" aria-hidden="true" />;
 }

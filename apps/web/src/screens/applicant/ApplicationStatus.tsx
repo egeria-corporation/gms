@@ -1,319 +1,270 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import { Bot, Calendar, CircleCheck, CircleX, Download, Eye, GitCompare, Hourglass, Send } from "lucide-react";
+// Application status: where the application is in the competition's stages, what has happened,
+// the thread shared with the funder, and any revision request.
+import { useState, type FormEvent } from "react";
+import { Link, useParams } from "react-router";
+import { ArrowRight, Calendar, Eye, LogOut, Pencil, RotateCcw, Send, type LucideIcon } from "lucide-react";
+import type { ApplicantApi, ApplicationEvent, Thread } from "../../api/applicant.ts";
+import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { accentOf, Avatar, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
+import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { StatusBadge, statusLook } from "../../components/status.tsx";
+import { ErrorBanner } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
+
+const load = async (api: ApplicantApi, id: string) => {
+  const [status, list, threads] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id)]);
+  return { status, summary: list.find((a) => a.id === status.id), thread: threads[0] ?? null };
+};
+
+const EVENT: Record<string, { icon: LucideIcon; text: (e: ApplicationEvent) => string; cls: string }> = {
+  started: { icon: Pencil, text: () => "Started", cls: "tl-person" },
+  submit: { icon: Send, text: () => "Submitted", cls: "tl-person" },
+  advance: { icon: ArrowRight, text: (e) => `Advanced to ${e.toStage ?? "the next stage"}`, cls: "tl-ok" },
+  request_revision: { icon: RotateCcw, text: () => "Revision requested", cls: "tl-warn" },
+  withdraw: { icon: LogOut, text: () => "Withdrawn", cls: "" },
+};
+function describe(e: ApplicationEvent) {
+  const known = EVENT[e.type];
+  if (known) return { icon: known.icon, text: known.text(e), cls: known.cls };
+  if (e.toStatus) return { icon: statusLook("application", e.toStatus).icon, text: statusLook("application", e.toStatus).label, cls: "" };
+  return { icon: Eye, text: e.type.replace(/_/g, " "), cls: "" };
+}
+
+const WITHDRAWABLE = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
 export default function ApplicationStatus() {
+  const ws = useWorkspace("applicant");
+  const base = `/w/${ws.handle}`;
+  const { appId = "" } = useParams();
+  const query = useApplicantQuery((a) => load(a, appId), [appId, ws.id]);
+  const [reply, setReply] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const send = useApplicantMutation(async (a, thread: Thread | null, body: string) => {
+    const t = thread ?? (await a.openThread(appId));
+    const m = await a.postMessage(t.id, body);
+    return { ...t, messages: [...t.messages, m] };
+  });
+  const withdraw = useApplicantMutation((a) => a.withdraw(appId));
+  if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
+
   return (
     <>
-      <title>{"Application status — Mobile Health Navigation for Rural Families"}</title>
+      <title>{query.status === "ready" ? `${query.data.status.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
       <ApplicantShell active="Applications">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/alder-creek">Dashboard</Link>
-            <span>›</span>
-            <Link to="/w/alder-creek/applications/app_01HZX4">Applications</Link>
-            <span>›</span>
-            <span>Mobile Health Navigation for Rural Families</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <span className="chip">
-                  <span className="tdot" aria-hidden="true"></span>Riverbend Community Foundation
-                </span>
-                <h1>Mobile Health Navigation for Rural Families</h1>
-                <span className="bdg bdg-prog bdg-lg">
-                  <Eye className="ic" aria-hidden="true" />
-                  Under review
-                </span>
-              </div>
-              <div className="meta">
-                <span>Community Health Grants 2027 · Full proposal</span>
-                <span>·</span>
-                <span>Requested $150,000</span>
-                <span>·</span>
-                <span>Submitted Apr 16, 2027</span>
-                <span>·</span>
-                <span className="mono">app_01HZX4</span>
-              </div>
-            </div>
-            <div className="actions">
-              <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
-                <Download className="ic" aria-hidden="true" />
-                Snapshot PDF
-              </Link>
-              <button className="btn btn-danger">Withdraw application</button>
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-h">
-              <h2 style={{ fontSize: "18px" }}>Timeline</h2>
-              <span className="small muted">Every step is attributed: a person, an agent, Passport or the system.</span>
-            </div>
-            <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
-              <div className="tl-i tl-person" style={{ paddingBottom: "0" }}>
-                <span className="dot">
-                  <Send className="ic" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="what">Submitted · Apr 16</div>
-                  <div className="who">Maria Santos · Passport L3 attestation attached</div>
-                </div>
-              </div>
-              <div className="tl-i tl-agent" style={{ paddingBottom: "0" }}>
-                <span className="dot">
-                  <Bot className="ic" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="what">Screening passed · Apr 18</div>
-                  <div className="who">
-                    <span className="attrib">
-                      <span className="ag">Riverbend Triage Agent (via Claude)</span>· approved by Dana Ortiz
-                    </span>
+          <Loaded query={query} label="Loading the application">
+            {({ status, summary, thread }) => {
+              const funder = summary?.funder.name ?? "the funder";
+              const editable = status.status === "draft" || status.status === "revision_requested";
+              const revisions = status.timeline.filter((e) => e.type === "request_revision");
+              const onSend = async (e: FormEvent) => {
+                e.preventDefault();
+                if (!reply.trim()) return;
+                const next = await send.run(thread, reply.trim());
+                if (next) {
+                  query.set({ status, summary, thread: next });
+                  setReply("");
+                }
+              };
+              return (
+                <>
+                  <div className="crumbs">
+                    <Link to={base}>Dashboard</Link>
+                    <span>›</span>
+                    <Link to={`${base}/applications`}>Applications</Link>
+                    <span>›</span>
+                    <span>{status.title}</span>
                   </div>
-                </div>
-              </div>
-              <div className="tl-i" style={{ paddingBottom: "0" }}>
-                <span className="dot">
-                  <Eye className="ic" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="what">Under review · since Apr 20</div>
-                  <div className="who">System · 3 reviewers assigned</div>
-                </div>
-              </div>
-              <div className="tl-i" style={{ paddingBottom: "0", opacity: ".7" }}>
-                <span className="dot">
-                  <Calendar className="ic" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="what">Decision · expected Jun 15</div>
-                  <div className="who">Riverbend panel · letter will appear here</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <section className="card">
-              <div className="card-h">
-                <div className="row" style={{ gap: "8px" }}>
-                  <h2 style={{ fontSize: "18px" }}>Messages</h2>
-                  <span className="shared-mark">Shared with Riverbend</span>
-                </div>
-                <span className="small muted">Both sides see this thread</span>
-              </div>
-              <div className="card-b th">
-                <div className="msg">
-                  <span className="av av-n" title="Dana Ortiz">
-                    DO
-                  </span>
-                  <div className="bub">
+                  <div className="ph">
+                    <div>
+                      <div className="title">
+                        <FunderChip name={summary?.funder.name} accent={accentOf(summary?.funder.brand)} />
+                        <h1>{status.title}</h1>
+                        <StatusBadge kind="application" status={status.status} large />
+                      </div>
+                      <div className="meta">
+                        <span>{[summary?.opportunity.title, summary?.stage.label].filter(Boolean).join(" · ")}</span>
+                        {status.submittedAt && (
+                          <>
+                            <span>·</span>
+                            <span>Submitted {formatDate(status.submittedAt)}</span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span className="mono">{status.id}</span>
+                      </div>
+                    </div>
+                    <div className="actions">
+                      {editable && (
+                        <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-primary">
+                          <Pencil className="ic" aria-hidden="true" />
+                          {status.status === "draft" ? "Continue editing" : "Respond to revision"}
+                        </Link>
+                      )}
+                      {WITHDRAWABLE.includes(status.status) && (
+                        <button className="btn btn-danger" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
+                          Withdraw application
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {withdraw.error ? <ErrorBanner error={withdraw.error} title="The application was not withdrawn" /> : null}
+
+                  <div className="card">
+                    <div className="card-h">
+                      <h2 style={{ fontSize: "18px" }}>Stages</h2>
+                    </div>
+                    <div className="card-b">
+                      <div className="stp" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+                        {status.stages.map((s, i) => (
+                          <span key={s.key} style={{ display: "contents" }}>
+                            {i > 0 && <span className={s.state === "upcoming" ? "ln" : "ln done"}></span>}
+                            <div className={s.state === "done" ? "s done" : s.state === "current" ? "s on" : "s"} aria-current={s.state === "current" ? "step" : undefined}>
+                              <span className="n">{i + 1}</span>
+                              {s.label}
+                              {s.closes && s.state !== "done" ? <span className="small muted"> · closes {formatDate(s.closes)}</span> : null}
+                            </div>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                    <section className="card" aria-labelledby="msg-h">
+                      <div className="card-h">
+                        <div className="row" style={{ gap: "8px" }}>
+                          <h2 id="msg-h" style={{ fontSize: "18px" }}>
+                            Messages
+                          </h2>
+                          <span className="shared-mark">Shared with {funder}</span>
+                        </div>
+                        <span className="small muted">Both sides see this thread</span>
+                      </div>
+                      <div className="card-b th">
+                        {(thread?.messages ?? []).length === 0 && <p className="muted">No messages yet. Write to {funder} here; replies arrive by email too.</p>}
+                        {(thread?.messages ?? []).map((m, i) => (
+                          <div className="msg" key={m.id}>
+                            <Avatar name={m.author} index={m.authorUserId ? 0 : 3 + (i % 1)} />
+                            <div className="bub">
+                              <div className="hd">
+                                <span className="who">{m.author}</span>
+                                <span>· {timeAgo(m.createdAt)}</span>
+                              </div>
+                              <div className="bd">{m.body}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <form className="composer" onSubmit={onSend}>
+                          <label className="sr" htmlFor="reply">
+                            Reply
+                          </label>
+                          <textarea className="ta" id="reply" style={{ minHeight: "56px", flex: 1 }} placeholder={`Reply to ${funder}…`} value={reply} onChange={(e) => setReply(e.target.value)} />
+                          <button className="btn btn-primary" type="submit" style={{ height: "44px" }} disabled={send.state === "saving" || !reply.trim()}>
+                            <Send className="ic" aria-hidden="true" />
+                            Send
+                          </button>
+                        </form>
+                        {send.error ? <ErrorBanner error={send.error} title="The message was not sent" /> : null}
+                        <p className="small muted">Internal notes the funder writes are never shown here.</p>
+                      </div>
+                    </section>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      {revisions.length > 0 && (
+                        <section className="card" aria-labelledby="rev-h">
+                          <div className="card-h">
+                            <h2 id="rev-h" style={{ fontSize: "18px" }}>
+                              Revision requests
+                            </h2>
+                            {status.status === "revision_requested" ? <StatusBadge kind="application" status="revision_requested" /> : null}
+                          </div>
+                          <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                            {revisions.map((e) => (
+                              <div key={e.id}>
+                                <div className="b">{e.message ?? "The funder asked for changes"}</div>
+                                <div className="small muted">Requested {formatDate(e.at)}</div>
+                              </div>
+                            ))}
+                            {status.status === "revision_requested" && (
+                              <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
+                                Respond
+                              </Link>
+                            )}
+                          </div>
+                        </section>
+                      )}
+
+                      <section className="card" aria-labelledby="tl-h">
+                        <div className="card-h">
+                          <h2 id="tl-h" style={{ fontSize: "18px" }}>
+                            Timeline
+                          </h2>
+                        </div>
+                        <div className="card-b">
+                          <div className="tl">
+                            {[...status.timeline].reverse().map((e) => {
+                              const d = describe(e);
+                              return (
+                                <div className={`tl-i ${d.cls}`} key={e.id}>
+                                  <span className="dot">
+                                    <d.icon className="ic" aria-hidden="true" />
+                                  </span>
+                                  <div>
+                                    <div className="what">{d.text}</div>
+                                    <div className="who">
+                                      <Calendar className="ic ic-sm" aria-hidden="true" />
+                                      {formatDate(e.at)}
+                                    </div>
+                                    {e.message && <div className="small">{e.message}</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+
+                  <Dialog open={confirm} onClose={() => setConfirm(false)} labelledBy="wd-title">
                     <div className="hd">
-                      <span className="who">Dana Ortiz</span>
-                      <span>· Riverbend Community Foundation</span>
-                      <span>· Apr 18</span>
+                      <h3 id="wd-title" style={{ fontSize: "16px" }}>
+                        Withdraw this application?
+                      </h3>
                     </div>
                     <div className="bd">
-                      Thanks, Maria — your application passed screening and is with reviewers. If anything in the budget narrative changes
-                      before Apr 30, reply here rather than resubmitting.
+                      <p>
+                        {funder} stops considering “{status.title}”. This cannot be undone; you would need to start a new application.
+                      </p>
                     </div>
-                  </div>
-                </div>
-                <div className="msg">
-                  <span className="av av-t" title="Maria Santos">
-                    MS
-                  </span>
-                  <div className="bub">
-                    <div className="hd">
-                      <span className="who">Maria Santos</span>
-                      <span>· Alder Creek Family Services</span>
-                      <span>· Apr 19</span>
+                    <div className="ft">
+                      <button className="btn btn-secondary" type="button" onClick={() => setConfirm(false)}>
+                        Keep application
+                      </button>
+                      <button
+                        className="btn btn-danger-solid"
+                        type="button"
+                        disabled={withdraw.state === "saving"}
+                        onClick={async () => {
+                          const r = await withdraw.run();
+                          setConfirm(false);
+                          if (r) query.reload();
+                        }}
+                      >
+                        Withdraw
+                      </button>
                     </div>
-                    <div className="bd">
-                      Understood. The county assessment citation has been added to the need statement as requested in the revision.
-                    </div>
-                  </div>
-                </div>
-                <div className="msg">
-                  <span className="av av-n" title="Dana Ortiz">
-                    DO
-                  </span>
-                  <div className="bub">
-                    <div className="hd">
-                      <span className="who">Dana Ortiz</span>
-                      <span>· Riverbend Community Foundation</span>
-                      <span>· Apr 20</span>
-                    </div>
-                    <div className="bd">
-                      Received. Interview invitations go out the first week of May; you can hold a slot now from this page.
-                    </div>
-                  </div>
-                </div>
-                <div className="composer">
-                  <label className="sr" htmlFor="reply">
-                    Reply
-                  </label>
-                  <textarea className="ta" id="reply" style={{ minHeight: "56px", flex: 1 }} placeholder="Reply to Riverbend…" />
-                  <button className="btn btn-primary" style={{ height: "44px" }}>
-                    <Send className="ic" aria-hidden="true" />
-                    Send
-                  </button>
-                </div>
-                <p className="small muted">Internal notes the funder writes are never shown here.</p>
-              </div>
-            </section>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Revision requests</h2>
-                  <span className="bdg bdg-ok">
-                    <CircleCheck className="ic" aria-hidden="true" />1 resolved
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div>
-                    <div className="b">Add source for county assessment</div>
-                    <div className="small muted">Requested by Dana Ortiz · Apr 17 · responded Apr 19</div>
-                  </div>
-                  <div className="diff">
-                    <div className="hd">
-                      <span>Need statement · sentence 7</span>
-                      <span>Inline diff</span>
-                    </div>
-                    <div style={{ padding: "10px 12px", fontSize: "14px", lineHeight: 1.6 }}>
-                      The <span className="del">2026 county health assessment</span>
-                      <span className="ins">Riverbend County Community Health Assessment (2026, p. 14)</span> ranks transportation access as
-                      the top barrier to care for rural families.
-                    </div>
-                    <div className="sum">
-                      <GitCompare className="ic" aria-hidden="true" />1 field changed · +6 words · attachments unchanged
-                    </div>
-                  </div>
-                  <button className="btn btn-secondary" disabled>
-                    Respond
-                  </button>
-                </div>
-              </section>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Interview scheduling</h2>
-                  <span className="bdg bdg-info">
-                    <Calendar className="ic" aria-hidden="true" />
-                    Pick a slot
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p className="small muted">30-minute video interview with the Riverbend panel. Pacific time.</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                    <label className="radio card" style={{ padding: "10px 12px", cursor: "pointer" }}>
-                      <span className="r"></span>
-                      <span>Tue May 4 · 10:00 AM</span>
-                    </label>
-                    <label
-                      className="radio card"
-                      style={{ padding: "10px 12px", cursor: "pointer", borderColor: "#29A79F", background: "#E1F8F6" }}
-                    >
-                      <span className="r on"></span>
-                      <span className="b">Wed May 5 · 2:30 PM</span>
-                    </label>
-                    <label className="radio card" style={{ padding: "10px 12px", cursor: "pointer" }}>
-                      <span className="r"></span>
-                      <span>Thu May 6 · 9:00 AM</span>
-                    </label>
-                    <label className="radio card" style={{ padding: "10px 12px", cursor: "pointer" }}>
-                      <span className="r"></span>
-                      <span>Mon May 10 · 1:00 PM</span>
-                    </label>
-                  </div>
-                  <button className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                    Confirm Wed May 5, 2:30 PM
-                  </button>
-                </div>
-              </section>
-              <section className="card" style={{ background: "#F7FAFA" }}>
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Decision</h2>
-                </div>
-                <div className="card-b">
-                  <p className="muted">
-                    No decision yet. Riverbend expects to decide by Jun 15, 2027; the letter will appear here and by email.
-                  </p>
-                </div>
-              </section>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "20px", marginTop: "8px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · declined</span>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Decision</h3>
-                  <span className="bdg bdg-dng">
-                    <CircleX className="ic" aria-hidden="true" />
-                    Declined
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ fontSize: "15px" }}>
-                    Riverbend decided on Jun 12, 2027. The letter explains the decision and how feedback can be requested.
-                  </p>
-                  <Link to="/preview/email/decline" className="doc" style={{ textDecoration: "none", color: "inherit" }}>
-                    <span className="ft ft-pdf">PDF</span>
-                    <div className="grow">
-                      <div className="nm">Decision letter</div>
-                      <div className="mt">Standard decline v3 · Jun 12</div>
-                    </div>
-                  </Link>
-                  <Link to="/w/alder-creek/find" className="small b">
-                    Find other funding
-                  </Link>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · waitlisted</span>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Decision</h3>
-                  <span className="bdg bdg-neutral">
-                    <Hourglass className="ic" aria-hidden="true" />
-                    Waitlisted
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ fontSize: "15px" }}>
-                    Your application is held for funding if budget frees up before the cycle closes on Sep 30, 2027. No action is needed.
-                  </p>
-                  <div className="small muted">Letter sent Jun 12 · you will be told either way</div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · accepted</span>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Decision</h3>
-                  <span className="bdg bdg-ok">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    Accepted
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ fontSize: "15px" }}>
-                    Riverbend awarded <span className="b">$150,000</span> on May 18, 2027. Accept the award and sign the agreement from the
-                    grant page.
-                  </p>
-                  <Link to="/preview/email/award" className="small b">
-                    Award letter
-                  </Link>
-                  <Link to="/w/alder-creek/grants/awd_01J2Q7/offer" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                    Go to grant
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </Dialog>
+                </>
+              );
+            }}
+          </Loaded>
         </main>
       </ApplicantShell>
     </>

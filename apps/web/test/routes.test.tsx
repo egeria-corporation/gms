@@ -44,7 +44,7 @@ describe("routes", () => {
   it("uses the phone layout for the applicant dashboard at phone width", async () => {
     viewport.phone = true;
     open("/w/alder-creek");
-    expect(await screen.findByRole("heading", { name: "Good morning, Maria" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^Good (morning|afternoon|evening), Maria$/ })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
     viewport.phone = false;
   });

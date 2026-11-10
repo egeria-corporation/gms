@@ -112,7 +112,9 @@ export const trancheMachine = createMachine<TrancheStatus, TrancheAction, Tranch
     retry: { from: ["failed"], to: "due", actors: ["funder", "system"] },
     settle: { from: ["initiated"], to: "settled", actors: ["system", "passport"], patch: (c) => ({ passport_status: c.passportStatus ?? "settled" }) },
     fail: { from: ["initiated"], to: "failed", actors: ["system", "passport"], patch: (c) => ({ passport_status: c.passportStatus ?? "failed" }) },
-    return: { from: ["initiated"], to: "returned", actors: ["system", "passport"], patch: (c) => ({ passport_status: c.passportStatus ?? "returned" }) },
+    // A settled payment can still come back from the bank (an ACH return), so `settled` is final for
+    // every action except this one.
+    return: { from: ["initiated", "settled"], to: "returned", actors: ["system", "passport"], patch: (c) => ({ passport_status: c.passportStatus ?? "returned" }) },
     record_external: {
       from: ["due", "ready"],
       to: "settled",

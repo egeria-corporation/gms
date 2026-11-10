@@ -165,4 +165,5 @@ export const SCOPE_DESCRIPTIONS: Record<Scope, string> = {
 };
 
 /** MCP tools that return `pending_approval` unless the token carries `approvals:bypass` (§10.9). */
-export const DEFAULT_GATED_TOOLS = ["commit_decisions", "release_tranche", "submit_application", "sign_agreement", "accept_award", "send_communication"] as const;
+// One list: the dispatcher in `@gms/mcp` enforces it, and the consent screen and agent docs show it.
+export { DEFAULT_GATED_TOOLS } from "@gms/mcp";

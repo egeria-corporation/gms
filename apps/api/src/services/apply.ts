@@ -162,9 +162,12 @@ export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT
   if (!ctx.ports.mailer || !ctx.config.mailFrom) return { sent: false, reason: "Outbound mail is not configured" };
   if (!to) return { sent: false, reason: "The organization has no primary email in Passport" };
   try {
-    const custom = await ctx.repos.table("templates").find({ workspace_id: subject.workspaceId, kind }, { orderBy: "version", ascending: false, limit: 1 });
     const base = DEFAULT_TEMPLATES[kind];
-    const rendered = renderEmail(custom[0] ? { ...base, body: custom[0].body, name: custom[0].name } : base, fields);
+    // A workspace overrides a built-in letter by saving an email template under the same name
+    // ("Decline", "Award and agreement", …). Email templates are stored as `Subject: …` + body.
+    const custom = (await ctx.repos.table("templates").find({ workspace_id: subject.workspaceId, kind: "email", name: base.name }, { orderBy: "version", ascending: false, limit: 1 }))[0];
+    const split = custom ? /^Subject: ([^\n]*)\n\n?([\s\S]*)$/.exec(custom.body) : null;
+    const rendered = renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
     const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
     await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: id }, subject.workspaceId);
     return { sent: true };

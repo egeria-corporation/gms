@@ -177,6 +177,8 @@ export const PASSPORT_EVENTS = [
   "payee.level.changed",
   "payee.organization.inactive",
   "disbursement.status.changed",
+  /** A funder award changed at Passport (amount, period, status): re-read it. */
+  "award.updated",
 ] as const;
 export type PassportEventType = (typeof PASSPORT_EVENTS)[number];
 
@@ -201,6 +203,11 @@ export interface DisbursementStatusChangedData {
   fee: Money | null;
   rail: "standard" | "instant" | null;
   mode: DisbursementMode;
+}
+
+export interface AwardUpdatedData {
+  awardId: string;
+  funderOrgId?: string;
 }
 
 export interface DestinationChangePendingData {

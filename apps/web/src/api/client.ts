@@ -36,6 +36,7 @@ import type {
   Brand,
 } from "./types.ts";
 import type { JsonObject } from "@gms/forms";
+import { createHttpFunderApi, type FunderApi } from "./funder.ts";
 
 export type WorkspaceKind = "funder" | "applicant";
 
@@ -72,7 +73,7 @@ export interface Workspace {
   pendingApprovals: number;
 }
 
-export interface GmsApi {
+export interface GmsApi extends FunderApi {
   me(): Promise<Me>;
   /** The workspace with this handle, if the caller is a member. Rejects with a 404 ApiError otherwise. */
   workspace(handle: string): Promise<Workspace>;
@@ -243,6 +244,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
 
   return {
     http,
+    ...createHttpFunderApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),

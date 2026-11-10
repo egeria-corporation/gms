@@ -2,6 +2,7 @@
 // The service layer's contract. Every REST route and every MCP tool builds a ServiceContext and
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
+import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
@@ -13,7 +14,8 @@ import type { FileStorage, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
 export interface ServiceActor {
-  kind: "user" | "client" | "delegated";
+  /** `system` and `passport` are never built from a request: jobs and verified Passport webhooks only. */
+  kind: "user" | "client" | "delegated" | "system" | "passport";
   userId: string | null;
   clientId: string | null;
   /** The ledger actor: `user:<id>`, `client:<id>` or `user:<id>/client:<id>`. */
@@ -43,6 +45,13 @@ export interface ServiceConfig {
   passportClient: { id: string; secret: string } | null;
   /** RESEND_FROM; null when outbound mail is not configured. */
   mailFrom: string | null;
+  /** WEBHOOK_SECRET_KEY: encrypts outbound webhook signing secrets; null when not configured. */
+  webhookSecretKey?: string | null;
+  /** PASSPORT_WEBHOOK_SECRET and RESEND_INBOUND_SECRET, for verifying inbound deliveries. */
+  passportWebhookSecret?: string | null;
+  resendInboundSecret?: string | null;
+  /** The domain inbound replies are addressed to (`thread+<id>@domain`); defaults to the domain of RESEND_FROM. */
+  inboundDomain?: string | null;
   /** Mirror accepted awards into Passport (`POST /passport/funders/{orgId}/awards`). Off until Passport serves the route. */
   passportAwardWrite?: boolean;
 }
@@ -50,6 +59,14 @@ export interface ServiceConfig {
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
 export interface ServicePorts {
   mailer?: Mailer;
+  /** Read-only bank feed for reconciliation (Mercury). */
+  bank?: BankFeed;
+  /** The funder's Google Workspace through Composio. */
+  workspaceApps?: WorkspaceApps;
+  /** Tool listing for funder-registered MCP servers. */
+  mcpDirectory?: McpDirectory;
+  /** Where export bundles and ledger archives are written. */
+  exports?: { put(key: string, body: string, contentType: string): Promise<void> };
   storage?: FileStorage;
   openGrants?: OpenGrantsClient;
   /** Names and emails for member lists. */
@@ -69,9 +86,21 @@ export interface ServiceContext {
   ports: ServicePorts;
 }
 
-export function makeActor(kind: ServiceActor["kind"], userId: string | null, clientId: string | null): ServiceActor {
+export function makeActor(kind: "user" | "client" | "delegated", userId: string | null, clientId: string | null): ServiceActor {
   const ledger: Actor = kind === "user" ? { kind, userId: userId! } : kind === "client" ? { kind, clientId: clientId! } : { kind, userId: userId!, clientId: clientId! };
   return { kind, userId, clientId, ledger, id: formatActor(ledger) };
+}
+
+/** The parts of a ServiceContext that exist without a caller: what jobs and inbound webhooks start from. */
+export type BaseContext = Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">;
+
+/**
+ * A context for work no person asked for: a cron job (`system:<job>`) or a verified Passport event.
+ * It carries no scopes, so `authorize` refuses it; only the job and webhook services accept it.
+ */
+export function systemContext(base: BaseContext, who: { job: string } | "passport", workspace: { id: string; kind: WorkspaceKind } | null): ServiceContext {
+  const ledger: Actor = who === "passport" ? { kind: "passport" } : { kind: "system", job: who.job };
+  return { ...base, actor: { kind: ledger.kind as "system" | "passport", userId: null, clientId: null, ledger, id: formatActor(ledger) }, workspace: workspace ? { ...workspace, role: null, memberScope: null } : null, scopes: [] };
 }
 
 export interface Need {

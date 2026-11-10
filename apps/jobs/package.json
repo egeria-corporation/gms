@@ -11,12 +11,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@gms/api": "workspace:*",
+    "@gms/connectors": "workspace:*",
     "@gms/db": "workspace:*",
     "@gms/ledger": "workspace:*",
-    "@gms/passport-client": "workspace:*",
-    "@gms/payments": "workspace:*",
+    "@gms/notify": "workspace:*",
     "@gms/webhooks": "workspace:*",
-    "@gms/workflow": "workspace:*"
+    "@supabase/supabase-js": "2.118.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261026.1",

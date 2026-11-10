@@ -6,7 +6,7 @@
 // the Worker's sources (and their Workers-only globals) into the web program.
 import { createHttpApi } from "../src/api/client.ts";
 
-interface Table {
+export interface Table {
   insert(row: Record<string, unknown>): Promise<Record<string, unknown>>;
   find(where?: Record<string, unknown>): Promise<Record<string, unknown>[]>;
 }
@@ -17,7 +17,7 @@ export interface ApiHarness {
   passport: { fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response> };
   clock: { now: Date };
 }
-interface ApiHelpers {
+export interface ApiHelpers {
   harness(): Promise<ApiHarness>;
   BASE: string;
   WEB: string;

@@ -1,447 +1,428 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { CSSProperties } from "react";
+// Applicant dashboard: Passport readiness, applications in flight, payments and reports from the
+// grants on record, the latest shared message and open tasks.
 import { Link } from "react-router";
-import {
-  BadgeCheck,
-  Calendar,
-  Check,
-  Circle,
-  CircleCheck,
-  CircleDashed,
-  CircleX,
-  Clock,
-  Clock4,
-  Info,
-  Pencil,
-  RefreshCw,
-  Search,
-  Send,
-  Shield,
-} from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, Info, Search } from "lucide-react";
+import type { ApplicantApi, ApplicantReadiness, AwardDetail, MyApplication, Task, Thread } from "../../api/applicant.ts";
+import { useApplicantQuery } from "../../api/applicantHooks.ts";
+import { useIsPhone } from "../../app/usePhone.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { accentOf, Avatar, closesPhrase, firstName, FunderChip, greeting, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { EmptyState } from "../../components/ui.tsx";
+import { formatDate, formatMinor } from "../../lib/format.ts";
+
+const OPEN: MyApplication["status"][] = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
+
+interface DashboardData {
+  readiness: ApplicantReadiness;
+  applications: MyApplication[];
+  awards: AwardDetail[];
+  threads: Thread[];
+  tasks: Task[];
+}
+
+async function loadDashboard(api: ApplicantApi): Promise<DashboardData> {
+  const [readiness, applications, awardList, tasks] = await Promise.all([api.readiness(), api.applications(), api.awards(), api.tasks()]);
+  const active = applications.filter((a) => OPEN.includes(a.status));
+  const [awards, threads] = await Promise.all([
+    Promise.all(awardList.filter((w) => w.status !== "cancelled").map((w) => api.award(w.id))),
+    Promise.all(active.slice(0, 5).map((a) => api.threads(a.id).catch(() => [] as Thread[]))),
+  ]);
+  return { readiness, applications: active, awards, threads: threads.flat(), tasks };
+}
+
+const CHECK = {
+  pass: { cls: "rc-pass", icon: CircleCheck, word: "Passes" },
+  fail: { cls: "rc-fail", icon: CircleX, word: "Needs attention" },
+  unknown: { cls: "rc-unk", icon: CircleDashed, word: "Unknown" },
+} as const;
+
+function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; base: string }) {
+  const failing = readiness.checks.find((c) => c.state === "fail");
+  return (
+    <section className="card" aria-labelledby="ready-h">
+      <div className="card-h">
+        <div className="row" style={{ gap: "10px" }}>
+          <h2 id="ready-h" style={{ fontSize: "18px" }}>
+            Passport readiness
+          </h2>
+          <LevelBadge level={readiness.level} />
+        </div>
+        <Link to={`${base}/organization`} className="small b">
+          Manage in Passport
+        </Link>
+      </div>
+      <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
+        {readiness.checks.map((c) => {
+          const look = CHECK[c.state];
+          return (
+            <div key={c.key} className={`rc-row ${look.cls}`} style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
+              <look.icon className="ic" role="img" aria-label={look.word} />
+              <div>
+                <div className="l">{c.label}</div>
+                <div className="r">{c.reason}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!readiness.linked && (
+        <div className="card-f">
+          <Link to="/onboarding/applicant" className="btn btn-primary">
+            Connect Passport
+          </Link>
+          <span className="help">Your organization record, documents and payee status come from Passport.</span>
+        </div>
+      )}
+      {readiness.linked && failing && (
+        <div className="card-f">
+          <Link to={`${base}/organization`} className="btn btn-primary">
+            {failing.key === "payee_verified" ? "Verify payee in Passport" : "Fix in Passport"}
+          </Link>
+          <span className="help">{failing.key === "payee_verified" ? "Awards can be offered but no payment can be released until L3." : failing.reason}</span>
+        </div>
+      )}
+      {readiness.summary.unknown > 0 && readiness.linked && (
+        <div className="card-b" style={{ paddingTop: 0 }}>
+          <div className="bnr bnr-neu">
+            <Info className="ic" aria-hidden="true" />
+            <div>
+              <div className="t">Some checks can’t be confirmed right now</div>
+              <div className="d">Applications stay editable; anything that depends on an unknown check waits until Passport answers.</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ApplicationCard({ app, base }: { app: MyApplication; base: string }) {
+  const editable = app.status === "draft" || app.status === "revision_requested";
+  const closes = editable ? closesPhrase(app.stage.closes) : null;
+  return (
+    <Link
+      to={`${base}/applications/${app.id}${editable ? "/edit" : ""}`}
+      className="card"
+      style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "8px", textDecoration: "none", color: "inherit" }}
+    >
+      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+        <FunderChip name={app.funder.name} accent={accentOf(app.funder.brand)} />
+        <StatusBadge kind="application" status={app.status} />
+      </div>
+      <h3 style={{ fontSize: "17px" }}>{app.title}</h3>
+      <div className="row" style={{ gap: "14px", flexWrap: "wrap", fontSize: "14px", color: "var(--og-gray-600)" }}>
+        {app.opportunity.title && <span>{app.opportunity.title}</span>}
+        <span>·</span>
+        <span>{app.stage.label} stage</span>
+        {closes && (
+          <>
+            <span>·</span>
+            <span className="b" style={closes.urgent ? { color: "var(--s-warn-fg)" } : undefined}>
+              {closes.text}
+            </span>
+          </>
+        )}
+        {!editable && app.submittedAt && (
+          <>
+            <span>·</span>
+            <span>Submitted {formatDate(app.submittedAt)}</span>
+          </>
+        )}
+        {editable && (
+          <span style={{ marginLeft: "auto" }}>
+            {app.forms.complete} of {app.forms.total} forms complete
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+const CONDITION: Record<string, string> = { onExecution: "on execution", onReportAccepted: "after report accepted", onDate: "on a date", manual: "released by funder" };
+
+function Payments({ awards, base, phone }: { awards: AwardDetail[]; base: string; phone: boolean }) {
+  const rows = awards.flatMap((w) => w.tranches.map((t) => ({ w, t })));
+  if (!rows.length) return null;
+  return (
+    <section className="card" aria-labelledby="pay-h">
+      <div className="card-h">
+        <h2 id="pay-h" style={{ fontSize: "18px" }}>
+          Payments
+        </h2>
+        <Link to={`${base}/grants/${rows[0]!.w.id}`} className="small b">
+          Open grant
+        </Link>
+      </div>
+      {phone ? (
+        <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {rows.map(({ w, t }) => (
+            <Link key={t.id} to={`${base}/grants/${w.id}`} style={{ display: "flex", flexDirection: "column", gap: "6px", textDecoration: "none", color: "inherit" }}>
+              <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
+                <span className="b" style={{ fontSize: "15px" }}>
+                  {w.funder.name} · Tranche {t.seq} of {w.tranches.length}
+                </span>
+                <span className="b num">{formatMinor(t.amountMinor, t.currency)}</span>
+              </div>
+              <div className="row wrap" style={{ gap: "8px" }}>
+                <StatusBadge kind="tranche" status={t.status} />
+                <span className="small muted">{CONDITION[String(t.condition.type)] ?? ""}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+          <table className="tbl" style={{ fontSize: "14px" }}>
+            <thead>
+              <tr>
+                <th>Funder</th>
+                <th>Tranche</th>
+                <th className="num">Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ w, t }) => (
+                <tr key={t.id}>
+                  <td>
+                    <FunderChip name={w.funder.name} accent={accentOf(w.funder.brand)} short />
+                  </td>
+                  <td>
+                    {t.seq} of {w.tranches.length} · {CONDITION[String(t.condition.type)] ?? ""}
+                  </td>
+                  <td className="num">{formatMinor(t.amountMinor, t.currency)}</td>
+                  <td>
+                    <StatusBadge kind="tranche" status={t.status} />
+                    {t.holdReason && <span className="small muted"> {t.holdReason}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReportsDue({ awards, base }: { awards: AwardDetail[]; base: string }) {
+  const rows = awards
+    .flatMap((w) => w.requirements.filter((r) => !["accepted", "waived"].includes(r.status)).map((r) => ({ w, r })))
+    .sort((a, b) => (a.r.dueAt ?? "9").localeCompare(b.r.dueAt ?? "9"));
+  if (!rows.length) return null;
+  return (
+    <section className="card" aria-labelledby="rep-h">
+      <div className="card-h">
+        <h2 id="rep-h" style={{ fontSize: "18px" }}>
+          Reports due
+        </h2>
+        <Link to={`${base}/reports`} className="small b">
+          All reports
+        </Link>
+      </div>
+      <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px 20px" }}>
+        {rows.map(({ w, r }) => {
+          const tranche = w.tranches.find((t) => t.id === r.releasesTrancheId);
+          return (
+            <li key={r.id} className="row" style={{ gap: "12px", alignItems: "flex-start" }}>
+              <span style={{ flex: "none" }}>
+                <StatusBadge kind="requirement" status={r.status} />
+              </span>
+              <div>
+                <Link to={`${base}/reports`} className="b">
+                  {r.title} · {w.title}
+                </Link>
+                <div className="small muted">
+                  <FunderChip name={w.funder.name} accent={accentOf(w.funder.brand)} short style={{ height: "20px", fontSize: "11px" }} /> · due {formatDate(r.dueAt)}
+                  {tranche ? ` · releases tranche ${tranche.seq}` : ""}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function Messages({ threads, applications, base }: { threads: Thread[]; applications: MyApplication[]; base: string }) {
+  const latest = threads
+    .flatMap((t) => t.messages.map((m) => ({ t, m })))
+    .sort((a, b) => b.m.createdAt.localeCompare(a.m.createdAt))
+    .slice(0, 2);
+  if (!latest.length) return null;
+  const appOf = (t: Thread) => applications.find((a) => a.id === `app_${t.subjectId}`);
+  return (
+    <section className="card" aria-labelledby="msg-h">
+      <div className="card-h">
+        <h2 id="msg-h" style={{ fontSize: "18px" }}>
+          Messages
+        </h2>
+        <Link to={`${base}/applications/app_${latest[0]!.t.subjectId}`} className="small b">
+          Open thread
+        </Link>
+      </div>
+      <div className="card-b th" style={{ padding: "16px 20px" }}>
+        {latest.map(({ t, m }, i) => (
+          <div className="msg" key={m.id}>
+            <Avatar name={m.author} index={i + 3} />
+            <div className="bub">
+              <div className="hd">
+                <span className="who">{m.author}</span>
+                {appOf(t)?.funder.name && <span>· {appOf(t)!.funder.name}</span>}
+                <span className="shared-mark">Shared</span>
+                <span>· {timeAgo(m.createdAt)}</span>
+              </div>
+              <div className="bd">{m.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Tasks({ tasks, applications, base }: { tasks: Task[]; applications: MyApplication[]; base: string }) {
+  if (!tasks.length) return null;
+  return (
+    <section className="card" aria-labelledby="task-h">
+      <div className="card-h">
+        <h2 id="task-h" style={{ fontSize: "18px" }}>
+          Tasks
+        </h2>
+        <span className="small muted">{tasks.length} open</span>
+      </div>
+      <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "16px 20px" }}>
+        {tasks.map((t) => {
+          const app = applications.find((a) => a.id === `app_${t.subjectId}`);
+          return (
+            <li key={t.id} className="cb">
+              <span className="c" aria-hidden="true"></span>
+              <div className="grow">
+                {app ? (
+                  <Link to={`${base}/applications/${app.id}/edit`} className="b">
+                    {t.title}
+                  </Link>
+                ) : (
+                  <span className="b">{t.title}</span>
+                )}
+                <div className="small muted">
+                  {app?.title}
+                  {t.dueAt ? `${app ? " · " : ""}due ${formatDate(t.dueAt)}` : ""}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 export default function Dashboard() {
+  const ws = useWorkspace("applicant");
+  const phone = useIsPhone();
+  const base = `/w/${ws.handle}`;
+  const query = useApplicantQuery(loadDashboard, [ws.id]);
+  const reportsDue = query.status === "ready" ? query.data.awards.flatMap((w) => w.requirements).filter((r) => ["due", "overdue", "returned"].includes(r.status)).length : 0;
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
   return (
     <>
-      <title>{"Dashboard — Alder Creek Family Services"}</title>
+      <title>{`Dashboard — ${ws.name}`}</title>
       <ApplicantShell active="Dashboard">
         <main className="main">
           <div className="ph">
             <div>
-              <h1>Good afternoon, Maria</h1>
-              <div className="meta">
-                <span>Alder Creek Family Services</span>
-                <span>·</span>
-                <span>2 active applications</span>
-                <span>·</span>
-                <span>1 active grant</span>
-                <span>·</span>
-                <span>2 reports due</span>
-              </div>
+              {phone && <span className="eyebrow">{ws.name}</span>}
+              <h1>
+                {greeting()}, {firstName(ws.member.name)}
+              </h1>
+              {query.status === "ready" && !phone && (
+                <div className="meta">
+                  <span>{ws.name}</span>
+                  <span>·</span>
+                  <span>{count(query.data.applications.length, "active application", "active applications")}</span>
+                  <span>·</span>
+                  <span>{count(query.data.awards.filter((w) => w.status === "active").length, "active grant", "active grants")}</span>
+                  <span>·</span>
+                  <span>{count(reportsDue, "report due", "reports due")}</span>
+                </div>
+              )}
             </div>
             <div className="actions">
-              <Link to="/w/alder-creek/find" className="btn btn-primary">
+              <Link to={`${base}/find`} className="btn btn-primary">
                 <Search className="ic" aria-hidden="true" />
                 Find funding
               </Link>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px" }}>
-            <div className="card">
-              <div className="card-h">
-                <div className="row" style={{ gap: "10px" }}>
-                  <h2 style={{ fontSize: "18px" }}>Passport readiness</h2>
-                  <span className="lvl lvl-3">
-                    <Shield className="ic" aria-hidden="true" />
-                    L3
-                  </span>
-                </div>
-                <Link to="/w/alder-creek/organization" className="small b">
-                  Manage in Passport
-                </Link>
-              </div>
-              <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "14px" }}>
-                <div className="rc-row rc-pass" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="l">Identity verified</div>
-                    <div className="r">Legal name, tax status and representatives match IRS records.</div>
-                  </div>
-                </div>
-                <div className="rc-row rc-pass" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="l">Documents verified</div>
-                    <div className="r">Determination letter and audited financials on file; insurance expires Sep 1.</div>
-                  </div>
-                </div>
-                <div className="rc-row rc-pass" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="l">Payee verified</div>
-                    <div className="r">
-                      River City Credit Union •••• 4821 ·{" "}
-                      <span className="pay pay-active">
-                        <Check className="ic" aria-hidden="true" />
-                        Payee active
-                      </span>
+
+          <Loaded query={query} label="Loading your dashboard">
+            {(d) => {
+              const nothing = !d.applications.length && !d.awards.length;
+              return (
+                <>
+                  <ReadinessCard readiness={d.readiness} base={base} />
+                  {nothing ? (
+                    <div className="card">
+                      <EmptyState
+                        icon={Search}
+                        title="No applications or grants yet"
+                        actions={
+                          <>
+                            <Link to={`${base}/find`} className="btn btn-primary">
+                              Find funding
+                            </Link>
+                            <Link to={`${base}/organization`} className="small b">
+                              Review your organization profile
+                            </Link>
+                          </>
+                        }
+                      >
+                        {d.readiness.linked
+                          ? "Your Passport record is ready. Find an opportunity you are eligible for and start an application with your profile already filled in."
+                          : "Connect Passport, then find an opportunity and start an application with your profile already filled in."}
+                      </EmptyState>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="card" style={{ background: "#F7FAFA" }}>
-              <div className="card-h" style={{ padding: "12px 20px" }}>
-                <span className="eyebrow">State · L2 organization</span>
-                <span className="lvl lvl-2">L2</span>
-              </div>
-              <div className="card-b" style={{ padding: "14px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div className="rc-row rc-pass" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div className="l">Identity verified</div>
-                </div>
-                <div className="rc-row rc-pass" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div className="l">Documents verified</div>
-                </div>
-                <div className="rc-row rc-fail" style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
-                  <CircleX className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="l">Payee not verified</div>
-                    <div className="r">Awards can be offered but no payment can be released until L3.</div>
-                  </div>
-                </div>
-                <Link to="/w/alder-creek/organization" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                  Verify payee in Passport
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Active applications</h2>
-                  <Link to="/w/alder-creek/applications/app_01HZX4/edit" className="small b">
-                    View all
-                  </Link>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <Link
-                    to="/w/alder-creek/applications/app_01HZX4/edit"
-                    className="card"
-                    style={{
-                      padding: "16px 18px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                      textDecoration: "none",
-                      color: "inherit",
-                    }}
-                  >
-                    <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                      <span className="chip">
-                        <span className="tdot" aria-hidden="true"></span>Riverbend Community Foundation
-                      </span>
-                      <span className="bdg bdg-neutral">
-                        <Pencil className="ic" aria-hidden="true" />
-                        Draft
-                      </span>
-                    </div>
-                    <h3 style={{ fontSize: "17px" }}>Mobile Health Navigation for Rural Families</h3>
-                    <div className="row" style={{ gap: "14px", flexWrap: "wrap", fontSize: "14px", color: "#4A5C5A" }}>
-                      <span>Community Health Grants 2027</span>
-                      <span>·</span>
-                      <span>Full proposal stage</span>
-                      <span>·</span>
-                      <span className="b" style={{ color: "#7A4A00" }}>
-                        Closes in 14 days · Apr 30
-                      </span>
-                      <span style={{ marginLeft: "auto" }} className="pres">
-                        <span className="av av-t" title="Maria Santos">
-                          MS
-                        </span>
-                        <span className="av" title="Jamal Reed">
-                          JR
-                        </span>
-                        <span className="av av-g" title="Lena Fischer">
-                          LF
-                        </span>
-                      </span>
-                    </div>
-                  </Link>
-                  <Link
-                    to="/w/alder-creek/applications/app_01HZX4"
-                    className="card"
-                    style={
-                      {
-                        "--tenant": "#7A4F01",
-                        padding: "16px 18px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        textDecoration: "none",
-                        color: "inherit",
-                      } as CSSProperties
-                    }
-                  >
-                    <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                      <span className="chip">
-                        <span className="tdot" aria-hidden="true"></span>Cascade County Health Department
-                      </span>
-                      <span className="bdg bdg-info">
-                        <Send className="ic" aria-hidden="true" />
-                        Submitted
-                      </span>
-                    </div>
-                    <h3 style={{ fontSize: "17px" }}>Community Clinic Capacity</h3>
-                    <div className="row" style={{ gap: "14px", flexWrap: "wrap", fontSize: "14px", color: "#4A5C5A" }}>
-                      <span>Community Clinic Capacity Grants FY28</span>
-                      <span>·</span>
-                      <span>LOI stage</span>
-                      <span>·</span>
-                      <span>Decision by Jun 30</span>
-                      <span style={{ marginLeft: "auto" }} className="pres">
-                        <span className="av av-t" title="Maria Santos">
-                          MS
-                        </span>
-                      </span>
-                    </div>
-                  </Link>
-                </div>
-              </section>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Payments</h2>
-                  <Link to="/w/alder-creek/grants/awd_01J2Q7" className="small b">
-                    Open grant
-                  </Link>
-                </div>
-                <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                  <table className="tbl" style={{ fontSize: "14px" }}>
-                    <thead>
-                      <tr>
-                        <th>Funder</th>
-                        <th>Tranche</th>
-                        <th className="num">Amount</th>
-                        <th>Destination</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <span className="chip">
-                            <span className="tdot" aria-hidden="true"></span>Riverbend
-                          </span>
-                        </td>
-                        <td>1 of 3 · on execution</td>
-                        <td className="num">$75,000</td>
-                        <td>River City Credit Union •••• 4821</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <BadgeCheck className="ic" aria-hidden="true" />
-                            Settled May 25
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <span className="chip">
-                            <span className="tdot" aria-hidden="true"></span>Riverbend
-                          </span>
-                        </td>
-                        <td>2 of 3 · after interim report</td>
-                        <td className="num">$60,000</td>
-                        <td>River City Credit Union •••• 4821</td>
-                        <td>
-                          <span className="bdg bdg-neutral">
-                            <Calendar className="ic" aria-hidden="true" />
-                            Expected after Dec 15
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Reports due</h2>
-                  <Link to="/w/alder-creek/reports" className="small b">
-                    All reports
-                  </Link>
-                </div>
-                <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px 20px" }}>
-                  <li className="row" style={{ gap: "12px", alignItems: "flex-start" }}>
-                    <span className="bdg bdg-neutral" style={{ flex: "none" }}>
-                      <Calendar className="ic" aria-hidden="true" />
-                      Scheduled
-                    </span>
-                    <div>
-                      <Link to="/w/alder-creek/reports" className="b">
-                        Interim report · Mobile Health Navigation
-                      </Link>
-                      <div className="small muted">
-                        <span className="chip" style={{ height: "20px", fontSize: "11px" }}>
-                          <span className="tdot" aria-hidden="true"></span>Riverbend
-                        </span>{" "}
-                        · due Dec 15, 2027 · releases tranche 2
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        <section className="card" aria-labelledby="apps-h">
+                          <div className="card-h">
+                            <h2 id="apps-h" style={{ fontSize: "18px" }}>
+                              Active applications
+                            </h2>
+                            <Link to={`${base}/applications`} className="small b">
+                              View all
+                            </Link>
+                          </div>
+                          <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                            {d.applications.length ? (
+                              d.applications.map((a) => <ApplicationCard key={a.id} app={a} base={base} />)
+                            ) : (
+                              <p className="muted">
+                                Nothing in progress. <Link to={`${base}/find`}>Find funding</Link>
+                              </p>
+                            )}
+                          </div>
+                        </section>
+                        <Payments awards={d.awards} base={base} phone={phone} />
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        <ReportsDue awards={d.awards} base={base} />
+                        <Messages threads={d.threads} applications={d.applications} base={base} />
+                        <Tasks tasks={d.tasks} applications={d.applications} base={base} />
                       </div>
                     </div>
-                  </li>
-                  <li className="row" style={{ gap: "12px", alignItems: "flex-start", "--tenant": "#7A4F01" } as CSSProperties}>
-                    <span className="bdg bdg-warn" style={{ flex: "none" }}>
-                      <Clock className="ic" aria-hidden="true" />
-                      Due
-                    </span>
-                    <div>
-                      <Link to="/w/alder-creek/reports" className="b">
-                        Progress report · 2026 Clinic Outreach
-                      </Link>
-                      <div className="small muted">
-                        <span className="chip" style={{ height: "20px", fontSize: "11px" }}>
-                          <span className="tdot" aria-hidden="true"></span>Cascade County
-                        </span>{" "}
-                        · due Jun 30, 2027
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-              </section>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Messages</h2>
-                  <Link to="/w/alder-creek/applications/app_01HZX4" className="small b">
-                    Open threads
-                  </Link>
-                </div>
-                <div className="card-b th" style={{ padding: "16px 20px" }}>
-                  <div className="msg">
-                    <span className="av av-n" title="Dana Ortiz">
-                      DO
-                    </span>
-                    <div className="bub">
-                      <div className="hd">
-                        <span className="who">Dana Ortiz</span>
-                        <span>· Riverbend</span>
-                        <span className="shared-mark">Shared</span>
-                        <span>· 2 h ago</span>
-                      </div>
-                      <div className="bd">
-                        Thanks for the LOI. For the full proposal, the budget narrative can reference the county assessment directly.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="msg">
-                    <span className="av" title="Jamal Reed">
-                      JR
-                    </span>
-                    <div className="bub">
-                      <div className="hd">
-                        <span className="who">Jamal Reed</span>
-                        <span>· Team</span>
-                        <span>· yesterday</span>
-                      </div>
-                      <div className="bd">Letters of support from Copper Valley Clinic arrive Thursday.</div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              <section className="card">
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px" }}>Tasks</h2>
-                  <span className="small muted">Assigned sections</span>
-                </div>
-                <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "16px 20px" }}>
-                  <li className="row" style={{ gap: "10px" }}>
-                    <span className="av av-sm av-g" title="Lena Fischer">
-                      LF
-                    </span>
-                    <div className="grow">
-                      <Link to="/w/alder-creek/applications/app_01HZX4/edit" className="b">
-                        Budget
-                      </Link>
-                      <div className="small muted">Lena Fischer (consultant) · Mobile Health Navigation</div>
-                    </div>
-                    <span className="bdg bdg-neutral">
-                      <Circle className="ic" aria-hidden="true" />
-                      Not started
-                    </span>
-                  </li>
-                  <li className="row" style={{ gap: "10px" }}>
-                    <span className="av av-sm" title="Jamal Reed">
-                      JR
-                    </span>
-                    <div className="grow">
-                      <Link to="/w/alder-creek/applications/app_01HZX4/edit" className="b">
-                        Letters of support
-                      </Link>
-                      <div className="small muted">Jamal Reed · Attachments</div>
-                    </div>
-                    <span className="bdg bdg-prog">
-                      <Clock4 className="ic" aria-hidden="true" />
-                      In progress
-                    </span>
-                  </li>
-                </ul>
-              </section>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", marginTop: "8px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · nothing active</span>
-              <div className="card empty">
-                <Search className="ic" aria-hidden="true" />
-                <h3>No applications or grants yet</h3>
-                <p>
-                  Your Passport record is ready. Find an opportunity you are eligible for and start an application with your profile already
-                  filled in.
-                </p>
-                <div className="acts">
-                  <Link to="/w/alder-creek/find" className="btn btn-primary">
-                    Find funding
-                  </Link>
-                  <Link to="/w/alder-creek/organization" className="small b">
-                    Review your organization profile
-                  </Link>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · Passport unavailable</span>
-              <div className="card">
-                <div className="card-h">
-                  <div className="row" style={{ gap: "10px" }}>
-                    <h3>Passport readiness</h3>
-                    <span className="lvl lvl-na">L? unavailable</span>
-                  </div>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="bnr bnr-neu">
-                    <Info className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="t">Passport can’t be reached right now</div>
-                      <div className="d">
-                        Your level and payee status were last confirmed 40 minutes ago. Applications stay editable; submissions and payments
-                        wait until Passport is back.
-                      </div>
-                      <div className="clears">
-                        <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                        Retrying automatically every minute
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "10px", color: "#4A5C5A" }}>
-                    <CircleDashed className="ic" aria-hidden="true" />
-                    Identity · Documents · Payee: unknown until reconnected
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  )}
+                </>
+              );
+            }}
+          </Loaded>
         </main>
       </ApplicantShell>
     </>

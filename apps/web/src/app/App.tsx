@@ -50,6 +50,7 @@ const AEditor = lazy(() => import("../screens/applicant/Editor.tsx"));
 const AEditorSubmit = lazy(() => import("../screens/applicant/EditorSubmit.tsx"));
 const AConfirmation = lazy(() => import("../screens/applicant/Confirmation.tsx"));
 const AApplicationStatus = lazy(() => import("../screens/applicant/ApplicationStatus.tsx"));
+const AApplications = lazy(() => import("../screens/applicant/Applications.tsx"));
 const AGrantOffered = lazy(() => import("../screens/applicant/GrantOffered.tsx"));
 const AGrantPayments = lazy(() => import("../screens/applicant/GrantPayments.tsx"));
 const AReports = lazy(() => import("../screens/applicant/Reports.tsx"));
@@ -190,9 +191,10 @@ function AppRoutes() {
             <Route path="forms/:formId/edit" element={f(<FFormBuilder />)} />
             <Route path="competitions/:compId" element={f(<FCompetition />)} />
             <Route path="competitions/:compId/panel" element={f(<FPanel />)} />
-            <Route path="applications" element={f(<FApplications />)} />
+            <Route path="applications" element={<ByKind funder={<FApplications />} applicant={<AApplications />} />} />
             <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
             <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
+            <Route path="awards" element={f(<FAwardAgreement />)} />
             <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
             <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
             <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />
@@ -216,6 +218,7 @@ function AppRoutes() {
             <Route path="applications/:appId/edit/submit" element={a(<AEditorSubmit />)} />
             <Route path="applications/:appId/submitted" element={a(<AConfirmation />)} />
             <Route path="grants/:awardId" element={a(<Responsive desktop={<AGrantPayments />} phone={<AGrantPhone />} />)} />
+            <Route path="grants" element={a(<AGrantOffered />)} />
             <Route path="grants/:awardId/offer" element={a(<AGrantOffered />)} />
             <Route path="reports" element={a(<Responsive desktop={<AReports />} phone={<AReportsPhone />} />)} />
             <Route path="library" element={a(<AAnswerLibrary />)} />

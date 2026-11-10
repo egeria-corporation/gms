@@ -1,25 +1,98 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import {
-  ArrowRight,
-  BadgeCheck,
-  Check,
-  CircleCheck,
-  CircleMinus,
-  CircleQuestionMark,
-  CircleX,
-  Cloud,
-  Database,
-  File,
-  Plus,
-  Shield,
-} from "lucide-react";
+// Applicant onboarding: consent in Passport, confirm what came across, see readiness, go.
+// The GMS never asks for organization details here; they are read from Passport with consent.
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleQuestionMark, CircleX } from "lucide-react";
+import type { ApplicantReadiness, MyOrganization } from "../../api/applicant.ts";
+import { useApplicantApi } from "../../api/applicantHooks.ts";
+import { initialsOf } from "../../api/client.ts";
+import { useServices } from "../../app/services.tsx";
+import { LevelBadge } from "../../components/status.tsx";
+import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
+
+const REASONS: Record<string, string> = {
+  declined: "You chose not to share your Passport record. Nothing was linked.",
+  expired: "That took too long and the request expired. Start again.",
+  invalid_state: "The request could not be verified. Start again.",
+  not_configured: "Passport linking is not configured on this server.",
+  passport_unavailable: "Passport can’t be reached right now. Try again in a few minutes.",
+  passport_refused: "Passport refused the request for this organization.",
+  passport_error: "Passport reported an error. Try again.",
+};
+
+const SCOPES = ["Read your organization profile", "Read your Common App profile (budget, staff, tax status) where you have confirmed it", "Propose changes to your profile (you approve each one in Passport)"];
+
+const STEPS = ["Continue with Passport", "Confirm imported profile", "Ready"] as const;
+
+type Json = Record<string, unknown>;
+const at = (obj: unknown, path: string): unknown => path.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Json)[k] : undefined), obj);
+const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 
 export default function ApplicantOnboarding() {
+  const { meState, reloadMe, sessionState } = useServices();
+  const [params] = useSearchParams();
+  const outcome = params.get("passport");
+  const reason = params.get("reason") ?? "";
+  const linkedHandle = params.get("ws");
+
+  const memberships = meState.status === "ready" ? meState.me.workspaces.filter((w) => w.kind === "applicant") : [];
+  const workspace = memberships.find((w) => w.handle === linkedHandle) ?? memberships[0] ?? null;
+  const api = useApplicantApi(workspace?.id);
+
+  const [start, setStart] = useState<{ state: "idle" | "going"; error?: unknown }>({ state: "idle" });
+  const [record, setRecord] = useState<{ org: MyOrganization; readiness: ApplicantReadiness } | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [confirmed, setConfirmed] = useState(false);
+
+  // Coming back from Passport: the new workspace is not in the cached memberships yet.
+  const reloaded = useRef(false);
+  useEffect(() => {
+    if (outcome === "linked" && !reloaded.current) {
+      reloaded.current = true;
+      reloadMe();
+    }
+  }, [outcome, reloadMe]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    let live = true;
+    Promise.all([api.organization(), api.readiness()]).then(
+      ([org, readiness]) => live && setRecord({ org, readiness }),
+      (e: unknown) => live && setLoadError(e),
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, workspace?.id]);
+
+  const linked = !!record?.org.linked;
+  const step = !linked ? 0 : confirmed ? 2 : 1;
+  const email = sessionState.status === "signedIn" ? sessionState.session.email : "";
+
+  const onContinue = async () => {
+    setStart({ state: "going" });
+    try {
+      const { authorizeUrl } = await api.startConsent({ returnTo: "/onboarding/applicant", ...(workspace && !linked ? { workspaceId: workspace.id } : {}) });
+      window.location.assign(authorizeUrl);
+    } catch (error) {
+      setStart({ state: "idle", error });
+    }
+  };
+
+  const o = record?.org.organization as unknown as Json | null | undefined;
+  const address = [at(o, "addresses.primary.street1"), at(o, "addresses.primary.city"), at(o, "addresses.primary.stateOrProvince")].map(text).filter(Boolean).join(", ");
+  const imported = [
+    { id: "p-legal", label: "Legal name", value: text(at(o, "name")) },
+    { id: "p-ein", label: "EIN", value: text(at(o, "identifiers.org:us:ein.id")).replace(/^(\d{2})(\d{7})$/, "$1-$2") },
+    { id: "p-addr", label: "Address", value: address },
+    { id: "p-email", label: "Primary email", value: text(at(o, "emails.primary")) },
+  ].filter((f) => f.value);
+
   return (
     <>
-      <title>{"Applicant onboarding"}</title>
-      <div className="gms gms-applicant" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <title>Set up your applicant workspace — OpenGrants GMS</title>
+      <div className="gms gms-applicant gms-frame">
         <header className="topbar">
           <Link to="/" className="logo">
             <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
@@ -29,471 +102,158 @@ export default function ApplicantOnboarding() {
             Set up your applicant workspace
           </span>
           <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-            <button className="iconbtn" aria-label="Help">
+            <button className="iconbtn" type="button" aria-label="Help">
               <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
             </button>
-            <Link to="/account/agents" className="av av-t" aria-label="Account: Maria Santos">
-              MS
-            </Link>
+            {email && (
+              <Link to="/account/agents" className="av av-t" aria-label={`Account: ${email}`}>
+                {initialsOf(email)}
+              </Link>
+            )}
           </div>
         </header>
-        <main style={{ flex: "1 1 auto", padding: "32px 40px 48px", display: "flex", flexDirection: "column", gap: "24px" }}>
+
+        <main className="main" style={{ maxWidth: "960px", width: "100%", margin: "0 auto" }}>
           <div className="ph">
             <div>
-              <h1>Welcome, Alder Creek Family Services</h1>
+              <h1>{record?.org.displayName ? `Welcome, ${record.org.displayName}` : "Link your organization"}</h1>
               <div className="meta">
-                <span>Your Passport record does the typing. Confirm what came across, invite your team, and you are ready to apply.</span>
+                <span>Your Passport record does the typing. Confirm what came across and you are ready to apply.</span>
               </div>
             </div>
           </div>
+
           <div className="card" style={{ padding: "16px 24px" }}>
-            <div className="stp" aria-label="Onboarding steps">
-              <div className="s done">
-                <span className="n">
-                  <Check className="ic ic-sm" aria-hidden="true" />
-                </span>
-                Continue with Passport
-              </div>
-              <span className="ln done"></span>
-              <div className="s on">
-                <span className="n">2</span>Confirm imported profile
-              </div>
-              <span className="ln"></span>
-              <div className="s">
-                <span className="n">3</span>Invite teammates & connect apps
-              </div>
-              <span className="ln"></span>
-              <div className="s">
-                <span className="n">4</span>Ready
+            <ol className="stp" aria-label="Onboarding steps" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+              {STEPS.map((label, i) => (
+                <li key={label} style={{ display: "contents" }}>
+                  {i > 0 && <span className={i <= step ? "ln done" : "ln"} aria-hidden="true"></span>}
+                  <div className={i < step ? "s done" : i === step ? "s on" : "s"} aria-current={i === step ? "step" : undefined}>
+                    <span className="n">{i < step ? <Check className="ic ic-sm" aria-hidden="true" /> : i + 1}</span>
+                    {label}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {outcome === "error" && (
+            <div className="bnr bnr-dng" role="alert">
+              <CircleX className="ic" aria-hidden="true" />
+              <div>
+                <div className="t">Your organization was not linked</div>
+                <div className="d">{REASONS[reason] ?? "Something went wrong while linking. Try again."}</div>
               </div>
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
-            <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">Step 1 · Passport consent (mock)</span>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="row" style={{ gap: "12px" }}>
-                  <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "32px", height: "32px" }} />
-                  <div>
-                    <div className="b" style={{ fontSize: "15px" }}>
-                      OpenGrants Passport
-                    </div>
-                    <div className="small muted">passport.opengrants.io</div>
+          )}
+          {start.error ? <ErrorBanner error={start.error} title="Passport could not be opened" /> : null}
+          {loadError && workspace ? <ErrorBanner error={loadError} title="Your Passport record could not be read" /> : null}
+          {meState.status === "loading" && <Loading />}
+
+          {step === 0 && meState.status !== "loading" && (
+            <section className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", maxWidth: "560px" }} aria-labelledby="consent-h">
+              <div className="row" style={{ gap: "12px" }}>
+                <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "32px", height: "32px" }} />
+                <div>
+                  <div className="b" style={{ fontSize: "15px" }}>
+                    OpenGrants Passport
                   </div>
+                  <div className="small muted">You will be asked there what to share with OpenGrants GMS</div>
                 </div>
-                <h2 style={{ fontSize: "18px" }}>Alder Creek Family Services is sharing with OpenGrants GMS</h2>
-                <ul style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px" }}>
-                  <li className="cb">
-                    <span className="c on">
-                      <Check className="ic ic-sm" aria-hidden="true" />
+              </div>
+              <h2 id="consent-h" style={{ fontSize: "18px" }}>
+                Continue with Passport to link your organization
+              </h2>
+              <ul style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px" }}>
+                {SCOPES.map((s) => (
+                  <li className="cb" key={s}>
+                    <span className="c on" aria-hidden="true">
+                      <Check className="ic ic-sm" />
                     </span>
-                    <span>Read your organization profile</span>
+                    <span>{s}</span>
                   </li>
-                  <li className="cb">
-                    <span className="c on">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <span>Read and propose changes to your profile (you approve each one)</span>
-                  </li>
-                  <li className="cb">
-                    <span className="c on">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <span>Read your document locker</span>
-                  </li>
-                  <li className="cb">
-                    <span className="c on">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <span>Read payee status (bank name and last4 only)</span>
-                  </li>
-                </ul>
-                <p className="small muted">The GMS never sees full account details and cannot change your bank destination.</p>
-                <div className="row" style={{ gap: "10px" }}>
-                  <Link to="/styleguide/passport-consent" className="btn btn-primary">
-                    Allow
-                  </Link>
-                  <button className="btn btn-secondary">Not now</button>
-                </div>
-                <div className="notice">
-                  <Check className="ic ic-sm" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                  Granted Apr 16, 2027 ·<Link to="/styleguide/passport-consent">Full consent screen</Link>
-                </div>
+                ))}
+              </ul>
+              <p className="small muted">The GMS never sees account details and cannot change your bank destination. You can withdraw this consent in Passport at any time.</p>
+              <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+                <button className="btn btn-primary btn-lg" type="button" onClick={onContinue} disabled={start.state === "going"}>
+                  {start.state === "going" ? "Opening Passport…" : "Continue with Passport"}
+                </button>
+                <Link to="/" className="btn btn-secondary btn-lg">
+                  Not now
+                </Link>
               </div>
             </section>
-            <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">Step 2 · Confirm imported profile</span>
-              <div className="card">
+          )}
+
+          {step >= 1 && record && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
+              <section className="card" aria-labelledby="imp-h">
                 <div className="card-h">
-                  <h3>From your Passport record</h3>
+                  <h3 id="imp-h">From your Passport record</h3>
                   <span className="prov prov-passport">
                     <BadgeCheck className="ic" aria-hidden="true" />
-                    Synced 1 min ago
+                    From Passport
                   </span>
                 </div>
                 <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="p-legal">
-                      Legal name
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="p-legal" defaultValue="Alder Creek Family Services" readOnly />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c on">
-                          <Check className="ic ic-sm" aria-hidden="true" />
-                        </span>
-                        Looks right
+                  {imported.map((f) => (
+                    <div className="fld" key={f.id}>
+                      <label className="lbl" htmlFor={f.id}>
+                        {f.label}
                       </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
+                      <input className="inp" id={f.id} value={f.value} readOnly />
                     </div>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="p-tax">
-                      Tax status
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="p-tax" defaultValue="501(c)(3) public charity · verified" readOnly />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c on">
-                          <Check className="ic ic-sm" aria-hidden="true" />
-                        </span>
-                        Looks right
-                      </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="p-addr">
-                      Address
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="p-addr" defaultValue="418 Mill Road, Alder Creek, OR" readOnly />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c on">
-                          <Check className="ic ic-sm" aria-hidden="true" />
-                        </span>
-                        Looks right
-                      </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="p-contact">
-                      Primary contact
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="p-contact" defaultValue="Maria Santos · Executive Director" readOnly />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c on">
-                          <Check className="ic ic-sm" aria-hidden="true" />
-                        </span>
-                        Looks right
-                      </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="p-budget">
-                      Annual budget
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="p-budget" defaultValue="$2,400,000 (FY2026)" readOnly />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c"></span>Looks right
-                      </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="fld">
-                    <span className="lbl">
-                      Documents
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </span>
-                    <div className="small" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span className="row" style={{ gap: "6px" }}>
-                        <File className="ic ic-sm" aria-hidden="true" />
-                        IRS determination letter.pdf
-                      </span>
-                      <span className="row" style={{ gap: "6px" }}>
-                        <File className="ic ic-sm" aria-hidden="true" />
-                        FY2026 audited financials.xlsx
-                      </span>
-                      <span className="row" style={{ gap: "6px" }}>
-                        <File className="ic ic-sm" aria-hidden="true" />
-                        Board roster 2027.pdf
-                      </span>
-                    </div>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <label className="cb small">
-                        <span className="c on">
-                          <Check className="ic ic-sm" aria-hidden="true" />
-                        </span>
-                        Looks right
-                      </label>
-                      <Link to="/w/alder-creek/organization" className="small b">
-                        Edit in Passport
-                      </Link>
-                    </div>
+                  ))}
+                  <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                    {record.org.editUrl && (
+                      <a href={record.org.editUrl} className="small b">
+                        Something wrong? Edit in Passport
+                      </a>
+                    )}
+                    {!confirmed && (
+                      <button className="btn btn-primary" type="button" onClick={() => setConfirmed(true)}>
+                        This looks right
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="card-f" style={{ justifyContent: "flex-end" }}>
-                  <button className="btn btn-primary">Confirm 6 fields</button>
-                </div>
-              </div>
-            </section>
-            <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">Step 3 · Team & connected apps</span>
-              <div className="card">
+              </section>
+
+              <section className="card" aria-labelledby="ready-h">
                 <div className="card-h">
-                  <h3>Invite teammates</h3>
+                  <h3 id="ready-h">Readiness</h3>
+                  <LevelBadge level={record.readiness.level} />
                 </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="inv-email">
-                      Email
-                    </label>
-                    <input
-                      className="inp"
-                      id="inv-email"
-                      placeholder="jamal@aldercreekfs.example"
-                      defaultValue="jamal@aldercreekfs.example"
-                    />
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="inv-role">
-                      Role
-                    </label>
-                    <select className="sel" id="inv-role">
-                      <option>Grants manager — edits applications and reports</option>
-                      <option>Finance — budgets and payment status</option>
-                      <option>Viewer — read only</option>
-                    </select>
-                  </div>
-                  <button className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                    <Plus className="ic" aria-hidden="true" />
-                    Send invitation
-                  </button>
-                  <div className="row small muted" style={{ gap: "6px" }}>
-                    <span className="av av-sm">JR</span>Jamal Reed · invited
-                  </div>
-                  <p className="small muted">
-                    Consultants (outside your organization) are invited later from Team & access with a scope and an expiry.
+                <div className="card-b">
+                  <ul className="rc">
+                    {record.readiness.checks.map((c, i) => {
+                      const Icon = c.state === "pass" ? CircleCheck : c.state === "fail" ? CircleX : CircleDashed;
+                      return (
+                        <li key={c.key} className={`rc-row rc-${c.state === "unknown" ? "unk" : c.state}`} style={i === 0 ? { borderTop: 0 } : undefined}>
+                          <Icon className="ic" role="img" aria-label={c.state === "pass" ? "Passes" : c.state === "fail" ? "Needs attention" : "Unknown"} />
+                          <div>
+                            <div className="l">{c.label}</div>
+                            <div className="r">{c.reason}</div>
+                          </div>
+                          <span />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="small muted" style={{ marginTop: "10px" }}>
+                    You can apply at any level. Payments through the GMS need a verified payee (L3).
                   </p>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Connect apps</h3>
-                  <span className="muted small">Optional</span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <div className="doc">
-                    <span className="ft" style={{ background: "#D2E1F9", color: "#1E4F8F", borderColor: "#B9CFF2" }}>
-                      <Cloud className="ic" aria-hidden="true" />
-                    </span>
-                    <div className="grow">
-                      <div className="nm">Google Workspace</div>
-                      <div className="mt">Attach files from Drive · deep link to Passport</div>
-                    </div>
-                    <button className="btn btn-sm btn-secondary">Connect</button>
-                  </div>
-                  <div className="doc">
-                    <span className="ft">
-                      <Database className="ic" aria-hidden="true" />
-                    </span>
-                    <div className="grow">
-                      <div className="nm">QuickBooks</div>
-                      <div className="mt">Actuals for budget reports · deep link to Passport</div>
-                    </div>
-                    <button className="btn btn-sm btn-secondary">Connect</button>
-                  </div>
-                  <p className="small muted">Connections live in Passport, so every funder on the GMS reads the same source.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
-            <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">Step 4 · Readiness (end card, L3)</span>
-              <div
-                className="card"
-                style={{ padding: "24px", display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "24px" }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div className="row" style={{ gap: "12px" }}>
-                    <span className="lvl lvl-3" style={{ height: "26px", fontSize: "13px", padding: "0 9px" }}>
-                      <Shield className="ic" aria-hidden="true" />
-                      L3
-                    </span>
-                    <h2 style={{ fontSize: "20px" }}>You are ready to apply</h2>
-                  </div>
-                  <div className="rc">
-                    <div className="rc-row rc-pass" style={{ borderTop: "0" }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Identity verified</div>
-                        <div className="r">Organization and representative confirmed in Passport</div>
-                      </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-pass">
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Documents verified</div>
-                        <div className="r">Determination letter, financials, board roster</div>
-                      </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-pass">
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Payee verified</div>
-                        <div className="r">River City Credit Union •••• 4821 · active</div>
-                      </div>
-                      <span></span>
-                    </div>
-                  </div>
-                  <Link to="/w/alder-creek/find" className="btn btn-primary btn-lg" style={{ alignSelf: "flex-start" }}>
-                    Find funding
-                    <ArrowRight className="ic" aria-hidden="true" />
-                  </Link>
-                </div>
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: "14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                    borderLeft: "1px solid #D6DEDE",
-                    paddingLeft: "20px",
-                  }}
-                >
-                  <div className="b" style={{ color: "#1E2D2B" }}>
-                    What each level unlocks
-                  </div>
-                  <div>
-                    <span className="lvl lvl-2">L2</span> Submit applications; funders see verified documents without asking for them again.
-                  </div>
-                  <div>
-                    <span className="lvl lvl-3">
-                      <Shield className="ic" aria-hidden="true" />
-                      L3
-                    </span>{" "}
-                    Receive payments through Passport; tranches release without a paper W-9 round trip.
-                  </div>
-                </div>
-              </div>
-            </section>
-            <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">Step 4 · Readiness (end card, L2 state)</span>
-              <div
-                className="card"
-                style={{ padding: "24px", display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "24px" }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div className="row" style={{ gap: "12px" }}>
-                    <span className="lvl lvl-2" style={{ height: "26px", fontSize: "13px", padding: "0 9px" }}>
-                      L2
-                    </span>
-                    <h2 style={{ fontSize: "20px" }}>Ready to apply — one step before you can be paid</h2>
-                  </div>
-                  <div className="rc">
-                    <div className="rc-row rc-pass" style={{ borderTop: "0" }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Identity verified</div>
-                        <div className="r">Organization and representative confirmed in Passport</div>
-                      </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-pass">
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Documents verified</div>
-                        <div className="r">Determination letter, financials, board roster</div>
-                      </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-fail">
-                      <CircleX className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Payee not verified</div>
-                        <div className="r">No destination on file. Verification takes about 2 business days.</div>
-                      </div>
-                      <Link to="/w/alder-creek/organization" className="fix">
-                        Verify in Passport →
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
-                    <Link to="/w/alder-creek/organization" className="btn btn-primary btn-lg">
-                      Verify payee in Passport
+                  {step === 2 && workspace && (
+                    <Link to={`/w/${workspace.handle}`} className="btn btn-primary btn-lg" style={{ marginTop: "12px" }}>
+                      Go to your workspace
                     </Link>
-                    <Link to="/w/alder-creek/find" className="btn btn-secondary btn-lg">
-                      Find funding anyway
-                    </Link>
-                  </div>
+                  )}
                 </div>
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: "14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                    borderLeft: "1px solid #D6DEDE",
-                    paddingLeft: "20px",
-                  }}
-                >
-                  <div className="b" style={{ color: "#1E2D2B" }}>
-                    Why verify now
-                  </div>
-                  <p>
-                    You can apply at L2. If an award comes, the first tranche stays Held until your payee is verified — so do it before
-                    decision day.
-                  </p>
-                  <span className="pay pay-none">
-                    <CircleMinus className="ic" aria-hidden="true" />
-                    No destination
-                  </span>
-                </div>
-              </div>
-            </section>
-          </div>
+              </section>
+            </div>
+          )}
+          {step === 0 && loadError && !workspace ? <p className="small muted">{errorMessage(loadError)}</p> : null}
         </main>
       </div>
     </>

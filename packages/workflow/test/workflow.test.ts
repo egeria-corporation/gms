@@ -238,6 +238,7 @@ describe("tranche machine", () => {
         "initiated>settle>settled",
         "initiated>fail>failed",
         "initiated>return>returned",
+        "settled>return>returned",
         "due>record_external>settled",
         "ready>record_external>settled",
         "scheduled>cancel>cancelled",

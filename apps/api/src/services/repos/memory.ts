@@ -79,6 +79,18 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   requirements: () => ({ form_id: null, form_version: null, due_at: null, recurrence: null, grace_days: 0, reminder_plan: [], status: "scheduled", waived_by: null, releases_tranche_id: null }),
   reviews: () => ({ scores: {}, narrative: null, recommendation: null, submitted_at: null, visibility: "panel" }),
   amendments: () => ({ request: {}, status: "requested", requested_by: null, decided_by: null, decided_at: null, child_award_id: null }),
+  submissions: () => ({ requirement_id: null, award_id: null, status: "draft", submitted_at: null, submitted_by: null, reviewed_by: null, review_note: null, shared_from_submission_id: null, shared_fields: null }),
+  budgets: () => ({ application_id: null, award_id: null, categories: [], lines: [], currency: "USD", source: "user", period_start: null, period_end: null }),
+  grantee_records: () => ({ owner_user_id: null, tags: [], notes: null, pending_org_changes: [], last_synced_at: null }),
+  org_change_inbox: () => ({ patch: {}, status: "pending", decided_at: null, decided_by: null }),
+  bank_transactions: () => ({ currency: "USD", counterparty_name: null, memo: null, matched_tranche_id: null, matched_at: null, matched_by: null }),
+  connector_accounts: () => ({ external_id: null, scopes: [], secret_enc: null, status: "active", last_sync_at: null }),
+  custom_mcp_servers: () => ({ auth: null, allowed_tools: [], read_only: true, created_by: null }),
+  mcp_connections: () => ({ grant_id: null, scopes: [], last_used_at: null, revoked_at: null }),
+  api_clients: () => ({ allowed_scopes: [], gated_tools: null, created_by: null, last_used_at: null, revoked_at: null }),
+  inbound_events: () => ({ payload: {}, processed_at: null, error: null }),
+  reminder_sends: () => ({ email_message_id: null }),
+  ledger_archives: () => ({ events: 0, first_event: null, last_event: null, prev_sha256: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -95,6 +107,13 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   review_assignments: [{ columns: ["application_id", "stage", "reviewer_user_id"] }],
   agreements: [{ columns: ["award_id", "version"] }],
   tranches: [{ columns: ["award_id", "seq"] }],
+  inbound_events: [{ columns: ["provider", "external_id"] }],
+  bank_transactions: [{ columns: ["external_txn_id"] }],
+  reminder_sends: [{ columns: ["requirement_id", "due_at", "offset_days"] }],
+  org_change_inbox: [{ columns: ["workspace_id", "change_id"] }],
+  connector_accounts: [{ columns: ["workspace_id", "provider"] }],
+  ledger_archives: [{ columns: ["day"] }],
+  grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

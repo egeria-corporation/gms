@@ -179,6 +179,11 @@ export interface WebhookStore {
   updateDelivery(id: string, patch: Partial<WebhookDelivery>): Promise<void>;
   /** Deliveries that are `pending` or `failed` with `nextAttemptAt <= now`. */
   listDue(now: string, limit: number): Promise<WebhookDelivery[]>;
+  /** Administration (workspace settings): create and remove subscriptions, read the delivery log. */
+  createSubscription(s: WebhookSubscription, createdBy?: string | null): Promise<void>;
+  /** Returns false when the subscription does not belong to the workspace. */
+  deleteSubscription(id: string, workspaceId: string): Promise<boolean>;
+  listDeliveries(subscriptionId: string, limit: number): Promise<WebhookDelivery[]>;
 }
 
 export class MemoryWebhookStore implements WebhookStore {
@@ -205,6 +210,22 @@ export class MemoryWebhookStore implements WebhookStore {
   async listDue(now: string, limit: number) {
     return this.deliveries
       .filter((d) => (d.status === "pending" || d.status === "failed") && d.nextAttemptAt !== null && d.nextAttemptAt <= now)
+      .slice(0, limit)
+      .map((d) => ({ ...d }));
+  }
+  async createSubscription(s: WebhookSubscription) {
+    this.subscriptions.push({ ...s });
+  }
+  async deleteSubscription(id: string, workspaceId: string) {
+    const i = this.subscriptions.findIndex((s) => s.id === id && s.workspaceId === workspaceId);
+    if (i < 0) return false;
+    this.subscriptions.splice(i, 1);
+    return true;
+  }
+  async listDeliveries(subscriptionId: string, limit: number) {
+    return this.deliveries
+      .filter((d) => d.subscriptionId === subscriptionId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit)
       .map((d) => ({ ...d }));
   }
@@ -327,6 +348,17 @@ export class SupabaseWebhookStore implements WebhookStore {
       await this.db.from("webhook_deliveries").select("*").in("status", ["pending", "failed"]).lte("next_attempt_at", now).order("next_attempt_at", { ascending: true }).limit(limit),
       "due delivery list",
     );
+    return rows.map(toDelivery);
+  }
+  async createSubscription(s: WebhookSubscription, createdBy: string | null = null) {
+    SupabaseWebhookStore.check(await this.db.from("webhook_subscriptions").insert({ id: s.id, workspace_id: s.workspaceId, url: s.url, events: s.eventTypes, secret_enc: s.secretEnc, active: s.active, created_by: createdBy }), "subscription insert");
+  }
+  async deleteSubscription(id: string, workspaceId: string) {
+    const rows = SupabaseWebhookStore.check<{ id: string }[] | null>(await this.db.from("webhook_subscriptions").delete().eq("id", id).eq("workspace_id", workspaceId).select("id"), "subscription delete");
+    return (rows ?? []).length > 0;
+  }
+  async listDeliveries(subscriptionId: string, limit: number) {
+    const rows = SupabaseWebhookStore.check<DeliveryRow[]>(await this.db.from("webhook_deliveries").select("*").eq("subscription_id", subscriptionId).order("created_at", { ascending: false }).limit(limit), "delivery list");
     return rows.map(toDelivery);
   }
 }

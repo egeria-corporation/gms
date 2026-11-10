@@ -18,6 +18,8 @@ import { authorize } from "./routes/authorize.ts";
 import { gms } from "./routes/gms.ts";
 import { mcp } from "./routes/mcp.ts";
 import { OAuthError, oauth, oauthErrorResponse } from "./routes/oauth.ts";
+import { cgOrgs } from "./routes/orgs.ts";
+import { inboundWebhooks } from "./routes/webhooks.ts";
 import { commonGrants, sitemap } from "./routes/public.ts";
 import { register } from "./routes/register.ts";
 import { wellknown } from "./routes/wellknown.ts";
@@ -123,6 +125,7 @@ export function createApp(makeDeps: DepsFactory) {
   app.route("/common-grants", commonGrants);
   app.route("/common-grants", cgApplications);
   app.route("/common-grants", cgAwards);
+  app.route("/common-grants", cgOrgs);
   app.get("/sitemap.xml", sitemap);
   app.get("/openapi.json", async (c) => {
     const doc = await c.get("deps").openapi?.(c.env);
@@ -141,7 +144,7 @@ export function createApp(makeDeps: DepsFactory) {
   };
   app.route("/common-grants", placeholder("This CommonGrants protocol route"));
   app.route("/mcp", mcp);
-  app.route("/webhooks", placeholder("Inbound webhooks"));
+  app.route("/webhooks", inboundWebhooks);
 
   app.notFound(() => {
     throw notFound("Route");

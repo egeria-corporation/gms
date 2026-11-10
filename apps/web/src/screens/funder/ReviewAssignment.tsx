@@ -1,637 +1,284 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import { Ban, ChartColumn, Check, CircleX, Eye, Info, TriangleExclamationPoint, UserPlus, Zap } from "lucide-react";
+// Review assignment matrix: reviewers down the side, applications across. A cell assigns or
+// removes one reviewer; auto-assign fills the gaps by capacity and shows what it would do before
+// doing it; a conflict of interest shows as a hatched cell that cannot be assigned.
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { Check, ClipboardCheck, Slash, UserPlus, Zap } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { AutoAssignResult, ReviewAssignment as Assignment, ReviewerInvitation } from "../../api/funder.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
+import { usePeople, type Person } from "./shared.tsx";
+
+const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
+const STATUS_TEXT: Record<Assignment["status"], string> = { assigned: "Assigned", coi_declared: "No conflict declared", in_progress: "Scoring", submitted: "Submitted", recused: "Recused" };
+
+function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competitionId: string; stage: string; onClose: () => void; onDone: (r: AutoAssignResult) => void }) {
+  const [per, setPer] = useState("2");
+  const [plan, setPlan] = useState<AutoAssignResult | null>(null);
+  const run = useApiMutation((api, dryRun: boolean) => api.autoAssign({ competitionId, stage, reviewersPerApplication: Math.max(1, Number(per) || 1), dryRun }));
+  return (
+    <Dialog open onClose={onClose} labelledBy="auto-title">
+      <div className="hd">
+        <h2 id="auto-title">Auto-assign reviewers</h2>
+      </div>
+      <div className="bd">
+        {run.error !== null && <ErrorBanner error={run.error} />}
+        <Field id="auto-per" label="Reviewers per application" help="Fills the gaps only; existing assignments stay. Declared conflicts are skipped.">
+          <input
+            className="inp"
+            id="auto-per"
+            inputMode="numeric"
+            value={per}
+            onChange={(e) => {
+              setPer(e.target.value);
+              setPlan(null);
+            }}
+            style={{ width: "100px" }}
+          />
+        </Field>
+        {plan && (
+          <Notice tone={plan.unfilled.length ? "warn" : "info"} title={`${plan.assignments.length} new ${plan.assignments.length === 1 ? "assignment" : "assignments"} would be made`}>
+            {plan.unfilled.length > 0 && `${plan.unfilled.length} application(s) would still be short of reviewers. `}
+            {plan.coiFlags.length > 0 && `${plan.coiFlags.length} possible conflict(s) were skipped.`}
+          </Notice>
+        )}
+      </div>
+      <div className="ft">
+        <button type="button" className="btn btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        {!plan ? (
+          <button type="button" className="btn btn-primary" disabled={run.state === "saving"} onClick={async () => setPlan((await run.run(true)) ?? null)}>
+            Preview
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={run.state === "saving" || plan.assignments.length === 0}
+            onClick={async () => {
+              const r = await run.run(false);
+              if (r) onDone(r);
+            }}
+          >
+            Assign {plan.assignments.length}
+          </button>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+function InviteDialog({ competitionId, onClose, onDone }: { competitionId: string; onClose: () => void; onDone: (i: ReviewerInvitation) => void }) {
+  const [email, setEmail] = useState("");
+  const invite = useApiMutation((api) => api.inviteReviewer({ email: email.trim(), competitionId }));
+  return (
+    <Dialog open onClose={onClose} labelledBy="invite-title">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const r = await invite.run();
+          if (r) onDone(r);
+        }}
+      >
+        <div className="hd">
+          <h2 id="invite-title">Invite an external reviewer</h2>
+        </div>
+        <div className="bd">
+          {invite.error !== null && <ErrorBanner error={invite.error} />}
+          <Field id="invite-email" label="Email" required help="They see only the applications assigned to them in this competition, with personal details masked.">
+            <input className="inp" id="invite-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </Field>
+        </div>
+        <div className="ft">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={invite.state === "saving" || !email.trim()}>
+            Send invitation
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
 
 export default function ReviewAssignment() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const [params, setParams] = useSearchParams();
+  const { people, person } = usePeople();
+  const competitions = useApiQuery((api) => api.listCompetitions(), []);
+  const competition = competitions.data?.find((c) => c.id === params.get("competition")) ?? competitions.data?.[0];
+  const stage = competition?.stages.find((s) => s.key === params.get("stage")) ?? competition?.stages[competition.stages.length - 1];
+  const apps = useApiQuery(async (api) => (competition && stage ? (await api.listApplications({ competitionId: competition.id, stage: stage.key, pageSize: 100 })).items : []), [competition?.id, stage?.key]);
+  const assignments = useApiQuery(async (api) => (competition && stage ? api.listAssignments({ competitionId: competition.id, stage: stage.key }) : []), [competition?.id, stage?.key]);
+  const [dialog, setDialog] = useState<"auto" | "invite" | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const toggle = useApiMutation(async (api, applicationId: string, reviewer: Person, existing: Assignment | undefined) => {
+    if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: "Removed by program staff" });
+    return api.createAssignment({ applicationId, reviewerUserId: reviewer.userId, ...(stage ? { stage: stage.key } : {}) });
+  });
+
+  const rows = (apps.data ?? []).filter((a) => !["declined", "withdrawn", "draft"].includes(a.status));
+  const all = assignments.data ?? [];
+  const ids = new Set([...people.filter((p) => REVIEWER_ROLES.includes(p.role)).map((p) => p.userId), ...all.map((a) => a.reviewerUserId)]);
+  const reviewers = [...ids].map((id) => person(id)!);
+  const cell = (appId: string, userId: string) => all.filter((a) => a.applicationId === appId && a.reviewerUserId === userId).sort((p, q) => (p.status === "recused" ? 1 : 0) - (q.status === "recused" ? 1 : 0))[0];
+  const active = (appId: string) => all.filter((a) => a.applicationId === appId && a.status !== "recused").length;
+  const loading = competitions.status === "loading" || apps.status === "loading" || assignments.status === "loading";
+
   return (
     <>
-      <title>{"Review assignment — Community Health Grants 2027"}</title>
+      <title>{`Review assignment — ${ws.name}`}</title>
       <FunderShell active="Reviews">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <Link to="/w/riverbend/reviews/assign">Reviews</Link>
-            <span>›</span>
-            <span>Assign reviewers</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Assign reviewers</h1>
-                <span className="bdg bdg-prog">
-                  <Eye className="ic" aria-hidden="true" />
-                  Full proposal · 10 applications
-                </span>
-              </div>
-              <div className="meta">
-                <span>Community Health Grants 2027</span>
-                <span>·</span>
-                <span>Rubric: Community Health rubric v3</span>
-                <span>·</span>
-                <span>Target: 3 reviewers per application</span>
-              </div>
+          <PageHeader
+            crumbs={[{ label: ws.name, to: base }, { label: "Reviews" }, { label: "Assign" }]}
+            title="Review assignment"
+            meta={
+              competition && stage ? (
+                <>
+                  <span>{competition.title}</span>
+                  <span>·</span>
+                  <label className="row">
+                    Stage
+                    <select className="sel" style={{ width: "auto", height: "28px" }} value={stage.key} onChange={(e) => setParams({ competition: competition.id, stage: e.target.value })}>
+                      {competition.stages.map((s) => (
+                        <option key={s.key} value={s.key}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span>·</span>
+                  <span>{rows.length} applications</span>
+                </>
+              ) : undefined
+            }
+            actions={
+              competition && stage ? (
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={() => setDialog("auto")}>
+                    <Zap className="ic" aria-hidden="true" />
+                    Auto-assign…
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setDialog("invite")}>
+                    <UserPlus className="ic" aria-hidden="true" />
+                    Invite external reviewer…
+                  </button>
+                  <Link to={`${base}/competitions/${competition.id}/panel`} className="btn btn-primary">
+                    Open panel
+                  </Link>
+                </>
+              ) : undefined
+            }
+          />
+          {note && (
+            <div className="bnr bnr-ok" role="status">
+              <div className="t">{note}</div>
             </div>
-            <div className="actions">
-              <div className="fld" style={{ flexDirection: "row", alignItems: "center", gap: "8px" }}>
-                <label className="lbl" htmlFor="due">
-                  Due date
-                </label>
-                <input className="inp" id="due" type="text" defaultValue="May 7, 2027" style={{ width: "140px" }} />
-              </div>
-              <button className="btn btn-secondary">
-                <Zap className="ic" aria-hidden="true" />
-                Auto-assign…
-              </button>
-              <button className="btn btn-secondary">
-                <UserPlus className="ic" aria-hidden="true" />
-                Invite external reviewer…
-              </button>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: "20px", alignItems: "start" }}>
+          )}
+          {toggle.error !== null && <ErrorBanner error={toggle.error} title="That assignment was not changed" />}
+          {loading && <Loading label="Loading assignments" />}
+          {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
+          {!loading && !competition && (
+            <EmptyState icon={ClipboardCheck} title="No competition to review yet">
+              Open a competition and reviews are assigned here once applications arrive.
+            </EmptyState>
+          )}
+          {!loading && competition && rows.length === 0 && (
+            <EmptyState icon={ClipboardCheck} title="No applications at this stage">
+              Advance applications to this stage, then assign reviewers.
+            </EmptyState>
+          )}
+          {!loading && rows.length > 0 && (
             <div className="tbl-wrap">
-              <table className="tbl mx" style={{ minWidth: "1180px" }}>
+              <table className="tbl mx" aria-label="Reviewers by application">
                 <thead>
                   <tr>
                     <th>Reviewer</th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Alder Creek</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3 assigned
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Bayview</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Copper Valley</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Harbor Light</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Lakeside</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Northgate</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Cedar Hollow</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
-                    <th>
-                      <div className="col" style={{ gap: "2px", alignItems: "center" }}>
-                        <span>Willow Creek</span>
-                        <span className="xs muted" style={{ textTransform: "none", letterSpacing: "0" }}>
-                          3
-                        </span>
-                      </div>
-                    </th>
+                    {rows.map((a) => (
+                      <th key={a.id}>
+                        <div className="col" style={{ gap: "2px", alignItems: "center" }}>
+                          <Link to={`${base}/applications/${a.id}`}>{a.applicant.name ?? a.title}</Link>
+                          <span className="xs muted" style={{ textTransform: "none", letterSpacing: 0 }}>
+                            {active(a.id)} assigned
+                          </span>
+                        </div>
+                      </th>
+                    ))}
+                    <th className="num">Load</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-t">PN</span>
+                  {reviewers.map((r) => (
+                    <tr key={r.userId}>
+                      <td style={{ padding: "6px 12px" }}>
                         <div className="ent">
-                          <span className="nm">Priya Natarajan</span>
-                          <span className="sub">
-                            <span className="muted">9 of 12</span>
-                            <span className="tag">Health</span>
-                            <span className="tag">Rural</span>
-                          </span>
+                          <span className="nm">{r.name}</span>
+                          <span className="small muted">{r.role.replace(/_/g, " ") || "reviewer"}</span>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Alder Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Bayview">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Copper Valley">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Priya Natarajan reviews Harbor Light"></button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Lakeside">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Northgate">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Cedar Hollow">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Priya Natarajan reviews Willow Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av">ML</span>
-                        <div className="ent">
-                          <span className="nm">Marcus Lee</span>
-                          <span className="sub">
-                            <span className="muted">6 of 8</span>
-                            <span className="tag">Finance</span>
-                            <span className="bdg bdg-dng" style={{ height: "18px", fontSize: "11px" }}>
-                              <Ban className="ic" aria-hidden="true" />
-                              COI · Northgate (board member)
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Alder Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Marcus Lee reviews Bayview"></button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Copper Valley">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Harbor Light">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Lakeside">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        className="cell coi"
-                        disabled
-                        aria-label="Conflict of interest: Marcus Lee is a board member of Northgate Housing Trust"
-                      >
-                        <Ban className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Cedar Hollow">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Marcus Lee reviews Willow Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-g">HG</span>
-                        <div className="ent">
-                          <span className="nm">
-                            Dr. Hollis Grant{" "}
-                            <span className="tag" style={{ marginLeft: "4px" }}>
-                              External
-                            </span>
-                          </span>
-                          <span className="sub">
-                            <span className="muted">7 of 10</span>
-                            <span className="tag">Clinical</span>
-                            <span className="tag">Public health</span>
-                            <span className="muted">· expires Jul 6</span>
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Alder Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Bayview">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Copper Valley">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Harbor Light">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Hollis Grant reviews Lakeside"></button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Northgate">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Cedar Hollow">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Hollis Grant reviews Willow Creek">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av">DO</span>
-                        <div className="ent">
-                          <span className="nm">Dana Ortiz</span>
-                          <span className="sub">
-                            <span className="muted">2 of 4</span>
-                            <span className="tag">Program</span>
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Alder Creek"></button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Dana Ortiz reviews Bayview">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Copper Valley"></button>
-                    </td>
-                    <td>
-                      <button className="cell on" aria-pressed="true" aria-label="Dana Ortiz reviews Harbor Light">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Lakeside"></button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Northgate"></button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Cedar Hollow"></button>
-                    </td>
-                    <td>
-                      <button className="cell" aria-pressed="false" aria-label="Dana Ortiz reviews Willow Creek"></button>
-                    </td>
-                  </tr>
+                      </td>
+                      {rows.map((a) => {
+                        const x = cell(a.id, r.userId);
+                        const coi = x?.status === "recused" && x.coi.declared === true;
+                        const on = !!x && x.status !== "recused";
+                        const locked = x?.status === "submitted" || x?.status === "in_progress";
+                        const label = `${r.name} on ${a.applicant.name ?? a.title}: ${coi ? "conflict of interest declared" : x ? STATUS_TEXT[x.status] : "not assigned"}`;
+                        return (
+                          <td key={a.id}>
+                            <button
+                              type="button"
+                              className={coi ? "cell coi" : on ? "cell on" : "cell"}
+                              aria-pressed={on}
+                              aria-label={label}
+                              title={label}
+                              disabled={coi || locked || toggle.state === "saving"}
+                              onClick={async () => (await toggle.run(a.id, r, on ? x : undefined)) && assignments.reload()}
+                            >
+                              {coi ? <Slash className="ic ic-sm" aria-hidden="true" /> : on ? <Check className="ic ic-sm" aria-hidden="true" /> : null}
+                            </button>
+                            {x && !coi && x.status !== "assigned" && x.status !== "recused" && <div className="xs muted">{STATUS_TEXT[x.status]}</div>}
+                          </td>
+                        );
+                      })}
+                      <td className="num">{all.filter((a) => a.reviewerUserId === r.userId && a.status !== "recused").length}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                  padding: "10px 16px",
-                  borderTop: "1px solid #D6DEDE",
-                  fontSize: "12px",
-                  color: "#4A5C5A",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div className="row wrap" style={{ gap: "14px" }}>
-                  <span className="row" style={{ gap: "6px" }}>
-                    <span className="cell on" style={{ width: "16px", height: "16px", borderRadius: "4px" }}></span>Assigned
-                  </span>
-                  <span className="row" style={{ gap: "6px" }}>
-                    <span className="cell" style={{ width: "16px", height: "16px", borderRadius: "4px" }}></span>Available
-                  </span>
-                  <span className="row" style={{ gap: "6px" }}>
-                    <span className="cell coi" style={{ width: "16px", height: "16px", borderRadius: "4px" }}></span>Conflict of interest
-                  </span>
-                  <span>Scroll right for Granite Peak and Pine Ridge</span>
-                </div>
-                <span>Space toggles a cell · arrow keys move</span>
-              </div>
             </div>
-            <aside className="drawer" style={{ border: "1px solid #D6DEDE", borderRadius: "12px", overflow: "hidden" }}>
-              <div className="hd">
-                <h3>Coverage</h3>
-                <span className="small muted">target 3 per application</span>
-              </div>
-              <div className="bd">
-                <div className="bnr bnr-dng" style={{ padding: "10px 12px" }}>
-                  <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="t">2 applications have fewer than 2 reviewers</div>
-                    <div className="d" style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "6px" }}>
-                      <a href="#granite" style={{ color: "inherit", fontWeight: 700 }}>
-                        Granite Peak Youth Sports · 1 reviewer → fix
-                      </a>
-                      <a href="#pine" style={{ color: "inherit", fontWeight: 700 }}>
-                        Pine Ridge Literacy Project · 0 reviewers → fix
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                <div className="bnr bnr-warn" style={{ padding: "10px 12px" }}>
-                  <ChartColumn className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="t">Uneven load</div>
-                    <div className="d">Priya has 9 assignments, Dana has 2. Auto-assign can rebalance within capacity.</div>
-                  </div>
-                </div>
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: "8px" }}>
-                    Per application
-                  </div>
-                  <table className="tbl tbl-compact" style={{ fontSize: "12px" }}>
-                    <tbody>
-                      <tr>
-                        <td>Alder Creek</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Bayview</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Copper Valley</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Harbor Light</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Lakeside</td>
-                        <td className="num">2</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#7A4A00" }}>
-                            <Info className="ic ic-sm" aria-hidden="true" />
-                            below target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Northgate</td>
-                        <td className="num">2</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#7A4A00" }}>
-                            <Info className="ic ic-sm" aria-hidden="true" />
-                            below target
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Cedar Hollow</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Willow Creek</td>
-                        <td className="num">3</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#0B5E47" }}>
-                            <Check className="ic ic-sm" aria-hidden="true" />
-                            ok
-                          </span>
-                        </td>
-                      </tr>
-                      <tr id="granite">
-                        <td>Granite Peak</td>
-                        <td className="num">1</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#9B1C1C" }}>
-                            <CircleX className="ic ic-sm" aria-hidden="true" />
-                            under 2
-                          </span>
-                        </td>
-                      </tr>
-                      <tr id="pine">
-                        <td>Pine Ridge</td>
-                        <td className="num">0</td>
-                        <td>
-                          <span className="row" style={{ gap: "4px", color: "#9B1C1C" }}>
-                            <CircleX className="ic ic-sm" aria-hidden="true" />
-                            under 2
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </aside>
-          </div>
-          <div
-            className="card"
-            style={{
-              padding: "12px 20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <span className="small muted">
-              24 assignments · 4 reviewers · due May 7, 2027 · reviewers are emailed a link to the reviewer portal
-            </span>
-            <div className="row">
-              <button className="btn btn-secondary">Save without notifying</button>
-              <Link to="/review/assignments" className="btn btn-primary">
-                Save assignments and notify
-              </Link>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-            <span className="eyebrow">States</span>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
-              <div className="mdl" style={{ width: "auto", boxShadow: "none", border: "1px solid #D6DEDE" }}>
-                <div className="hd">
-                  <div>
-                    <h3 style={{ fontSize: "16px" }}>Auto-assign reviewers</h3>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      Fills gaps to the target of 3 per application. Existing assignments are kept.
-                    </p>
-                  </div>
-                </div>
-                <div className="bd">
-                  <div className="fld">
-                    <label className="lbl" htmlFor="max">
-                      Per-reviewer maximum
-                    </label>
-                    <input className="inp" id="max" type="number" defaultValue="12" style={{ width: "120px" }} />
-                  </div>
-                  <div className="cb">
-                    <span className="c on" aria-hidden="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <div className="b">Match expertise tags</div>
-                      <div className="help">Prefer reviewers whose tags overlap the application's PCS subjects</div>
-                    </div>
-                  </div>
-                  <div className="cb">
-                    <span className="c on" aria-hidden="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <div className="b">Exclude declared conflicts of interest</div>
-                      <div className="help">1 conflict on file: Marcus Lee × Northgate Housing Trust</div>
-                    </div>
-                  </div>
-                  <div className="cb">
-                    <span className="c" aria-hidden="true"></span>
-                    <div>
-                      <div className="b">Balance load evenly</div>
-                      <div className="help">Spread assignments so no reviewer carries more than 40% of the total</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="ft">
-                  <button className="btn btn-secondary">Cancel</button>
-                  <button className="btn btn-primary">Preview 6 new assignments</button>
-                </div>
-              </div>
-              <div className="mdl" style={{ width: "auto", boxShadow: "none", border: "1px solid #D6DEDE" }}>
-                <div className="hd">
-                  <div>
-                    <h3 style={{ fontSize: "16px" }}>Invite an external reviewer</h3>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      External reviewers see a single-purpose portal with masked applicant details.
-                    </p>
-                  </div>
-                </div>
-                <div className="bd">
-                  <div className="fld">
-                    <label className="lbl" htmlFor="ext-email">
-                      Email
-                    </label>
-                    <input className="inp" id="ext-email" type="email" defaultValue="h.grant@valleyhealth.example" />
-                  </div>
-                  <div className="fld-row">
-                    <div className="fld">
-                      <label className="lbl" htmlFor="ext-scope">
-                        Scope
-                      </label>
-                      <select className="sel" id="ext-scope">
-                        <option>Community Health Grants 2027 · Full proposal</option>
-                        <option>All stages of this competition</option>
-                      </select>
-                    </div>
-                    <div className="fld">
-                      <label className="lbl" htmlFor="ext-exp">
-                        Access expires
-                      </label>
-                      <select className="sel" id="ext-exp">
-                        <option>60 days after invite</option>
-                        <option>When the competition closes</option>
-                        <option>Custom date</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="cb">
-                    <span className="c on" aria-hidden="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <div className="b">Require a conflict-of-interest declaration before each application</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="ft">
-                  <button className="btn btn-secondary">Cancel</button>
-                  <button className="btn btn-primary">Send invitation</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
+          <p className="notice">A hatched cell is a declared conflict of interest. A reviewer who has started scoring cannot be removed here.</p>
         </main>
       </FunderShell>
+      {dialog === "auto" && competition && stage && (
+        <AutoAssignDialog
+          competitionId={competition.id}
+          stage={stage.key}
+          onClose={() => setDialog(null)}
+          onDone={(r) => {
+            setDialog(null);
+            setNote(`${r.created} ${r.created === 1 ? "assignment" : "assignments"} made${r.unfilled.length ? ` · ${r.unfilled.length} application(s) still short` : ""}`);
+            assignments.reload();
+          }}
+        />
+      )}
+      {dialog === "invite" && competition && (
+        <InviteDialog
+          competitionId={competition.id}
+          onClose={() => setDialog(null)}
+          onDone={(i) => {
+            setDialog(null);
+            setNote(i.emailed ? `Invitation sent to ${i.email}` : `Invitation created for ${i.email}; the email could not be sent, share the link from Settings`);
+          }}
+        />
+      )}
     </>
   );
 }

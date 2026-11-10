@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Worker entry: wires Supabase-backed stores. The service-role client is created once per isolate;
 // every store query filters by workspace explicitly (RLS is on for every table regardless).
+import { HttpMcpDirectory, MercuryBankFeed } from "@gms/connectors";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
@@ -50,6 +51,11 @@ function ports(env: Env): ServicePorts {
     ...(env.RESEND_API_KEY ? { mailer: new ResendMailer(env.RESEND_API_KEY) } : {}),
     ...(env.ATTACHMENTS ? { storage: new R2FileStorage(env.ATTACHMENTS) } : {}),
     ...(env.OPENGRANTS_MCP_URL ? { openGrants: new McpOpenGrantsClient(env.OPENGRANTS_MCP_URL, env.OPENGRANTS_API_KEY ?? null) } : {}),
+    // Mercury is read-only reconciliation, never a rail. Google Workspace through Composio has no
+    // production implementation yet (see docs/connectors.md), so that port stays unset.
+    bank: new MercuryBankFeed(),
+    mcpDirectory: new HttpMcpDirectory(),
+    ...(env.EXPORTS ? { exports: { put: async (key: string, body: string, contentType: string) => void (await env.EXPORTS!.put(key, body, { httpMetadata: { contentType } })) } } : {}),
   };
 }
 

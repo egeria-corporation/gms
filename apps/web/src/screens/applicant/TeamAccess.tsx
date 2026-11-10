@@ -1,504 +1,305 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { CSSProperties } from "react";
-import { Link } from "react-router";
-import { Bot, Check, Copy, Info, Lock, ShieldCheck, TriangleExclamationPoint } from "lucide-react";
+// Team & access: who works in this workspace, which funders can read the Passport record, and
+// what connected agents have asked a person to approve.
+import { useState, type FormEvent } from "react";
+import { Bot, Check, ShieldCheck, UserPlus, X } from "lucide-react";
+import type { ApplicantApi, ApplicantMember, Approval, Consent } from "../../api/applicant.ts";
+import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
+import { roleTitle } from "../../api/client.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Avatar, FunderChip, Loaded, timeAgo } from "../../components/applicant.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { DataTable, EmptyState, ErrorBanner, Field, problemFor, SaveNote, type Column } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
+
+const load = async (api: ApplicantApi) => {
+  const [members, consents, approvals] = await Promise.all([api.members(), api.consents(), api.approvals()]);
+  return { members, consents, approvals };
+};
+
+const ROLES = [
+  { value: "editor", label: "Editor", help: "Edits applications and reports" },
+  { value: "viewer", label: "Viewer", help: "Reads everything, changes nothing" },
+  { value: "finance", label: "Finance", help: "Budgets and payment status" },
+  { value: "admin", label: "Admin", help: "Manages the team, consents and signing. Needs an authenticator" },
+  { value: "consultant", label: "Consultant", help: "Outside help with an end date, scoped to the applications you assign" },
+];
+
+const BASIS: Record<Consent["basis"], string> = { application: "You applied to this funder", passport_grant: "Granted in Passport", shared_submission: "You shared a report" };
+
+function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("editor");
+  const [days, setDays] = useState("30");
+  const invite = useApplicantMutation((api) => api.invite({ email: email.trim(), role, ...(role === "consultant" ? { expiresInDays: Number(days) || 30 } : {}) }));
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const r = await invite.run();
+    if (r) {
+      onInvited(r.email);
+      setEmail("");
+    }
+  };
+  return (
+    <form className="card" onSubmit={onSubmit} aria-labelledby="inv-h">
+      <div className="card-h">
+        <h2 id="inv-h" style={{ fontSize: "18px" }}>
+          Invite someone
+        </h2>
+        <SaveNote state={invite.state} savedText="Invitation sent" />
+      </div>
+      <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {invite.error && !problemFor(invite.error, "email") ? <ErrorBanner error={invite.error} /> : null}
+        <Field id="inv-email" label="Email" required error={problemFor(invite.error, "email")}>
+          <input className="inp" id="inv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
+        </Field>
+        <Field id="inv-role" label="Role" help={ROLES.find((r) => r.value === role)?.help}>
+          <select className="sel" id="inv-role" value={role} onChange={(e) => setRole(e.target.value)}>
+            {ROLES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {role === "consultant" && (
+          <Field id="inv-days" label="Access ends after (days)" help="A consultant only sees the applications you assign sections of to them.">
+            <input className="inp" id="inv-days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />
+          </Field>
+        )}
+        <button className="btn btn-primary" type="submit" disabled={invite.state === "saving" || !email.trim()} style={{ alignSelf: "flex-start" }}>
+          <UserPlus className="ic" aria-hidden="true" />
+          Send invitation
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function TeamAccess() {
+  const ws = useWorkspace("applicant");
+  const query = useApplicantQuery(load, [ws.id]);
+  const [revoking, setRevoking] = useState<Consent | null>(null);
+  const [invited, setInvited] = useState<string | null>(null);
+  const revoke = useApplicantMutation((api, id: string) => api.revokeConsent(id));
+  const decide = useApplicantMutation((api, id: string, approve: boolean) => api.decideApproval(id, approve));
+
+  const columns: Column<ApplicantMember>[] = [
+    {
+      key: "who",
+      header: "Person",
+      sort: (m) => m.name ?? m.email ?? "",
+      cell: (m) => (
+        <span className="row" style={{ gap: "8px" }}>
+          <Avatar name={m.name ?? m.email ?? "?"} size="sm" />
+          <span className="ent">
+            <span className="nm">{m.name ?? m.email ?? "Member"}</span>
+            {m.name && m.email ? <span className="small muted">{m.email}</span> : null}
+          </span>
+        </span>
+      ),
+    },
+    { key: "role", header: "Role", cell: (m) => <span className="role">{roleTitle(m.role)}</span>, sort: (m) => m.role },
+    {
+      key: "scope",
+      header: "Scope",
+      cell: (m) => {
+        const apps = (m.scope as { applicationIds?: unknown[] }).applicationIds;
+        return m.role === "consultant" ? `${Array.isArray(apps) ? apps.length : 0} application${Array.isArray(apps) && apps.length === 1 ? "" : "s"}` : "Whole workspace";
+      },
+    },
+    { key: "expires", header: "Access ends", cell: (m) => (m.expiresAt ? formatDate(m.expiresAt) : "—"), sort: (m) => m.expiresAt },
+    {
+      key: "mfa",
+      header: "Authenticator",
+      cell: (m) =>
+        m.mfaEnrolledAt ? (
+          <span className="row" style={{ gap: "5px", color: "var(--s-ok-fg)", fontWeight: 700 }}>
+            <ShieldCheck className="ic" aria-hidden="true" />
+            Enrolled
+          </span>
+        ) : (
+          <span className="muted">{m.requiresMfa ? "Required, not enrolled" : "Not required"}</span>
+        ),
+    },
+  ];
+
   return (
     <>
-      <title>{"Team & access — Alder Creek Family Services"}</title>
+      <title>{`Team & access — ${ws.name}`}</title>
       <ApplicantShell active="Team & access">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/alder-creek">Dashboard</Link>
-            <span>›</span>
-            <span>Team & access</span>
-          </div>
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Team & access</h1>
+                <h1>Team &amp; access</h1>
               </div>
               <div className="meta">
-                <span>3 members</span>
-                <span>·</span>
-                <span>1 consultant</span>
-                <span>·</span>
-                <span>2 funders with consent</span>
-                <span>·</span>
-                <span>1 connected agent</span>
+                <span>People in this workspace, funders who can read your Passport record, and requests from connected agents.</span>
               </div>
             </div>
           </div>
-          <div className="tabs" role="tablist" aria-label="Access sections">
-            <a href="#members" className="tab on" role="tab" aria-selected="true">
-              Members<span className="n">3</span>
-            </a>
-            <a href="#consultants" className="tab" role="tab">
-              Consultants<span className="n">1</span>
-            </a>
-            <a href="#funders" className="tab" role="tab">
-              Funders with access<span className="n">2</span>
-            </a>
-            <a href="#agents" className="tab" role="tab">
-              Agents<span className="n">1</span>
-            </a>
-          </div>
-          <div className="card" id="members">
-            <div className="card-h">
-              <div>
-                <h2 style={{ fontSize: "18px" }}>Members</h2>
-                <p className="small muted">
-                  People at Alder Creek Family Services. Owners manage access; editors write applications and reports; viewers read.
-                </p>
-              </div>
-            </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-              <table className="tbl" style={{ fontSize: "15px" }}>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>MFA</th>
-                    <th>Last active</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-t">MS</span>
-                        <div className="ent">
-                          <span className="nm">Maria Santos</span>
-                          <span className="small muted">Executive Director</span>
+          <Loaded query={query} label="Loading team and access">
+            {({ members, consents, approvals }) => {
+              const pending = approvals.filter((a) => a.status === "pending");
+              const setApproval = (next: Approval) => query.set({ members, consents, approvals: approvals.map((a) => (a.id === next.id ? next : a)) });
+              return (
+                <>
+                  {invited && (
+                    <div className="bnr bnr-ok" role="status">
+                      <Check className="ic" aria-hidden="true" />
+                      <div>
+                        <div className="t">Invitation sent to {invited}</div>
+                        <div className="d">They join when they sign in with that address.</div>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      <section aria-labelledby="team-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <h2 id="team-h" style={{ fontSize: "18px" }}>
+                          Team
+                        </h2>
+                        <DataTable label="Team members" columns={columns} rows={members} rowKey={(m) => m.userId} empty={<EmptyState icon={UserPlus} title="Just you so far" />} />
+                      </section>
+
+                      <section className="card" aria-labelledby="access-h">
+                        <div className="card-h">
+                          <div>
+                            <h2 id="access-h" style={{ fontSize: "18px" }}>
+                              Who has access
+                            </h2>
+                            <p className="small muted">Funders that can read the record cached from Passport. Bank details are never part of it.</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>maria@aldercreekfs.example</td>
-                    <td>
-                      <span className="role">Owner</span>
-                    </td>
-                    <td>
-                      <span className="bdg bdg-ok">
-                        <ShieldCheck className="ic" aria-hidden="true" />
-                        MFA on
-                      </span>
-                    </td>
-                    <td>Now</td>
-                    <td>
-                      <span className="muted small">You</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av">JR</span>
-                        <div className="ent">
-                          <span className="nm">Jamal Reed</span>
-                          <span className="small muted">Grants Manager</span>
+                        {revoke.error ? (
+                          <div className="card-b">
+                            <ErrorBanner error={revoke.error} title="Access was not removed" />
+                          </div>
+                        ) : null}
+                        <ul style={{ display: "flex", flexDirection: "column" }}>
+                          {consents.length === 0 && <li className="card-b muted">No funder has access yet. Submitting an application grants that funder access for it.</li>}
+                          {consents.map((c, i) => (
+                            <li key={c.id} className="row" style={{ gap: "12px", padding: "14px 20px", borderTop: i ? "1px solid var(--og-gray-100)" : 0, flexWrap: "wrap", opacity: c.revokedAt ? 0.7 : 1 }}>
+                              <FunderChip name={c.funder.name} />
+                              <div className="grow">
+                                <div>{BASIS[c.basis]}</div>
+                                <div className="small muted">
+                                  {c.scopes.join(", ")} · since {formatDate(c.grantedAt)}
+                                  {c.revokedAt ? ` · removed ${formatDate(c.revokedAt)}` : ""}
+                                </div>
+                              </div>
+                              {c.revokedAt ? (
+                                <span className="tag">Removed</span>
+                              ) : (
+                                <button className="btn btn-sm btn-danger" type="button" aria-haspopup="dialog" onClick={() => setRevoking(c)}>
+                                  Remove access
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                      <InviteForm onInvited={setInvited} />
+                      <section className="card" aria-labelledby="agent-h">
+                        <div className="card-h">
+                          <div>
+                            <h2 id="agent-h" style={{ fontSize: "18px" }}>
+                              Agent requests
+                            </h2>
+                            <p className="small muted">Agents can draft and fill; submitting, accepting and signing wait for a person.</p>
+                          </div>
+                          {pending.length > 0 && <span className="bdg bdg-agent">{pending.length} waiting</span>}
                         </div>
-                      </div>
-                    </td>
-                    <td>jamal@aldercreekfs.example</td>
-                    <td>
-                      <span className="role">Editor</span>
-                    </td>
-                    <td>
-                      <span className="bdg bdg-ok">
-                        <ShieldCheck className="ic" aria-hidden="true" />
-                        MFA on
-                      </span>
-                    </td>
-                    <td>2 hours ago</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Change role</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-g">TA</span>
-                        <div className="ent">
-                          <span className="nm">Tom Alvarez</span>
-                          <span className="small muted">Board treasurer</span>
+                        <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                          {decide.error ? <ErrorBanner error={decide.error} /> : null}
+                          {approvals.length === 0 && <p className="muted">Nothing is waiting for approval.</p>}
+                          {approvals.map((a) => (
+                            <div className="apr" key={a.id}>
+                              <div className="hd">
+                                <Bot className="ic" aria-hidden="true" />
+                                <span>{a.requestedBy.clientId ?? "Connected agent"}</span>
+                                <span style={{ marginLeft: "auto", fontWeight: 400 }}>{timeAgo(a.createdAt)}</span>
+                              </div>
+                              <div className="bd">
+                                <div>
+                                  <span className="b">Requested action:</span> {a.description ?? a.tool.replace(/_/g, " ")}
+                                </div>
+                                {a.status !== "pending" && <div className="small muted">{a.status === "rejected" ? "Rejected" : a.status === "failed" ? `Failed${a.error ? `: ${a.error}` : ""}` : "Approved"}{a.decidedAt ? ` · ${formatDate(a.decidedAt)}` : ""}</div>}
+                              </div>
+                              {a.status === "pending" && (
+                                <div className="ft">
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    type="button"
+                                    disabled={decide.state === "saving"}
+                                    onClick={async () => {
+                                      const r = await decide.run(a.id, true);
+                                      if (r) setApproval(r);
+                                    }}
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    type="button"
+                                    disabled={decide.state === "saving"}
+                                    onClick={async () => {
+                                      const r = await decide.run(a.id, false);
+                                      if (r) setApproval(r);
+                                    }}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    </td>
-                    <td>tom@aldercreekfs.example</td>
-                    <td>
-                      <span className="role">Viewer</span>
-                    </td>
-                    <td>
-                      <span className="bdg bdg-warn">
-                        <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                        MFA off
-                      </span>
-                    </td>
-                    <td>Mar 30, 2027</td>
-                    <td>
-                      <button className="btn btn-sm btn-ghost">Remind to enroll</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="card-f" style={{ gap: "12px", flexWrap: "wrap" }}>
-              <label className="sr" htmlFor="inv-email">
-                Email to invite
-              </label>
-              <input className="inp" id="inv-email" placeholder="name@aldercreekfs.example" style={{ maxWidth: "320px" }} />
-              <label className="sr" htmlFor="inv-role">
-                Role
-              </label>
-              <select className="sel" id="inv-role" style={{ maxWidth: "160px" }}>
-                <option>Editor</option>
-                <option>Viewer</option>
-                <option>Owner</option>
-              </select>
-              <button className="btn btn-primary">Invite member</button>
-              <span className="help">Invitations expire in 7 days. MFA is required before a member can submit or sign.</span>
-            </div>
-          </div>
-          <div className="card" id="consultants">
-            <div className="card-h">
-              <div>
-                <h2 style={{ fontSize: "18px" }}>Consultants</h2>
-                <p className="small muted">External people with access to specific applications or grants only, for a limited time.</p>
-              </div>
-            </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-              <table className="tbl" style={{ fontSize: "15px" }}>
-                <thead>
-                  <tr>
-                    <th>Person</th>
-                    <th>Organization</th>
-                    <th>Scope</th>
-                    <th>Expires</th>
-                    <th>MFA</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-g">LF</span>
-                        <div className="ent">
-                          <span className="nm">Lena Fischer</span>
-                          <span className="small muted">lena@fischergrants.example</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>Fischer Grant Consulting</td>
-                    <td>
-                      <div className="ent">
-                        <Link to="/w/alder-creek/applications/app_01HZX4/edit">Mobile Health Navigation · app_01HZX4</Link>
-                        <span className="small muted">Budget section only · can comment anywhere</span>
-                      </div>
-                    </td>
-                    <td>Jun 30, 2027</td>
-                    <td>
-                      <span className="bdg bdg-ok">
-                        <ShieldCheck className="ic" aria-hidden="true" />
-                        MFA on
-                      </span>
-                    </td>
-                    <td>
-                      <button className="btn btn-sm btn-danger">Revoke</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div
-              className="card-b"
-              style={{
-                borderTop: "1px solid #D6DEDE",
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
-                gap: "20px",
-                alignItems: "start",
-              }}
-            >
-              <div className="fld">
-                <label className="lbl" htmlFor="c-email">
-                  Invite a consultant
-                </label>
-                <input className="inp" id="c-email" placeholder="name@firm.example" />
-                <span className="help">They get their own sign-in; nothing outside the scope below is visible to them.</span>
-              </div>
-              <div className="fld">
-                <span className="lbl">Scope</span>
-                <label className="cb" htmlFor="sc1">
-                  <input type="checkbox" id="sc1" className="sr" defaultChecked />
-                  <span className="c on" aria-hidden="true">
-                    <Check className="ic ic-sm" aria-hidden="true" />
-                  </span>
-                  <span>Application · Mobile Health Navigation (Riverbend)</span>
-                </label>
-                <label className="cb" htmlFor="sc2">
-                  <input type="checkbox" id="sc2" className="sr" />
-                  <span className="c" aria-hidden="true"></span>
-                  <span>Application · Rural Immunization Outreach 2027 (Cascade County)</span>
-                </label>
-                <label className="cb" htmlFor="sc3">
-                  <input type="checkbox" id="sc3" className="sr" />
-                  <span className="c" aria-hidden="true"></span>
-                  <span>Grant · awd_01J2Q7 reports (Riverbend)</span>
-                </label>
-              </div>
-              <div className="fld">
-                <label className="lbl" htmlFor="c-exp">
-                  Access expires
-                </label>
-                <input className="inp" id="c-exp" defaultValue="Jun 30, 2027" />
-                <button className="btn btn-primary" style={{ alignSelf: "flex-start", marginTop: "6px" }}>
-                  Send invitation
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="card" id="funders">
-            <div className="card-h">
-              <div>
-                <h2 style={{ fontSize: "18px" }}>Funders with access</h2>
-                <p className="small muted">
-                  What each funder may read from your Passport record, in plain language. Revoking stops future reads; what you already
-                  submitted stays with the application.
-                </p>
-              </div>
-            </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-              <table className="tbl" style={{ fontSize: "15px" }}>
-                <thead>
-                  <tr>
-                    <th>Funder</th>
-                    <th>Can read</th>
-                    <th>Granted via</th>
-                    <th>Since</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <span className="chip">
-                        <span className="tdot" aria-hidden="true"></span>Riverbend Community Foundation
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: "normal" }}>
-                      Organization profile · documents in your locker · representatives · Passport level and attestation · proposed changes
-                      to your record
-                    </td>
-                    <td>Application to Community Health Grants 2027</td>
-                    <td>Feb 3, 2027</td>
-                    <td>
-                      <button className="btn btn-sm btn-danger">Revoke</button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="chip" style={{ "--tenant": "#7A4F01" } as CSSProperties}>
-                        <span className="tdot" aria-hidden="true"></span>Cascade County Health Department
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: "normal" }}>
-                      Organization profile · documents in your locker · Passport level and attestation · payee status (bank name and last4
-                      only)
-                    </td>
-                    <td>Grant agreement, Rural Immunization Outreach</td>
-                    <td>Aug 12, 2025</td>
-                    <td>
-                      <button className="btn btn-sm btn-danger">Revoke</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="card-b" style={{ borderTop: "1px solid #D6DEDE" }}>
-              <div className="bnr bnr-info">
-                <Info className="ic" aria-hidden="true" />
-                <div>
-                  <div className="t">Request made by funder</div>
-                  <div className="d">
-                    Riverbend Community Foundation requests access to:<b>payee status (bank name and last4 only)</b>, to schedule tranche
-                    payments for your award. Requested by Marcus Lee · May 19, 2027.
+                      </section>
+                    </div>
                   </div>
-                  <div className="clears" style={{ fontWeight: 400 }}>
-                    Riverbend never sees account or routing numbers; payments go to the destination you verified in Passport.
-                  </div>
-                </div>
-                <div className="act row" style={{ gap: "8px" }}>
-                  <button className="btn btn-primary">Approve</button>
-                  <button className="btn btn-secondary">Decline</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="card" id="agents">
-            <div className="card-h">
-              <div>
-                <h2 style={{ fontSize: "18px" }}>Agents</h2>
-                <p className="small muted">
-                  MCP clients connected to this workspace. Everything a screen can do is also a tool; the actions below always need a
-                  person.
-                </p>
-              </div>
-            </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-              <table className="tbl" style={{ fontSize: "15px" }}>
-                <thead>
-                  <tr>
-                    <th>Agent</th>
-                    <th>Client</th>
-                    <th>Scopes</th>
-                    <th>Last used</th>
-                    <th>Connected by</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <div className="row" style={{ gap: "10px" }}>
-                        <span className="av av-a">
-                          <Bot className="ic" aria-hidden="true" />
-                        </span>
-                        <span className="b">Grants drafting agent</span>
-                      </div>
-                    </td>
-                    <td>Cursor</td>
-                    <td>
-                      <div className="row wrap" style={{ gap: "4px" }}>
-                        <span className="tag">applications:write</span>
-                        <span className="tag">library:read</span>
-                        <span className="pill-warn">
-                          <Lock className="ic ic-sm" aria-hidden="true" />
-                          submit gated
-                        </span>
-                      </div>
-                    </td>
-                    <td>3 days ago</td>
-                    <td>Jamal Reed</td>
-                    <td>
-                      <button className="btn btn-sm btn-danger">Revoke</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div
-              className="card-b"
-              style={{
-                borderTop: "1px solid #D6DEDE",
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-                gap: "24px",
-                alignItems: "start",
-              }}
-            >
-              <div
-                className="card"
-                style={{ padding: "20px", background: "#F7FAFA", display: "flex", flexDirection: "column", gap: "12px" }}
-              >
-                <h3>Let your agent apply</h3>
-                <p className="small muted">
-                  Point any MCP client at this workspace. It can read your Passport-sourced profile, draft answers from the library, and
-                  fill applications; a person still submits.
-                </p>
-                <div className="row" style={{ gap: "8px" }}>
-                  <label className="sr" htmlFor="mcp-url">
-                    MCP server URL
-                  </label>
-                  <input
-                    className="inp mono"
-                    id="mcp-url"
-                    defaultValue="https://gms.opengrants.io/mcp/w/alder-creek"
-                    readOnly
-                    style={{ fontSize: "14px" }}
-                  />
-                  <button className="btn btn-secondary" aria-label="Copy server URL">
-                    <Copy className="ic" aria-hidden="true" />
-                    Copy
-                  </button>
-                </div>
-                <ol style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px", counterReset: "s" }}>
-                  <li className="row" style={{ gap: "10px", alignItems: "flex-start" }}>
-                    <span className="av av-sm av-n">1</span>
-                    <span>Add the server URL in your client's MCP settings.</span>
-                  </li>
-                  <li className="row" style={{ gap: "10px", alignItems: "flex-start" }}>
-                    <span className="av av-sm av-n">2</span>
-                    <span>
-                      Sign in when the client opens the consent screen and choose this workspace and scopes (
-                      <Link to="/oauth/consent">see the consent screen</Link>).
-                    </span>
-                  </li>
-                  <li className="row" style={{ gap: "10px", alignItems: "flex-start" }}>
-                    <span className="av av-sm av-n">3</span>
-                    <span>Gated actions show up as approval requests for a member to approve.</span>
-                  </li>
-                </ol>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <span className="lbl">Human gates</span>
-                <div className="row" style={{ justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #EEF3F3" }}>
-                  <div>
-                    <div className="b">Submitting an application needs a human</div>
-                    <div className="help">Always on for every workspace.</div>
-                  </div>
-                  <div className="row" style={{ gap: "6px" }}>
-                    <Lock className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                    <button
-                      className="tog on"
-                      role="switch"
-                      aria-checked="true"
-                      aria-label="Submitting an application needs a human"
-                      disabled
-                    ></button>
-                  </div>
-                </div>
-                <div className="row" style={{ justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #EEF3F3" }}>
-                  <div>
-                    <div className="b">Signing an agreement needs a human</div>
-                    <div className="help">Always on for every workspace.</div>
-                  </div>
-                  <div className="row" style={{ gap: "6px" }}>
-                    <Lock className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                    <button
-                      className="tog on"
-                      role="switch"
-                      aria-checked="true"
-                      aria-label="Signing an agreement needs a human"
-                      disabled
-                    ></button>
-                  </div>
-                </div>
-                <div className="row" style={{ justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #EEF3F3" }}>
-                  <div>
-                    <div className="b">Sharing a report with another funder needs a human</div>
-                    <div className="help">Recommended: sharing sends your data to a third party.</div>
-                  </div>
-                  <button
-                    className="tog on"
-                    role="switch"
-                    aria-checked="true"
-                    aria-label="Sharing a report with another funder needs a human"
-                  ></button>
-                </div>
-                <div className="row" style={{ justifyContent: "space-between", padding: "12px 0" }}>
-                  <div>
-                    <div className="b">Drafting answers</div>
-                    <div className="help">Off means agents may draft without approval; drafts are marked “By agent”.</div>
-                  </div>
-                  <button className="tog" role="switch" aria-checked="false" aria-label="Drafting answers needs a human"></button>
-                </div>
-              </div>
-            </div>
-          </div>
+
+                  <Dialog open={!!revoking} onClose={() => setRevoking(null)} labelledBy="rv-title">
+                    <div className="hd">
+                      <h3 id="rv-title" style={{ fontSize: "16px" }}>
+                        Remove {revoking?.funder.name ?? "this funder"}’s access?
+                      </h3>
+                      <button className="iconbtn" type="button" aria-label="Close" onClick={() => setRevoking(null)}>
+                        <X className="ic ic-md" aria-hidden="true" />
+                      </button>
+                    </div>
+                    <div className="bd">
+                      <p>They keep what you already submitted, but can no longer read updates to your Passport record. Open applications with them may stall until you grant access again.</p>
+                    </div>
+                    <div className="ft">
+                      <button className="btn btn-secondary" type="button" onClick={() => setRevoking(null)}>
+                        Keep access
+                      </button>
+                      <button
+                        className="btn btn-danger-solid"
+                        type="button"
+                        disabled={revoke.state === "saving"}
+                        onClick={async () => {
+                          const target = revoking;
+                          if (!target) return;
+                          const r = await revoke.run(target.id);
+                          setRevoking(null);
+                          if (r) query.set({ members, approvals, consents: consents.map((c) => (c.id === target.id ? { ...c, revokedAt: new Date().toISOString() } : c)) });
+                        }}
+                      >
+                        Remove access
+                      </button>
+                    </div>
+                  </Dialog>
+                </>
+              );
+            }}
+          </Loaded>
         </main>
       </ApplicantShell>
     </>

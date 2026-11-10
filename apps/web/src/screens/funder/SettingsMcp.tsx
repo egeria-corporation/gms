@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
-import { ArrowRight, Bot, Check, ChevronDown, Circle, CircleCheck, CircleX, Copy, Info, Lock, Plus, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, Check, ChevronDown, CircleCheck, CircleX, Copy, Lock, Plus, ShieldCheck } from "lucide-react";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { HumanGates } from "./HumanGates.tsx";
 
 export default function SettingsMcp() {
+  // Human gates are live. Connected agents, API clients, webhooks, custom MCP servers and the
+  // ledger view below still show the design's sample content until their routes exist (phase 5).
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
   return (
     <>
-      <title>{"Settings — MCP and human gates — Riverbend funder workspace"}</title>
+      <title>{`Settings — MCP and human gates — ${ws.name}`}</title>
       <FunderShell active="Settings">
         <main className="main">
           <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
+            <Link to={base}>{ws.name}</Link>
             <span>›</span>
-            <Link to="/w/riverbend/settings/mcp">Settings</Link>
+            <Link to={`${base}/settings/mcp`}>Settings</Link>
             <span>›</span>
             <span>MCP</span>
           </div>
@@ -35,8 +41,8 @@ export default function SettingsMcp() {
               <Link to="/onboarding/funder">Branding</Link>
               <a href="#team">Team & roles</a>
               <a href="#rubrics">Rubrics</a>
-              <Link to="/w/riverbend/communications">Templates</Link>
-              <Link to="/w/riverbend/payments/due">Payments</Link>
+              <Link to={`${base}/communications`}>Templates</Link>
+              <Link to={`${base}/payments/due`}>Payments</Link>
               <a href="#integrations">Integrations</a>
               <a href="#api">API & webhooks</a>
               <a href="#mcp" className="on" aria-current="true">
@@ -73,7 +79,7 @@ export default function SettingsMcp() {
                       instead of acting.
                     </p>
                   </div>
-                  <Link to="/w/riverbend/approvals" className="btn btn-sm btn-secondary">
+                  <Link to={`${base}/approvals`} className="btn btn-sm btn-secondary">
                     Open approvals
                     <span
                       className="count"
@@ -243,117 +249,7 @@ export default function SettingsMcp() {
                     </span>
                   </div>
                 </section>
-                <section className="card">
-                  <div className="card-h">
-                    <div>
-                      <h3>Human gates</h3>
-                      <p className="small muted">
-                        Tools that create an approval request instead of acting. Locked gates cannot be turned off.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="card-b" style={{ paddingTop: "8px" }}>
-                    <div className="rc">
-                      <div className="rc-row rc-pass">
-                        <Lock className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Commit decisions</div>
-                          <div className="r">commit_decisions · always needs a human in this workspace (locked by policy)</div>
-                        </div>
-                        <span
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-disabled="true"
-                          aria-label="Commit decisions requires approval (locked)"
-                          style={{ opacity: ".6" }}
-                        ></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Send letters</div>
-                          <div className="r">
-                            send_letters · an agent may draft; sending waits for approval with a preview of every letter
-                          </div>
-                        </div>
-                        <button className="tog on" role="switch" aria-checked="true" aria-label="Send letters requires approval"></button>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <Lock className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Release payments</div>
-                          <div className="r">
-                            release_tranche · always human, in every workspace. Agents can read readiness and propose, never release.
-                          </div>
-                        </div>
-                        <span
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-disabled="true"
-                          aria-label="Release payments requires approval (locked)"
-                          style={{ opacity: ".6" }}
-                        ></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <Lock className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Sign agreements</div>
-                          <div className="r">
-                            sign_agreement · always human. A signature records a person's name, time, IP and the document hash.
-                          </div>
-                        </div>
-                        <span
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-disabled="true"
-                          aria-label="Sign agreements requires approval (locked)"
-                          style={{ opacity: ".6" }}
-                        ></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Change eligibility rules</div>
-                          <div className="r">update_eligibility · affects who can apply; approval shows the plain-language diff</div>
-                        </div>
-                        <button
-                          className="tog on"
-                          role="switch"
-                          aria-checked="true"
-                          aria-label="Change eligibility rules requires approval"
-                        ></button>
-                      </div>
-                      <div className="rc-row rc-unk">
-                        <Circle className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Advance applications</div>
-                          <div className="r">advance_application · acts immediately; attributed on the record and reversible</div>
-                        </div>
-                        <button
-                          className="tog"
-                          role="switch"
-                          aria-checked="false"
-                          aria-label="Advance applications requires approval"
-                        ></button>
-                      </div>
-                      <div className="rc-row rc-unk">
-                        <Circle className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Request revision</div>
-                          <div className="r">request_revision · acts immediately; the applicant sees the agent attribution</div>
-                        </div>
-                        <button className="tog" role="switch" aria-checked="false" aria-label="Request revision requires approval"></button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="card-f small muted">
-                    <Info className="ic" aria-hidden="true" />
-                    Approvals expire after 7 days. Expired requests are rejected and logged.
-                  </div>
-                </section>
+                <HumanGates />
               </div>
               <section className="card">
                 <div className="card-h">

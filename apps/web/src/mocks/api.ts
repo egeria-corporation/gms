@@ -23,6 +23,7 @@ import { checkBrand } from "../lib/contrast.ts";
 import { slugify } from "../lib/format.ts";
 import { FIXTURE_WORKSPACES, MOCK_MEMBERSHIPS } from "./fixtures.ts";
 import { seedStore, type Store, type WorkspaceData } from "./store.ts";
+import { createMockFunderApi } from "./funder.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -462,6 +463,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       if (!row) throw notFound("Form");
       return { response: testFill(definitionOf(row), { seed: o.seed ?? 1 }) as JsonObject };
     },
+
+    ...createMockFunderApi({ ws, now, fail: (status, message, errors = []) => new ApiError(status, message, errors) }),
 
     async evaluateEligibility(input) {
       const w = await ws();

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { FixtureBankFeed, FixtureMcpDirectory, FixtureWorkspaceApps } from "@gms/connectors";
 import { MemoryLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
 import { MemoryMailer } from "@gms/notify";
@@ -43,6 +44,11 @@ export interface Harness {
   mailer: MemoryMailer;
   storage: MemoryFileStorage;
   openGrants: FixtureOpenGrantsClient;
+  bank: FixtureBankFeed;
+  workspaceApps: FixtureWorkspaceApps;
+  mcpDirectory: FixtureMcpDirectory;
+  /** Objects written to the EXPORTS bucket, by key. */
+  exported: Map<string, string>;
   /** Names and emails of people, as the auth provider would answer. */
   directory: MemoryUserDirectory;
   clock: { now: Date };
@@ -58,6 +64,9 @@ export const ORG_RIVERBEND = "0190a000-0000-7000-8000-000000000001";
 // AES-256-GCM test key: the bytes 0..31, base64url. Not a real key.
 export const TEST_CREDENTIALS_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 export const PASSPORT = "https://passport.test";
+// HMAC test secrets for inbound webhooks; not real.
+export const PASSPORT_WEBHOOK_SECRET = "passport-webhook-secret-for-unit-tests";
+export const RESEND_WEBHOOK_SECRET = "whsec_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 export const OPENGRANTS_LISTINGS: OpenGrantsListing[] = [
   { id: "og-1", title: "Rural Health Access Fund", funder: "Northwind Family Foundation", url: "https://opengrants.example/grants/og-1", summary: "Operating support for rural clinics" },
   { id: "og-2", title: "Community Health Grants 2027", funder: "Riverbend Community Foundation", url: "https://app.gms.test/f/riverbend/o/community-health-2027", summary: "Health navigation" },
@@ -67,7 +76,7 @@ export async function harness(): Promise<Harness> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk: JWK = await exportJWK(privateKey);
   const kid = "oauth-test-1";
-  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY, PASSPORT_GMS_CLIENT_ID: "gms-test-client", PASSPORT_GMS_CLIENT_SECRET: "gms-test-client-secret-not-real", RESEND_FROM: "OpenGrants GMS <notices@gms.test>" };
+  const env: Env = { GMS_BASE_URL: BASE, WEB_BASE_URL: WEB, OAUTH_ISSUER: BASE, OAUTH_KID: kid, OAUTH_SIGNING_KEY_JWK: JSON.stringify(jwk), SUPABASE_JWT_SECRET: SESSION_SECRET, PASSPORT_BASE_URL: PASSPORT, CREDENTIALS_ENCRYPTION_KEY: TEST_CREDENTIALS_KEY, PASSPORT_GMS_CLIENT_ID: "gms-test-client", PASSPORT_GMS_CLIENT_SECRET: "gms-test-client-secret-not-real", RESEND_FROM: "OpenGrants GMS <notices@gms.test>", WEBHOOK_SECRET_KEY: TEST_CREDENTIALS_KEY, PASSPORT_WEBHOOK_SECRET, RESEND_INBOUND_SECRET: RESEND_WEBHOOK_SECRET };
 
   const clients: OAuthClient[] = [
     {
@@ -115,6 +124,10 @@ export async function harness(): Promise<Harness> {
   const storage = new MemoryFileStorage();
   const openGrants = new FixtureOpenGrantsClient(OPENGRANTS_LISTINGS);
   const kv = new MemoryKv();
+  const bank = new FixtureBankFeed();
+  const workspaceApps = new FixtureWorkspaceApps();
+  const mcpDirectory = new FixtureMcpDirectory();
+  const exported = new Map<string, string>();
   const directory = new MemoryUserDirectory();
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
   directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
@@ -128,7 +141,7 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants, directory }),
+    ports: () => ({ mailer, storage, openGrants, directory, bank, workspaceApps, mcpDirectory, exports: { put: async (key, body) => void exported.set(key, body) } }),
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -147,6 +160,10 @@ export async function harness(): Promise<Harness> {
     mailer,
     storage,
     openGrants,
+    bank,
+    workspaceApps,
+    mcpDirectory,
+    exported,
     directory,
     clock,
     privateKey,

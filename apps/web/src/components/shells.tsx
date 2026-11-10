@@ -117,7 +117,7 @@ function funderRail(ws: Workspace): RailItem[] {
     { label: "Opportunities", icon: Layers, path: "/opportunities" },
     { label: "Applications", icon: Inbox, path: "/applications" },
     { label: "Reviews", icon: ClipboardCheck, path: "/reviews/assign" },
-    { label: "Awards", icon: Award, path: "/awards/awd_01J2Q7/agreement" },
+    { label: "Awards", icon: Award, path: "/awards" },
     { label: "Payments", icon: Banknote, path: "/payments/due" },
     { label: "Reporting", icon: FileText, path: "/reporting" },
     { label: "Grantees", icon: Users, path: "/grantees/org_alder-creek" },
@@ -132,8 +132,8 @@ const APPLICANT_RAIL: RailItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "" },
   { label: "Organization", icon: Building, path: "/organization" },
   { label: "Find funding", icon: Search, path: "/find" },
-  { label: "Applications", icon: FileText, path: "/applications/app_01HZX4/edit" },
-  { label: "My grants", icon: Award, path: "/grants/awd_01J2Q7" },
+  { label: "Applications", icon: FileText, path: "/applications" },
+  { label: "My grants", icon: Award, path: "/grants" },
   { label: "Reports", icon: ClipboardCheck, path: "/reports" },
   { label: "Answer library", icon: BookOpen, path: "/library" },
   { label: "Funders", icon: Landmark, path: "/funders" },
@@ -144,8 +144,8 @@ const APPLICANT_RAIL: RailItem[] = [
 /** Bottom tabs shown at phone width in the applicant workspace. */
 const APPLICANT_TABS: Array<RailItem & { rail: string[] }> = [
   { label: "Home", icon: House, path: "", rail: ["Dashboard"] },
-  { label: "Apply", icon: FileText, path: "/applications/app_01HZX4/edit", rail: ["Applications", "Find funding"] },
-  { label: "Grants", icon: Award, path: "/grants/awd_01J2Q7", rail: ["My grants"] },
+  { label: "Apply", icon: FileText, path: "/applications", rail: ["Applications", "Find funding"] },
+  { label: "Grants", icon: Award, path: "/grants", rail: ["My grants"] },
   { label: "Reports", icon: ClipboardCheck, path: "/reports", rail: ["Reports"] },
   { label: "Org", icon: Building, path: "/organization", rail: ["Organization"] },
 ];

@@ -140,13 +140,17 @@ export async function getWorkspace(ctx: ServiceContext, id: string) {
 
 export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.output<typeof updateWorkspaceInput>) {
   await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: id, what: "Workspace" });
-  const resolved = input.brand ? resolveBrand(input.brand) : null;
+  // `brand` and `settings` are merge patches: a key that is not sent keeps its value and `null`
+  // removes it, so two admins changing different settings do not overwrite each other.
+  const current = required(await ctx.repos.table("workspaces").one({ id }), "Workspace");
+  const merge = (base: unknown, patch: Record<string, unknown>) => Object.fromEntries(Object.entries({ ...((base as Record<string, unknown> | null) ?? {}), ...patch }).filter(([, v]) => v !== null && v !== undefined));
+  const resolved = input.brand ? resolveBrand(merge(current.brand, input.brand) as z.output<typeof brandInput>) : null;
   const [row] = await ctx.repos.table("workspaces").update(
     { id },
     {
       ...(input.displayName ? { display_name: input.displayName } : {}),
       ...(resolved ? { brand: resolved.brand } : {}),
-      ...(input.settings ? { settings: input.settings as Row<"workspaces">["settings"] } : {}),
+      ...(input.settings ? { settings: merge(current.settings, input.settings) as Row<"workspaces">["settings"] } : {}),
     },
   );
   await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input) });

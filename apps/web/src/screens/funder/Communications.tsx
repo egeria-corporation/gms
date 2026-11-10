@@ -1,552 +1,270 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import { Bot, Check, ChevronDown, CircleCheck, CircleX, Plus, Send, TriangleExclamationPoint } from "lucide-react";
+// Communications: letter, agreement and email templates with merge fields, a preview rendered by
+// the server against a real application, and the log of what was sent. A saved template is a new
+// immutable version; a letter already delivered keeps the version it was rendered with.
+import { useEffect, useRef, useState } from "react";
+import { CircleCheck, CircleX, Eye, Mail, Plus } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { Rendered, Template, TemplateInput } from "../../api/funder.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNote } from "../../components/ui.tsx";
+import { actorLabel, dateTime, usePeople } from "./shared.tsx";
 
+const MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
 const mergeField = (name: string) => `{{${name}}}`;
+const KIND_LABEL: Record<Template["kind"], string> = { email: "Email", letter: "Letter", agreement: "Agreement" };
 
-const DECLINE_TEMPLATE = `Dear {{applicant.legalName}},
-
-Thank you for submitting “{{application.title}}” to {{opportunity.title}}. After review, {{funder.name}} will not be advancing this application to the next stage.
-
-{{decision.reason}}
-
-We encourage you to review eligibility for our other open opportunities and to apply again in a future cycle. Questions about this decision can be sent to {{funder.contactEmail}}.
-
-Sincerely,
-Dana Ortiz
-Program Officer, {{funder.name}}`;
+interface Draft {
+  kind: Template["kind"];
+  name: string;
+  subject: string;
+  body: string;
+}
+const draftOf = (t?: Template): Draft => ({ kind: t?.kind ?? "email", name: t?.name ?? "", subject: t?.subject ?? "", body: t?.body ?? "" });
 
 export default function Communications() {
+  const ws = useWorkspace("funder");
+  const { person } = usePeople();
+  const templates = useApiQuery((api) => api.listTemplates(), []);
+  const log = useApiQuery((api) => api.listCommunications(), []);
+  const sample = useApiQuery(async (api) => (await api.listApplications({ pageSize: 1 })).items[0] ?? null, []);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>(draftOf());
+  const [preview, setPreview] = useState<Rendered | null>(null);
+  const body = useRef<HTMLTextAreaElement>(null);
+  const all = [...(templates.data?.items ?? []), ...(templates.data?.builtIn ?? [])];
+  const current = all.find((t) => t.id === selected) ?? null;
+
+  useEffect(() => {
+    if (selected === null && all[0]) setSelected(all[0].id);
+  }, [all, selected]);
+  useEffect(() => {
+    setDraft(draftOf(current ?? undefined));
+    setPreview(null);
+  }, [current?.id]);
+
+  const save = useApiMutation((api, input: TemplateInput) => api.createTemplate(input));
+  const render = useApiMutation((api, id: string) => api.renderTemplate(id, { ...(sample.data ? { applicationId: sample.data.id } : {}), fields: { decision: { message: "After review, this application will not move forward." } } }));
+  const dirty = !current || draft.name !== current.name || draft.body !== current.body || draft.subject !== (current.subject ?? "") || draft.kind !== current.kind;
+  const unknown = [...new Set([...`${draft.subject}\n${draft.body}`.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].filter((f) => !MERGE_FIELDS.includes(f));
+  const missing = problemsOf(render.error)
+    .map((p) => (p as { field?: string }).field ?? p.path ?? "")
+    .filter(Boolean);
+
+  function insert(field: string) {
+    const el = body.current;
+    const at = el?.selectionStart ?? draft.body.length;
+    setDraft((d) => ({ ...d, body: d.body.slice(0, at) + mergeField(field) + d.body.slice(el?.selectionEnd ?? at) }));
+    el?.focus();
+  }
+  async function saveVersion() {
+    const t = await save.run({ kind: draft.kind, name: draft.name.trim(), body: draft.body, ...(draft.kind === "email" && draft.subject.trim() ? { subject: draft.subject.trim() } : {}) });
+    if (t) {
+      templates.reload();
+      setSelected(t.id);
+    }
+  }
+
   return (
     <>
-      <title>{"Communications — Riverbend funder workspace"}</title>
+      <title>{`Communications — ${ws.name}`}</title>
       <FunderShell active="Communications">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <span>Communications</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Communications</h1>
-              </div>
-              <div className="meta">
-                <span>7 templates</span>
-                <span>·</span>
-                <span>Sending domain riverbendcf.example · verified</span>
-                <span>·</span>
-                <span>Letters and emails merge fields from the application or award they are sent about</span>
-              </div>
-            </div>
-            <div className="actions">
-              <button className="btn btn-secondary">
+          <PageHeader
+            crumbs={[{ label: ws.name, to: `/w/${ws.handle}` }, { label: "Communications" }]}
+            title="Communications"
+            meta={<span>Templates for letters, agreements and email · every send is logged</span>}
+            actions={
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setSelected("new");
+                  setDraft(draftOf());
+                }}
+              >
                 <Plus className="ic" aria-hidden="true" />
                 New template
               </button>
-              <a href="#bulk" className="btn btn-primary">
-                <Send className="ic" aria-hidden="true" />
-                Bulk send
-              </a>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="card">
-              <div className="card-h">
-                <h3>Templates</h3>
-                <span className="small muted">Select to edit</span>
-              </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                <table className="tbl tbl-compact">
-                  <thead>
-                    <tr>
-                      <th>Kind</th>
-                      <th>Name</th>
-                      <th>Ver.</th>
-                      <th>Last used</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="sel">
-                      <td>
-                        <span className="tag">Letter</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" className="b" style={{ color: "#0D2A43" }}>
-                          Standard decline
-                        </Link>
-                      </td>
-                      <td>v3</td>
-                      <td className="muted">Today 10:02</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Letter</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Award letter
-                        </Link>
-                      </td>
-                      <td>v4</td>
-                      <td className="muted">May 19</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Agreement</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Standard grant agreement
-                        </Link>
-                      </td>
-                      <td>v4</td>
-                      <td className="muted">May 19</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Email</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Acknowledgment
-                        </Link>
-                      </td>
-                      <td>v2</td>
-                      <td className="muted">Apr 30</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Email</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Revision request
-                        </Link>
-                      </td>
-                      <td>v2</td>
-                      <td className="muted">Apr 18</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Email</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Report reminder (−7 days)
-                        </Link>
-                      </td>
-                      <td>v1</td>
-                      <td className="muted">Dec 8, 2026</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <span className="tag">Email</span>
-                      </td>
-                      <td>
-                        <Link to="/w/riverbend/communications" style={{ color: "#1E2D2B" }}>
-                          Payment sent
-                        </Link>
-                      </td>
-                      <td>v1</td>
-                      <td className="muted">Today 10:41</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="card-f small muted">
-                Versions are pinned when sent: a letter already delivered keeps the version it was rendered with.
-              </div>
-            </div>
-            <div className="card">
-              <div className="card-h">
-                <div className="row" style={{ gap: "10px" }}>
-                  <h3>Standard decline</h3>
-                  <span className="tag">Letter · v3</span>
-                  <span className="bdg bdg-ok">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    Published
-                  </span>
+            }
+          />
+          {templates.status === "loading" && <Loading label="Loading templates" />}
+          {templates.status === "error" && <ErrorBanner error={templates.error} onRetry={templates.reload} />}
+          {templates.status === "ready" && (
+            <div style={{ display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+              <div className="card">
+                <div className="card-h">
+                  <h3>Templates</h3>
+                  <span className="small muted">Select to edit</span>
                 </div>
-                <div className="row" style={{ gap: "8px" }}>
-                  <button className="btn btn-sm btn-secondary">Version history</button>
-                  <button className="btn btn-sm btn-secondary">Save draft</button>
-                  <button className="btn btn-sm btn-primary">Publish v4</button>
+                <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+                  <table className="tbl tbl-compact" aria-label="Templates">
+                    <thead>
+                      <tr>
+                        <th>Kind</th>
+                        <th>Name</th>
+                        <th>Ver.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {all.map((t) => (
+                        <tr key={t.id} className={t.id === selected ? "sel" : undefined}>
+                          <td>{KIND_LABEL[t.kind]}</td>
+                          <td>
+                            <button type="button" className="b" style={{ border: 0, background: "transparent", font: "inherit", fontWeight: 700, color: "#0D2A43", cursor: "pointer", padding: 0 }} aria-pressed={t.id === selected} onClick={() => setSelected(t.id)}>
+                              {t.name}
+                            </button>
+                          </td>
+                          <td>{t.builtIn ? "Built in" : `v${t.version}`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+                <div className="card-f small muted">Versions are pinned when sent: a letter already delivered keeps the version it was rendered with.</div>
               </div>
-              <div
-                className="card-b"
-                style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr) minmax(0, 1fr)", gap: "16px", alignItems: "start" }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <span className="eyebrow">Merge fields</span>
-                  <p className="small muted">Drag or click to insert at the cursor.</p>
-                  <button className="chip" style={{ justifyContent: "flex-start" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("applicant.legalName")}
-                    </span>
-                  </button>
-                  <button className="chip" style={{ justifyContent: "flex-start" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("opportunity.title")}
-                    </span>
-                  </button>
-                  <button className="chip" style={{ justifyContent: "flex-start" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("application.title")}
-                    </span>
-                  </button>
-                  <button className="chip" style={{ justifyContent: "flex-start", borderColor: "#E9C77D", background: "#FCEFD3" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("decision.reason")}
-                    </span>
-                  </button>
-                  <button className="chip" style={{ justifyContent: "flex-start" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("funder.name")}
-                    </span>
-                  </button>
-                  <button className="chip" style={{ justifyContent: "flex-start" }}>
-                    <span className="mono" style={{ fontSize: "11px" }}>
-                      {mergeField("funder.contactEmail")}
-                    </span>
-                  </button>
-                  <span className="help" style={{ marginTop: "4px" }}>
-                    Highlighted fields may be empty for some recipients; the preview and bulk send check this.
-                  </span>
-                </div>
-                <div className="fld">
-                  <label className="lbl" htmlFor="tpl-body">
-                    Letter body
-                  </label>
-                  <textarea
-                    className="ta"
-                    id="tpl-body"
-                    style={{ minHeight: "360px", fontSize: "13px", lineHeight: 1.6 }}
-                    defaultValue={DECLINE_TEMPLATE}
-                  />
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span className="help">Rendered on the funder letterhead; a PDF copy is attached to the application record.</span>
-                    <span className="counter">96 words</span>
+
+              <section className="card" aria-labelledby="editor-h">
+                <div className="card-h">
+                  <div className="row" style={{ gap: "10px" }}>
+                    <h3 id="editor-h">{current ? current.name : "New template"}</h3>
+                    {current && <span className="tag">{`${KIND_LABEL[current.kind]} · ${current.builtIn ? "built in" : `v${current.version}`}`}</span>}
+                  </div>
+                  <div className="row" style={{ gap: "8px" }}>
+                    <SaveNote state={save.state} savedText="Version saved" />
+                    {current && (
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={render.state === "saving" || dirty} title={dirty ? "Save the template to preview this text" : undefined} onClick={async () => setPreview((await render.run(current.id)) ?? null)}>
+                        <Eye className="ic" aria-hidden="true" />
+                        Preview
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-sm btn-primary" disabled={save.state === "saving" || !dirty || !draft.name.trim() || !draft.body.trim() || (draft.kind === "email" && !draft.subject.trim())} onClick={saveVersion}>
+                      {current && !current.builtIn ? `Save as v${current.version + 1}` : "Save template"}
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span className="eyebrow">Preview</span>
-                    <span className="small muted">Sample: Pine Ridge Literacy Project</span>
+                <div className="card-b" style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: "16px", alignItems: "start" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <span className="eyebrow">Merge fields</span>
+                    <p className="small muted">Click to insert at the cursor.</p>
+                    {MERGE_FIELDS.map((f) => (
+                      <button key={f} type="button" className="chip" style={{ justifyContent: "flex-start" }} onClick={() => insert(f)} aria-label={`Insert ${f}`}>
+                        <span className="mono" style={{ fontSize: "11px" }}>
+                          {mergeField(f)}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ border: "1px solid #D6DEDE", borderRadius: "8px", overflow: "hidden", background: "#fff" }}>
-                    <div
-                      style={{
-                        background: "var(--tenant)",
-                        color: "var(--on-tenant)",
-                        padding: "14px 18px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        fontFamily: "var(--font-display)",
-                        fontWeight: 700,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: "28px",
-                          height: "28px",
-                          borderRadius: "6px",
-                          background: "rgba(255,255,255,.18)",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "11px",
-                        }}
-                      >
-                        RCF
-                      </span>
-                      Riverbend Community Foundation
+                  <div className="col" style={{ gap: "12px" }}>
+                    {save.error !== null && <ErrorBanner error={save.error} />}
+                    <div className="fld-row">
+                      <Field id="tpl-name" label="Name" required>
+                        <input className="inp" id="tpl-name" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+                      </Field>
+                      <Field id="tpl-kind" label="Kind">
+                        <select className="sel" id="tpl-kind" value={draft.kind} onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as Template["kind"] }))}>
+                          <option value="email">Email</option>
+                          <option value="letter">Letter</option>
+                          <option value="agreement">Agreement</option>
+                        </select>
+                      </Field>
                     </div>
-                    <div
-                      style={{
-                        padding: "18px",
-                        fontSize: "12.5px",
-                        lineHeight: 1.6,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
-                        color: "#1E2D2B",
-                      }}
-                    >
-                      <p>May 25, 2027</p>
-                      <p>Dear Pine Ridge Literacy Project,</p>
-                      <p>
-                        Thank you for submitting “Health Literacy Workshops” to Community Health Grants 2027. After review, Riverbend
-                        Community Foundation will not be advancing this application to the next stage.
-                      </p>
-                      <p>
-                        <span className="ins">The proposed service area is outside Riverbend County, which this opportunity requires.</span>
-                      </p>
-                      <p>
-                        We encourage you to review eligibility for our other open opportunities and to apply again in a future cycle.
-                        Questions about this decision can be sent to grants@riverbendcf.example.
-                      </p>
-                      <p>
-                        Sincerely,
-                        <br />
-                        Dana Ortiz
-                        <br />
-                        Program Officer, Riverbend Community Foundation
-                      </p>
-                    </div>
-                    <div
-                      style={{
-                        padding: "10px 18px",
-                        background: "#F7FAFA",
-                        borderTop: "1px solid #D6DEDE",
-                        fontSize: "11px",
-                        color: "#4A5C5A",
-                      }}
-                    >
-                      Sent by OpenGrants GMS on behalf of Riverbend Community Foundation
-                    </div>
+                    {draft.kind === "email" && (
+                      <Field id="tpl-subject" label="Subject" required>
+                        <input className="inp" id="tpl-subject" value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} />
+                      </Field>
+                    )}
+                    <Field id="tpl-body" label="Body">
+                      <textarea className="ta" id="tpl-body" ref={body} style={{ minHeight: "300px", fontSize: "13px", lineHeight: 1.6 }} value={draft.body} onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))} />
+                    </Field>
+                    {unknown.map((f) => (
+                      <div key={f} className="bnr bnr-warn">
+                        <div>
+                          <div className="t">
+                            Unknown merge field <span className="mono">{mergeField(f)}</span>
+                          </div>
+                          <div className="d">Letters can use the fields listed on the left. Identifiers such as an EIN are never merged into outgoing mail.</div>
+                        </div>
+                      </div>
+                    ))}
+                    {render.error !== null && (
+                      <div className="bnr bnr-warn" role="alert">
+                        <div>
+                          <div className="t">{missing.length ? "Some merge fields have no value for this recipient" : "The preview could not be rendered"}</div>
+                          <div className="d">{missing.length ? missing.map(mergeField).join(", ") : (render.error as Error).message}</div>
+                        </div>
+                      </div>
+                    )}
+                    {preview && (
+                      <section className="letter" aria-label="Rendered preview">
+                        <div className="small muted">Rendered for {sample.data?.applicant.name ?? "a sample recipient"}</div>
+                        {preview.subject && <div className="b">{preview.subject}</div>}
+                        <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
+                      </section>
+                    )}
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="card">
-              <div className="card-h">
-                <h3>Send log</h3>
-                <div className="row" style={{ gap: "8px" }}>
-                  <button className="fchip">
-                    Last 30 days
-                    <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                  </button>
-                  <button className="fchip">
-                    All templates
-                    <ChevronDown className="ic ic-sm" aria-hidden="true" />
-                  </button>
-                  <button className="btn btn-sm btn-secondary">Export</button>
-                </div>
-              </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                <table className="tbl">
+          )}
+
+          <section className="card" aria-labelledby="log-h">
+            <div className="card-h">
+              <h3 id="log-h">Send log</h3>
+              <span className="small muted">{log.data?.length ?? 0} sends</span>
+            </div>
+            {log.status === "loading" && <Loading label="Loading the send log" />}
+            {log.status === "error" && <ErrorBanner error={log.error} onRetry={log.reload} />}
+            {log.status === "ready" && log.data.length === 0 && (
+              <EmptyState icon={Mail} title="Nothing sent yet">
+                Letters and messages sent from this workspace are listed here.
+              </EmptyState>
+            )}
+            {log.status === "ready" && log.data.length > 0 && (
+              <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+                <table className="tbl" aria-label="Send log">
                   <thead>
                     <tr>
                       <th>Time</th>
                       <th>Template</th>
-                      <th>Recipient</th>
-                      <th>Channel</th>
+                      <th>About</th>
+                      <th>Sent by</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>May 25, 2027 10:41</td>
-                      <td>Payment sent v1</td>
-                      <td>
-                        <div className="ent">
-                          <Link to="/w/riverbend/grantees/org_alder-creek" className="nm">
-                            Alder Creek Family Services
-                          </Link>
-                          <span className="muted xs">finance@aldercreekfs.example</span>
-                        </div>
-                      </td>
-                      <td>Email</td>
-                      <td>
-                        <span className="bdg bdg-ok">
-                          <CircleCheck className="ic" aria-hidden="true" />
-                          Delivered
-                        </span>
-                      </td>
-                    </tr>
-                    <tr style={{ verticalAlign: "top" }}>
-                      <td style={{ height: "auto", paddingTop: "10px", paddingBottom: "10px", whiteSpace: "nowrap" }}>
-                        May 25, 2027 10:02
-                      </td>
-                      <td style={{ height: "auto", paddingTop: "10px", paddingBottom: "10px" }}>Standard decline v3</td>
-                      <td style={{ height: "auto", paddingTop: "10px", paddingBottom: "10px", whiteSpace: "normal" }}>
-                        <details>
-                          <summary className="b" style={{ cursor: "pointer", color: "#0D2A43" }}>
-                            14 recipients
-                          </summary>
-                          <ul className="small muted" style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                            <li>Pine Ridge Literacy Project · director@pineridgeliteracy.example</li>
-                            <li>Meadowbrook Arts Collective · hello@meadowbrookarts.example</li>
-                            <li>Granite Peak Youth Sports · office@granitepeakyouth.example</li>
-                            <li>Blue Heron Conservation · grants@blueheron.example</li>
-                            <li>Stonebridge Community Kitchen · info@stonebridgekitchen.example</li>
-                            <li className="b">… 9 more</li>
-                          </ul>
-                        </details>
-                        <div className="attrib" style={{ marginTop: "6px" }}>
-                          <Bot className="ic ic-sm" aria-hidden="true" />
-                          Proposed by<span className="ag">Riverbend Triage Agent (via Claude)</span>· approved by Dana Ortiz ·
-                          <Link to="/w/riverbend/approvals">agent proposal #a-1042</Link>
-                        </div>
-                      </td>
-                      <td style={{ height: "auto", paddingTop: "10px", paddingBottom: "10px" }}>Email</td>
-                      <td style={{ height: "auto", paddingTop: "10px", paddingBottom: "10px" }}>
-                        <div className="ent">
-                          <span className="bdg bdg-ok">
-                            <CircleCheck className="ic" aria-hidden="true" />
-                            Delivered 14
-                          </span>
-                          <span className="muted xs">Opened 9 · letter PDFs attached to each application</span>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>May 19, 2027 16:20</td>
-                      <td>Award letter v4</td>
-                      <td>
-                        <div className="ent">
-                          <Link to="/w/riverbend/grantees/org_alder-creek" className="nm">
-                            Alder Creek Family Services
-                          </Link>
-                          <span className="muted xs">maria@aldercreekfs.example</span>
-                        </div>
-                      </td>
-                      <td>Email + letter PDF</td>
-                      <td>
-                        <span className="bdg bdg-ok">
-                          <CircleCheck className="ic" aria-hidden="true" />
-                          Delivered · opened
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>May 19, 2027 16:20</td>
-                      <td>Award letter v4</td>
-                      <td>
-                        <div className="ent">
-                          <Link to="/w/riverbend/grantees/org_alder-creek" className="nm">
-                            Lakeside Senior Center
-                          </Link>
-                          <span className="muted xs">grants@lakesideseniors.example</span>
-                        </div>
-                      </td>
-                      <td>Email + letter PDF</td>
-                      <td>
-                        <span className="bdg bdg-info">
-                          <Send className="ic" aria-hidden="true" />
-                          Delivered
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Apr 18, 2027 09:12</td>
-                      <td>Revision request v2</td>
-                      <td>
-                        <div className="ent">
-                          <Link to="/w/riverbend/grantees/org_alder-creek" className="nm">
-                            Copper Valley Clinic
-                          </Link>
-                          <span className="muted xs">admin@coppervalleyclinic.example</span>
-                        </div>
-                      </td>
-                      <td>Email</td>
-                      <td>
-                        <span className="bdg bdg-dng">
-                          <CircleX className="ic" aria-hidden="true" />
-                          Bounced · resent 09:30
-                        </span>
-                      </td>
-                    </tr>
+                    {log.data.map((c, i) => {
+                      const who = actorLabel(c.actor, person);
+                      return (
+                        <tr key={`${c.subjectId}-${c.at}-${i}`}>
+                          <td>{dateTime(c.at)}</td>
+                          <td className="b">{c.templateName ?? c.template ?? "—"}</td>
+                          <td>
+                            {c.subjectType} <span className="mono">{c.subjectId.slice(0, 12)}…</span>
+                          </td>
+                          <td>{who.agent ? <span className="attrib"><span className="ag">{who.name}</span></span> : who.name}</td>
+                          <td>
+                            {c.status === "sent" ? (
+                              <span className="bdg bdg-ok">
+                                <CircleCheck className="ic" aria-hidden="true" />
+                                Sent
+                              </span>
+                            ) : (
+                              <span className="bdg bdg-dng">
+                                <CircleX className="ic" aria-hidden="true" />
+                                Failed
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="card" id="bulk">
-                <div className="card-h">
-                  <h3>Bulk send</h3>
-                  <span className="small muted">Step 3 of 4</span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div className="stp">
-                    <span className="s done">
-                      <span className="n">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </span>
-                      Filter
-                    </span>
-                    <span className="ln done"></span>
-                    <span className="s done">
-                      <span className="n">
-                        <Check className="ic ic-sm" aria-hidden="true" />
-                      </span>
-                      Template
-                    </span>
-                    <span className="ln done"></span>
-                    <span className="s on">
-                      <span className="n">3</span>Preview
-                    </span>
-                    <span className="ln"></span>
-                    <span className="s">
-                      <span className="n">4</span>Send
-                    </span>
-                  </div>
-                  <dl className="kv">
-                    <dt>Recipients</dt>
-                    <dd>
-                      <span className="b">14 applications</span> · Community Health Grants 2027 · status Declined · no letter sent yet
-                    </dd>
-                    <dt>Template</dt>
-                    <dd>Standard decline v3</dd>
-                    <dt>Channel</dt>
-                    <dd>Email, letter PDF attached to each application record</dd>
-                    <dt>Preview</dt>
-                    <dd>
-                      <Link to="/w/riverbend/communications">Pine Ridge Literacy Project</Link> ·{" "}
-                      <Link to="/w/riverbend/communications">next recipient →</Link>
-                    </dd>
-                  </dl>
-                  <div className="bnr bnr-warn" style={{ padding: "10px 12px" }}>
-                    <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="t" style={{ fontSize: "13px" }}>
-                        <span className="mono">{mergeField("decision.reason")}</span> is empty for 3 recipients
-                      </div>
-                      <div className="d" style={{ fontSize: "12px" }}>
-                        Those letters would render a blank paragraph. Add a reason on each application or choose a template that does not
-                        use this field.
-                      </div>
-                      <div className="clears">
-                        <Link to="/w/riverbend/applications">Show the 3 applications →</Link>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ justifyContent: "flex-end", gap: "8px" }}>
-                    <button className="btn btn-secondary">Back</button>
-                    <button className="btn btn-primary" disabled>
-                      Send to 14?
-                    </button>
-                  </div>
-                  <span className="help">
-                    Send is enabled when every merge field resolves. Sending is logged to the audit ledger with the approver's name.
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <span className="eyebrow">State · missing merge field (editor)</span>
-                <div className="bnr bnr-warn">
-                  <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="t">
-                      Unknown merge field <span className="mono">{mergeField("applicant.ein")}</span>
-                    </div>
-                    <div className="d">
-                      This field is not available to letters. Identifiers are never merged into outgoing mail; use
-                      <span className="mono">{mergeField("applicant.legalName")}</span>instead.
-                    </div>
-                  </div>
-                  <button className="btn btn-sm btn-secondary act">Remove field</button>
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
+          </section>
         </main>
       </FunderShell>
     </>

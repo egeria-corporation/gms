@@ -59,6 +59,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@gms/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@gms/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -129,24 +132,27 @@ importers:
 
   apps/jobs:
     dependencies:
+      '@gms/api':
+        specifier: workspace:*
+        version: link:../api
+      '@gms/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@gms/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@gms/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
-      '@gms/passport-client':
+      '@gms/notify':
         specifier: workspace:*
-        version: link:../../packages/passport-client
-      '@gms/payments':
-        specifier: workspace:*
-        version: link:../../packages/payments
+        version: link:../../packages/notify
       '@gms/webhooks':
         specifier: workspace:*
         version: link:../../packages/webhooks
-      '@gms/workflow':
-        specifier: workspace:*
-        version: link:../../packages/workflow
+      '@supabase/supabase-js':
+        specifier: 2.118.0
+        version: 2.118.0
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 5.20261026.1

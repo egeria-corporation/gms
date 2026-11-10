@@ -37,6 +37,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_INBOUND_SECRET?: string;
+  /** Domain of the inbound reply address; defaults to the domain of RESEND_FROM. */
+  RESEND_INBOUND_DOMAIN?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;

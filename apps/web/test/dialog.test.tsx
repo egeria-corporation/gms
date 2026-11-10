@@ -95,13 +95,9 @@ describe("submit dialog", () => {
 describe("conflict-of-interest dialog", () => {
   it("gates scoring behind all three declarations", async () => {
     open("/review/assignments");
-    await userEvent.click(
-      (await screen.findAllByRole("link", { name: /Alder Creek|Open|Score|Start/ })).find(
-        (a) => a.getAttribute("aria-haspopup") === "dialog",
-      )!,
-    );
-    const dialog = screen.getByRole("dialog", { name: /Before you open/ });
-    const go = within(dialog).getByRole("button", { name: "Continue to scoring" });
+    await userEvent.click(await screen.findByRole("button", { name: "Declare conflicts and open" }));
+    const dialog = screen.getByRole("dialog", { name: /Conflict of interest declaration/ });
+    const go = within(dialog).getByRole("button", { name: "Declare no conflict and open" });
     const boxes = within(dialog).getAllByRole("checkbox");
     expect(boxes).toHaveLength(3);
     await userEvent.click(boxes[0]!);
@@ -110,6 +106,7 @@ describe("conflict-of-interest dialog", () => {
     await userEvent.click(boxes[2]!);
     expect(go).toBeEnabled();
     await userEvent.click(go);
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/review/score/app_01HZX4"));
+    // The declaration is recorded, then the assignment opens for scoring.
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(/^\/review\/score\/e0000000-/));
   });
 });

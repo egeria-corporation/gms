@@ -2,6 +2,7 @@ import "@typespec/http";
 import "@typespec/rest";
 import "@common-grants/core";
 import "./models.tsp";
+import "./money.tsp";
 
 using TypeSpec.Http;
 using CommonGrants.Responses;
@@ -570,13 +571,15 @@ namespace GMS.Routes.Custom {
     op decideAmendment(@path id: CommonGrants.Types.uuid, @body body: AmendmentDecision): OkT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @get @route("/awards/{id}/budget") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op readBudget(@path id: GmsId): OkT<Budget[]> | AuthErrors | NotFound;
+    op readBudget(@path id: GmsId): OkT<BudgetBook> | AuthErrors | NotFound;
 
+    /** The funder sets the approved budget (it cannot exceed the award). */
     @put @route("/awards/{id}/budget") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op setBudget(@path id: GmsId, @body body: Budget): OkT<Budget> | BadRequest | AuthErrors | NotFound;
+    op setBudget(@path id: GmsId, @body body: BudgetPut): OkT<BudgetView> | BadRequest | AuthErrors | NotFound | Unprocessable;
 
+    /** Approved versus reported actuals, by category. */
     @get @route("/awards/{id}/variance") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op variance(@path id: GmsId): OkT<VarianceRow[]> | AuthErrors | NotFound;
+    op variance(@path id: GmsId): OkT<BudgetVariance> | AuthErrors | NotFound;
   }
 
   @tag("Agreements")
@@ -611,113 +614,128 @@ namespace GMS.Routes.Custom {
 
   @tag("Payments")
   namespace Payments {
-    @get @route("/awards/{id}/schedule") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op readSchedule(@path id: GmsId): OkT<Tranche[]> | AuthErrors | NotFound;
+    /** The award's tranches, with the disbursed total as last read back from Passport. */
+    @get @route("/awards/{id}/schedule") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op readSchedule(@path id: GmsId): OkT<PaymentSchedule> | AuthErrors | NotFound;
 
-    @put @route("/awards/{id}/schedule") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op setSchedule(@path id: GmsId, @body body: ScheduleInput): OkT<Tranche[]> | BadRequest | AuthErrors | NotFound | Conflict;
+    /** Replace the tranches that have not started. They must add up to what is left of the award. */
+    @put @route("/awards/{id}/schedule") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
+    op setSchedule(@path id: GmsId, @body body: PaymentScheduleInput): OkT<PaymentSchedule> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
+    /** `view`: due (due, ready, held), in-flight, done or upcoming. */
     @get @route("/tranches") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op listTranches(...PageParams, @query status?: TrancheStatus): PaginatedT<Tranche> | AuthErrors;
+    op listTranches(...PageParams, @query status?: TrancheStatus, @query view?: string, @query awardId?: string): PaginatedT<TrancheListItem> | BadRequest | AuthErrors;
 
-    /** Live readiness: agreement, condition, Passport link, credential (L3, destination active, no
-     * pending change, no freeze), award headroom, duplicates, recipient status.
+    /** Live readiness: agreement, condition, funder link, payee credential (L3, destination active,
+     * no pending change, no freeze), award headroom, duplicates, recipient standing. `unknown` is
+     * its own state when Passport cannot be reached.
      */
     @get @route("/tranches/{id}/readiness") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op readiness(@path id: GmsId): OkT<Readiness> | AuthErrors | NotFound;
+    op readiness(@path id: GmsId): OkT<TrancheReadinessView> | AuthErrors | NotFound;
 
-    /** Facilitated release through Passport with the tranche id as idempotency key. Always human-gated for agents. */
-    @post @route("/tranches/{id}/release") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
-    op release(@path id: GmsId, @body body: ReleaseRequest): OkT<Tranche> | PendingApproval | AuthErrors | NotFound | Conflict;
+    /** Facilitated release through Passport with the tranche id as the Idempotency-Key. People only:
+     * any agent or API-client token is refused with `human_only`.
+     */
+    @post @route("/tranches/{id}/release") @useAuth(UserSession)
+    op release(@path id: GmsId, @body body: ReleaseInput): OkT<ReleaseResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
-    /** Resolve mode: record a payment made elsewhere and post it to Passport, which verifies `last4`. */
-    @post @route("/tranches/{id}/record-external") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
-    op recordExternal(@path id: GmsId, @body body: ExternalPayment): OkT<Tranche> | BadRequest | AuthErrors | NotFound | Conflict;
+    /** Resolve mode: record a payment made elsewhere and post it to Passport, which verifies the last four digits. People only. */
+    @post @route("/tranches/{id}/record-external") @useAuth(UserSession)
+    op recordExternal(@path id: GmsId, @body body: ExternalPaymentInput): OkT<ExternalPaymentResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @post @route("/tranches/{id}/hold") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
-    op hold(@path id: GmsId, @body body: ReasonBody): OkT<Tranche> | AuthErrors | NotFound | Conflict;
+    op hold(@path id: GmsId, @body body: ReasonBody): OkT<PaymentTranche> | BadRequest | AuthErrors | NotFound | Conflict;
+
+    /** Lift a GMS hold, or ask Passport to release a disbursement it parked itself. */
+    @post @route("/tranches/{id}/release-hold") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
+    op releaseHold(@path id: GmsId): OkT<PaymentTranche> | AuthErrors | NotFound | Conflict;
 
     @post @route("/tranches/{id}/cancel") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
-    op cancel(@path id: GmsId, @body body: ReasonBody): OkT<Tranche> | AuthErrors | NotFound | Conflict;
+    op cancel(@path id: GmsId, @body body: ReasonBody): OkT<PaymentTranche> | BadRequest | AuthErrors | NotFound | Conflict;
 
-    /** Due and ready tranches with their readiness, for the Payments center. */
+    /** Due, ready and held tranches with their readiness, for the Payments center. */
     @get @route("/payments/readiness") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op center(...PageParams): PaginatedT<{
-      tranche: Tranche;
-      readiness: Readiness;
-    }> | AuthErrors;
+    op center(): OkT<PaymentsCenter> | AuthErrors;
 
-    /** Holds, freezes, pending destination changes and unverified external payments. */
+    /** Holds, failures, returns, pending destination changes and unverified external payments. */
     @get @route("/payments/alerts") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op alerts(...PageParams): PaginatedT<PaymentAlert> | AuthErrors;
+    op alerts(): OkT<PaymentAlertView[]> | AuthErrors;
 
-    /** Outbound transactions read from Mercury, with proposed tranche matches. */
+    /** Outbound transactions read from Mercury (read-only), with proposed tranche matches. */
     @get @route("/bank-transactions") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
-    op listBankTransactions(...PageParams, @query unmatched?: boolean): PaginatedT<BankTransaction> | AuthErrors;
+    op listBankTransactions(...PageParams, @query matched?: boolean): PaginatedT<BankTransactionView> | AuthErrors;
 
-    /** Confirm a match; calls record-external for the tranche. */
-    @post @route("/bank-transactions/{id}/match") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
-    op matchBankTransaction(@path id: string, @body body: MatchRequest): OkT<Tranche> | BadRequest | AuthErrors | NotFound | Conflict;
+    /** A person confirms a match; this records the tranche as paid outside Passport. */
+    @post @route("/bank-transactions/{id}/match") @useAuth(UserSession)
+    op matchBankTransaction(@path id: string, @body body: BankMatchInput): OkT<BankMatchResult> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
   }
 
   @tag("Requirements")
   namespace Requirements {
     @get @route("/awards/{id}/requirements") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
-    op list(@path id: GmsId, ...PageParams): PaginatedT<Requirement> | AuthErrors | NotFound;
+    op list(@path id: GmsId): OkT<RequirementView[]> | AuthErrors | NotFound;
 
     @post @route("/awards/{id}/requirements") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op create(@path id: GmsId, @body body: RequirementInput): CreatedT<Requirement> | BadRequest | AuthErrors | NotFound;
+    op create(@path id: GmsId, @body body: RequirementCreate): CreatedT<RequirementView> | BadRequest | AuthErrors | NotFound | Unprocessable;
 
     @patch @route("/requirements/{id}") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op update(@path id: GmsId, @body body: MergePatch): OkT<Requirement> | BadRequest | AuthErrors | NotFound;
+    op update(@path id: GmsId, @body body: MergePatch): OkT<RequirementView> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @post @route("/requirements/{id}/waive") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op waive(@path id: GmsId, @body body: ReasonBody): OkT<Requirement> | AuthErrors | NotFound | Conflict;
+    op waive(@path id: GmsId, @body body: ReasonBody): OkT<RequirementView> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /** The reporting queue: due, overdue, received and returned, with who owes each. */
     @get @route("/requirements/due") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
-    op due(...PageParams, @query withinDays?: int32): PaginatedT<Requirement> | AuthErrors;
+    op due(...PageParams, @query status?: RequirementStatus): PaginatedT<RequirementView> | AuthErrors;
 
-    /** Send the next reminder now. Idempotent per (requirement, offset). */
+    /** Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset). */
     @post @route("/requirements/{id}/remind") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op remind(@path id: GmsId): OkT<SendResult> | PendingApproval | AuthErrors | NotFound;
+    op remind(@path id: GmsId): OkT<ReminderSent> | AuthErrors | NotFound | Conflict | Unprocessable;
+
+    /** Reports received, including those a grantee shared from another funder (`shared=true`). */
+    @get @route("/submissions") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
+    op listSubmissions(...PageParams, @query status?: SubmissionStatus, @query shared?: boolean): PaginatedT<SubmissionView> | AuthErrors;
 
     @get @route("/submissions/{id}") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
-    op readSubmission(@path id: GmsId): OkT<Submission> | AuthErrors | NotFound;
+    op readSubmission(@path id: GmsId): OkT<SubmissionView> | AuthErrors | NotFound;
 
-    /** Accepting moves a linked `onReportAccepted` tranche to `due`. */
+    /** Accepting also accepts the requirement and moves a tranche that waits on it to `due`. */
     @post @route("/submissions/{id}/accept") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op acceptSubmission(@path id: GmsId, @body body: ReviewNote): OkT<Submission> | AuthErrors | NotFound | Conflict;
+    op acceptSubmission(@path id: GmsId, @body body: ReviewNote): OkT<SubmissionView> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /** Returns the report with a note; the requirement goes back to `due`. */
     @post @route("/submissions/{id}/return") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op returnSubmission(@path id: GmsId, @body body: ReviewNote): OkT<Submission> | AuthErrors | NotFound | Conflict;
+    op returnSubmission(@path id: GmsId, @body body: ReviewNote): OkT<SubmissionView> | BadRequest | AuthErrors | NotFound | Conflict;
   }
 
   @tag("Grantees")
   namespace Grantees {
+    /** Organizations this funder has a relationship with: a submitted application or an award. */
     @get @route("/grantees") @useAuth(GmsOAuth<["grantees:read"]> | UserSession)
-    op list(...PageParams, @query tag?: string): PaginatedT<Grantee> | AuthErrors;
+    op list(...PageParams, @query q?: string, @query tag?: string): PaginatedT<GranteeSummary> | AuthErrors;
 
     @get @route("/grantees/{applicantWorkspaceId}") @useAuth(GmsOAuth<["grantees:read"]> | UserSession)
-    op read(@path applicantWorkspaceId: CommonGrants.Types.uuid): OkT<Grantee> | AuthErrors | NotFound;
+    op read(@path applicantWorkspaceId: CommonGrants.Types.uuid): OkT<GranteeDetail> | AuthErrors | NotFound;
 
     /** Owner, tags and relationship notes; never profile fields. */
     @patch @route("/grantees/{applicantWorkspaceId}") @useAuth(GmsOAuth<["grantees:write"]> | UserSession)
-    op update(@path applicantWorkspaceId: CommonGrants.Types.uuid, @body body: MergePatch): OkT<Grantee> | BadRequest | AuthErrors | NotFound;
+    op update(@path applicantWorkspaceId: CommonGrants.Types.uuid, @body body: GranteePatch): OkT<GranteeDetail> | BadRequest | AuthErrors | NotFound;
 
-    /** Profile changes received from Passport. */
+    /** Profile changes received from Passport (polled nightly). */
     @get @route("/org-changes") @useAuth(GmsOAuth<["grantees:read"]> | UserSession)
-    op listOrgChanges(...PageParams, @query status?: string): PaginatedT<OrgChange> | AuthErrors;
+    op listOrgChanges(...PageParams, @query status?: string): PaginatedT<OrgChangeView> | AuthErrors;
 
-    /** Refreshes the cached projection and re-runs eligibility where it applies. */
     @post @route("/org-changes/{id}/accept") @useAuth(GmsOAuth<["grantees:write"]> | UserSession)
-    op acceptOrgChange(@path id: string): OkT<OrgChange> | AuthErrors | NotFound | Conflict;
+    op acceptOrgChange(@path id: string): OkT<OrgChangeView> | AuthErrors | NotFound | Conflict;
 
     @post @route("/org-changes/{id}/dismiss") @useAuth(GmsOAuth<["grantees:write"]> | UserSession)
-    op dismissOrgChange(@path id: string): OkT<OrgChange> | AuthErrors | NotFound | Conflict;
+    op dismissOrgChange(@path id: string): OkT<OrgChangeView> | AuthErrors | NotFound | Conflict;
 
-    /** Send a proposed profile change to Passport, where it is `pending` until the organization accepts. */
+    /** Send a proposed profile change to Passport, where it is `pending` until the organization accepts.
+     * Answers 403 `consent_required` when the organization has not granted `org.changes:write`.
+     */
     @post @route("/grantees/{applicantWorkspaceId}/propose-change") @useAuth(GmsOAuth<["grantees:write"]> | UserSession)
-    op proposeChange(@path applicantWorkspaceId: CommonGrants.Types.uuid, @body body: ProposeChangeRequest): AcceptedT<OrgChange> | BadRequest | AuthErrors | NotFound;
+    op proposeChange(@path applicantWorkspaceId: CommonGrants.Types.uuid, @body body: ProposeChangeInput): AcceptedT<ProposeChangeResult> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
   }
 
   @tag("Communication")
@@ -765,75 +783,90 @@ namespace GMS.Routes.Custom {
 
   @tag("Analytics")
   namespace Analytics {
+    /** Committed and paid by program. "Paid" is Passport's disbursed amount as last read back. */
     @get @route("/analytics/portfolio") @useAuth(GmsOAuth<["analytics:read"]> | UserSession)
-    op portfolio(@query programId?: CommonGrants.Types.uuid): OkT<PortfolioSummary> | AuthErrors;
+    op portfolio(@query fy?: string): OkT<PortfolioView> | BadRequest | AuthErrors;
 
     @get @route("/analytics/cycle/{competitionId}") @useAuth(GmsOAuth<["analytics:read"]> | UserSession)
-    op cycle(@path competitionId: GmsId): OkT<CycleMetrics> | AuthErrors | NotFound;
+    op cycle(@path competitionId: GmsId): OkT<CycleReport> | AuthErrors | NotFound;
 
-    /** 990-PF Part XV grant list for a fiscal year. */
+    /** 990-PF Part XV grant list for a year. `format=csv` answers a CSV file. */
     @get @route("/exports/990pf") @useAuth(GmsOAuth<["analytics:read"]> | UserSession)
-    op grantList(@query fiscalYear: string): OkT<GrantListRow[]> | AuthErrors;
+    op grantList(@query year?: string, @query format?: "csv" | "json"): OkT<GrantList990> | BadRequest | AuthErrors;
 
-    /** CommonGrants JSON bundle + GMS JSON + attachments manifest. */
-    @post @route("/exports/bundle") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op exportBundle(): AcceptedT<ExportJob> | AuthErrors;
+    /** CommonGrants JSON bundle + GMS JSON + attachments manifest, written to the exports bucket. */
+    @post @route("/exports/bundle") @useAuth(UserSession)
+    op exportBundle(@query inline?: boolean): OkT<BundleExport> | AuthErrors;
 
-    @post @route("/imports/csv") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op importCsv(@body body: CsvImportRequest): AcceptedT<ExportJob> | BadRequest | AuthErrors;
+    /** Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. */
+    @post @route("/imports/csv") @useAuth(UserSession)
+    op importCsv(@body body: CsvImportInput): OkT<CsvImportResult> | BadRequest | AuthErrors | Unprocessable;
   }
 
   @tag("Integrations")
   namespace Integrations {
     @get @route("/api-clients") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listApiClients(...PageParams): PaginatedT<ApiClient> | AuthErrors;
+    op listApiClients(): OkT<ApiClientView[]> | AuthErrors;
 
     /** The secret is shown once. */
     @post @route("/api-clients") @useAuth(UserSession)
-    op createApiClient(@body body: ApiClientInput): CreatedT<ApiClientCreated> | BadRequest | AuthErrors;
+    op createApiClient(@body body: ApiClientCreate): CreatedT<ApiClientIssued> | BadRequest | AuthErrors | Unprocessable;
 
     @delete @route("/api-clients/{clientId}") @useAuth(UserSession)
-    op deleteApiClient(@path clientId: string): NoContentResponse | AuthErrors | NotFound;
+    op deleteApiClient(@path clientId: string): OkT<ApiClientView> | AuthErrors | NotFound;
 
     @get @route("/webhooks") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listWebhooks(...PageParams): PaginatedT<WebhookSubscription> | AuthErrors;
+    op listWebhooks(): OkT<WebhookView[]> | AuthErrors;
 
+    /** The signing secret is shown once. */
     @post @route("/webhooks") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op createWebhook(@body body: WebhookSubscriptionInput): CreatedT<WebhookSubscription> | BadRequest | AuthErrors;
+    op createWebhook(@body body: WebhookCreate): CreatedT<WebhookCreated> | BadRequest | AuthErrors | Unprocessable;
 
     @delete @route("/webhooks/{id}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op deleteWebhook(@path id: string): NoContentResponse | AuthErrors | NotFound;
+    op deleteWebhook(@path id: string): OkT<DeletedResult> | AuthErrors | NotFound;
 
     @get @route("/webhooks/{id}/deliveries") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listDeliveries(@path id: string, ...PageParams): PaginatedT<WebhookDelivery> | AuthErrors | NotFound;
+    op listDeliveries(@path id: string): OkT<WebhookDeliveryView[]> | AuthErrors | NotFound;
 
     @get @route("/mcp-connections") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listMcpConnections(...PageParams): PaginatedT<McpConnection> | AuthErrors;
+    op listMcpConnections(): OkT<McpConnectionView[]> | AuthErrors;
 
+    /** Revokes the agent's connection and its OAuth grant. */
     @delete @route("/mcp-connections/{id}") @useAuth(UserSession)
-    op revokeMcpConnection(@path id: string): NoContentResponse | AuthErrors | NotFound;
+    op revokeMcpConnection(@path id: string): OkT<McpConnectionView> | AuthErrors | NotFound;
 
     @get @route("/custom-mcp-servers") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listCustomMcpServers(...PageParams): PaginatedT<CustomMcpServer> | AuthErrors;
+    op listCustomMcpServers(): OkT<McpServerView[]> | AuthErrors;
 
-    /** Read tools only in v1. */
+    /** Register an MCP server. Only tools it marks read-only can be allow-listed in v1. */
     @post @route("/custom-mcp-servers") @useAuth(UserSession)
-    op createCustomMcpServer(@body body: CustomMcpServerInput): CreatedT<CustomMcpServer> | BadRequest | AuthErrors;
+    op createCustomMcpServer(@body body: McpServerCreate): CreatedT<McpServerRegistered> | BadRequest | AuthErrors | Unprocessable;
+
+    @get @route("/custom-mcp-servers/{id}/tools") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op listCustomMcpServerTools(@path id: string): OkT<RemoteToolView[]> | AuthErrors | NotFound;
+
+    @patch @route("/custom-mcp-servers/{id}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op updateCustomMcpServer(@path id: string, @body body: McpServerPatch): OkT<McpServerView> | BadRequest | AuthErrors | NotFound | Unprocessable;
 
     @delete @route("/custom-mcp-servers/{id}") @useAuth(UserSession)
-    op deleteCustomMcpServer(@path id: string): NoContentResponse | AuthErrors | NotFound;
+    op deleteCustomMcpServer(@path id: string): OkT<DeletedResult> | AuthErrors | NotFound;
 
-    @get @route("/connectors/{provider}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op readConnector(@path provider: ConnectorProvider): OkT<ConnectorAccount> | AuthErrors | NotFound;
+    @get @route("/connectors/{provider}") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
+    op readConnector(@path provider: ConnectorProvider): OkT<ConnectorView> | AuthErrors | NotFound;
 
+    /** Mercury: a read-only token for reconciliation. Google Workspace: the connection lives at Composio. */
     @post @route("/connectors/{provider}") @useAuth(UserSession)
-    op connect(@path provider: ConnectorProvider, @body body: ConnectorStart): CreatedT<ConnectorStart> | BadRequest | AuthErrors;
+    op connect(@path provider: ConnectorProvider, @body body: ConnectorConnect): OkT<ConnectorView> | BadRequest | AuthErrors | NotFound | Unprocessable;
 
     @delete @route("/connectors/{provider}") @useAuth(UserSession)
-    op disconnect(@path provider: ConnectorProvider): NoContentResponse | AuthErrors | NotFound;
+    op disconnect(@path provider: ConnectorProvider): OkT<ConnectorView> | AuthErrors | NotFound;
 
-    @post @route("/connectors/{provider}/sync") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op sync(@path provider: ConnectorProvider): AcceptedT<ConnectorAccount> | AuthErrors | NotFound;
+    @post @route("/connectors/{provider}/sync") @useAuth(GmsOAuth<["payments:release"]> | UserSession)
+    op sync(@path provider: ConnectorProvider): OkT<ConnectorView> | AuthErrors | NotFound | Conflict | Unprocessable;
+
+    /** People in the funder's Google directory, to suggest at invite time. */
+    @get @route("/directory/suggest") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op suggestMembers(@query q?: string): OkT<DirectoryPersonView[]> | AuthErrors;
 
     /** The workspace-visible audit ledger (admins and auditors). */
     @get @route("/ledger") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
@@ -968,23 +1001,34 @@ namespace GMS.Routes.Custom {
     @get @route("/my/awards/{id}/schedule") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op mySchedule(@path id: GmsId): OkT<AwardTranche[]> | AuthErrors | NotFound;
 
-    @get @route("/my/requirements") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
-    op myRequirements(...PageParams): PaginatedT<Requirement> | AuthErrors;
+    @get @route("/my/awards/{id}/budget") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op myBudget(@path id: GmsId): OkT<BudgetBook> | AuthErrors | NotFound;
 
-    /** Prefilled from the application, the prior accepted submission and the Passport profile, with provenance. */
+    /** The grantee reports actuals for a period. */
+    @put @route("/my/awards/{id}/budget") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
+    op setMyBudget(@path id: GmsId, @body body: BudgetPut): OkT<BudgetView> | BadRequest | AuthErrors | NotFound;
+
+    @get @route("/my/requirements") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
+    op myRequirements(): OkT<RequirementView[]> | AuthErrors;
+
+    /** Open (or return to) the report for a requirement. The first call creates the draft, prefilled
+     * from Passport and the last accepted report on the award, with provenance per field.
+     */
+    @post @route("/my/requirements/{id}/start") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
+    op startSubmission(@path id: GmsId): OkT<SubmissionView> | AuthErrors | NotFound | Conflict;
+
     @get @route("/my/submissions/{id}") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
-    op mySubmission(@path id: GmsId): OkT<Submission> | AuthErrors | NotFound;
+    op mySubmission(@path id: GmsId): OkT<SubmissionView> | AuthErrors | NotFound;
 
     @put @route("/my/submissions/{id}/forms/{formId}") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op setSubmissionForm(@path id: GmsId, @path formId: GmsId, @body body: Record<unknown>): OkT<AppFormResponse> | BadRequest | AuthErrors | NotFound | Conflict;
+    op setSubmissionForm(@path id: GmsId, @path formId: GmsId, @body body: SubmissionFormInput): OkT<SubmissionFormSaved> | BadRequest | AuthErrors | NotFound | Conflict;
 
-    /** Human-gated for agents. */
     @post @route("/my/submissions/{id}/submit") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op submitSubmission(@path id: GmsId): OkT<Submission> | PendingApproval | BadRequest | AuthErrors | NotFound | Conflict;
+    op submitSubmission(@path id: GmsId): OkT<SubmissionView> | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    /** Share an accepted submission with another funder workspace, by consent. */
+    /** Share an accepted report with another funder workspace. This is the grantee's consent. */
     @post @route("/my/submissions/{id}/share") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op shareSubmission(@path id: GmsId, @body body: ShareSubmissionRequest): CreatedT<Submission> | BadRequest | AuthErrors | NotFound | Conflict;
+    op shareSubmission(@path id: GmsId, @body body: ShareSubmissionInput): CreatedT<ShareSubmissionResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @get @route("/my/answers") @useAuth(GmsOAuth<["library:read"]> | UserSession)
     op listAnswers(...PageParams): PaginatedT<Answer> | AuthErrors;

@@ -10,17 +10,21 @@ import { uuidOf } from "../lib/ids.ts";
 import * as applicant from "./applicant.ts";
 import * as apply from "./apply.ts";
 import * as agreements from "./agreements.ts";
+import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
 import * as collab from "./collaboration.ts";
 import * as decisions from "./decisions.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
 import * as forms from "./forms.ts";
+import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
 import * as opportunities from "./opportunities.ts";
 import * as org from "./organization.ts";
+import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
+import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
 import * as templates from "./templates.ts";
 import type { Repos, Row } from "./repos/types.ts";
@@ -58,6 +62,9 @@ const frm = (id: string) => uuidOf("form", id, "Form");
 const cmp = (id: string) => uuidOf("competition", id, "Competition");
 const awd = (id: string) => uuidOf("award", id, "Award");
 const agr = (id: string) => uuidOf("agreement", id, "Agreement");
+const trn = (id: string) => uuidOf("tranche", id, "Tranche");
+const req = (id: string) => uuidOf("requirement", id, "Requirement");
+const sub = (id: string) => uuidOf("submission", id, "Submission");
 const LEVELS = ["L0", "L1", "L2", "L3"];
 
 type Impl = { [K in keyof ServiceLayer]?: (ctx: ServiceContext, input: Parameters<ServiceLayer[K]>[1]) => Promise<unknown> };
@@ -197,6 +204,52 @@ const IMPLEMENTED: Impl = {
     return { items: i.threadId ? threads.filter((t) => t.id === i.threadId) : threads };
   },
   replyToThread: (ctx, i) => collab.postMessage(ctx, i.threadId, { body: i.body }),
+
+  // ---- funder: payments, reporting, grantees, analytics ----
+  listTranches: async (ctx, i) => (await payments.listTranches(ctx, paged(i), { ...(i.awardId ? { awardId: awd(i.awardId) } : {}), ...(i.status?.length === 1 ? { status: i.status[0] } : {}) })).items.filter((t) => !i.status?.length || i.status.includes(t.status as never)),
+  checkPaymentReadiness: (ctx, i) => payments.getTrancheReadiness(ctx, trn(i.trancheId)),
+  // Releasing money is gated: an agent's call becomes an approval request, and the release runs
+  // only when a finance person approves it, as that person. Recording an external payment is
+  // refused for agents at the service.
+  releaseTranche: (ctx, i) => payments.releaseTranche(ctx, trn(i.trancheId), { confirmDuplicate: i.confirmDuplicate }),
+  recordExternalPayment: (ctx, i) => payments.recordExternalPayment(ctx, trn(i.trancheId), { reference: i.reference, paidAt: i.paidAt, destinationLast4: i.destinationLast4 }),
+  listRequirements: async (ctx, i) => (i.awardId ? requirements.listRequirements(ctx, awd(i.awardId)) : (await requirements.listDueRequirements(ctx, paged(i), { status: i.status?.length === 1 ? i.status[0] : undefined })).items),
+  reviewSubmission: (ctx, i) => requirements.getSubmission(ctx, sub(i.submissionId)),
+  acceptSubmission: (ctx, i) => requirements.acceptSubmission(ctx, sub(i.submissionId), i.note ? { note: i.note } : {}),
+  returnSubmission: (ctx, i) => requirements.returnSubmission(ctx, sub(i.submissionId), { note: i.note }),
+  sendReminders: async (ctx, i) => {
+    const results = [];
+    for (const id of i.requirementIds) results.push({ requirementId: id, ...(await requirements.remindNow(ctx, req(id)).catch((e: unknown) => ({ sent: false, reason: e instanceof ApiError ? e.message : "The reminder could not be sent" }))) });
+    return { sent: results.filter((r) => r.sent).length, results };
+  },
+  listGrantees: async (ctx, i) => (await grantees.listGrantees(ctx, paged(i), { q: i.search, tag: i.tag })).items.filter((g) => i.hasPendingChange === undefined || g.pendingChanges > 0 === i.hasPendingChange),
+  getGrantee: (ctx, i) => grantees.getGrantee(ctx, i.applicantWorkspaceId),
+  getPassportStatus: async (ctx, i) => {
+    const g = await grantees.getGrantee(ctx, i.applicantWorkspaceId);
+    return { workspaceId: g.workspaceId, name: g.name, passportOrgId: g.passportOrgId, verificationLevel: g.verificationLevel, payeeStatus: g.payeeStatus, lastSyncedAt: g.lastSyncedAt };
+  },
+  listPendingOrgChanges: async (ctx, i) => {
+    const all = (await grantees.listOrgChanges(ctx, paged(i), { status: "pending" })).items;
+    return i.applicantWorkspaceId ? all.filter((c) => c.grantee?.workspaceId === i.applicantWorkspaceId) : all;
+  },
+  acceptOrgChange: (ctx, i) => grantees.acceptOrgChange(ctx, i.changeId),
+  portfolioSummary: (ctx, i) => analytics.portfolio(ctx, i.fiscalYear === undefined ? {} : { fiscalYear: i.fiscalYear }),
+  cycleMetrics: (ctx, i) => analytics.cycleMetrics(ctx, cmp(i.competitionId)),
+  export990pfGrantList: async (ctx, i) => {
+    const out = await analytics.grantList990pf(ctx, i.taxYear);
+    return i.format === "json" ? { year: out.year, items: out.items, totals: out.totals } : { year: out.year, csv: out.csv, totals: out.totals };
+  },
+
+  // ---- applicant: reports ----
+  listMyRequirements: async (ctx, i) => (await requirements.listMyRequirements(ctx)).filter((r) => (!i.awardId || r.awardId === `awd_${awd(i.awardId)}`) && (!i.status?.length || i.status.includes(r.status as never))),
+  draftSubmission: async (ctx, i) => {
+    const started = await requirements.startSubmission(ctx, req(i.requirementId));
+    const formId = i.formId ? frm(i.formId) : started.formResponses[0]?.formId.replace(/^frm_/, "");
+    if (i.response && formId) await requirements.putSubmissionForm(ctx, sub(started.id), formId, { response: i.response });
+    return requirements.getSubmission(ctx, sub(started.id));
+  },
+  submitRequirement: async (ctx, i) => requirements.submitSubmission(ctx, sub((await requirements.startSubmission(ctx, req(i.requirementId))).id)),
+  shareSubmissionWithFunder: (ctx, i) => requirements.shareSubmission(ctx, sub(i.submissionId), { funderWorkspaceId: i.funderWorkspaceId, ...(i.fields ? { fields: i.fields } : {}) }),
 };
 
 export const IMPLEMENTED_SERVICES: readonly string[] = Object.keys(IMPLEMENTED);

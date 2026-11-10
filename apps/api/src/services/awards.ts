@@ -7,6 +7,7 @@ import { buildSchedule, DEFAULT_PLAN, ScheduleError, type PlanItem } from "@gms/
 import { filtered, matchesFilter, parseSearchRequest, projectAward, readPath, sortByPath, toMinor, toMoney, type AwardBase, type AwardRow, type Money } from "@gms/protocol";
 import { awardCgStatus, awardEffects, awardMachine, NO_AGREEMENT_REQUIRED, trancheMachine, type AgreementStatus, type AwardAction, type AwardContext, type AwardStatus, type TrancheStatus } from "@gms/workflow";
 import { fanOut, isWebhookEventType } from "@gms/webhooks";
+import { DEFAULT_REMINDER_PLAN } from "@gms/notify";
 import { z } from "zod";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -259,7 +260,7 @@ export async function createOfferedAward(ctx: ServiceContext, input: NewAward, d
   for (const [i, r] of (defaults.requirements ?? []).entries()) {
     const base = period?.endDate && r.dueOffsetDays === undefined && !r.dueAt ? new Date(`${period.endDate}T00:00:00Z`) : null;
     const dueAt = r.dueAt ?? (r.dueOffsetDays !== undefined ? new Date(now.getTime() + r.dueOffsetDays * 86_400_000).toISOString() : (base?.toISOString() ?? null));
-    const row = await ctx.repos.table("requirements").insert({ workspace_id: input.workspaceId, award_id: award.id, type: r.type, title: r.title, form_id: r.formId ?? null, form_version: r.formId ? (r.formVersion ?? 1) : null, due_at: dueAt, grace_days: r.graceDays ?? 0, reminder_plan: (defaults.reminderPlan ?? []) as Row<"requirements">["reminder_plan"], status: "scheduled" });
+    const row = await ctx.repos.table("requirements").insert({ workspace_id: input.workspaceId, award_id: award.id, type: r.type, title: r.title, form_id: r.formId ?? null, form_version: r.formId ? (r.formVersion ?? 1) : null, due_at: dueAt, grace_days: r.graceDays ?? 0, reminder_plan: (defaults.reminderPlan ?? [...DEFAULT_REMINDER_PLAN]) as Row<"requirements">["reminder_plan"], status: "scheduled" });
     byKey.set(r.key ?? String(i), row.id);
   }
 

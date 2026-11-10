@@ -22,6 +22,10 @@ export function config(c: C): ServiceConfig {
     passportClient: c.env.PASSPORT_GMS_CLIENT_ID && c.env.PASSPORT_GMS_CLIENT_SECRET ? { id: c.env.PASSPORT_GMS_CLIENT_ID, secret: c.env.PASSPORT_GMS_CLIENT_SECRET } : null,
     mailFrom: c.env.RESEND_FROM ?? null,
     passportAwardWrite: c.env.PASSPORT_AWARD_WRITE === "true",
+    webhookSecretKey: c.env.WEBHOOK_SECRET_KEY ?? null,
+    passportWebhookSecret: c.env.PASSPORT_WEBHOOK_SECRET ?? null,
+    resendInboundSecret: c.env.RESEND_INBOUND_SECRET ?? null,
+    inboundDomain: c.env.RESEND_INBOUND_DOMAIN ?? (c.env.RESEND_FROM?.match(/@([A-Za-z0-9.-]+)/)?.[1] ?? null),
   };
 }
 

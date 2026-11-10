@@ -1,827 +1,866 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import {
-  BadgeCheck,
-  BookOpen,
-  Check,
-  Circle,
-  CircleCheck,
-  CircleX,
-  Clock4,
-  Cloud,
-  Lock,
-  MessageSquare,
-  Pencil,
-  Plus,
-  Shield,
-  ShieldCheck,
-  Sparkles,
-  TriangleExclamationPoint,
-  Upload,
-} from "lucide-react";
+// Application editor. The current stage's forms are edited with the form renderer and saved
+// field by field (only changed paths are sent; the server merges), so teammates and a scoped
+// consultant can work at once. Passport-owned fields are read-only here. The submit dialog runs
+// the readiness checklist and submits; a 422 comes back as the list of fields to fix.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, TriangleExclamationPoint, Upload, X } from "lucide-react";
+import type { FormDefinition, JsonObject } from "@gms/forms";
+import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
+import { useApplicantApi, useApplicantQuery, useRealtime } from "../../api/applicantHooks.ts";
+import type { Peer } from "../../api/applicantRealtime.ts";
+import { ApiError } from "../../api/client.ts";
+import type { Checklist } from "../../api/types.ts";
+import { useServices } from "../../app/services.tsx";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { accentOf, Avatar, closesPhrase, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
+import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
+import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
+import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
 
-export default function Editor() {
+interface EditorData {
+  app: Application;
+  summary: MyApplication | undefined;
+  defs: Record<string, FormDefinition>;
+  comments: Comment[];
+  attachments: AppDocument[];
+  members: ApplicantMember[];
+  sections: Record<string, Record<string, string>>;
+  answers: Answer[];
+  readiness: ApplicantReadiness;
+  org: MyOrganization;
+}
+
+async function loadEditor(api: ApplicantApi, id: string): Promise<EditorData> {
+  const [app, list, comments, attachments, members, answers, readiness, org] = await Promise.all([
+    api.application(id),
+    api.applications(),
+    api.comments(id),
+    api.attachments(id),
+    api.members(),
+    api.answers(),
+    api.readiness(),
+    api.organization(),
+  ]);
+  const defs = Object.fromEntries(await Promise.all(app.forms.map(async (f) => [f.formId, await api.form(f.formId, f.version)] as const)));
+  const sections = Object.fromEntries(await Promise.all(app.forms.filter((f) => !f.lockedAt).map(async (f) => [f.formId, (await api.sections(id, `frm_${f.formId}`)).sections] as const)));
+  return { app, summary: list.find((a) => a.id === app.id), defs, comments, attachments, members, sections, answers, readiness, org };
+}
+
+const toBase64 = async (file: File): Promise<string> => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+};
+
+const SEC_ICON = { done: CircleCheck, prog: Clock, todo: CircleDashed } as const;
+const slug = (label: string) => `sec-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+const fileKind = (name: string) => (/\.pdf$/i.test(name) ? "pdf" : /\.(xlsx?|csv)$/i.test(name) ? "xls" : /\.docx?$/i.test(name) ? "doc" : "");
+const kb = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+type SaveState = "idle" | "saving" | "saved" | "error";
+type PanelTab = "validation" | "comments" | "assignments";
+
+function EditorBody({ data, openSubmit }: { data: EditorData; openSubmit: boolean }) {
+  const ws = useWorkspace("applicant");
+  const base = `/w/${ws.handle}`;
+  const api = useApplicantApi();
+  const realtime = useRealtime();
+  const { sessionState } = useServices();
+  const navigate = useNavigate();
+  const { app, summary, defs } = data;
+
+  const editableForms = app.forms.filter((f) => !f.lockedAt);
+  const lockedForms = app.forms.filter((f) => f.lockedAt);
+  // One form is edited at a time; most stages have exactly one.
+  const [activeFormId, setActiveFormId] = useState(editableForms[0]?.formId ?? "");
+  const [forms, setForms] = useState<Record<string, AppForm>>(() => Object.fromEntries(app.forms.map((f) => [f.formId, f])));
+  const [comments, setComments] = useState(data.comments);
+  const [attachments, setAttachments] = useState(data.attachments);
+  const [owners, setOwners] = useState(data.sections);
+  const [save, setSave] = useState<{ state: SaveState; at?: string; error?: unknown }>({ state: "idle" });
+  const [rejected, setRejected] = useState<string[]>([]);
+  const [peers, setPeers] = useState<Peer[]>([]);
+  const [tab, setTab] = useState<PanelTab>("validation");
+  const [showAll, setShowAll] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(openSubmit);
+  const [submit, setSubmit] = useState<{ state: "idle" | "sending"; error?: unknown }>({ state: "idle" });
+  const [libraryOpen, setLibraryOpen] = useState(false);
+
+  // The last response the server gave for each form, and what is on screen now.
+  const baseline = useRef<Record<string, JsonObject>>(Object.fromEntries(app.forms.map((f) => [f.formId, f.response])));
+  const local = useRef<Record<string, JsonObject>>({ ...baseline.current });
+  const room = useRef<ReturnType<typeof realtime.join> | null>(null);
+  const saving = useRef<Promise<void>>(Promise.resolve());
+
+  const me: Peer = useMemo(() => ({ userId: sessionState.status === "signedIn" ? sessionState.session.userId : "me", name: ws.member.name }), [sessionState, ws.member.name]);
+
+  /** Takes a newer server state of a form and keeps whatever this person typed since `sent`. */
+  const adopt = useCallback((next: AppForm, sent: JsonObject) => {
+    const shown = rebase(next.response, sent, local.current[next.formId] ?? sent);
+    baseline.current[next.formId] = next.response;
+    local.current[next.formId] = shown;
+    setForms((prev) => ({ ...prev, [next.formId]: { ...next, response: shown } }));
+  }, []);
+
+  const push = useCallback(
+    (formId: string): Promise<void> => {
+      // Saves run one after another so each patch is computed against the server's latest answer.
+      saving.current = saving.current.then(async () => {
+        const sent = local.current[formId];
+        const patch = sent && patchFor(baseline.current[formId] ?? {}, sent);
+        if (!sent || !patch) return;
+        setSave({ state: "saving" });
+        try {
+          const saved = await api.saveForm(app.id, formId, patch);
+          adopt(saved, sent);
+          setRejected(saved.rejected);
+          setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
+          room.current?.saved(formId);
+        } catch (error) {
+          setSave({ state: "error", error });
+        }
+      });
+      return saving.current;
+    },
+    [api, app.id, adopt],
+  );
+
+  // Presence, and a re-read when a teammate saves.
+  useEffect(() => {
+    const r = realtime.join(app.uuid, me, {
+      onPeers: setPeers,
+      onSaved: (formId) => {
+        const before = baseline.current[formId] ?? {};
+        void api.application(app.id).then((fresh) => {
+          const f = fresh.forms.find((x) => x.formId === formId);
+          if (f) adopt(f, before);
+        });
+      },
+    });
+    room.current = r;
+    return () => {
+      r.leave();
+      room.current = null;
+    };
+  }, [realtime, api, app.id, app.uuid, me, adopt]);
+
+  const active = forms[activeFormId];
+  const def = defs[activeFormId];
+  const sections: Section[] = useMemo(() => (def ? sectionsOf(def) : []), [def]);
+  const errors = active?.validationErrors ?? [];
+  const formOwners = owners[activeFormId] ?? {};
+  const memberName = (userId: string | undefined) => {
+    const m = data.members.find((x) => x.userId === userId);
+    return m ? (m.name ?? m.email ?? "Teammate") : null;
+  };
+  const openComments = comments.filter((c) => !c.resolvedAt);
+  const goTo = (label: string) => document.getElementById(slug(label))?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // FormView draws one card per group; give each an anchor the rail and the Fix links can reach.
+  const formRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    for (const s of sections) {
+      const el = [...(formRef.current?.querySelectorAll<HTMLElement>("section[aria-label]") ?? [])].find((n) => n.getAttribute("aria-label") === s.label);
+      if (el) el.id = slug(s.label);
+    }
+  });
+
+  const uploadFile = async (file: File): Promise<UploadedFile> => {
+    const doc = await api.attach(app.id, { name: file.name, mime: file.type || "application/octet-stream", contentBase64: await toBase64(file) });
+    setAttachments((prev) => [...prev, doc]);
+    return { documentId: doc.id, name: doc.name, size: doc.size };
+  };
+
+  const insertAnswer = async (answer: Answer, field: string) => {
+    if (!active) return;
+    const next = { ...(local.current[activeFormId] ?? active.response), [field]: answer.body };
+    local.current[activeFormId] = next;
+    setForms((prev) => ({ ...prev, [activeFormId]: { ...prev[activeFormId]!, response: next } }));
+    setLibraryOpen(false);
+    await push(activeFormId);
+  };
+
+  const stageErrors = editableForms.flatMap((f) => (forms[f.formId]?.validationErrors ?? []).map((e) => ({ formId: f.formId, ...e })));
+  const eligibility = app.eligibility;
+  const closes = closesPhrase(summary?.stage.closes);
+  const checklist: Checklist = useMemo(() => {
+    const unknown = eligibility?.results.filter((r) => r.outcome === "unknown").length ?? 0;
+    const items: Checklist["items"] = [
+      {
+        key: "sections",
+        state: stageErrors.length === 0 ? "pass" : "fail",
+        label: "Required sections complete",
+        reason: stageErrors.length === 0 ? `${sections.length} of ${sections.length} sections` : `${stageErrors.length} answer${stageErrors.length === 1 ? "" : "s"} to fix`,
+        fixHref: null,
+      },
+      {
+        key: "eligibility",
+        state: !eligibility || eligibility.eligible === "unknown" ? "unknown" : eligibility.eligible ? "pass" : "fail",
+        label: "Eligibility preview",
+        reason: !eligibility
+          ? "Not evaluated yet"
+          : eligibility.eligible === true
+            ? `${eligibility.results.length} of ${eligibility.results.length} rules pass against your Passport record`
+            : eligibility.eligible === false
+              ? (eligibility.results.find((r) => r.outcome === "fail")?.label ?? "A rule does not pass")
+              : `${unknown} rule${unknown === 1 ? "" : "s"} could not be checked; a program officer reviews them`,
+        fixHref: eligibility?.eligible === false ? `${base}/organization` : null,
+      },
+      {
+        key: "passport",
+        state: data.readiness.linked ? "pass" : "fail",
+        label: "Passport connected",
+        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Connect Passport so your verification level travels with the submission",
+        fixHref: data.readiness.linked ? null : "/onboarding/applicant",
+      },
+    ];
+    const fail = items.filter((i) => i.state === "fail").length;
+    const unk = items.filter((i) => i.state === "unknown").length;
+    return { ready: fail === 0, summary: { pass: items.length - fail - unk, fail, unknown: unk }, items };
+  }, [stageErrors.length, sections.length, eligibility, data.readiness, base]);
+
+  const onSubmit = async () => {
+    setSubmit({ state: "sending" });
+    try {
+      await push(activeFormId);
+      await api.submit(app.id);
+      navigate(`${base}/applications/${app.id}/submitted`);
+    } catch (error) {
+      setSubmit({ state: "idle", error });
+      if (error instanceof ApiError && error.status === 422) {
+        // The server found something this page had not: show every problem and take its state.
+        setShowAll(true);
+        const fresh = await api.application(app.id).catch(() => null);
+        for (const f of fresh?.forms ?? []) adopt(f, baseline.current[f.formId] ?? {});
+      }
+    }
+  };
+  const submitProblems = submit.error instanceof ApiError ? (submit.error.errors as { field?: string; detail?: string }[]).filter((p) => p.field) : [];
+
+  if (!active || !def) {
+    return (
+      <Notice tone="info" title="Nothing to edit at this stage">
+        This application has no open form. <Link to={`${base}/applications/${app.id}`}>See its status</Link>
+      </Notice>
+    );
+  }
+
+  const textFields = Object.entries(def.jsonSchema.properties ?? {}).filter(([k, s]) => s.type === "string" && !s.enum && !s.format && !rejected.includes(`/${k}`));
+
   return (
     <>
-      <title>{"Application editor — Alder Creek Family Services"}</title>
-      <ApplicantShell active="Applications">
-        <main className="main" style={{ padding: "20px 28px 48px", gap: "16px" }}>
-          <div className="crumbs">
-            <Link to="/w/alder-creek">Dashboard</Link>
-            <span>›</span>
-            <Link to="/w/alder-creek/applications/app_01HZX4">Applications</Link>
-            <span>›</span>
-            <span>Mobile Health Navigation for Rural Families</span>
+      <div className="crumbs">
+        <Link to={base}>Dashboard</Link>
+        <span>›</span>
+        <Link to={`${base}/applications`}>Applications</Link>
+        <span>›</span>
+        <span>{app.title}</span>
+      </div>
+
+      <div className="card" style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        <FunderChip name={summary?.funder.name} accent={accentOf(summary?.funder.brand)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: "0" }}>
+          <h1 style={{ fontSize: "20px" }}>{app.title}</h1>
+          <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
+            {summary?.opportunity.title && <span>{summary.opportunity.title}</span>}
+            <span>·</span>
+            <StatusBadge kind="application" status={app.status} label={`${summary?.stage.label ?? app.stage} · ${app.status === "draft" ? "Draft" : "Revision requested"}`} />
+            {closes && (
+              <>
+                <span>·</span>
+                <span className="b" style={closes.urgent ? { color: "var(--s-warn-fg)" } : undefined}>
+                  {closes.text}
+                </span>
+              </>
+            )}
           </div>
-          <div className="card" style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-            <span className="chip">
-              <span className="tdot" aria-hidden="true"></span>Riverbend Community Foundation
-            </span>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: "0" }}>
-              <h1 style={{ fontSize: "20px" }}>Mobile Health Navigation for Rural Families</h1>
-              <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
-                <span>Community Health Grants 2027</span>
-                <span>·</span>
-                <span className="bdg bdg-prog">
-                  <Pencil className="ic" aria-hidden="true" />
-                  Full proposal · Draft
-                </span>
-                <span>·</span>
-                <span className="b" style={{ color: "#7A4A00" }}>
-                  Closes in 14 days · Apr 30, 2027 5:00 PM PT
-                </span>
-              </div>
-            </div>
-            <div className="row" style={{ marginLeft: "auto", gap: "14px", flexWrap: "wrap" }}>
-              <span className="notice">
-                <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                Saved 12 seconds ago
+        </div>
+        <div className="row" style={{ marginLeft: "auto", gap: "14px", flexWrap: "wrap" }}>
+          <span className="notice" role="status">
+            {save.state === "saving" && "Saving…"}
+            {save.state === "saved" && (
+              <>
+                <Check className="ic" aria-hidden="true" />
+                Saved {save.at ? timeAgo(save.at) : ""}
+              </>
+            )}
+            {save.state === "idle" && (
+              <>
+                <Check className="ic" aria-hidden="true" />
+                All changes saved
+              </>
+            )}
+            {save.state === "error" && (
+              <span className="err-msg">
+                <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
+                Not saved: {errorMessage(save.error)}
               </span>
-              <div className="pres" aria-label="Editing now: Maria Santos, Jamal Reed, Lena Fischer">
-                <span className="av av-t live" title="Maria Santos (you)">
-                  MS
-                </span>
-                <span className="av live-b" title="Jamal Reed">
-                  JR
-                </span>
-                <span className="av av-g" title="Lena Fischer (consultant)">
-                  LF
-                </span>
-              </div>
-              <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
-                Preview
-              </Link>
-              <Link to="/w/alder-creek/applications/app_01HZX4/edit/submit" className="btn btn-primary">
-                Submit…
-              </Link>
-            </div>
+            )}
+          </span>
+          <div className="pres" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
+            <Avatar name={me.name} note="(you)" live />
+            {peers.map((p, i) => (
+              <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />
+            ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "248px minmax(0, 1fr) 320px", gap: "20px", alignItems: "start" }}>
-            <aside className="card" style={{ padding: "12px", position: "sticky", top: "16px" }}>
-              <div className="eyebrow" style={{ padding: "4px 10px 10px" }}>
-                Sections · 3 of 8 complete
+          <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
+            Preview
+          </Link>
+          <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
+            Submit…
+          </button>
+        </div>
+      </div>
+
+      {app.status === "revision_requested" && (
+        <Notice tone="warn" title="The funder asked for a revision">
+          Make the changes and submit again. <Link to={`${base}/applications/${app.id}`}>Read the request</Link>
+        </Notice>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "248px minmax(0, 1fr) 320px", gap: "20px", alignItems: "start" }}>
+        <aside className="card" style={{ padding: "12px" }}>
+          <div className="eyebrow" style={{ padding: "4px 10px 10px" }}>
+            Sections · {sections.filter((s) => sectionState(s, active.response, errors).state === "done").length} of {sections.length} complete
+          </div>
+          {editableForms.length > 1 && (
+            <div className="seg" role="group" aria-label="Form" style={{ margin: "0 6px 10px" }}>
+              {editableForms.map((f) => (
+                <button key={f.formId} type="button" className={f.formId === activeFormId ? "on" : ""} aria-pressed={f.formId === activeFormId} onClick={() => setActiveFormId(f.formId)}>
+                  {defs[f.formId]?.title ?? "Form"}
+                </button>
+              ))}
+            </div>
+          )}
+          <nav className="sec" aria-label="Application sections">
+            {sections.map((s) => {
+              const st = sectionState(s, active.response, errors);
+              const Icon = SEC_ICON[st.state];
+              const owner = memberName(formOwners[s.label]);
+              const n = openComments.filter((c) => c.fieldPath && sectionFor(sections, c.fieldPath) === s).length;
+              return (
+                <a
+                  key={s.label}
+                  href={`#${slug(s.label)}`}
+                  className={`s-${st.state}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goTo(s.label);
+                    room.current?.focus(s.label);
+                  }}
+                >
+                  <Icon className="ic" aria-hidden="true" />
+                  <div>
+                    <div className="nm">{s.label}</div>
+                    <div className="st">{st.state === "done" ? "Complete" : st.state === "prog" ? `In progress · ${st.problems.length} to fix` : "Not started"}</div>
+                  </div>
+                  <span className="meta">
+                    {n > 0 && (
+                      <>
+                        <MessageSquare className="ic" aria-hidden="true" />
+                        {n}
+                      </>
+                    )}
+                    {owner ? <Avatar name={owner} size="sm" /> : null}
+                  </span>
+                </a>
+              );
+            })}
+            {lockedForms.map((f) => (
+              <a key={f.formId} href={`#locked-${f.formId}`} className="s-lock">
+                <Lock className="ic" aria-hidden="true" />
+                <div>
+                  <div className="nm">{defs[f.formId]?.title ?? "Earlier stage"} responses</div>
+                  <div className="st">Locked · prior stage, read-only</div>
+                </div>
+                <span className="meta"></span>
+              </a>
+            ))}
+          </nav>
+          <div className="small muted" style={{ padding: "10px 10px 4px" }}>
+            Form v{active.version} · pinned by {summary?.funder.name ?? "the funder"}
+          </div>
+        </aside>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
+          {rejected.length > 0 && (
+            <Notice tone="info" title="Some fields follow your Passport record">
+              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in Passport.{" "}
+              {data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a>}
+            </Notice>
+          )}
+          <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+            <button className="btn btn-sm btn-secondary" type="button" aria-haspopup="dialog" onClick={() => setLibraryOpen(true)} disabled={!data.answers.length || !textFields.length}>
+              <BookOpen className="ic" aria-hidden="true" />
+              Insert from answer library
+            </button>
+            {!showAll && errors.length > 0 && (
+              <button className="btn btn-sm btn-ghost" type="button" onClick={() => setShowAll(true)}>
+                Show everything left to fix
+              </button>
+            )}
+          </div>
+          <div ref={formRef}>
+            <FormView
+              form={def}
+              response={active.response}
+              mode="edit"
+              provenance={active.provenance}
+              showAllErrors={showAll}
+              onChange={(r) => {
+                local.current[activeFormId] = r;
+              }}
+              onAutosave={() => void push(activeFormId)}
+              uploadFile={uploadFile}
+              {...(data.org.editUrl ? { passportUrl: data.org.editUrl } : {})}
+            />
+          </div>
+
+          <section className="card" aria-labelledby="att-h">
+            <div className="card-h">
+              <div>
+                <h3 id="att-h">Attachments</h3>
+                <p className="small muted">Files uploaded here stay with this application. Files in your Passport locker are referenced, not copied.</p>
               </div>
-              <nav className="sec" aria-label="Application sections">
-                <a href="#organization" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Organization</div>
-                    <div className="st">Complete · from Passport</div>
+              <span className="bdg bdg-neutral">
+                <FileText className="ic" aria-hidden="true" />
+                {attachments.length} file{attachments.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {attachments.map((d) => (
+                <div className="doc" key={d.id}>
+                  <span className={`ft${fileKind(d.name) ? ` ft-${fileKind(d.name)}` : ""}`}>{(fileKind(d.name) || "file").toUpperCase()}</span>
+                  <div className="grow">
+                    <div className="nm">{d.name}</div>
+                    <div className="mt">
+                      <span>{kb(d.size)}</span>
+                      <span>·</span>
+                      {d.source === "passport_locker" ? <span className="prov prov-passport">Passport locker</span> : <span>Uploaded {timeAgo(d.uploadedAt)}</span>}
+                      <span>·</span>
+                      <span className="mono">
+                        sha256 {d.sha256.slice(0, 4)}…{d.sha256.slice(-4)}
+                      </span>
+                      {d.scanStatus === "not_scanned" && <span>· not scanned</span>}
+                    </div>
                   </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#summary" className="s-done">
-                  <CircleCheck className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Project summary</div>
-                    <div className="st">Complete</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#need" className="s-prog on" aria-current="true">
-                  <Clock4 className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Need statement</div>
-                    <div className="st">In progress · 412 / 500 words</div>
-                  </div>
-                  <span className="meta">
-                    <MessageSquare className="ic ic-sm" aria-hidden="true" />2<span className="av av-sm">JR</span>
-                  </span>
-                </a>
-                <a href="#approach" className="s-prog">
-                  <Clock4 className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Approach & activities</div>
-                    <div className="st">In progress</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-t">MS</span>
-                  </span>
-                </a>
-                <a href="#budget" className="s-todo">
-                  <Circle className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Budget</div>
-                    <div className="st">Not started · assigned to consultant</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm av-g">LF</span>
-                  </span>
-                </a>
-                <a href="#outcomes" className="s-todo">
-                  <Circle className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Outcomes & evaluation</div>
-                    <div className="st">Not started</div>
-                  </div>
-                  <span className="meta">
-                    <span className="muted xs">Unassigned</span>
-                  </span>
-                </a>
-                <a href="#attachments" className="s-prog">
-                  <Clock4 className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">Attachments</div>
-                    <div className="st">2 of 3 files</div>
-                  </div>
-                  <span className="meta">
-                    <span className="av av-sm">JR</span>
-                  </span>
-                </a>
-                <a href="#loi" className="s-lock">
-                  <Lock className="ic" aria-hidden="true" />
-                  <div>
-                    <div className="nm">LOI responses</div>
-                    <div className="st">Locked · prior stage, read-only</div>
-                  </div>
-                  <span className="meta"></span>
-                </a>
-              </nav>
-              <div className="divider" style={{ margin: "10px 0" }}></div>
-              <div className="small muted" style={{ padding: "0 10px 4px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <span>Form v2 · pinned by Riverbend</span>
-                <Link to="/preview/pdf/application-snapshot">Download draft PDF</Link>
-              </div>
-            </aside>
-            <section style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: "0" }}>
-              <div className="card" id="organization">
+                </div>
+              ))}
+              <label className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
+                <Upload className="ic" aria-hidden="true" />
+                Upload a file
+                <input
+                  type="file"
+                  className="sr"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void uploadFile(file).catch((error: unknown) => setSave({ state: "error", error }));
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+
+          {lockedForms.map((f) => {
+            const d = defs[f.formId];
+            return d ? (
+              <section className="card" key={f.formId} id={`locked-${f.formId}`} aria-label={`${d.title} responses`}>
                 <div className="card-h">
                   <div>
-                    <h2 style={{ fontSize: "18px" }}>Organization</h2>
-                    <p className="small muted">
-                      Prefilled from your Passport record. Values are read-only here; change them in Passport and they update everywhere.
-                    </p>
-                  </div>
-                  <span className="bdg bdg-ok">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    Complete
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "18px 24px" }}>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="legal">
-                      Legal name
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="legal" defaultValue="Alder Creek Family Services" readOnly />
-                    <span className="help">
-                      <Link to="/w/alder-creek/organization">Edit in Passport</Link> · synced 2 min ago
-                    </span>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="tax">
-                      Tax status
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="tax" defaultValue="501(c)(3) public charity · verified by Passport" readOnly />
-                    <span className="help">Determination letter is in your Passport locker</span>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="addr">
-                      Mailing address
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="addr" defaultValue="418 Mill Road, Alder Creek, OR" readOnly />
-                    <span className="help">
-                      <Link to="/w/alder-creek/organization">Edit in Passport</Link>
-                    </span>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="contact">
-                      Primary contact
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="contact" defaultValue="Maria Santos · Executive Director" readOnly />
-                    <span className="help">Representatives are managed in Passport</span>
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="annual">
-                      Annual operating budget
-                      <span className="prov prov-passport">
-                        <BadgeCheck className="ic" aria-hidden="true" />
-                        From Passport
-                      </span>
-                    </label>
-                    <input className="inp" id="annual" defaultValue="$2,400,000 (FY2026)" readOnly />
-                  </div>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="req">
-                      Requested amount
-                      <span className="req" aria-hidden="true">
-                        *
-                      </span>
-                      <span className="prov prov-entered">
-                        <Pencil className="ic" aria-hidden="true" />
-                        Entered
-                      </span>
-                    </label>
-                    <input className="inp" id="req" defaultValue="$150,000" />
-                    <span className="help">
-                      Range for this opportunity: $50,000 – $150,000 · maps to CommonGrants <span className="mono">requestedAmount</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="need">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Need statement</h2>
-                    <p className="small muted">
-                      Describe the community need this project addresses and the evidence for it. 500 words maximum.
-                    </p>
-                  </div>
-                  <span className="bdg bdg-prog">
-                    <Clock4 className="ic" aria-hidden="true" />
-                    In progress
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <div className="fld">
-                    <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                      <label className="lbl" htmlFor="need-text">
-                        What need does this project address?
-                        <span className="req" aria-hidden="true">
-                          *
-                        </span>
-                        <span className="prov prov-library">
-                          <BookOpen className="ic" aria-hidden="true" />
-                          From library · “Need”
-                        </span>
-                      </label>
-                      <Link to="/w/alder-creek/library" className="btn btn-sm btn-secondary">
-                        <BookOpen className="ic" aria-hidden="true" />
-                        Insert from answer library
-                      </Link>
-                    </div>
-                    <textarea
-                      className="ta"
-                      id="need-text"
-                      style={{ minHeight: "220px", fontSize: "16px" }}
-                      defaultValue={"Families in the Alder Creek valley travel an average of 46 miles to reach a primary care provider, and one in four households has no reliable vehicle. Over the last three years our intake data shows that missed appointments, not lack of coverage, is the leading reason children in our programs fall behind on well-child visits and immunizations.\n\nMobile Health Navigation pairs a community health navigator with a scheduled van route across the six unincorporated communities we serve. Navigators schedule visits, arrange rides, and follow up on referrals so that a family's first contact with the clinic is not an emergency room visit. The 2026 county health assessment ranks transportation access as the top barrier to care for rural families, and our pilot with 38 families cut missed appointments by 41 percent."}
-                    />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <span className="help">Reviewers see this field. Avoid personal health details about named individuals.</span>
-                      <span className="counter">412 / 500 words</span>
-                    </div>
-                  </div>
-                  <div className="cmt" style={{ background: "#F7FAFA" }}>
-                    <div className="hd">
-                      <span className="av av-sm">JR</span>
-                      <span className="who">Jamal Reed</span>
-                      <span>· 1 hour ago</span>
-                      <span className="fld-ref">on “What need does this project address?”</span>
-                      <span className="shared-mark">Team</span>
-                    </div>
-                    <div className="bd">Can we cite the county assessment by name and year? The reviewers’ rubric asks for a source.</div>
-                    <div className="row small">
-                      <a href="#need">Reply</a>
-                      <a href="#need">Resolve</a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="approach">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Approach & activities</h2>
-                    <p className="small muted">Activities, timeline and key staff for the grant period (Jul 1, 2027 – Jun 30, 2028).</p>
-                  </div>
-                  <span className="bdg bdg-prog">
-                    <Clock4 className="ic" aria-hidden="true" />
-                    In progress
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-                  <div className="fld">
-                    <label className="lbl" htmlFor="approach-text">
-                      Describe the main activities
-                      <span className="req" aria-hidden="true">
-                        *
-                      </span>
-                      <span className="prov prov-entered">
-                        <Pencil className="ic" aria-hidden="true" />
-                        Entered
-                      </span>
-                    </label>
-                    <textarea
-                      className="ta"
-                      id="approach-text"
-                      style={{ minHeight: "120px", fontSize: "16px" }}
-                      defaultValue="Two navigators cover a weekly route of six stops. Each stop offers scheduling, transport vouchers, and warm hand-offs to the Copper Valley Clinic telehealth room."
-                    />
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <span className="help">Shown when “Project type” is Direct service</span>
-                      <span className="counter">38 / 400 words</span>
-                    </div>
-                  </div>
-                  <div className="fld">
-                    <span className="lbl">
-                      Key staff
-                      <span className="muted" style={{ fontWeight: 400 }}>
-                        · repeating group, up to 5
-                      </span>
-                    </span>
-                    <div className="tbl-wrap">
-                      <table className="tbl">
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Role on project</th>
-                            <th>FTE</th>
-                            <th style={{ width: "40px" }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>Maria Santos</td>
-                            <td>Project director</td>
-                            <td>0.15</td>
-                            <td>
-                              <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Remove Maria Santos">
-                                <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M3 6h18" />
-                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>To be hired</td>
-                            <td>Community health navigator (2)</td>
-                            <td>2.00</td>
-                            <td>
-                              <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Remove navigator row">
-                                <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                  <path d="M3 6h18" />
-                                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <button className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }}>
-                      <Plus className="ic" aria-hidden="true" />
-                      Add staff member
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="budget">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Budget</h2>
-                    <p className="small muted">Proposed budget by category. Totals must equal the requested amount.</p>
-                  </div>
-                  <div className="row" style={{ gap: "10px" }}>
-                    <span className="row small muted" style={{ gap: "6px" }}>
-                      <span className="av av-sm av-g">LF</span>Assigned to Lena Fischer (consultant)
-                    </span>
-                    <span className="bdg bdg-neutral">
-                      <Circle className="ic" aria-hidden="true" />
-                      Not started
-                    </span>
-                  </div>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <div className="tbl-wrap">
-                    <table className="tbl bud">
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          <th className="num">Requested from Riverbend</th>
-                          <th className="num">Other sources</th>
-                          <th className="num">Total</th>
-                          <th>Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>Personnel</td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$96,000"
-                              aria-label="Personnel requested"
-                            />
-                          </td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$24,000"
-                              aria-label="Personnel other sources"
-                            />
-                          </td>
-                          <td className="num b">$120,000</td>
-                          <td>
-                            <input
-                              className="inp"
-                              style={{ height: "32px", fontSize: "14px" }}
-                              defaultValue="2 navigators, 0.15 FTE director"
-                              aria-label="Personnel notes"
-                            />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td>Travel & vehicle</td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$28,000"
-                              aria-label="Travel requested"
-                            />
-                          </td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$0"
-                              aria-label="Travel other sources"
-                            />
-                          </td>
-                          <td className="num b">$28,000</td>
-                          <td>
-                            <input
-                              className="inp"
-                              style={{ height: "32px", fontSize: "14px" }}
-                              defaultValue="Van lease, fuel, maintenance"
-                              aria-label="Travel notes"
-                            />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td>Supplies</td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$11,000"
-                              aria-label="Supplies requested"
-                            />
-                          </td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$0"
-                              aria-label="Supplies other sources"
-                            />
-                          </td>
-                          <td className="num b">$11,000</td>
-                          <td>
-                            <input
-                              className="inp"
-                              style={{ height: "32px", fontSize: "14px" }}
-                              defaultValue="Tablets, printed materials, vouchers"
-                              aria-label="Supplies notes"
-                            />
-                          </td>
-                        </tr>
-                        <tr>
-                          <td>Indirect (10% cap)</td>
-                          <td className="num">
-                            <input
-                              className="inp err"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$18,000"
-                              aria-label="Indirect requested"
-                            />
-                          </td>
-                          <td className="num">
-                            <input
-                              className="inp"
-                              style={{ width: "120px", textAlign: "right", height: "32px", fontSize: "14px" }}
-                              defaultValue="$0"
-                              aria-label="Indirect other sources"
-                            />
-                          </td>
-                          <td className="num b over">$18,000</td>
-                          <td>
-                            <span className="err-msg">
-                              <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                              Over the 10% indirect limit ($15,000)
-                            </span>
-                          </td>
-                        </tr>
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td>Total</td>
-                          <td className="num over">$153,000</td>
-                          <td className="num">$24,000</td>
-                          <td className="num">$177,000</td>
-                          <td>
-                            <span className="err-msg">
-                              <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                              $3,000 over the requested amount
-                            </span>
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                  <div className="row" style={{ gap: "10px" }}>
-                    <button className="btn btn-sm btn-secondary">
-                      <Plus className="ic" aria-hidden="true" />
-                      Add category
-                    </button>
-                    <Link to="/w/alder-creek/library" className="small b">
-                      Reuse last year’s budget as a starting point
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="attachments">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Attachments</h2>
-                    <p className="small muted">Three documents are required. Passport locker files are already verified.</p>
-                  </div>
-                  <span className="bdg bdg-prog">
-                    <Clock4 className="ic" aria-hidden="true" />2 of 3
-                  </span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <div className="doc">
-                    <span className="ft ft-pdf">PDF</span>
-                    <div className="grow">
-                      <div className="nm">IRS determination letter.pdf</div>
-                      <div className="mt">
-                        <span>412 KB</span>
-                        <span>·</span>
-                        <span className="prov prov-passport">
-                          <BadgeCheck className="ic" aria-hidden="true" />
-                          Passport locker
-                        </span>
-                        <span>·</span>
-                        <span className="mono" title="sha256 3f9a…c21e">
-                          sha256 3f9a…c21e
-                        </span>
-                      </div>
-                    </div>
-                    <a href="#attachments" className="btn btn-sm btn-ghost">
-                      Preview
-                    </a>
-                  </div>
-                  <div className="doc">
-                    <span className="ft ft-xls">XLS</span>
-                    <div className="grow">
-                      <div className="nm">FY2026 audited financials.xlsx</div>
-                      <div className="mt">
-                        <span>1.1 MB</span>
-                        <span>·</span>
-                        <span className="prov prov-passport">
-                          <BadgeCheck className="ic" aria-hidden="true" />
-                          Passport locker
-                        </span>
-                        <span>·</span>
-                        <span className="mono">sha256 8b10…77d4</span>
-                      </div>
-                    </div>
-                    <a href="#attachments" className="btn btn-sm btn-ghost">
-                      Preview
-                    </a>
-                  </div>
-                  <div
-                    style={{
-                      border: "1px dashed #B9C6C6",
-                      borderRadius: "8px",
-                      padding: "16px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "12px",
-                      flexWrap: "wrap",
-                      background: "#F7FAFA",
-                    }}
-                  >
-                    <div>
-                      <div className="b">
-                        Letters of support{" "}
-                        <span className="req" aria-hidden="true">
-                          *
-                        </span>
-                      </div>
-                      <div className="help">PDF, up to 10 MB. At least one letter from a partner clinic.</div>
-                    </div>
-                    <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-                      <button className="btn btn-sm btn-secondary">
-                        <Upload className="ic" aria-hidden="true" />
-                        Upload
-                      </button>
-                      <button className="btn btn-sm btn-secondary">
-                        <Shield className="ic" aria-hidden="true" />
-                        Passport locker
-                      </button>
-                      <button className="btn btn-sm btn-secondary">
-                        <Cloud className="ic" aria-hidden="true" />
-                        Google Drive
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card" id="loi" style={{ opacity: ".85" }}>
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>LOI responses</h2>
-                    <p className="small muted">Submitted Feb 21, 2027. Prior-stage responses are read-only and visible to reviewers.</p>
+                    <h3>{d.title} responses</h3>
+                    <p className="small muted">Prior-stage responses are read-only and visible to reviewers.</p>
                   </div>
                   <span className="bdg bdg-neutral">
                     <Lock className="ic" aria-hidden="true" />
                     Locked
                   </span>
                 </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "15px" }}>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "14px" }}>
-                      Summary of intent
-                    </div>
-                    <p className="muted">
-                      Expand mobile health navigation from a 38-family pilot to the six unincorporated communities of the Alder Creek
-                      valley.
-                    </p>
+                <details className="card-b">
+                  <summary className="b" style={{ cursor: "pointer" }}>
+                    Show what was submitted
+                  </summary>
+                  <div style={{ marginTop: "12px" }}>
+                    <FormView form={d} response={f.response} mode="funder" provenance={f.provenance} />
                   </div>
-                  <div>
-                    <div className="lbl" style={{ fontSize: "14px" }}>
-                      Estimated request
-                    </div>
-                    <p className="muted">$140,000 – $150,000</p>
+                </details>
+              </section>
+            ) : null;
+          })}
+        </div>
+
+        <aside style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
+          <div className="card">
+            <div style={{ padding: "0 12px" }}>
+              <Tabs<PanelTab>
+                label="Application panel"
+                idPrefix="ed"
+                active={tab}
+                onChange={setTab}
+                tabs={[
+                  { key: "validation", label: "Validation", count: errors.length },
+                  { key: "comments", label: "Comments", count: openComments.length },
+                  { key: "assignments", label: "Assignments" },
+                ]}
+              />
+            </div>
+            <div className="card-b" style={{ padding: "16px" }}>
+              <TabPanel idPrefix="ed" tab="validation" active={tab}>
+                {errors.length === 0 ? (
+                  <div className="row" style={{ gap: "8px", color: "var(--s-ok-fg)", fontWeight: 700 }}>
+                    <CircleCheck className="ic" aria-hidden="true" />
+                    Nothing left to fix in this form
                   </div>
-                </div>
-              </div>
-            </section>
-            <aside style={{ display: "flex", flexDirection: "column", gap: "0", position: "sticky", top: "16px" }}>
-              <div className="card" style={{ overflow: "hidden" }}>
-                <div className="panel-tabs" role="tablist">
-                  <button className="tab on" role="tab" aria-selected="true">
-                    Validation
-                    <span className="n" style={{ background: "#FBE3E3", color: "#9B1C1C" }}>
-                      3
-                    </span>
-                  </button>
-                  <button className="tab" role="tab">
-                    Comments<span className="n">2</span>
-                  </button>
-                  <button className="tab" role="tab">
-                    Assignments
-                  </button>
-                  <button className="tab" role="tab">
-                    <Sparkles className="ic" aria-hidden="true" />
-                    Assistant
-                  </button>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div>
-                    <div className="eyebrow" style={{ color: "#9B1C1C" }}>
-                      Blockers · 2
+                ) : (
+                  <>
+                    <div className="eyebrow" style={{ marginBottom: "6px" }}>
+                      To fix · {errors.length}
                     </div>
-                    <ul style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-                      <li>
-                        <a
-                          href="#budget"
-                          className="rc-row rc-fail"
-                          style={{ padding: "8px 0", border: "0", textDecoration: "none", color: "inherit" }}
-                        >
-                          <CircleX className="ic" aria-hidden="true" />
-                          <div>
-                            <div className="l">Budget total exceeds requested amount</div>
-                            <div className="r">$153,000 requested vs $150,000 entered</div>
-                          </div>
-                          <span className="fix">Fix →</span>
-                        </a>
-                      </li>
-                      <li>
-                        <a
-                          href="#attachments"
-                          className="rc-row rc-fail"
-                          style={{ padding: "8px 0", border: "0", textDecoration: "none", color: "inherit" }}
-                        >
-                          <CircleX className="ic" aria-hidden="true" />
-                          <div>
-                            <div className="l">Letters of support missing</div>
-                            <div className="r">Required attachment, none added</div>
-                          </div>
-                          <span className="fix">Fix →</span>
-                        </a>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <div className="eyebrow" style={{ color: "#7A4A00" }}>
-                      Warnings · 1
-                    </div>
-                    <ul style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-                      <li>
-                        <a
-                          href="#budget"
-                          className="rc-row rc-unk"
-                          style={{ padding: "8px 0", border: "0", textDecoration: "none", color: "inherit" }}
-                        >
-                          <TriangleExclamationPoint className="ic" aria-hidden="true" style={{ color: "#7A4A00" }} />
-                          <div>
-                            <div className="l" style={{ color: "#1E2D2B" }}>
-                              Indirect costs over the 10% cap
+                    <ul className="rc">
+                      {errors.map((e, i) => {
+                        const s = sectionFor(sections, e.field);
+                        return (
+                          <li key={`${e.field}-${i}`} className="rc-row rc-fail" style={i === 0 ? { borderTop: 0 } : undefined}>
+                            <CircleX className="ic" role="img" aria-label="Needs attention" />
+                            <div>
+                              <div className="l">{fieldLabel(def, e.field)}</div>
+                              <div className="r">{e.message}</div>
                             </div>
-                            <div className="r">$18,000 entered; cap is $15,000</div>
-                          </div>
-                          <span className="fix">View →</span>
-                        </a>
-                      </li>
+                            {s ? (
+                              <a
+                                href={`#${slug(s.label)}`}
+                                className="fix"
+                                onClick={(ev) => {
+                                  ev.preventDefault();
+                                  setShowAll(true);
+                                  goTo(s.label);
+                                }}
+                              >
+                                Fix →
+                              </a>
+                            ) : (
+                              <span />
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
-                  </div>
-                  <div className="divider"></div>
-                  <div>
-                    <div className="eyebrow">Eligibility preview</div>
-                    <ul style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px", fontSize: "13px" }}>
-                      <li className="row" style={{ gap: "6px", color: "#0B5E47" }}>
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        501(c)(3) in good standing
-                      </li>
-                      <li className="row" style={{ gap: "6px", color: "#0B5E47" }}>
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        Serves Riverbend County
-                      </li>
-                      <li className="row" style={{ gap: "6px", color: "#0B5E47" }}>
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        Annual budget under $5M
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="bnr bnr-info" style={{ padding: "10px 12px" }}>
+                  </>
+                )}
+                <div className="divider" style={{ margin: "14px 0" }}></div>
+                <div className="eyebrow" style={{ marginBottom: "8px" }}>
+                  Eligibility preview
+                </div>
+                {eligibility ? (
+                  <ul style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "14px" }}>
+                    {eligibility.results.map((r, i) => {
+                      const Icon = r.outcome === "pass" ? CircleCheck : r.outcome === "fail" ? CircleX : CircleDashed;
+                      const color = r.outcome === "pass" ? "var(--s-ok-fg)" : r.outcome === "fail" ? "var(--s-dng-fg)" : "var(--og-gray-600)";
+                      return (
+                        <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={r.explain}>
+                          <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? "Passes" : r.outcome === "fail" ? "Does not pass" : "Could not be checked"} style={{ marginTop: "3px" }} />
+                          {r.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="small muted">Eligibility is evaluated when you submit.</p>
+                )}
+                {data.readiness.linked && (
+                  <div className="bnr bnr-info" style={{ marginTop: "12px" }}>
                     <ShieldCheck className="ic" aria-hidden="true" />
                     <div>
-                      <div className="t" style={{ fontSize: "13px" }}>
-                        Passport level L3 will be attached
+                      <div className="t" style={{ fontSize: "14px" }}>
+                        Passport level {data.readiness.level ?? "—"} will be attached
                       </div>
-                      <div className="d" style={{ fontSize: "12px" }}>
+                      <div className="d" style={{ fontSize: "13px" }}>
                         Your attestation and payee status travel with the submission.
                       </div>
                     </div>
                   </div>
+                )}
+              </TabPanel>
+
+              <TabPanel idPrefix="ed" tab="comments" active={tab}>
+                <CommentsPanel
+                  comments={comments}
+                  def={def}
+                  onAdd={async (body, fieldPath) => {
+                    const c = await api.addComment(app.id, { body, formId: `frm_${activeFormId}`, ...(fieldPath ? { fieldPath } : {}) });
+                    setComments((prev) => [c, ...prev]);
+                  }}
+                  onResolve={async (id) => {
+                    const c = await api.resolveComment(app.id, id);
+                    setComments((prev) => prev.map((x) => (x.id === id ? c : x)));
+                  }}
+                />
+              </TabPanel>
+
+              <TabPanel idPrefix="ed" tab="assignments" active={tab}>
+                <p className="small muted" style={{ marginBottom: "10px" }}>
+                  Who owns each section. A consultant only sees the applications they are scoped to.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {sections.map((s) => (
+                    <div className="fld" key={s.label}>
+                      <label className="lbl" htmlFor={`own-${slug(s.label)}`} style={{ fontSize: "13px" }}>
+                        {s.label}
+                      </label>
+                      <select
+                        className="sel"
+                        id={`own-${slug(s.label)}`}
+                        style={{ height: "36px", fontSize: "14px" }}
+                        value={formOwners[s.label] ?? ""}
+                        onChange={async (e) => {
+                          const r = await api.assignSections(app.id, `frm_${activeFormId}`, { [s.label]: e.target.value || null });
+                          setOwners((prev) => ({ ...prev, [activeFormId]: r.sections }));
+                        }}
+                      >
+                        <option value="">Unassigned</option>
+                        {data.members.map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.name ?? m.email ?? m.userId}
+                            {m.role === "consultant" ? " (consultant)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div className="assist" style={{ marginTop: "16px" }}>
-                <div className="hd">
-                  <Sparkles className="ic" aria-hidden="true" style={{ color: "#4B2E9E" }} />
-                  Assistant<span className="draft-mark">Draft — review before use</span>
-                  <span className="quota">14 of 40 this month</span>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                  <p className="muted">
-                    Adapt a library answer to the question in focus. Output appears here first; nothing is written into the form until you
-                    insert it.
-                  </p>
-                  <button className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }}>
-                    Adapt “Need” to this question
-                  </button>
-                </div>
-              </div>
-            </aside>
+              </TabPanel>
+            </div>
           </div>
+        </aside>
+      </div>
+
+      <Dialog open={submitOpen} onClose={() => setSubmitOpen(false)} labelledBy="submit-title" size="lg">
+        <div className="hd">
+          <div>
+            <h2 id="submit-title" style={{ fontSize: "20px" }}>
+              Ready to submit?
+            </h2>
+            <p className="small muted" style={{ marginTop: "4px" }}>
+              {[summary?.funder.name, summary?.opportunity.title, summary?.stage.label].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <button className="iconbtn" type="button" aria-label="Close" onClick={() => setSubmitOpen(false)}>
+            <X className="ic ic-md" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="bd" style={{ gap: "10px" }}>
+          <ReadinessChecklist checklist={checklist} />
+          {submit.error && submitProblems.length === 0 ? <ErrorBanner error={submit.error} title="The application was not submitted" /> : null}
+          {submitProblems.length > 0 && (
+            <div className="bnr bnr-dng" role="alert">
+              <CircleX className="ic" aria-hidden="true" />
+              <div>
+                <div className="t">The server found {submitProblems.length} thing{submitProblems.length === 1 ? "" : "s"} to fix</div>
+                <ul className="d">
+                  {submitProblems.slice(0, 6).map((p, i) => (
+                    <li key={i}>
+                      {fieldLabel(def, (p.field ?? "").replace(/^[0-9a-f-]{36}/, ""))}: {p.detail}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          <div className="bnr bnr-info">
+            <ShieldCheck className="ic" aria-hidden="true" />
+            <div>
+              <div className="t">
+                Your Passport level <LevelBadge level={data.readiness.level} /> and attestation will be attached to this submission
+              </div>
+              <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application, your attestation and your payee status (bank name and last four digits only). Nothing else from Passport is shared.</div>
+            </div>
+          </div>
+          <p className="small muted">
+            {summary?.stage.closes ? `You can withdraw until the stage closes. ` : ""}Submitting gives this funder permission to read your Passport record for this application.
+          </p>
+        </div>
+        <div className="ft">
+          <button className="btn btn-secondary" type="button" onClick={() => setSubmitOpen(false)}>
+            Cancel
+          </button>
+          <button className="btn btn-primary btn-lg" type="button" onClick={onSubmit} disabled={!checklist.ready || submit.state === "sending"} aria-describedby={checklist.ready ? undefined : "submit-why"}>
+            {submit.state === "sending" ? "Submitting…" : "Submit application"}
+          </button>
+          {!checklist.ready && (
+            <span id="submit-why" className="sr">
+              Fix the failing checks before submitting
+            </span>
+          )}
+        </div>
+      </Dialog>
+
+      <Dialog open={libraryOpen} onClose={() => setLibraryOpen(false)} labelledBy="lib-title">
+        <InsertAnswer answers={data.answers} fields={textFields.map(([k, s]) => ({ key: k, label: typeof s.title === "string" ? s.title : k }))} onInsert={insertAnswer} onClose={() => setLibraryOpen(false)} />
+      </Dialog>
+    </>
+  );
+}
+
+function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[]; def: FormDefinition; onAdd: (body: string, fieldPath: string) => Promise<void>; onResolve: (id: string) => Promise<void> }) {
+  const [body, setBody] = useState("");
+  const [field, setField] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fields = Object.entries(def.jsonSchema.properties ?? {});
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {comments.length === 0 && <p className="small muted">No comments yet. Comments are for your team; the funder never sees them.</p>}
+      {comments.map((c) => (
+        <div key={c.id} className={c.resolvedAt ? "cmt cmt-res" : "cmt"}>
+          <div className="hd">
+            <Avatar name={c.author} size="sm" />
+            <span className="who">{c.author}</span>
+            <span>· {timeAgo(c.createdAt)}</span>
+            <span className="int-mark">Team</span>
+          </div>
+          {c.fieldPath && <div className="fld-ref">on “{fieldLabel(def, c.fieldPath)}”</div>}
+          <div className="bd">{c.body}</div>
+          {c.resolvedAt ? (
+            <span className="small muted">Resolved {timeAgo(c.resolvedAt)}</span>
+          ) : (
+            <button className="btn btn-sm btn-ghost" type="button" style={{ alignSelf: "flex-start" }} onClick={() => void onResolve(c.id)}>
+              Resolve
+            </button>
+          )}
+        </div>
+      ))}
+      <form
+        className="col"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!body.trim()) return;
+          setBusy(true);
+          try {
+            await onAdd(body.trim(), field);
+            setBody("");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label className="sr" htmlFor="cmt-field">
+          Field this comment is about
+        </label>
+        <select className="sel" id="cmt-field" style={{ height: "36px", fontSize: "14px" }} value={field} onChange={(e) => setField(e.target.value)}>
+          <option value="">Whole application</option>
+          {fields.map(([k, s]) => (
+            <option key={k} value={`/${k}`}>
+              {typeof s.title === "string" ? s.title : k}
+            </option>
+          ))}
+        </select>
+        <label className="sr" htmlFor="cmt-body">
+          Write a comment for your team
+        </label>
+        <textarea className="ta" id="cmt-body" style={{ minHeight: "60px" }} placeholder="Write a comment for your team" value={body} onChange={(e) => setBody(e.target.value)} />
+        <button className="btn btn-secondary" type="submit" disabled={busy || !body.trim()} style={{ alignSelf: "flex-start" }}>
+          Comment
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function InsertAnswer({ answers, fields, onInsert, onClose }: { answers: Answer[]; fields: { key: string; label: string }[]; onInsert: (a: Answer, field: string) => Promise<void>; onClose: () => void }) {
+  const [answerId, setAnswerId] = useState(answers[0]?.id ?? "");
+  const [field, setField] = useState(fields[0]?.key ?? "");
+  const answer = answers.find((a) => a.id === answerId);
+  return (
+    <>
+      <div className="hd">
+        <div>
+          <h3 id="lib-title" style={{ fontSize: "16px" }}>
+            Insert from answer library
+          </h3>
+          <p className="small muted">The text replaces what is in the field. You can edit it afterwards; the library copy is not changed.</p>
+        </div>
+        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+          <X className="ic ic-md" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="bd">
+        <div className="fld">
+          <label className="lbl" htmlFor="lib-answer">
+            Answer
+          </label>
+          <select className="sel" id="lib-answer" value={answerId} onChange={(e) => setAnswerId(e.target.value)}>
+            {answers.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title} · v{a.version} · {a.words} words
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="fld">
+          <label className="lbl" htmlFor="lib-field">
+            Insert into
+          </label>
+          <select className="sel" id="lib-field" value={field} onChange={(e) => setField(e.target.value)}>
+            {fields.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {answer && (
+          <p className="small" style={{ maxHeight: "140px", overflow: "auto" }}>
+            {answer.body}
+          </p>
+        )}
+      </div>
+      <div className="ft">
+        <button className="btn btn-secondary" type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" type="button" disabled={!answer || !field} onClick={() => answer && void onInsert(answer, field)}>
+          Insert
+        </button>
+      </div>
+    </>
+  );
+}
+
+const keys = new WeakMap<object, number>();
+let nextKey = 0;
+const keyOf = (data: object): number => {
+  if (!keys.has(data)) keys.set(data, ++nextKey);
+  return keys.get(data)!;
+};
+
+export default function Editor({ openSubmit = false }: { openSubmit?: boolean }) {
+  const ws = useWorkspace("applicant");
+  const { appId = "" } = useParams();
+  const query = useApplicantQuery((api) => loadEditor(api, appId), [appId, ws.id]);
+  if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
+  return (
+    <>
+      <title>{query.status === "ready" ? `${query.data.app.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
+      <ApplicantShell active="Applications">
+        <main className="main" style={{ gap: "16px" }}>
+          <Loaded query={query} label="Opening the application">
+            {(data) =>
+              data.app.status === "draft" || data.app.status === "revision_requested" ? (
+                // A fresh read from the server remounts the body, so its state starts from that read.
+                <EditorBody key={keyOf(data)} data={data} openSubmit={openSubmit} />
+              ) : (
+                <Notice tone="info" title="This application has been submitted and can no longer be edited">
+                  <Link to={`/w/${ws.handle}/applications/${data.app.id}`}>See where it stands</Link>
+                </Notice>
+              )
+            }
+          </Loaded>
         </main>
       </ApplicantShell>
     </>

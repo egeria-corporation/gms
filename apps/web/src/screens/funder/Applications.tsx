@@ -1,802 +1,413 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { useState } from "react";
-import { Link } from "react-router";
-import {
-  Bot,
-  Calendar,
-  Check,
-  ChevronDown,
-  CircleCheck,
-  CircleDashed,
-  CircleMinus,
-  CircleX,
-  Clock,
-  Columns3,
-  Download,
-  Eye,
-  Funnel,
-  Info,
-  LogOut,
-  Plus,
-  RotateCcw,
-  Search,
-  Send,
-  Shield,
-  Star,
-  TriangleExclamationPoint,
-  X,
-} from "lucide-react";
+// The applications inbox. Views, filters, sort and page live in the URL so a view can be linked
+// and comes back after a reload. Bulk decline previews the letter before anything is sent, and an
+// agent's proposed declines wait here for a person to approve or reject them.
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { ArrowDown, ArrowUp, Bot, Inbox, X } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { Approval, InboxApplication, Rendered } from "../../api/funder.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { LevelBadge, StatusBadge, STATUS } from "../../components/status.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
+import { formatMinor } from "../../lib/format.ts";
+import ApplicationsEmpty from "./ApplicationsEmpty.tsx";
+import { approvalTargets, Avatar, EligibilityMark, usePeople } from "./shared.tsx";
+
+const PAGE_SIZE = 25;
+const FILTER_KEYS = ["stage", "status", "eligibility", "level", "tag", "assignee"] as const;
+type FilterKey = (typeof FILTER_KEYS)[number];
+
+interface View {
+  key: string;
+  label: string;
+  filter: Partial<Record<FilterKey, string>>;
+}
+const VIEWS: View[] = [
+  { key: "all", label: "All", filter: {} },
+  { key: "needs-screening", label: "Needs screening", filter: { status: "submitted" } },
+  { key: "under-review", label: "Under review", filter: { status: "under_review" } },
+  { key: "eligibility-fail", label: "Eligibility fail", filter: { eligibility: "false" } },
+  { key: "unassigned", label: "Unassigned", filter: { assignee: "unassigned" } },
+];
+
+const SORTABLE: Record<string, string> = { Title: "title", Status: "status", Requested: "requestedAmount", Submitted: "submittedAt" };
+
+function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample: InboxApplication | undefined; onClose: () => void; onDone: (message: string) => void }) {
+  const templates = useApiQuery((api) => api.listTemplates("email"), []);
+  const [templateId, setTemplateId] = useState("");
+  const [rationale, setRationale] = useState("");
+  const [preview, setPreview] = useState<Rendered | null>(null);
+  const all = [...(templates.data?.items ?? []), ...(templates.data?.builtIn ?? [])];
+  const chosen = templateId || all[0]?.id || "";
+  const render = useApiMutation((api) => api.renderTemplate(chosen, { ...(sample ? { applicationId: sample.id } : {}), fields: { decision: { message: rationale.trim() || "After review, this application will not move forward." } } }));
+  const decline = useApiMutation((api) => api.bulkApplications({ applicationIds: ids, action: "decline", params: { letterTemplateId: chosen, sendLetter: true, ...(rationale.trim() ? { rationale: rationale.trim() } : {}) } }));
+
+  return (
+    <Dialog open onClose={onClose} labelledBy="decline-title" size="lg">
+      <div className="hd">
+        <div>
+          <h2 id="decline-title">Decline {ids.length === 1 ? "1 application" : `${ids.length} applications`}</h2>
+          <p className="small muted">Each applicant receives the letter below. Review it before anything is sent.</p>
+        </div>
+      </div>
+      <div className="bd">
+        {templates.status === "loading" && <Loading label="Loading templates" />}
+        {templates.status === "error" && <ErrorBanner error={templates.error} onRetry={templates.reload} />}
+        {(render.error !== null || decline.error !== null) && <ErrorBanner error={render.error ?? decline.error} />}
+        <div className="fld-row">
+          <Field id="decline-template" label="Letter template">
+            <select
+              className="sel"
+              id="decline-template"
+              value={chosen}
+              onChange={(e) => {
+                setTemplateId(e.target.value);
+                setPreview(null);
+              }}
+            >
+              {all.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.builtIn ? " (built in)" : ` v${t.version}`}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field id="decline-reason" label="Reason shown in the letter" help="Fills the decision.message merge field.">
+            <input
+              className="inp"
+              id="decline-reason"
+              value={rationale}
+              onChange={(e) => {
+                setRationale(e.target.value);
+                setPreview(null);
+              }}
+            />
+          </Field>
+        </div>
+        {preview && (
+          <section aria-label="Letter preview" className="letter">
+            <div className="small muted">Preview for {sample?.applicant.name ?? "the first applicant"}</div>
+            {preview.subject && <div className="b">{preview.subject}</div>}
+            <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
+          </section>
+        )}
+      </div>
+      <div className="ft">
+        <button type="button" className="btn btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        {!preview ? (
+          <button type="button" className="btn btn-primary" disabled={!chosen || render.state === "saving"} onClick={async () => setPreview((await render.run()) ?? null)}>
+            Preview letter
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-danger-solid"
+            disabled={decline.state === "saving"}
+            onClick={async () => {
+              const r = await decline.run();
+              if (r) onDone(`${r.succeeded.length} declined · ${r.lettersSent} ${r.lettersSent === 1 ? "letter" : "letters"} sent${r.failed.length ? ` · ${r.failed.length} could not be declined` : ""}`);
+            }}
+          >
+            Decline and send {ids.length === 1 ? "letter" : `${ids.length} letters`}
+          </button>
+        )}
+      </div>
+    </Dialog>
+  );
+}
 
 export default function Applications() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const [params, setParams] = useSearchParams();
+  const { person, people } = usePeople();
   const [compact, setCompact] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [declining, setDeclining] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const viewKey = params.get("view") ?? "all";
+  const view = VIEWS.find((v) => v.key === viewKey);
+  const filter = useMemo(() => {
+    const f: Partial<Record<FilterKey, string>> = { ...(view?.filter ?? {}) };
+    for (const k of FILTER_KEYS) if (params.get(k)) f[k] = params.get(k)!;
+    return f;
+  }, [params, view]);
+  const sortBy = params.get("sort") ?? "submittedAt";
+  const sortOrder = (params.get("order") ?? (sortBy === "submittedAt" ? "desc" : "asc")) as "asc" | "desc";
+  const page = Math.max(1, Number(params.get("page") ?? "1") || 1);
+  const key = JSON.stringify([filter, sortBy, sortOrder, page]);
+
+  const programs = useApiQuery((api) => api.listPrograms(), []);
+  const competitions = useApiQuery((api) => api.listCompetitions(), []);
+  const list = useApiQuery((api) => api.listApplications({ ...filter, sortBy, sortOrder, page, pageSize: PAGE_SIZE }), [key]);
+  const totals = useApiQuery((api) => api.listApplications({ pageSize: 1 }), []);
+  const approvals = useApiQuery((api) => api.listApprovals("pending"), []);
+  const decide = useApiMutation((api, a: Approval, approve: boolean) => api.decideApproval(a.id, { approve }));
+
+  const set = (changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(changes)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
+    if (!("page" in changes)) next.delete("page");
+    setParams(next);
+    setSelected([]);
+  };
+
+  if (programs.status === "ready" && programs.data.length === 0) return <ApplicationsEmpty />;
+
+  const stages = competitions.data?.flatMap((c) => c.stages) ?? [];
+  const stageLabel = (k: string) => stages.find((s) => s.key === k)?.label ?? k;
+  const rows = list.data?.items ?? [];
+  const counts = totals.data?.counts ?? {};
+  const totalAll = Object.values(counts).reduce((a, b) => a + b, 0);
+  const viewCount = (v: View) => (v.key === "all" ? totalAll : v.filter.status ? (counts[v.filter.status] ?? 0) : null);
+  const proposals = new Map<string, Approval>();
+  for (const a of approvals.data ?? []) for (const id of approvalTargets(a.input)) proposals.set(id, a);
+  const pages = Math.max(1, Math.ceil((list.data?.total ?? 0) / PAGE_SIZE));
+  const allSelected = rows.length > 0 && rows.every((r) => selected.includes(r.id));
+  const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const tags = [...new Set(rows.flatMap((r) => r.tags))];
+  const filtered = FILTER_KEYS.some((k) => params.get(k)) || viewKey !== "all";
+
+  const select = (k: FilterKey, label: string, options: [string, string][]) => (
+    <label className={params.get(k) ? "fchip on" : "fchip"}>
+      {label}:
+      <select aria-label={label} value={params.get(k) ?? ""} onChange={(e) => set({ [k]: e.target.value || null })} style={{ border: 0, background: "transparent", font: "inherit", color: "inherit", fontWeight: 700 }}>
+        <option value="">Any</option>
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  const sortHeader = (label: string, numeric = false) => {
+    const k = SORTABLE[label]!;
+    const on = sortBy === k;
+    return (
+      <th className={numeric ? "num" : undefined} aria-sort={on ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
+        <button type="button" className="row" style={{ gap: "4px", border: 0, background: "transparent", font: "inherit", color: "inherit", cursor: "pointer", padding: 0, textTransform: "inherit", letterSpacing: "inherit", fontWeight: 700 }} onClick={() => set({ sort: k, order: on && sortOrder === "asc" ? "desc" : "asc" })}>
+          {label}
+          {on && (sortOrder === "asc" ? <ArrowUp className="ic ic-sm" aria-hidden="true" /> : <ArrowDown className="ic ic-sm" aria-hidden="true" />)}
+        </button>
+      </th>
+    );
+  };
+
   return (
     <>
-      <title>{"Applications — Riverbend funder workspace"}</title>
+      <title>{`Applications — ${ws.name}`}</title>
       <FunderShell active="Applications">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <span>Applications</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Applications</h1>
-                <span className="bdg bdg-prog">
-                  <Eye className="ic" aria-hidden="true" />
-                  Full proposal stage open
-                </span>
-              </div>
-              <div className="meta">
-                <span>Community Health Grants 2027</span>
+          <PageHeader
+            crumbs={[{ label: ws.name, to: base }, { label: "Applications" }]}
+            title="Applications"
+            meta={
+              <>
+                <span>{competitions.data?.map((c) => c.title).join(", ") || "No competitions yet"}</span>
                 <span>·</span>
-                <span>36 applications in stage</span>
-                <span>·</span>
-                <span>Full proposal closes Apr 30, 2027</span>
-              </div>
-            </div>
-            <div className="actions">
+                <span>{totalAll} received</span>
+              </>
+            }
+            actions={
               <div className="seg" role="group" aria-label="Row density">
-                <button className={compact ? "" : "on"} aria-pressed={!compact} onClick={() => setCompact(false)}>
+                <button type="button" className={compact ? "" : "on"} aria-pressed={!compact} onClick={() => setCompact(false)}>
                   Comfortable
                 </button>
-                <button className={compact ? "on" : ""} aria-pressed={compact} onClick={() => setCompact(true)}>
+                <button type="button" className={compact ? "on" : ""} aria-pressed={compact} onClick={() => setCompact(true)}>
                   Compact
                 </button>
               </div>
-              <button className="btn btn-secondary">
-                <Columns3 className="ic" aria-hidden="true" />
-                Columns
-              </button>
-              <button className="btn btn-secondary">
-                <Download className="ic" aria-hidden="true" />
-                Export
-              </button>
-            </div>
-          </div>
+            }
+          />
+
           <div className="tabs" role="tablist" aria-label="Saved views">
-            <Link to="/w/riverbend/applications" className="tab on" role="tab" aria-selected="true">
-              All<span className="n">36</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="tab" role="tab">
-              Needs screening<span className="n">4</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="tab" role="tab">
-              Review complete<span className="n">9</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="tab" role="tab">
-              Flagged<span className="n">2</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="tab" role="tab">
-              Agent proposals<span className="n">1</span>
-            </Link>
-            <button className="tab">
-              <Plus className="ic" aria-hidden="true" />
-              Save view
+            {VIEWS.map((v) => (
+              <button key={v.key} type="button" role="tab" aria-selected={viewKey === v.key} className={viewKey === v.key ? "tab on" : "tab"} onClick={() => setParams(v.key === "all" ? {} : { view: v.key })}>
+                {v.label}
+                {viewCount(v) !== null && <span className="n">{viewCount(v)}</span>}
+              </button>
+            ))}
+            <button type="button" role="tab" aria-selected={viewKey === "agent"} className={viewKey === "agent" ? "tab on" : "tab"} onClick={() => setParams({ view: "agent" })}>
+              <Bot className="ic" aria-hidden="true" />
+              Agent proposals<span className="n">{proposals.size}</span>
             </button>
           </div>
+
           <div className="filterbar">
-            <button className="fchip on">
-              Competition:<span className="v">Community Health Grants 2027</span>
-            </button>
-            <button className="fchip on">
-              Stage:<span className="v">Full proposal</span>
-            </button>
-            <button className="fchip">
-              Status
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Eligibility
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Level
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Score range
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Tags
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Assignee
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="fchip">
-              Geography
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <Link to="/w/riverbend/applications" className="small b" style={{ marginLeft: "4px" }}>
-              Clear filters
-            </Link>
+            {select("stage", "Stage", [...new Map(stages.map((s) => [s.key, s.label])).entries()])}
+            {select("status", "Status", Object.entries(STATUS.application).filter(([k]) => k !== "draft").map(([k, v]) => [k, v.label]))}
+            {select("eligibility", "Eligibility", [["true", "Pass"], ["false", "Fail"], ["unknown", "Unknown"]])}
+            {select("level", "Passport level", [["L3", "L3"], ["L2", "L2"], ["L1", "L1"], ["L0", "L0"]])}
+            {select("tag", "Tag", [...new Set([...tags, ...(params.get("tag") ? [params.get("tag")!] : [])])].map((t) => [t, t]))}
+            {select("assignee", "Assignee", [["unassigned", "Unassigned"], ...people.map((p): [string, string] => [p.userId, p.name])])}
+            {filtered && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setParams({})}>
+                Clear filters
+              </button>
+            )}
           </div>
-          <div className="bulkbar" role="status">
-            <span>2 selected</span>
-            <span style={{ opacity: ".4" }}>|</span>
-            <button className="btn">
-              Advance
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <button className="btn">Request revision</button>
-            <button className="btn">
-              Decline
-              <ChevronDown className="ic ic-sm" aria-hidden="true" />
-            </button>
-            <Link to="/w/riverbend/reviews/assign" className="btn">
-              Assign reviewers
-            </Link>
-            <button className="btn">Tag</button>
-            <button className="btn">Export</button>
-            <button className="iconbtn" style={{ marginLeft: "auto", color: "#fff" }} aria-label="Clear selection">
-              <X className="ic" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="tbl-wrap">
-            <table className={compact ? "tbl tbl-compact" : "tbl"}>
-              <thead>
-                <tr>
-                  <th style={{ width: "36px" }}>
-                    <span className="ck" role="checkbox" aria-checked="mixed" aria-label="Select all"></span>
-                  </th>
-                  <th>Applicant</th>
-                  <th>Title</th>
-                  <th>Stage</th>
-                  <th>Status</th>
-                  <th>Eligibility</th>
-                  <th className="num">Requested</th>
-                  <th>Score</th>
-                  <th className="num">Days in stage</th>
-                  <th>Assignee</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="sel">
-                  <td>
-                    <span className="ck on" role="checkbox" aria-checked="true" aria-label="Select Alder Creek Family Services"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Alder Creek Family Services
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-3">
-                          <Shield className="ic" aria-hidden="true" />
-                          L3
-                        </span>
-                        <span className="pay pay-active">
-                          <Check className="ic" aria-hidden="true" />
-                          Payee active
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <Link to="/w/riverbend/applications/app_01HZX4" style={{ color: "#1E2D2B" }}>
-                      Mobile Health Navigation for Rural Families
-                    </Link>
-                  </td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$150,000</td>
-                  <td>
-                    <span className="b">4.4</span> <span className="muted">· n 3</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr className="sel">
-                  <td>
-                    <span className="ck on" role="checkbox" aria-checked="true" aria-label="Select Bayview Youth Collective"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Bayview Youth Collective
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-2">L2</span>
-                        <span className="pay pay-none">
-                          <CircleMinus className="ic" aria-hidden="true" />
-                          No destination
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Youth Mental Health Peer Program</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$85,000</td>
-                  <td>
-                    <span className="b">3.9</span> <span className="muted">· n 2</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Copper Valley Clinic"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Copper Valley Clinic
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-1">L1</span>
-                        <span className="pill-warn">
-                          <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                          Level dropped from L2
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Rural Telehealth Expansion</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-warn">
-                      <RotateCcw className="ic" aria-hidden="true" />
-                      Revision requested
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#4A5C5A", fontWeight: 700 }}>
-                      <CircleDashed className="ic" aria-hidden="true" />
-                      Unknown
-                    </span>
-                  </td>
-                  <td className="num">$120,000</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td className="num">5</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Harbor Light Shelter"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Harbor Light Shelter
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-3">
-                          <Shield className="ic" aria-hidden="true" />
-                          L3
-                        </span>
-                        <span className="pay pay-pending">
-                          <Clock className="ic" aria-hidden="true" />
-                          Pending change
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Shelter Health Clinic Hours</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-info">
-                      <Calendar className="ic" aria-hidden="true" />
-                      Interview
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$95,000</td>
-                  <td>
-                    <span className="b">4.1</span> <span className="muted">· n 3</span>
-                  </td>
-                  <td className="num">3</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Lakeside Senior Center"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Lakeside Senior Center
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-2">L2</span>
-                        <span className="pay pay-active">
-                          <Check className="ic" aria-hidden="true" />
-                          Payee active
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Fall Prevention Program</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Star className="ic" aria-hidden="true" />
-                      Recommended
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$70,000</td>
-                  <td>
-                    <span className="b">4.6</span> <span className="muted">· n 3</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr className="agent">
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Pine Ridge Literacy Project"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Pine Ridge Literacy Project
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-1">L1</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <span>Health Literacy Workshops</span>
-                      <span className="attrib">
-                        <Bot className="ic ic-sm" aria-hidden="true" />
-                        Decline proposed by<span className="ag">Riverbend Triage Agent (via Claude)</span>· 2 min ago · awaiting approval
-                      </span>
-                    </div>
-                  </td>
-                  <td>Full proposal</td>
-                  <td>
-                    <div className="row" style={{ gap: "6px" }}>
-                      <span className="bdg bdg-info">
-                        <Send className="ic" aria-hidden="true" />
-                        Submitted
-                      </span>
-                      <span className="bdg bdg-agent">
-                        <Bot className="ic" aria-hidden="true" />
-                        Proposed: Decline
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#9B1C1C", fontWeight: 700 }}>
-                      <CircleX className="ic" aria-hidden="true" />
-                      Fail
-                    </span>
-                  </td>
-                  <td className="num">$40,000</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td className="num">1</td>
-                  <td>
-                    <Link to="/w/riverbend/approvals" className="btn btn-sm btn-primary">
-                      Approve proposal
-                    </Link>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Northgate Housing Trust"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Northgate Housing Trust
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-3">
-                          <Shield className="ic" aria-hidden="true" />
-                          L3
-                        </span>
-                        <span className="pay pay-active">
-                          <Check className="ic" aria-hidden="true" />
-                          Payee active
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Housing-First Health Navigators</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$150,000</td>
-                  <td>
-                    <span className="b">4.0</span> <span className="muted">· n 2</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Cedar Hollow Food Bank"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Cedar Hollow Food Bank
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-2">L2</span>
-                        <span className="pay pay-active">
-                          <Check className="ic" aria-hidden="true" />
-                          Payee active
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Healthy Pantry Expansion</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$60,000</td>
-                  <td>
-                    <span className="b">3.6</span> <span className="muted">· n 3</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Granite Peak Youth Sports"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Granite Peak Youth Sports
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-1">L1</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Concussion Safety Clinics</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-info">
-                      <Search className="ic" aria-hidden="true" />
-                      Screening
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#4A5C5A", fontWeight: 700 }}>
-                      <CircleDashed className="ic" aria-hidden="true" />
-                      Unknown
-                    </span>
-                  </td>
-                  <td className="num">$35,000</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td className="num">2</td>
-                  <td>
-                    <span className="muted">Unassigned</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Willow Creek Legal Aid"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Willow Creek Legal Aid
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-2">L2</span>
-                        <span className="pay pay-cooling">
-                          <Clock className="ic" aria-hidden="true" />
-                          Cooling off
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Medical-Legal Partnership</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-prog">
-                      <Eye className="ic" aria-hidden="true" />
-                      Under review
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$110,000</td>
-                  <td>
-                    <span className="b">4.2</span> <span className="muted">· n 3</span>
-                  </td>
-                  <td className="num">12</td>
-                  <td>
-                    <span className="av av-sm av-t" title="Priya Natarajan">
-                      PN
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Meadowbrook Arts Collective"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Meadowbrook Arts Collective
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-0">L0</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <span>Arts for Wellbeing</span>
-                      <span className="attrib">
-                        <Bot className="ic ic-sm" aria-hidden="true" />
-                        Declined by<span className="ag">Riverbend Triage Agent</span>· Mar 2 · approved by Dana Ortiz
-                      </span>
-                    </div>
-                  </td>
-                  <td>LOI</td>
-                  <td>
-                    <span className="bdg bdg-dng">
-                      <CircleX className="ic" aria-hidden="true" />
-                      Declined
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#9B1C1C", fontWeight: 700 }}>
-                      <CircleX className="ic" aria-hidden="true" />
-                      Fail
-                    </span>
-                  </td>
-                  <td className="num">$25,000</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td className="num">—</td>
-                  <td>
-                    <span className="av av-sm" title="Dana Ortiz">
-                      DO
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="ck" role="checkbox" aria-checked="false" aria-label="Select Sunrise Recovery Network"></span>
-                  </td>
-                  <td>
-                    <div className="ent">
-                      <Link to="/w/riverbend/applications/app_01HZX4" className="nm">
-                        Sunrise Recovery Network
-                      </Link>
-                      <div className="sub">
-                        <span className="lvl lvl-2">L2</span>
-                        <span className="pay pay-active">
-                          <Check className="ic" aria-hidden="true" />
-                          Payee active
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>Peer Recovery Coaching</td>
-                  <td>Full proposal</td>
-                  <td>
-                    <span className="bdg bdg-neutral">
-                      <LogOut className="ic" aria-hidden="true" />
-                      Withdrawn
-                    </span>
-                  </td>
-                  <td>
-                    <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      Pass
-                    </span>
-                  </td>
-                  <td className="num">$55,000</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                  <td className="num">—</td>
-                  <td>
-                    <span className="muted">—</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "12px",
-                padding: "10px 16px",
-                borderTop: "1px solid #D6DEDE",
-                fontSize: "12px",
-                color: "#4A5C5A",
-              }}
-            >
-              <span>Showing 1–11 of 36 · rows load as you scroll (virtualized to 10,000)</span>
-              <div className="row">
-                <button className="btn btn-sm btn-secondary" disabled>
-                  Previous
-                </button>
-                <button className="btn btn-sm btn-secondary">Next</button>
-              </div>
+
+          {note && (
+            <div className="bnr bnr-ok" role="status">
+              <div className="t">{note}</div>
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px", marginTop: "8px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · bulk confirmation</span>
-              <div className="mdl" style={{ width: "auto", boxShadow: "none", border: "1px solid #D6DEDE" }}>
-                <div className="hd">
-                  <div>
-                    <h3 style={{ fontSize: "16px" }}>Decline 14 applications?</h3>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      Each applicant receives the letter below from Riverbend Community Foundation. This cannot be undone.
-                    </p>
-                  </div>
-                </div>
-                <div className="bd">
-                  <div className="fld">
-                    <label className="lbl" htmlFor="tpl">
-                      Letter template
-                    </label>
-                    <select className="sel" id="tpl">
-                      <option>Standard decline v3</option>
-                      <option>Decline — eligibility v2</option>
-                      <option>Decline — budget exhausted v1</option>
-                    </select>
-                  </div>
-                  <div className="row" style={{ gap: "14px", fontSize: "13px" }}>
-                    <span className="row" style={{ gap: "5px" }}>
-                      <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      14 letters will be queued
-                    </span>
-                    <span className="row" style={{ gap: "5px" }}>
-                      <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                      Status → Declined
-                    </span>
-                    <span className="row" style={{ gap: "5px" }}>
-                      <Info className="ic" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                      Logged in the audit ledger
-                    </span>
-                  </div>
-                </div>
-                <div className="ft">
-                  <button className="btn btn-secondary">Cancel</button>
-                  <button className="btn btn-danger-solid">Decline 14 and send “Standard decline v3”</button>
-                </div>
-              </div>
+          )}
+          {decide.error !== null && <ErrorBanner error={decide.error} />}
+
+          {selected.length > 0 && (
+            <div className="bulkbar" role="status">
+              <span>{selected.length} selected</span>
+              <span style={{ opacity: ".4" }}>|</span>
+              <button type="button" className="btn" onClick={() => setDeclining(true)}>
+                Decline
+              </button>
+              <Link to={`${base}/reviews/assign`} className="btn">
+                Assign reviewers
+              </Link>
+              <button type="button" className="iconbtn" style={{ marginLeft: "auto", color: "#fff" }} aria-label="Clear selection" onClick={() => setSelected([])}>
+                <X className="ic" aria-hidden="true" />
+              </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · filtered to zero</span>
-              <div className="card empty" style={{ minHeight: "232px", justifyContent: "center" }}>
-                <Funnel className="ic" aria-hidden="true" />
-                <h3>No applications match these filters</h3>
-                <p>Level L0 and Score above 4.5 exclude every application in the Full proposal stage.</p>
-                <div className="acts">
-                  <Link to="/w/riverbend/applications" className="btn btn-primary">
-                    Clear filters
-                  </Link>
-                  <Link to="/w/riverbend/applications" className="small b">
-                    Save this as an alert instead
-                  </Link>
-                </div>
-              </div>
+          )}
+
+          {list.status === "loading" && <Loading label="Loading applications" />}
+          {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
+          {list.status === "ready" && (
+            <div className="tbl-wrap">
+              <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label="Applications">
+                <thead>
+                  <tr>
+                    <th style={{ width: "36px" }}>
+                      <input type="checkbox" aria-label="Select all on this page" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((r) => r.id))} />
+                    </th>
+                    <th>Applicant</th>
+                    {sortHeader("Title")}
+                    <th>Stage</th>
+                    {sortHeader("Status")}
+                    <th>Eligibility</th>
+                    {sortHeader("Requested", true)}
+                    {sortHeader("Submitted")}
+                    <th>Assignee</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows
+                    .filter((r) => viewKey !== "agent" || proposals.has(r.id))
+                    .map((r) => {
+                      const proposal = proposals.get(r.id);
+                      const to = `${base}/applications/${r.id}`;
+                      return (
+                        <tr key={r.id} className={proposal ? "agent" : selected.includes(r.id) ? "sel" : undefined}>
+                          <td>
+                            <input type="checkbox" aria-label={`Select ${r.applicant.name ?? r.title}`} checked={selected.includes(r.id)} onChange={() => toggle(r.id)} />
+                          </td>
+                          <td style={{ padding: "6px 12px" }}>
+                            <div className="ent">
+                              <Link to={to} className="nm">
+                                {r.applicant.name ?? "Applicant"}
+                              </Link>
+                              <div className="sub">
+                                <LevelBadge level={r.applicant.level ?? r.verificationLevelAtSubmit} />
+                                {r.tags.map((t) => (
+                                  <span key={t} className="tag">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ whiteSpace: "normal" }}>
+                            <Link to={to} style={{ color: "#1E2D2B" }}>
+                              {r.title}
+                            </Link>
+                            {proposal && (
+                              <div className="attrib" style={{ marginTop: "4px" }}>
+                                <Bot className="ic" aria-hidden="true" />
+                                <span className="ag">{proposal.requestedBy.clientId ?? "An agent"}</span> proposed a decline · awaiting approval
+                                <button type="button" className="btn btn-sm btn-primary" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, true)) && (approvals.reload(), list.reload(), totals.reload())}>
+                                  Approve
+                                </button>
+                                <button type="button" className="btn btn-sm btn-danger" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, false)) && approvals.reload()}>
+                                  Reject
+                                </button>
+                                <Link to={`${base}/approvals`} className="small b">
+                                  Open
+                                </Link>
+                              </div>
+                            )}
+                          </td>
+                          <td>{stageLabel(r.stage)}</td>
+                          <td>
+                            {proposal ? (
+                              <span className="bdg bdg-agent">
+                                <Bot className="ic" aria-hidden="true" />
+                                Decline proposed
+                              </span>
+                            ) : (
+                              <StatusBadge kind="application" status={r.status} />
+                            )}
+                          </td>
+                          <td>
+                            <EligibilityMark value={r.eligibility} />
+                          </td>
+                          <td className="num">{formatMinor(r.requestedAmountMinor, r.currency)}</td>
+                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
+                          <td>
+                            <Avatar person={person(r.assignedToUserId)} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {rows.length === 0 && (
+                <EmptyState icon={Inbox} title="No applications match">
+                  Change or clear the filters to see more.
+                </EmptyState>
+              )}
             </div>
-          </div>
+          )}
+
+          {pages > 1 && (
+            <nav className="row" aria-label="Pages" style={{ justifyContent: "flex-end" }}>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => set({ page: String(page - 1) })}>
+                Previous
+              </button>
+              <span className="small muted">
+                Page {page} of {pages}
+              </span>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={page >= pages} onClick={() => set({ page: String(page + 1) })}>
+                Next
+              </button>
+            </nav>
+          )}
         </main>
       </FunderShell>
+      {declining && (
+        <DeclineDialog
+          ids={selected}
+          sample={rows.find((r) => r.id === selected[0])}
+          onClose={() => setDeclining(false)}
+          onDone={(message) => {
+            setDeclining(false);
+            setSelected([]);
+            setNote(message);
+            list.reload();
+            totals.reload();
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,389 +1,187 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Approvals: the human gate for agent actions. A pending card names the agent, the action it
+// asked for and what approving would do; approving runs the action once, as the approver.
+// Resolved requests keep who decided and when.
+import { useState } from "react";
 import { Link } from "react-router";
-import { Bot, Check, TriangleExclamationPoint, X } from "lucide-react";
+import { Bot, Check, CircleCheck, CircleX, Clock, TriangleExclamationPoint, X } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { Approval } from "../../api/funder.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { EmptyState, ErrorBanner, Loading, PageHeader } from "../../components/ui.tsx";
+import { approvalTargets, dateTime, timeAgo, usePeople } from "./shared.tsx";
+
+const TOOL_TEXT: Record<string, (n: number) => string> = {
+  decline_application: (n) => `Decline ${n === 1 ? "1 application" : `${n} applications`} and send the decline letter`,
+  send_communication: () => "Send a templated message",
+  commit_decisions: () => "Commit panel decisions",
+  release_tranche: () => "Release a payment",
+};
+export const approvalTitle = (a: Approval) => TOOL_TEXT[a.tool]?.(Math.max(1, approvalTargets(a.input).length)) ?? a.description ?? a.tool.replace(/_/g, " ");
+const impactOf = (a: Approval) => {
+  const n = approvalTargets(a.input).length;
+  if (a.tool === "decline_application") return `Will send ${n} ${n === 1 ? "letter" : "letters"} and set ${n} ${n === 1 ? "status" : "statuses"} to Declined`;
+  return "Runs once, as you, when approved";
+};
+
+const RESOLVED_LOOK: Record<string, { label: string; tone: string; icon: typeof Check }> = {
+  approved: { label: "Approved", tone: "ok", icon: CircleCheck },
+  executed: { label: "Approved and done", tone: "ok", icon: CircleCheck },
+  failed: { label: "Approved, but the action failed", tone: "dng", icon: TriangleExclamationPoint },
+  rejected: { label: "Rejected", tone: "neutral", icon: CircleX },
+  expired: { label: "Expired", tone: "neutral", icon: Clock },
+};
+
+/** One pending request. Also shown on the dashboard. */
+export function ApprovalCard({ approval, base, onResolved }: { approval: Approval; base: string; onResolved: () => void }) {
+  const [note, setNote] = useState("");
+  const decide = useApiMutation((api, approve: boolean) => api.decideApproval(approval.id, { approve, ...(note.trim() ? { note: note.trim() } : {}) }));
+  const targets = approvalTargets(approval.input);
+  const input = (approval.input ?? {}) as Record<string, unknown>;
+  return (
+    <article className="apr" aria-label={`Approval request: ${approvalTitle(approval)}`}>
+      <div className="hd">
+        <Bot className="ic" aria-hidden="true" />
+        {approval.requestedBy.clientId ?? "An agent"} requests approval
+        <span style={{ marginLeft: "auto", fontWeight: 400, color: "#3C2380" }}>{timeAgo(approval.createdAt)}</span>
+      </div>
+      <div className="bd">
+        <div className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
+          {approvalTitle(approval)}
+        </div>
+        <dl className="kv">
+          <dt>Tool</dt>
+          <dd>
+            <span className="mono">{approval.tool}</span> · gated
+          </dd>
+          {typeof input.rationale === "string" && (
+            <>
+              <dt>Why</dt>
+              <dd>“{input.rationale}”</dd>
+            </>
+          )}
+          {targets.length > 0 && (
+            <>
+              <dt>Applications</dt>
+              <dd>
+                {targets.map((id, i) => (
+                  <Link key={id} to={`${base}/applications/${id}`} style={{ marginRight: "8px" }}>
+                    Open {targets.length > 1 ? i + 1 : "application"}
+                  </Link>
+                ))}
+              </dd>
+            </>
+          )}
+        </dl>
+        <div className="impact">
+          <TriangleExclamationPoint className="ic" aria-hidden="true" style={{ color: "#7A4A00" }} />
+          {impactOf(approval)}
+        </div>
+        <label className="sr" htmlFor={`note-${approval.id}`}>
+          Note (optional)
+        </label>
+        <input className="inp" id={`note-${approval.id}`} placeholder="Note (optional), kept with the decision" value={note} onChange={(e) => setNote(e.target.value)} />
+        {decide.error !== null && <ErrorBanner error={decide.error} />}
+      </div>
+      <div className="ft">
+        <button type="button" className="btn btn-primary" disabled={decide.state === "saving"} onClick={async () => (await decide.run(true)) && onResolved()}>
+          <Check className="ic" aria-hidden="true" />
+          Approve
+        </button>
+        <button type="button" className="btn btn-danger" disabled={decide.state === "saving"} onClick={async () => (await decide.run(false)) && onResolved()}>
+          <X className="ic" aria-hidden="true" />
+          Reject
+        </button>
+      </div>
+    </article>
+  );
+}
 
 export default function Approvals() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const { person } = usePeople();
+  const all = useApiQuery((api) => api.listApprovals(), []);
+  const pending = all.data?.filter((a) => a.status === "pending") ?? [];
+  const resolved = all.data?.filter((a) => a.status !== "pending") ?? [];
   return (
     <>
-      <title>{"Approvals — agent requests"}</title>
+      <title>{`Approvals — ${ws.name}`}</title>
       <FunderShell active="Approvals">
         <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <span>Approvals</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Approvals</h1>
-                <span className="bdg bdg-agent">
-                  <Bot className="ic" aria-hidden="true" />1 pending
-                </span>
-              </div>
-              <div className="meta">
-                <span>
-                  Actions that agents may prepare but a person must approve. Gated tools are set in{" "}
-                  <Link to="/w/riverbend/settings/mcp">Settings → MCP → Human gates</Link>.
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="tabs" role="tablist">
-            <button className="tab on" role="tab" aria-selected="true">
-              Pending
-              <span className="n" style={{ background: "#ECE6FA", color: "#4B2E9E" }}>
-                1
-              </span>
-            </button>
-            <button className="tab" role="tab">
-              Resolved<span className="n">6</span>
-            </button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 520px", gap: "20px", alignItems: "start" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="apr">
-                <div className="hd">
-                  <Bot className="ic" aria-hidden="true" />
-                  Riverbend Triage Agent (via Claude) requests approval
-                  <span className="muted" style={{ marginLeft: "auto", fontWeight: 400, color: "#3C2380" }}>
-                    2 min ago
-                  </span>
-                </div>
-                <div className="bd">
-                  <div className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
-                    Decline 14 LOI applications and send “Standard decline v3”
+          <PageHeader
+            crumbs={[{ label: ws.name, to: base }, { label: "Approvals" }]}
+            title="Approvals"
+            meta={
+              <>
+                <span>{pending.length} pending</span>
+                <span>·</span>
+                <span>Agents propose; people decide. Signing, accepting an award and releasing a payment can never be approved for an agent.</span>
+              </>
+            }
+            actions={
+              <Link to={`${base}/settings/mcp`} className="btn btn-secondary">
+                Human gates
+              </Link>
+            }
+          />
+          {all.status === "loading" && <Loading label="Loading approvals" />}
+          {all.status === "error" && <ErrorBanner error={all.error} onRetry={all.reload} />}
+          {all.status === "ready" && (
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+              <section className="col" style={{ gap: "16px" }} aria-label="Pending">
+                {pending.length === 0 && (
+                  <div className="card">
+                    <EmptyState icon={Bot} title="No agent requests">
+                      When a connected agent calls a gated tool, the request waits here for a person.
+                    </EmptyState>
                   </div>
-                  <dl className="kv">
-                    <dt>Tool</dt>
-                    <dd>
-                      <span className="mono">applications.bulk_decline</span> · gated
-                    </dd>
-                    <dt>Filter</dt>
-                    <dd>
-                      competition = Community Health Grants 2027 · stage = LOI · eligibility = <b>fail</b>
-                    </dd>
-                    <dt>Template</dt>
-                    <dd>Standard decline v3 (Communications)</dd>
-                    <dt>Why</dt>
-                    <dd>
-                      “Each application fails at least one eligibility rule that cannot be cured by revision (tax status, service area, or
-                      budget cap).”
-                    </dd>
-                  </dl>
-                  <div className="impact">
-                    <TriangleExclamationPoint className="ic" aria-hidden="true" style={{ color: "#7A4A00" }} />
-                    Will send 14 letters and set 14 applications to Declined
-                  </div>
-                </div>
-                <div className="ft">
-                  <Link to="/w/riverbend/communications" className="btn btn-primary">
-                    Approve
-                  </Link>
-                  <button className="btn btn-danger">Reject…</button>
-                  <Link to="/w/riverbend/applications" className="btn btn-ghost">
-                    Open in Applications
-                  </Link>
-                  <span className="small muted" style={{ marginLeft: "auto" }}>
-                    Requested for Dana Ortiz · expires in 7 days
-                  </span>
-                </div>
-              </div>
-              <div className="card">
+                )}
+                {pending.map((a) => (
+                  <ApprovalCard key={a.id} approval={a} base={base} onResolved={all.reload} />
+                ))}
+              </section>
+              <section className="card" aria-labelledby="resolved-h">
                 <div className="card-h">
-                  <h3>Resolved</h3>
-                  <span className="small muted">last 90 days</span>
+                  <h3 id="resolved-h">Resolved</h3>
+                  <span className="small muted">{resolved.length}</span>
                 </div>
-                <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
-                  <table className="tbl">
-                    <thead>
-                      <tr>
-                        <th>Request</th>
-                        <th>Agent</th>
-                        <th>Decided by</th>
-                        <th>When</th>
-                        <th>Outcome</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Decline 9 LOI applications · Standard decline v3</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Dana Ortiz</td>
-                        <td>Mar 2, 2027</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <Check className="ic" aria-hidden="true" />
-                            Approved
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Advance 3 applications to Full proposal</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Marcus Lee</td>
-                        <td>Feb 11, 2027</td>
-                        <td>
-                          <div className="ent">
-                            <span className="bdg bdg-dng">
-                              <X className="ic" aria-hidden="true" />
-                              Rejected
+                {resolved.length === 0 ? (
+                  <div className="card-b muted small">Nothing resolved yet.</div>
+                ) : (
+                  <ul>
+                    {resolved.map((a) => {
+                      const look = RESOLVED_LOOK[a.status] ?? RESOLVED_LOOK.rejected!;
+                      const Icon = look.icon;
+                      return (
+                        <li key={a.id} style={{ padding: "12px 20px", borderBottom: "1px solid #EEF3F3", display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
+                            <span className="b">{approvalTitle(a)}</span>
+                            <span className={`bdg bdg-${look.tone}`}>
+                              <Icon className="ic" aria-hidden="true" />
+                              {look.label}
                             </span>
-                            <span className="muted xs">reason: wait for budget review</span>
                           </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Send 22 acknowledgment emails</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Dana Ortiz</td>
-                        <td>Jan 29, 2027</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <Check className="ic" aria-hidden="true" />
-                            Approved
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Tag 6 applications “rural”</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Dana Ortiz</td>
-                        <td>Jan 27, 2027</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <Check className="ic" aria-hidden="true" />
-                            Approved
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Generate 12 report reminders (−7 days)</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Marcus Lee</td>
-                        <td>Dec 8, 2026</td>
-                        <td>
-                          <span className="bdg bdg-ok">
-                            <Check className="ic" aria-hidden="true" />
-                            Approved
-                          </span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>Release tranche 2 · Harbor Light Shelter</td>
-                        <td className="muted">Riverbend Triage Agent</td>
-                        <td>Marcus Lee</td>
-                        <td>Nov 20, 2026</td>
-                        <td>
-                          <div className="ent">
-                            <span className="bdg bdg-dng">
-                              <X className="ic" aria-hidden="true" />
-                              Rejected
-                            </span>
-                            <span className="muted xs">reason: release is finance-only, not an agent tool</span>
+                          <div className="attrib">
+                            <Bot className="ic" aria-hidden="true" />
+                            <span className="ag">{a.requestedBy.clientId ?? "An agent"}</span>
+                            {a.decidedAt && (
+                              <span>
+                                · decided by {person(a.decidedBy)?.name ?? "a member"} · {dateTime(a.decidedAt)}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <span className="eyebrow">State · empty</span>
-                <div className="card empty">
-                  <Bot className="ic" aria-hidden="true" />
-                  <h3>No agent requests</h3>
-                  <p>When a connected agent calls a gated tool, its request appears here for a person to approve or reject.</p>
-                  <div className="acts">
-                    <Link to="/w/riverbend/settings/mcp" className="btn btn-primary">
-                      Review human gates
-                    </Link>
-                    <Link to="/w/riverbend/settings/mcp" className="small b">
-                      Connect an agent
-                    </Link>
-                  </div>
-                </div>
-              </div>
+                          {a.note && <div className="small muted">“{a.note}”</div>}
+                          {a.error && <div className="err-msg">{a.error}</div>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
             </div>
-            <aside className="drawer" style={{ border: "1px solid #CDBFF0", borderRadius: "12px", overflow: "hidden" }}>
-              <div className="hd">
-                <div>
-                  <h3>Request detail</h3>
-                  <div className="attrib" style={{ marginTop: "2px" }}>
-                    <Bot className="ic ic-sm" aria-hidden="true" />
-                    Proposed by<span className="ag">Riverbend Triage Agent (via Claude)</span>· 2 min ago · req_01J4KD
-                  </div>
-                </div>
-                <button className="iconbtn" aria-label="Close detail">
-                  <X className="ic" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="bd" style={{ gap: "14px" }}>
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: "8px" }}>
-                    Exact inputs
-                  </div>
-                  <dl className="kv" style={{ fontSize: "12px" }}>
-                    <dt>competition_id</dt>
-                    <dd className="mono">cmp_01HX9A · Community Health Grants 2027</dd>
-                    <dt>stage</dt>
-                    <dd className="mono">loi</dd>
-                    <dt>filter</dt>
-                    <dd className="mono">eligibility.result == "fail"</dd>
-                    <dt>template_id</dt>
-                    <dd className="mono">tpl_decline_v3</dd>
-                    <dt>send_letters</dt>
-                    <dd className="mono">true</dd>
-                    <dt>client</dt>
-                    <dd>Claude · scopes applications:write, communications:send (gated)</dd>
-                  </dl>
-                </div>
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: "8px" }}>
-                    14 applications affected
-                  </div>
-                  <div className="tbl-wrap" style={{ maxHeight: "300px", overflow: "auto" }}>
-                    <table className="tbl tbl-compact">
-                      <thead>
-                        <tr>
-                          <th>Applicant</th>
-                          <th>Failed rule</th>
-                          <th className="num">Requested</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>Pine Ridge Literacy Project</td>
-                          <td>Service area</td>
-                          <td className="num">$40,000</td>
-                        </tr>
-                        <tr>
-                          <td>Meadowbrook Arts Collective</td>
-                          <td>Tax status</td>
-                          <td className="num">$25,000</td>
-                        </tr>
-                        <tr>
-                          <td>Granite Peak Youth Sports</td>
-                          <td>Budget cap</td>
-                          <td className="num">$35,000</td>
-                        </tr>
-                        <tr>
-                          <td>Elm Street Health Alliance</td>
-                          <td>Service area</td>
-                          <td className="num">$48,000</td>
-                        </tr>
-                        <tr>
-                          <td>Fernwood Early Learning</td>
-                          <td>Tax status</td>
-                          <td className="num">$30,000</td>
-                        </tr>
-                        <tr>
-                          <td>Oakmont Veterans Outreach</td>
-                          <td>Service area</td>
-                          <td className="num">$52,000</td>
-                        </tr>
-                        <tr>
-                          <td>Blue Heron Conservation</td>
-                          <td>Program fit</td>
-                          <td className="num">$44,000</td>
-                        </tr>
-                        <tr>
-                          <td>Maple Grove Tenant Union</td>
-                          <td>Tax status</td>
-                          <td className="num">$28,000</td>
-                        </tr>
-                        <tr>
-                          <td>Stonebridge Community Kitchen</td>
-                          <td>Budget cap</td>
-                          <td className="num">$160,000</td>
-                        </tr>
-                        <tr>
-                          <td>Hillcrest Mutual Aid</td>
-                          <td>Tax status</td>
-                          <td className="num">$22,000</td>
-                        </tr>
-                        <tr>
-                          <td>Juniper Ridge Clinic Fund</td>
-                          <td>Service area</td>
-                          <td className="num">$75,000</td>
-                        </tr>
-                        <tr>
-                          <td>Silver Lake Seniors</td>
-                          <td>Budget cap</td>
-                          <td className="num">$155,000</td>
-                        </tr>
-                        <tr>
-                          <td>Westfield Youth Theater</td>
-                          <td>Program fit</td>
-                          <td className="num">$38,000</td>
-                        </tr>
-                        <tr>
-                          <td>Clearwater Housing Collective</td>
-                          <td>Service area</td>
-                          <td className="num">$90,000</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div>
-                  <div className="row" style={{ justifyContent: "space-between", marginBottom: "8px" }}>
-                    <span className="eyebrow">Letter preview · 1 of 14</span>
-                    <span className="small muted">Pine Ridge Literacy Project</span>
-                  </div>
-                  <div className="letter">
-                    <div>
-                      <b>Subject:</b> Your Letter of Intent to Riverbend Community Foundation
-                    </div>
-                    <p>
-                      Dear <span className="mf">Elena Varga</span>,
-                    </p>
-                    <p>
-                      Thank you for submitting a Letter of Intent to <span className="mf">Community Health Grants 2027</span> on behalf of{" "}
-                      <span className="mf">Pine Ridge Literacy Project</span>. After an eligibility review, we are unable to invite a full
-                      proposal this cycle: <span className="mf">the project's service area falls outside Riverbend County</span>.
-                    </p>
-                    <p>
-                      This decision does not reflect the quality of your work. You may apply to future cycles, and your Passport record
-                      stays on file so you will not need to re-enter it.
-                    </p>
-                    <p>
-                      Sincerely,
-                      <br />
-                      Dana Ortiz · Program Officer · Riverbend Community Foundation
-                    </p>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between", marginTop: "6px" }}>
-                    <button className="btn btn-sm btn-ghost">‹ Previous</button>
-                    <span className="small muted">1 / 14</span>
-                    <button className="btn btn-sm btn-ghost">Next ›</button>
-                  </div>
-                </div>
-                <div className="fld">
-                  <label className="lbl" htmlFor="reason">
-                    Reason (required to reject)
-                  </label>
-                  <textarea
-                    className="ta"
-                    id="reason"
-                    style={{ minHeight: "64px" }}
-                    placeholder="Shown to the agent and recorded in the audit ledger"
-                  />
-                </div>
-                <div className="row" style={{ gap: "8px" }}>
-                  <Link to="/w/riverbend/communications" className="btn btn-primary">
-                    Approve and send 14 letters
-                  </Link>
-                  <button className="btn btn-danger">Reject</button>
-                </div>
-                <div className="small muted">
-                  Approving records: approved by Dana Ortiz · time · request id · letter hashes. The agent is notified and the F6 rows
-                  update to Declined.
-                </div>
-              </div>
-            </aside>
-          </div>
+          )}
         </main>
       </FunderShell>
     </>
