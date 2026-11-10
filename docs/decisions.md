@@ -18,6 +18,9 @@ One line each: date · decision · why.
 - 2026-11-10 · `@common-grants/sdk` 0.9.1 has no Zod schemas for CompetitionBase, FormBase, ApplicationBase, AppFormResponse or OrganizationBase; `packages/protocol` defines them locally from the core TypeSpec · needed to validate every projection.
 - 2026-11-10 · OAuth: authorization requests reach the web consent screen as a signed 10-minute JWT; delegated tokens are re-intersected with the member's current role on every request · same shape as Passport.
 - 2026-11-10 · Workflow: decline is allowed from submitted, screening, under_review, interview, recommended and waitlisted; award cancel from any non-terminal status; ranking uses sample standard deviation with a 15-point default spread threshold · needed for bulk triage and the panel view.
+- 2026-11-10 · Owner decision: the September work (`feat/v1`, `feat/hosted`, PRs #1 and #2) is retired and nothing is ported from it; v1 is built fresh from the build prompt and the design canvas, with no features beyond the prompt (no board voting, diligence screening or audit-log screen) · one design, one stack. PRs #1 and #2 are closed; the branches remain on GitHub.
+- 2026-11-10 · Owner decision: Passport is the portable identity / common app and the GMS leverages it. Where Passport cannot yet serve the GMS (profile read for consented clients, funder award routes), Passport is changed rather than the GMS working around it · see the Passport PR from branch `claude/gms-integration`.
+- 2026-11-10 · The tranche machine gains `releasing → held` and `held → releasing|initiated` · Passport creates a held disbursement itself during a destination change.
 
 ## Open differences with Passport (need an owner decision)
 
