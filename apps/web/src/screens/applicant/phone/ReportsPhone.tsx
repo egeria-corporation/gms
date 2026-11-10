@@ -19,9 +19,10 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
   const org = useApplicantQuery((api) => api.organization(), []);
   const l = report.loaded;
   const funder = requirement.funder?.name ?? "your funder";
+  const blockers = report.showAll || report.serverErrors.length ? report.errors : [];
   return (
     <>
-      <section className="card" id="editor" aria-labelledby="ed-h">
+      <section className="card" id="editor" tabIndex={-1} aria-labelledby="ed-h">
         <div className="card-h" style={{ padding: "14px 16px", flexWrap: "wrap" }}>
           <div>
             <h3 id="ed-h" style={{ fontSize: "16px" }}>
@@ -52,7 +53,12 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
                 {report.save.state === "saved" && "Saved"}
                 {report.save.state === "error" && "Your last change was not saved"}
               </span>
-              {report.submit.error ? <ErrorBanner error={report.submit.error} title="The report was not submitted" /> : null}
+              {blockers.length > 0 && (
+                <p className="small b" role="alert" style={{ color: "var(--s-dng-fg)" }}>
+                  The report was not submitted. {blockers.length === 1 ? "One answer above needs" : `${blockers.length} answers above need`} fixing.
+                </p>
+              )}
+              {report.submit.error && !blockers.length ? <ErrorBanner error={report.submit.error} title="The report was not submitted" /> : null}
               {report.editable && (
                 <button className="btn btn-primary btn-lg btn-block" type="button" disabled={report.submit.state === "sending" || !l.def} onClick={() => void report.send()}>
                   {report.submit.state === "sending" ? "Submitting…" : l.submission.status === "returned" ? "Resubmit report" : "Submit report"}

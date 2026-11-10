@@ -233,6 +233,8 @@ export function useReport(requirement: MyRequirement | null, onChanged: () => vo
         setLoaded((prev) => (prev ? { ...prev, submission: sent, form: sent.formResponses[0] ?? prev.form } : prev));
         setSubmit({ state: "idle" });
         changed.current();
+        // The submit button is gone once the report locks; keep keyboard focus on the report.
+        setTimeout(() => document.getElementById("editor")?.focus(), 0);
       } catch (e) {
         setServerErrors(problemsOf(e).map((p) => ({ field: (p.field ?? p.path ?? "").replace(/^frm_[0-9a-f-]+/, ""), message: p.message, type: "invalid" })));
         setSubmit({ state: "idle", error: e });

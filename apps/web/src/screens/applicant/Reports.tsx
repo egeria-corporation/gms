@@ -23,7 +23,7 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
   const blockers = report.showAll || report.serverErrors.length ? report.errors : [];
   return (
     <>
-      <div className="card" id="editor" style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+      <div className="card" id="editor" tabIndex={-1} style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
         <FunderChip name={requirement.funder?.name} accent={accentOf(requirement.funder?.brand)} />
         <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: "0" }}>
           <h2 style={{ fontSize: "20px" }}>

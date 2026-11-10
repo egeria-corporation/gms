@@ -47,7 +47,7 @@ export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder:
           {hero}
         </div>
       </header>
-      {children}
+      <main>{children}</main>
       <footer className="pub-foot" style={{ marginTop: "auto" }}>
         <div className="wrap-c">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

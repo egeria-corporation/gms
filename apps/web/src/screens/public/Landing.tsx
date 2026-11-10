@@ -61,6 +61,7 @@ export default function Landing() {
             </nav>
           </div>
         </header>
+        <main>
         <section style={{ background: "var(--grad-hero)", padding: "64px 0 56px" }}>
           <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <span className="og-eyebrow">
@@ -304,6 +305,7 @@ export default function Landing() {
             </div>
           </div>
         </section>
+        </main>
         <footer className="pub-foot" style={{ marginTop: "auto" }}>
           <div className="wrap-c">
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
