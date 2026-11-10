@@ -80,8 +80,10 @@ export default function OAuthConsent() {
             <span style={{ fontFamily: "var(--font-display)", fontWeight: 500, color: "#145450", fontSize: "15px" }}>GMS</span>
           </Link>
           {me && (
-            <div className="row" style={{ gap: "10px" }}>
-              <span className="small muted">Signed in as {me.email}</span>
+            <div className="row" style={{ gap: "10px", minWidth: 0 }}>
+              <span className="small muted" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                Signed in as {me.email}
+              </span>
               <span className="av" aria-hidden="true">
                 {initialsOf(me.email)}
               </span>

@@ -10,6 +10,7 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CommitResult, DecisionInput, DecisionOutcome, RankingRow } from "../../api/funder.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
@@ -39,6 +40,7 @@ export default function Panel() {
   const allocation = useApiQuery((api) => api.getAllocation(compId), [compId]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [override, setOverride] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<CommitResult | null>(null);
 
   useEffect(() => {
@@ -145,14 +147,8 @@ export default function Panel() {
                   className="btn btn-primary"
                   disabled={blocked !== null || commit.state === "saving"}
                   aria-describedby={blocked ? "commit-why" : undefined}
-                  onClick={async () => {
-                    const r = await commit.run();
-                    if (r) {
-                      setResult(r);
-                      setOverride("");
-                      reload();
-                    }
-                  }}
+                  aria-haspopup="dialog"
+                  onClick={() => setConfirming(true)}
                 >
                   <Gavel className="ic" aria-hidden="true" />
                   Commit decisions
@@ -227,7 +223,7 @@ export default function Panel() {
             </EmptyState>
           )}
           {rows.length > 0 && (
-            <div className="tbl-wrap">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Ranking and decisions, scrollable">
               <table className="tbl" aria-label="Ranking and decisions">
                 <thead>
                   <tr>
@@ -306,6 +302,76 @@ export default function Panel() {
             </div>
           )}
           <p className="notice">Spread is the standard deviation of reviewers’ overall scores (0–100); a flag means they disagree by more than the rubric’s threshold.</p>
+          {confirming && (
+            <Dialog open onClose={() => setConfirming(false)} labelledBy="commit-title">
+              <div className="hd">
+                <div>
+                  <h2 id="commit-title" style={{ fontSize: "16px" }}>
+                    Commit {inputs.decisions.length} {inputs.decisions.length === 1 ? "decision" : "decisions"}?
+                  </h2>
+                  <p className="small muted" style={{ marginTop: "4px" }}>
+                    Decisions are final once committed. Each approval creates an award in Offered with its agreement draft, and every applicant gets a letter.
+                  </p>
+                </div>
+              </div>
+              <div className="bd" style={{ fontSize: "13px", gap: "8px" }}>
+                {(
+                  [
+                    ["approve", "approved", "an award is created (Offered)"],
+                    ["waitlist", "waitlisted", "status only"],
+                    ["decline", "declined", "a decline letter is sent"],
+                  ] as const
+                ).map(([outcome, word, effect]) => {
+                  const n = inputs.decisions.filter((d) => d.outcome === outcome).length;
+                  return n ? (
+                    <div key={outcome} className="row" style={{ gap: "8px" }}>
+                      <Check className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
+                      {n} {word} · {effect}
+                    </div>
+                  ) : null;
+                })}
+                {pendingMinor > 0 && (
+                  <div className="row" style={{ gap: "8px" }}>
+                    <Check className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
+                    {formatMinor(pendingMinor)} committed from the program budget
+                  </div>
+                )}
+                {over && override.trim() && (
+                  <div className="row" style={{ gap: "8px" }}>
+                    <TriangleExclamationPoint className="ic" aria-hidden="true" style={{ color: "var(--s-warn-fg)" }} />
+                    Over budget · override recorded: {override.trim()}
+                  </div>
+                )}
+                <div className="row muted" style={{ gap: "8px" }}>
+                  <Lock className="ic" aria-hidden="true" />
+                  Logged in the audit ledger. An agent can propose decisions but cannot commit them.
+                </div>
+                {commit.error !== null && <ErrorBanner error={commit.error} />}
+              </div>
+              <div className="ft">
+                <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={commit.state === "saving"}
+                  onClick={async () => {
+                    const r = await commit.run();
+                    if (r) {
+                      setConfirming(false);
+                      setResult(r);
+                      setOverride("");
+                      reload();
+                    }
+                  }}
+                >
+                  <Gavel className="ic" aria-hidden="true" />
+                  Commit decisions
+                </button>
+              </div>
+            </Dialog>
+          )}
         </main>
       </FunderShell>
     </>

@@ -69,8 +69,9 @@ export function ReviewerFrame({ tab, title, children }: { tab: "assignments" | "
               <Bell className="ic ic-md" aria-hidden="true" />
             </Link>
             {me && (
-              <Link to="/account/agents" className="av av-t" aria-label={`Account: ${me.email}`}>
-                {initialsOf(me.email)}
+              <Link to="/account/agents" className="av av-t">
+                <span aria-hidden="true">{initialsOf(me.email)}</span>
+                <span className="sr">Account: {me.email}</span>
               </Link>
             )}
           </div>

@@ -174,7 +174,7 @@ export function Payments({ awards, base, phone }: { awards: AwardDetail[]; base:
           ))}
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Table, scrollable">
           <table className="tbl" style={{ fontSize: "14px" }}>
             <thead>
               <tr>
@@ -232,7 +232,7 @@ export function ReportsDue({ awards, base }: { awards: AwardDetail[]; base: stri
                 <StatusBadge kind="requirement" status={r.status} />
               </span>
               <div>
-                <Link to={`${base}/reports`} className="b">
+                <Link to={`${base}/reports?r=${encodeURIComponent(r.id)}`} className="b">
                   {r.title} · {w.title}
                 </Link>
                 <div className="small muted">

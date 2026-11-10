@@ -43,8 +43,8 @@ export default function Forms() {
       header: "",
       numeric: true,
       cell: (f) => (
-        <button type="button" className="btn btn-sm btn-secondary" disabled={create.state === "saving"} aria-label={`Start from ${f.title}`} onClick={() => start({ title: f.title, purpose: f.purpose, description: f.description, copyFrom: { id: f.id, version: f.version } })}>
-          Start from this
+        <button type="button" className="btn btn-sm btn-secondary" disabled={create.state === "saving"} onClick={() => start({ title: f.title, purpose: f.purpose, description: f.description, copyFrom: { id: f.id, version: f.version } })}>
+          Start from this<span className="sr">: {f.title}</span>
         </button>
       ),
     },

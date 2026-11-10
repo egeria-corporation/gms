@@ -171,6 +171,9 @@ export default function ReviewAssignment() {
                     <UserPlus className="ic" aria-hidden="true" />
                     Invite external reviewer…
                   </button>
+                  <Link to="/review/assignments" className="btn btn-secondary">
+                    My assignments
+                  </Link>
                   <Link to={`${base}/competitions/${competition.id}/panel`} className="btn btn-primary">
                     Open panel
                   </Link>
@@ -197,7 +200,7 @@ export default function ReviewAssignment() {
             </EmptyState>
           )}
           {!loading && rows.length > 0 && (
-            <div className="tbl-wrap">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Reviewers by application, scrollable">
               <table className="tbl mx" aria-label="Reviewers by application">
                 <thead>
                   <tr>

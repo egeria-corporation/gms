@@ -206,8 +206,9 @@ export default function FunderOnboarding() {
           <button type="button" className="iconbtn" aria-label="Help">
             <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
           </button>
-          <Link to="/account/agents" className="av" aria-label={`Account: ${email}`}>
-            {initialsOf(email)}
+          <Link to="/account/agents" className="av">
+            <span aria-hidden="true">{initialsOf(email)}</span>
+            <span className="sr">Account: {email}</span>
           </Link>
         </div>
       </header>

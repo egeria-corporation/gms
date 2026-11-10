@@ -284,7 +284,7 @@ export default function Applications() {
           {list.status === "loading" && <Loading label="Loading applications" />}
           {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
           {list.status === "ready" && (
-            <div className="tbl-wrap">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Applications, scrollable">
               <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label="Applications">
                 <thead>
                   <tr>

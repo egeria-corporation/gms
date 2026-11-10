@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Accessibility: every applicant-facing and public route rendered from the mocks, desktop and
-// phone, checked with axe-core (pinned in package.json) for serious and critical violations.
+// Accessibility: every public, applicant, funder and reviewer route rendered from the mocks, desktop
+// and phone, checked with axe-core (pinned in package.json) for serious and critical violations.
 // jsdom has no layout, so color contrast and target size are checked in Chromium instead
 // (README, "Accessibility").
 import { render, waitFor } from "@testing-library/react";
@@ -15,6 +15,9 @@ import { createMockServices } from "../src/app/services.tsx";
 import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
 import { createMockApplicantMoreApi, MORE_IDS, seedMoreStore } from "../src/mocks/applicantMore.ts";
 import { demoSession } from "../src/mocks/auth.ts";
+import { MOCK_IDS } from "../src/mocks/funder.ts";
+import { MONEY_IDS } from "../src/mocks/funderMoney.ts";
+import { IDS } from "../src/mocks/store.ts";
 import { viewport } from "./setup.ts";
 
 const A = "/w/alder-creek";
@@ -43,6 +46,42 @@ const APPLICANT = [
   `${A}/team`,
   `${A}/funders`,
   `${A}/settings`,
+];
+const F = "/w/riverbend";
+const FUNDER = [
+  F,
+  `${F}/programs`,
+  `${F}/programs/${IDS.programHealth27}`,
+  `${F}/opportunities`,
+  `${F}/opportunities/new`,
+  `${F}/opportunities/${IDS.oppHealth27}/edit`,
+  `${F}/forms`,
+  `${F}/forms/${IDS.formLoi}/edit`,
+  `${F}/competitions/${IDS.compHealth27}`,
+  `${F}/competitions/${IDS.compHealth27}/panel`,
+  `${F}/applications`,
+  `${F}/applications/first-run`,
+  `${F}/applications/${MOCK_IDS.alder}`,
+  `${F}/reviews/assign`,
+  `${F}/awards`,
+  `${F}/awards/${MOCK_IDS.award}/agreement`,
+  `${F}/awards/${MONEY_IDS.awardAlder}/payments`,
+  `${F}/awards/${MONEY_IDS.awardHarbor}/payments`,
+  `${F}/payments/due`,
+  `${F}/payments/in-flight`,
+  `${F}/reporting`,
+  `${F}/reporting?tab=received`,
+  `${F}/grantees`,
+  `${F}/analytics`,
+  `${F}/communications`,
+  `${F}/settings/passport`,
+  `${F}/settings/mcp`,
+  `${F}/approvals`,
+  "/review/assignments",
+  `/review/score/${MOCK_IDS.danaScoring}`,
+  "/oauth/consent",
+  "/onboarding/funder/organization",
+  "/onboarding/funder/brand",
 ];
 // The six screens with a dedicated 390px layout, plus the shared ones a phone reaches.
 const PHONE = [A, `${A}/organization`, `${A}/applications/${HEALTH}/edit`, `${A}/applications/${HEALTH}`, `${A}/grants/awd_${APPLICANT_IDS.awardClinic}`, `${A}/reports`, `${A}/reports?r=req_${MORE_IDS.reqMidYear}`, "/notifications", "/"];
@@ -78,7 +117,7 @@ afterEach(() => {
 });
 
 describe("axe: no serious or critical violations", () => {
-  it.each([...PUBLIC, ...APPLICANT])("desktop %s", async (path) => {
+  it.each([...PUBLIC, ...APPLICANT, ...FUNDER])("desktop %s", async (path) => {
     expect(await violations(path)).toEqual([]);
   });
   it.each(PHONE)("phone %s", async (path) => {

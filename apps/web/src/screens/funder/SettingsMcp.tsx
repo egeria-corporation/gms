@@ -5,14 +5,17 @@
 // once), connectors, the team, and the ledger itself.
 import { useState } from "react";
 import { Link } from "react-router";
-import { Bot, Copy, Download, KeyRound, Plug, Plus, ShieldCheck, Webhook as WebhookIcon } from "lucide-react";
+import { ArrowRight, Bot, Check, Download, KeyRound, Plug, Plus, ShieldCheck, Webhook as WebhookIcon } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { ApiClientIssued, LedgerEvent, McpServer, RemoteTool, Webhook, WebhookCreated } from "../../api/funderMoney.ts";
+import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
+import { CopyButton } from "../../components/CopyButton.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { env } from "../../env.ts";
+import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
 import { HumanGates } from "./HumanGates.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
@@ -25,7 +28,6 @@ const words = (s: string) => s.replace(/_/g, " ");
 
 /** A secret that is shown exactly once, with a copy button. */
 function SecretOnce({ title, label, value, extra, onClose }: { title: string; label: string; value: string; extra?: React.ReactNode; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
   return (
     <Dialog open onClose={onClose} labelledBy="secret-title">
       <div className="hd">
@@ -39,17 +41,7 @@ function SecretOnce({ title, label, value, extra, onClose }: { title: string; la
         <Field id="secret-value" label={label}>
           <div className="row">
             <input className="inp mono" id="secret-value" value={value} readOnly style={{ fontSize: "12px" }} />
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={async () => {
-                await navigator.clipboard?.writeText(value).catch(() => undefined);
-                setCopied(true);
-              }}
-            >
-              <Copy className="ic" aria-hidden="true" />
-              {copied ? "Copied" : "Copy"}
-            </button>
+            <CopyButton value={value} what={label.toLowerCase()} />
           </div>
         </Field>
       </div>
@@ -69,7 +61,6 @@ function ConnectedAgents() {
     return true;
   });
   const { person } = usePeople();
-  const mcpUrl = `${env.apiBaseUrl || "https://gms.opengrants.io"}/mcp`;
   return (
     <section id="agents" className="card" aria-labelledby="agents-h">
       <div className="card-h">
@@ -77,7 +68,6 @@ function ConnectedAgents() {
           <h3 id="agents-h">Connected agents</h3>
           <p className="small muted">An agent acts as the person who connected it, with that person’s permissions and never more.</p>
         </div>
-        <span className="tag">MCP · streamable HTTP</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {list.status === "loading" && <Loading label="Loading connected agents" />}
@@ -112,9 +102,6 @@ function ConnectedAgents() {
           </div>
         ))}
         {list.data && !list.data.length && <p className="muted small">No agents are connected to this workspace.</p>}
-        <Field id="mcp-url" label="Server URL" help="Add this to Claude or any MCP client that supports OAuth. You sign in as yourself, choose this workspace and grant scopes.">
-          <input className="inp mono" id="mcp-url" value={mcpUrl} readOnly style={{ fontSize: "12px" }} />
-        </Field>
       </div>
     </section>
   );
@@ -349,7 +336,7 @@ function ApiClients() {
           <ErrorBanner error={list.error ?? revoke.error} onRetry={list.reload} />
         </div>
       )}
-      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="API clients, scrollable">
         <table className="tbl" aria-label="API clients">
           <thead>
             <tr>
@@ -584,7 +571,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
           <ErrorBanner error={list.error ?? change.error} onRetry={list.reload} />
         </div>
       )}
-      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Team members, scrollable">
         <table className="tbl" aria-label="Team members">
           <thead>
             <tr>
@@ -661,12 +648,7 @@ function Ledger() {
   const { person } = usePeople();
   const exportCsv = (rows: LedgerEvent[]) => {
     const lines = [["occurredAt", "actor", "eventType", "subjectType", "subjectId"], ...rows.map((e) => [e.occurredAt, e.actor, e.eventType, e.subjectType, e.subjectId])];
-    const url = URL.createObjectURL(new Blob([lines.map((l) => l.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ledger.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(lines, "ledger.csv");
   };
   return (
     <section id="audit" className="card" aria-labelledby="audit-h">
@@ -740,6 +722,81 @@ function Ledger() {
   );
 }
 
+/**
+ * How an agent gets connected. The steps are informational: the connection is started from the
+ * agent's own client, which sends the person through sign-in and the consent screen.
+ */
+function ConnectAgent({ workspaceName }: { workspaceName: string }) {
+  const mine = useApiQuery((api) => api.listMcpConnections(), []);
+  const connected = !!mine.data?.some((c) => c.mine);
+  // The real consent screen is opened by the agent's client. In mock mode there is no client, so the
+  // card links to the screen directly, as the design's click-through does.
+  const { mock } = useServices();
+  const mcpUrl = `${env.apiBaseUrl || "https://gms.opengrants.io"}/mcp`;
+  const [copied, setCopied] = useState(false);
+  const stepOne = copied || connected;
+  return (
+    <section id="connect" className="card" aria-labelledby="connect-h">
+      <div className="card-h">
+        <h3 id="connect-h">Connect an agent</h3>
+        <span className="tag">MCP · streamable HTTP</span>
+      </div>
+      <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div className="fld">
+          <label className="lbl" htmlFor="mcp-url">
+            Server URL
+          </label>
+          <div className="row" style={{ gap: "8px" }}>
+            <input className="inp mono" id="mcp-url" value={mcpUrl} readOnly style={{ fontSize: "12px" }} />
+            <CopyButton value={mcpUrl} what="server URL" onCopied={() => setCopied(true)} />
+          </div>
+        </div>
+        <ol className="stp-v" style={{ gap: "0" }}>
+          <li className={stepOne ? "s done" : "s on"}>
+            <span className="n">{stepOne ? <Check className="ic ic-sm" aria-hidden="true" /> : 1}</span>
+            <div>
+              <div className="t">Add the server to your client</div>
+              <div className="d">Paste the URL into Claude, Cursor, or any MCP client that supports OAuth.</div>
+            </div>
+          </li>
+          <li className={connected ? "s done" : stepOne ? "s on" : "s"}>
+            <span className="n">{connected ? <Check className="ic ic-sm" aria-hidden="true" /> : 2}</span>
+            <div>
+              <div className="t">Sign in</div>
+              <div className="d">The client opens the GMS sign-in; you authenticate as yourself, with MFA.</div>
+            </div>
+          </li>
+          <li className={connected ? "s done" : "s"}>
+            <span className="n">{connected ? <Check className="ic ic-sm" aria-hidden="true" /> : 3}</span>
+            <div>
+              <div className="t">Choose workspace and scopes</div>
+              <div className="d">Pick {workspaceName}, grant scopes by area, and see which tools are gated by a human.</div>
+            </div>
+          </li>
+        </ol>
+        <div className="row wrap" style={{ gap: "12px" }}>
+          <Link to="/agents" className="btn btn-primary">
+            How agents connect
+            <ArrowRight className="ic" aria-hidden="true" />
+          </Link>
+          <a href="#gates" className="small b">
+            See which actions need a person
+          </a>
+          {mock && (
+            <Link to="/oauth/consent?req=preview" className="small b">
+              Preview the consent screen
+            </Link>
+          )}
+        </div>
+        <span className="help">
+          The consent screen opens from the agent’s client once it starts the OAuth flow; it cannot be started from here. The agent inherits the connecting
+          user’s permissions and never more. Scopes can be narrowed later; widening requires a new consent.
+        </span>
+      </div>
+    </section>
+  );
+}
+
 export default function SettingsMcp() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
@@ -755,6 +812,7 @@ export default function SettingsMcp() {
               <nav className="card snav" style={{ padding: "8px" }} aria-label="On this page">
                 {[
                   ["agents", "Connected agents"],
+                  ["connect", "Connect an agent"],
                   ["gates", "Human gates"],
                   ["servers", "Custom MCP servers"],
                   ["integrations", "Integrations"],
@@ -774,8 +832,11 @@ export default function SettingsMcp() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <ConnectedAgents />
-              <div id="gates">
-                <HumanGates />
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                <ConnectAgent workspaceName={ws.name} />
+                <div id="gates">
+                  <HumanGates />
+                </div>
               </div>
               <McpServers />
               <Connectors />

@@ -39,7 +39,7 @@ describe("dashboard", () => {
   it("counts what needs a person and shows the pending agent request", async () => {
     open("/w/riverbend");
     const stat = (await screen.findByText("Open applications")).closest("a")!;
-    await waitFor(() => expect(within(stat).getByText("6")).toBeInTheDocument());
+    await waitFor(() => expect(within(stat).getByText("7")).toBeInTheDocument());
     expect(screen.getByRole("group", { name: "Community Health Grants 2027 pipeline by stage" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Approval request: Decline 2 applications/ })).toBeInTheDocument();
     expect(await screen.findByText("Harbor Light Shelter · destination change pending")).toBeInTheDocument();
@@ -235,6 +235,8 @@ describe("panel", () => {
     const row = (await screen.findByRole("link", { name: "Harbor Light Shelter" })).closest("tr")!;
     await userEvent.click(within(row).getByRole("radio", { name: "Approve" }));
     await userEvent.click(screen.getByRole("button", { name: "Commit decisions" }));
+    // Committing is final, so it is confirmed first.
+    await userEvent.click(within(await screen.findByRole("dialog", { name: /Commit \d+ decisions?\?/ })).getByRole("button", { name: "Commit decisions" }));
     expect(await screen.findByText("1 decision committed")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("link", { name: "Open award for Harbor Light Shelter" }));
     expect(await screen.findByRole("heading", { level: 2, name: "Shelter Health Liaison" })).toBeInTheDocument();

@@ -2,6 +2,7 @@
 // Analytics: committed against paid by program (paid amounts are the figures last read from
 // Passport), one cycle's funnel, and the exports: the 990-PF grant list, the CommonGrants bundle,
 // and a CSV import of awards from another system with column mapping and a dry run.
+import { downloadBlob } from "../../lib/browser.ts";
 import { useState } from "react";
 import { ChartColumn, Download, TriangleExclamationPoint, Upload } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -204,7 +205,7 @@ function ImportPanel() {
           />
         </Field>
         {columns.length > 0 && (
-          <div className="tbl-wrap">
+          <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Column mapping, scrollable">
             <table className="tbl" aria-label="Column mapping">
               <thead>
                 <tr>
@@ -275,12 +276,7 @@ function ExportsPanel() {
   const [year, setYear] = useState(String(new Date().getUTCFullYear()));
   const list = useApiQuery((api) => api.grantList990(Number(year)), [year]);
   const csv = useApiMutation(async (api) => {
-    const url = URL.createObjectURL(await api.grantList990Csv(Number(year)));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `990pf-part-xv-${year}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(await api.grantList990Csv(Number(year)), `990pf-part-xv-${year}.csv`);
     return true;
   });
   const bundle = useApiMutation((api) => api.exportBundle());
@@ -309,7 +305,7 @@ function ExportsPanel() {
           </div>
         )}
         {list.data && (
-          <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+          <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="990-PF grant list, scrollable">
             <table className="tbl" aria-label="990-PF grant list">
               <thead>
                 <tr>

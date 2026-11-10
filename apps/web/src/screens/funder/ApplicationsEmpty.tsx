@@ -34,20 +34,20 @@ export default function ApplicationsEmpty() {
               </button>
             </div>
           </div>
-          <div className="tabs" role="tablist" aria-label="Saved views">
-            <Link to="/w/riverbend/applications/first-run" className="tab on" role="tab" aria-selected="true">
+          <nav className="tabs" aria-label="Saved views">
+            <Link to="/w/riverbend/applications/first-run" className="tab on" aria-current="page">
               All<span className="n">0</span>
             </Link>
-            <span className="tab" style={{ opacity: ".5" }}>
+            <span className="tab" aria-disabled="true">
               Needs screening<span className="n">0</span>
             </span>
-            <span className="tab" style={{ opacity: ".5" }}>
+            <span className="tab" aria-disabled="true">
               Review complete<span className="n">0</span>
             </span>
-            <span className="tab" style={{ opacity: ".5" }}>
+            <span className="tab" aria-disabled="true">
               Flagged<span className="n">0</span>
             </span>
-          </div>
+          </nav>
           <div className="card empty" style={{ minHeight: "360px", justifyContent: "center", padding: "64px 24px" }}>
             <Inbox className="ic" aria-hidden="true" />
             <h3 style={{ fontSize: "20px" }}>No applications yet</h3>
@@ -59,7 +59,7 @@ export default function ApplicationsEmpty() {
               <Link to="/w/riverbend/programs" className="btn btn-primary btn-lg">
                 Create a program
               </Link>
-              <Link to="/w/riverbend/settings/mcp" className="b" style={{ fontSize: "14px" }}>
+              <Link to="/w/riverbend/analytics" className="b" style={{ fontSize: "14px" }}>
                 Import applications from CSV
               </Link>
             </div>
@@ -79,7 +79,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/opportunities/community-health-2027/edit" className="s" style={{ textDecoration: "none" }}>
+              <Link to="/w/riverbend/opportunities/new" className="s" style={{ textDecoration: "none" }}>
                 <span className="n">2</span>
                 <div>
                   <div>Opportunity</div>
@@ -99,7 +99,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/competitions/community-health-2027" className="s" style={{ textDecoration: "none" }}>
+              <Link to="/w/riverbend/opportunities" className="s" style={{ textDecoration: "none" }}>
                 <span className="n">4</span>
                 <div>
                   <div>Launch</div>

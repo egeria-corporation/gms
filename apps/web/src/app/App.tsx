@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
 // funder and applicant workspaces share URL shapes (dashboard, applications/:id).
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, type Services } from "./services.tsx";
@@ -17,6 +17,7 @@ const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
+const ApplyEntry = lazy(() => import("../screens/public/ApplyEntry.tsx"));
 const Notifications = lazy(() => import("../screens/public/Notifications.tsx"));
 const AccountSettings = lazy(() => import("../screens/public/AccountSettings.tsx"));
 const FDashboard = lazy(() => import("../screens/funder/Dashboard.tsx"));
@@ -135,6 +136,11 @@ const a = (el: ReactNode) => <Only kind="applicant">{el}</Only>;
 export function App({ services }: { services?: Services }) {
   // Built once per mount; tests pass their own.
   const [resolved] = useState(() => services ?? createServices());
+  // Mock mode only: lets a demo or an end-to-end test deliver what only Passport sends in
+  // production (a settlement, a destination change taking effect, an outage).
+  useEffect(() => {
+    if (resolved.mock) (window as unknown as { __gmsMock?: unknown }).__gmsMock = resolved.api;
+  }, [resolved]);
   return (
     <ServicesProvider services={resolved}>
       <AppRoutes />
@@ -159,6 +165,7 @@ function AppRoutes() {
           <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/organization" replace />} />
           <Route path="/onboarding/funder/:step" element={<FunderOnboarding />} />
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
+          <Route path="/apply/:handle/:slug" element={<ApplyEntry />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />

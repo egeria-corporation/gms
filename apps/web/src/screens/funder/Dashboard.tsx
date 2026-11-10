@@ -166,7 +166,7 @@ export default function Dashboard() {
 
                   <section className="card" aria-labelledby="programs-h">
                     <div className="card-h">
-                      <h3 id="programs-h">Committed by program</h3>
+                      <h3 id="programs-h">Committed vs paid by program</h3>
                       <Link to={`${base}/analytics`} className="small b">
                         Analytics
                       </Link>

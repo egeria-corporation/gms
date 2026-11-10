@@ -85,7 +85,7 @@ describe("public opportunity page", () => {
   it("sends Apply to sign-in with the page as the return address", async () => {
     open("/f/riverbend/o/community-health-2027", createMockServices({ session: null }));
     const apply = await screen.findByRole("link", { name: /Apply with Passport/ });
-    expect(apply).toHaveAttribute("href", `/signin?next=${encodeURIComponent("/f/riverbend/o/community-health-2027")}`);
+    expect(apply).toHaveAttribute("href", "/apply/riverbend/community-health-2027");
   });
 
   it("links the CommonGrants record and describes the grant for search engines", async () => {
@@ -248,7 +248,7 @@ describe("form builder", () => {
     await userEvent.clear(label);
     await userEvent.type(label, "Employer ID");
     await userEvent.click(screen.getByRole("switch", { name: "Required" }));
-    await userEvent.click(screen.getByRole("button", { name: "Prefill from Passport" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Prefill from Passport/ }));
     await userEvent.type(screen.getByLabelText("Filter Passport fields"), "EIN");
     await userEvent.click(within(screen.getByRole("list", { name: "Passport fields" })).getByRole("button", { name: /EIN/ }));
 
@@ -322,7 +322,7 @@ describe("form builder", () => {
 
   it("starts a form from the shared library", async () => {
     const services = open("/w/riverbend/forms");
-    await userEvent.click(await screen.findByRole("button", { name: "Start from Progress report" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Start from this.*Progress report/ }));
     expect(await screen.findByRole("heading", { level: 1, name: "Progress report · v1" })).toBeInTheDocument();
     expect((await services.api.listForms()).map((f) => f.title)).toContain("Progress report");
   });

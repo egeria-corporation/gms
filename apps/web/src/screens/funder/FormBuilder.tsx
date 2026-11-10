@@ -75,7 +75,7 @@ export function PrefillPicker({ value, inUse, onChange }: { value: string | null
         Prefill from Passport
       </span>
       <div className="row" style={{ gap: "6px" }}>
-        <button type="button" className="inp" style={{ textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} aria-expanded={open} aria-controls="p-prefill-list" aria-labelledby="p-prefill-label" onClick={() => setOpen((o) => !o)}>
+        <button type="button" className="inp" style={{ textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} aria-expanded={open} aria-controls="p-prefill-list" id="p-prefill-button" aria-labelledby="p-prefill-label p-prefill-button" onClick={() => setOpen((o) => !o)}>
           {current ? <span>{current.label}</span> : <span className="muted">Choose a Passport field…</span>}
         </button>
         {value && (

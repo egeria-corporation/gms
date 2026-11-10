@@ -276,7 +276,7 @@ function BudgetPanel({ awardId }: { awardId: string }) {
       </div>
     );
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Approved budget against actuals, scrollable">
       <table className="tbl bud" aria-label="Approved budget against actuals">
         <thead>
           <tr>
@@ -322,7 +322,7 @@ function RequirementList({ requirements, base }: { requirements: Requirement[]; 
       </div>
     );
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Requirements, scrollable">
       <table className="tbl" aria-label="Requirements">
         <thead>
           <tr>

@@ -274,7 +274,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
         <div className="card-h">
           <h3 id="history-h">Awards and applications</h3>
         </div>
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Awards and applications, scrollable">
           <table className="tbl" aria-label="Awards and applications">
             <thead>
               <tr>
@@ -385,7 +385,7 @@ export default function Grantees() {
           )}
           {rows.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "20px", alignItems: "start" }}>
-              <div className="tbl-wrap">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Grantee directory, scrollable">
                 <table className="tbl" aria-label="Grantee directory">
                   <thead>
                     <tr>

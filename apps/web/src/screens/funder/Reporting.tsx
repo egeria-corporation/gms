@@ -4,13 +4,14 @@
 // report can make a tranche due, and the screen says so before and after.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { Bell, CircleCheck, ClipboardCheck, RotateCcw, Share2 } from "lucide-react";
+import { Bell, CircleCheck, ClipboardCheck, Mail, RotateCcw, Share2, TriangleAlert } from "lucide-react";
 import type { JsonObject } from "@gms/forms";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Requirement, Submission } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ReasonDialog } from "../../components/payments.tsx";
+import { RequirementsCalendar, type CalendarItem } from "../../components/RequirementsCalendar.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabPanel } from "../../components/ui.tsx";
@@ -181,9 +182,11 @@ export default function Reporting() {
   const [note, setNote] = useState<string | null>(null);
   const [plan, setPlan] = useState<Requirement | null>(null);
   const [waiving, setWaiving] = useState<Requirement | null>(null);
+  const [day, setDay] = useState<string | null>(null);
+  const forms = useApiQuery((api) => api.listForms(), []);
   const page = useApiQuery(async (api) => {
-    const [requirements, submissions] = await Promise.all([api.listDueRequirements(), api.listSubmissions()]);
-    return { requirements, submissions };
+    const [requirements, submissions, awards] = await Promise.all([api.listDueRequirements(), api.listSubmissions(), api.listAwards()]);
+    return { requirements, submissions, awards };
   }, []);
   const remind = useApiMutation((api, id: string) => api.remindRequirement(id));
   const waive = useApiMutation((api, id: string, reason: string) => api.waiveRequirement(id, reason));
@@ -192,6 +195,27 @@ export default function Reporting() {
   const owed = (d?.requirements ?? []).filter((r) => ["scheduled", "due", "overdue"].includes(r.status)).sort((a, b) => (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9"));
   const received = (d?.submissions ?? []).filter((s) => s.status !== "draft");
   const waiting = received.filter((s) => ["submitted", "under_review"].includes(s.status) && !s.shared).length;
+  const overdue = owed.filter((r) => r.status === "overdue");
+  const shown = day ? owed.filter((r) => r.dueAt?.slice(0, 10) === day) : owed;
+  const calendarItems: CalendarItem[] = [
+    ...owed.filter((r) => r.dueAt).map((r) => ({ id: r.id, date: r.dueAt as string, label: `${nameOf(r)} · ${r.title}`, tone: (r.status === "overdue" ? "overdue" : r.status === "due" ? "due" : "scheduled") as CalendarItem["tone"] })),
+    ...received.filter((x) => x.submittedAt).map((x) => ({ id: x.id, date: x.submittedAt as string, label: `${x.requirement?.title ?? "Report"} received`, tone: "received" as const })),
+  ];
+  const reportForms = (forms.data ?? []).filter((f) => f.purpose === "report");
+  const remindAll = async () => {
+    let sent = 0;
+    for (const r of overdue) if (await remind.run(r.id)) sent++;
+    if (sent) setNote(`Reminder sent to ${sent} ${sent === 1 ? "grantee" : "grantees"}.`);
+  };
+  // A submission names its award; the award names the grantee. A report shared from another
+  // funder has no award here.
+  const granteeOf = (s: Submission): string => {
+    const req = d?.requirements.find((r) => r.id === s.requirementId);
+    if (req) return nameOf(req);
+    const award = d?.awards.find((a) => a.id === s.awardId);
+    const name = award?.recipient?.name;
+    return typeof name === "string" && name ? name : s.shared ? "Another funder’s report" : "Grantee";
+  };
   const requirementFor = (s: Submission) => d?.requirements.find((r) => r.id === s.requirementId);
   const changed = (message: string) => {
     setNote(message);
@@ -243,75 +267,161 @@ export default function Reporting() {
                 ]}
               />
               <TabPanel idPrefix="reporting" tab="due" active={tab}>
-                {!owed.length ? (
-                  <div className="card">
-                    <EmptyState icon={ClipboardCheck} title="Nothing is owed right now">
-                      Requirements appear here from each award’s plan, with reminders scheduled around the due date.
-                    </EmptyState>
-                  </div>
-                ) : (
-                  <div className="tbl-wrap">
-                    <table className="tbl" aria-label="Requirements owed">
-                      <thead>
-                        <tr>
-                          <th>Grantee</th>
-                          <th>Requirement</th>
-                          <th>Due</th>
-                          <th>Status</th>
-                          <th>Reminders</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {owed.map((r) => (
-                          <tr key={r.id}>
-                            <td>
-                              <div className="ent">
-                                <span className="nm">{nameOf(r)}</span>
-                                {r.award && (
-                                  <Link to={`${base}/awards/${r.award.id}/payments`} className="small">
-                                    {r.award.title}
-                                  </Link>
-                                )}
+                <div style={{ display: "grid", gridTemplateColumns: "400px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                  <div className="col" style={{ gap: "16px" }}>
+                    <RequirementsCalendar items={calendarItems} today={now} selectedDay={day} onSelectDay={setDay} />
+                    {overdue.length > 0 && (
+                      <section className="card" id="overdue" style={{ borderColor: "var(--s-dng-bd)" }} aria-labelledby="overdue-h">
+                        <div className="card-h">
+                          <h3 id="overdue-h">Overdue</h3>
+                          <span className="bdg bdg-dng">
+                            <TriangleAlert className="ic" aria-hidden="true" />
+                            {overdue.length}
+                          </span>
+                        </div>
+                        <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
+                          {overdue.map((r) => (
+                            <div key={r.id}>
+                              <div className="b">
+                                {nameOf(r)} · {r.title}
                               </div>
-                            </td>
-                            <td>
-                              {r.title}
-                              {r.releasesTrancheId && <div className="small muted">Releases a tranche when accepted</div>}
-                            </td>
-                            <td>
-                              {formatDate(r.dueAt)}
-                              <div className={`small ${r.status === "overdue" ? "var-neg b" : "muted"}`}>{dueText(r, now)}</div>
-                            </td>
-                            <td>
-                              <StatusBadge kind="requirement" status={r.status} />
-                            </td>
-                            <td>
-                              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPlan(r)} aria-label={`Edit the reminder plan for ${r.title}, ${nameOf(r)}`}>
-                                {planOf(r).length} planned
-                              </button>
-                            </td>
-                            <td>
-                              <div className="row">
-                                <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(`Reminder sent to ${nameOf(r)}.`)} aria-label={`Send a reminder to ${nameOf(r)} for ${r.title}`}>
-                                  <Bell className="ic" aria-hidden="true" />
-                                  Remind
-                                </button>
-                                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setWaiving(r)} aria-label={`Waive ${r.title} for ${nameOf(r)}`}>
-                                  Waive
-                                </button>
+                              <div className="small muted">
+                                Due {formatDate(r.dueAt)} · {dueText(r, now)}
+                                {r.releasesTrancheId ? " · its tranche stays scheduled until the report is accepted" : ""}
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          ))}
+                          <div className="row wrap" style={{ gap: "8px" }}>
+                            <button type="button" className="btn btn-primary btn-sm" disabled={remind.state === "saving"} onClick={remindAll}>
+                              <Mail className="ic ic-sm" aria-hidden="true" />
+                              Send reminder to {overdue.length}
+                            </button>
+                            <Link to="/preview/email/report-reminder" className="small b">
+                              Preview the reminder
+                            </Link>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                    <section className="card" aria-labelledby="report-forms-h">
+                      <div className="card-h">
+                        <h3 id="report-forms-h">Report forms</h3>
+                        <Link to={`${base}/forms`} className="small b">
+                          Open form builder →
+                        </Link>
+                      </div>
+                      {reportForms.length ? (
+                        <ul style={{ display: "flex", flexDirection: "column" }}>
+                          {reportForms.map((f) => (
+                            <li key={f.id} style={{ padding: "10px 20px", borderBottom: "1px solid var(--og-gray-100)", display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "13px" }}>
+                              <div>
+                                <div className="b">{f.title}</div>
+                                <div className="small muted">
+                                  v{f.version} · {f.publishedAt ? "published" : "draft"} · reuses the form builder
+                                </div>
+                              </div>
+                              <Link to={`${base}/forms/${f.id}/edit`} className="small b">
+                                Edit
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="card-b small muted">No report forms yet. Build one in the form builder with the purpose “Report”.</p>
+                      )}
+                    </section>
                   </div>
-                )}
+                  <div className="col" style={{ gap: "12px" }}>
+                    {day && (
+                      <div className="row small" style={{ gap: "8px" }}>
+                        <span className="muted">
+                          Showing what is due on {formatDate(day)} ({shown.length}).
+                        </span>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDay(null)}>
+                          Show all
+                        </button>
+                      </div>
+                    )}
+                    {!shown.length ? (
+                      <div className="card">
+                        <EmptyState icon={ClipboardCheck} title={owed.length ? "Nothing is due on that day" : "Nothing is owed right now"}>
+                          Requirements appear here from each award’s plan, with reminders scheduled around the due date.
+                        </EmptyState>
+                      </div>
+                    ) : (
+                      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Requirements owed, scrollable">
+                        <table className="tbl" aria-label="Requirements owed">
+                          <thead>
+                            <tr>
+                              <th>Grantee</th>
+                              <th>Requirement</th>
+                              <th>Due</th>
+                              <th>Status</th>
+                              <th>Reminders</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shown.map((r) => (
+                              <tr key={r.id}>
+                                <td>
+                                  <div className="ent">
+                                    <span className="nm">{nameOf(r)}</span>
+                                    {r.award && (
+                                      <Link to={`${base}/awards/${r.award.id}/payments`} className="small">
+                                        {r.award.title}
+                                      </Link>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
+                                  {r.title}
+                                  {r.releasesTrancheId && <div className="small muted">Releases a tranche when accepted</div>}
+                                </td>
+                                <td>
+                                  {formatDate(r.dueAt)}
+                                  <div className={`small ${r.status === "overdue" ? "var-neg b" : "muted"}`}>{dueText(r, now)}</div>
+                                </td>
+                                <td>
+                                  <StatusBadge kind="requirement" status={r.status} />
+                                </td>
+                                <td>
+                                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPlan(r)}>
+                                    {planOf(r).length} planned{" "}
+                                <span className="sr">
+                                  reminders for {r.title}, {nameOf(r)} — edit the plan
+                                </span>
+                                  </button>
+                                </td>
+                                <td>
+                                  <div className="row">
+                                    <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(`Reminder sent to ${nameOf(r)}.`)} >
+                                      <Bell className="ic" aria-hidden="true" />
+                                      Remind{" "}
+                                  <span className="sr">
+                                    {nameOf(r)} about {r.title}
+                                  </span>
+                                    </button>
+                                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setWaiving(r)}>
+                                      Waive{" "}
+                                  <span className="sr">
+                                    {r.title} for {nameOf(r)}
+                                  </span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </TabPanel>
               <TabPanel idPrefix="reporting" tab="received" active={tab}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1.3fr)", gap: "20px", alignItems: "start" }}>
-                  <div className="tbl-wrap">
+                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Reports received, scrollable">
                     <table className="tbl" aria-label="Reports received">
                       <thead>
                         <tr>
@@ -329,7 +439,7 @@ export default function Reporting() {
                                   {s.requirement?.title ?? "Report"}
                                 </button>
                                 <span className="sub small muted">
-                                  {requirementFor(s) ? nameOf(requirementFor(s)!) : "Another funder’s report"}
+                                  {granteeOf(s)}
                                   {s.shared && (
                                     <span className="shared-mark">
                                       <Share2 className="ic" aria-hidden="true" />

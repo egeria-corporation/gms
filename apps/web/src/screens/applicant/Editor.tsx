@@ -3,10 +3,11 @@
 // field by field (only changed paths are sent; the server merges), so teammates and a scoped
 // consultant can work at once. Passport-owned fields are read-only here. The submit dialog runs
 // the readiness checklist and submits; a 422 comes back as the list of fields to fix.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
 import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, TriangleExclamationPoint, Upload, X } from "lucide-react";
-import type { FormDefinition, JsonObject } from "@gms/forms";
+import { passportFieldPaths, type FormDefinition, type JsonObject } from "@gms/forms";
 import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantQuery, useRealtime } from "../../api/applicantHooks.ts";
 import { useMoreApi } from "../../api/applicantMoreHooks.ts";
@@ -18,7 +19,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, closesPhrase, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
-import { PhoneShell } from "../../components/PhoneShell.tsx";
+import { PhoneShell, usePhoneSheetSlot } from "../../components/PhoneShell.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
@@ -97,6 +98,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const [libraryOpen, setLibraryOpen] = useState(false);
   // Phone: the validation, comments and assignments panel is a sheet above the bottom tabs.
   const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetSlot = usePhoneSheetSlot();
+  const dock = (panel: ReactElement) => (phone && sheetSlot ? createPortal(panel, sheetSlot) : panel);
 
   // The last response the server gave for each form, and what is on screen now.
   const baseline = useRef<Record<string, JsonObject>>(Object.fromEntries(app.forms.map((f) => [f.formId, f.response])));
@@ -266,7 +269,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
     );
   }
 
-  const textFields = Object.entries(def.jsonSchema.properties ?? {}).filter(([k, s]) => s.type === "string" && !s.enum && !s.format && !rejected.includes(`/${k}`));
+  // Library answers go into free-text fields only: never into a value that comes from Passport.
+  const fromPassport = passportFieldPaths(def);
+  const textFields = Object.entries(def.jsonSchema.properties ?? {}).filter(([k, s]) => s.type === "string" && !s.enum && !s.format && !rejected.includes(`/${k}`) && !fromPassport.includes(`/${k}`));
 
   return (
     <>
@@ -524,9 +529,10 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           })}
         </div>
 
+        {dock(
         <aside
           {...(phone ? { className: "sheet", "aria-label": "Validation and comments" } : {})}
-          style={{ display: "flex", flexDirection: "column", gap: phone ? "0" : "16px", minWidth: 0, ...(phone ? { position: "sticky", bottom: "64px", zIndex: 3, maxHeight: "70vh", overflowY: sheetOpen ? "auto" : "hidden" } : {}) }}
+          style={{ display: "flex", flexDirection: "column", gap: phone ? "0" : "16px", minWidth: 0, ...(phone ? { flex: "none", maxHeight: "60vh", overflowY: sheetOpen ? "auto" : "hidden" } : {}) }}
         >
           {phone && (
             <>
@@ -680,7 +686,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </TabPanel>
             </div>
           </div>
-        </aside>
+        </aside>,
+        )}
       </div>
 
       <Dialog open={submitOpen} onClose={() => setSubmitOpen(false)} labelledBy="submit-title" size="lg">

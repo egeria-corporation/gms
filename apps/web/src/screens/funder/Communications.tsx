@@ -28,6 +28,8 @@ export default function Communications() {
   const { person } = usePeople();
   const templates = useApiQuery((api) => api.listTemplates(), []);
   const log = useApiQuery((api) => api.listCommunications(), []);
+  // The log stores the subject's id; the applications list supplies the name people recognize.
+  const subjects = useApiQuery(async (api) => new Map((await api.listApplications({ pageSize: 100 })).items.map((a) => [a.id.replace(/^app_/, ""), `${a.applicant.name} · ${a.title}`])), []);
   const sample = useApiQuery(async (api) => (await api.listApplications({ pageSize: 1 })).items[0] ?? null, []);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(draftOf());
@@ -98,7 +100,7 @@ export default function Communications() {
                   <h3>Templates</h3>
                   <span className="small muted">Select to edit</span>
                 </div>
-                <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+                <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Templates, scrollable">
                   <table className="tbl tbl-compact" aria-label="Templates">
                     <thead>
                       <tr>
@@ -222,7 +224,7 @@ export default function Communications() {
               </EmptyState>
             )}
             {log.status === "ready" && log.data.length > 0 && (
-              <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+              <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Send log, scrollable">
                 <table className="tbl" aria-label="Send log">
                   <thead>
                     <tr>
@@ -241,7 +243,11 @@ export default function Communications() {
                           <td>{dateTime(c.at)}</td>
                           <td className="b">{c.templateName ?? c.template ?? "—"}</td>
                           <td>
-                            {c.subjectType} <span className="mono">{c.subjectId.slice(0, 12)}…</span>
+                            {subjects.data?.get(c.subjectId.replace(/^app_/, "")) ?? (
+                              <>
+                                {c.subjectType} <span className="mono">{c.subjectId.slice(0, 12)}…</span>
+                              </>
+                            )}
                           </td>
                           <td>{who.agent ? <span className="attrib"><span className="ag">{who.name}</span></span> : who.name}</td>
                           <td>

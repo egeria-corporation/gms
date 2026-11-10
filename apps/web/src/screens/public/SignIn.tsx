@@ -2,8 +2,9 @@
 // Sign in: email → one-time code → second step when a workspace requires it → first run.
 // One state at a time; the markup follows design board P4, which shows the states side by side.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { CopyButton } from "../../components/CopyButton.tsx";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { ArrowRight, CircleX, Copy, Lock, ShieldCheck, TriangleExclamationPoint } from "lucide-react";
+import { ArrowRight, CircleX, Lock, ShieldCheck, TriangleExclamationPoint } from "lucide-react";
 import { useServices } from "../../app/services.tsx";
 import type { TotpEnrollment } from "../../auth/types.ts";
 import { MOCK_CODE } from "../../mocks/auth.ts";
@@ -404,15 +405,9 @@ export default function SignIn() {
                       >
                         {enrollment.secret}
                       </span>
-                      <button
-                        className="btn btn-sm btn-secondary"
-                        type="button"
-                        style={{ alignSelf: "flex-start" }}
-                        onClick={() => void navigator.clipboard?.writeText(enrollment.secret)}
-                      >
-                        <Copy className="ic" aria-hidden="true" />
-                        Copy key
-                      </button>
+                      <span style={{ alignSelf: "flex-start" }}>
+                        <CopyButton value={enrollment.secret} label="Copy key" what="setup key" className="btn btn-sm btn-secondary" />
+                      </span>
                     </div>
                   </div>
                 )}

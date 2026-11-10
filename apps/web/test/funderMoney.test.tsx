@@ -195,9 +195,9 @@ describe("reporting", () => {
     const table = within(await screen.findByRole("table", { name: "Requirements owed" }));
     const northgate = within(table.getByText("Northgate Housing Trust").closest("tr")!);
     expect(northgate.getByText("Overdue")).toBeInTheDocument();
-    await userEvent.click(northgate.getByRole("button", { name: /Send a reminder to Northgate Housing Trust/ }));
+    await userEvent.click(northgate.getByRole("button", { name: /Remind Northgate Housing Trust/ }));
     expect(await screen.findByText("Reminder sent to Northgate Housing Trust.")).toBeInTheDocument();
-    await userEvent.click(northgate.getByRole("button", { name: /Edit the reminder plan/ }));
+    await userEvent.click(northgate.getByRole("button", { name: /planned reminders for Interim report/ }));
     const dialog = within(await screen.findByRole("dialog", { name: "Reminder plan" }));
     const input = dialog.getByLabelText(/Days relative to the due date/);
     await userEvent.clear(input);

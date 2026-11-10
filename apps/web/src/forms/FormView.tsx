@@ -498,7 +498,7 @@ function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: Widg
     if (value.every((v) => typeof v === "string" || typeof v === "number")) return <div>{value.join(", ")}</div>;
     const columns = Object.keys(schema.items?.properties ?? (isPlainObject(value[0]) ? value[0] : {}));
     return (
-      <div className="tbl-wrap">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
         <table className="tbl">
           <thead>
             <tr>
@@ -547,7 +547,7 @@ function BudgetRead({ rows }: { rows: Json }) {
   const list = Array.isArray(rows) ? rows.filter(isPlainObject) : [];
   const totals = computeBudgetTotals(rows);
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
       <table className="tbl bud">
         <thead>
           <tr>
@@ -850,7 +850,14 @@ function SignatureInput({ id, path, value, ctx, disabled, invalid }: InputProps)
           disabled={disabled}
           autoComplete="name"
           value={typeof v.name === "string" ? v.name : ""}
-          onBlur={() => ctx.touch(path)}
+          onBlur={(e) => {
+            // Moving from the name to the attestation box is still inside this field: wait until
+            // focus has left the whole group before showing what is missing.
+            const group = e.currentTarget.closest('[role="group"]');
+            setTimeout(() => {
+              if (!group || !group.contains(document.activeElement)) ctx.touch(path);
+            }, 150);
+          }}
           onChange={(e) => update({ name: e.target.value })}
           style={{ fontFamily: "var(--font-emphasis)", fontStyle: "italic" }}
         />
@@ -966,7 +973,7 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div className="tbl-wrap">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
         <table className="tbl bud">
           <thead>
             <tr>
@@ -1156,7 +1163,7 @@ function RepeatingGroup({ path, schema, value, ctx, disabled, label }: InputProp
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {rows.length > 0 && (
-        <div className="tbl-wrap">
+        <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
           <table className="tbl">
             <thead>
               <tr>

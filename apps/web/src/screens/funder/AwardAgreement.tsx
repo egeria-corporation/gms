@@ -3,6 +3,7 @@
 // executed; the funder countersigns only after the grantee has signed, by typing their name and
 // attesting, against the hash of the document that was sent. Payments stay on their own tab.
 import { useState } from "react";
+import { openBlob } from "../../lib/browser.ts";
 import { Link, useParams } from "react-router";
 import { Award as AwardIcon, Check, FileText, Hash, PenLine, Send } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -79,9 +80,8 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
   const create = useApiMutation((api) => api.createAgreement(award.id));
   const send = useApiMutation((api, id: string) => api.sendAgreement(id));
   const pdf = useApiMutation(async (api, id: string) => {
-    const url = URL.createObjectURL(await api.agreementPdf(id));
-    window.open(url, "_blank", "noopener");
-    return url;
+    openBlob(await api.agreementPdf(id), "grant-agreement.pdf");
+    return true;
   });
   const [signing, setSigning] = useState(false);
   const g = agreement.data;
@@ -260,7 +260,7 @@ export default function AwardAgreement() {
             </EmptyState>
           )}
           {awards.status === "ready" && awards.data.length > 0 && (
-            <div className="tbl-wrap">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Awards, scrollable">
               <table className="tbl" aria-label="Awards">
                 <thead>
                   <tr>

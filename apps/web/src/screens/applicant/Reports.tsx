@@ -157,7 +157,9 @@ export default function Reports() {
   const query = useReports(ws.id);
   const [params, setParams] = useSearchParams();
   const list = query.status === "ready" ? [...query.data.requirements].sort(byUrgency) : [];
-  const selected = list.find((r) => r.id === params.get("r")) ?? list[0] ?? null;
+  // The link may carry the id with or without its `req_` prefix.
+  const bare = (id: string | null) => (id ?? "").replace(/^req_/, "");
+  const selected = list.find((r) => bare(r.id) === bare(params.get("r"))) ?? list[0] ?? null;
   return (
     <>
       <title>{`Reports — ${ws.name}`}</title>

@@ -82,3 +82,110 @@ Every focusable control shows the theme's focus ring (`.gms :focus-visible` in `
 
 Screen-reader testing with a real assistive technology (VoiceOver, NVDA, TalkBack) has not been
 done. The funder and reviewer screens are outside this pass.
+
+### Funder and reviewer screens (2026-11-10)
+
+`test/a11y.test.tsx` now also covers 33 funder and reviewer routes (71 cases in all). The Chromium
+run over 82 crawled routes at 1440 and 390:
+
+| Rule | Before | After | Fix |
+|---|---|---|---|
+| `label-content-name-mismatch` | 24 | 0 | Visible text first, extra context in a visually hidden span; avatar initials hidden with "Account: name" |
+| `color-contrast` | 10 | 0 | Disabled saved views use `aria-disabled` without opacity; calendar days outside the month are dashed, not faded |
+| `target-size` | 8 | 0 | Padding on table, breadcrumb and small links; the phone validation sheet is docked, not overlaid |
+| `scrollable-region-focusable` | 1 | 0 | Every `.tbl-wrap` is a focusable, labelled region |
+
+Horizontal overflow at 390: 3 routes before (applications, panel, reporting), none after.
+
+## End-to-end flows
+
+`e2e/` holds the six design flows as Playwright tests. They run against the mock dev server
+(started by `playwright.config.ts` on :5179) and move through the app by real clicks only, because
+the mock API keeps its state in the page. Each flow fails on any console or page error.
+
+```bash
+pnpm --filter @gms/web e2e -- --trace off
+```
+
+| Flow | File | Ends at |
+|---|---|---|
+| 1 Funder launches a cycle | `flow1-launch-cycle.spec.ts` | Public opportunity page shows the open competition |
+| 2 Review to award | `flow2-review-to-award.spec.ts` | Agreement countersigned |
+| 3 Pay a tranche | `flow3-pay.spec.ts` | Tranche paid after the Passport event |
+| 4 Applicant applies | `flow4-apply.spec.ts` | Application status "Submitted" |
+| 5 Report and share | `flow5-report-and-share.spec.ts` | Accepted report shared with a second funder |
+| 6 Agent triage with a human gate | `flow6-agent-triage.spec.ts` | Approval resolved, applications list updated |
+
+Limits of mock mode: the funder and applicant mock stores are separate, so each side of a
+cross-side flow works on its own seeded records; Passport settlement is simulated through
+`window.__gmsMock.simulatePassport`; the consent screen's redirect to the agent is intercepted.
+
+CI step (after install and build):
+
+```yaml
+- run: pnpm --filter @gms/web exec playwright install --with-deps chromium
+- run: pnpm --filter @gms/web e2e -- --trace off
+```
+
+## Design coverage
+
+Each artboard of the "OpenGrants GMS" canvas (as first implemented in commit `c03b4cd`) against the
+live route. **live**: every section of the artboard renders from the API. **partial**: the screen is
+live but the listed sections are absent because no API provides them yet. **static**: fixture
+markup only. Compared by headings, table columns and tabs, not pixel by pixel.
+
+Counts: 22 live, 31 partial, 14 static (67 artboards).
+
+| Artboard | Route | Status | Notes |
+|---|---|---|---|
+| public/Landing | `/` | live | |
+| public/FunderPageRiverbend | `/f/:handle` | partial | No "Past awards" table or applying FAQ (no public awards or FAQ route) |
+| public/FunderPageCascade | `/f/:handle` | partial | Same; no forecasted opportunities group |
+| public/OpportunityPage | `/f/:handle/o/:slug` | partial | No Forms and Documents lists; "View as CommonGrants JSON" 404s in mock mode |
+| public/SignIn | `/signin` | live | Steps shown one at a time |
+| public/WorkspaceSwitcher | `/workspaces` | live | |
+| public/FunderOnboarding | `/onboarding/funder/:step` | live | |
+| public/ApplicantOnboarding | `/onboarding/applicant` | partial | No "Invite teammates" or "Connect apps" steps |
+| public/Notifications | `/notifications` | partial | No digest settings |
+| public/AccountSettings | `/account/agents` | partial | No sessions table (location, last active); agents table lacks client and scopes columns |
+| funder/Dashboard | `/w/:ws` | partial | No "Recent activity" (ledger route exists; not wired) |
+| funder/Programs | `/w/:ws/programs/:id` | partial | No outcomes rollup or committed-by-status; no remaining and owner columns |
+| funder/OpportunityBuilder | `/w/:ws/opportunities/:id/edit` | partial | No live public-card preview or "Test against an org" |
+| funder/FormBuilder | `/w/:ws/forms/:id/edit` | live | |
+| funder/Competition | `/w/:ws/competitions/:id` | partial | No reviewer pool; stage table lacks opens, closes and entry rule |
+| funder/Applications | `/w/:ws/applications` | partial | No Score or Days-in-stage columns; no "Review complete" and "Flagged" views |
+| funder/ApplicationsEmpty | `/w/:ws/applications/first-run` | live | |
+| funder/ApplicationDetail | `/w/:ws/applications/:id` | partial | No Budget or Documents tabs; mock responses lack the applicant's legal name |
+| funder/ReviewAssignment | `/w/:ws/reviews/assign` | live | |
+| funder/ReviewerAssignments | `/review/assignments` | live | Shows the raw stage key |
+| funder/ReviewerScoring | `/review/score/:appId` | live | |
+| funder/Panel | `/w/:ws/competitions/:id/panel` | partial | No per-criterion columns, decision summary, discussion notes or letter preview |
+| funder/AwardAgreement | `/w/:ws/awards/:id/agreement` | partial | No Requirements, Budget, Activity or Closeout tabs; no signature records table |
+| funder/AwardPayments | `/w/:ws/awards/:id/payments` | partial | No Amendments, Documents, Activity or Closeout tabs |
+| funder/PaymentsDue | `/w/:ws/payments/due` | partial | No Reconcile or Ledger tabs, "Next 30 days" or "Readiness explained" |
+| funder/PaymentsInFlight | `/w/:ws/payments/in-flight` | partial | No level-downgrade or inactive-organization lists; no Mercury matching |
+| funder/Reporting | `/w/:ws/reporting` | live | Calendar restored; submission view has no recipient name, taken from awards |
+| funder/Grantees | `/w/:ws/grantees/:id` | partial | No Reports tab; directory lacks level, total awarded, owner and tags |
+| funder/Analytics | `/w/:ws/analytics` | partial | No awards by region, reviewer load or equity lens |
+| funder/Communications | `/w/:ws/communications` | partial | No bulk send; templates lack last-used and channel |
+| funder/SettingsMcp | `/w/:ws/settings/mcp` | live | "Connect an agent" restored |
+| funder/Approvals | `/w/:ws/approvals` | partial | No request detail or letter preview; history lacks outcome columns |
+| applicant/Dashboard | `/w/:ws` | live | |
+| applicant/Organization | `/w/:ws/organization` | partial | No documents locker, connected apps, "Who has access" or representatives |
+| applicant/FindFunding | `/w/:ws/find` | partial | No Alerts tab |
+| applicant/Editor | `/w/:ws/applications/:id/edit` | live | |
+| applicant/EditorSubmit | `/w/:ws/applications/:id/edit/submit` | live | |
+| applicant/Confirmation | `/w/:ws/applications/:id/submitted` | live | Title repeats the competition name in mock mode |
+| applicant/ApplicationStatus | `/w/:ws/applications/:id` | partial | No revision requests, interview scheduling or decision sections |
+| applicant/GrantOffered | `/w/:ws/grants/:id/offer` | partial | No Budget, Amendments, Documents or Closeout tabs |
+| applicant/GrantPayments | `/w/:ws/grants/:id` | partial | No Documents or Messages tabs; no budget category mapping |
+| applicant/Reports | `/w/:ws/reports` | partial | No budget actuals table |
+| applicant/AnswerLibrary | `/w/:ws/library` | partial | No "Adapt to a question" dialog |
+| applicant/TeamAccess | `/w/:ws/team` | partial | Members, consultants and funders are not split into tabs; no MFA, last active or expiry |
+| applicant/Funders | `/w/:ws/funders` | partial | No open items, documents or contact |
+| applicant/Settings | `/w/:ws/settings` | partial | No API tokens, exports or danger zone |
+| applicant/phone/* (6: Dashboard, Organization, Editor, ApplicationStatus, Grant, Reports) | same routes at 390 | live | Same data as the desktop screens |
+| shared/OAuthConsent | `/oauth/consent` | live | |
+| shared/email/* (6) | `/preview/email/:kind` | static | Reference layouts for `packages/notify` |
+| shared/pdf/* (3) | `/preview/pdf/:kind` | static | Reference layouts for `packages/documents` |
+| styleguide/* (5) | `/styleguide/*` | static | Component reference |

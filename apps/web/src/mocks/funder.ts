@@ -134,6 +134,7 @@ function seed(): State {
     application(6, "Pine Ridge Youth Alliance", "pine-ridge", "After-School Clinic Shuttle", "loi", "submitted", false, "L0", 60_000),
     application(7, "Meadowbrook Food Bank", "meadowbrook", "Nutrition Counseling Pilot", "loi", "submitted", false, "L1", 45_000),
     application(8, "Riverside Arts Collective", "riverside-arts", "Arts for Wellness", "loi", "declined", false, "L1", 30_000),
+    application(9, "Willow Bend Community Clinic", "willow-bend", "Community Health Worker Corps", "loi", "submitted", true, "L3", 95_000, { tags: ["rural"] }),
   ];
   const assignment = (n: number, app: string, title: string, reviewer: string, status: ReviewAssignment["status"], overall: number | null): ReviewAssignment => ({
     id: uid("e", n),

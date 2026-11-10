@@ -431,7 +431,7 @@ export function seedApplicantStore(): ApplicantStore {
           { id: "trn_2", seq: 2, amountMinor: 6000000, currency: "USD", condition: { type: "onReportAccepted" }, status: "scheduled", dueAt: null, holdReason: null, mode: null, passportStatus: null, releasedAt: null },
           { id: "trn_3", seq: 3, amountMinor: 1500000, currency: "USD", condition: { type: "onReportAccepted" }, status: "scheduled", dueAt: null, holdReason: null, mode: null, passportStatus: null, releasedAt: null },
         ],
-        requirements: [{ id: "req_1", type: "report", title: "Interim report", formId: null, dueAt: "2027-12-15T00:00:00Z", status: "scheduled", releasesTrancheId: "trn_2" }],
+        requirements: [{ id: "req_d0000000-0000-7000-8000-000000000001", type: "report", title: "Interim report", formId: null, dueAt: "2027-12-15T00:00:00Z", status: "scheduled", releasesTrancheId: "trn_2" }],
         amendments: [],
       },
       {
@@ -458,7 +458,7 @@ export function seedApplicantStore(): ApplicantStore {
         updatedAt: "2026-09-02T00:00:00Z",
         agreement: null,
         tranches: [],
-        requirements: [{ id: "req_2", type: "report", title: "Final report", formId: null, dueAt: "2027-06-30T00:00:00Z", status: "due", releasesTrancheId: null }],
+        requirements: [{ id: "req_d0000000-0000-7000-8000-000000000002", type: "report", title: "Final report", formId: null, dueAt: "2027-06-30T00:00:00Z", status: "due", releasesTrancheId: null }],
         amendments: [],
       },
     ],

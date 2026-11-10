@@ -122,7 +122,7 @@ export function DataTable<T>({ label, columns, rows, rowKey, empty, selectedKey,
 
   if (!rows.length) return <div className="tbl-wrap">{empty}</div>;
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`${label}, scrollable`}>
       <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label={label}>
         <thead>
           <tr>

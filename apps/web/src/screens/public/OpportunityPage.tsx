@@ -9,7 +9,6 @@ import { collectControls, type FormDefinition } from "@gms/forms";
 import { ApiError } from "../../api/client.ts";
 import { useApiQuery } from "../../api/hooks.ts";
 import type { CgForm, OpportunityPageData, PublicStage } from "../../api/types.ts";
-import { signInPath } from "../../auth/RequireAuth.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
@@ -117,7 +116,8 @@ export default function OpportunityPage() {
   const data = page.data;
   const { funder, opportunity: o, competitions } = data;
   const home = `/f/${funder.handle}`;
-  const here = `/f/${funder.handle}/o/${o.slug}`;
+  // Signed-out visitors are sent through sign-in by the route guard and come back to the apply entry.
+  const applyPath = `/apply/${funder.handle}/${o.slug}`;
   const competition = competitions[0];
   const dates = [o.keyDates.postDate, ...Object.values(o.keyDates.otherDates ?? {}), o.keyDates.closeDate].filter((d): d is NonNullable<typeof d> => !!d?.date).sort((a, b) => a.date!.localeCompare(b.date!));
   const awards = o.funding.minAwardCount && o.funding.maxAwardCount ? `${o.funding.minAwardCount} – ${o.funding.maxAwardCount}` : o.funding.estimatedAwardCount ? String(o.funding.estimatedAwardCount) : "—";
@@ -147,7 +147,7 @@ export default function OpportunityPage() {
                 View as CommonGrants JSON
               </a>
               {o.status === "open" && (
-                <Link to={signInPath(here)} className="btn btn-tenant btn-lg">
+                <Link to={applyPath} className="btn btn-tenant btn-lg">
                   <ShieldCheck className="ic" aria-hidden="true" />
                   Apply with Passport
                 </Link>

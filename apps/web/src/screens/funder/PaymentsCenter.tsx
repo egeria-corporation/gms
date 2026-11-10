@@ -5,7 +5,7 @@
 // externally paid tranches, and bank transactions waiting to be matched.
 import { useState } from "react";
 import { Link } from "react-router";
-import { Banknote, CircleCheck, Landmark, Send } from "lucide-react";
+import { Banknote, CircleCheck, Landmark, Send, RefreshCw } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { BankTransaction, PaymentAlert, PaymentsCenterItem, TrancheRow } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -261,9 +261,15 @@ export function PaymentsCenter({ view }: { view: "due" | "in-flight" }) {
                         <h2 id="flight-h" style={{ fontSize: "16px" }}>
                           In flight
                         </h2>
-                        <span className="small muted">{flying.length} with Passport</span>
+                        <div className="row" style={{ gap: "10px" }}>
+                          <span className="small muted">{flying.length} with Passport</span>
+                          <button type="button" className="btn btn-sm btn-secondary" onClick={page.reload}>
+                            <RefreshCw className="ic" aria-hidden="true" />
+                            Refresh
+                          </button>
+                        </div>
                       </div>
-                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Payments in flight, scrollable">
                         <table className="tbl" aria-label="Payments in flight">
                           <thead>
                             <tr>
@@ -307,7 +313,7 @@ export function PaymentsCenter({ view }: { view: "due" | "in-flight" }) {
                           Settled
                         </h2>
                       </div>
-                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Settled payments, scrollable">
                         <table className="tbl" aria-label="Settled payments">
                           <thead>
                             <tr>

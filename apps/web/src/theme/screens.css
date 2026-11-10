@@ -6,11 +6,18 @@
 
 /* ---- 1. frame ---- */
 html, body, #root { margin: 0; min-height: 100%; }
+/* Validation messages appear as a person leaves a field. Scroll anchoring would then move the page
+   under the pointer between press and release, and the click would land on the wrong control. */
+html, .phone-scroll, .gms-frame > .shell { overflow-anchor: none; }
 .gms-frame { display: flex; flex-direction: column; min-height: 100vh; position: relative; }
 /* The canvas positions overlays inside a fixed artboard; in the app they cover the viewport. */
 .ovl { position: fixed; overflow-y: auto; padding-bottom: 32px; }
 .gms-phone { width: 100%; }
 .gms-phone-only { display: none; }
+/* Phone artboards: the bar and the tabs are fixed parts of the frame; only the page scrolls. */
+.gms-phone-frame { height: 100dvh; min-height: 0; overflow: hidden; }
+.gms-phone-frame > .phone-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.gms-phone-frame > .phone-tabs, .gms-phone-frame > .phone-bar { flex: none; }
 .email, .print { margin: 24px auto; }
 .preview-frame { background: var(--og-gray-100); min-height: 100vh; padding: 1px 0; }
 
@@ -18,7 +25,10 @@ html, body, #root { margin: 0; min-height: 100%; }
   .gms-applicant.gms-frame > .topbar .search,
   .gms-applicant.gms-frame > .topbar .ws,
   .gms-applicant.gms-frame > .shell > .rail { display: none; }
-  .gms-phone-only { display: flex; position: sticky; bottom: 0; z-index: 4; }
+  /* The page scrolls inside the frame and the bottom tabs sit below it, so a bar never covers a control. */
+  .gms-applicant.gms-frame { height: 100dvh; min-height: 0; }
+  .gms-applicant.gms-frame > .shell { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  .gms-phone-only { display: flex; flex: none; }
   .gms .main, .gms-applicant .main { padding: 16px; gap: 16px; }
   /* Multi-column page grids stack; wide tables scroll inside their wrapper. */
   .gms .main [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
@@ -26,6 +36,15 @@ html, body, #root { margin: 0; min-height: 100%; }
   .rail { flex-basis: 100%; }
   .mdl, .mdl-lg { width: calc(100% - 24px); }
 }
+
+/* Pointer targets: inline links in tables and small text links get a 24px-tall hit area
+   (WCAG 2.2 target size) without changing line layout; inline padding does not move lines. */
+.gms .tbl td a:not(.btn):not(.chip), .gms a.small:not(.btn), .gms .crumbs a { padding-block: 5px; }
+.gms .tab[aria-disabled="true"] { cursor: default; }
+.gms .tbl-wrap:focus-visible { outline-offset: -2px; }
+/* Visually hidden text (.sr) is absolutely positioned; anchoring it to the wrapper keeps it
+   inside the wrapper's scroll area instead of widening the page. */
+.gms .tbl-wrap, .gms .tabs, .gms .rail ul { position: relative; }
 
 /* ---- 2. screen-specific rules from the canvas ---- */
 /* A4m-Editor */
@@ -147,7 +166,8 @@ button.tab { font-family: inherit; }
 
 /* ---- 5. accessibility ---- */
 /* A link inside running text is underlined, so it is not told apart by color alone (WCAG 1.4.1). */
-.gms :is(p, dd, li, .help, .d, .r, .who, .bd, .small, .muted, .notice, .meta span) > a:not([class]),
+/* Navigation lists (the rail, section lists, menus) are not running text and keep the design's plain links. */
+.gms :is(p, dd, li:not(nav li), .help, .d, .r, .who, .bd, .small, .muted, .notice, .meta span) > a:not([class]),
 .gms :is(p, dd, .help, .d) > a.small { text-decoration: underline; text-underline-offset: 2px; }
 /* On a tinted banner the link takes the banner's own text color, which is chosen to pass on it. */
 .bnr a:not(.btn) { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
@@ -156,3 +176,6 @@ button.tab { font-family: inherit; }
 .pub-hd .lg .mark { background: transparent; border: 1.5px solid currentColor; }
 /* Switches keep their 36×20 look and gain a 24px-tall target (WCAG 2.5.8). */
 .gms-applicant .tog { box-sizing: content-box; padding: 0; border: solid transparent; border-width: 2px 0; background-clip: padding-box; border-radius: 12px; }
+
+/* Days outside the month stay readable (the design's 40% opacity fails contrast): marked by a dashed, unfilled cell instead. */
+.cal .d.dim { opacity: 1; background: transparent; border-style: dashed; }
