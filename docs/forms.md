@@ -80,7 +80,12 @@ JSON pointer.
   profile under `profile`). `prefill(form, source, { response, provenance })` writes a value when the
   field is empty, was prefilled from Passport before, or is a `passportField`, and sets
   `provenance[path] = "passport"`. Values from a user, an agent, the library or a prior submission are
-  never overwritten; they are listed in `skipped`. `PREFILL_PATHS` is the builder's picker list.
+  never overwritten; they are listed in `skipped`. `PREFILL_PATHS` is the builder's picker list: paths
+  into that source in Passport's own shapes, e.g. `name`, `identifiers.org:us:ein.id`,
+  `addresses.primary.stateOrProvince`, `phones.primary.number`, `customFields.verificationLevel.value`,
+  and for the profile `profile.commonApp.financials.totalRevenue`, `profile.commonApp.staffCount`,
+  `profile.commonApp.irs.subsection`. Each offered path ends at a scalar. Note that CommonGrants
+  `yearFounded` is a four-digit string. `docs/rules.md` lists the same vocabulary for eligibility rules.
 - **Project-back** — `mappingToCommonGrants` is shaped like the CommonGrants output and reads from the
   response. `projectToCommonGrants(form, response)` then `extractSubmissionFields(projected)` gives
   `title` (from `name`), `requestedAmount` (top level or `customFields.requestedAmount.value`),

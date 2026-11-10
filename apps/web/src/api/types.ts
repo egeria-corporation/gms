@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Shapes of the `/gms` and `/gms/public` routes the web app reads and writes. They mirror the
-// views in apps/api/src/services/*. Hand-typed here because these routes are implemented by the
-// Worker ahead of the generated schema (`schema.d.ts`); replace with generated types as they land.
+// Shapes of the `/gms` and `/gms/public` routes the web app reads and writes.
+//
+// These mirror what the Worker answers (apps/api/src/services/*), and test/contract.test.ts holds
+// every one of them to the real Worker in-process and to the mock, so neither can drift.
+//
+// Most are typed here, not taken from the generated schema (`schema.d.ts`), because the TypeSpec
+// models for these routes do not yet describe what the Worker returns. Known differences, spec vs
+// Worker: Program (`budget` Money / `fiscalYear` string vs `budgetAmountMinor` / number),
+// GmsOpportunity, GmsCompetition and GmsForm (a nested `cg` record vs flat fields), Readiness
+// (`passed`/`failed`/`lines`/`fixUrl` vs `summary`/`items`/`fixHref`), PassportLinkStatus
+// (`canSendFunds` vs `check` + `canDebit`), Invitation (no `id`/`acceptUrl`), EligibilityRequest (no
+// `rules`/`org`/`profile`), the member list (paginated `items` vs `data`), FunderPage and
+// OpportunityPage (untyped objects), and nullability (`null` vs omitted). Where the spec is exact
+// (`Me`, `MyWorkspace`, and the enums below) the generated types are used.
 import type { FormSchema, MappingSchema, UiElement, FieldMeta, JsonObject } from "@gms/forms";
 import type { Evaluation, Rule } from "@gms/rules";
+import type { components } from "./schema.d.ts";
 
 export type { Evaluation, Rule };
 
@@ -101,7 +113,7 @@ export interface Invitation {
   acceptUrl: string;
 }
 
-export type CheckState = "pass" | "fail" | "unknown";
+export type CheckState = components["schemas"]["Models.TriState"];
 
 export interface PassportStatus {
   linked: boolean;
@@ -145,11 +157,7 @@ export interface Rubric {
 }
 export type RubricInput = Pick<Rubric, "name" | "criteria"> & { overall?: Rubric["overall"] };
 
-export interface PublishFlags {
-  publicPage?: boolean;
-  openGrantsIndex?: boolean;
-  sitemap?: boolean;
-}
+export type PublishFlags = components["schemas"]["Models.PublishSettings"];
 
 export interface Opportunity {
   id: string;
@@ -229,7 +237,7 @@ export interface Checklist {
   items: ChecklistItem[];
 }
 
-export type FormPurpose = "application" | "report" | "loi" | "amendment" | "site_visit" | "other";
+export type FormPurpose = components["schemas"]["Models.FormPurpose"];
 
 export interface FormSummary {
   id: string;

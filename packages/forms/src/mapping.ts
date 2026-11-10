@@ -199,30 +199,46 @@ export interface PrefillPath {
   source: "organization" | "profile";
 }
 
-/** The paths the builder's prefill picker offers (§10.2). Profile paths need the applicant's `org:read` grant. */
+/**
+ * The paths the builder's prefill picker offers (§10.2), relative to the prefill source
+ * (`buildPrefillSource`): the organization as Passport serves it in CommonGrants v0.5.0
+ * `OrganizationBase` shape, with the Common App profile under `profile`.
+ *
+ * - Organization paths follow `OrganizationBase`: identifiers are `{ id }` objects keyed by registry
+ *   code, `orgType` is a PCS term (`term`, `code`), addresses use `stateOrProvince`, phones are
+ *   `{ countryCode, number }`, custom fields wrap their value.
+ * - Profile paths follow Passport's profile field pointers (`/commonApp/...`), which the API folds
+ *   into an object with `profileToObject`. They need the applicant's `org:read` grant, and Passport
+ *   serves only values the organization has confirmed.
+ *
+ * Eligibility rules read the same data as `org.<organization path>` and `profile.<path after "profile.">`.
+ */
 export const PREFILL_PATHS: readonly PrefillPath[] = [
   { path: "name", label: "Organization name", source: "organization" },
-  { path: "identifiers.org:us:ein", label: "EIN", source: "organization" },
-  { path: "orgType", label: "Organization type", source: "organization" },
-  { path: "status", label: "Organization status", source: "organization" },
+  { path: "identifiers.org:us:ein.id", label: "EIN", source: "organization" },
+  { path: "orgType.term", label: "Organization type", source: "organization" },
+  { path: "orgType.code", label: "Organization type (PCS code)", source: "organization" },
+  { path: "status.value", label: "Organization status", source: "organization" },
   { path: "addresses.primary.street1", label: "Primary address: street", source: "organization" },
   { path: "addresses.primary.street2", label: "Primary address: street line 2", source: "organization" },
   { path: "addresses.primary.city", label: "Primary address: city", source: "organization" },
-  { path: "addresses.primary.stateCode", label: "Primary address: state", source: "organization" },
+  { path: "addresses.primary.stateOrProvince", label: "Primary address: state", source: "organization" },
   { path: "addresses.primary.postalCode", label: "Primary address: postal code", source: "organization" },
   { path: "addresses.primary.country", label: "Primary address: country", source: "organization" },
-  { path: "phones.primary", label: "Primary phone", source: "organization" },
+  { path: "phones.primary.number", label: "Primary phone", source: "organization" },
   { path: "emails.primary", label: "Primary email", source: "organization" },
   { path: "mission", label: "Mission", source: "organization" },
   { path: "yearFounded", label: "Year founded", source: "organization" },
   { path: "socials.website", label: "Website", source: "organization" },
-  { path: "customFields.verificationLevel", label: "Passport verification level", source: "organization" },
-  { path: "customFields.verifiedAt", label: "Passport verified at", source: "organization" },
-  { path: "customFields.attestation", label: "Passport attestation", source: "organization" },
-  { path: "profile.financials.annualBudget", label: "Annual budget", source: "profile" },
-  { path: "profile.financials.fiscalYearEnd", label: "Fiscal year end", source: "profile" },
-  { path: "profile.staffCount", label: "Staff count", source: "profile" },
-  { path: "profile.financials.annualRevenue", label: "Annual revenue (Form 990)", source: "profile" },
-  { path: "profile.financials.totalExpenses", label: "Total expenses (Form 990)", source: "profile" },
-  { path: "profile.financials.netAssets", label: "Net assets (Form 990)", source: "profile" },
+  { path: "customFields.verificationLevel.value", label: "Passport verification level", source: "organization" },
+  { path: "customFields.verifiedAt.value", label: "Passport verified at", source: "organization" },
+  { path: "customFields.attestation.value", label: "Passport attestation", source: "organization" },
+  { path: "profile.commonApp.financials.budget", label: "Annual budget", source: "profile" },
+  { path: "profile.commonApp.fiscalYearEnd", label: "Fiscal year end (MM-DD)", source: "profile" },
+  { path: "profile.commonApp.staffCount", label: "Staff count", source: "profile" },
+  { path: "profile.commonApp.financials.totalRevenue", label: "Total revenue", source: "profile" },
+  { path: "profile.commonApp.financials.totalExpenses", label: "Total expenses", source: "profile" },
+  { path: "profile.commonApp.financials.netAssets", label: "Net assets", source: "profile" },
+  { path: "profile.commonApp.irs.subsection", label: "IRS 501(c) subsection code", source: "profile" },
+  { path: "profile.commonApp.irs.ntee", label: "NTEE code", source: "profile" },
 ];

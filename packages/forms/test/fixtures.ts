@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Fictional fixtures: a full-proposal form with conditionals, a budget table and Passport prefill,
-// and a fictional organization in CommonGrants `OrganizationBase` shape.
+// and a fictional organization as Passport serves it: CommonGrants v0.5.0 `OrganizationBase`, plus
+// the Common App profile folded from Passport's `/commonApp/...` field pointers.
 import type { FormDefinition, JsonObject } from "../src/index.ts";
 
 export const org: JsonObject = {
   id: "0193a4f2-5b7e-7c11-9d2a-3f1c2b4d5e6f",
   name: "Alder Creek Family Services",
-  orgType: { code: "non_profit_with_501c3", value: "nonprofit", description: "501(c)(3) public charity" },
+  orgType: { term: "Hospital", class: "Organization types", code: "EO000000" },
   status: { value: "active" },
-  identifiers: { "org:us:ein": "00-0000001" },
-  addresses: { primary: { street1: "410 Orchard Lane", city: "Alder Creek", stateCode: "CA", postalCode: "95000", country: "US" } },
-  phones: { primary: "+1 555 010 4821" },
+  identifiers: { "org:us:ein": { id: "000000001" } },
+  addresses: { primary: { street1: "410 Orchard Lane", city: "Alder Creek", stateOrProvince: "CA", postalCode: "95000", country: "US" } },
+  phones: { primary: { countryCode: "+1", number: "5550104821" } },
   emails: { primary: "grants@aldercreek.example" },
   mission: "Health navigation and family support for rural households.",
-  yearFounded: 2009,
+  yearFounded: "2009",
   socials: { website: "https://aldercreek.example" },
   customFields: {
     verificationLevel: { name: "verificationLevel", fieldType: "string", value: "L3" },
@@ -21,7 +22,9 @@ export const org: JsonObject = {
   },
 };
 
-export const profile: JsonObject = { staffCount: 24, financials: { annualBudget: 1850000, annualRevenue: 1920000, fiscalYearEnd: "06-30" } };
+export const profile: JsonObject = {
+  commonApp: { staffCount: 24, fiscalYearEnd: "06-30", financials: { budget: 1850000, totalRevenue: 1920000 }, irs: { subsection: "03" } },
+};
 
 export const form: FormDefinition = {
   id: "frm_full",
@@ -132,16 +135,16 @@ export const form: FormDefinition = {
   },
   mappingFromCommonGrants: {
     legalName: { field: "name" },
-    ein: { field: "identifiers.org:us:ein" },
-    orgKind: { switch: { field: "orgType.code", case: { non_profit_with_501c3: "nonprofit", city_or_township_governments: "government" }, default: "other" } },
+    ein: { field: "identifiers.org:us:ein.id" },
+    orgKind: { switch: { field: "profile.commonApp.irs.subsection", case: { "03": "nonprofit", "04": "nonprofit" }, default: "other" } },
     contactEmail: { field: "emails.primary" },
-    contactPhone: { field: "phones.primary" },
+    contactPhone: { field: "phones.primary.number" },
     website: { field: "socials.website" },
-    staffCount: { field: "profile.staffCount" },
+    staffCount: { field: "profile.commonApp.staffCount" },
     mailingAddress: {
       line1: { field: "addresses.primary.street1" },
       city: { field: "addresses.primary.city" },
-      region: { field: "addresses.primary.stateCode" },
+      region: { field: "addresses.primary.stateOrProvince" },
       postalCode: { field: "addresses.primary.postalCode" },
       country: { field: "/addresses/primary/country" },
     },

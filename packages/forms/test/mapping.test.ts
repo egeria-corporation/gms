@@ -22,16 +22,16 @@ describe("mapping functions", () => {
   it("field reads dot paths and JSON pointers", () => {
     expect(evaluateMappingFunction({ field: "addresses.primary.city" }, source)).toBe("Alder Creek");
     expect(evaluateMappingFunction({ field: "/addresses/primary/city" }, source)).toBe("Alder Creek");
-    expect(evaluateMappingFunction({ field: "identifiers.org:us:ein" }, source)).toBe("00-0000001");
+    expect(evaluateMappingFunction({ field: "identifiers.org:us:ein.id" }, source)).toBe("000000001");
     expect(evaluateMappingFunction({ field: "nope.nothing" }, source)).toBeUndefined();
   });
   it("const returns the value", () => {
     expect(evaluateMappingFunction({ const: { a: 1 } }, source)).toEqual({ a: 1 });
   });
   it("switch picks a case or the default", () => {
-    const fn = { switch: { field: "orgType.code", case: { non_profit_with_501c3: "nonprofit" }, default: "other" } };
+    const fn = { switch: { field: "profile.commonApp.irs.subsection", case: { "03": "nonprofit" }, default: "other" } };
     expect(evaluateMappingFunction(fn, source)).toBe("nonprofit");
-    expect(evaluateMappingFunction(fn, { orgType: { code: "for_profit" } })).toBe("other");
+    expect(evaluateMappingFunction(fn, { profile: { commonApp: { irs: { subsection: "06" } } } })).toBe("other");
     expect(evaluateMappingFunction({ switch: { field: "x", case: { a: 1 } } }, {})).toBeUndefined();
     expect(evaluateMappingFunction({ switch: { field: "n", case: { "2": "two" } } }, { n: 2 })).toBe("two");
   });
@@ -41,8 +41,22 @@ describe("mapping functions", () => {
     expect(leaves.map((l) => l.path)).toEqual(["/a", "/b/c"]);
   });
   it("every picker path under the organization resolves against the fixture or is a known optional", () => {
-    expect(PREFILL_PATHS.map((p) => p.path)).toEqual(expect.arrayContaining(["name", "identifiers.org:us:ein", "customFields.verificationLevel", "socials.website"]));
-    expect(getPath(source, "profile.financials.annualRevenue")).toBe(1920000);
+    // The fixture is in Passport's shape, so every picker path must name something in it. The few
+    // optional members the fixture leaves out are listed, so a misspelled path cannot hide here.
+    const absent = PREFILL_PATHS.filter((p) => getPath(source, p.path) === undefined).map((p) => p.path);
+    expect(absent).toEqual([
+      "addresses.primary.street2",
+      "customFields.attestation.value",
+      "profile.commonApp.financials.totalExpenses",
+      "profile.commonApp.financials.netAssets",
+      "profile.commonApp.irs.ntee",
+    ]);
+    expect(getPath(source, "identifiers.org:us:ein.id")).toBe("000000001");
+    expect(getPath(source, "orgType.code")).toBe("EO000000");
+    expect(getPath(source, "customFields.verificationLevel.value")).toBe("L3");
+    expect(getPath(source, "profile.commonApp.financials.totalRevenue")).toBe(1920000);
+    // Each leaf the picker offers is a scalar a form field can hold, never a wrapper object.
+    for (const p of PREFILL_PATHS) expect(typeof getPath(source, p.path)).not.toBe("object");
   });
 });
 
@@ -51,10 +65,10 @@ describe("prefill (mappingFromCommonGrants)", () => {
     const out = prefill(form, source);
     expect(out.response).toEqual({
       legalName: "Alder Creek Family Services",
-      ein: "00-0000001",
+      ein: "000000001",
       orgKind: "nonprofit",
       contactEmail: "grants@aldercreek.example",
-      contactPhone: "+1 555 010 4821",
+      contactPhone: "5550104821",
       website: "https://aldercreek.example",
       staffCount: 24,
       mailingAddress: { line1: "410 Orchard Lane", city: "Alder Creek", region: "CA", postalCode: "95000", country: "US" },

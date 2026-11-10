@@ -203,21 +203,19 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     },
   });
 
-  // `/gms/me` is served by the Worker but is not in the TypeSpec document yet, so it is typed here.
   const me = async (): Promise<Me> => {
-    const token = await opts.token();
-    const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}/gms/me`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    const body = (await res.json().catch(() => ({}))) as Partial<
-      Envelope<Omit<Me, "workspaces"> & { workspaces: Array<Omit<MeWorkspace, "handle"> & { handle?: string }> }>
-    > & {
-      message?: string;
-      errors?: unknown[];
+    const data: components["schemas"]["Models.Me"] = unwrap(await http.GET("/gms/me"));
+    return {
+      userId: data.userId,
+      // The session holds the address; the API echoes it when the token carries one.
+      email: data.email ?? (await opts.identity()).email,
+      mfaVerified: data.mfaVerified,
+      workspaces: data.workspaces.map((w) => ({ id: w.id, handle: w.handle, name: w.name, kind: w.kind, role: w.role, requiresMfa: w.requiresMfa })),
     };
-    if (!res.ok || !body.data) throw new ApiError(res.status, body.message ?? `Request failed (${res.status})`, body.errors ?? []);
-    return { ...body.data, workspaces: body.data.workspaces.map((w) => ({ ...w, handle: w.handle ?? w.id })) };
   };
 
-  // Routes the Worker serves ahead of the generated schema go through this typed-by-hand call.
+  // Routes whose spec models do not yet match what the Worker answers (see types.ts) go through
+  // this call, typed by the shapes in types.ts. test/contract.test.ts holds them to the real Worker.
   async function call<T>(method: string, path: string, body?: unknown, list?: false): Promise<T>;
   async function call<T>(method: string, path: string, body: unknown, list: true): Promise<T[]>;
   async function call<T>(method: string, path: string, body?: unknown, list = false): Promise<T | T[]> {
@@ -253,7 +251,14 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     createWorkspace: (input) => call("POST", "/gms/workspaces", input),
     workspaceRecord: (id) => get(`/gms/workspaces/${e(id)}`),
     updateWorkspace: (id, patch) => call("PATCH", `/gms/workspaces/${e(id)}`, patch),
-    listMembers: (id) => all(`/gms/workspaces/${e(id)}/members`),
+    // The Worker answers the member list under `data`; the spec describes a paginated `items`. Read either.
+    listMembers: async (id) => {
+      const token = await opts.token();
+      const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}/gms/workspaces/${e(id)}/members`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(workspaceId ? { "X-GMS-Workspace": workspaceId } : {}) } });
+      const json = (await res.json().catch(() => ({}))) as { data?: Member[]; items?: Member[]; message?: string; errors?: unknown[] };
+      if (!res.ok) throw new ApiError(res.status, json.message ?? `Request failed (${res.status})`, json.errors ?? []);
+      return json.items ?? json.data ?? [];
+    },
     createInvitation: (id, input) => call("POST", `/gms/workspaces/${e(id)}/invitations`, input),
     passportStatus: (id) => get(`/gms/workspaces/${e(id)}/passport/status`),
     linkPassport: (id, input) => call("POST", `/gms/workspaces/${e(id)}/passport/link`, input),
@@ -295,7 +300,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
 
     async workspace(handle) {
       const [profile, who] = await Promise.all([me(), opts.identity()]);
-      const membership = profile.workspaces.find((w) => w.handle === handle || w.id === handle);
+      const membership = profile.workspaces.find((w) => w.handle === handle);
       if (!membership) throw new ApiError(404, "Workspace not found");
       workspaceId = membership.id;
       const ws: components["schemas"]["Models.Workspace"] = unwrap(

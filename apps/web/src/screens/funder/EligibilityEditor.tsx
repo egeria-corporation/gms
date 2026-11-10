@@ -8,7 +8,7 @@ import { useApiMutation } from "../../api/hooks.ts";
 import type { Evaluation } from "../../api/types.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { APPLICANT_TYPE_LABELS } from "../../lib/format.ts";
-import { describeRow, FACTS, LEVELS, newRow, rowsToRules, US_STATES, type FactKey, type RuleRow } from "../../lib/rules.ts";
+import { describeRow, FACTS, IRS_SUBSECTIONS, LEVELS, newRow, rowsToRules, US_STATES, type FactKey, type RuleRow } from "../../lib/rules.ts";
 
 /** The applicant types offered as chips; the rest of the CommonGrants list stays available in rules. */
 export const APPLICANT_TYPE_CHOICES = [
@@ -87,8 +87,8 @@ function MultiChips({ label, options, value, onChange }: { label: string; option
 
 function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (row: RuleRow) => void }) {
   switch (row.fact) {
-    case "orgType":
-      return <MultiChips label={`Organization types, rule ${n}`} options={APPLICANT_TYPE_LABELS} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
+    case "taxStatus":
+      return <MultiChips label={`Tax-exempt statuses, rule ${n}`} options={IRS_SUBSECTIONS} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
     case "state":
       return <MultiChips label={`States, rule ${n}`} options={US_STATES} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
     case "level":
@@ -120,7 +120,7 @@ function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (ro
 
 /** A row that cannot be published yet, and why. */
 export function rowProblem(row: RuleRow): string | null {
-  if ((row.fact === "orgType" || row.fact === "state") && row.values.length === 0) return "Choose at least one value or remove this rule. Rules with no value can't be published.";
+  if ((row.fact === "taxStatus" || row.fact === "state") && row.values.length === 0) return "Choose at least one value or remove this rule. Rules with no value can't be published.";
   if (row.fact === "revenueUnder" && row.amount <= 0) return "Enter an amount or remove this rule. Rules with no value can't be published.";
   return null;
 }
@@ -131,7 +131,7 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
     onChange([...rows, newRow(fact, `n${seq}`)]);
     setSeq((n) => n + 1);
   };
-  const [adding, setAdding] = useState<Exclude<FactKey, "custom">>("orgType");
+  const [adding, setAdding] = useState<Exclude<FactKey, "custom">>("taxStatus");
   return (
     <div className="fld">
       <span className="lbl">Eligibility rules</span>
@@ -189,16 +189,17 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
 }
 
 interface Facts {
-  orgType: string;
+  /** IRS subsection code, or "" when the organization has not shared one. */
+  subsection: string;
   state: string;
   level: string;
   active: boolean;
   revenue: string;
 }
 const PRESETS: { label: string; facts: Facts }[] = [
-  { label: "Verified 501(c)(3)", facts: { orgType: "non_profit_with_501c3", state: "OR", level: "L3", active: true, revenue: "2400000" } },
-  { label: "New record, nothing shared", facts: { orgType: "non_profit_with_501c3", state: "OR", level: "L1", active: true, revenue: "" } },
-  { label: "Out-of-state business", facts: { orgType: "for_profit_small_business", state: "NV", level: "L0", active: true, revenue: "7800000" } },
+  { label: "Verified 501(c)(3)", facts: { subsection: "03", state: "OR", level: "L3", active: true, revenue: "2400000" } },
+  { label: "New record, nothing shared", facts: { subsection: "", state: "OR", level: "L1", active: true, revenue: "" } },
+  { label: "Out-of-state business", facts: { subsection: "", state: "NV", level: "L0", active: true, revenue: "7800000" } },
 ];
 
 const OUTCOME = {
@@ -239,8 +240,14 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
   const run = useApiMutation((api, f: Facts) =>
     api.evaluateEligibility({
       rules: rowsToRules(rows),
-      org: { orgType: { code: f.orgType }, status: { value: f.active ? "active" : "inactive" }, addresses: { primary: { stateCode: f.state } }, customFields: { verificationLevel: { value: f.level } } },
-      profile: f.revenue.trim() ? { financials: { annualRevenue: Number(f.revenue) } } : {},
+      // The same shapes Passport serves: CommonGrants `OrganizationBase` and the Common App profile.
+      org: { status: { value: f.active ? "active" : "inactive" }, addresses: { primary: { stateOrProvince: f.state } }, customFields: { verificationLevel: { value: f.level } } },
+      profile: {
+        commonApp: {
+          ...(f.subsection ? { irs: { subsection: f.subsection } } : {}),
+          ...(f.revenue.trim() ? { financials: { totalRevenue: Number(f.revenue) } } : {}),
+        },
+      },
     }),
   );
   const test = async (f: Facts) => {
@@ -271,10 +278,11 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
         <div className="fld-row" style={{ gap: "8px" }}>
           <div className="fld">
             <label className="lbl" htmlFor="fact-type">
-              Type
+              Tax status
             </label>
-            <select className="sel" id="fact-type" value={facts.orgType} onChange={(e) => set("orgType", e.target.value)}>
-              {Object.entries(APPLICANT_TYPE_LABELS).map(([code, name]) => (
+            <select className="sel" id="fact-type" value={facts.subsection} onChange={(e) => set("subsection", e.target.value)}>
+              <option value="">Not shared</option>
+              {Object.entries(IRS_SUBSECTIONS).map(([code, name]) => (
                 <option key={code} value={code}>
                   {name}
                 </option>

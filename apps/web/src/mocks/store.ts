@@ -147,7 +147,7 @@ const riverbendRubrics: Rubric[] = [
 ];
 
 const healthRules = rowsToRules([
-  { id: "r1", fact: "orgType", values: ["non_profit_with_501c3", "government_tribal", "government_municipal"] },
+  { id: "r1", fact: "taxStatus", values: ["03"] },
   { id: "r2", fact: "state", values: ["OR"] },
   { id: "r3", fact: "level", level: "L1" },
   { id: "r4", fact: "revenueUnder", amount: 5_000_000 },

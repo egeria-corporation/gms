@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { validateFormDefinition } from "@gms/forms";
+import { PREFILL_PATHS, validateFormDefinition } from "@gms/forms";
 import { evaluate, parseRules } from "@gms/rules";
 import { AGREEMENT_STATUSES, APPLICATION_STATUSES, AWARD_STATUSES, REQUIREMENT_STATUSES, SUBMISSION_STATUSES, TRANCHE_STATUSES } from "@gms/workflow";
 import { describe, expect, it } from "vitest";
@@ -7,7 +7,7 @@ import { STATUS, statusLook } from "../src/components/status.tsx";
 import { checkBrand, contrastRatio, luminance, suggestOnAccent, SYSTEM_BRAND } from "../src/lib/contrast.ts";
 import { addField, addSection, compileForm, conditionSources, localProblems, moveField, newField, parseForm, removeField, updateField } from "../src/lib/form-model.ts";
 import { daysUntil, formatAwardRange, formatDate, formatMinor, parseDollars } from "../src/lib/format.ts";
-import { describeRow, rowsToRules, rulesToRows, type RuleRow } from "../src/lib/rules.ts";
+import { describeRow, RULE_PATHS, rowsToRules, rulesToRows, type RuleRow } from "../src/lib/rules.ts";
 import { LOI_FORM } from "../src/mocks/forms.ts";
 
 describe("contrast", () => {
@@ -79,7 +79,7 @@ describe("status vocabulary", () => {
 
 describe("eligibility rows", () => {
   const rows: RuleRow[] = [
-    { id: "a", fact: "orgType", values: ["non_profit_with_501c3", "government_tribal"] },
+    { id: "a", fact: "taxStatus", values: ["03", "04"] },
     { id: "b", fact: "state", values: ["OR", "WA"] },
     { id: "c", fact: "level", level: "L2" },
     { id: "d", fact: "orgActive" },
@@ -91,11 +91,11 @@ describe("eligibility rows", () => {
     expect(parseRules(rules).ok).toBe(true);
     expect(rules).toEqual({
       all: [
-        { path: "org.orgType.code", op: "in", value: ["non_profit_with_501c3", "government_tribal"], label: "Organization type is 501(c)(3) or Tribal government" },
-        { path: "org.addresses.primary.stateCode", op: "in", value: ["OR", "WA"], label: "Located in Oregon or Washington" },
+        { path: "profile.commonApp.irs.subsection", op: "in", value: ["03", "04"], missing: "unknown", label: "Tax-exempt under 501(c)(3) or 501(c)(4)" },
+        { path: "org.addresses.primary.stateOrProvince", op: "in", value: ["OR", "WA"], label: "Located in Oregon or Washington" },
         { path: "org.customFields.verificationLevel.value", op: "gte", value: "L2", order: ["L0", "L1", "L2", "L3"], label: "Verified in Passport at L2 or higher" },
         { path: "org.status.value", op: "eq", value: "active", label: "Organization is active" },
-        { path: "profile.financials.annualRevenue", op: "lt", value: 5_000_000, missing: "unknown", label: "Annual revenue under $5,000,000" },
+        { path: "profile.commonApp.financials.totalRevenue", op: "lt", value: 5_000_000, missing: "unknown", label: "Annual revenue under $5,000,000" },
       ],
     });
     expect(rowsToRules([])).toEqual({ all: [] });
@@ -105,16 +105,24 @@ describe("eligibility rows", () => {
   it("round-trips through the stored document and keeps rules it does not model", () => {
     const custom = { any: [{ path: "form.x.fiscalSponsor", op: "eq" as const, value: true }], label: "Has a fiscal sponsor" };
     const back = rulesToRows({ all: [...(rowsToRules(rows) as { all: never[] }).all, custom] });
-    expect(back.map((r) => r.fact)).toEqual(["orgType", "state", "level", "orgActive", "revenueUnder", "custom"]);
+    expect(back.map((r) => r.fact)).toEqual(["taxStatus", "state", "level", "orgActive", "revenueUnder", "custom"]);
     expect(describeRow(back[5]!)).toBe("Has a fiscal sponsor");
     expect(rowsToRules(back)).toEqual({ all: [...(rowsToRules(rows) as { all: never[] }).all, custom] });
   });
 
-  it("evaluates to unknown, not fail, when revenue was not shared", () => {
-    const org = { orgType: { code: "non_profit_with_501c3" }, status: { value: "active" }, addresses: { primary: { stateCode: "OR" } }, customFields: { verificationLevel: { value: "L3" } } };
+  it("evaluates to unknown, not fail, when the profile was not shared", () => {
+    const org = { status: { value: "active" }, addresses: { primary: { stateOrProvince: "OR" } }, customFields: { verificationLevel: { value: "L3" } } };
+    const shared = { commonApp: { irs: { subsection: "03" }, financials: { totalRevenue: 1_000_000 } } };
     expect(evaluate(rowsToRules(rows), { org, profile: {} }).eligible).toBe("unknown");
-    expect(evaluate(rowsToRules(rows), { org, profile: { financials: { annualRevenue: 1_000_000 } } }).eligible).toBe(true);
-    expect(evaluate(rowsToRules(rows), { org: { ...org, addresses: { primary: { stateCode: "NV" } } }, profile: {} }).eligible).toBe(false);
+    expect(evaluate(rowsToRules(rows), { org, profile: { commonApp: { irs: { subsection: "03" } } } }).eligible).toBe("unknown");
+    expect(evaluate(rowsToRules(rows), { org, profile: shared }).eligible).toBe(true);
+    expect(evaluate(rowsToRules(rows), { org, profile: { commonApp: { ...shared.commonApp, irs: { subsection: "07" } } } }).eligible).toBe(false);
+    expect(evaluate(rowsToRules(rows), { org: { ...org, addresses: { primary: { stateOrProvince: "NV" } } }, profile: {} }).eligible).toBe(false);
+  });
+
+  it("uses the same Passport paths as the form builder's prefill list", () => {
+    const offered = new Set(PREFILL_PATHS.map((p) => p.path));
+    for (const path of Object.values(RULE_PATHS)) expect(offered).toContain(path.replace(/^org\./, ""));
   });
 });
 
@@ -151,9 +159,9 @@ describe("form model", () => {
     const second = newField(model, "text");
     expect(second.key).not.toBe(first.key);
     model = addField(model, "s1", second);
-    model = updateField(model, second.key, { label: "EIN", prefill: "identifiers.org:us:ein", required: true });
+    model = updateField(model, second.key, { label: "EIN", prefill: "identifiers.org:us:ein.id", required: true });
     const compiled = compileForm(model);
-    expect(compiled.mappingFromCommonGrants).toEqual({ [second.key]: { field: "identifiers.org:us:ein" } });
+    expect(compiled.mappingFromCommonGrants).toEqual({ [second.key]: { field: "identifiers.org:us:ein.id" } });
     expect(compiled.jsonSchema.required).toEqual([second.key]);
     expect(validateFormDefinition(compiled)).toEqual([]);
   });

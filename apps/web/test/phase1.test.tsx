@@ -74,7 +74,7 @@ describe("public opportunity page", () => {
     open("/f/riverbend/o/community-health-2027", createMockServices({ session: null }));
     expect(await screen.findByRole("heading", { level: 1, name: "Community Health Grants 2027" })).toBeInTheDocument();
     expect(screen.getByText("$50,000 – $150,000")).toBeInTheDocument();
-    expect(screen.getByText("Organization type is 501(c)(3), Tribal government or Local government")).toBeInTheDocument();
+    expect(screen.getByText("Tax-exempt under 501(c)(3)")).toBeInTheDocument();
     expect(screen.getByText("Annual revenue under $5,000,000")).toBeInTheDocument();
     const stages = screen.getByRole("list", { name: "Stages" });
     expect(within(stages).getByText("Letter of intent")).toBeInTheDocument();
@@ -166,9 +166,9 @@ describe("opportunity builder", () => {
     await waitFor(async () => {
       const saved = await services.api.getOpportunity(IDS.oppHealth27);
       expect((saved.eligibilityRules as { all: { path: string }[] }).all.map((r) => r.path)).toEqual([
-        "org.orgType.code",
+        "profile.commonApp.irs.subsection",
         "org.customFields.verificationLevel.value",
-        "profile.financials.annualRevenue",
+        "profile.commonApp.financials.totalRevenue",
         "org.status.value",
       ]);
     });
@@ -258,7 +258,7 @@ describe("form builder", () => {
 
     await waitFor(async () => {
       const saved = await services.api.getForm(IDS.formLoi);
-      const key = Object.entries(saved.mappingFromCommonGrants).find(([, fn]) => (fn as { field?: string }).field === "identifiers.org:us:ein")?.[0];
+      const key = Object.entries(saved.mappingFromCommonGrants).find(([, fn]) => (fn as { field?: string }).field === "identifiers.org:us:ein.id")?.[0];
       expect(key).toBeDefined();
       expect(saved.jsonSchema.properties![key!]).toMatchObject({ type: "string", title: "Employer ID" });
       expect(saved.jsonSchema.required).toContain(key);

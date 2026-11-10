@@ -447,6 +447,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/agreements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Agreements_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/agreements/{id}/countersign": {
         parameters: {
             query?: never;
@@ -456,7 +472,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Funder countersignature; the agreement becomes `executed`. Human-only. */
+        /** @description Funder countersignature; the agreement becomes `executed`, the award `active`, and tranches conditioned on execution become due. People only. */
         post: operations["Agreements_countersign"];
         delete?: never;
         options?: never;
@@ -471,6 +487,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description The executed document once executed; before that, the document sent for signature. `X-Content-SHA256` carries its hash. */
         get: operations["Agreements_pdf"];
         put?: never;
         post?: never;
@@ -489,6 +506,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Renders and hashes the document; that hash is what both parties sign. */
         post: operations["Agreements_send"];
         delete?: never;
         options?: never;
@@ -505,7 +523,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Grantee click-to-sign: typed name, attestation, IP, time and document hash go to the ledger. Human-only. */
+        /** @description Grantee click-to-sign: typed name, attestation, network address, time and document hash go to the ledger. People only; the offer must be accepted first. */
         post: operations["Agreements_sign"];
         delete?: never;
         options?: never;
@@ -543,7 +561,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** @description Approve or decline. Approval that changes amount or period patches the Passport award. */
+        /** @description Approve or decline. Approving an extension or a supplemental changes the award and patches Passport. */
         patch: operations["Awards_decideAmendment"];
         trace?: never;
     };
@@ -669,7 +687,6 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Move to a stage whose `entryFrom` includes the current stage. */
         post: operations["Applications_advance"];
         delete?: never;
         options?: never;
@@ -704,6 +721,23 @@ export interface paths {
         put?: never;
         /** @description Declines and queues the letter. Sending is human-gated for agents. */
         post: operations["Applications_decline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/applications/{id}/eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Move to a stage whose `entryFrom` includes the current stage.Re-run the opportunity's eligibility rules against the application as it stands. */
+        post: operations["Applications_rerunEligibility"];
         delete?: never;
         options?: never;
         head?: never;
@@ -749,7 +783,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Pending and resolved human gates. */
+        /** @description Pending and resolved human gates of the workspace, newest first. People only. */
         get: operations["Integrations_listApprovals"];
         put?: never;
         post?: never;
@@ -785,7 +819,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Approve or reject. Human-only; no token can call it. */
+        /**
+         * @description Approve or reject. Human-only: no token can call it, and the person needs the gated tool's
+         *     scope. Approving runs the original call once, as the approver; the result is `executed` or `failed`.
+         */
         post: operations["Integrations_decideApproval"];
         delete?: never;
         options?: never;
@@ -866,7 +903,8 @@ export interface paths {
         };
         get: operations["Awards_list_2"];
         put?: never;
-        post?: never;
+        /** @description Create an award for an accepted application that has none. */
+        post: operations["Awards_createFromApplication"];
         delete?: never;
         options?: never;
         head?: never;
@@ -898,7 +936,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Recipient accepts the offer; the GMS then mirrors the award to Passport. Human-gated for agents. */
+        /** @description Recipient accepts the offer; the GMS then mirrors the award to Passport. People only. */
         post: operations["Awards_acceptOffer"];
         delete?: never;
         options?: never;
@@ -932,7 +970,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Draft an agreement from a template. */
+        /** @description Draft an agreement from a template. Refused while a live agreement exists; void it first. */
         post: operations["Agreements_create"];
         delete?: never;
         options?: never;
@@ -947,7 +985,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["Awards_listAmendments"];
         put?: never;
         post: operations["Awards_createAmendment"];
         delete?: never;
@@ -1004,6 +1042,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/awards/{id}/letter.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Awards_letterPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/awards/{id}/requirements": {
         parameters: {
             query?: never;
@@ -1014,6 +1068,22 @@ export interface paths {
         get: operations["Requirements_list"];
         put?: never;
         post: operations["Requirements_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/awards/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["Awards_resume"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1102,6 +1172,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The send log, newest first. */
+        get: operations["Communication_listCommunications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/communications/send": {
         parameters: {
             query?: never;
@@ -1111,7 +1198,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Templated send through Resend. Human-gated for agents. */
+        /** @description Templated send through Resend. Every letter is rendered first; nothing is sent if any is missing a field. People only: an agent's send runs after a person approves it. */
         post: operations["Communication_send"];
         delete?: never;
         options?: never;
@@ -1375,7 +1462,8 @@ export interface paths {
         put?: never;
         /**
          * @description Creates awards in `offered`, drafts agreements and queues letters. Refuses over-allocation
-         *     unless an admin overrides with a reason. Always human-gated for agents.
+         *     (409 `over_allocation`) unless an admin overrides with a reason. People only: an agent's
+         *     commit runs after a person approves it.
          */
         post: operations["Decisions_commit"];
         delete?: never;
@@ -1475,6 +1563,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["Applicant_openGrantsSearch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/discover/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Discovery items the workspace saved. */
+        get: operations["Applicant_listSaved"];
+        put?: never;
+        post: operations["Applicant_saveListing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1699,6 +1804,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accept an emailed invitation; the caller becomes a member with the invited role. */
+        post: operations["Workspaces_acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/ledger": {
         parameters: {
             query?: never;
@@ -1748,6 +1870,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The signed-in person and the workspaces they can open, each with its handle, kind, role and brand. */
+        get: operations["Workspaces_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/me/organization": {
         parameters: {
             query?: never;
@@ -1773,6 +1912,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Re-read the organization and profile from Passport with the stored consent. */
         post: operations["Applicant_refreshOrganization"];
         delete?: never;
         options?: never;
@@ -1867,7 +2007,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["Applicant_listAttachments"];
         put?: never;
         /** @description Register an upload (Supabase Storage up to 25 MB, R2 above) or reference a Passport locker document. */
         post: operations["Applicant_attach"];
@@ -1884,9 +2024,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Field comments of the applicant team. Never visible to the funder. */
+        get: operations["Applicant_listComments"];
         put?: never;
         post: operations["Applicant_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/my/applications/{id}/comments/{commentId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["Applicant_resolveComment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1982,7 +2139,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Human-gated for agents. */
+        /** @description People only: the recipient workspace's admin accepts; an agent's accept runs after a person approves it. */
         post: operations["Applicant_acceptAward"];
         delete?: never;
         options?: never;
@@ -2013,7 +2170,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Tranches with bank name and last four digits only. */
+        /** @description The award's payment schedule. No bank data: destinations live in Passport. */
         get: operations["Applicant_mySchedule"];
         put?: never;
         post?: never;
@@ -2295,7 +2452,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Exchange the code, cache the projection and create or link the applicant workspace. */
+        /**
+         * @description Passport sends the browser here. Exchanges the code, caches the organization and its Common
+         *     App profile, and creates or links the applicant workspace. Always redirects into the web app:
+         *     `?passport=linked&ws=<handle>` or `?passport=error&reason=<code>`.
+         */
         get: operations["Applicant_consentCallback"];
         put?: never;
         post?: never;
@@ -2388,6 +2549,46 @@ export interface paths {
         patch: operations["Programs_update"];
         trace?: never;
     };
+    "/gms/public/funders/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Funder public page data
+         * @description Published data behind `/f/{handle}`: the funder's brand and its listed opportunities. No token.
+         */
+        get: operations["Infrastructure_funderPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/funders/{handle}/opportunities/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Opportunity public page data
+         * @description Published data behind `/f/{handle}/o/{slug}`. No token; published fields only.
+         */
+        get: operations["Infrastructure_opportunityPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/requirements/due": {
         parameters: {
             query?: never;
@@ -2462,6 +2663,7 @@ export interface paths {
         };
         get: operations["Reviews_listAssignments"];
         put?: never;
+        /** @description Refused with 409 `conflict_of_interest` when a conflict is on record or the reviewer's email domain is the applicant's. */
         post: operations["Reviews_createAssignment"];
         delete?: never;
         options?: never;
@@ -2486,7 +2688,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/gms/review-assignments/{id}": {
+    "/gms/review-assignments/invite": {
         parameters: {
             query?: never;
             header?: never;
@@ -2495,11 +2697,29 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Invite an external reviewer by email; accepting creates an `external_reviewer` member scoped to the competition. */
+        post: operations["Reviews_inviteReviewer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/review-assignments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The reviewer's working view, with the application masked for their role. */
+        get: operations["Reviews_readAssignment"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** @description Declare a conflict, recuse, save scores or submit the review. */
+        /** @description Declare a conflict, save scores, submit the review, recuse or reschedule. */
         patch: operations["Reviews_updateAssignment"];
         trace?: never;
     };
@@ -2601,6 +2821,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["Communication_updateTask"];
+        trace?: never;
+    };
     "/gms/templates": {
         parameters: {
             query?: never;
@@ -2617,6 +2853,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Communication_readTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/templates/{id}/render": {
         parameters: {
             query?: never;
@@ -2626,6 +2878,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description 422 `missing_merge_fields` lists every field that has no value. */
         post: operations["Communication_renderTemplate"];
         delete?: never;
         options?: never;
@@ -2642,7 +2895,8 @@ export interface paths {
         };
         get: operations["Communication_listThreads"];
         put?: never;
-        post?: never;
+        /** @description Get or create the shared thread of an application, or the caller's side's internal one. */
+        post: operations["Communication_openThread"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2815,6 +3069,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/whoami": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description What this caller is in its workspace. */
+        get: operations["Workspaces_whoami"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/workspaces": {
         parameters: {
             query?: never;
@@ -2963,6 +3234,29 @@ export interface paths {
         get: operations["Infrastructure_llms"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Model Context Protocol endpoint
+         * @description The MCP server: Streamable HTTP, stateless. POST one JSON-RPC message (or a batch) and read
+         *     the answer as JSON; notifications answer 202. A 401 carries `WWW-Authenticate` pointing at
+         *     `/.well-known/oauth-protected-resource`. Tokens are bound to a person, a workspace and scopes;
+         *     gated tools return `{ status: "pending_approval", approvalId, url }`.
+         */
+        post: operations["Infrastructure_mcp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7798,6 +8092,77 @@ export interface components {
             message: string;
             data: components["schemas"]["Models.Approval"];
         };
+        /** @description `POST /gms/my/awards/{id}/accept`: the award plus what happened with the Passport mirror. */
+        "Models.AcceptedAward": {
+            id: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            description: string | null;
+            status: components["schemas"]["Models.AwardStatus"];
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /**
+             * Format: int64
+             * @description The value last read from Passport; never computed in the GMS. Null until Passport reports one.
+             */
+            disbursedAmountMinor: number | null;
+            /**
+             * Format: date-time
+             * @description When `disbursedAmountMinor` was last read from Passport
+             */
+            disbursedAt: string | null;
+            /** @description CommonGrants `AwdTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            conditions: string[];
+            applicationId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            opportunityId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            parentAwardId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                brand: {
+                    [key: string]: unknown;
+                } | null;
+            };
+            recipient: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                /** @description The recipient's current Passport level, while their consent stands */
+                level: string | null;
+            } | null;
+            recipientIndividual: {
+                [key: string]: unknown;
+            } | null;
+            passport: {
+                /** @description The mirrored award in Passport, set after acceptance */
+                awardId: string | null;
+                /** Format: date-time */
+                syncedAt: string | null;
+                /** @enum {string} */
+                mirror: "synced" | "pending" | "not_applicable" | "disabled";
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            agreement: components["schemas"]["Models.AgreementSummary"] | null;
+            tranches: components["schemas"]["Models.AwardTranche"][];
+            requirements: components["schemas"]["Models.AwardRequirement"][];
+            amendments: components["schemas"]["Models.Amendment"][];
+            mirror: {
+                /** @enum {string} */
+                state: "synced" | "skipped" | "failed";
+                passportAwardId?: string;
+                reason?: string;
+            } | null;
+        };
         "Models.AdvanceRequest": {
             toStage: string;
             note?: string;
@@ -7814,32 +8179,72 @@ export interface components {
         };
         "Models.Agreement": {
             id: components["schemas"]["Models.PrefixedId"];
-            awardId: components["schemas"]["Models.PrefixedId"];
-            templateId?: string;
             /** Format: int32 */
             version: number;
             status: components["schemas"]["Models.AgreementStatus"];
-            documentSha256?: components["schemas"]["Models.Sha256"];
-            granteeSignature?: components["schemas"]["Models.Signature"];
-            funderSignature?: components["schemas"]["Models.Signature"];
+            /** @description SHA-256 of the document sent for signature; null until it is sent */
+            documentSha256: (string & components["schemas"]["Models.Sha256"]) | null;
             /** Format: date-time */
-            executedAt?: string;
+            granteeSignedAt: string | null;
+            /** Format: date-time */
+            funderSignedAt: string | null;
+            /** Format: date-time */
+            executedAt: string | null;
+            awardId: components["schemas"]["Models.PrefixedId"];
+            templateId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            granteeSignature: components["schemas"]["Models.Signature"] | null;
+            funderSignature: components["schemas"]["Models.Signature"] | null;
+            hasStoredPdf: boolean;
+            /** Format: date-time */
+            createdAt: string;
         };
         "Models.AgreementInput": {
-            templateId: string;
+            /** @description An agreement template of this workspace; the program default or the standard agreement otherwise */
+            templateId?: components["schemas"]["CommonGrants.Types.uuid"];
         };
         /** @enum {string} */
         "Models.AgreementStatus": "draft" | "sent" | "signed_by_grantee" | "countersigned" | "executed" | "voided";
-        /** @description Program headroom for a panel: available, committed and proposed. */
+        "Models.AgreementSummary": {
+            id: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            version: number;
+            status: components["schemas"]["Models.AgreementStatus"];
+            /** @description SHA-256 of the document sent for signature; null until it is sent */
+            documentSha256: (string & components["schemas"]["Models.Sha256"]) | null;
+            /** Format: date-time */
+            granteeSignedAt: string | null;
+            /** Format: date-time */
+            funderSignedAt: string | null;
+            /** Format: date-time */
+            executedAt: string | null;
+        };
+        /**
+         * @description Program headroom for a panel, in integer minor units. `budgetMinor` and `availableMinor` are
+         *     null when the program has no budget set.
+         */
         "Models.Allocation": {
-            budget: components["schemas"]["CommonGrants.Fields.Money"];
-            committed: components["schemas"]["CommonGrants.Fields.Money"];
-            proposed: components["schemas"]["CommonGrants.Fields.Money"];
-            available: components["schemas"]["CommonGrants.Fields.Money"];
-            overAllocated: boolean;
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            currency: string;
+            /** Format: int64 */
+            budgetMinor: number | null;
+            /**
+             * Format: int64
+             * @description Awards in the program that were not cancelled
+             */
+            committedMinor: number;
+            /**
+             * Format: int64
+             * @description Approvals proposed in this competition and not yet committed
+             */
+            proposedMinor: number;
+            /** Format: int64 */
+            availableMinor: number | null;
+            over: boolean;
+            /** Format: int64 */
+            overByMinor: number;
         };
         "Models.Amendment": {
-            id: string;
+            id: components["schemas"]["CommonGrants.Types.uuid"];
             awardId: components["schemas"]["Models.PrefixedId"];
             /** @enum {string} */
             type: "extension" | "reallocation" | "scope" | "supplemental";
@@ -7848,14 +8253,27 @@ export interface components {
             };
             /** @enum {string} */
             status: "requested" | "approved" | "declined";
-            childAwardId?: components["schemas"]["Models.PrefixedId"];
+            requestedBy: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            decidedBy: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** Format: date-time */
+            decidedAt: string | null;
+            childAwardId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.AmendmentDecision": {
+            /** @enum {string} */
+            status: "approved" | "declined";
+            note?: string;
         };
         "Models.AmendmentInput": {
             /** @enum {string} */
             type: "extension" | "reallocation" | "scope" | "supplemental";
-            request: {
+            /** @description extension: `{ newEndDate }`; supplemental: `{ amountMinor }`; reallocation and scope: free-form */
+            request?: {
                 [key: string]: unknown;
             };
+            reason: string;
         };
         "Models.Answer": {
             id: string;
@@ -7864,7 +8282,11 @@ export interface components {
             body: string;
             /** Format: int32 */
             version: number;
-            usedIn?: string[];
+            usedIn?: unknown[];
+            /** Format: int32 */
+            words: number;
+            /** Format: date-time */
+            updatedAt: string;
         };
         "Models.AnswerInput": {
             key?: string;
@@ -7897,11 +8319,53 @@ export interface components {
             name: string;
             scopes: string[];
         };
-        /** @description Passport readiness shown to an applicant: level plus what is missing for the next one. */
+        /** @description Passport readiness shown to an applicant: the level and what each next step needs. */
         "Models.ApplicantReadiness": {
-            verificationLevel: components["schemas"]["Models.VerificationLevel"];
-            payeeReady: boolean;
-            lines: components["schemas"]["Models.ReadinessLine"][];
+            level: components["schemas"]["Models.VerificationLevel"] | null;
+            /** @description Whether the workspace holds a live Passport consent. */
+            linked: boolean;
+            /** Format: date-time */
+            syncedAt: string | null;
+            checks: components["schemas"]["Models.ReadinessCheck"][];
+            summary: {
+                /** Format: int32 */
+                pass: number;
+                /** Format: int32 */
+                fail: number;
+                /** Format: int32 */
+                unknown: number;
+                ready: boolean;
+            };
+        };
+        /** @description What an action on an application returns: the fields it changed. */
+        "Models.ApplicationActionResult": {
+            id: components["schemas"]["Models.PrefixedId"];
+            status?: components["schemas"]["Models.ApplicationStatus"];
+            stage?: string;
+            tags?: string[];
+            assignedToUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            decisionId?: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Whether the templated letter went out, and why not when it did not. */
+            letter?: {
+                sent: boolean;
+                reason?: string;
+            };
+        };
+        "Models.ApplicationEvent": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            type: string;
+            fromStatus: string | null;
+            toStatus: string | null;
+            fromStage: string | null;
+            toStage: string | null;
+            payload?: {
+                [key: string]: unknown;
+            };
+            actor?: string;
+            /** Format: date-time */
+            at: string;
+            /** @description The revision request's message, on the applicant's status view. */
+            message?: string | null;
         };
         /**
          * @description GMS application status (build spec §10.1). Projected to CommonGrants `AppStatusOptions` with
@@ -7909,25 +8373,63 @@ export interface components {
          * @enum {string}
          */
         "Models.ApplicationStatus": "draft" | "submitted" | "screening" | "under_review" | "recommended" | "accepted" | "declined" | "waitlisted" | "revision_requested" | "interview" | "withdrawn";
+        "Models.ApplicationStatusView": {
+            id: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            status: components["schemas"]["Models.ApplicationStatus"];
+            stage: string;
+            /** Format: date-time */
+            submittedAt: string | null;
+            stages: {
+                key: string;
+                label: string;
+                /** Format: date-time */
+                opens: string | null;
+                /** Format: date-time */
+                closes: string | null;
+                /** @enum {string} */
+                state: "done" | "current" | "upcoming";
+            }[];
+            timeline: components["schemas"]["Models.ApplicationEvent"][];
+        };
         /** @description A human gate for an agent action. */
         "Models.Approval": {
+            /** @description `apr_<uuid>` */
             id: string;
-            tool: string;
-            clientId: string;
-            requestedBy: string;
-            inputs: {
-                [key: string]: unknown;
-            };
-            /** @description What approving will do, e.g. "will send 14 letters" */
-            impact?: string;
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
             /** @enum {string} */
-            status: "pending" | "approved" | "rejected" | "expired";
+            side: "funder" | "applicant";
+            tool: string;
+            /** @description The scope a person needs to approve it (the tool's scope). */
+            scope?: string | null;
+            description?: string | null;
+            /** @description The agent call that is waiting: the person it acts for and the OAuth client. */
+            requestedBy: {
+                userId: string;
+                clientId: string | null;
+            };
+            /** @description The tool input, as the agent sent it. */
+            input: unknown;
+            /**
+             * @description `approved` is the instant between a person's yes and the call finishing; it ends as `executed` or `failed`.
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected" | "executed" | "failed" | "expired";
+            /** Format: date-time */
+            createdAt: string;
             decidedBy?: string;
             /** Format: date-time */
             decidedAt?: string;
-            result?: {
-                [key: string]: unknown;
-            };
+            note?: string;
+            /** @description What the approved call returned (status `executed`). */
+            result?: unknown;
+            /** @description Why the approved call did not go through (status `failed`). */
+            error?: string;
+            /**
+             * Format: uri
+             * @description The approval's page in the web app.
+             */
+            url?: string;
         };
         "Models.AssignRequest": {
             userId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
@@ -7951,14 +8453,17 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Either the file itself (up to 25 MB, base64) or a reference into the Passport locker, which is never copied. */
         "Models.AttachmentInput": {
             name: string;
             mime: string;
-            /** Format: int64 */
-            size: number;
-            sha256: components["schemas"]["Models.Sha256"];
-            /** @description A reference into the Passport document locker instead of an upload */
+            /** @description The file bytes, base64. The server computes the size and SHA-256. */
+            contentBase64?: string;
+            /** @description A reference into the Passport document locker instead of an upload; `size` and `sha256` are then required. */
             passportDocumentId?: string;
+            /** Format: int64 */
+            size?: number;
+            sha256?: components["schemas"]["Models.Sha256"];
         };
         "Models.AuthorizationDecision": {
             /** @description The request token from the consent redirect */
@@ -7994,14 +8499,103 @@ export interface components {
         };
         "Models.AutoAssignRequest": {
             competitionId: components["schemas"]["Models.GmsId"];
-            stage: string;
-            /** Format: int32 */
+            stage?: string;
+            /**
+             * Format: int32
+             * @default 2
+             */
             reviewersPerApplication: number;
+            /** @description Limit the pool, or override capacity and expertise tags per reviewer */
+            reviewers?: {
+                userId: components["schemas"]["CommonGrants.Types.uuid"];
+                email?: string;
+                /** Format: int32 */
+                capacity?: number;
+                tags?: string[];
+            }[];
+            /** Format: date-time */
+            dueAt?: string;
+            /**
+             * @description Return the plan without creating assignments
+             * @default false
+             */
+            dryRun: boolean;
+        };
+        "Models.AutoAssignResult": {
+            stage: string;
+            dryRun: boolean;
             /** Format: int32 */
-            maxPerReviewer?: number;
+            created: number;
+            assignments: {
+                applicationId: components["schemas"]["Models.PrefixedId"];
+                reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+                matchedTags: string[];
+            }[];
+            /** @description Applications that could not get their full complement */
+            unfilled: {
+                applicationId: components["schemas"]["Models.PrefixedId"];
+                /** Format: int32 */
+                missing: number;
+            }[];
+            /** @description Every reviewer/application pair excluded for a conflict of interest */
+            coiFlags: {
+                applicationId: components["schemas"]["Models.PrefixedId"];
+                reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @enum {string} */
+                reason: "declared_org" | "declared_program" | "same_email_domain";
+                detail: string;
+            }[];
+        };
+        "Models.AwardFromApplicationRequest": {
+            applicationId: components["schemas"]["Models.GmsId"];
+            /** Format: int64 */
+            amountMinor: number;
+            /** @default USD */
+            currency: string;
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            endDate?: string;
+            conditions?: string[];
+        };
+        "Models.AwardFromApplicationResult": {
+            awardId: components["schemas"]["Models.PrefixedId"];
+            agreementId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            status: components["schemas"]["Models.AwardStatus"];
+        };
+        "Models.AwardRequirement": {
+            id: components["schemas"]["Models.PrefixedId"];
+            /** @enum {string} */
+            type: "report" | "document" | "milestone" | "site_visit" | "acknowledgment";
+            title: string;
+            formId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            /** Format: date-time */
+            dueAt: string | null;
+            status: components["schemas"]["Models.RequirementStatus"];
+            releasesTrancheId: (string & components["schemas"]["Models.PrefixedId"]) | null;
         };
         /** @enum {string} */
         "Models.AwardStatus": "offered" | "accepted" | "active" | "suspended" | "completed" | "cancelled";
+        "Models.AwardTranche": {
+            id: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            seq: number;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            condition: {
+                [key: string]: unknown;
+            };
+            status: components["schemas"]["Models.TrancheStatus"];
+            /** Format: date-time */
+            dueAt: string | null;
+            holdReason: string | null;
+            /** @enum {string|null} */
+            mode: "facilitated" | "resolve" | null;
+            passportStatus: string | null;
+            /** Format: date-time */
+            releasedAt: string | null;
+        };
         /** @description An outbound bank transaction read from Mercury for reconciliation. */
         "Models.BankTransaction": {
             id: string;
@@ -8045,16 +8639,24 @@ export interface components {
             applicationIds: components["schemas"]["Models.GmsId"][];
             /** @enum {string} */
             action: "advance" | "decline" | "tag" | "assign";
+            /** @description The body the single-application route takes for this action. */
             params?: {
                 [key: string]: unknown;
             };
         };
+        /** @description Each application succeeds or fails on its own; nothing is rolled back. */
         "Models.BulkResult": {
+            /** @enum {string} */
+            action: "advance" | "decline" | "tag" | "assign";
+            /** Format: int32 */
+            requested: number;
             succeeded: string[];
             failed: {
                 id: string;
                 message: string;
             }[];
+            /** Format: int32 */
+            lettersSent: number;
         };
         /** @description Dynamic client registration request (RFC 7591). Public clients; PKCE S256 required. */
         "Models.ClientRegistrationRequest": {
@@ -8075,19 +8677,55 @@ export interface components {
             /** Format: int64 */
             client_id_issued_at: number;
         };
+        /** @description A field comment inside the applicant team. */
         "Models.Comment": {
-            id?: string;
-            formId?: string;
-            fieldPath?: string;
+            id: string;
             body: string;
+            author: string;
+            authorUserId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            formId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            /** @description JSON pointer of the field the comment is about */
+            fieldPath: string | null;
             /** Format: date-time */
-            resolvedAt?: string;
+            resolvedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.CommentInput": {
+            body: string;
+            formId?: components["schemas"]["Models.GmsId"];
+            fieldPath?: string;
         };
         "Models.CommitDecisionsRequest": {
             competitionId: components["schemas"]["Models.GmsId"];
-            decisionIds: string[];
-            /** @description Admin override of the allocator, with a ledgered reason */
-            overrideReason?: string;
+            decisionIds: components["schemas"]["CommonGrants.Types.uuid"][];
+            /** @description A workspace admin may commit past the program's budget by giving a reason; it is ledgered */
+            override?: {
+                reason: string;
+            };
+        };
+        "Models.CommitDecisionsResult": {
+            /** Format: int32 */
+            committed: number;
+            /** Format: int32 */
+            failed: number;
+            results: {
+                decisionId: components["schemas"]["CommonGrants.Types.uuid"];
+                applicationId: components["schemas"]["Models.PrefixedId"];
+                outcome: components["schemas"]["Models.DecisionOutcome"];
+                ok: boolean;
+                awardId?: components["schemas"]["Models.PrefixedId"];
+                agreementId?: components["schemas"]["Models.PrefixedId"];
+                letterSent?: boolean;
+                message?: string;
+            }[];
+            override: {
+                by: components["schemas"]["CommonGrants.Types.uuid"];
+                reason: string;
+                /** Format: int64 */
+                overByMinor: number;
+            } | null;
+            allocation: components["schemas"]["Models.Allocation"];
         };
         "Models.ConnectorAccount": {
             provider: components["schemas"]["Models.ConnectorProvider"];
@@ -8109,16 +8747,18 @@ export interface components {
         };
         "Models.Consent": {
             id: string;
-            applicantWorkspaceId: components["schemas"]["CommonGrants.Types.uuid"];
-            funderWorkspaceId: components["schemas"]["CommonGrants.Types.uuid"];
-            funderName?: string;
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+            };
             /** @enum {string} */
             basis: "application" | "passport_grant" | "shared_submission";
             scopes: string[];
             /** Format: date-time */
             grantedAt: string;
             /** Format: date-time */
-            revokedAt?: string;
+            revokedAt: string | null;
         };
         "Models.ConsentStart": {
             /**
@@ -8126,6 +8766,15 @@ export interface components {
              * @description Passport authorization URL (authorization code + PKCE)
              */
             authorizeUrl: string;
+            scopes: string[];
+            /** Format: int32 */
+            expiresInSeconds: number;
+        };
+        "Models.ConsentStartRequest": {
+            /** @description An applicant workspace the caller administers that has no Passport organization yet. */
+            workspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Path in the web app to land on afterwards. */
+            returnTo?: string;
         };
         "Models.CsvImportRequest": {
             /** @enum {string} */
@@ -8171,35 +8820,87 @@ export interface components {
             }[];
         };
         "Models.Decision": {
-            id: string;
+            id: components["schemas"]["CommonGrants.Types.uuid"];
             competitionId: components["schemas"]["Models.PrefixedId"];
             applicationId: components["schemas"]["Models.PrefixedId"];
+            stage: string | null;
             outcome: components["schemas"]["Models.DecisionOutcome"];
-            amount?: components["schemas"]["CommonGrants.Fields.Money"];
+            /** Format: int64 */
+            amountMinor: number | null;
+            currency: string;
             conditions: string[];
-            rationale?: string;
-            decidedBy?: string;
+            rationale: string | null;
+            letterTemplateId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** @description Ledger actor string of whoever proposed it (a person, or a person through an agent) */
+            proposedBy: string | null;
+            decidedBy: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /**
+             * Format: date-time
+             * @description Null while this is still a proposal
+             */
+            committedAt: string | null;
             /** Format: date-time */
-            committedAt?: string;
+            createdAt: string;
         };
         "Models.DecisionInput": {
             applicationId: components["schemas"]["Models.GmsId"];
             outcome: components["schemas"]["Models.DecisionOutcome"];
-            amount?: components["schemas"]["CommonGrants.Fields.Money"];
+            /**
+             * Format: int64
+             * @description Required for `approve`; integer minor units
+             */
+            amountMinor?: number;
             conditions?: string[];
             rationale?: string;
-            letterTemplateId?: string;
+            letterTemplateId?: components["schemas"]["CommonGrants.Types.uuid"];
         };
         /** @enum {string} */
         "Models.DecisionOutcome": "approve" | "decline" | "waitlist" | "defer";
         "Models.DeclineRequest": {
             rationale?: string;
             letterTemplateId?: string;
+            /** @description Send the decline letter (default true). */
+            sendLetter?: boolean;
         };
+        /** @description A competition open on this GMS, with the caller's eligibility. */
         "Models.DiscoverCompetition": {
-            competition: components["schemas"]["CommonGrants.Models.CompetitionBase"];
-            funderName: string;
+            competitionId: components["schemas"]["CommonGrants.Types.uuid"];
+            opportunity: {
+                id: components["schemas"]["Models.PrefixedId"];
+                slug: string;
+                title: string;
+                description: string;
+                funding: {
+                    [key: string]: unknown;
+                };
+            };
+            funder: {
+                name: string | null;
+                handle: string | null;
+                brand: components["schemas"]["Models.Brand"];
+            };
+            stage: {
+                key: string;
+                label: string;
+                /** Format: date-time */
+                closes: string | null;
+            } | null;
+            /**
+             * Format: int32
+             * @description Number of forms in the first stage
+             */
+            forms: number;
             eligibility: components["schemas"]["Models.EligibilityResult"];
+            /** @description The caller's application to this competition, when one exists. */
+            application: {
+                id: components["schemas"]["Models.PrefixedId"];
+                status: components["schemas"]["Models.ApplicationStatus"];
+            } | null;
+            /**
+             * Format: uri
+             * @description The opportunity's public page
+             */
+            url: string | null;
         };
         "Models.Document": {
             id: string;
@@ -8209,20 +8910,39 @@ export interface components {
             size: number;
             sha256: components["schemas"]["Models.Sha256"];
             /** @enum {string} */
-            storage: "supabase" | "r2";
-            passportDocumentId?: string;
-            /**
-             * Format: uri
-             * @description Short-lived signed upload or download URL
-             */
-            url?: string;
+            source: "upload" | "passport_locker";
+            passportDocumentId: string | null;
+            /** @enum {string} */
+            scanStatus: "not_scanned" | "clean" | "infected";
+            /** Format: date-time */
+            uploadedAt: string;
         };
+        /**
+         * @description Dry-run rules. Send `rules` or an `opportunityId` (its stored rules are used). Facts come from
+         *     `org` / `profile` / `form` in the request, or from the cached Passport record of
+         *     `applicantWorkspaceId` when that organization has consented.
+         */
         "Models.EligibilityRequest": {
-            opportunityId: components["schemas"]["Models.GmsId"];
-            /** @description Evaluate against a submitted or draft application… */
-            applicationId?: components["schemas"]["Models.GmsId"];
-            /** @description …or against an organization alone. */
-            orgId?: components["schemas"]["CommonGrants.Types.uuid"];
+            rules?: components["schemas"]["Models.EligibilityRule"];
+            opportunityId?: components["schemas"]["Models.GmsId"];
+            applicantWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description A CommonGrants `OrganizationBase` */
+            org?: {
+                [key: string]: unknown;
+            };
+            /** @description Passport Common App profile fields, as the `profile.*` paths read them */
+            profile?: {
+                [key: string]: unknown;
+            };
+            /** @description Form id → response */
+            form?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            applicant?: {
+                type?: string;
+            };
         };
         "Models.EligibilityResult": {
             /** @description `unknown` never auto-declines; it flags the application for a person. */
@@ -8244,10 +8964,40 @@ export interface components {
             any?: components["schemas"]["Models.EligibilityRule"][];
         };
         "Models.EligibilityRuleResult": {
-            rule: string;
+            /** @description The leaf rule that was evaluated: `{ path, op, value, ... }` */
+            rule: {
+                [key: string]: unknown;
+            };
+            /** @description The rule's plain-language label */
+            label: string;
             outcome: components["schemas"]["Models.TriState"];
             actual?: unknown;
             explain: string;
+        };
+        "Models.ExecutedAgreement": {
+            id: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            version: number;
+            status: components["schemas"]["Models.AgreementStatus"];
+            /** @description SHA-256 of the document sent for signature; null until it is sent */
+            documentSha256: (string & components["schemas"]["Models.Sha256"]) | null;
+            /** Format: date-time */
+            granteeSignedAt: string | null;
+            /** Format: date-time */
+            funderSignedAt: string | null;
+            /** Format: date-time */
+            executedAt: string | null;
+            awardId: components["schemas"]["Models.PrefixedId"];
+            templateId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            granteeSignature: components["schemas"]["Models.Signature"] | null;
+            funderSignature: components["schemas"]["Models.Signature"] | null;
+            hasStoredPdf: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description SHA-256 of the executed PDF (text plus signature record); also in the ledger */
+            executedPdfSha256: components["schemas"]["Models.Sha256"];
+            awardStatus: components["schemas"]["Models.AwardStatus"];
+            tranchesDue: components["schemas"]["Models.PrefixedId"][];
         };
         "Models.ExportJob": {
             id: string;
@@ -8268,81 +9018,265 @@ export interface components {
         };
         /** @enum {string} */
         "Models.FormPurpose": "application" | "report" | "loi" | "amendment" | "site_visit" | "other";
+        "Models.FunderPage": {
+            funder: components["schemas"]["Models.PublicFunder"];
+            opportunities: components["schemas"]["Models.PublicOpportunityCard"][];
+        };
+        /** @description An application in the funder's inbox. The detail route adds the optional fields. */
         "Models.GmsApplication": {
             id: components["schemas"]["Models.PrefixedId"];
+            title: string;
             competitionId: components["schemas"]["Models.PrefixedId"];
             opportunityId: components["schemas"]["Models.PrefixedId"];
-            applicantWorkspaceId: components["schemas"]["CommonGrants.Types.uuid"];
-            applicantName: string;
             stage: string;
             status: components["schemas"]["Models.ApplicationStatus"];
-            requestedAmount?: components["schemas"]["CommonGrants.Fields.Money"];
-            /** Format: date-time */
-            submittedAt?: string;
-            verificationLevelAtSubmit?: components["schemas"]["Models.VerificationLevel"];
-            /** Format: uri */
-            attestationUrl?: string;
-            eligibility?: components["schemas"]["Models.EligibilityResult"];
+            /** @description The outcome of the eligibility rules at the last evaluation; `unknown` flags it for a person. */
+            eligibility: (boolean | "unknown") | null;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            currency: string;
             tags: string[];
-            assignedToUserId?: components["schemas"]["CommonGrants.Types.uuid"];
-            cg: components["schemas"]["CommonGrants.Models.ApplicationBase"];
+            assignedToUserId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** Format: date-time */
+            submittedAt: string | null;
+            verificationLevelAtSubmit: components["schemas"]["Models.VerificationLevel"] | null;
+            applicant: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                /** @description The applicant's current Passport level; null once their consent is revoked. */
+                level: components["schemas"]["Models.VerificationLevel"] | null;
+            };
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: uri
+             * @description Detail only.
+             */
+            attestationUrl?: string | null;
+            /** @description Detail only: the rule-by-rule results. */
+            eligibilityResults?: components["schemas"]["Models.EligibilityResult"] | null;
+            decisionId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** @description Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
+            organization?: {
+                projection: components["schemas"]["CommonGrants.Models.OrganizationBase"];
+                level: components["schemas"]["Models.VerificationLevel"] | null;
+                /** Format: date-time */
+                verifiedAt: string | null;
+                /** Format: date-time */
+                syncedAt: string | null;
+                levelChangedSinceSubmit: boolean;
+            } | null;
+            /** @description Detail only. Reviewers get reviewer-visible fields; external reviewers also lose PII. */
+            formResponses?: components["schemas"]["Models.InboxFormResponse"][];
+            timeline?: components["schemas"]["Models.ApplicationEvent"][];
         };
+        /** @description An award as the GMS routes return it. The CommonGrants projection is at `/common-grants/awards/{id}`. */
         "Models.GmsAward": {
             id: components["schemas"]["Models.PrefixedId"];
-            applicationId?: components["schemas"]["Models.PrefixedId"];
-            recipientWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            description: string | null;
             status: components["schemas"]["Models.AwardStatus"];
-            conditions: string[];
-            parentAwardId?: components["schemas"]["Models.PrefixedId"];
-            /** @description The mirrored award in Passport, set on acceptance */
-            passportAwardId?: components["schemas"]["CommonGrants.Types.uuid"];
-            /** Format: date-time */
-            passportSyncedAt?: string;
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /**
+             * Format: int64
+             * @description The value last read from Passport; never computed in the GMS. Null until Passport reports one.
+             */
+            disbursedAmountMinor: number | null;
             /**
              * Format: date-time
-             * @description When `cg.funding.disbursedAmount` was last read from Passport
+             * @description When `disbursedAmountMinor` was last read from Passport
              */
-            disbursedAt?: string;
-            cg: components["schemas"]["CommonGrants.Models.AwardBase"];
+            disbursedAt: string | null;
+            /** @description CommonGrants `AwdTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            conditions: string[];
+            applicationId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            opportunityId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            parentAwardId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                brand: {
+                    [key: string]: unknown;
+                } | null;
+            };
+            recipient: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                /** @description The recipient's current Passport level, while their consent stands */
+                level: string | null;
+            } | null;
+            recipientIndividual: {
+                [key: string]: unknown;
+            } | null;
+            passport: {
+                /** @description The mirrored award in Passport, set after acceptance */
+                awardId: string | null;
+                /** Format: date-time */
+                syncedAt: string | null;
+                /** @enum {string} */
+                mirror: "synced" | "pending" | "not_applicable" | "disabled";
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        "Models.GmsAwardDetail": {
+            id: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            description: string | null;
+            status: components["schemas"]["Models.AwardStatus"];
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /**
+             * Format: int64
+             * @description The value last read from Passport; never computed in the GMS. Null until Passport reports one.
+             */
+            disbursedAmountMinor: number | null;
+            /**
+             * Format: date-time
+             * @description When `disbursedAmountMinor` was last read from Passport
+             */
+            disbursedAt: string | null;
+            /** @description CommonGrants `AwdTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            conditions: string[];
+            applicationId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            opportunityId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            parentAwardId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                brand: {
+                    [key: string]: unknown;
+                } | null;
+            };
+            recipient: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                /** @description The recipient's current Passport level, while their consent stands */
+                level: string | null;
+            } | null;
+            recipientIndividual: {
+                [key: string]: unknown;
+            } | null;
+            passport: {
+                /** @description The mirrored award in Passport, set after acceptance */
+                awardId: string | null;
+                /** Format: date-time */
+                syncedAt: string | null;
+                /** @enum {string} */
+                mirror: "synced" | "pending" | "not_applicable" | "disabled";
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            agreement: components["schemas"]["Models.AgreementSummary"] | null;
+            tranches: components["schemas"]["Models.AwardTranche"][];
+            requirements: components["schemas"]["Models.AwardRequirement"][];
+            amendments: components["schemas"]["Models.Amendment"][];
         };
         "Models.GmsCompetition": {
             id: components["schemas"]["Models.PrefixedId"];
             opportunityId: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            description: string | null;
+            instructions: string | null;
             /** @enum {string} */
             status: "draft" | "open" | "closed";
+            keyDates: {
+                [key: string]: unknown;
+            };
             stages: components["schemas"]["Models.Stage"][];
-            cg: components["schemas"]["CommonGrants.Models.CompetitionBase"];
+            /** @description The union of the stages' forms: form id → pinned version */
+            forms: {
+                [key: string]: number;
+            };
+            validation: {
+                [key: string]: unknown;
+            };
+            acceptedApplicantTypes: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         "Models.GmsCompetitionInput": {
             opportunityId: components["schemas"]["Models.GmsId"];
             title: string;
-            description?: string;
-            instructions?: string;
+            description?: string | null;
+            instructions?: string | null;
             keyDates?: {
                 [key: string]: unknown;
             };
             acceptedApplicantTypes?: string[];
-            stages?: components["schemas"]["Models.Stage"][];
         };
+        /**
+         * @description A form version as the `/gms` routes return it. Lists omit the schema, UI schema, mappings and
+         *     field metadata. The CommonGrants `FormBase` is served at `/common-grants/forms/{formId}`.
+         */
         "Models.GmsForm": {
             id: components["schemas"]["Models.PrefixedId"];
             /** Format: int32 */
             version: number;
+            title: string;
+            description: string | null;
+            instructions: string | null;
             purpose: components["schemas"]["Models.FormPurpose"];
+            /** @enum {string} */
+            status: "draft" | "published";
+            /** Format: date-time */
+            publishedAt: string | null;
+            /** Format: int32 */
+            supersedesFormVersion: number | null;
+            /** @description True for a form of the shared library */
+            shared: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description JSON Schema 2020-12 subset */
+            jsonSchema?: {
+                [key: string]: unknown;
+            };
+            uiSchema?: {
+                [key: string]: unknown;
+            };
+            mappingFromCommonGrants?: {
+                [key: string]: unknown;
+            };
+            mappingToCommonGrants?: {
+                [key: string]: unknown;
+            };
             /** @description Per-field reviewer visibility, PII flags and limits */
             fieldMeta?: {
                 [key: string]: unknown;
             };
-            /** Format: date-time */
-            publishedAt?: string;
-            /** Format: int32 */
-            supersedesFormVersion?: number;
-            cg: components["schemas"]["CommonGrants.Models.FormBase"];
         };
         "Models.GmsFormInput": {
             title: string;
-            description?: string;
-            instructions?: string;
+            description?: string | null;
+            instructions?: string | null;
             purpose?: components["schemas"]["Models.FormPurpose"];
             jsonSchema?: {
                 [key: string]: unknown;
@@ -8359,20 +9293,49 @@ export interface components {
             fieldMeta?: {
                 [key: string]: unknown;
             };
+            /** @description Start from an existing form (e.g. one from the shared library) */
+            copyFrom?: {
+                id: components["schemas"]["Models.GmsId"];
+                /** Format: int32 */
+                version?: number;
+            };
         };
         /** @description Either a bare UUID or the human-prefixed form of one. */
         "Models.GmsId": string;
-        /** @description The funder-side view of an opportunity: the CommonGrants record plus GMS settings. */
+        /**
+         * @description An opportunity as the `/gms` routes return it. The CommonGrants projection is served at
+         *     `/common-grants/opportunities/{oppId}`.
+         */
         "Models.GmsOpportunity": {
             id: components["schemas"]["Models.PrefixedId"];
-            programId?: components["schemas"]["CommonGrants.Types.uuid"];
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             slug: string;
-            eligibilityRules?: components["schemas"]["Models.EligibilityRule"];
-            publish?: components["schemas"]["Models.PublishSettings"];
+            title: string;
+            description: string;
+            /** @enum {string} */
+            status: "forecasted" | "open" | "closed";
+            /** @description CommonGrants `OppFunding` */
+            funding: {
+                [key: string]: unknown;
+            };
+            /** @description CommonGrants `OppTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            acceptedApplicantTypes: string[];
+            /** @description `{ all: [] }` when the opportunity has no rules */
+            eligibilityRules: components["schemas"]["Models.EligibilityRule"];
+            publish: components["schemas"]["Models.PublishSettings"];
+            customFields: {
+                [key: string]: unknown;
+            };
+            published: boolean;
             /** Format: date-time */
-            publishedAt?: string;
-            /** @description The CommonGrants projection served at `/common-grants/opportunities/{oppId}`. */
-            cg: components["schemas"]["CommonGrants.Models.OpportunityBase"];
+            publishedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         "Models.GmsOpportunityInput": {
             programId?: components["schemas"]["CommonGrants.Types.uuid"];
@@ -8426,14 +9389,59 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        "Models.InboxFormResponse": {
+            formId: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            formVersion: number;
+            formTitle: string | null;
+            stage: string | null;
+            /** @enum {string} */
+            status: "notStarted" | "inProgress" | "complete";
+            response: {
+                [key: string]: unknown;
+            };
+            /** @description JSON pointer → `passport` | `library` | `prior_submission` | `qbo` | `user` | `agent:<client>` */
+            provenance: {
+                [key: string]: string;
+            };
+            validationErrors: unknown[];
+            /** Format: date-time */
+            lockedAt: string | null;
+            /** @description Paths hidden or masked for this viewer. */
+            masked: string[];
+        };
+        /** @description A created invitation. The token is returned once, inside `acceptUrl`; only its hash is stored. */
         "Models.Invitation": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
             email: string;
             role: components["schemas"]["Models.MemberRole"];
+            /** Format: date-time */
+            expiresAt: string;
+            token: string;
+            /** Format: uri */
+            acceptUrl: string;
+        };
+        "Models.InvitationInput": {
+            email: string;
+            role: components["schemas"]["Models.MemberRole"];
+            /** @description Restrictions for consultants and external reviewers */
             scope?: {
                 [key: string]: unknown;
             };
-            /** Format: date-time */
-            expiresAt?: string;
+            /**
+             * Format: int32
+             * @default 14
+             */
+            expiresInDays: number;
+        };
+        "Models.InviteReviewerRequest": {
+            email: string;
+            competitionId: components["schemas"]["Models.GmsId"];
+            /**
+             * Format: int32
+             * @default 14
+             */
+            expiresInDays: number;
         };
         "Models.Jwk": {
             /** @enum {string} */
@@ -8483,19 +9491,52 @@ export interface components {
             /** Format: date-time */
             revokedAt?: string;
         };
+        /** @description One JSON-RPC 2.0 message of the Model Context Protocol (or a batch of up to 20). */
+        "Models.McpMessage": {
+            /** @enum {string} */
+            jsonrpc: "2.0";
+            id?: (string | number) | null;
+            method?: string;
+            params?: {
+                [key: string]: unknown;
+            };
+            result?: unknown;
+            error?: {
+                /** Format: int32 */
+                code: number;
+                message: string;
+                data?: unknown;
+            };
+        };
+        /** @description The signed-in person and the workspaces they can open. */
+        "Models.Me": {
+            userId: components["schemas"]["CommonGrants.Types.uuid"];
+            email: string | null;
+            mfaVerified: boolean;
+            workspaces: components["schemas"]["Models.MyWorkspace"][];
+        };
+        /**
+         * @description A member of a workspace. `email` and `name` come from the person's account; an invited member
+         *     shows the invited address until they have signed in.
+         */
         "Models.Member": {
             userId: components["schemas"]["CommonGrants.Types.uuid"];
-            email?: string;
-            name?: string;
+            email: string | null;
+            name: string | null;
             role: components["schemas"]["Models.MemberRole"];
             /** @description Restrictions for consultants and external reviewers: application, award or competition ids. */
-            scope?: {
+            scope: {
                 [key: string]: unknown;
             };
             /** Format: date-time */
-            expiresAt?: string;
+            expiresAt: string | null;
             /** Format: date-time */
-            mfaEnrolledAt?: string;
+            mfaEnrolledAt: string | null;
+            /** @description TOTP MFA is required for this role */
+            requiresMfa: boolean;
+            invitedBy: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** Format: date-time */
+            createdAt: string;
         };
         "Models.MemberInput": {
             userId: components["schemas"]["CommonGrants.Types.uuid"];
@@ -8518,15 +9559,109 @@ export interface components {
         };
         "Models.Message": {
             id: string;
+            /** @description Ledger actor: `user:<id>` or `user:<id>/client:<id>` */
             author: string;
+            authorUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             body: string;
-            attachments?: string[];
             /** Format: date-time */
             createdAt: string;
         };
         "Models.MessageInput": {
             body: string;
-            attachments?: string[];
+        };
+        /** @description An application as its applicant sees it in the list. */
+        "Models.MyApplication": {
+            id: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            status: components["schemas"]["Models.ApplicationStatus"];
+            stage: {
+                key: string;
+                label: string;
+                /** Format: date-time */
+                closes: string | null;
+            };
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                brand: components["schemas"]["Models.Brand"];
+            };
+            opportunity: {
+                id: components["schemas"]["Models.PrefixedId"];
+                title: string | null;
+            };
+            /** @description Forms of the current stage and how many validate. */
+            forms: {
+                /** Format: int32 */
+                total: number;
+                /** Format: int32 */
+                complete: number;
+            };
+            /** Format: date-time */
+            submittedAt: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A funder the applicant has applied to on the GMS. */
+        "Models.MyFunder": {
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            handle: string;
+            brand: components["schemas"]["Models.Brand"];
+            /** Format: date-time */
+            since: string | null;
+            /** Format: int32 */
+            applications: number;
+            /** Format: int32 */
+            awards: number;
+        };
+        /** @description The applicant's organization as cached from Passport. Read-only here: edits happen in Passport. */
+        "Models.MyOrganization": {
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            handle: string;
+            displayName: string;
+            passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            linked: boolean;
+            level: components["schemas"]["Models.VerificationLevel"] | null;
+            /** Format: date-time */
+            verifiedAt: string | null;
+            /**
+             * Format: uri
+             * @description URL of the signed Passport attestation
+             */
+            attestationUrl: string | null;
+            /** @description CommonGrants `OrganizationBase`, exactly as Passport served it. */
+            organization: components["schemas"]["CommonGrants.Models.OrganizationBase"] | null;
+            /** @description Common App profile (budget, fiscal year end, staff count, 990 figures) folded into an object. Confirmed fields only. */
+            profile: {
+                [key: string]: unknown;
+            } | null;
+            /** @description JSON pointer of each profile field → where Passport got the value. */
+            profileSources: {
+                [key: string]: string;
+            };
+            /** Format: date-time */
+            syncedAt: string | null;
+            /**
+             * Format: uri
+             * @description Where to edit the record in Passport.
+             */
+            editUrl: string | null;
+        };
+        /** @description A workspace as the signed-in person sees it in the switcher. */
+        "Models.MyWorkspace": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            handle: string;
+            kind: components["schemas"]["Models.WorkspaceKind"];
+            role: components["schemas"]["Models.MemberRole"];
+            displayName: string;
+            /** @description Same as `displayName`. */
+            name: string;
+            brand: components["schemas"]["Models.Brand"];
+            /** @description Whether this role needs two-step verification before the workspace opens. */
+            requiresMfa: boolean;
+            passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            verificationLevel: components["schemas"]["Models.VerificationLevel"] | null;
         };
         /** @description OAuth 2.0 error response (RFC 6749 §5.2). */
         "Models.OAuthError": {
@@ -8543,11 +9678,57 @@ export interface components {
             };
         };
         "Models.OpenGrantsResults": {
+            /** @description Listings as OpenGrants returned them, each with `gms` set when it can be applied to here. */
             results: {
                 [key: string]: unknown;
             }[];
-            /** Format: date-time */
-            cachedAt?: string;
+            /** @description Served from the 15-minute cache for this organization and query. */
+            cached: boolean;
+        };
+        "Models.OpportunityPage": {
+            funder: components["schemas"]["Models.PublicFunder"];
+            opportunity: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                slug: string;
+                title: string;
+                description: string;
+                /** @enum {string} */
+                status: "forecasted" | "open" | "closed";
+                /** @description CommonGrants `OppFunding` */
+                funding: {
+                    [key: string]: unknown;
+                };
+                /** @description CommonGrants `OppTimeline` */
+                keyDates: {
+                    [key: string]: unknown;
+                };
+                acceptedApplicantTypes: string[];
+                /** Format: date-time */
+                publishedAt: string | null;
+                /** @description The eligibility rules' plain-language labels */
+                eligibility: string[];
+            };
+            competitions: components["schemas"]["Models.PublicCompetition"][];
+            /** @description The CommonGrants `OpportunityDetails` record */
+            commonGrants: {
+                [key: string]: unknown;
+            };
+            links: {
+                /** Format: uri */
+                json: string;
+                /** Format: uri */
+                page: string;
+            };
+        };
+        /** @description `POST /gms/opportunities/{id}/preview`: what publishing would serve. */
+        "Models.OpportunityPreview": {
+            commonGrants: components["schemas"]["CommonGrants.Models.OpportunityDetails"];
+            /** Format: uri */
+            publicUrl: string;
+            brand: {
+                [key: string]: unknown;
+            };
+            publish: components["schemas"]["Models.PublishSettings"];
         };
         "Models.OrgChange": {
             id: string;
@@ -8569,17 +9750,25 @@ export interface components {
             clientId: string;
             clientSecret: string;
         };
+        /** @description The funder's Passport client link and a live check of it. */
         "Models.PassportLinkStatus": {
             linked: boolean;
+            passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** @enum {string} */
             mode?: "funder_client" | "applicant_consent";
-            scopes: string[];
+            clientId?: string | null;
+            scopes?: string[];
             /** Format: date-time */
-            lastOkAt?: string;
+            linkedAt?: string | null;
             /** Format: date-time */
-            revokedAt?: string;
-            /** @description Whether the funder can send facilitated payments through Passport. */
-            canSendFunds?: boolean;
+            lastOkAt?: string | null;
+            /** @description `unknown` when Passport cannot be reached; never collapsed into pass or fail */
+            check: {
+                state: components["schemas"]["Models.TriState"];
+                reason: string;
+            };
+            /** @description Whether Passport reports a funding source the funder can pay from; null when unknown */
+            canDebit: boolean | null;
         };
         "Models.PaymentAlert": {
             /** @enum {string} */
@@ -8614,10 +9803,17 @@ export interface components {
         "Models.Program": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
             name: string;
-            description?: string;
-            fiscalYear?: string;
-            budget?: components["schemas"]["CommonGrants.Fields.Money"];
-            defaults?: {
+            description: string | null;
+            /** Format: int32 */
+            fiscalYear: number | null;
+            /**
+             * Format: int64
+             * @description Integer minor units of `currency`; null when the program has no budget set
+             */
+            budgetAmountMinor: number | null;
+            currency: string;
+            /** @description Award period, agreement template, payment schedule, requirements and reminder plan applied to new awards */
+            defaults: {
                 [key: string]: unknown;
             };
             /** Format: date-time */
@@ -8627,9 +9823,12 @@ export interface components {
         };
         "Models.ProgramInput": {
             name: string;
-            description?: string;
-            fiscalYear?: string;
-            budget?: components["schemas"]["CommonGrants.Fields.Money"];
+            description?: string | null;
+            /** Format: int32 */
+            fiscalYear?: number | null;
+            /** Format: int64 */
+            budgetAmountMinor?: number | null;
+            currency?: string;
             defaults?: {
                 [key: string]: unknown;
             };
@@ -8645,6 +9844,10 @@ export interface components {
             competitionId: components["schemas"]["Models.GmsId"];
             decisions: components["schemas"]["Models.DecisionInput"][];
         };
+        "Models.ProposeDecisionsResult": {
+            decisions: components["schemas"]["Models.Decision"][];
+            allocation: components["schemas"]["Models.Allocation"];
+        };
         /** @description RFC 9728 protected resource metadata for the MCP endpoint. */
         "Models.ProtectedResourceMetadata": {
             /** Format: uri */
@@ -8653,45 +9856,149 @@ export interface components {
             scopes_supported: string[];
             bearer_methods_supported: string[];
         };
+        "Models.PublicCompetition": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            description: string | null;
+            instructions: string | null;
+            /** @enum {string} */
+            status: "draft" | "open" | "closed";
+            keyDates: {
+                [key: string]: unknown;
+            };
+            stages: {
+                key: string;
+                label: string;
+                /** Format: date-time */
+                opens: string | null;
+                /** Format: date-time */
+                closes: string | null;
+                requiresSubmission: boolean;
+            }[];
+        };
+        /** @description What a funder shows publicly. */
+        "Models.PublicFunder": {
+            handle: string;
+            name: string;
+            brand: {
+                logoUrl: string | null;
+                accent: string | null;
+                onAccent: string | null;
+            };
+            mission: string | null;
+            website: string | null;
+            verificationLevel: string | null;
+        };
+        "Models.PublicOpportunityCard": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            slug: string;
+            title: string;
+            description: string;
+            /** @enum {string} */
+            status: "forecasted" | "open" | "closed";
+            /** @description CommonGrants `OppFunding` */
+            funding: {
+                [key: string]: unknown;
+            };
+            /** @description CommonGrants `OppTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            acceptedApplicantTypes: string[];
+        };
         "Models.PublishSettings": {
             publicPage?: boolean;
             openGrantsIndex?: boolean;
             sitemap?: boolean;
         };
+        "Models.Ranking": {
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            stage: string;
+            rubric: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: int32 */
+                version: number;
+                name: string;
+            };
+            items: components["schemas"]["Models.RankingRow"][];
+        };
         "Models.RankingRow": {
             applicationId: components["schemas"]["Models.PrefixedId"];
-            applicantName: string;
-            /** Format: int32 */
-            rank: number;
-            /** Format: double */
-            mean: number;
-            /** Format: double */
-            median: number;
-            /** Format: double */
-            stdev: number;
+            title: string;
+            applicant: string | null;
+            status: components["schemas"]["Models.ApplicationStatus"];
+            /**
+             * Format: int32
+             * @description 1-based; null when no review has been submitted
+             */
+            rank: number | null;
             /** Format: int32 */
             n: number;
+            /** Format: double */
+            mean: number | null;
+            /** Format: double */
+            median: number | null;
+            /**
+             * Format: double
+             * @description Sample standard deviation of the reviewers' overall scores
+             */
+            stdev: number | null;
             /** @description True when `stdev` exceeds the rubric's spread threshold */
             spreadFlag: boolean;
-            requestedAmount?: components["schemas"]["CommonGrants.Fields.Money"];
+            overalls: {
+                reviewerId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: double */
+                overall: number;
+            }[];
+            incomplete: string[];
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            currency: string;
+            /** Format: int32 */
+            assigned: number;
+            /** Format: int32 */
+            pending: number;
+            decision: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                outcome: components["schemas"]["Models.DecisionOutcome"];
+                /** Format: int64 */
+                amountMinor: number | null;
+                committed: boolean;
+            } | null;
         };
+        /**
+         * @description A readiness checklist (launch a competition, release a tranche, submit an application). The
+         *     primary action is disabled while any line fails or is unknown.
+         */
         "Models.Readiness": {
             ready: boolean;
-            /** Format: int32 */
-            passed: number;
-            /** Format: int32 */
-            failed: number;
-            /** Format: int32 */
-            unknown: number;
-            lines: components["schemas"]["Models.ReadinessLine"][];
+            summary: {
+                /** Format: int32 */
+                pass: number;
+                /** Format: int32 */
+                fail: number;
+                /** Format: int32 */
+                unknown: number;
+            };
+            items: components["schemas"]["Models.ReadinessLine"][];
         };
-        /** @description One line of a readiness checklist: state, label, reason and a link that fixes it. */
+        /** @description One line of a readiness checklist. `unknown` is a state of its own: it is never folded into pass or fail. */
+        "Models.ReadinessCheck": {
+            key: string;
+            /** @enum {string} */
+            state: "pass" | "fail" | "unknown";
+            label: string;
+            reason: string;
+            /** @description Where to fix it (a path in the web app or a Passport URL); null when nothing needs fixing. */
+            fixHref: string | null;
+        };
+        /** @description One line of a readiness checklist: state, label, reason and a link to the screen that fixes it. */
         "Models.ReadinessLine": {
             key: string;
             state: components["schemas"]["Models.TriState"];
             label: string;
             reason: string;
-            fixUrl?: string;
+            fixHref: string | null;
         };
         /** @description A free-text reason recorded in the ledger. */
         "Models.ReasonBody": {
@@ -8702,15 +10009,20 @@ export interface components {
             confirmDuplicate?: boolean;
         };
         "Models.RenderRequest": {
-            /** @description Merge-field context: record ids the template resolves against */
-            context: {
+            /** @description Merge fields; they override the ones derived from the application or award */
+            fields?: {
                 [key: string]: unknown;
             };
+            applicationId?: components["schemas"]["Models.GmsId"];
+            awardId?: components["schemas"]["Models.GmsId"];
         };
         "Models.Rendered": {
-            subject?: string;
-            html: string;
-            text?: string;
+            templateId: string;
+            /** @enum {string} */
+            kind: "letter" | "agreement" | "email";
+            subject: string | null;
+            text: string;
+            html: string | null;
         };
         "Models.Requirement": {
             id: components["schemas"]["Models.PrefixedId"];
@@ -8753,44 +10065,169 @@ export interface components {
         /** @enum {string} */
         "Models.RequirementStatus": "scheduled" | "due" | "overdue" | "submitted" | "under_review" | "accepted" | "returned" | "waived";
         "Models.Review": {
-            assignmentId: components["schemas"]["Models.PrefixedId"];
-            /** @description Criterion key → `{ value, comment }` */
+            id: components["schemas"]["Models.PrefixedId"];
+            assignmentId: components["schemas"]["CommonGrants.Types.uuid"];
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            stage: string;
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description True for the caller's own review */
+            own: boolean;
+            /** @description Criterion key → value, or `{ value, comment }` */
             scores: {
+                [key: string]: unknown;
+            };
+            /** @description Criterion key → 0–1 */
+            normalized: {
+                [key: string]: number;
+            };
+            /**
+             * Format: double
+             * @description Weighted overall, 0–100; null while any criterion is unscored
+             */
+            overall: number | null;
+            narrative: string | null;
+            recommendation: string | null;
+            /** @enum {string} */
+            visibility: "panel" | "funder_only";
+            /** Format: date-time */
+            submittedAt: string | null;
+        };
+        /** @description A reviewer's assignment to one application in one stage. Ids of assignments are bare UUIDs. */
+        "Models.ReviewAssignment": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            applicationTitle: string | null;
+            competitionId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            stage: string;
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            rubricId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: int32 */
+            rubricVersion: number;
+            /** Format: date-time */
+            dueAt: string | null;
+            /** @enum {string} */
+            status: "assigned" | "coi_declared" | "in_progress" | "submitted" | "recused";
+            /** @description `declared` is null until the reviewer has answered the conflict-of-interest question. */
+            coi: {
+                declared: boolean | null;
+                reason: string | null;
+            };
+            /** @description Present once the reviewer has saved scores. `overall` is 0–100, null while incomplete. */
+            review: {
+                id: components["schemas"]["Models.PrefixedId"];
+                /** Format: date-time */
+                submittedAt: string | null;
+                /** Format: double */
+                overall: number | null;
+                complete: boolean;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /**
+         * @description The reviewer's working view: the rubric, their own review, and the application as a reviewer may
+         *     see it (reviewer-visible fields only; PII masked and no organization record for external reviewers).
+         */
+        "Models.ReviewAssignmentDetail": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            applicationTitle: string | null;
+            competitionId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            stage: string;
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            rubricId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: int32 */
+            rubricVersion: number;
+            /** Format: date-time */
+            dueAt: string | null;
+            /** @enum {string} */
+            status: "assigned" | "coi_declared" | "in_progress" | "submitted" | "recused";
+            /** @description `declared` is null until the reviewer has answered the conflict-of-interest question. */
+            coi: {
+                declared: boolean | null;
+                reason: string | null;
+            };
+            /** @description Present once the reviewer has saved scores. `overall` is 0–100, null while incomplete. */
+            review: {
+                id: components["schemas"]["Models.PrefixedId"];
+                /** Format: date-time */
+                submittedAt: string | null;
+                /** Format: double */
+                overall: number | null;
+                complete: boolean;
+            } | null;
+            /** Format: date-time */
+            createdAt: string;
+            rubric: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: int32 */
+                version: number;
+                name: string;
+                criteria: components["schemas"]["Models.RubricCriterion"][];
+                overall: {
+                    [key: string]: unknown;
+                };
+            };
+            myReview: {
+                scores: {
+                    [key: string]: unknown;
+                };
+                narrative: string | null;
+                recommendation: string | null;
+                /** Format: date-time */
+                submittedAt: string | null;
+            } | null;
+            /** @description Null for a recused reviewer. */
+            application: {
+                [key: string]: unknown;
+            } | null;
+        };
+        "Models.ReviewAssignmentInput": {
+            applicationId: components["schemas"]["Models.GmsId"];
+            /** @description Defaults to the application's current stage */
+            stage?: string;
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Used for the same-domain conflict check when the membership carries no email */
+            reviewerEmail?: string;
+            /** Format: date-time */
+            dueAt?: string;
+        };
+        /** @description `PATCH /gms/review-assignments/{id}`: one action per request. */
+        "Models.ReviewAssignmentPatch": {
+            /** @enum {string} */
+            action: "declare_coi" | "save" | "submit" | "recuse" | "reschedule";
+            /** @description declare_coi */
+            hasConflict?: boolean;
+            /** @description declare_coi, recuse */
+            reason?: string;
+            /** @description save, submit: criterion key → value, or `{ value, comment }` */
+            scores?: {
                 [key: string]: unknown;
             };
             narrative?: string;
             recommendation?: string;
-            /** Format: date-time */
-            submittedAt?: string;
-            /** @enum {string} */
-            visibility: "panel" | "funder_only";
-        };
-        "Models.ReviewAssignment": {
-            id: components["schemas"]["Models.PrefixedId"];
-            applicationId: components["schemas"]["Models.PrefixedId"];
-            stage: string;
-            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
-            rubricId: string;
-            /** Format: int32 */
-            rubricVersion: number;
-            /** Format: date-time */
-            dueAt?: string;
-            /** @enum {string} */
-            status: "assigned" | "coi_declared" | "in_progress" | "submitted" | "recused";
-            coi?: {
-                declared: boolean;
-                reason?: string;
-            };
-        };
-        "Models.ReviewAssignmentInput": {
-            applicationId: components["schemas"]["Models.GmsId"];
-            stage: string;
-            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
-            /** Format: date-time */
-            dueAt?: string;
+            /**
+             * Format: date-time
+             * @description reschedule
+             */
+            dueAt?: string | null;
         };
         "Models.ReviewNote": {
             note?: string;
+        };
+        "Models.ReviewerInvitation": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            email: string;
+            /** @enum {string} */
+            role: "external_reviewer";
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description Returned once; only its hash is stored */
+            token: string;
+            /** Format: uri */
+            acceptUrl: string;
+            emailed: boolean;
         };
         "Models.RevisionRequest": {
             /** @description Form id → field paths the applicant is asked to revise */
@@ -8835,30 +10272,108 @@ export interface components {
             spreadThreshold?: number;
         };
         "Models.RubricRef": {
-            /** @description Stage key the rubric applies to */
-            stage: string;
-            rubricId: string;
+            /** @description The stage the rubric applies to; every decision stage when omitted */
+            stage?: string;
+            rubricId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+        };
+        "Models.SavedListing": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @enum {string} */
+            source: "gms" | "opengrants";
+            externalId: string;
+            title: string;
+            url: string | null;
+            gmsOpportunityId?: (string & components["schemas"]["Models.GmsId"]) | null;
+            /** Format: date-time */
+            savedAt: string;
+        };
+        "Models.SavedListingInput": {
+            /** @enum {string} */
+            source: "gms" | "opengrants";
+            externalId: string;
+            title: string;
+            /** Format: uri */
+            url?: string;
+            listing?: {
+                [key: string]: unknown;
+            };
         };
         "Models.ScheduleInput": {
             tranches: components["schemas"]["Models.TrancheInput"][];
         };
         "Models.SectionAssignment": {
             formId: components["schemas"]["Models.GmsId"];
-            /** @description Section key → user id */
+            /** @description Section key → user id; null clears the assignment */
             sections: {
-                [key: string]: components["schemas"]["CommonGrants.Types.uuid"];
+                [key: string]: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             };
         };
         "Models.SendRequest": {
             templateId: string;
-            /** @description Application, award or requirement ids to send to */
-            subjectIds: string[];
-            /** @enum {string} */
-            subjectType: "application" | "award" | "requirement";
+            recipients: {
+                applicationId?: components["schemas"]["Models.GmsId"];
+                awardId?: components["schemas"]["Models.GmsId"];
+                applicantWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
+            }[];
+            subjectOverride?: string;
+            /** @description Extra merge fields applied to every recipient */
+            fields?: {
+                [key: string]: unknown;
+            };
         };
         "Models.SendResult": {
+            batch: components["schemas"]["CommonGrants.Types.uuid"];
+            templateId: string;
             /** Format: int32 */
-            queued: number;
+            requested: number;
+            /** Format: int32 */
+            sent: number;
+            results: {
+                subject: {
+                    type: string;
+                    id: string;
+                };
+                sent: boolean;
+                reason?: string;
+            }[];
+        };
+        "Models.SentAgreement": {
+            id: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            version: number;
+            status: components["schemas"]["Models.AgreementStatus"];
+            /** @description SHA-256 of the document sent for signature; null until it is sent */
+            documentSha256: (string & components["schemas"]["Models.Sha256"]) | null;
+            /** Format: date-time */
+            granteeSignedAt: string | null;
+            /** Format: date-time */
+            funderSignedAt: string | null;
+            /** Format: date-time */
+            executedAt: string | null;
+            awardId: components["schemas"]["Models.PrefixedId"];
+            templateId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            granteeSignature: components["schemas"]["Models.Signature"] | null;
+            funderSignature: components["schemas"]["Models.Signature"] | null;
+            hasStoredPdf: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            letter: {
+                sent: boolean;
+                reason?: string;
+            };
+        };
+        /** @description One line of the send log. */
+        "Models.SentCommunication": {
+            /** @enum {string} */
+            status: "sent" | "failed";
+            subjectType: string;
+            subjectId: string;
+            template: string | null;
+            templateName: string | null;
+            batch: string | null;
+            actor: string;
+            /** Format: date-time */
+            at: string | null;
         };
         /** @description A SHA-256 digest, lower-case hex. */
         "Models.Sha256": string;
@@ -8876,39 +10391,41 @@ export interface components {
              * @enum {boolean}
              */
             attest: true;
-            /** @description SHA-256 of the document the signer was shown; must match the agreement */
-            documentSha256: components["schemas"]["Models.Sha256"];
-        };
-        /** @description Click-to-sign audit record. */
-        "Models.Signature": {
-            name: string;
-            userId: components["schemas"]["CommonGrants.Types.uuid"];
-            ip: string;
-            /** Format: date-time */
-            at: string;
-            /** @description SHA-256 of the document that was signed */
-            hash: components["schemas"]["Models.Sha256"];
+            /** @description SHA-256 of the document the signer was shown; when given it must match the agreement */
+            documentSha256?: components["schemas"]["Models.Sha256"];
         };
         /**
-         * @description One stage of a competition (build spec §10.4). Exposed to CommonGrants clients in
-         *     `CompetitionBase.customFields.gms.stages`.
+         * @description What a click-to-sign signature shows to the other party. The full audit record (user, network
+         *     address, document hash) is in the ledger and on the executed PDF.
          */
+        "Models.Signature": {
+            name: string;
+            /** Format: date-time */
+            at: string;
+        };
         "Models.Stage": {
             key: string;
             label: string;
-            /** @description Form id → pinned version */
+            /** @description Form id → pinned published version */
             forms: {
                 [key: string]: number;
             };
             /** Format: date-time */
-            opens?: string;
+            opens?: string | null;
             /** Format: date-time */
-            closes?: string;
-            rubricId?: string;
-            reviewers?: string;
-            entryFrom: string[];
-            requiresSubmission: boolean;
-            decisionRequired: boolean;
+            closes?: string | null;
+            rubricId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            reviewers?: string | null;
+            entryFrom?: string[];
+            requiresSubmission?: boolean;
+            decisionRequired?: boolean;
+            /**
+             * @description `blind` (default), `see_after_submit` or `open`
+             * @enum {string}
+             */
+            reviewMode?: "blind" | "see_after_submit" | "open";
+            /** @description Once true, reviewers of this stage can see each other's submitted reviews */
+            panelOpen?: boolean;
         };
         "Models.StageForms": {
             /** @description Stage key → (form id → version) */
@@ -8919,6 +10436,10 @@ export interface components {
             };
             /** @description Re-validate in-progress responses against the new pinned versions. */
             migrate?: boolean;
+        };
+        /** @description `PUT /gms/competitions/{id}/stages`. Allowed only while the competition is a draft. */
+        "Models.StagesInput": {
+            stages: components["schemas"]["Models.Stage"][];
         };
         "Models.Submission": {
             id: components["schemas"]["Models.PrefixedId"];
@@ -8941,14 +10462,16 @@ export interface components {
         };
         "Models.Task": {
             id: string;
-            subjectType?: string;
-            subjectId?: string;
+            subjectType: string | null;
+            subjectId: string | null;
             title: string;
-            assigneeUserId?: components["schemas"]["CommonGrants.Types.uuid"];
+            assigneeUserId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** Format: date-time */
-            dueAt?: string;
+            dueAt: string | null;
             /** Format: date-time */
-            doneAt?: string;
+            doneAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
         };
         "Models.TaskInput": {
             subjectType?: string;
@@ -8958,21 +10481,44 @@ export interface components {
             /** Format: date-time */
             dueAt?: string;
         };
+        "Models.TaskPatch": {
+            title?: string;
+            assigneeUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** Format: date-time */
+            dueAt?: string | null;
+            done?: boolean;
+        };
         "Models.Template": {
+            /** @description A UUID, or `builtin:<name>` for the texts that ship with the GMS */
             id: string;
             /** @enum {string} */
             kind: "letter" | "agreement" | "email";
             name: string;
-            /** @description Markdown with merge fields */
-            body: string;
             /** Format: int32 */
             version: number;
+            /** @description Email templates only */
+            subject: string | null;
+            /** @description Markdown with `{{merge.fields}}` */
+            body: string;
+            /** @description The merge fields the subject and body use */
+            fields: string[];
+            shared: boolean;
+            builtIn?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
         };
+        /** @description Saving a template with the same kind and name adds a version; earlier versions are immutable. */
         "Models.TemplateInput": {
             /** @enum {string} */
             kind: "letter" | "agreement" | "email";
             name: string;
+            /** @description Required for email templates */
+            subject?: string;
             body: string;
+        };
+        "Models.TemplateList": {
+            items: components["schemas"]["Models.Template"][];
+            builtIn: components["schemas"]["Models.Template"][];
         };
         "Models.Thread": {
             id: string;
@@ -8981,9 +10527,22 @@ export interface components {
             subjectId: string;
             /** @enum {string} */
             visibility: "shared" | "funder_internal" | "applicant_internal";
+            title?: string | null;
+            funderWorkspaceId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            applicantWorkspaceId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            messages: components["schemas"]["Models.Message"][];
             /** Format: date-time */
-            lastMessageAt?: string;
-            messages?: components["schemas"]["Models.Message"][];
+            updatedAt: string;
+        };
+        "Models.ThreadInput": {
+            /** @enum {string} */
+            subjectType?: "application";
+            subjectId: components["schemas"]["Models.GmsId"];
+            /**
+             * @description `internal` opens the caller's side's private thread; the other side never sees it.
+             * @enum {string}
+             */
+            visibility?: "shared" | "internal";
         };
         /** @description Timestamps carried by every GMS record. */
         "Models.Timestamps": {
@@ -9090,6 +10649,16 @@ export interface components {
             /** Format: uri */
             url: string;
             events: string[];
+        };
+        /** @description What a caller is in a workspace: the same answer for a person, an API client and an agent. */
+        "Models.WhoAmI": {
+            /** @enum {string} */
+            kind: "user" | "client" | "delegated";
+            userId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            clientId: string | null;
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            role: components["schemas"]["Models.MemberRole"] | null;
+            scopes: string[];
         };
         "Models.Workspace": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -10128,6 +11697,58 @@ export interface operations {
             };
         };
     };
+    Agreements_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Agreement"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Agreements_countersign: {
         parameters: {
             query?: never;
@@ -10151,7 +11772,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Agreement"];
+                        data: components["schemas"]["Models.ExecutedAgreement"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -10270,7 +11891,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Agreement"];
+                        data: components["schemas"]["Models.SentAgreement"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -10303,6 +11924,15 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10413,6 +12043,15 @@ export interface operations {
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
             /** @description Access is unauthorized. */
             401: {
                 headers: {
@@ -10456,13 +12095,13 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: string;
+                id: components["schemas"]["CommonGrants.Types.uuid"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Models.MergePatch"];
+                "application/json": components["schemas"]["Models.AmendmentDecision"];
             };
         };
         responses: {
@@ -10961,7 +12600,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11035,7 +12674,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11091,7 +12730,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11142,6 +12781,58 @@ export interface operations {
             };
         };
     };
+    Applications_rerunEligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.EligibilityResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Applications_requestRevision: {
         parameters: {
             query?: never;
@@ -11165,7 +12856,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11239,7 +12930,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11700,8 +13391,9 @@ export interface operations {
                 page?: components["parameters"]["Models.PageParams.page"];
                 /** @description The number of items to return per page */
                 pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-                status?: components["schemas"]["Models.AwardStatus"];
+                status?: string;
                 programId?: components["schemas"]["CommonGrants.Types.uuid"];
+                recipientWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
             };
             header?: never;
             path?: never;
@@ -11743,6 +13435,78 @@ export interface operations {
             };
         };
     };
+    Awards_createFromApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardFromApplicationRequest"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardFromApplicationResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Awards_read_2: {
         parameters: {
             query?: never;
@@ -11762,7 +13526,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11814,17 +13578,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.AcceptedAward"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
-                };
-            };
-            /** @description A human gate: the action was recorded as an approval request instead of being run. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HttpResponses.PendingApproval"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -11884,7 +13639,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -11989,6 +13744,76 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Awards_listAmendments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Amendment"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Awards_createAmendment: {
@@ -12047,6 +13872,24 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12196,8 +14039,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -12257,7 +14109,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -12290,6 +14142,55 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Awards_letterPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12414,6 +14315,67 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Awards_resume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GmsAwardDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12572,8 +14534,17 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -12789,6 +14760,54 @@ export interface operations {
             };
         };
     };
+    Communication_listCommunications: {
+        parameters: {
+            query?: {
+                /** @description The page to return */
+                page?: components["parameters"]["Models.PageParams.page"];
+                /** @description The number of items to return per page */
+                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with a paginated list of typed items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Items from the current page */
+                        items: components["schemas"]["Models.SentCommunication"][];
+                        /** @description Details about the paginated results */
+                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Communication_send: {
         parameters: {
             query?: never;
@@ -12814,15 +14833,6 @@ export interface operations {
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
-            /** @description A human gate: the action was recorded as an approval request instead of being run. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HttpResponses.PendingApproval"];
-                };
-            };
             /** @description The server could not understand the request due to invalid syntax. */
             400: {
                 headers: {
@@ -12843,6 +14853,24 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13393,7 +15421,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.RankingRow"][];
+                        data: components["schemas"]["Models.Ranking"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -13417,6 +15445,15 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13502,7 +15539,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Models.Stage"][];
+                "application/json": components["schemas"]["Models.StagesInput"];
             };
         };
         responses: {
@@ -13926,11 +15963,9 @@ export interface operations {
     Decisions_list: {
         parameters: {
             query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
                 competitionId?: components["schemas"]["Models.GmsId"];
+                applicationId?: components["schemas"]["Models.GmsId"];
+                committed?: boolean;
             };
             header?: never;
             path?: never;
@@ -13938,17 +15973,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Decision"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Decision"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -13993,17 +16026,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Decision"][];
+                        data: components["schemas"]["Models.CommitDecisionsResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
-                };
-            };
-            /** @description A human gate: the action was recorded as an approval request instead of being run. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HttpResponses.PendingApproval"];
                 };
             };
             /** @description The server could not understand the request due to invalid syntax. */
@@ -14026,6 +16050,15 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14057,15 +16090,15 @@ export interface operations {
             };
         };
         responses: {
-            /** @description A 201 response with typed data */
-            201: {
+            /** @description A 200 response with typed data */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Decision"][];
+                        data: components["schemas"]["Models.ProposeDecisionsResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -14096,33 +16129,53 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Applicant_discoverCompetitions: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.DiscoverCompetition"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DiscoverCompetition"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -14159,8 +16212,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description A 201 response with typed data */
-            201: {
+            /** @description A 200 response with typed data */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14330,6 +16383,101 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.OpenGrantsResults"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Applicant_listSaved: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SavedListing"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Applicant_saveListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SavedListingInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SavedListing"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -15264,6 +17412,71 @@ export interface operations {
             };
         };
     };
+    Workspaces_acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Workspace"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Integrations_ledger: {
         parameters: {
             query?: {
@@ -15410,6 +17623,47 @@ export interface operations {
             };
         };
     };
+    Workspaces_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Me"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Applicant_myOrganization: {
         parameters: {
             query?: never;
@@ -15427,7 +17681,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["CommonGrants.Models.OrganizationBase"];
+                        data: components["schemas"]["Models.MyOrganization"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -15477,7 +17731,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["CommonGrants.Models.OrganizationBase"];
+                        data: components["schemas"]["Models.MyOrganization"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -15501,6 +17755,15 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15794,29 +18057,22 @@ export interface operations {
     };
     Applicant_myApplications: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.GmsApplication"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.MyApplication"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -15831,6 +18087,58 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Applicant_listAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Document"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15905,6 +18213,58 @@ export interface operations {
             };
         };
     };
+    Applicant_listComments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Comment"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Applicant_comment: {
         parameters: {
             query?: never;
@@ -15916,7 +18276,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Models.Comment"];
+                "application/json": components["schemas"]["Models.CommentInput"];
             };
         };
         responses: {
@@ -15939,6 +18299,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Applicant_resolveComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+                commentId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Comment"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -16054,7 +18467,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationStatusView"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -16106,7 +18519,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsApplication"];
+                        data: components["schemas"]["Models.ApplicationActionResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -16215,7 +18628,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.GmsAwardDetail"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -16267,17 +18680,8 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.GmsAward"];
+                        data: components["schemas"]["Models.AcceptedAward"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
-                };
-            };
-            /** @description A human gate: the action was recorded as an approval request instead of being run. */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HttpResponses.PendingApproval"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -16381,6 +18785,24 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Applicant_mySchedule: {
@@ -16402,7 +18824,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Tranche"][];
+                        data: components["schemas"]["Models.AwardTranche"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -16437,29 +18859,22 @@ export interface operations {
     };
     Applicant_listConsents: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Consent"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Consent"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -16494,12 +18909,19 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description There is no content to send for this request, but the headers may be useful. */
-            204: {
+            /** @description A 200 response with typed data */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: {
+                            revoked: boolean;
+                        };
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
             };
             /** @description Access is unauthorized. */
             401: {
@@ -16532,29 +18954,22 @@ export interface operations {
     };
     Applicant_myFunders: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Workspace"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.MyFunder"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -17208,7 +19623,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["CommonGrants.Models.OpportunityDetails"];
+                        data: components["schemas"]["Models.OpportunityPreview"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -17493,9 +19908,10 @@ export interface operations {
     };
     Applicant_consentCallback: {
         parameters: {
-            query: {
-                code: string;
-                state: string;
+            query?: {
+                code?: string;
+                state?: string;
+                error?: string;
             };
             header?: never;
             path?: never;
@@ -17511,15 +19927,6 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The server could not understand the request due to invalid syntax. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
         };
     };
     Applicant_consentStart: {
@@ -17529,7 +19936,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Models.ConsentStartRequest"];
+            };
+        };
         responses: {
             /** @description A 200 response with typed data */
             200: {
@@ -17543,6 +19954,15 @@ export interface operations {
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
             /** @description Access is unauthorized. */
             401: {
                 headers: {
@@ -17554,6 +19974,15 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17881,6 +20310,75 @@ export interface operations {
             };
         };
     };
+    Infrastructure_funderPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FunderPage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Infrastructure_opportunityPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OpportunityPage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Requirements_due: {
         parameters: {
             query?: {
@@ -18124,12 +20622,11 @@ export interface operations {
     Reviews_listAssignments: {
         parameters: {
             query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
                 competitionId?: components["schemas"]["Models.GmsId"];
+                applicationId?: components["schemas"]["Models.GmsId"];
+                stage?: string;
                 reviewerUserId?: components["schemas"]["CommonGrants.Types.uuid"];
+                status?: string;
             };
             header?: never;
             path?: never;
@@ -18137,17 +20634,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.ReviewAssignment"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReviewAssignment"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -18223,8 +20718,26 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18247,15 +20760,15 @@ export interface operations {
             };
         };
         responses: {
-            /** @description A 201 response with typed data */
-            201: {
+            /** @description A 200 response with typed data */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.ReviewAssignment"][];
+                        data: components["schemas"]["Models.AutoAssignResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -18286,6 +20799,139 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reviews_inviteReviewer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.InviteReviewerRequest"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReviewerInvitation"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reviews_readAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReviewAssignmentDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Reviews_updateAssignment: {
@@ -18293,13 +20939,13 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: components["schemas"]["Models.GmsId"];
+                id: components["schemas"]["CommonGrants.Types.uuid"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Models.MergePatch"];
+                "application/json": components["schemas"]["Models.ReviewAssignmentPatch"];
             };
         };
         responses: {
@@ -18360,16 +21006,22 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Reviews_listReviews: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-                applicationId?: components["schemas"]["Models.GmsId"];
+            query: {
+                applicationId: components["schemas"]["Models.GmsId"];
+                stage?: string;
             };
             header?: never;
             path?: never;
@@ -18377,17 +21029,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Review"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Review"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -18402,6 +21052,15 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18698,10 +21357,8 @@ export interface operations {
     Communication_listTasks: {
         parameters: {
             query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
+                open?: boolean;
+                mine?: boolean;
             };
             header?: never;
             path?: never;
@@ -18709,17 +21366,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Task"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Task"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -18797,13 +21452,74 @@ export interface operations {
             };
         };
     };
+    Communication_updateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.TaskPatch"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Task"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Communication_listTemplates: {
         parameters: {
             query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
                 kind?: string;
             };
             header?: never;
@@ -18812,17 +21528,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Template"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.TemplateList"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -18900,6 +21614,58 @@ export interface operations {
             };
         };
     };
+    Communication_readTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Template"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Communication_renderTemplate: {
         parameters: {
             query?: never;
@@ -18963,17 +21729,22 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Communication_listThreads: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-                subjectType?: string;
-                subjectId?: string;
+            query: {
+                subjectType?: "application";
+                subjectId: components["schemas"]["Models.GmsId"];
             };
             header?: never;
             path?: never;
@@ -18981,18 +21752,25 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A 200 response with a paginated list of typed items */
+            /** @description A 200 response with typed data */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        /** @description Items from the current page */
-                        items: components["schemas"]["Models.Thread"][];
-                        /** @description Details about the paginated results */
-                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Thread"][];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
             /** @description Access is unauthorized. */
@@ -19006,6 +21784,78 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Communication_openThread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ThreadInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Thread"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19667,6 +22517,47 @@ export interface operations {
             };
         };
     };
+    Workspaces_whoami: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.WhoAmI"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Workspaces_list: {
         parameters: {
             query?: {
@@ -19906,7 +22797,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Models.Invitation"];
+                "application/json": components["schemas"]["Models.InvitationInput"];
             };
         };
         responses: {
@@ -19962,12 +22853,7 @@ export interface operations {
     };
     Workspaces_listMembers: {
         parameters: {
-            query?: {
-                /** @description The page to return */
-                page?: components["parameters"]["Models.PageParams.page"];
-                /** @description The number of items to return per page */
-                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -20425,6 +23311,55 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+        };
+    };
+    Infrastructure_mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.McpMessage"] | components["schemas"]["Models.McpMessage"][];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Models.McpMessage"] | components["schemas"]["Models.McpMessage"][];
+                };
+            };
+            /** @description The request has been accepted for processing, but processing has not yet completed. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
         };
