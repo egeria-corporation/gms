@@ -7,10 +7,10 @@ Deployed 2026-11-10 from a Claude Code cloud session. Production (`gms.opengrant
 | Web + API origin | `https://gms-staging.opengrants.io` (custom domain on the Worker `gms-web-staging`) |
 | API Worker | `gms-api-staging` (reached through a service binding from `gms-web-staging`) |
 | Jobs Worker | `gms-jobs-staging` (crons and the `gms-events-staging` queue consumer) |
-| Database and auth | Supabase project `gms-staging` (`xjgyeotefkjqhiusuuan`, us-east-1), migrations 0001–0014 and `supabase/seed.sql` applied |
+| Database and auth | Supabase project `gms-staging` (`xjgyeotefkjqhiusuuan`, us-east-1), migrations 0001–0015 and `supabase/seed.sql` applied |
 | Storage | R2 `gms-attachments-staging`, `gms-ledger-archive-staging`, `gms-exports-staging`; KV `gms-staging-RATE_LIMIT`; queues `gms-events-staging`, `gms-events-dlq-staging` |
 | Passport | Points at `https://passport.opengrants.io`, redeployed from `main` on 2026-11-10 (API and jobs Workers, migration 0052). No GMS client is registered there yet, so Passport consent, prefill and payments do not work |
-| Email | Resend domain `gms-staging.opengrants.io` created, **not verified** until its four DNS records are added. A sending-only key (`gms-staging`) is set on both Workers |
+| Email | Resend domain `gms-staging.opengrants.io`, verified. A sending-only key (`gms-staging`) is set on both Workers; Supabase Auth sends sign-in codes through Resend SMTP with its own key (`gms-staging-auth-smtp`), from `noreply@gms-staging.opengrants.io` |
 
 ## How this differs from the production layout
 
@@ -66,13 +66,14 @@ and the two encryption keys. The generated keys exist only in Cloudflare; they w
 Also set on both: `RESEND_API_KEY`, `RESEND_FROM` (`noreply@gms-staging.opengrants.io`). API only:
 `COMPOSIO_GOOGLE_AUTH_CONFIG_ID` (kept as a secret, as Passport does, so it stays out of the repository).
 
+Staging switches (`apps/api/wrangler.toml`): assistant on with `claude-sonnet-5-5` (inactive until
+`ANTHROPIC_API_KEY` is set), `PAYMENTS_FACILITATED=false`, `PASSPORT_AWARD_WRITE=true`.
+
 Not set yet: `PASSPORT_GMS_CLIENT_ID`, `PASSPORT_GMS_CLIENT_SECRET`, `PASSPORT_WEBHOOK_SECRET`,
 `RESEND_INBOUND_SECRET`, `COMPOSIO_API_KEY`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
 
 ## Known limits on staging
 
-- Sign-in email comes from Supabase's built-in mailer: a few messages per hour, and only to
-  addresses that belong to the Supabase organization. Configure Resend SMTP in the project to lift that.
 - Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks;
   it shows as a console error and is otherwise harmless.
 - The seeded demo people use `.example` addresses and cannot sign in.
