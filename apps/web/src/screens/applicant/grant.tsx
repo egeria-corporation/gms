@@ -8,6 +8,8 @@ import { Check, Clock, ExternalLink, Landmark, Lock, Send } from "lucide-react";
 import type { ApplicantApi, Award, AwardDetail } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { holdExplanation, type AmendmentInput, type ApplicantMoreApi, type BudgetBook, type MyRequirement, type PayeeSummary, type ScheduleTranche } from "../../api/applicantMore.ts";
+import { describeDestination, type ApplicantFullApi, type PayoutDestination } from "../../api/applicantFull.ts";
+import { useFullApi } from "../../api/applicantFullHooks.ts";
 import { useMoreMutation, useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import type { Query } from "../../api/hooks.ts";
 import { LevelBadge } from "../../components/status.tsx";
@@ -19,21 +21,33 @@ export interface GrantData {
   award: AwardDetail;
   schedule: ScheduleTranche[];
   payee: PayeeSummary;
+  /** The destination as Passport reports it right now; null when it could not be asked. */
+  destination: PayoutDestination | null;
   budget: BudgetBook;
   requirements: MyRequirement[];
 }
 
-async function loadGrant(api: ApplicantApi, more: ApplicantMoreApi, awardId: string | undefined): Promise<GrantData | null> {
+/** Folds the live destination into the payee summary the screens already read. */
+export function withDestination(payee: PayeeSummary, d: PayoutDestination | null): PayeeSummary {
+  if (!d || d.state === "not_shared" || d.state === "not_linked") return d?.manageUrl ? { ...payee, manageUrl: payee.manageUrl ?? d.manageUrl } : payee;
+  // A pending change either source knows about wins: it is the state that pauses payments.
+  const status: PayeeSummary["status"] = d.state === "unknown" ? "unknown" : d.state === "none" ? "none" : d.pendingChange || payee.status === "pending_change" ? "pending_change" : "active";
+  return { status, level: d.level ?? payee.level, bankName: d.bankName, last4: d.last4, manageUrl: d.manageUrl ?? payee.manageUrl };
+}
+
+async function loadGrant(api: ApplicantApi, more: ApplicantMoreApi, full: ApplicantFullApi, awardId: string | undefined): Promise<GrantData | null> {
   const awards = await api.awards();
   const id = awardId ?? awards.find((a) => a.status === "active")?.id ?? awards[0]?.id;
   if (!id) return null;
-  const [award, schedule, payee, budget, requirements] = await Promise.all([api.award(id), more.schedule(id), more.payee(), more.budget(id), more.requirements()]);
-  return { awards, award, schedule, payee, budget, requirements: requirements.filter((r) => r.awardId === award.id) };
+  // The destination is read live from Passport; a failure there must not hide the grant.
+  const [award, schedule, payee, budget, requirements, destination] = await Promise.all([api.award(id), more.schedule(id), more.payee(), more.budget(id), more.requirements(), full.payoutDestination(id).catch(() => null)]);
+  return { awards, award, schedule, payee: withDestination(payee, destination), destination, budget, requirements: requirements.filter((r) => r.awardId === award.id) };
 }
 
 export function useGrant(awardId: string | undefined, workspaceId: string): Query<GrantData | null> {
   const api = useApplicantApi();
-  return useMoreQuery((more) => loadGrant(api, more, awardId), [awardId, workspaceId, api]);
+  const full = useFullApi();
+  return useMoreQuery((more) => loadGrant(api, more, full, awardId), [awardId, workspaceId, api, full]);
 }
 
 // ------------------------------------------------------------------------------------ derived
@@ -148,7 +162,8 @@ export function PayeeChip({ payee }: { payee: PayeeSummary }) {
 }
 
 /** Bank name and last four at most; the destination itself is managed in Passport. */
-export function DestinationCard({ payee, orgHref }: { payee: PayeeSummary; orgHref: string }) {
+export function DestinationCard({ payee, destination = null, orgHref }: { payee: PayeeSummary; destination?: PayoutDestination | null; orgHref: string }) {
+  const said = destination && destination.state !== "ok" ? describeDestination(destination) : null;
   return (
     <div className="card">
       <div className="card-h">
@@ -167,6 +182,19 @@ export function DestinationCard({ payee, orgHref }: { payee: PayeeSummary; orgHr
             </div>
           </div>
         </div>
+        {said ? (
+          <div className={`bnr bnr-${said.tone}`} style={{ padding: "10px 12px" }} role="status">
+            <Lock className="ic" aria-hidden="true" />
+            <div>
+              <div className="t" style={{ fontSize: "14px" }}>
+                {said.title}
+              </div>
+              <div className="d" style={{ fontSize: "13px" }}>
+                {said.detail}
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="bnr bnr-neu" style={{ padding: "10px 12px" }}>
           <Clock className="ic" aria-hidden="true" />
           <div>

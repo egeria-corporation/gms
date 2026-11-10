@@ -39,6 +39,8 @@ const FAwardAgreement = lazy(() => import("../screens/funder/AwardAgreement.tsx"
 const FAwardPayments = lazy(() => import("../screens/funder/AwardPayments.tsx"));
 const FPaymentsDue = lazy(() => import("../screens/funder/PaymentsDue.tsx"));
 const FPaymentsInFlight = lazy(() => import("../screens/funder/PaymentsInFlight.tsx"));
+const FPaymentsReconcile = lazy(() => import("../screens/funder/PaymentsReconcile.tsx"));
+const FPaymentsLedger = lazy(() => import("../screens/funder/PaymentsLedger.tsx"));
 const FReporting = lazy(() => import("../screens/funder/Reporting.tsx"));
 const FGrantees = lazy(() => import("../screens/funder/Grantees.tsx"));
 const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
@@ -210,6 +212,8 @@ function AppRoutes() {
             <Route path="payments" element={<Navigate to="due" replace />} />
             <Route path="payments/due" element={f(<FPaymentsDue />)} />
             <Route path="payments/in-flight" element={f(<FPaymentsInFlight />)} />
+            <Route path="payments/reconcile" element={f(<FPaymentsReconcile />)} />
+            <Route path="payments/ledger" element={f(<FPaymentsLedger />)} />
             <Route path="reporting" element={f(<FReporting />)} />
             <Route path="grantees" element={f(<FGrantees />)} />
             <Route path="grantees/:granteeId" element={f(<FGrantees />)} />

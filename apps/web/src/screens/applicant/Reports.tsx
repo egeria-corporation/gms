@@ -13,9 +13,11 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { actionFor, byUrgency, duePhrase, ReportForm, ReportLoading, ReturnedBanner, SECTION_ICON, sectionId, ShareReport, summaryLine, useReport, useReports, type ReportsData } from "./report.tsx";
+import { ReportBudget } from "./reportBudget.tsx";
 
 function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; data: ReportsData; onChanged: () => void }) {
   const report = useReport(requirement, onChanged);
+  const ws = useWorkspace("applicant");
   const org = useApplicantQuery((api) => api.organization(), []);
   const l = report.loaded;
   const funder = requirement.funder?.name ?? "your funder";
@@ -107,6 +109,7 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
           <section style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: "0" }} aria-label="Report">
             <ReturnedBanner submission={l.submission} funder={funder} />
             <ReportForm report={report} passportUrl={org.status === "ready" ? org.data.editUrl : null} />
+            <ReportBudget awardId={requirement.awardId} base={`/w/${ws.handle}`} />
           </section>
           <aside style={{ display: "flex", flexDirection: "column", gap: "16px" }} aria-label="Report status">
             <div className="card">

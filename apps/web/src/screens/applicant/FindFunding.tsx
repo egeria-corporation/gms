@@ -14,8 +14,9 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
+import { FundingAlerts } from "./fundingAlerts.tsx";
 
-type Tab = "here" | "index" | "saved";
+type Tab = "here" | "index" | "saved" | "alerts";
 
 const load = async (api: ApplicantApi) => {
   const [competitions, saved] = await Promise.all([api.discover(), api.saved()]);
@@ -297,7 +298,10 @@ export default function FindFunding() {
           </div>
 
           <Loaded query={query} label="Checking what you are eligible for">
-            {({ competitions, saved }) => (
+            {({ competitions, saved: everySaved }) => {
+              // An alert is remembered as a saved listing; it belongs on the Alerts tab, not under Saved.
+              const saved = everySaved.filter((x) => !x.externalId.startsWith("alert:"));
+              return (
               <>
                 <Tabs<Tab>
                   label="Where to look"
@@ -308,6 +312,7 @@ export default function FindFunding() {
                     { key: "here", label: "Open here", count: competitions.length },
                     { key: "index", label: "OpenGrants index" },
                     { key: "saved", label: "Saved", count: saved.length },
+                    { key: "alerts", label: "Alerts" },
                   ]}
                 />
                 {start.error ? <ErrorBanner error={start.error} title="The application could not be started" /> : null}
@@ -360,8 +365,12 @@ export default function FindFunding() {
                     </ul>
                   )}
                 </TabPanel>
+                <TabPanel idPrefix="find" tab="alerts" active={tab}>
+                  <FundingAlerts />
+                </TabPanel>
               </>
-            )}
+              );
+            }}
           </Loaded>
         </main>
       </ApplicantShell>

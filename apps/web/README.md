@@ -148,28 +148,28 @@ Counts: 22 live, 31 partial, 14 static (67 artboards).
 | public/ApplicantOnboarding | `/onboarding/applicant` | partial | No "Invite teammates" or "Connect apps" steps |
 | public/Notifications | `/notifications` | partial | No digest settings |
 | public/AccountSettings | `/account/agents` | partial | No sessions table (location, last active); agents table lacks client and scopes columns |
-| funder/Dashboard | `/w/:ws` | partial | No "Recent activity" (ledger route exists; not wired) |
-| funder/Programs | `/w/:ws/programs/:id` | partial | No outcomes rollup or committed-by-status; no remaining and owner columns |
-| funder/OpportunityBuilder | `/w/:ws/opportunities/:id/edit` | partial | No live public-card preview or "Test against an org" |
+| funder/Dashboard | `/w/:ws` | live | Recent activity reads the ledger |
+| funder/Programs | `/w/:ws/programs/:id` | partial | Committed, paid, remaining, committed by status, stage and application counts are live. No Owner column (programs have no owner in the API); outcomes rollup counts accepted reports but does not total outcome figures (no route) |
+| funder/OpportunityBuilder | `/w/:ws/opportunities/:id/edit` | live | Public-card preview and "Test against an org" (typed facts; there is no route to search Passport organizations) |
 | funder/FormBuilder | `/w/:ws/forms/:id/edit` | live | |
-| funder/Competition | `/w/:ws/competitions/:id` | partial | No reviewer pool; stage table lacks opens, closes and entry rule |
-| funder/Applications | `/w/:ws/applications` | partial | No Score or Days-in-stage columns; no "Review complete" and "Flagged" views |
+| funder/Competition | `/w/:ws/competitions/:id` | live | Stages table (opens, closes, form, rubric, entry rule) and reviewer pool. Entry rules describe who advances; score thresholds are not an API concept |
+| funder/Applications | `/w/:ws/applications` | live | Score is the mean from the ranking; Days in stage counts from the stage's submission; "Review complete" filters status Recommended, "Flagged" filters the tag `flagged` |
 | funder/ApplicationsEmpty | `/w/:ws/applications/first-run` | live | |
-| funder/ApplicationDetail | `/w/:ws/applications/:id` | partial | No Budget or Documents tabs; mock responses lack the applicant's legal name |
+| funder/ApplicationDetail | `/w/:ws/applications/:id` | live | Budget and Documents tabs read the responses; assistant panel shows when the install enables it |
 | funder/ReviewAssignment | `/w/:ws/reviews/assign` | live | |
 | funder/ReviewerAssignments | `/review/assignments` | live | Shows the raw stage key |
 | funder/ReviewerScoring | `/review/score/:appId` | live | |
-| funder/Panel | `/w/:ws/competitions/:id/panel` | partial | No per-criterion columns, decision summary, discussion notes or letter preview |
-| funder/AwardAgreement | `/w/:ws/awards/:id/agreement` | partial | No Requirements, Budget, Activity or Closeout tabs; no signature records table |
-| funder/AwardPayments | `/w/:ws/awards/:id/payments` | partial | No Amendments, Documents, Activity or Closeout tabs |
-| funder/PaymentsDue | `/w/:ws/payments/due` | partial | No Reconcile or Ledger tabs, "Next 30 days" or "Readiness explained" |
-| funder/PaymentsInFlight | `/w/:ws/payments/in-flight` | partial | No level-downgrade or inactive-organization lists; no Mercury matching |
+| funder/Panel | `/w/:ws/competitions/:id/panel` | live | Per-criterion scores by reviewer, decision summary, internal discussion notes, letter preview |
+| funder/AwardAgreement | `/w/:ws/awards/:id/agreement` | live | Nine-tab strip shared with Payments; signature records (IP is recorded but not returned by the API), documents, activity, closeout; Remaining and Next due in the list |
+| funder/AwardPayments | `/w/:ws/awards/:id/payments` | live | Owns Payments, Requirements and Budget in the shared nine-tab strip |
+| funder/PaymentsDue | `/w/:ws/payments/due` | live | Next 30 days and Readiness explained beside the list; Reconcile and Ledger are their own routes |
+| funder/PaymentsInFlight | `/w/:ws/payments/in-flight` | live | Alerts grouped by cause with empty states; Mercury matching is `/payments/reconcile`. Alerts share this tab with In flight rather than having their own |
 | funder/Reporting | `/w/:ws/reporting` | live | Calendar restored; submission view has no recipient name, taken from awards |
-| funder/Grantees | `/w/:ws/grantees/:id` | partial | No Reports tab; directory lacks level, total awarded, owner and tags |
-| funder/Analytics | `/w/:ws/analytics` | partial | No awards by region, reviewer load or equity lens |
-| funder/Communications | `/w/:ws/communications` | partial | No bulk send; templates lack last-used and channel |
+| funder/Grantees | `/w/:ws/grantees/:id` | live | Reports section; directory has level, total awarded, owner and tags |
+| funder/Analytics | `/w/:ws/analytics` | live | Awards by region (recipient state), reviewer load, equity lens by region with groups under five withheld |
+| funder/Communications | `/w/:ws/communications` | live | Bulk send by group with a confirmed count; last used and channel derived from the send log |
 | funder/SettingsMcp | `/w/:ws/settings/mcp` | live | "Connect an agent" restored |
-| funder/Approvals | `/w/:ws/approvals` | partial | No request detail or letter preview; history lacks outcome columns |
+| funder/Approvals | `/w/:ws/approvals` | live | Request detail: exact inputs, applications affected, letter preview |
 | applicant/Dashboard | `/w/:ws` | live | |
 | applicant/Organization | `/w/:ws/organization` | partial | No documents locker, connected apps, "Who has access" or representatives |
 | applicant/FindFunding | `/w/:ws/find` | partial | No Alerts tab |

@@ -7,17 +7,17 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { Banknote, Calendar, CircleCheck, Hand, Plus, Send, Trash2 } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { AwardTabs, useAwardTab } from "./AwardSections.tsx";
 import type { BudgetVariance, Requirement, Schedule, Tranche, TrancheCondition, TrancheReadiness, TrancheRow } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { conditionLabel, HoldBanner, ReasonDialog, RecordExternalDialog, ReleaseDialog, checklistOf, releaseBlockedReason } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
-import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, Tabs, TabPanel } from "../../components/ui.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
 
-type Tab = "payments" | "budget" | "requirements";
 const OPEN = ["due", "ready", "held"];
 const NOT_STARTED = ["scheduled", "due", "ready", "held"];
 
@@ -359,7 +359,7 @@ export default function AwardPayments() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { awardId = "" } = useParams();
-  const [tab, setTab] = useState<Tab>("payments");
+  const [tab, setTab] = useAwardTab("payments", awardId, base);
   const [editing, setEditing] = useState(false);
   const page = useApiQuery(async (api) => {
     const [schedule, rows, requirements] = await Promise.all([api.getSchedule(awardId), api.listTranches({ awardId }), api.listRequirements(awardId)]);
@@ -418,18 +418,8 @@ export default function AwardPayments() {
                   <div className="stat-v">{live.length}</div>
                 </div>
               </div>
-              <Tabs
-                label="Award money sections"
-                idPrefix="award-money"
-                active={tab}
-                onChange={setTab}
-                tabs={[
-                  { key: "payments", label: "Payments", count: d.rows.filter((r) => OPEN.includes(r.status)).length },
-                  { key: "budget", label: "Budget" },
-                  { key: "requirements", label: "Requirements", count: d.requirements.length },
-                ]}
-              />
-              <TabPanel idPrefix="award-money" tab="payments" active={tab}>
+              <AwardTabs active={tab} onChange={setTab} counts={{ payments: d.rows.filter((r) => OPEN.includes(r.status)).length, requirements: d.requirements.length }} />
+              <TabPanel idPrefix="award" tab="payments" active={tab}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {!d.rows.length && (
                     <div className="card">
@@ -445,10 +435,10 @@ export default function AwardPayments() {
                     ))}
                 </div>
               </TabPanel>
-              <TabPanel idPrefix="award-money" tab="budget" active={tab}>
+              <TabPanel idPrefix="award" tab="budget" active={tab}>
                 <BudgetPanel awardId={awardId} />
               </TabPanel>
-              <TabPanel idPrefix="award-money" tab="requirements" active={tab}>
+              <TabPanel idPrefix="award" tab="requirements" active={tab}>
                 <RequirementList requirements={d.requirements} base={base} />
               </TabPanel>
               {editing && (

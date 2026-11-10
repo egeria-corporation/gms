@@ -12,6 +12,7 @@ import { StatusBadge } from "../../../components/status.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../../lib/format.ts";
 import { AmendmentsCard, BudgetTable, conditionText, expectedText, HoldBanner, PayeeChip, periodOf, totals, useGrant, type GrantData } from "../grant.tsx";
+import { GrantDocuments, GrantMessages } from "../grantExtras.tsx";
 
 function Grant({ data, base, reload }: { data: GrantData; base: string; reload: () => void }) {
   const { award, schedule, requirements, payee } = data;
@@ -171,6 +172,8 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
       </section>
 
       <AmendmentsCard data={data} onSaved={reload} />
+      <GrantDocuments award={award} base={base} />
+      <GrantMessages award={award} />
     </>
   );
 }

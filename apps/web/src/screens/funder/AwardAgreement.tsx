@@ -12,11 +12,11 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
-import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabPanel } from "../../components/ui.tsx";
+import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
 import { dateTime } from "./shared.tsx";
 
-type Tab = "agreement" | "amendments" | "documents" | "messages";
 const STEPS: [Agreement["status"], string][] = [
   ["draft", "Draft"],
   ["sent", "Sent"],
@@ -223,6 +223,13 @@ function Amendments({ award, onChanged }: { award: AwardDetail; onChanged: () =>
   );
 }
 
+function AgreementSignatures({ award, funderName }: { award: AwardDetail; funderName: string }) {
+  const summary = award.agreement;
+  const agreement = useApiQuery(async (api) => (summary ? api.getAgreement(summary.id) : null), [summary?.id, summary?.status]);
+  if (!agreement.data) return null;
+  return <SignatureRecords agreement={agreement.data} recipientName={award.recipient?.name ?? "the recipient"} funderName={funderName} />;
+}
+
 export default function AwardAgreement() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
@@ -231,7 +238,14 @@ export default function AwardAgreement() {
   const programs = useApiQuery((api) => api.listPrograms(), []);
   const current: AwardSummary | undefined = awards.data?.find((a) => a.id === awardId) ?? awards.data?.[0];
   const award = useApiQuery(async (api) => (current ? api.getAward(current.id) : null), [current?.id]);
-  const [tab, setTab] = useState<Tab>("agreement");
+  const [tab, setTab] = useAwardTab("agreement", current?.id, base);
+  const tranches = useApiQuery((api) => api.listTranches(), []);
+  const nextDue = (id: string) => {
+    const open = (tranches.data ?? []).filter((t) => t.awardId === id && ["scheduled", "due", "ready", "held"].includes(t.status));
+    const dated = open.filter((t) => t.dueAt).sort((a, b) => a.dueAt!.localeCompare(b.dueAt!))[0];
+    if (dated) return `Tranche ${dated.seq} · ${formatDate(dated.dueAt)}`;
+    return open[0] ? `Tranche ${open[0].seq} · when its condition is met` : "—";
+  };
   const total = (awards.data ?? []).reduce((n, a) => n + (a.awardedAmountMinor ?? 0), 0);
   const reload = () => {
     award.reload();
@@ -269,7 +283,9 @@ export default function AwardAgreement() {
                     <th>Program</th>
                     <th className="num">Awarded</th>
                     <th className="num">Disbursed</th>
+                    <th className="num">Remaining</th>
                     <th>Status</th>
+                    <th>Next due</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,9 +305,11 @@ export default function AwardAgreement() {
                       <td>{programs.data?.find((p) => p.id === a.programId)?.name ?? "—"}</td>
                       <td className="num">{formatMinor(a.awardedAmountMinor, a.currency)}</td>
                       <td className="num">{formatMinor(a.disbursedAmountMinor ?? 0, a.currency)}</td>
+                      <td className="num">{formatMinor(Math.max(0, (a.awardedAmountMinor ?? 0) - (a.disbursedAmountMinor ?? 0)), a.currency)}</td>
                       <td>
                         <StatusBadge kind="award" status={a.status} />
                       </td>
+                      <td className="small">{nextDue(a.id)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -346,26 +364,16 @@ export default function AwardAgreement() {
                   </div>
                 </div>
               </div>
-              <Tabs
-                label="Award sections"
-                idPrefix="award"
-                active={tab}
-                onChange={setTab}
-                tabs={[
-                  { key: "agreement", label: "Agreement" },
-                  { key: "amendments", label: "Amendments", count: award.data.amendments.length },
-                  { key: "documents", label: "Documents" },
-                  { key: "messages", label: "Messages" },
-                ]}
-              />
+              <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((t) => ["due", "ready", "held"].includes(t.status)).length }} />
               <TabPanel idPrefix="award" tab="agreement" active={tab}>
                 <AgreementPanel award={award.data} onChanged={reload} />
+                <AgreementSignatures award={award.data} funderName={ws.name} />
               </TabPanel>
               <TabPanel idPrefix="award" tab="amendments" active={tab}>
                 <Amendments award={award.data} onChanged={reload} />
               </TabPanel>
               <TabPanel idPrefix="award" tab="documents" active={tab}>
-                <div className="card card-b muted">The award letter and the agreement PDFs are on the Agreement tab. Other award documents arrive with reporting.</div>
+                <AwardDocuments award={award.data} />
               </TabPanel>
               <TabPanel idPrefix="award" tab="messages" active={tab}>
                 <div className="card card-b">
@@ -377,6 +385,12 @@ export default function AwardAgreement() {
                     <span className="muted">No thread for this award.</span>
                   )}
                 </div>
+              </TabPanel>
+              <TabPanel idPrefix="award" tab="activity" active={tab}>
+                <AwardActivity award={award.data} />
+              </TabPanel>
+              <TabPanel idPrefix="award" tab="closeout" active={tab}>
+                <AwardCloseout award={award.data} onChanged={reload} />
               </TabPanel>
             </>
           )}

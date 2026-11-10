@@ -38,6 +38,7 @@ import type {
 import type { JsonObject } from "@gms/forms";
 import { createHttpFunderApi, type FunderApi } from "./funder.ts";
 import { createHttpFunderMoneyApi, type FunderMoneyApi } from "./funderMoney.ts";
+import { createHttpFunderFullApi, type FunderFullApi } from "./funderFull.ts";
 
 export type WorkspaceKind = "funder" | "applicant";
 
@@ -74,7 +75,7 @@ export interface Workspace {
   pendingApprovals: number;
 }
 
-export interface GmsApi extends FunderApi, FunderMoneyApi {
+export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi {
   me(): Promise<Me>;
   /** The workspace with this handle, if the caller is a member. Rejects with a 404 ApiError otherwise. */
   workspace(handle: string): Promise<Workspace>;
@@ -247,6 +248,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     http,
     ...createHttpFunderApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpFunderMoneyApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
+    ...createHttpFunderFullApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),

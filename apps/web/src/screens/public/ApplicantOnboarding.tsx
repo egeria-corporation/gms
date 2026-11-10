@@ -10,6 +10,7 @@ import { initialsOf } from "../../api/client.ts";
 import { useServices } from "../../app/services.tsx";
 import { LevelBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
+import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
 
 const REASONS: Record<string, string> = {
   declined: "You chose not to share your Passport record. Nothing was linked.",
@@ -254,6 +255,12 @@ export default function ApplicantOnboarding() {
               </section>
             </div>
           )}
+          {step === 2 && record && workspace ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
+              <InviteTeammates api={api} />
+              <ConnectApps passportUrl={record.org.editUrl} />
+            </div>
+          ) : null}
           {step === 0 && loadError && !workspace ? <p className="small muted">{errorMessage(loadError)}</p> : null}
         </main>
       </div>

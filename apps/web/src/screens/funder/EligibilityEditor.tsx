@@ -264,7 +264,7 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
     <section className="card" aria-labelledby="dry-run-title">
       <div className="card-h" style={{ padding: "12px 16px" }}>
         <h3 id="dry-run-title" style={{ fontSize: "14px" }}>
-          Test the rules
+          Test against an org
         </h3>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>

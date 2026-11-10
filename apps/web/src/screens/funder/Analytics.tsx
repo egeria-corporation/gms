@@ -10,6 +10,7 @@ import type { CsvImportResult, CycleReport, Portfolio } from "../../api/funderMo
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabPanel } from "../../components/ui.tsx";
+import { PortfolioExtras } from "./AnalyticsExtras.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
 
@@ -409,6 +410,7 @@ export default function Analytics() {
               />
               <TabPanel idPrefix="analytics" tab="portfolio" active={tab}>
                 <PortfolioPanel data={page.data.portfolio} />
+                <PortfolioExtras />
               </TabPanel>
               <TabPanel idPrefix="analytics" tab="cycle" active={tab}>
                 {!current ? (

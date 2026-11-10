@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { Check, ExternalLink, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { ReviewerPool } from "./ReviewerPool.tsx";
 import type { Checklist, Competition as CompetitionRecord, FormSummary, Opportunity, Rubric, Stage } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -338,8 +339,41 @@ export default function Competition() {
                   {competition.stages.length ? <StageTimeline stages={competition.stages} /> : <span className="muted">No stages yet. Edit stages to add the first one.</span>}
                 </div>
 
+                {competition.stages.length > 0 && (
+                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Stages, scrollable">
+                    <table className="tbl" aria-label="Stages">
+                      <thead>
+                        <tr>
+                          <th>Stage</th>
+                          <th>Opens</th>
+                          <th>Closes</th>
+                          <th>Form</th>
+                          <th>Rubric</th>
+                          <th>Entry rule</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {competition.stages.map((s, i) => (
+                          <tr key={s.key}>
+                            <td className="b">{s.label}</td>
+                            <td>{s.opens ? formatDate(s.opens) : "—"}</td>
+                            <td>{s.closes ? formatDate(s.closes) : "—"}</td>
+                            <td style={{ whiteSpace: "normal" }}>
+                              {Object.entries(s.forms)
+                                .map(([id, version]) => `${formOf(id)?.title ?? "Unknown form"} v${version}`)
+                                .join(", ") || <span className="muted">No form</span>}
+                            </td>
+                            <td>{rubricOf(s.rubricId)?.name ?? <span className="muted">{s.decisionRequired ? "None yet" : "Not scored"}</span>}</td>
+                            <td style={{ whiteSpace: "normal" }}>{i === 0 ? "Open to every eligible applicant" : `Advanced from ${s.entryFrom.map((k) => competition.stages.find((x) => x.key === k)?.label ?? k).join(" or ") || "the previous stage"}`}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
                     <section className="card" aria-labelledby="comp-forms-title">
                       <div className="card-h" style={{ padding: "12px 16px" }}>
                         <h3 id="comp-forms-title" style={{ fontSize: "14px" }}>
@@ -408,6 +442,7 @@ export default function Competition() {
                         {!competition.stages.length && <span className="muted">Rubrics are chosen per stage.</span>}
                       </div>
                     </section>
+                    <ReviewerPool competitionId={competition.id} stages={competition.stages} base={base} />
                   </div>
 
                   <section className="card" aria-labelledby="launch-title">

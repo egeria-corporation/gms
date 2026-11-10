@@ -260,6 +260,14 @@ function seed(): State {
 }
 
 /** Weighted rubric score, 0–100: numeric criteria are normalized to their scale, categorical ones use the option's score. */
+/** How the mock full proposal splits its requested amount across budget categories. */
+const MOCK_BUDGET_SHARES: [string, string, number][] = [
+  ["personnel", "Personnel", 0.64],
+  ["travel", "Travel & vehicle", 0.19],
+  ["supplies", "Supplies", 0.07],
+  ["indirect", "Indirect (10% cap)", 0.1],
+];
+
 export function overallOf(rubric: Rubric, scores: Record<string, unknown>): { overall: number | null; missing: string[] } {
   let total = 0;
   let weight = 0;
@@ -315,7 +323,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
       formTitle: w.forms.find((f) => f.id === formId && f.version === formVersion)?.title ?? null,
       stage: a.stage,
       status: "complete",
-      response: formId === IDS.formLoi ? clone(LOI_RESPONSE) : { approach: "Two navigators cover a weekly route of six stops.", outcomes: "240 families connected to a primary care provider.", requestedAmount: { amount: String((a.requestedAmountMinor ?? 0) / 100), currency: "USD" } },
+      response: formId === IDS.formLoi ? clone(LOI_RESPONSE) : { approach: "Two navigators cover a weekly route of six stops.", outcomes: "240 families connected to a primary care provider.", requestedAmount: { amount: String((a.requestedAmountMinor ?? 0) / 100), currency: "USD" }, budget: MOCK_BUDGET_SHARES.map(([category, label, share]) => ({ category, label, amount: { amount: String(Math.round(((a.requestedAmountMinor ?? 0) / 100) * share)), currency: "USD" } })), attachments: [{ passportDocumentId: "doc_mock_determination", name: "IRS determination letter.pdf", sha256: "3f9a0000000000000000000000000000000000000000000000000000000c21e" }, { documentId: "doc_mock_financials", name: "FY2026 audited financials.xlsx", sha256: "8b100000000000000000000000000000000000000000000000000000000077d4" }] },
       provenance: formId === IDS.formLoi ? { ...LOI_PROVENANCE } : {},
       validationErrors: [],
       lockedAt: a.submittedAt,

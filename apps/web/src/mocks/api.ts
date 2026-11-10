@@ -25,6 +25,7 @@ import { FIXTURE_WORKSPACES, MOCK_MEMBERSHIPS } from "./fixtures.ts";
 import { seedStore, type Store, type WorkspaceData } from "./store.ts";
 import { createMockFunderApi } from "./funder.ts";
 import { createMockFunderMoneyApi } from "./funderMoney.ts";
+import { createMockFunderFullApi } from "./funderFull.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -176,6 +177,9 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     record.brand = next;
     return warnings;
   }
+
+  const funderCtx = { ws, now, fail: (status: number, message: string, errors: unknown[] = []) => new ApiError(status, message, errors) };
+  const funderMocks = { ...createMockFunderApi(funderCtx), ...createMockFunderMoneyApi(funderCtx) };
 
   return {
     me,
@@ -465,8 +469,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return { response: testFill(definitionOf(row), { seed: o.seed ?? 1 }) as JsonObject };
     },
 
-    ...createMockFunderApi({ ws, now, fail: (status, message, errors = []) => new ApiError(status, message, errors) }),
-    ...createMockFunderMoneyApi({ ws, now, fail: (status, message, errors = []) => new ApiError(status, message, errors) }),
+    ...funderMocks,
+    ...createMockFunderFullApi(funderCtx, funderMocks),
 
     async evaluateEligibility(input) {
       const w = await ws();

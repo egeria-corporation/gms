@@ -15,6 +15,9 @@ import { FormView } from "../../forms/FormView.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { DeadlineBadge } from "./FunderPage.tsx";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
+import { openBlob } from "../../lib/browser.ts";
+import { OpportunityDocuments, PublishedFaq } from "./publicExtras.tsx";
+import { useServices } from "../../app/services.tsx";
 
 /** schema.org description of the opportunity for search engines and the OpenGrants importer. */
 export function jsonLd(data: OpportunityPageData, pageUrl: string) {
@@ -99,6 +102,7 @@ function FormPreview({ form }: { form: CgForm }) {
 
 export default function OpportunityPage() {
   const { handle = "", slug = "" } = useParams();
+  const { mock } = useServices();
   const page = useApiQuery((api) => api.publicOpportunity(handle, slug), [handle, slug]);
   const competitionId = page.status === "ready" ? page.data.competitions[0]?.id : undefined;
   const forms = useApiQuery(async (api) => (competitionId ? Object.values((await api.publicCompetition(competitionId)).forms.forms) : []), [competitionId]);
@@ -142,7 +146,16 @@ export default function OpportunityPage() {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <a href={data.links.json} className="btn btn-secondary">
+              <a
+                href={data.links.json}
+                className="btn btn-secondary"
+                onClick={(e) => {
+                  // Without an API to serve it (mock mode), show the same record from the page's own data.
+                  if (!mock) return;
+                  e.preventDefault();
+                  openBlob(new Blob([JSON.stringify(data.commonGrants, null, 2)], { type: "application/json" }), `${o.slug}.json`);
+                }}
+              >
                 <CodeXml className="ic" aria-hidden="true" />
                 View as CommonGrants JSON
               </a>
@@ -260,8 +273,15 @@ export default function OpportunityPage() {
           )}
 
           <section>
+            <span className="eyebrow">Guidelines</span>
+            <h2 style={{ marginTop: "6px" }}>Documents</h2>
+            <OpportunityDocuments handle={funder.handle} slug={o.slug} />
+          </section>
+
+          <section>
             <span className="eyebrow">Common questions</span>
             <h2 style={{ marginTop: "6px" }}>FAQ</h2>
+            <PublishedFaq handle={funder.handle} />
             <details open>
               <summary>
                 What does "Apply with Passport" mean?

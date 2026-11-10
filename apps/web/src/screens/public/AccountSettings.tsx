@@ -65,7 +65,7 @@ function Agents({ ws }: { ws: MeWorkspace }) {
                   {!c.mine && <span className="tag" style={{ marginLeft: "8px" }}>Connected by a teammate</span>}
                 </div>
                 <div className="small muted">
-                  Connected {formatDate(c.createdAt)} · {c.lastUsedAt ? `last used ${timeAgo(c.lastUsedAt)}` : "never used"}
+                  Client <span className="mono">{c.clientUri ?? c.clientId}</span> · connected {formatDate(c.createdAt)} · {c.lastUsedAt ? `last used ${timeAgo(c.lastUsedAt)}` : "never used"}
                 </div>
                 <div className="row wrap" style={{ gap: "4px", marginTop: "6px" }}>
                   {c.scopes.map((s) => (

@@ -6,11 +6,12 @@ import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, ExternalLink, Lo
 import type { ApplicantApi, ApplicantReadiness, Consent, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
-import { FunderChip, Loaded, sourceLabel, timeAgo } from "../../components/applicant.tsx";
+import { Loaded, sourceLabel, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge } from "../../components/status.tsx";
 import { ErrorBanner, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { AccessCard, ConnectedAppsCard, LockerCard, RepresentativesCard } from "./organizationExtras.tsx";
 
 interface OrgData {
   org: MyOrganization;
@@ -84,7 +85,6 @@ export default function Organization() {
               const money = (v: unknown) => (typeof v === "number" ? formatMinor(Math.round(v * 100)) : null);
               const subsection = text(at(profile, "commonApp.irs.subsection"));
               const payee = readiness.checks.find((c) => c.key === "payee_verified");
-              const active = consents.filter((c) => !c.revokedAt);
               return (
                 <>
                   <div className="ph">
@@ -198,6 +198,8 @@ export default function Organization() {
                           <Value label="NTEE code" value={text(at(profile, "commonApp.irs.ntee"))} source={src("/commonApp/irs/ntee")} editUrl={org.editUrl} />
                         </div>
                       </section>
+                      <RepresentativesCard editUrl={org.editUrl} />
+                      <LockerCard editUrl={org.editUrl} />
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -272,27 +274,8 @@ export default function Organization() {
                         </div>
                       </section>
 
-                      <section className="card" aria-labelledby="access-h">
-                        <div className="card-h">
-                          <h2 id="access-h" style={{ fontSize: "18px" }}>
-                            Who can read this record
-                          </h2>
-                          <Link to={`${base}/team`} className="small b">
-                            Manage access
-                          </Link>
-                        </div>
-                        <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                          {active.length === 0 && <li className="muted">No funder can read your record yet. Applying to a funder grants it access for that application.</li>}
-                          {active.map((c) => (
-                            <li key={c.id} className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-                              <FunderChip name={c.funder.name} />
-                              <span className="small muted">
-                                {c.basis === "application" ? "Because you applied" : c.basis === "shared_submission" ? "Shared report" : "Passport grant"} · since {formatDate(c.grantedAt)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
+                      <ConnectedAppsCard sources={(org.profileSources ?? {}) as Record<string, unknown>} editUrl={org.editUrl} />
+                      <AccessCard consents={consents} base={base} onChanged={query.reload} />
                     </div>
                   </div>
                 </>

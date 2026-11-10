@@ -9,7 +9,8 @@ import type { Rendered, Template, TemplateInput } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNote } from "../../components/ui.tsx";
-import { actorLabel, dateTime, usePeople } from "./shared.tsx";
+import { BulkSend } from "./BulkSend.tsx";
+import { actorLabel, dateTime, usePeople, timeAgo } from "./shared.tsx";
 
 const MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
 const mergeField = (name: string) => `{{${name}}}`;
@@ -36,6 +37,17 @@ export default function Communications() {
   const [preview, setPreview] = useState<Rendered | null>(null);
   const body = useRef<HTMLTextAreaElement>(null);
   const all = [...(templates.data?.items ?? []), ...(templates.data?.builtIn ?? [])];
+  /** When a template last went out, from the send log (by id, or by name for older entries). */
+  const lastUsed = (t: Template) =>
+    (log.data ?? [])
+      .filter((c) => c.status === "sent" && c.at && (c.template === t.id || c.templateName === t.name || c.templateName?.startsWith(`${t.name} v`)))
+      .map((c) => c.at!)
+      .sort()
+      .at(-1) ?? null;
+  const channelOf = (c: { template: string | null; templateName: string | null }) => {
+    const t = all.find((x) => x.id === c.template || x.name === c.templateName);
+    return t?.kind === "letter" ? "Email with letter (PDF)" : t?.kind === "agreement" ? "Email with agreement" : "Email";
+  };
   const current = all.find((t) => t.id === selected) ?? null;
 
   useEffect(() => {
@@ -107,6 +119,7 @@ export default function Communications() {
                         <th>Kind</th>
                         <th>Name</th>
                         <th>Ver.</th>
+                        <th>Last used</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -119,6 +132,7 @@ export default function Communications() {
                             </button>
                           </td>
                           <td>{t.builtIn ? "Built in" : `v${t.version}`}</td>
+                          <td>{lastUsed(t) ? timeAgo(lastUsed(t)) : <span className="muted">Never</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -211,6 +225,8 @@ export default function Communications() {
             </div>
           )}
 
+          {templates.status === "ready" && <BulkSend templates={all} onSent={log.reload} />}
+
           <section className="card" aria-labelledby="log-h">
             <div className="card-h">
               <h3 id="log-h">Send log</h3>
@@ -231,6 +247,7 @@ export default function Communications() {
                       <th>Time</th>
                       <th>Template</th>
                       <th>About</th>
+                      <th>Channel</th>
                       <th>Sent by</th>
                       <th>Status</th>
                     </tr>
@@ -249,6 +266,7 @@ export default function Communications() {
                               </>
                             )}
                           </td>
+                          <td>{channelOf(c)}</td>
                           <td>{who.agent ? <span className="attrib"><span className="ag">{who.name}</span></span> : who.name}</td>
                           <td>
                             {c.status === "sent" ? (

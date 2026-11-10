@@ -29,6 +29,8 @@ const VIEWS: View[] = [
   { key: "all", label: "All", filter: {} },
   { key: "needs-screening", label: "Needs screening", filter: { status: "submitted" } },
   { key: "under-review", label: "Under review", filter: { status: "under_review" } },
+  { key: "review-complete", label: "Review complete", filter: { status: "recommended" } },
+  { key: "flagged", label: "Flagged", filter: { tag: "flagged" } },
   { key: "eligibility-fail", label: "Eligibility fail", filter: { eligibility: "false" } },
   { key: "unassigned", label: "Unassigned", filter: { assignee: "unassigned" } },
 ];
@@ -149,6 +151,18 @@ export default function Applications() {
   const list = useApiQuery((api) => api.listApplications({ ...filter, sortBy, sortOrder, page, pageSize: PAGE_SIZE }), [key]);
   const totals = useApiQuery((api) => api.listApplications({ pageSize: 1 }), []);
   const approvals = useApiQuery((api) => api.listApprovals("pending"), []);
+  // Mean review score per application at its current stage, from each competition's ranking.
+  const scores = useApiQuery(
+    async (api) => {
+      const rankings = await Promise.all((competitions.data ?? []).map((c) => api.getRanking(c.id).catch(() => null)));
+      return new Map(rankings.flatMap((r) => (r?.items ?? []).filter((i) => i.mean !== null).map((i) => [i.applicationId, { mean: i.mean as number, n: i.n }] as const)));
+    },
+    [competitions.data?.map((c) => c.id).join(",")],
+  );
+  const daysInStage = (r: InboxApplication) => {
+    const since = r.submittedAt ?? r.updatedAt;
+    return since ? Math.max(0, Math.floor((Date.now() - Date.parse(since)) / 86_400_000)) : null;
+  };
   const decide = useApiMutation((api, a: Approval, approve: boolean) => api.decideApproval(a.id, { approve }));
 
   const set = (changes: Record<string, string | null>) => {
@@ -297,7 +311,9 @@ export default function Applications() {
                     {sortHeader("Status")}
                     <th>Eligibility</th>
                     {sortHeader("Requested", true)}
+                    <th className="num">Score</th>
                     {sortHeader("Submitted")}
+                    <th className="num">Days in stage</th>
                     <th>Assignee</th>
                   </tr>
                 </thead>
@@ -362,7 +378,9 @@ export default function Applications() {
                             <EligibilityMark value={r.eligibility} />
                           </td>
                           <td className="num">{formatMinor(r.requestedAmountMinor, r.currency)}</td>
+                          <td className="num">{scores.data?.has(r.id) ? <span title={`Mean of ${scores.data.get(r.id)!.n} submitted reviews`}>{scores.data.get(r.id)!.mean.toFixed(1)}</span> : <span className="muted">—</span>}</td>
                           <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
+                          <td className="num">{["draft", "accepted", "declined", "withdrawn"].includes(r.status) ? <span className="muted">—</span> : (daysInStage(r) ?? "—")}</td>
                           <td>
                             <Avatar person={person(r.assignedToUserId)} />
                           </td>

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Programs: the funds a funder grants from. A program holds a budget and the defaults new
-// opportunities start from. Committed and paid amounts join this screen with awards (phase 3).
-import { useEffect, useState, type FormEvent } from "react";
+// opportunities start from. Committed and paid amounts come from the awards made from it.
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Briefcase, Plus } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import type { Opportunity, Program, ProgramInput } from "../../api/types.ts";
+import type { AwardSummary } from "../../api/funder.ts";
+import type { Submission } from "../../api/funderMoney.ts";
+import type { Competition, Opportunity, Program, ProgramInput } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
@@ -83,8 +85,18 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
   );
 }
 
-function ProgramDetail({ program, opportunities, base, onEdit }: { program: Program; opportunities: Opportunity[]; base: string; onEdit: () => void }) {
+function ProgramDetail({ program, opportunities, awards, competitions, received, submissions, base, onEdit }: { program: Program; opportunities: Opportunity[]; awards: AwardSummary[]; competitions: Competition[]; received: Map<string, number | null>; submissions: Submission[]; base: string; onEdit: () => void }) {
   const defaults = program.defaults as { reminderPlan?: number[] };
+  const competitionOf = (o: Opportunity) => competitions.find((c) => c.opportunityId === o.id);
+  const byStatus = (["offered", "accepted", "active", "suspended", "completed"] as const).map((status) => {
+    const rows = awards.filter((a) => a.status === status);
+    return { status, count: rows.length, minor: rows.reduce((n, a) => n + (a.awardedAmountMinor ?? 0), 0) };
+  });
+  const committed = byStatus.reduce((n, r) => n + r.minor, 0);
+  const over = program.budgetAmountMinor !== null && committed > program.budgetAmountMinor;
+  const awardIds = new Set(awards.map((a) => a.id));
+  const reports = submissions.filter((r) => r.awardId && awardIds.has(r.awardId));
+  const accepted = reports.filter((r) => r.status === "accepted").length;
   return (
     <section className="card" aria-labelledby="program-detail-title">
       <div className="card-h" style={{ padding: "16px 20px" }}>
@@ -122,6 +134,8 @@ function ProgramDetail({ program, opportunities, base, onEdit }: { program: Prog
             columns={[
               { key: "title", header: "Opportunity", cell: (o) => <Link to={`${base}/opportunities/${o.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{o.title}</Link>, sort: (o) => o.title },
               { key: "status", header: "Status", cell: (o) => <StatusBadge kind="opportunity" status={o.status} label={o.published ? undefined : "Draft"} /> },
+              { key: "stage", header: "Stage", cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${c.status}`}` : "No competition"; } },
+              { key: "apps", header: "Applications", numeric: true, cell: (o) => { const c = competitionOf(o); return c ? (received.get(c.id) ?? "—") : "—"; } },
               { key: "closes", header: "Closes", cell: (o) => formatDate(o.keyDates.closeDate?.date), sort: (o) => o.keyDates.closeDate?.date ?? null },
               { key: "go", header: "", numeric: true, cell: (o) => <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">Competition</Link> },
             ]}
@@ -140,9 +154,44 @@ function ProgramDetail({ program, opportunities, base, onEdit }: { program: Prog
               <dt>Reminder plan</dt>
               <dd>{defaults.reminderPlan?.length ? `${defaults.reminderPlan.map((d) => (d > 0 ? `+${d}` : String(d))).join(", ")} days from the due date` : "Workspace default"}</dd>
             </dl>
-            <p className="small muted" style={{ marginTop: "10px" }}>
-              Committed and paid amounts appear here once awards are made from this program.
-            </p>
+          </div>
+          <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
+            <h3 style={{ fontSize: "14px" }}>Committed by status</h3>
+            <span className={over ? "small b var-neg" : "small muted"}>{formatMinor(committed, program.currency)}</span>
+          </div>
+          <div className="card-b" style={{ padding: "14px 16px" }}>
+            {over && (
+              <div className="bnr bnr-dng" role="status" style={{ marginBottom: "10px" }}>
+                <div>
+                  <div className="t">Over-committed by {formatMinor(committed - program.budgetAmountMinor!, program.currency)}</div>
+                  <div className="d">Awards exceed this program’s budget. New approvals need an admin override at the panel.</div>
+                </div>
+              </div>
+            )}
+            <dl className="kv" style={{ gridTemplateColumns: "120px minmax(0, 1fr)" }}>
+              {byStatus.map((r) => (
+                <Fragment key={r.status}>
+                  <dt>
+                    <StatusBadge kind="award" status={r.status} />
+                  </dt>
+                  <dd>
+                    {r.count} · {formatMinor(r.minor, program.currency)}
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+          </div>
+          <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
+            <h3 style={{ fontSize: "14px" }}>Outcomes rollup</h3>
+            <span className="small muted">
+              {accepted} of {reports.length} reports accepted
+            </span>
+          </div>
+          <div className="card-b" style={{ padding: "14px 16px" }}>
+            <p className="small muted">{reports.length ? "Outcome figures are in each accepted report under Reporting; they are not totalled across grantees yet." : "Outcomes appear once grantees in this program report."}</p>
+            <Link to={`${base}/reporting`} className="small b">
+              Open reporting
+            </Link>
           </div>
         </div>
       </div>
@@ -156,8 +205,16 @@ export default function Programs() {
   const { programId } = useParams();
   const navigate = useNavigate();
   const data = useApiQuery(async (api) => {
-    const [programs, opportunities] = await Promise.all([api.listPrograms(), api.listOpportunities()]);
-    return { programs, opportunities };
+    const [programs, opportunities, portfolio, awards, competitions, submissions] = await Promise.all([
+      api.listPrograms(),
+      api.listOpportunities(),
+      api.portfolio().catch(() => null),
+      api.listAwards().catch(() => []),
+      api.listCompetitions().catch(() => []),
+      api.listSubmissions().catch(() => []),
+    ]);
+    const received = await Promise.all(competitions.map(async (c) => [c.id, (await api.listApplications({ competitionId: c.id, pageSize: 1 }).catch(() => null))?.total ?? null] as const));
+    return { programs, opportunities, money: new Map((portfolio?.programs ?? []).map((m) => [m.programId, m])), awards, competitions, submissions, received: new Map(received) };
   }, [ws.id]);
   const [dialog, setDialog] = useState<{ program: Program | null } | null>(null);
 
@@ -166,6 +223,7 @@ export default function Programs() {
   const selected = programs.find((p) => p.id === programId) ?? null;
   const countFor = (p: Program) => opportunities.filter((o) => o.programId === p.id).length;
   const totalBudget = programs.reduce((sum, p) => sum + (p.budgetAmountMinor ?? 0), 0);
+  const moneyFor = (p: Program) => (data.status === "ready" ? data.data.money.get(p.id) : undefined);
 
   // An unknown id in the URL (an old link) falls back to the list.
   useEffect(() => {
@@ -176,6 +234,19 @@ export default function Programs() {
     { key: "name", header: "Program", cell: (p) => <Link to={`${base}/programs/${p.id}`} className="b" style={{ color: "#0D2A43" }}>{p.name}</Link>, sort: (p) => p.name },
     { key: "fy", header: "FY", cell: (p) => p.fiscalYear ?? "—", sort: (p) => p.fiscalYear },
     { key: "budget", header: "Budget", numeric: true, cell: (p) => formatMinor(p.budgetAmountMinor, p.currency), sort: (p) => p.budgetAmountMinor },
+    { key: "committed", header: "Committed", numeric: true, cell: (p) => formatMinor(moneyFor(p)?.committedMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.committedMinor ?? 0 },
+    { key: "paid", header: "Paid", numeric: true, cell: (p) => formatMinor(moneyFor(p)?.paidMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.paidMinor ?? 0 },
+    {
+      key: "remaining",
+      header: "Remaining",
+      numeric: true,
+      cell: (p) => {
+        if (p.budgetAmountMinor === null) return "—";
+        const left = p.budgetAmountMinor - (moneyFor(p)?.committedMinor ?? 0);
+        return <span className={left < 0 ? "var-neg b" : undefined}>{formatMinor(left, p.currency)}</span>;
+      },
+      sort: (p) => (p.budgetAmountMinor === null ? null : p.budgetAmountMinor - (moneyFor(p)?.committedMinor ?? 0)),
+    },
     { key: "opps", header: "Opportunities", numeric: true, cell: countFor, sort: countFor },
   ];
 
@@ -228,7 +299,18 @@ export default function Programs() {
                 </EmptyState>
               }
             />
-            {selected && <ProgramDetail program={selected} opportunities={opportunities.filter((o) => o.programId === selected.id)} base={base} onEdit={() => setDialog({ program: selected })} />}
+            {selected && (
+              <ProgramDetail
+                program={selected}
+                opportunities={opportunities.filter((o) => o.programId === selected.id)}
+                awards={data.data.awards.filter((a) => a.programId === selected.id)}
+                competitions={data.data.competitions}
+                received={data.data.received}
+                submissions={data.data.submissions}
+                base={base}
+                onEdit={() => setDialog({ program: selected })}
+              />
+            )}
           </>
         )}
         {dialog && (

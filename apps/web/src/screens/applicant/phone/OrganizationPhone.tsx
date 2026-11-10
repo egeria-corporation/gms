@@ -14,6 +14,7 @@ import { PhoneShell } from "../../../components/PhoneShell.tsx";
 import { LevelBadge } from "../../../components/status.tsx";
 import { ErrorBanner, Notice } from "../../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../../lib/format.ts";
+import { ConnectedAppsCard, LockerCard, RepresentativesCard } from "../organizationExtras.tsx";
 
 const load = async (api: ApplicantApi) => {
   const [org, readiness, consents] = await Promise.all([api.organization(), api.readiness(), api.consents()]);
@@ -245,6 +246,9 @@ export default function OrganizationPhone() {
                       </ul>
                     )}
                   </section>
+                  <LockerCard editUrl={org.editUrl} />
+                  <ConnectedAppsCard sources={(org.profileSources ?? {}) as Record<string, unknown>} editUrl={org.editUrl} />
+                  <RepresentativesCard editUrl={org.editUrl} />
                 </>
               );
             }}

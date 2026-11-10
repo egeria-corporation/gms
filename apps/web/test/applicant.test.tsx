@@ -74,7 +74,7 @@ describe("applicant screens render from the API", () => {
     expect(screen.getByText("$2,400,000")).toBeInTheDocument();
     expect(screen.getAllByText(/From Passport · Form 990/).length).toBeGreaterThan(0);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    const access = screen.getByRole("region", { name: "Who can read this record" });
+    const access = screen.getByRole("region", { name: "Who has access" });
     expect(within(access).getByText("Riverbend Community Foundation")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Edit in Passport/ })[0]).toHaveAttribute("href", expect.stringContaining("passport.opengrants.io"));
   });
@@ -136,9 +136,11 @@ describe("applicant screens render from the API", () => {
     l.unmount();
 
     const t = open("/w/alder-creek/team");
-    expect(await screen.findByText("Lena Fischer")).toBeInTheDocument();
-    expect(within(screen.getByRole("table", { name: "Team members" })).getByText("Consultant")).toBeInTheDocument();
-    const access = screen.getByRole("region", { name: "Who has access" });
+    expect(await screen.findByRole("table", { name: "Team members" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: /Consultants/ }));
+    expect(within(screen.getByRole("table", { name: "Consultants" })).getByText("Lena Fischer")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: /Funders with access/ }));
+    const access = screen.getByRole("region", { name: "Funders with access" });
     await userEvent.click(within(access).getAllByRole("button", { name: "Remove access" })[0]!);
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove access" }));
     await waitFor(() => expect(t.store.consents[0]!.revokedAt).not.toBeNull());

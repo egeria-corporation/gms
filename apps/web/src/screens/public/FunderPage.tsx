@@ -10,6 +10,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { applicantTypeLabel, daysUntil, formatAwardCount, formatAwardRange, formatDate } from "../../lib/format.ts";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
+import { FunderExtras } from "./publicExtras.tsx";
 
 /** The badge on an opportunity card: how long it stays open, in words. */
 export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOpportunityCard, "status" | "keyDates">; now?: Date }) {
@@ -205,6 +206,7 @@ export default function FunderPage() {
               </div>
             </section>
           )}
+          <FunderExtras handle={funder.handle} />
         </div>
       </PublicFrame>
     </>

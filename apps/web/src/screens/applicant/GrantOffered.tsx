@@ -15,6 +15,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { BeforeYouSign, GrantDocuments, GrantMessages } from "./grantExtras.tsx";
 
 interface GrantsData {
   awards: Award[];
@@ -319,6 +320,12 @@ export default function GrantOffered() {
                           )}
                         </div>
                       </section>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
+                        <BeforeYouSign award={award} />
+                        <GrantDocuments award={award} base={base} />
+                      </div>
+                      <GrantMessages award={award} />
 
                       {agreement && (
                         <SignDialog

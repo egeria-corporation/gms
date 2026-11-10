@@ -25,6 +25,7 @@ import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
 import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
+import { EditorAssistant } from "./editorAssist.tsx";
 
 interface EditorData {
   app: Application;
@@ -686,6 +687,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </TabPanel>
             </div>
           </div>
+          {!phone ? <EditorAssistant answers={data.answers} fields={textFields.map(([k, f]) => ({ key: k, label: typeof f.title === "string" ? f.title : k }))} /> : null}
         </aside>,
         )}
       </div>

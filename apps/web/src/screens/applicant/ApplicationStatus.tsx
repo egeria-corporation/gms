@@ -15,6 +15,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge, statusLook } from "../../components/status.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { DecisionSection, InterviewSection } from "./statusExtras.tsx";
 
 export const loadStatus = async (api: ApplicantApi, id: string) => {
   const [status, list, threads] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id)]);
@@ -208,6 +209,9 @@ export default function ApplicationStatus() {
                           </div>
                         </section>
                       )}
+
+                      <InterviewSection status={status} funder={funder} />
+                      <DecisionSection status={status} funder={funder} base={base} />
 
                       <section className="card" aria-labelledby="tl-h">
                         <div className="card-h">

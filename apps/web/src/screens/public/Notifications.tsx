@@ -11,6 +11,7 @@ import { useServices } from "../../app/services.tsx";
 import { AccountShell } from "../../components/AccountShell.tsx";
 import { timeAgo } from "../../components/applicant.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
+import { DigestSettings } from "./digestSettings.tsx";
 
 const ICON: Record<MemberNotification["category"], { icon: LucideIcon; cls: string }> = {
   application: { icon: FileText, cls: "av-t" },
@@ -181,10 +182,20 @@ export default function Notifications() {
           </div>
         )}
         {meState.status === "ready" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "960px" }}>
-            {meState.me.workspaces.map((ws) => (
-              <Group key={ws.id} ws={ws} filter={filter} onCount={onCount} />
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.8fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {meState.me.workspaces.map((ws) => (
+                <Group key={ws.id} ws={ws} filter={filter} onCount={onCount} />
+              ))}
+              {meState.me.workspaces.length > 0 && unread === 0 && filter === "unread" ? (
+                <div className="card">
+                  <EmptyState icon={Bell} title="You’re caught up">
+                    Nothing unread in any workspace.
+                  </EmptyState>
+                </div>
+              ) : null}
+            </div>
+            <DigestSettings workspaces={meState.me.workspaces} />
           </div>
         )}
       </AccountShell>

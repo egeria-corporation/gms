@@ -15,6 +15,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
 import { formatMinor, parseDollars } from "../../lib/format.ts";
+import { DecisionSummary, PanelDetail, type DecisionTally } from "./PanelDetail.tsx";
 
 interface Draft {
   outcome: DecisionOutcome | "";
@@ -89,6 +90,15 @@ export default function Panel() {
       if (patch.outcome === "approve" && !cur.amount && row.requestedAmountMinor) next.amount = String(row.requestedAmountMinor / 100);
       return { ...d, [id]: next };
     });
+  const [focus, setFocus] = useState<string | null>(null);
+  const focused = rows.find((r) => r.applicationId === focus) ?? rows[0];
+  const tally: DecisionTally = {
+    approve: inputs.decisions.filter((d) => d.outcome === "approve").length,
+    decline: inputs.decisions.filter((d) => d.outcome === "decline").length,
+    waitlist: inputs.decisions.filter((d) => d.outcome === "waitlist").length,
+    approvedMinor: pendingMinor,
+    undecided: Math.max(0, openRows.length - inputs.decisions.length - inputs.problems.length),
+  };
   const reload = () => {
     ranking.reload();
     allocation.reload();
@@ -254,6 +264,9 @@ export default function Panel() {
                             <span className="sub">
                               <span className="muted">{r.title}</span>
                               {r.pending > 0 && <span className="pill-warn">{r.pending} review(s) pending</span>}
+                              <button type="button" className="btn btn-sm btn-ghost" aria-pressed={focused?.applicationId === r.applicationId} onClick={() => setFocus(r.applicationId)} aria-label={`Scores, notes and letter for ${name}`}>
+                                Scores &amp; notes
+                              </button>
                             </span>
                           </div>
                         </td>
@@ -299,6 +312,18 @@ export default function Panel() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {focused && ranking.data && (
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2.2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+              <PanelDetail
+                row={focused}
+                stage={ranking.data.stage}
+                rubricId={ranking.data.rubric.id}
+                outcome={(drafts[focused.applicationId]?.outcome ?? "") as "approve" | "decline" | "waitlist" | ""}
+                amountMinor={parseDollars(drafts[focused.applicationId]?.amount ?? "") ?? focused.decision?.amountMinor ?? null}
+              />
+              <DecisionSummary tally={tally} remainingMinor={remaining} />
             </div>
           )}
           <p className="notice">Spread is the standard deviation of reviewers’ overall scores (0–100); a flag means they disagree by more than the rubric’s threshold.</p>

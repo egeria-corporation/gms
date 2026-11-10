@@ -28,6 +28,7 @@ import {
   useGrant,
   type GrantData,
 } from "./grant.tsx";
+import { GrantDocuments, GrantMessages } from "./grantExtras.tsx";
 
 const OPEN_REPORT: readonly string[] = ["due", "overdue", "returned", "scheduled"];
 
@@ -224,7 +225,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <DestinationCard payee={data.payee} orgHref={`${base}/organization`} />
+          <DestinationCard payee={data.payee} destination={data.destination} orgHref={`${base}/organization`} />
           {sent && (
             <div className="card">
               <div className="card-h">
@@ -254,6 +255,11 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
           <AmendmentsCard data={data} onSaved={reload} />
           <Closeout data={data} />
         </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
+        <GrantDocuments award={award} base={base} />
+        <GrantMessages award={award} />
       </div>
     </>
   );

@@ -10,7 +10,9 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { ActivityTimeline } from "../../components/ActivityTimeline.tsx";
 import { ApprovalCard } from "./Approvals.tsx";
+import { timeAgo, usePeople } from "./shared.tsx";
 
 const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
 const OPEN = ["submitted", "screening", "under_review", "revision_requested", "interview", "recommended"];
@@ -27,6 +29,8 @@ export default function Dashboard() {
   const approvals = useApiQuery((api) => api.listApprovals("pending"), []);
   const alerts = useApiQuery((api) => api.paymentAlerts(), []);
   const payments = useApiQuery((api) => api.paymentsReadiness(), []);
+  const activity = useApiQuery((api) => api.listLedger({ pageSize: 6 }), []);
+  const { person } = usePeople();
   const done = useApiMutation((api, t: Task) => api.updateTask(t.id, { done: true }));
 
   const counts = apps.data?.counts ?? {};
@@ -278,6 +282,20 @@ export default function Dashboard() {
                           {formatMinor(payments.data.totals.dueMinor)} due · {payments.data.totals.releasable} ready to release · {payments.data.totals.blocked} blocked
                         </p>
                       )}
+                    </div>
+                  </section>
+
+                  <section className="card" aria-labelledby="activity-h">
+                    <div className="card-h">
+                      <h3 id="activity-h">Recent activity</h3>
+                      <Link to={`${base}/settings/mcp#ledger`} className="small b">
+                        Ledger
+                      </Link>
+                    </div>
+                    <div className="card-b">
+                      {activity.status === "loading" && <Loading label="Loading activity" />}
+                      {activity.status === "error" && <ErrorBanner error={activity.error} onRetry={activity.reload} />}
+                      {activity.data && <ActivityTimeline events={activity.data.items.slice(0, 6)} personName={(id) => person(id)?.name} when={(iso) => timeAgo(iso)} empty="Nothing has happened in this workspace yet." />}
                     </div>
                   </section>
                 </div>

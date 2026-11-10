@@ -13,8 +13,8 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
-import { formatMinor } from "../../lib/format.ts";
-import { dateTime } from "./shared.tsx";
+import { formatDate, formatMinor } from "../../lib/format.ts";
+import { dateTime, usePeople } from "./shared.tsx";
 
 /** Payee status in words and shape, never color alone. Bank name and last four digits only. */
 function PayeeChip({ pending, active }: { pending: boolean; active: boolean }) {
@@ -327,6 +327,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
           </table>
         </div>
       </section>
+      <GranteeReports awardIds={g.awardList.map((a) => String(a.id))} base={base} />
       {proposing && (
         <ProposeDialog
           grantee={g}
@@ -341,6 +342,57 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
   );
 }
 
+/** Reports this grantee has sent on its awards, newest first. */
+function GranteeReports({ awardIds, base }: { awardIds: string[]; base: string }) {
+  const submissions = useApiQuery((api) => api.listSubmissions(), []);
+  const mine = (submissions.data ?? []).filter((s) => s.awardId && awardIds.includes(s.awardId)).sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
+  return (
+    <section className="card" aria-labelledby="grantee-reports-h">
+      <div className="card-h">
+        <h3 id="grantee-reports-h">Reports</h3>
+        <Link to={`${base}/reporting`} className="small b">
+          Reporting
+        </Link>
+      </div>
+      {submissions.status === "error" && (
+        <div className="card-b">
+          <ErrorBanner error={submissions.error} onRetry={submissions.reload} />
+        </div>
+      )}
+      {submissions.status === "ready" && !mine.length && <div className="card-b muted small">No reports yet.</div>}
+      {mine.length > 0 && (
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Reports from this grantee, scrollable">
+          <table className="tbl" aria-label="Reports from this grantee">
+            <thead>
+              <tr>
+                <th>Report</th>
+                <th>Due</th>
+                <th>Received</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mine.map((r) => (
+                <tr key={r.id}>
+                  <td className="b">
+                    {r.requirement?.title ?? "Report"}
+                    {r.shared && <span className="tag" style={{ marginLeft: "6px" }}>Shared by grantee</span>}
+                  </td>
+                  <td>{formatDate(r.requirement?.dueAt)}</td>
+                  <td>{formatDate(r.submittedAt)}</td>
+                  <td>
+                    <StatusBadge kind="submission" status={r.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function Grantees() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
@@ -351,6 +403,9 @@ export default function Grantees() {
   const rows: GranteeSummary[] = list.data ?? [];
   const selected = rows.find((r) => r.workspaceId === granteeId || `org_${r.handle}` === granteeId || r.handle === granteeId)?.workspaceId ?? (granteeId && !granteeId.startsWith("org_") ? granteeId : rows[0]?.workspaceId);
   const pendingTotal = rows.reduce((n, r) => n + r.pendingChanges, 0);
+  const { person } = usePeople();
+  const awards = useApiQuery((api) => api.listAwards(), []);
+  const awardedTo = (workspaceId: string) => (awards.data ?? []).filter((a) => a.recipient?.workspaceId === workspaceId && a.status !== "cancelled").reduce((n, a) => n + (a.awardedAmountMinor ?? 0), 0);
 
   return (
     <>
@@ -390,8 +445,12 @@ export default function Grantees() {
                   <thead>
                     <tr>
                       <th>Organization</th>
+                      <th>Level</th>
                       <th>Payee</th>
                       <th className="num">Awards</th>
+                      <th className="num">Total awarded</th>
+                      <th>Owner</th>
+                      <th>Tags</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -402,16 +461,31 @@ export default function Grantees() {
                             <Link to={`${base}/grantees/${r.workspaceId}${q ? `?q=${encodeURIComponent(q)}` : ""}`} className="nm" aria-current={r.workspaceId === selected ? "true" : undefined}>
                               {r.name}
                             </Link>
-                            <span className="sub">
-                              <LevelBadge level={r.verificationLevel} />
-                              {r.pendingChanges > 0 && <span className="pill-warn">{r.pendingChanges} record change</span>}
-                            </span>
+                            {r.pendingChanges > 0 && (
+                              <span className="sub">
+                                <span className="pill-warn">{r.pendingChanges} record change</span>
+                              </span>
+                            )}
                           </div>
+                        </td>
+                        <td>
+                          <LevelBadge level={r.verificationLevel} />
                         </td>
                         <td>
                           <PayeeChip pending={r.payee.pendingDestinationChange} active={r.payee.active} />
                         </td>
                         <td className="num">{r.awards}</td>
+                        <td className="num">{awards.status === "ready" ? formatMinor(awardedTo(r.workspaceId)) : "—"}</td>
+                        <td>{r.ownerUserId ? (person(r.ownerUserId)?.name ?? "A teammate") : <span className="muted">—</span>}</td>
+                        <td>
+                          <span className="row wrap" style={{ gap: "4px" }}>
+                            {r.tags.map((t) => (
+                              <span key={t} className="tag">
+                                {t}
+                              </span>
+                            ))}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

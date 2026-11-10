@@ -10,6 +10,7 @@ import type { Approval } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader } from "../../components/ui.tsx";
+import { ApprovalDetail } from "./ApprovalDetail.tsx";
 import { approvalTargets, dateTime, timeAgo, usePeople } from "./shared.tsx";
 
 const TOOL_TEXT: Record<string, (n: number) => string> = {
@@ -34,7 +35,7 @@ const RESOLVED_LOOK: Record<string, { label: string; tone: string; icon: typeof 
 };
 
 /** One pending request. Also shown on the dashboard. */
-export function ApprovalCard({ approval, base, onResolved }: { approval: Approval; base: string; onResolved: () => void }) {
+export function ApprovalCard({ approval, base, onResolved, onOpen }: { approval: Approval; base: string; onResolved: () => void; onOpen?: () => void }) {
   const [note, setNote] = useState("");
   const decide = useApiMutation((api, approve: boolean) => api.decideApproval(approval.id, { approve, ...(note.trim() ? { note: note.trim() } : {}) }));
   const targets = approvalTargets(approval.input);
@@ -93,6 +94,11 @@ export function ApprovalCard({ approval, base, onResolved }: { approval: Approva
           <X className="ic" aria-hidden="true" />
           Reject
         </button>
+        {onOpen && (
+          <button type="button" className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={onOpen}>
+            Request detail
+          </button>
+        )}
       </div>
     </article>
   );
@@ -105,6 +111,8 @@ export default function Approvals() {
   const all = useApiQuery((api) => api.listApprovals(), []);
   const pending = all.data?.filter((a) => a.status === "pending") ?? [];
   const resolved = all.data?.filter((a) => a.status !== "pending") ?? [];
+  const [opened, setOpened] = useState<string | null>(null);
+  const shown = all.data?.find((a) => a.id === opened) ?? pending[0] ?? null;
   return (
     <>
       <title>{`Approvals — ${ws.name}`}</title>
@@ -139,8 +147,9 @@ export default function Approvals() {
                   </div>
                 )}
                 {pending.map((a) => (
-                  <ApprovalCard key={a.id} approval={a} base={base} onResolved={all.reload} />
+                  <ApprovalCard key={a.id} approval={a} base={base} onResolved={all.reload} onOpen={() => setOpened(a.id)} />
                 ))}
+                {shown && <ApprovalDetail key={shown.id} approvalId={shown.id} base={base} title={approvalTitle(shown)} />}
               </section>
               <section className="card" aria-labelledby="resolved-h">
                 <div className="card-h">
@@ -171,6 +180,12 @@ export default function Approvals() {
                                 · decided by {person(a.decidedBy)?.name ?? "a member"} · {dateTime(a.decidedAt)}
                               </span>
                             )}
+                          </div>
+                          <div className="row small" style={{ gap: "12px" }}>
+                            <span className="muted">Requested {dateTime(a.createdAt)}</span>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpened(a.id)} aria-label={`Request detail: ${approvalTitle(a)}`}>
+                              Request detail
+                            </button>
                           </div>
                           {a.note && <div className="small muted">“{a.note}”</div>}
                           {a.error && <div className="err-msg">{a.error}</div>}

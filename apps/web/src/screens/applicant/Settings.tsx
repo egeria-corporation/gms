@@ -9,6 +9,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { DangerZone, ExportsCard, TokensCard } from "./settingsCards.tsx";
 
 /** The events an applicant workspace produces, in the order people meet them. */
 export const EVENTS: { key: string; label: string; detail: string }[] = [
@@ -134,44 +135,9 @@ export default function Settings() {
               {(prefs) => <Preferences initial={prefs} />}
             </Loaded>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div className="card" id="agents">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Agents and integrations</h2>
-                    <p className="small muted">Agents connect through MCP with your permissions and can be revoked at any time.</p>
-                  </div>
-                </div>
-                <div className="card-b" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <Link to="/account/agents" className="btn btn-secondary">
-                    Connected agents
-                  </Link>
-                  <Link to="/agents" className="btn btn-secondary">
-                    How agents connect
-                  </Link>
-                </div>
-              </div>
-              <div className="card" id="exports">
-                <div className="card-h">
-                  <div>
-                    <h2 style={{ fontSize: "18px" }}>Your data</h2>
-                    <p className="small muted">Everything you enter is yours to take.</p>
-                  </div>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }}>
-                  <p>Each application and award is readable as CommonGrants JSON through the API, and your organization record lives in Passport, where you can export it.</p>
-                  <p className="help">A one-click export of the whole applicant workspace is not available yet.</p>
-                </div>
-              </div>
-              <div className="card" style={{ borderColor: "var(--s-dng-bd)" }}>
-                <div className="card-h">
-                  <h2 style={{ fontSize: "18px", color: "var(--s-dng-fg)" }}>Leaving this workspace</h2>
-                </div>
-                <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <p>
-                    An admin removes members under <Link to={`${base}/team`}>Team &amp; access</Link>. Leaving does not affect your Passport account or the organization's record.
-                  </p>
-                </div>
-              </div>
+              <TokensCard base={base} />
+              <ExportsCard handle={ws.handle} />
+              <DangerZone workspaceId={ws.id} name={ws.name} />
             </div>
           </div>
         </main>

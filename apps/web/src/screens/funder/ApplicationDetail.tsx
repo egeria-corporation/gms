@@ -15,6 +15,7 @@ import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
+import { AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
@@ -46,7 +47,7 @@ function SectionAssignments({ applicationId }: { applicationId: string }) {
   );
 }
 
-type RailTab = "applicant" | "eligibility" | "reviews" | "messages" | "activity";
+type RailTab = "applicant" | "reviews" | "eligibility" | "budget" | "documents" | "messages" | "activity";
 
 /** A plain key/value view for when the form definition cannot be read (for example, an external reviewer's token). */
 function RawResponse({ response }: { response: Record<string, unknown> }) {
@@ -305,6 +306,7 @@ export default function ApplicationDetail() {
   const { person, people } = usePeople();
   const app = useApiQuery((api) => api.getApplication(appId), [appId]);
   const competitions = useApiQuery((api) => api.listCompetitions(), []);
+  const rubrics = useApiQuery((api) => api.listRubrics(), []);
   const [tab, setTab] = useState<RailTab>("applicant");
   const [action, setAction] = useState<Action | null>(null);
   const [tag, setTag] = useState("");
@@ -314,7 +316,7 @@ export default function ApplicationDetail() {
 
   useEffect(() => {
     const t = window.location.hash.replace("#", "");
-    if (["applicant", "eligibility", "reviews", "messages", "activity"].includes(t)) setTab(t as RailTab);
+    if (["applicant", "eligibility", "reviews", "budget", "documents", "messages", "activity"].includes(t)) setTab(t as RailTab);
   }, []);
 
   if (app.status === "loading") {
@@ -339,6 +341,7 @@ export default function ApplicationDetail() {
   const competition = competitions.data?.find((c) => c.id === a.competitionId);
   const stage = competition?.stages.find((s) => s.key === a.stage);
   const next = competition?.stages.filter((s) => s.entryFrom.includes(a.stage)) ?? [];
+  const stageRubric = rubrics.data?.find((r) => r.id === stage?.rubricId) ?? null;
   const open = !["declined", "accepted", "withdrawn", "draft"].includes(a.status);
   const org = a.organization;
   const projection = (org?.projection ?? {}) as { name?: string; mission?: string; addresses?: { primary?: { street1?: string; city?: string; stateOrProvince?: string; postalCode?: string } }; identifiers?: Record<string, { id?: string }> };
@@ -479,6 +482,8 @@ export default function ApplicationDetail() {
                   { key: "applicant", label: "Applicant" },
                   { key: "eligibility", label: "Eligibility" },
                   { key: "reviews", label: "Reviews" },
+                  { key: "budget", label: "Budget" },
+                  { key: "documents", label: "Documents" },
                   { key: "messages", label: "Messages" },
                   { key: "activity", label: "Activity" },
                 ]}
@@ -545,6 +550,12 @@ export default function ApplicationDetail() {
               <TabPanel idPrefix="rail" tab="reviews" active={tab}>
                 <Reviews app={a} base={base} />
               </TabPanel>
+              <TabPanel idPrefix="rail" tab="budget" active={tab}>
+                <BudgetPanel app={a} />
+              </TabPanel>
+              <TabPanel idPrefix="rail" tab="documents" active={tab}>
+                <DocumentsPanel app={a} />
+              </TabPanel>
               <TabPanel idPrefix="rail" tab="messages" active={tab}>
                 <Messages applicationId={a.id} />
               </TabPanel>
@@ -581,6 +592,7 @@ export default function ApplicationDetail() {
                   </div>
                 </div>
               </TabPanel>
+              <AssistantPanel app={a} rubricId={stageRubric?.id ?? null} criterionLabel={(key) => stageRubric?.criteria.find((c) => c.key === key)?.label ?? key} />
             </aside>
           </div>
         </main>

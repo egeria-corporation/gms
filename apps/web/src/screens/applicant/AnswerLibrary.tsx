@@ -9,6 +9,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, problemFor, SaveNote } from "../../components/ui.tsx";
+import { AdaptPanel } from "./answerAdapt.tsx";
 
 const countWords = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 
@@ -151,17 +152,20 @@ export default function AnswerLibrary() {
                       );
                     })}
                   </ul>
-                  {editing && (
-                    <AnswerEditor
-                      answer={current}
-                      onCancel={() => setSelected(answers[0]?.id ?? null)}
-                      onSaved={(saved, replaced) => {
-                        // A new version arrives under a new id and takes the old one's place.
-                        query.set(replaced ? answers.map((a) => (a.id === replaced ? saved : a)) : [saved, ...answers]);
-                        setSelected(saved.id);
-                      }}
-                    />
-                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    {editing && (
+                      <AnswerEditor
+                        answer={current}
+                        onCancel={() => setSelected(answers[0]?.id ?? null)}
+                        onSaved={(saved, replaced) => {
+                          // A new version arrives under a new id and takes the old one's place.
+                          query.set(replaced ? answers.map((a) => (a.id === replaced ? saved : a)) : [saved, ...answers]);
+                          setSelected(saved.id);
+                        }}
+                      />
+                    )}
+                    {selected !== "new" && current ? <AdaptPanel key={current.id} answer={current} /> : null}
+                  </div>
                 </div>
               );
             }}
