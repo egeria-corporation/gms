@@ -254,3 +254,44 @@ Each delivery: `X-GMS-Timestamp` (Unix seconds), `X-GMS-Signature: v1=<hex HMAC-
 `X-GMS-Event`, `X-GMS-Delivery`. Retries after 1 m, 5 m, 15 m, 1 h, 2 h, 4 h, 8 h and 8 h 39 m (24 hours
 in total), then the delivery is `exhausted`. Signing, verification, the schedule and the stores are in
 `packages/webhooks`.
+
+## Read models for the workspace screens
+
+All implemented. Each starts with the shared authorization check; none returns bank or identity data.
+
+| Route | Purpose | Scope |
+|---|---|---|
+| `GET /gms/applications?view=review_complete\|flagged`, `sortBy=score` | List items now carry `score` (mean overall, 0–100, current stage), `reviews { assigned, submitted, complete }`, `daysInStage`, `flagged` | `applications:read` |
+| `GET /gms/applications/{id}/budget`, `…/documents` | Proposed budget rows; attachments with SHA-256 and source (`passport_locker` or storage) | `applications:read` |
+| `GET /gms/applications/{id}/follow-ups`, `GET /gms/my/applications/{id}/follow-ups` | Revision requests, interview state, committed decision (rationale on the funder side only) | `applications:read` |
+| `POST /gms/applications/{id}/interview`, `POST /gms/my/applications/{id}/interview/confirm` | Funder offers times; applicant confirms one of them | `applications:write` |
+| `GET /gms/programs/{id}/rollup` | Committed by award status, paid (from Passport), remaining, owner | `programs:read` |
+| `GET /gms/competitions/{id}/reviewers` | Reviewer pool with capacity, tags and load | `reviews:read` |
+| `GET /gms/competitions/{id}/panel-summary?stage=` | Per-criterion means per application; decision counts and proposed total | `reviews:read` |
+| `GET/POST /gms/competitions/{id}/notes` | Panel discussion notes (funder-internal thread) | `reviews:read` / `reviews:write` |
+| `GET /gms/approvals/{id}/preview` | Affected applications and, for a decline, each rendered letter | person, same rule as the approval |
+| `GET /gms/awards/{id}/activity`, `…/signatures`, `…/closeout`, `…/closeout.pdf` | Ledger activity, signature records, closeout checklist and its PDF | `awards:read` |
+| `GET /gms/awards/{id}/documents`, `GET/POST /gms/awards/{id}/messages` (also under `/gms/my/awards/{id}/…`) | A grant's documents and its shared thread, for either party | `awards:read`, `messages:*` |
+| `GET /gms/payments/upcoming?days=30`, `GET /gms/payments/ledger` | Tranches falling due; ledger events about tranches | `payments:read` |
+| `GET /gms/grantees/{granteeId}/reports` | A grantee's requirements and latest submissions | `grantees:read` |
+| `GET /gms/grantees` | Items now carry `totalAwardedMinor` | `grantees:read` |
+| `GET /gms/analytics/breakdowns` | Awards by region, reviewer load, tax status and budget band from records shared through Passport ("Not shared" otherwise) | `analytics:read` |
+| `GET /gms/templates/usage`, `POST /gms/communications/bulk` | Last-used per template; send to an applications view (people only; `dryRun` previews) | `communications:write` |
+| `GET /gms/activity?limit=` | Recent workspace activity in words (staff) | `applications:read` |
+| `GET /gms/me/access` | Funders by consent, connected agents, team | `org:read` |
+| `GET /gms/my/funders/detail` | Open items, documents and public contact per funder | `applications:read` |
+| `GET/POST /gms/discover/alerts`, `DELETE /gms/discover/alerts/{alertId}` | Saved funding alerts (up to 25) | `discovery` |
+
+Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (null unless the
+workspace sets `settings.transparency`); the opportunity page adds `faq` and `documents`, written through
+`PATCH /gms/opportunities/{id}` as `publish.faq` and `publish.documents` (https links only).
+
+Gates: a tool a workspace adds to `settings.gatedTools` (or an API client's `gated_tools`) is refused for agent and
+API-client tokens on the matching REST route with `403 approval_required` (`apps/api/src/auth/rest-gates.ts`).
+
+Not available: account sessions (Supabase Auth exposes no per-user session list to the service role), a member's last
+active time (not recorded), and connected apps and representatives (Passport serves both to member sessions only).
+
+`PASSPORT_APPLICANT_PAYEE_READ=true` adds `payee:read` to the applicant's Passport consent so the payout-destination
+panel can read bank name and last four digits. Off by default; turning it on widens the consent applicants are shown.
+

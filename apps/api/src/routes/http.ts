@@ -5,6 +5,8 @@ import type { Context } from "hono";
 import type { AppEnv } from "../app.ts";
 import type { WorkspaceKind } from "../auth/scopes.ts";
 import { trimSlash } from "../env.ts";
+import { restTool, workspaceGates } from "../auth/rest-gates.ts";
+import { forbidden } from "../auth/verify.ts";
 import { badRequest, notFound, parsePagination } from "../lib/errors.ts";
 import { makeActor, type ServiceConfig, type ServiceContext } from "../services/context.ts";
 import type { PublicContext } from "../services/public.ts";
@@ -23,6 +25,7 @@ export function config(c: C): ServiceConfig {
     mailFrom: c.env.RESEND_FROM ?? null,
     passportAwardWrite: c.env.PASSPORT_AWARD_WRITE === "true",
     assistantEnabled: c.env.ASSISTANT_ENABLED === "true",
+    applicantPayeeRead: c.env.PASSPORT_APPLICANT_PAYEE_READ === "true",
     webhookSecretKey: c.env.WEBHOOK_SECRET_KEY ?? null,
     passportWebhookSecret: c.env.PASSPORT_WEBHOOK_SECRET ?? null,
     resendInboundSecret: c.env.RESEND_INBOUND_SECRET ?? null,
@@ -40,6 +43,17 @@ export async function svc(c: C): Promise<ServiceContext> {
   const p = c.get("principal");
   const ws = await c.get("deps").repos.table("workspaces").one({ id: p.workspaceId });
   if (!ws) throw notFound("Workspace");
+  // Gates a workspace or an API client added hold over REST as they do over MCP: an agent or
+  // API-client token cannot take a gated action directly (CLAUDE.md: no client bypasses a gate).
+  if (p.kind !== "user" && !p.scopes.includes("approvals:bypass")) {
+    const tool = restTool(c.req.method, new URL(c.req.url).pathname);
+    if (tool) {
+      const client = p.clientId ? await c.get("deps").auth.getClient(p.clientId) : null;
+      if (workspaceGates(ws.settings).includes(tool) || (client?.gatedTools ?? []).includes(tool)) {
+        throw forbidden("approval_required", `This workspace requires a person's approval for ${tool}. Call the MCP tool, which files the approval request, or do it in the GMS`);
+      }
+    }
+  }
   return {
     ...base(c),
     actor: makeActor(p.kind, p.userId, p.clientId),

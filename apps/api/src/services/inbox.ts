@@ -7,10 +7,12 @@ import { maskForReviewer, type JsonObject } from "@gms/forms";
 import { readPassportFields } from "@gms/protocol";
 import { advanceStage, type StageDef } from "@gms/workflow";
 import { fanOut } from "@gms/webhooks";
+import { scoreReview, type Rubric, type Scores } from "@gms/review";
 import { z } from "zod";
+import { toRubric } from "./reviews.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, responsesOf, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
+import { type App, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, renderLetter, responsesOf, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import type { PageRequest } from "./programs.ts";
@@ -67,6 +69,8 @@ export interface InboxFilter {
   tag?: string;
   assignee?: string;
   q?: string;
+  /** Named views beyond the plain filters: `review_complete` or `flagged`. */
+  view?: string;
   sortBy?: string;
   sortOrder?: string;
 }
@@ -95,7 +99,11 @@ export async function listApplications(ctx: ServiceContext, page: PageRequest, f
       (!f.assignee || (f.assignee === "unassigned" ? a.assigned_to_user_id === null : a.assigned_to_user_id === f.assignee)) &&
       (!needle || a.title.toLowerCase().includes(needle)),
   );
-  const key = SORTS[f.sortBy ?? "submittedAt"] ?? SORTS.submittedAt!;
+  const review = await reviewFacts(ctx, ws.id, rows);
+  const flagged = (a: App) => a.tags.includes("flagged") || eligibleOf(a) === "unknown" || !!review.get(a.id)?.spreadFlag;
+  if (f.view === "review_complete") rows = rows.filter((a) => review.get(a.id)?.complete);
+  if (f.view === "flagged") rows = rows.filter(flagged);
+  const key = f.sortBy === "score" ? (a: App) => review.get(a.id)?.score ?? -1 : (SORTS[f.sortBy ?? "submittedAt"] ?? SORTS.submittedAt!);
   const dir = f.sortOrder === "asc" ? 1 : -1;
   rows.sort((x, y) => (key(x) < key(y) ? -dir : key(x) > key(y) ? dir : 0));
   const slice = rows.slice(page.offset, page.offset + page.pageSize);
@@ -105,10 +113,68 @@ export async function listApplications(ctx: ServiceContext, page: PageRequest, f
   const counts: Record<string, number> = {};
   for (const a of rows) counts[a.status] = (counts[a.status] ?? 0) + 1;
   return {
-    items: slice.map((a) => summary(a, applicants.find((w) => w.id === a.applicant_workspace_id), consents.some((c) => c.applicant_workspace_id === a.applicant_workspace_id))),
+    items: slice.map((a) => {
+      const r = review.get(a.id);
+      return {
+        ...summary(a, applicants.find((w) => w.id === a.applicant_workspace_id), consents.some((c) => c.applicant_workspace_id === a.applicant_workspace_id)),
+        // Mean overall score (0–100) of the submitted reviews in the application's current stage.
+        score: r?.score ?? null,
+        reviews: { assigned: r?.assigned ?? 0, submitted: r?.submitted ?? 0, complete: r?.complete ?? false },
+        daysInStage: r?.daysInStage ?? null,
+        flagged: flagged(a),
+      };
+    }),
     total: rows.length,
     counts,
   };
+}
+
+interface ReviewFacts {
+  score: number | null;
+  assigned: number;
+  submitted: number;
+  complete: boolean;
+  spreadFlag: boolean;
+  daysInStage: number | null;
+}
+
+/** Review progress and time in stage for a set of applications, in a fixed number of queries. */
+async function reviewFacts(ctx: ServiceContext, workspaceId: string, apps: App[]): Promise<Map<string, ReviewFacts>> {
+  const out = new Map<string, ReviewFacts>();
+  if (!apps.length) return out;
+  const ids = apps.map((a) => a.id);
+  const [assignments, events] = await Promise.all([ctx.repos.table("review_assignments").find({ workspace_id: workspaceId, application_id: ids }), ctx.repos.table("application_events").find({ application_id: ids }, { orderBy: "created_at" })]);
+  const reviews = assignments.length ? (await ctx.repos.table("reviews").find({ assignment_id: assignments.map((a) => a.id) })).filter((r) => r.submitted_at) : [];
+  const rubrics = new Map<string, Rubric | null>();
+  const now = ctx.now().getTime();
+  for (const app of apps) {
+    const mine = assignments.filter((a) => a.application_id === app.id && a.stage === app.stage && a.status !== "recused");
+    const overall: number[] = [];
+    for (const a of mine) {
+      const review = reviews.find((r) => r.assignment_id === a.id);
+      if (!review) continue;
+      const k = `${a.rubric_id}:${a.rubric_version}`;
+      if (!rubrics.has(k)) {
+        const row = await ctx.repos.table("rubrics").one({ id: a.rubric_id, version: a.rubric_version });
+        rubrics.set(k, row ? toRubric(row) : null);
+      }
+      const rubric = rubrics.get(k);
+      const scored = rubric ? scoreReview(rubric, review.scores as Scores).overall : null;
+      if (scored !== null) overall.push(scored);
+    }
+    const avg = overall.length ? overall.reduce((s, x) => s + x, 0) / overall.length : null;
+    const spread = overall.length > 1 ? Math.sqrt(overall.reduce((s, x) => s + (x - avg!) ** 2, 0) / (overall.length - 1)) : 0;
+    const entered = [...events].reverse().find((e) => e.application_id === app.id && e.to_stage === app.stage)?.created_at ?? app.submitted_at;
+    out.set(app.id, {
+      score: avg === null ? null : Math.round(avg * 10) / 10,
+      assigned: mine.length,
+      submitted: overall.length,
+      complete: mine.length > 0 && mine.every((a) => a.status === "submitted"),
+      spreadFlag: spread > 15,
+      daysInStage: entered ? Math.max(0, Math.floor((now - Date.parse(entered)) / 86_400_000)) : null,
+    });
+  }
+  return out;
 }
 
 async function funderApp(ctx: ServiceContext, appId: string, scope: "applications:read" | "applications:write") {
@@ -251,6 +317,17 @@ export async function declineApplication(ctx: ServiceContext, appId: string, inp
     letter = await sendLetter(ctx, "decline", primaryEmail(passportFacts(applicant).org), { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: input.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id });
   }
   return { id: apiId("application", app.id), status: updated.status, decisionId: decision.id, letter };
+}
+
+/** The decline letter for one application as it would be sent, without sending or deciding anything. */
+export async function declineLetterPreview(ctx: ServiceContext, appId: string, rationale?: string) {
+  const { app, ws } = await funderApp(ctx, appId, "applications:read");
+  const applicant = await applicantOf(ctx, app);
+  const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
+  const consented = !!(await ctx.repos.table("consents").one({ funder_workspace_id: ws.id, applicant_workspace_id: applicant.id, revoked_at: null }));
+  const rendered = await renderLetter(ctx, "decline", { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: rationale ?? "" } }, ws.id);
+  return { applicationId: apiId("application", app.id), title: app.title, applicant: applicant.display_name, hasRecipientEmail: consented && !!primaryEmail(passportFacts(applicant).org), subject: rendered.subject, html: rendered.html, text: rendered.text };
 }
 
 const TAG = z.string().trim().min(1).max(40).regex(/^[\w .:/-]+$/u, "Use letters, digits, spaces and . : / - _");

@@ -4,6 +4,7 @@
 // projection and proposes changes to Passport; it never edits a profile locally.
 import { PassportApiError, PassportAuthError, PassportClient, PassportUnavailableError, decryptSecret, encryptSecret, refreshTokenTokens, type CgOrgChange } from "@gms/passport-client";
 import { z } from "zod";
+import { fundingOf, minorOf } from "./awards.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { STAFF_ROLES } from "./awards.ts";
@@ -24,9 +25,9 @@ async function relatedApplicants(ctx: ServiceContext, funderId: string): Promise
 
 const consented = async (ctx: ServiceContext, applicantId: string, funderId: string) => !!(await ctx.repos.table("consents").one({ applicant_workspace_id: applicantId, funder_workspace_id: funderId, revoked_at: null }));
 
-function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number }) {
+function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }) {
   const facts = payeeFactsOf(w);
-  return { workspaceId: w.id, handle: w.handle, name: w.display_name, legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
+  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, name: w.display_name, legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
 }
 
 export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { q?: string | undefined; tag?: string | undefined } = {}) {
@@ -42,7 +43,7 @@ export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { 
   ]);
   const q = f.q?.trim().toLowerCase();
   const all = workspaces
-    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }))
+    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, totalAwardedMinor: awards.filter((a) => a.recipient_workspace_id === w.id && !["cancelled", "offered"].includes(a.status)).reduce((sum, a) => sum + (minorOf(fundingOf(a).awardedAmount) ?? 0), 0), pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }))
     .filter((g) => (!q || `${g.name} ${g.legalName ?? ""} ${g.handle}`.toLowerCase().includes(q)) && (!f.tag || g.tags.includes(f.tag)))
     .sort((a, b) => a.name.localeCompare(b.name));
   return { items: all.slice(page.offset, page.offset + page.pageSize), total: all.length };

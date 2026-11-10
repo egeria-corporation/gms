@@ -159,16 +159,23 @@ export async function transitionApp(ctx: ServiceContext, app: App, action: Appli
 }
 
 /** Send one templated letter. A missing mail port or address is reported, never thrown: mail must not undo a status change. */
+/**
+ * Render one of the built-in letters as it would be sent. A workspace overrides a built-in letter
+ * by saving an email template under the same name ("Decline", "Award and agreement", …); email
+ * templates are stored as `Subject: …` + body.
+ */
+export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: keyof typeof DEFAULT_TEMPLATES, fields: Parameters<typeof renderEmail>[1], workspaceId: string) {
+  const base = DEFAULT_TEMPLATES[kind];
+  const custom = (await ctx.repos.table("templates").find({ workspace_id: workspaceId, kind: "email", name: base.name }, { orderBy: "version", ascending: false, limit: 1 }))[0];
+  const split = custom ? /^Subject: ([^\n]*)\n\n?([\s\S]*)$/.exec(custom.body) : null;
+  return renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
+}
+
 export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }): Promise<{ sent: boolean; reason?: string }> {
   if (!ctx.ports.mailer || !ctx.config.mailFrom) return { sent: false, reason: "Outbound mail is not configured" };
   if (!to) return { sent: false, reason: "The organization has no primary email in Passport" };
   try {
-    const base = DEFAULT_TEMPLATES[kind];
-    // A workspace overrides a built-in letter by saving an email template under the same name
-    // ("Decline", "Award and agreement", …). Email templates are stored as `Subject: …` + body.
-    const custom = (await ctx.repos.table("templates").find({ workspace_id: subject.workspaceId, kind: "email", name: base.name }, { orderBy: "version", ascending: false, limit: 1 }))[0];
-    const split = custom ? /^Subject: ([^\n]*)\n\n?([\s\S]*)$/.exec(custom.body) : null;
-    const rendered = renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
+    const rendered = await renderLetter(ctx, kind, fields, subject.workspaceId);
     const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
     await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: id }, subject.workspaceId);
     return { sent: true };

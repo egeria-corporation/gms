@@ -13,6 +13,7 @@ import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
+import { insightRoutes } from "./gms/insights.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
@@ -59,6 +60,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 
 // Published data for the funder pages: no token.
 gms.route("/public", publicPages);
+// Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
+gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);
 gms.route("/", designRoutes);
 gms.route("/", applicationRoutes);

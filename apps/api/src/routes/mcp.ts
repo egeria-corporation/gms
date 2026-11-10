@@ -10,6 +10,7 @@ import { fanOut, isWebhookEventType } from "@gms/webhooks";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate } from "../auth/middleware.ts";
+import { workspaceGates } from "../auth/rest-gates.ts";
 import type { WorkspaceKind } from "../auth/scopes.ts";
 import { trimSlash } from "../env.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -54,8 +55,7 @@ export function dispatcherFor(c: C): Dispatcher {
     // A workspace's settings and an API client's `gated_tools` can add gates; nothing removes one.
     gatePolicy: async ({ workspaceId }): Promise<GatePolicy> => {
       const ws = await deps.repos.table("workspaces").one({ id: workspaceId });
-      const extra = (ws?.settings as { gatedTools?: unknown } | null)?.gatedTools;
-      return { additionalGatedTools: Array.isArray(extra) ? extra.filter((t): t is string => typeof t === "string") : [] };
+      return { additionalGatedTools: workspaceGates(ws?.settings) };
     },
   });
 }

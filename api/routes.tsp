@@ -3,6 +3,7 @@ import "@typespec/rest";
 import "@common-grants/core";
 import "./models.tsp";
 import "./money.tsp";
+import "./insights.tsp";
 
 using TypeSpec.Http;
 using CommonGrants.Responses;
@@ -447,6 +448,8 @@ namespace GMS.Routes.Custom {
       @query eligible?: string,
       @query level?: VerificationLevel,
       @query tag?: string,
+      /** Named views: applications whose reviews are all in, or that are flagged (tag, unknown eligibility, or reviewer spread). Items carry `score`, `reviews`, `daysInStage` and `flagged`. */
+      @query view?: "review_complete" | "flagged",
     ): PaginatedT<GmsApplication> | AuthErrors;
 
     @get @route("/applications/{id}") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
@@ -904,6 +907,119 @@ namespace GMS.Routes.Custom {
       approve: boolean;
       note?: string;
     }): OkT<Approval> | AuthErrors | NotFound | Conflict;
+  }
+
+  @tag("Insights")
+  namespace Insights {
+    /** Proposed budget rows and attached documents for one application. */
+    @get @route("/applications/{id}/budget") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op applicationBudget(@path id: GmsId): OkT<ApplicationBudgetView> | AuthErrors | NotFound;
+
+    @get @route("/applications/{id}/documents") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op applicationDocuments(@path id: GmsId): OkT<DocumentRef[]> | AuthErrors | NotFound;
+
+    /** Revision requests, the interview and the committed decision, as the caller's side may see them. */
+    @get @route("/applications/{id}/follow-ups") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op followUps(@path id: GmsId): OkT<ApplicationFollowUps> | AuthErrors | NotFound;
+
+    /** The funder offers interview times. */
+    @post @route("/applications/{id}/interview") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
+    op proposeInterview(@path id: GmsId, @body body: InterviewProposal): CreatedT<InterviewState> | BadRequest | AuthErrors | NotFound;
+
+    @get @route("/programs/{id}/rollup") @useAuth(GmsOAuth<["programs:read"]> | UserSession)
+    op programRollup(@path id: CommonGrants.Types.uuid): OkT<ProgramRollup> | AuthErrors | NotFound;
+
+    @get @route("/competitions/{id}/reviewers") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
+    op reviewerPool(@path id: GmsId): OkT<ReviewerPool> | AuthErrors | NotFound;
+
+    /** Per-criterion means per application and where the stage's decisions stand. */
+    @get @route("/competitions/{id}/panel-summary") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
+    op panelSummary(@path id: GmsId, @query stage?: string): OkT<PanelSummary> | AuthErrors | NotFound;
+
+    /** Panel discussion notes: internal to the funder. */
+    @get @route("/competitions/{id}/notes") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
+    op listPanelNotes(@path id: GmsId): OkT<Note[]> | AuthErrors | NotFound;
+
+    @post @route("/competitions/{id}/notes") @useAuth(UserSession)
+    op addPanelNote(@path id: GmsId, @body body: NoteInput): CreatedT<Note> | BadRequest | AuthErrors | NotFound;
+
+    /** Ledger events for the award and its agreements, tranches and requirements, newest first. */
+    @get @route("/awards/{id}/activity") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op awardActivity(@path id: GmsId): OkT<ActivityEntry[]> | AuthErrors | NotFound;
+
+    @get @route("/awards/{id}/signatures") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op awardSignatures(@path id: GmsId): OkT<SignatureRecord[]> | AuthErrors | NotFound;
+
+    @get @route("/awards/{id}/closeout") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op awardCloseout(@path id: GmsId): OkT<AwardCloseout> | AuthErrors | NotFound;
+
+    /** The closeout summary as a PDF. The same record prints the same bytes. */
+    @get @route("/awards/{id}/closeout.pdf") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op awardCloseoutPdf(@path id: GmsId): { @statusCode _: 200; @header contentType: "application/pdf"; @body body: bytes } | AuthErrors | NotFound;
+
+    /** Agreements and files on an award, for either party. Also at `/my/awards/{id}/documents`. */
+    @get @route("/awards/{id}/documents") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op awardDocuments(@path id: GmsId): OkT<AwardDocument[]> | AuthErrors | NotFound;
+
+    /** The shared thread between funder and grantee on one award. Also at `/my/awards/{id}/messages`. */
+    @get @route("/awards/{id}/messages") @useAuth(GmsOAuth<["messages:read"]> | UserSession)
+    op listAwardMessages(@path id: GmsId): OkT<Note[]> | AuthErrors | NotFound;
+
+    @post @route("/awards/{id}/messages") @useAuth(GmsOAuth<["messages:write"]> | UserSession)
+    op postAwardMessage(@path id: GmsId, @body body: NoteInput): CreatedT<Note> | BadRequest | AuthErrors | NotFound;
+
+    /** Tranches falling due in the next `days` days (default 30). */
+    @get @route("/payments/upcoming") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
+    op upcomingPayments(@query days?: int32): OkT<UpcomingPayments> | AuthErrors;
+
+    /** Every ledger event about a tranche, newest first. */
+    @get @route("/payments/ledger") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
+    op paymentsLedger(...PageParams): PaginatedT<ActivityEntry> | AuthErrors;
+
+    @get @route("/grantees/{granteeId}/reports") @useAuth(GmsOAuth<["grantees:read"]> | UserSession)
+    op granteeReports(@path granteeId: CommonGrants.Types.uuid): OkT<GranteeReport[]> | AuthErrors;
+
+    /** Awards by region, reviewer load, and tax status and budget band from records shared through Passport. */
+    @get @route("/analytics/breakdowns") @useAuth(GmsOAuth<["analytics:read"]> | UserSession)
+    op breakdowns(): OkT<Breakdowns> | AuthErrors;
+
+    @get @route("/templates/usage") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
+    op templateUsage(): OkT<TemplateUsage[]> | AuthErrors;
+
+    /** Send one template to every application in a view. People only; `dryRun` previews recipients. */
+    @post @route("/communications/bulk") @useAuth(UserSession)
+    op bulkSend(@body body: BulkSendRequest): OkT<Record<unknown>> | BadRequest | AuthErrors | Unprocessable;
+
+    /** The workspace's recent ledger activity in words, for the dashboard. Staff only. */
+    @get @route("/activity") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op recentActivity(@query limit?: int32): OkT<ActivityEntry[]> | AuthErrors;
+
+    /** What approving would do: affected applications and, for a decline, each letter. */
+    @get @route("/approvals/{id}/preview") @useAuth(UserSession)
+    op approvalPreview(@path id: string): OkT<ApprovalPreview> | AuthErrors | NotFound;
+
+    /** Funders by consent, connected agents and the team, in one read. */
+    @get @route("/me/access") @useAuth(GmsOAuth<["org:read"]> | UserSession)
+    op whoHasAccess(): OkT<AccessOverview> | AuthErrors;
+
+    @get @route("/my/funders/detail") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op myFundersDetail(): OkT<FunderRelationship[]> | AuthErrors;
+
+    @get @route("/my/applications/{id}/follow-ups") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op myFollowUps(@path id: GmsId): OkT<ApplicationFollowUps> | AuthErrors | NotFound;
+
+    /** The applicant picks one of the offered times. */
+    @post @route("/my/applications/{id}/interview/confirm") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
+    op confirmInterview(@path id: GmsId, @body body: InterviewConfirmation): OkT<InterviewState> | BadRequest | AuthErrors | NotFound | Unprocessable;
+
+    @get @route("/discover/alerts") @useAuth(GmsOAuth<["discovery"]> | UserSession)
+    op listAlerts(): OkT<FundingAlert[]> | AuthErrors;
+
+    @post @route("/discover/alerts") @useAuth(GmsOAuth<["discovery"]> | UserSession)
+    op createAlert(@body body: FundingAlertInput): CreatedT<FundingAlert> | BadRequest | AuthErrors | Unprocessable;
+
+    @delete @route("/discover/alerts/{alertId}") @useAuth(GmsOAuth<["discovery"]> | UserSession)
+    op deleteAlert(@path alertId: CommonGrants.Types.uuid): OkT<Record<unknown>> | AuthErrors | NotFound;
   }
 
   @tag("Assistant")

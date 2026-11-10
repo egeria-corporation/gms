@@ -47,7 +47,17 @@ export const opportunityInput = z
     keyDates: json.optional(),
     acceptedApplicantTypes: z.array(z.enum(APPLICANT_TYPES)).optional(),
     eligibilityRules: z.unknown().optional(),
-    publish: z.object({ publicPage: z.boolean().optional(), openGrantsIndex: z.boolean().optional(), sitemap: z.boolean().optional() }).strict().optional(),
+    publish: z
+      .object({
+        publicPage: z.boolean().optional(),
+        openGrantsIndex: z.boolean().optional(),
+        sitemap: z.boolean().optional(),
+        /** Shown on the public opportunity page only; never part of the CommonGrants record. */
+        faq: z.array(z.object({ question: z.string().trim().min(1).max(300), answer: z.string().trim().min(1).max(5000) }).strict()).max(50).optional(),
+        documents: z.array(z.object({ name: z.string().trim().min(1).max(200), url: z.url().refine((u) => u.startsWith("https://"), "Use an https link") }).strict()).max(20).optional(),
+      })
+      .strict()
+      .optional(),
     customFields: json.optional(),
   })
   .strict();

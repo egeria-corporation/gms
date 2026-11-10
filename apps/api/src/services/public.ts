@@ -127,11 +127,20 @@ export async function cgGetForm(ctx: PublicContext, id: string, version?: number
 
 /** Versions of a form pinned by requirements on awards the workspace gave or received. */
 async function requirementFormVersions(ctx: PublicContext, formId: string, workspaceId: string): Promise<Set<number>> {
+  const out = new Set<number>();
   const reqs = await ctx.repos.table("requirements").find({ form_id: formId });
-  if (!reqs.length) return new Set();
-  const awards = await ctx.repos.table("awards").find({ id: [...new Set(reqs.map((r) => r.award_id))] });
-  const mine = new Set(awards.filter((a) => a.recipient_workspace_id === workspaceId || a.workspace_id === workspaceId).map((a) => a.id));
-  return new Set(reqs.filter((r) => mine.has(r.award_id) && r.form_version !== null).map((r) => r.form_version as number));
+  if (reqs.length) {
+    const awards = await ctx.repos.table("awards").find({ id: [...new Set(reqs.map((r) => r.award_id))] });
+    const mine = new Set(awards.filter((a) => a.recipient_workspace_id === workspaceId || a.workspace_id === workspaceId).map((a) => a.id));
+    for (const r of reqs) if (mine.has(r.award_id) && r.form_version !== null) out.add(r.form_version as number);
+  }
+  // A report a grantee shared with this funder: the funder reads the form its answers were given on.
+  const shared = (await ctx.repos.table("submissions").find({ workspace_id: workspaceId })).filter((s) => s.shared_from_submission_id !== null);
+  if (shared.length) {
+    const responses = await ctx.repos.table("form_responses").find({ submission_id: shared.map((s) => s.id), form_id: formId });
+    for (const r of responses) out.add(r.form_version);
+  }
+  return out;
 }
 
 const brandOf = (w: Row<"workspaces">) => {
@@ -158,8 +167,36 @@ async function activeFunder(ctx: PublicContext, handle: string) {
 export async function funderPage(ctx: PublicContext, handle: string) {
   const w = await activeFunder(ctx, handle);
   const opps = (await ctx.repos.table("opportunities").find({ workspace_id: w.id }, { notNull: ["published_at"], orderBy: "published_at", ascending: false })).filter((o) => publishFlag(o, "publicPage"));
-  return { funder: publicFunder(w), opportunities: opps.map(card) };
+  const cards = opps.map(card);
+  return {
+    funder: publicFunder(w),
+    opportunities: cards,
+    open: cards.filter((o) => o.status === "open"),
+    forecasted: cards.filter((o) => o.status === "forecasted"),
+    closed: cards.filter((o) => o.status === "closed"),
+    pastAwards: await pastAwards(ctx, w),
+  };
 }
+
+/**
+ * Awards a funder chose to publish (`settings.transparency`): recipient name, title, amount, year.
+ * Null when the funder has not turned transparency on, so the page can omit the section.
+ */
+async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
+  if ((w.settings as { transparency?: unknown } | null)?.transparency !== true) return null;
+  const awards = (await ctx.repos.table("awards").find({ workspace_id: w.id }, { orderBy: "created_at", ascending: false, limit: 200 })).filter((a) => ["active", "completed"].includes(a.status) && a.recipient_workspace_id);
+  const names = await funders(ctx, awards.map((a) => a.recipient_workspace_id as string));
+  return awards.map((a) => {
+    const f = (a.funding ?? {}) as { awardedAmount?: { amount: string; currency: string } };
+    const start = ((a.key_dates ?? {}) as { awardDate?: { date?: string } }).awardDate?.date ?? a.created_at;
+    return { recipient: names.get(a.recipient_workspace_id as string)?.display_name ?? null, title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
+  });
+}
+
+const pageExtras = (o: Opp) => {
+  const p = (o.publish ?? {}) as { faq?: unknown; documents?: unknown };
+  return { faq: Array.isArray(p.faq) ? p.faq : [], documents: Array.isArray(p.documents) ? p.documents : [] };
+};
 
 function ruleLabels(rule: Rule | null): string[] {
   if (!rule) return [];
@@ -183,7 +220,7 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   }
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null) },
+    opportunity: { ...card(opp), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,

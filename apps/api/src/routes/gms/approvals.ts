@@ -9,7 +9,9 @@ import { authenticate } from "../../auth/middleware.ts";
 import type { WorkspaceKind } from "../../auth/scopes.ts";
 import { ApiError, notFound, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { parse } from "../../lib/input.ts";
+import { uuidOf } from "../../lib/ids.ts";
 import * as approvals from "../../services/approvals.ts";
+import * as inbox from "../../services/inbox.ts";
 import type { approvalFromRow } from "../../services/mcp-layer.ts";
 import { jsonBody, page, svc } from "../http.ts";
 import { dispatcherFor, registry } from "../mcp.ts";
@@ -32,6 +34,29 @@ approvalRoutes.get("/approvals", async (c) => {
 });
 
 approvalRoutes.get("/approvals/:id", async (c) => c.json(ok(view(await approvals.getApproval(await svc(c), c.req.param("id"), scopeOf), c.env.WEB_BASE_URL))));
+
+/**
+ * What approving would do, for the approvals screen: the applications a request touches and, for a
+ * decline, the letter each would receive. Reads through the same rules as the approval itself.
+ */
+approvalRoutes.get("/approvals/:id/preview", async (c) => {
+  const ctx = await svc(c);
+  const approval = await approvals.getApproval(ctx, c.req.param("id"), scopeOf);
+  const input = (approval.input ?? {}) as { applicationId?: unknown; applicationIds?: unknown; rationale?: unknown; params?: { rationale?: unknown } };
+  const ids = [...(typeof input.applicationId === "string" ? [input.applicationId] : []), ...(Array.isArray(input.applicationIds) ? input.applicationIds.filter((x): x is string => typeof x === "string") : [])];
+  const rationale = typeof input.rationale === "string" ? input.rationale : typeof input.params?.rationale === "string" ? input.params.rationale : undefined;
+  const letters = [];
+  if (approval.tool === "decline_application") {
+    for (const id of ids.slice(0, 50)) {
+      try {
+        letters.push(await inbox.declineLetterPreview(ctx, uuidOf("application", id, "Application"), rationale));
+      } catch {
+        // An application the reader cannot see, or that no longer exists, is left out of the preview.
+      }
+    }
+  }
+  return c.json(ok({ approval: view(approval, c.env.WEB_BASE_URL), affected: ids.length, letters }));
+});
 
 const decisionInput = z.object({ approve: z.boolean(), note: z.string().trim().max(2000).optional() }).strict();
 

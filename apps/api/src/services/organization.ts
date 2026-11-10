@@ -69,6 +69,9 @@ export const consentStartInput = z
  * Step 1: where to send the browser. The PKCE verifier and who started the flow travel in `state`,
  * sealed with the server's credentials key, so the callback needs no session and no table.
  */
+/** The scopes the applicant is asked for at Passport; `payee:read` only when the install opted in. */
+export const consentScopes = (ctx: Pick<ServiceContext, "config">): string[] => [...APPLICANT_CONSENT_SCOPES, ...(ctx.config.applicantPayeeRead ? ["payee:read"] : [])];
+
 export async function startConsent(ctx: ServiceContext, input: z.output<typeof consentStartInput>) {
   await authorize(ctx, { person: true });
   const cfg = configured(ctx);
@@ -80,7 +83,8 @@ export async function startConsent(ctx: ServiceContext, input: z.output<typeof c
   const { verifier, challenge } = await createPkce();
   const sealed: SealedState = { u: ctx.actor.userId!, v: verifier, w: input.workspaceId ?? null, r: input.returnTo ?? null, exp: ctx.now().getTime() + STATE_TTL_MS };
   const state = await encryptSecret(JSON.stringify(sealed), cfg.key);
-  return { authorizeUrl: buildAuthorizeUrl({ baseUrl: cfg.baseUrl, clientId: cfg.client.id, redirectUri: cfg.redirectUri, state, codeChallenge: challenge }), scopes: [...APPLICANT_CONSENT_SCOPES], expiresInSeconds: STATE_TTL_MS / 1000 };
+  const scopes = consentScopes(ctx);
+  return { authorizeUrl: buildAuthorizeUrl({ baseUrl: cfg.baseUrl, clientId: cfg.client.id, redirectUri: cfg.redirectUri, state, codeChallenge: challenge, scopes }), scopes, expiresInSeconds: STATE_TTL_MS / 1000 };
 }
 
 const einOf = (org: CgOrganization): string | null => {

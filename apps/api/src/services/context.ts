@@ -55,6 +55,12 @@ export interface ServiceConfig {
   inboundDomain?: string | null;
   /** Mirror accepted awards into Passport (`POST /passport/funders/{orgId}/awards`). Off until Passport serves the route. */
   passportAwardWrite?: boolean;
+  /**
+   * PASSPORT_APPLICANT_PAYEE_READ. When true the applicant's Passport consent also asks for
+   * `payee:read`, so people see their own payout destination status (bank name and last four) in
+   * the GMS. Off by default: it widens the consent beyond the three scopes in the build spec.
+   */
+  applicantPayeeRead?: boolean;
   /** ASSISTANT_ENABLED. When false the assist routes answer 404 and the web app hides its panels. */
   assistantEnabled?: boolean;
 }

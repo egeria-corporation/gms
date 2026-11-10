@@ -102,6 +102,7 @@ applicationRoutes.get("/applications", async (c) => {
     tag: q("tag"),
     ...(assignee ? { assignee: assignee === "unassigned" ? assignee : bareUuid(assignee, "Member") } : {}),
     q: q("q"),
+    view: q("view"),
     sortBy: q("sortBy"),
     sortOrder: q("sortOrder"),
   });
