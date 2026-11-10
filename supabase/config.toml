@@ -1,0 +1,43 @@
+# Local Supabase stack for OpenGrants GMS. Reference: https://supabase.com/docs/guides/local-development/cli/config
+# Ports are offset from Passport's (5632x) so both stacks can run side by side.
+project_id = "gms"
+
+[api]
+enabled = true
+port = 57321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 57322
+shadow_port = 57320
+major_version = 17
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 57323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[storage]
+enabled = true
+# Attachments up to 25 MB live in Supabase Storage; larger files and archives go to R2.
+file_size_limit = "25MiB"
