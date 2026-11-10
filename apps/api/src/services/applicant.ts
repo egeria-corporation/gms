@@ -2,11 +2,12 @@
 // Applicant workflow beyond the protocol routes: the applications list and status timeline,
 // section assignments, field comments, attachments, withdrawing, the answer library, and finding
 // funding (open competitions here, and OpenGrants through its hosted MCP).
+import { parsePointer, setAt, type JsonObject } from "@gms/forms";
 import { readPath } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, access, passportFacts, responsesOf, runRules, stageForms, stagesOf, transitionApp } from "./apply.ts";
+import { type App, access, passportFacts, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { OpenGrantsUnavailableError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
@@ -66,7 +67,7 @@ export async function getMyApplicationStatus(ctx: ServiceContext, appId: string)
     submittedAt: app.submitted_at,
     stages: stages.map((s, i) => ({ key: s.key, label: s.label, opens: s.opens ?? null, closes: s.closes ?? null, state: i < at ? "done" : i === at ? "current" : "upcoming" })),
     // The applicant sees what happened, not the funder's working notes.
-    timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, at: e.created_at, message: e.type === "request_revision" ? ((e.payload as { message?: string }).message ?? null) : null })),
+    timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, at: e.created_at, message: e.type === "request_revision" ? ((e.payload as { message?: string }).message ?? null) : null, revision: revisionOf(e) })),
   };
 }
 
@@ -93,6 +94,14 @@ export async function assignSection(ctx: ServiceContext, appId: string, formUuid
   }
   await ctx.repos.table("form_responses").update({ id: row.id }, { section_assignments: assignments });
   return { formId: apiId("form", formUuid), sections: assignments };
+}
+
+/** Who owns which section, per form of the application. Both sides can read it; only the applicant sets it. */
+export async function listSectionAssignments(ctx: ServiceContext, appId: string) {
+  const { app, ws, side } = await access(ctx, appId, "applications:read");
+  // Reviewers see the answers they score, not how the applicant's team divided the work.
+  if (side === "funder" && ws.role && ["reviewer", "external_reviewer"].includes(ws.role)) throw new ApiError(403, "insufficient_role", "Reviewers cannot see section assignments");
+  return (await responsesOf(ctx, app.id)).map((r) => ({ formId: apiId("form", r.form_id), stage: r.stage, sections: r.section_assignments as Record<string, string> }));
 }
 
 async function commentThread(ctx: ServiceContext, app: App, create: boolean) {
@@ -198,6 +207,35 @@ export async function updateAnswer(ctx: ServiceContext, answerId: string, input:
   const versions = await ctx.repos.table("answers").find({ workspace_id: ws.id, key: current.key }, { orderBy: "version", ascending: false, limit: 1 });
   const next = await ctx.repos.table("answers").insert({ workspace_id: ws.id, key: current.key, title: input.title ?? current.title, body: input.body ?? current.body, version: (versions[0]?.version ?? current.version) + 1, used_in: current.used_in });
   return answerView(next);
+}
+
+type Use = { applicationId: string; formId: string; path: string; version: number; insertedAt: string };
+export const insertAnswerInput = z.object({ answerId: z.uuid(), path: z.string().regex(/^(\/[^/]+)+$/).max(500) }).strict();
+
+/**
+ * Put a library answer into one field of a form. The field's provenance becomes `library`, and the
+ * answer records where it was used (application, form, field, version), which is how the answer id
+ * is kept: provenance values are a fixed vocabulary and carry no ids.
+ */
+export async function insertAnswer(ctx: ServiceContext, appId: string, formUuid: string, input: z.output<typeof insertAnswerInput>) {
+  const { app, ws } = await applicantApp(ctx, appId, "applications:write");
+  if (!ctx.scopes.includes("library:read")) throw new ApiError(403, "insufficient_scope", "This action needs the library:read scope");
+  const answer = required(await ctx.repos.table("answers").one({ id: input.answerId, workspace_id: ws.id }), "Answer");
+  const segs = parsePointer(input.path);
+  const patch: JsonObject = {};
+  setAt(patch, segs, answer.body);
+  const { formResponse, changed, rejected } = await writeFormResponse(ctx, app, formUuid, patch, "library");
+  if (rejected.length) throw new ApiError(422, "field_follows_passport", "This field follows Passport and cannot be edited here");
+  const use: Use = { applicationId: app.id, formId: formUuid, path: input.path, version: answer.version, insertedAt: ctx.now().toISOString() };
+  const uses = [...(answer.used_in as unknown as Use[]).filter((u) => !(u.applicationId === app.id && u.formId === formUuid && u.path === input.path)), use];
+  // The same field can hold only one answer: drop it from any other answer that was there before.
+  for (const other of await ctx.repos.table("answers").find({ workspace_id: ws.id })) {
+    if (other.id === answer.id) continue;
+    const kept = (other.used_in as unknown as Use[]).filter((u) => !(u.applicationId === app.id && u.formId === formUuid && u.path === input.path));
+    if (kept.length !== (other.used_in as unknown[]).length) await ctx.repos.table("answers").update({ id: other.id }, { used_in: kept as unknown as Row<"answers">["used_in"] });
+  }
+  const [saved] = await ctx.repos.table("answers").update({ id: answer.id }, { used_in: uses as unknown as Row<"answers">["used_in"] });
+  return { formResponse, path: input.path, provenance: "library" as const, changed: changed.length > 0, answer: answerView(saved ?? answer) };
 }
 
 // ------------------------------------------------------------------------------------ discovery

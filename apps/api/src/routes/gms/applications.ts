@@ -9,6 +9,7 @@ import { authenticate, requireUser } from "../../auth/middleware.ts";
 import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid, uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
+import * as notifications from "../../services/notifications.ts";
 import * as applicant from "../../services/applicant.ts";
 import * as collab from "../../services/collaboration.ts";
 import * as inbox from "../../services/inbox.ts";
@@ -30,7 +31,7 @@ applicationRoutes.get("/passport/consent/callback", async (c) => {
   return c.redirect(outcome.redirect, 302);
 });
 
-for (const prefix of ["me/organization", "me/readiness", "my", "discover", "applications", "threads", "tasks"]) {
+for (const prefix of ["me/organization", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
   applicationRoutes.use(`/${prefix}`, authenticate());
   applicationRoutes.use(`/${prefix}/*`, authenticate());
 }
@@ -43,10 +44,21 @@ applicationRoutes.get("/my/consents", async (c) => c.json(ok(await org.listMyCon
 applicationRoutes.delete("/my/consents/:consentId", async (c) => c.json(ok(await org.revokeMyConsent(await svc(c), bareUuid(c.req.param("consentId"), "Consent")))));
 applicationRoutes.get("/my/funders", async (c) => c.json(ok(await org.listMyFunders(await svc(c)))));
 
+// ---- notifications (both sides) ----
+applicationRoutes.get("/notifications", async (c) => c.json(ok(await notifications.listNotifications(await svc(c), { unread: c.req.query("unread") === "true" }))));
+applicationRoutes.post("/notifications/read", async (c) => c.json(ok(await notifications.markRead(await svc(c), parse(notifications.readInput, await jsonBody(c))))));
+applicationRoutes.get("/me/notification-preferences", async (c) => c.json(ok(await notifications.getPreferences(await svc(c)))));
+applicationRoutes.put("/me/notification-preferences", async (c) => c.json(ok(await notifications.putPreferences(await svc(c), parse(notifications.preferencesInput, await jsonBody(c))))));
+
 // ---- the applicant's applications ----
 applicationRoutes.get("/my/applications", async (c) => c.json(ok(await applicant.listMyApplications(await svc(c)))));
 applicationRoutes.get("/my/applications/:id/status", async (c) => c.json(ok(await applicant.getMyApplicationStatus(await svc(c), appId(c)))));
 applicationRoutes.post("/my/applications/:id/withdraw", async (c) => c.json(ok(await applicant.withdrawApplication(await svc(c), appId(c)))));
+applicationRoutes.get("/my/applications/:id/sections", async (c) => c.json(ok(await applicant.listSectionAssignments(await svc(c), appId(c)))));
+applicationRoutes.get("/applications/:id/sections", async (c) => c.json(ok(await applicant.listSectionAssignments(await svc(c), appId(c)))));
+applicationRoutes.post("/my/applications/:id/forms/:formId/insert-answer", async (c) =>
+  c.json(ok(await applicant.insertAnswer(await svc(c), appId(c), uuidOf("form", c.req.param("formId"), "Form"), parse(applicant.insertAnswerInput, await jsonBody(c))))),
+);
 applicationRoutes.post("/my/applications/:id/sections/assign", async (c) => {
   const input = parse(applicant.sectionAssignInput, await jsonBody(c));
   return c.json(ok(await applicant.assignSection(await svc(c), appId(c), uuidOf("form", input.formId, "Form"), input)));

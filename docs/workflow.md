@@ -56,7 +56,7 @@ document SHA-256 equal to the one that was sent.
 ## Tranche
 
 `scheduled → due → ready → releasing → initiated → settled`; `due|ready → held → due`;
-`releasing → failed → due`; `initiated → failed | returned`; `record_external` moves `due|ready →
+`releasing → failed → due`; `initiated → failed | returned`; `settled → returned` (an ACH return after settlement); `record_external` moves `due|ready →
 settled` with `mode = resolve`; `cancel` from scheduled, due, ready, held or failed. `release` is
 funder-only and needs a passed readiness check and an idempotency key.
 

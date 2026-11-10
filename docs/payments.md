@@ -65,3 +65,12 @@ Read from the `egeria-corporation/passport` source on 2026-11-10, not from the t
 - Passport's hold reason is `destination_change_in_flight`; the GMS's own hold reason for the same cause is `pending_destination_change`. A tranche held by Passport carries Passport's reason in `hold_reason`, so the web layer must map both to the pending-destination-change banner.
 - `packages/passport-client` does not depend on `@gms/workflow`; it declares `PassportLevel`, the same union as `VerificationLevel`.
 - The fixtures under `packages/passport-client/test/fixtures` were written from Passport's source, not recorded from the test deployment. Re-record them once credentials for the test deployment are available. Nothing in these packages has run against a live Passport.
+
+## Routes and jobs (Phase 4)
+
+- Routes are in `apps/api/src/routes/gms/money.ts`; the services are `payments.ts`, `tranches.ts`, `requirements.ts`, `budgets.ts`. `applyTrancheUpdate` is the only writer of a tranche status: it walks each `TrancheUpdate` path through `trancheMachine` (guard → write → ledger → webhook) and then writes the non-status facts (disbursement id, hold reason, Passport status).
+- **Who may release.** `releaseTranche`, `recordExternalPayment` and `matchBankTransaction` refuse every caller that is not a signed-in person. An agent's `release_tranche` becomes a pending approval and runs as the person who approves it.
+- **Pending destination change.** `payee.destination.change_requested` caches `{ bankName, last4, requestedAt }` on the recipient workspace (`settings.passportPayee.pendingDestinationChange`). Release is blocked while it is set, even if a credential read says otherwise. `payee.destination.changed` clears it. No destination is stored.
+- **`disbursedAmount`** is written only by `refreshDisbursed`, which copies the figure from the Passport award. No GMS code adds to it.
+- **Jobs** (`apps/jobs`, sharing the services through `@gms/api/jobs`): tranches due (every 5 min), webhook delivery and bank polling (every 15 min), requirement status and reminders (hourly), Passport sync and org-change poll (every 6 h), ledger archive to R2 (02:30 UTC). A reminder is sent once per `(requirement, due date, offset)`: `reminder_sends` has a unique key and the mailer gets the same idempotency key, so a retried job sends nothing twice.
+- The tranche machine now allows `settled → returned` (an ACH return can arrive after settlement), plus the Passport hold transitions listed under Open points.

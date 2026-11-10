@@ -86,22 +86,42 @@ export async function revokeApiClient(ctx: ServiceContext, id: string) {
 
 // ------------------------------------------------------------------------------------ MCP connections
 
-const connectionView = (c: Row<"mcp_connections">) => ({ id: c.id, clientId: c.client_id, userId: c.user_id, scopes: c.scopes, lastUsedAt: c.last_used_at, revokedAt: c.revoked_at, createdAt: c.created_at });
+type Conn = Row<"mcp_connections">;
 
+async function connectionViews(ctx: ServiceContext, rows: Conn[]) {
+  const clients = rows.length ? await ctx.repos.table("oauth_clients_dynamic").find({ id: [...new Set(rows.map((r) => r.client_id))] }) : [];
+  return rows.map((c) => {
+    const client = clients.find((x) => x.id === c.client_id);
+    return { id: c.id, clientId: c.client_id, clientName: client?.client_name ?? null, clientUri: client?.client_uri ?? null, userId: c.user_id, mine: c.user_id === ctx.actor.userId, scopes: c.scopes, lastUsedAt: c.last_used_at, revokedAt: c.revoked_at, createdAt: c.created_at };
+  });
+}
+
+/** Admins manage every agent connected to the workspace; any other member manages the ones they connected. */
+async function connectionScope(ctx: ServiceContext): Promise<{ ws: ServiceWorkspace; all: boolean }> {
+  if (ctx.scopes.includes("workspace:admin") && (ctx.workspace?.role === "admin" || ctx.workspace?.role === null)) return { ws: await admin(ctx), all: true };
+  const ws = await authorize(ctx, { person: true });
+  if (!ws) throw new ApiError(403, "workspace_required", "Name a workspace for this action");
+  return { ws, all: false };
+}
+
+/** The agents connected to this workspace, on either side: all of them for an admin, the member's own otherwise. */
 export async function listMcpConnections(ctx: ServiceContext) {
-  const ws = await admin(ctx);
-  return (await ctx.repos.table("mcp_connections").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false })).map(connectionView);
+  const { ws, all } = await connectionScope(ctx);
+  const rows = await ctx.repos.table("mcp_connections").find({ workspace_id: ws.id, ...(all ? {} : { user_id: ctx.actor.userId! }) }, { orderBy: "created_at", ascending: false });
+  return connectionViews(ctx, rows);
 }
 
 /** Revoke an agent's connection. Its OAuth grant is revoked with it, so its tokens stop working at the next refresh. */
 export async function revokeMcpConnection(ctx: ServiceContext, id: string) {
-  const ws = await admin(ctx, { person: true });
+  // An agent never disconnects an agent: only a signed-in person does.
+  if (ctx.actor.kind !== "user") throw new ApiError(403, "person_required", "This action must be taken by a signed-in person");
+  const { ws, all } = await connectionScope(ctx);
   const now = ctx.now().toISOString();
-  const [row] = await ctx.repos.table("mcp_connections").update({ id, workspace_id: ws.id, revoked_at: null }, { revoked_at: now });
+  const [row] = await ctx.repos.table("mcp_connections").update({ id, workspace_id: ws.id, revoked_at: null, ...(all ? {} : { user_id: ctx.actor.userId! }) }, { revoked_at: now });
   if (!row) throw notFound("MCP connection");
   if (row.grant_id) await ctx.repos.table("oauth_grants").update({ id: row.grant_id }, { revoked_at: now });
   await audit(ctx, "mcp_connection.revoked", "mcp_connection", id, { clientId: row.client_id });
-  return connectionView(row);
+  return (await connectionViews(ctx, [row]))[0]!;
 }
 
 // ------------------------------------------------------------------------------------ custom MCP servers

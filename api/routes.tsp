@@ -828,10 +828,11 @@ namespace GMS.Routes.Custom {
     @get @route("/webhooks/{id}/deliveries") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op listDeliveries(@path id: string): OkT<WebhookDeliveryView[]> | AuthErrors | NotFound;
 
+    /** Agents connected to the workspace, on either side: all of them for an admin, the caller's own otherwise. */
     @get @route("/mcp-connections") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op listMcpConnections(): OkT<McpConnectionView[]> | AuthErrors;
 
-    /** Revokes the agent's connection and its OAuth grant. */
+    /** Revokes the agent's connection and its OAuth grant. Admins revoke any; other members their own. */
     @delete @route("/mcp-connections/{id}") @useAuth(UserSession)
     op revokeMcpConnection(@path id: string): OkT<McpConnectionView> | AuthErrors | NotFound;
 
@@ -957,6 +958,30 @@ namespace GMS.Routes.Custom {
 
     @get @route("/my/applications") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
     op myApplications(): OkT<MyApplication[]> | AuthErrors;
+
+    @get @route("/my/applications/{id}/sections") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op mySectionAssignments(@path id: GmsId): OkT<FormSectionAssignments[]> | AuthErrors | NotFound;
+
+    /** The same assignments for the funder's staff (not reviewers). */
+    @get @route("/applications/{id}/sections") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
+    op sectionAssignments(@path id: GmsId): OkT<FormSectionAssignments[]> | AuthErrors | NotFound;
+
+    /** Put a library answer into one field. Its provenance becomes `library`; the answer records the use. */
+    @post @route("/my/applications/{id}/forms/{formId}/insert-answer") @useAuth(GmsOAuth<["applications:write", "library:read"]> | UserSession)
+    op insertAnswer(@path id: GmsId, @path formId: GmsId, @body body: InsertAnswerInput): OkT<InsertAnswerResult> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
+
+    /** The member's notifications, derived from the ledger and from events on their applications. */
+    @get @route("/notifications") @useAuth(UserSession)
+    op listNotifications(@query unread?: boolean): OkT<NotificationList> | AuthErrors;
+
+    @post @route("/notifications/read") @useAuth(UserSession)
+    op markNotificationsRead(@body body: NotificationReadInput): OkT<{ unread: int32 }> | BadRequest | AuthErrors;
+
+    @get @route("/me/notification-preferences") @useAuth(UserSession)
+    op getNotificationPreferences(): OkT<NotificationPreferences> | AuthErrors;
+
+    @put @route("/me/notification-preferences") @useAuth(UserSession)
+    op putNotificationPreferences(@body body: NotificationPreferences): OkT<NotificationPreferences> | BadRequest | AuthErrors;
 
     @post @route("/my/applications/{id}/sections/assign") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op assignSections(@path id: GmsId, @body body: SectionAssignment): OkT<SectionAssignment> | BadRequest | AuthErrors | NotFound;

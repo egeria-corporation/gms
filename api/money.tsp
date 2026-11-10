@@ -635,7 +635,13 @@ model ApiClientCreate {
 model McpConnectionView {
   id: CommonGrants.Types.uuid;
   clientId: string;
+  clientName: string | null;
+  clientUri: string | null;
   userId: string;
+
+  /** True when the caller connected this agent */
+  mine: boolean;
+
   scopes: string[];
   lastUsedAt: utcDateTime | null;
   revokedAt: utcDateTime | null;

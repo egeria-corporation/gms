@@ -143,25 +143,70 @@ communications are **people only**: a client-credentials or delegated (agent) to
 | `GET/POST /gms/templates`, `GET /gms/templates/{id}`, `POST /gms/templates/{id}/render` | `communications:write` | Immutable versions; built-ins under `builtin:*`; 422 lists missing merge fields |
 | `POST /gms/communications/send`, `GET /gms/communications` | `communications:write` (send: staff, person) | Nothing is sent unless every letter renders; the log is read from the ledger |
 
-Placeholder (every other `/gms/*` path answers 501). Funder side:
+### Payments, requirements, budgets (Phase 4)
+
+Release, record-external and bank match are **human only**: the service refuses any caller that is not a signed-in person (`403 human_only`), whatever scopes the token has. Through MCP, `release_tranche` and `record_external_payment` create a pending approval and run as the approver.
+
+| Route | Scope (role) | Notes |
+|---|---|---|
+| `GET/PUT /gms/awards/{id}/schedule` | `payments:read` / `payments:release` (admin, finance) | Tranches must sum to the award; settled tranches are not replaced |
+| `GET /gms/tranches` | `payments:read` | Filters `awardId`, `status`, `dueBefore` |
+| `GET /gms/tranches/{id}/readiness` | `payments:read` | Seven checks, each `pass` / `fail` / `unknown`, with `summary.releasable` and the hold banner |
+| `POST /gms/tranches/{id}/release` | `payments:release` (person) | `{ rail?, confirmDuplicate? }`. Idempotent: the tranche id is Passport's `Idempotency-Key`. `409 not_ready` carries the failing checks |
+| `POST /gms/tranches/{id}/record-external` | `payments:release` (person) | `{ reference, paidAt, destinationLast4 }` → Passport resolve mode |
+| `POST /gms/tranches/{id}/hold`, `…/release-hold`, `…/cancel` | `payments:release` | `release-hold` is an addition to the build prompt |
+| `GET /gms/payments/readiness`, `GET /gms/payments/alerts` | `payments:read` | Payments center |
+| `GET /gms/bank-transactions`, `POST /gms/bank-transactions/{id}/match` | `payments:read` / `payments:release` (person) | Matching calls record-external |
+| `GET/POST /gms/awards/{id}/requirements`, `PATCH /gms/requirements/{id}`, `POST …/waive`, `POST …/remind` | `requirements:read` / `requirements:write` | |
+| `GET /gms/requirements/due` | `requirements:read` | |
+| `GET /gms/submissions`, `GET /gms/submissions/{id}`, `POST …/accept`, `POST …/return` | `requirements:*` | Accepting makes `onReportAccepted` tranches due. `GET /gms/submissions` is an addition |
+| `GET/PUT /gms/awards/{id}/budget`, `GET /gms/awards/{id}/variance` | `awards:read` / `awards:write` | |
+| `GET /gms/my/requirements`, `POST /gms/my/requirements/{id}/start` | `requirements:read` / `requirements:write` (applicant) | Start prefills from Passport and the last accepted report |
+| `GET /gms/my/submissions/{id}`, `PUT …/forms/{formId}`, `POST …/submit`, `POST …/share` | `requirements:*` (applicant) | Share copies an accepted report to another funder the applicant has a consent with |
+| `GET/PUT /gms/my/awards/{id}/budget` | `awards:read` / `awards:write` (applicant) | Actuals; addition |
+
+### Grantees, analytics, integrations
+
+| Route | Scope (role) | Notes |
+|---|---|---|
+| `GET /gms/grantees`, `GET/PATCH /gms/grantees/{id}` | `grantees:read` / `grantees:write` | Bank facts are `bankName` and `last4` only |
+| `GET /gms/org-changes`, `POST …/accept`, `POST …/dismiss`, `POST /gms/grantees/{id}/propose-change` | `grantees:*` | Proposals go to Passport; any key that names bank or identity data is refused |
+| `GET /gms/directory/suggest` | `grantees:read` | Addition |
+| `GET /common-grants/orgs`, `GET /common-grants/orgs/{id}`, `POST /common-grants/orgs/search` | `grantees:read` | Consented organizations only |
+| `GET /gms/analytics/portfolio`, `GET /gms/analytics/cycle/{competitionId}` | `analytics:read` | |
+| `GET /gms/exports/990pf`, `POST /gms/exports/bundle`, `POST /gms/imports/csv` | `analytics:read` / `workspace:admin` | CSV cells are guarded against formula injection |
+| `GET/POST/DELETE /gms/webhooks`, `GET /gms/webhooks/{id}/deliveries` | `workspace:admin` | The secret is shown once |
+| `GET/POST/DELETE /gms/api-clients` | `workspace:admin` (create/revoke: person) | |
+| `GET /gms/mcp-connections`, `DELETE /gms/mcp-connections/{id}` | session | Both sides. An admin sees and revokes every agent connected to the workspace; any other member their own (`mine`). Revoking also revokes the OAuth grant. Only a person revokes |
+| `GET/POST/DELETE /gms/custom-mcp-servers`, `GET/PATCH /gms/custom-mcp-servers/{id}[/tools]` | `workspace:admin` | Private and non-HTTPS URLs are refused |
+| `GET/POST/DELETE /gms/connectors/{provider}`, `POST /gms/connectors/{provider}/sync` | `payments:read` / `payments:release` | `mercury`, `google_workspace`. See `docs/connectors.md` |
+| `GET /gms/ledger` | `workspace:admin` (ledger roles) | |
+
+### Applicant screens, notifications
+
+| Route | Scope | Notes |
+|---|---|---|
+| `GET /gms/my/applications/{id}/sections`, `GET /gms/applications/{id}/sections` | `applications:read` | `[{ formId, stage, sections }]`. The funder's application detail also carries `formResponses[].sectionAssignments`. Reviewers get neither |
+| `POST /gms/my/applications/{id}/forms/{formId}/insert-answer` | `applications:write` + `library:read` | `{ answerId, path }` (JSON pointer). The field's provenance becomes `library`; the answer id is kept on the answer's `usedIn` (`{ applicationId, formId, path, version, insertedAt }`), because provenance values carry no ids. A later hand edit makes the field `user` again. The CommonGrants `PUT …/forms/{formId}` is unchanged |
+| `GET /gms/my/applications/{id}/status`, `GET /gms/applications/{id}` | `applications:read` | A `submit` event that follows a revision request carries `revision: { requestedAt, message, changes[{ formId, path, before, after, wordsBefore, wordsAfter, wordDelta }] }`. The snapshot it is computed from is stored on the `request_revision` event and never returned |
+| `GET /gms/notifications[?unread=true]`, `POST /gms/notifications/read` | session | Derived on read from the workspace ledger and, for applicants, the events on their applications. A member's own actions are left out. `{ ids }` or `{ all: true }` |
+| `GET/PUT /gms/me/notification-preferences` | session | `{ digest, channels: { <category>: { inApp, email } } }`. `inApp` filters the list; `email` and `digest` are stored but no mail job reads them yet |
+
+Not built: `GET /gms/me/documents`. Passport (branch `claude/gms-integration`) has an `org_documents` table but no route that lists an organization's locker to a consented client, so the GMS has nothing to read. Attachments still accept a `passportDocumentId` the web app obtained elsewhere.
+
+### Inbound webhooks
+
+| Route | Notes |
+|---|---|
+| `POST /webhooks/passport` | `X-Passport-Signature: v1=…` over `<timestamp>.<body>`, 300 s tolerance, deduped on the event id in `inbound_events` |
+| `POST /webhooks/resend` | Svix signature. Delivery events update the communication log; inbound mail to `RESEND_INBOUND_DOMAIN` is threaded onto the application or award it replies to |
+
+### Placeholder (501)
 
 | Routes | Scope | Phase |
 |---|---|---|
-| `GET/PUT /awards/{id}/schedule`, `GET /tranches`, `GET /tranches/{id}/readiness`, `POST /tranches/{id}/release`, `…/record-external`, `…/hold`, `…/cancel` | `payments:read`, `payments:release` | 4 |
-| `GET /payments/readiness`, `GET /payments/alerts`, `GET /bank-transactions`, `POST /bank-transactions/{id}/match` | `payments:*` | 4 |
-| `GET/POST /awards/{id}/requirements`, `PATCH /requirements/{id}`, `POST …/waive`, `GET /requirements/due`, `POST /requirements/{id}/remind`, `GET /submissions/{id}`, `POST …/accept`, `…/return` | `requirements:*` | 4 |
-| `GET/PUT /awards/{id}/budget`, `GET /awards/{id}/variance` | `awards:*` | 4 |
-| `GET /grantees`, `GET/PATCH /grantees/{id}`, `GET /org-changes`, `POST /org-changes/{id}/accept`, `…/dismiss`, `POST /grantees/{id}/propose-change` | `grantees:*` | 6 |
-| `GET /analytics/portfolio`, `GET /analytics/cycle/{competitionId}`, `GET /exports/990pf`, `POST /exports/bundle`, `POST /imports/csv` | `analytics:read`, `workspace:admin` | 6 |
-| `GET/POST/DELETE /api-clients`, `/webhooks`, `GET /webhooks/{id}/deliveries`, `GET/DELETE /mcp-connections`, `GET/POST/DELETE /custom-mcp-servers`, `/connectors/{provider}`, `POST /connectors/{provider}/sync` | `workspace:admin` | 5 |
-| `POST /assist/summarize`, `/compare-rubric`, `/draft-letter`, `/adapt-answer` | `assist` | 5 |
-
-Applicant side:
-
-| Routes | Scope | Phase |
-|---|---|---|
-| `GET /my/requirements`, `GET /my/submissions/{id}`, `PUT …/forms/{formId}`, `POST …/submit`, `…/share` | `requirements:*` | 4 |
-| `POST /my/answers/{id}/adapt` | `library:read`, `assist` | 5 |
+| `POST /gms/assist/summarize`, `/compare-rubric`, `/draft-letter`, `/adapt-answer` | `assist` | 5 |
+| `POST /gms/my/answers/{id}/adapt` | `library:read`, `assist` | 5 |
 
 ## MCP (`POST /mcp`)
 

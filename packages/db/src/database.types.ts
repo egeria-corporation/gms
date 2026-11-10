@@ -2203,6 +2203,9 @@ export type Database = {
           id: string;
           invited_by: string | null;
           mfa_enrolled_at: string | null;
+          notification_preferences: Json;
+          notifications_read_at: string | null;
+          notifications_read_ids: Json;
           role: string;
           scope: Json;
           updated_at: string;
@@ -2215,6 +2218,9 @@ export type Database = {
           id?: string;
           invited_by?: string | null;
           mfa_enrolled_at?: string | null;
+          notification_preferences?: Json;
+          notifications_read_at?: string | null;
+          notifications_read_ids?: Json;
           role: string;
           scope?: Json;
           updated_at?: string;
@@ -2227,6 +2233,9 @@ export type Database = {
           id?: string;
           invited_by?: string | null;
           mfa_enrolled_at?: string | null;
+          notification_preferences?: Json;
+          notifications_read_at?: string | null;
+          notifications_read_ids?: Json;
           role?: string;
           scope?: Json;
           updated_at?: string;

@@ -2,7 +2,7 @@
 // Applying (build spec §11.4): start with Passport prefill, edit form responses with merge
 // semantics, submit. These functions back the CommonGrants `/applications` routes and the applicant
 // MCP tools alike. Status changes go through the application machine in `@gms/workflow`.
-import { computeResponseStatus, extractSubmissionFields, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance } from "@gms/forms";
+import { computeResponseStatus, extractSubmissionFields, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
 import { DEFAULT_TEMPLATES, renderEmail } from "@gms/notify";
 import { profileToObject, type ProfileField } from "@gms/passport-client";
 import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPassportFields, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
@@ -11,6 +11,7 @@ import { applicationCgStatus, applicationMachine, type ApplicationAction, type A
 import { fanOut, isWebhookEventType } from "@gms/webhooks";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { apiId } from "../lib/ids.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import type { Row } from "./repos/types.ts";
@@ -244,24 +245,68 @@ export async function getFormResponse(ctx: ServiceContext, appId: string, formId
 
 export const formResponseInput = z.object({ response: z.record(z.string(), z.unknown()) }).loose();
 
-export async function putFormResponse(ctx: ServiceContext, appId: string, formId: string, input: z.output<typeof formResponseInput>) {
-  const { app, side } = await access(ctx, appId, "applications:write");
-  if (side !== "applicant") throw new ApiError(403, "forbidden", "Only the applicant can edit a form response");
+/** One write path for a form response: the applicant's own edits, an agent's, or an inserted library answer. */
+export async function writeFormResponse(ctx: ServiceContext, app: App, formId: string, patch: JsonObject, actor: ProvenanceSource) {
   if (app.status !== "draft" && app.status !== "revision_requested") throw new ApiError(409, "application_locked", `This application is ${app.status.replace(/_/g, " ")} and can no longer be edited`);
   const row = await responseFor(ctx, app, formId);
   if (row.locked_at) throw new ApiError(409, "response_locked", "This form belongs to an earlier stage and is read-only");
   const def = await formDef(ctx, formId, row.form_version);
-  const merged = mergeResponse(row.response as JsonObject, input.response as JsonObject, {
-    provenance: row.provenance as Provenance,
-    // An agent's edits are marked as the agent's, so the applicant can see what it wrote.
-    actor: ctx.actor.kind === "user" ? "user" : `agent:${ctx.actor.clientId}`,
-    lockedPaths: passportFieldPaths(def),
-  });
+  const merged = mergeResponse(row.response as JsonObject, patch, { provenance: row.provenance as Provenance, actor, lockedPaths: passportFieldPaths(def) });
   const [saved] = (await ctx.repos.table("form_responses").update({ id: row.id }, { response: merged.response as Resp["response"], provenance: merged.provenance as Resp["provenance"], ...checked(def, merged.response, merged.provenance) })) as [Resp];
-  const out = projectFormResponse(respRow(saved));
-  // Passport-owned fields are not editable here; the caller is told which writes were ignored.
-  return merged.rejected.length ? { ...out, customFields: { ...out.customFields, gmsRejected: { name: "gmsRejected", fieldType: "array" as const, value: merged.rejected, description: "Fields that follow Passport and cannot be edited here" } } } : out;
+  return { formResponse: projectFormResponse(respRow(saved)), changed: merged.changed, rejected: merged.rejected };
 }
+
+export async function putFormResponse(ctx: ServiceContext, appId: string, formId: string, input: z.output<typeof formResponseInput>) {
+  const { app, side } = await access(ctx, appId, "applications:write");
+  if (side !== "applicant") throw new ApiError(403, "forbidden", "Only the applicant can edit a form response");
+  // An agent's edits are marked as the agent's, so the applicant can see what it wrote.
+  const { formResponse: out, rejected } = await writeFormResponse(ctx, app, formId, input.response as JsonObject, ctx.actor.kind === "user" ? "user" : `agent:${ctx.actor.clientId}`);
+  // Passport-owned fields are not editable here; the caller is told which writes were ignored.
+  return rejected.length ? { ...out, customFields: { ...out.customFields, gmsRejected: { name: "gmsRejected", fieldType: "array" as const, value: rejected, description: "Fields that follow Passport and cannot be edited here" } } } : out;
+}
+
+// ------------------------------------------------------------------------------------ revisions
+
+type Ev = Row<"application_events">;
+export interface RevisionChange { formId: string; path: string; before: string | null; after: string | null; wordsBefore: number; wordsAfter: number; wordDelta: number }
+
+function leaves(value: unknown, path: string, out: Map<string, string>): void {
+  if (value === null || value === undefined) return;
+  if (typeof value === "object" && !Array.isArray(value)) for (const [k, v] of Object.entries(value)) leaves(v, `${path}/${k.replace(/~/g, "~0").replace(/\//g, "~1")}`, out);
+  else out.set(path, typeof value === "string" ? value : JSON.stringify(value));
+}
+const words = (s: string | null) => (s?.trim() ? s.trim().split(/\s+/).length : 0);
+
+/** The current stage's answers as they stood when the funder asked for a revision. */
+export async function revisionSnapshot(ctx: ServiceContext, app: App): Promise<Record<string, JsonObject>> {
+  const out: Record<string, JsonObject> = {};
+  for (const r of await responsesOf(ctx, app.id)) if (r.stage === app.stage) out[r.form_id] = r.response as JsonObject;
+  return out;
+}
+
+/** Field by field, what the applicant changed between the revision request and the resubmission. */
+export function diffRevision(before: Record<string, JsonObject>, after: Record<string, JsonObject>): RevisionChange[] {
+  const changes: RevisionChange[] = [];
+  for (const formId of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const a = new Map<string, string>();
+    const b = new Map<string, string>();
+    leaves(before[formId], "", a);
+    leaves(after[formId], "", b);
+    for (const path of [...new Set([...a.keys(), ...b.keys()])].sort()) {
+      const [x, y] = [a.get(path) ?? null, b.get(path) ?? null];
+      if (x !== y) changes.push({ formId: apiId("form", formId), path, before: x, after: y, wordsBefore: words(x), wordsAfter: words(y), wordDelta: words(y) - words(x) });
+    }
+  }
+  return changes;
+}
+
+/** An event's payload without the stored snapshot, which is working data for the diff. */
+export const eventPayload = (e: Ev) => {
+  const { snapshot: _snapshot, revision: _revision, ...rest } = e.payload as Record<string, unknown>;
+  return rest;
+};
+/** The revision diff a resubmission carries; null on every other event. */
+export const revisionOf = (e: Ev) => ((e.payload as { revision?: { requestedAt: string; message: string | null; changes: RevisionChange[] } }).revision ?? null);
 
 // ------------------------------------------------------------------------------------ submit
 
@@ -312,7 +357,14 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
       ...(fields.requestedAmount ? { requested_amount_minor: toMinor(fields.requestedAmount), currency: fields.requestedAmount.currency } : {}),
     },
   )) as [App];
-  const submitted = await transitionApp(ctx, stamped, "submit", "applicant", { requiredFormsComplete: true, stageOpen }, { stage: app.stage, eligible: eligibility.eligible, verificationLevel: facts.level });
+  // A resubmission after a revision request keeps what changed, so both sides can read the diff.
+  let revision: { requestedAt: string; message: string | null; changes: RevisionChange[] } | undefined;
+  if (app.status === "revision_requested") {
+    const asked = (await ctx.repos.table("application_events").find({ application_id: app.id, type: "request_revision" }, { orderBy: "created_at", ascending: false, limit: 1 }))[0];
+    const snapshot = (asked?.payload as { snapshot?: Record<string, JsonObject> } | undefined)?.snapshot;
+    if (asked && snapshot) revision = { requestedAt: asked.created_at, message: (asked.payload as { message?: string }).message ?? null, changes: diffRevision(snapshot, await revisionSnapshot(ctx, app)) };
+  }
+  const submitted = await transitionApp(ctx, stamped, "submit", "applicant", { requiredFormsComplete: true, stageOpen }, { stage: app.stage, eligible: eligibility.eligible, verificationLevel: facts.level, ...(revision ? { revision } : {}) });
   await ctx.repos.table("form_responses").update({ application_id: app.id, stage: app.stage, locked_at: null }, { locked_at: at });
 
   // Applying is the consent that lets this funder read the cached record for this application.

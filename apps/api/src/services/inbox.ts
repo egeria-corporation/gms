@@ -10,7 +10,7 @@ import { fanOut } from "@gms/webhooks";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, access, createStageResponses, passportFacts, primaryEmail, recordEvent, responsesOf, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
+import { type App, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, responsesOf, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import type { PageRequest } from "./programs.ts";
@@ -136,7 +136,7 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
       response = m.response;
       masked = [...m.masked, ...m.removed];
     }
-    responses.push({ formId: apiId("form", r.form_id), formVersion: r.form_version, formTitle: form?.title ?? null, stage: r.stage, status: r.status, response, provenance: reviewer ? {} : r.provenance, validationErrors: r.validation_errors, lockedAt: r.locked_at, masked });
+    responses.push({ formId: apiId("form", r.form_id), formVersion: r.form_version, formTitle: form?.title ?? null, stage: r.stage, status: r.status, response, provenance: reviewer ? {} : r.provenance, sectionAssignments: reviewer ? {} : r.section_assignments, validationErrors: r.validation_errors, lockedAt: r.locked_at, masked });
   }
   const events = await ctx.repos.table("application_events").find({ application_id: app.id }, { orderBy: "created_at" });
   const facts = passportFacts(applicant);
@@ -150,7 +150,7 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     // external reviewer never sees who the applicant's contacts are.
     organization: consented && !external ? { projection: facts.org, level: applicant.verification_level, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
     formResponses: responses,
-    timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, payload: reviewer ? {} : e.payload, actor: e.actor, at: e.created_at })),
+    timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, payload: reviewer ? {} : eventPayload(e), revision: reviewer ? null : revisionOf(e), actor: e.actor, at: e.created_at })),
   };
 }
 
@@ -211,7 +211,7 @@ export const revisionInput = z
 
 export async function requestRevision(ctx: ServiceContext, appId: string, input: z.output<typeof revisionInput>) {
   const { app, ws } = await funderApp(ctx, appId, "applications:write");
-  const updated = await transitionApp(ctx, app, "request_revision", "funder", { revisionNote: input.message }, { message: input.message, dueAt: input.dueAt ?? null, fields: input.fields ?? null });
+  const updated = await transitionApp(ctx, app, "request_revision", "funder", { revisionNote: input.message }, { message: input.message, dueAt: input.dueAt ?? null, fields: input.fields ?? null, snapshot: await revisionSnapshot(ctx, app) });
   // The applicant edits the current stage again; earlier stages stay locked.
   await ctx.repos.table("form_responses").update({ application_id: app.id, stage: app.stage }, { locked_at: null });
   const applicant = await applicantOf(ctx, app);

@@ -661,6 +661,9 @@ model InboxFormResponse {
   /** JSON pointer → `passport` | `library` | `prior_submission` | `qbo` | `user` | `agent:<client>` */
   provenance: Record<string>;
 
+  /** Section key → the applicant teammate who owns it. Empty for reviewers. */
+  sectionAssignments?: Record<string>;
+
   validationErrors: unknown[];
   lockedAt: utcDateTime | null;
 
@@ -681,6 +684,109 @@ model ApplicationEvent {
 
   /** The revision request's message, on the applicant's status view. */
   message?: string | null;
+
+  /** On a resubmission after a revision request: what the applicant changed. Null on every other event. */
+  revision?: RevisionDiff | null;
+}
+
+/** Field by field, what changed between the funder's revision request and the applicant's resubmission. */
+model RevisionDiff {
+  requestedAt: utcDateTime;
+  message: string | null;
+  changes: RevisionChange[];
+}
+
+model RevisionChange {
+  formId: PrefixedId;
+
+  /** JSON pointer of the field */
+  path: string;
+
+  /** The value before and after, as text (non-text values as JSON). Null when the field was empty. */
+  before: string | null;
+
+  after: string | null;
+  wordsBefore: int32;
+  wordsAfter: int32;
+  wordDelta: int32;
+}
+
+/** Who owns which section of one form of an application. */
+model FormSectionAssignments {
+  formId: PrefixedId;
+  stage: string | null;
+
+  /** Section key → user id */
+  sections: Record<CommonGrants.Types.uuid>;
+}
+
+model InsertAnswerInput {
+  answerId: CommonGrants.Types.uuid;
+
+  /** JSON pointer of the field that receives the answer's text */
+  path: string;
+}
+
+model InsertAnswerResult {
+  /** The CommonGrants form response after the insert */
+  formResponse: Record<unknown>;
+
+  path: string;
+  provenance: "library";
+
+  /** False when the field already held this text */
+  changed: boolean;
+
+  /** The answer, with this use recorded in `usedIn` */
+  answer: Answer;
+}
+
+model AnswerUse {
+  applicationId: CommonGrants.Types.uuid;
+  formId: CommonGrants.Types.uuid;
+  path: string;
+  version: int32;
+  insertedAt: utcDateTime;
+}
+
+model MemberNotification {
+  /** Id of the ledger or application event the notification is derived from */
+  id: CommonGrants.Types.uuid;
+
+  type: string;
+  category: NotificationCategory;
+  title: string;
+  subjectType: string | null;
+  subjectId: string | null;
+  message: string | null;
+  at: utcDateTime;
+  read: boolean;
+}
+
+alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent";
+
+model NotificationList {
+  unread: int32;
+  items: MemberNotification[];
+}
+
+/** Either `ids` or `all: true`. */
+model NotificationReadInput {
+  ids?: CommonGrants.Types.uuid[];
+  all?: true;
+}
+
+model NotificationChannel {
+  inApp: boolean;
+  email: boolean;
+}
+
+/** `email` and `digest` are stored for the mail jobs; today only `inApp` changes what is returned. */
+model NotificationPreferences {
+  digest: "immediate" | "daily" | "weekly" | "off";
+
+  /** Category → channels. Every category is present in responses; missing ones default to on. */
+  channels: Record<NotificationChannel>;
 }
 
 /** What an action on an application returns: the fields it changed. */
@@ -2005,7 +2111,7 @@ model Answer {
   title: string;
   body: string;
   version: int32;
-  usedIn?: unknown[];
+  usedIn?: AnswerUse[];
   words: int32;
   updatedAt: utcDateTime;
 }
