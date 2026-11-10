@@ -84,7 +84,7 @@ describe("organization", () => {
     expect(within(locker).getByText("Link only")).toBeInTheDocument();
     expect(within(locker).getByRole("link", { name: "Upload to Passport" })).toHaveAttribute("href", expect.stringContaining("passport"));
     const reps = screen.getByRole("region", { name: "Representatives" });
-    expect(within(reps).getByText(/does not share the list/)).toBeInTheDocument();
+    expect(await within(reps).findByText("Maria Santos")).toBeInTheDocument();
     const access = screen.getByRole("region", { name: "Who has access" });
     expect(within(access).getByRole("columnheader", { name: "Can read" })).toBeInTheDocument();
     expect(within(access).getByRole("columnheader", { name: "Granted via" })).toBeInTheDocument();

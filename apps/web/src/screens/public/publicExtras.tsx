@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Sections of the public funder and opportunity pages that a funder chooses to publish: past
 // awards (only with transparency on), questions about applying, and guideline documents.
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Download, FileText } from "lucide-react";
 import type { PastAward, PublicDocument, PublicExtras } from "../../api/applicantFull.ts";
 import { useFullQuery } from "../../api/applicantFullHooks.ts";
+import { useLaunchQuery } from "../../api/launchHooks.ts";
+import { ContactLine } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatMinor } from "../../lib/format.ts";
 
@@ -87,15 +89,44 @@ export function Faq({ faq, contactEmail }: { faq: PublicExtras["faq"]; contactEm
   );
 }
 
+/** The people a funder names on its public page. Renders nothing when it names nobody. */
+export function PublicContacts({ handle, name }: { handle: string; name?: string }) {
+  const q = useLaunchQuery((api) => api.publicContacts(handle), [handle]);
+  const contacts = q.data ?? [];
+  if (contacts.length === 0) return null;
+  return (
+    <section id="contact" aria-labelledby="contact-h">
+      <span className="eyebrow">Contact</span>
+      <h2 id="contact-h" style={{ marginTop: "6px" }}>
+        Who to Ask
+      </h2>
+      <div className="card">
+        <div className="card-b">
+          <dl className="kv" style={{ fontSize: "15px" }} aria-label={name ? `Contacts at ${name}` : "Contacts"}>
+            {contacts.map((c) => (
+              <Fragment key={`${c.name}|${c.email}`}>
+                <dt>{c.title ?? "Contact"}</dt>
+                <dd>
+                  <ContactLine contact={c} />
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** Past awards and questions for `/f/:handle`. Renders nothing until the funder publishes either. */
 export function FunderExtras({ handle }: { handle: string }) {
   const query = useFullQuery((api) => api.publicExtras(handle), [handle]);
-  if (query.status !== "ready") return null;
-  const { pastAwards, faq, contactEmail } = query.data;
+  const { pastAwards, faq, contactEmail } = query.status === "ready" ? query.data : { pastAwards: [], faq: [], contactEmail: null };
   return (
     <>
       {pastAwards.length > 0 ? <PastAwards awards={pastAwards} handle={handle} /> : null}
       <Faq faq={faq} contactEmail={contactEmail} />
+      <PublicContacts handle={handle} />
     </>
   );
 }

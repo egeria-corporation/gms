@@ -69,7 +69,7 @@ export interface PayoutDestination {
 
 export interface AssistStatus {
   enabled: boolean;
-  quota: { used?: number; limit?: number; remaining?: number } | null;
+  quota: { used?: number; limit?: number; remaining?: number; resetsAt?: string } | null;
 }
 export interface AdaptedDraft {
   /** A draft for the person to edit. Never saved by the assistant. */

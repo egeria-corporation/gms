@@ -878,7 +878,7 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
       if (!w) throw notFound("Award");
       return clone(w);
     },
-    async acceptAward(id) {
+    async acceptAward(id, _name) {
       await signedIn();
       const w = store.awards.find((x) => x.id === `awd_${bare(id)}`);
       if (!w) throw notFound("Award");

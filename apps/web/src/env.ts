@@ -11,6 +11,9 @@ export const env = {
   supabaseUrl: trim(raw.VITE_SUPABASE_URL),
   supabaseAnonKey: (raw.VITE_SUPABASE_ANON_KEY ?? "").trim(),
   passportBaseUrl: trim(raw.VITE_PASSPORT_BASE_URL) || "https://passport.opengrants.io",
+  /** Google Picker (Export to Drive). Both are public values; without both the export control explains what is missing. */
+  googlePickerApiKey: (raw.VITE_GOOGLE_PICKER_API_KEY ?? "").trim(),
+  googleOAuthClientId: (raw.VITE_GOOGLE_OAUTH_CLIENT_ID ?? "").trim(),
   /** True unless VITE_USE_MOCKS is "false" and both an API and a Supabase project are configured. */
   useMocks: raw.VITE_USE_MOCKS !== "false" || !trim(raw.VITE_API_BASE_URL) || !trim(raw.VITE_SUPABASE_URL),
 } as const;

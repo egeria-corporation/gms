@@ -2,6 +2,7 @@
 // The editor's assistant panel: adapt a library answer to the question in focus. Output is a draft
 // shown in the panel; nothing is written into the form until the person copies it in themselves.
 // Renders nothing unless the assistant is switched on for the workspace.
+import { quotaSpent, QuotaSpentNote } from "../../components/launch.tsx";
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import type { Answer } from "../../api/applicant.ts";
@@ -18,6 +19,7 @@ export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields
   const adapt = useFullMutation((api, id: string, question: string) => api.adaptAnswer(id, { question }));
   if (status.status !== "ready" || !status.data.enabled || answers.length === 0 || fields.length === 0) return null;
   const quota = status.data.quota;
+  const spent = quotaSpent(quota);
   const question = fields.find((f) => f.key === field)?.label ?? "";
   const run = async () => {
     const r = await adapt.run(answerId, question);
@@ -64,9 +66,10 @@ export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields
             ))}
           </select>
         </div>
-        <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} disabled={adapt.state === "saving"} onClick={() => void run()}>
+        <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} disabled={spent || adapt.state === "saving"} onClick={() => void run()}>
           {adapt.state === "saving" ? "Adapting…" : "Adapt to this question"}
         </button>
+        {spent ? <QuotaSpentNote resetsAt={quota?.resetsAt} /> : null}
         {adapt.error ? <ErrorBanner error={adapt.error} title="The assistant could not draft this" /> : null}
         {draft ? (
           <div role="status" style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "10px 12px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "8px" }}>

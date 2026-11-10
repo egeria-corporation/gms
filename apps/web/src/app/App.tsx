@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
 // funder and applicant workspaces share URL shapes (dashboard, applications/:id).
+import { mockLaunchStore } from "../api/launchHooks.ts";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
@@ -45,6 +46,7 @@ const FReporting = lazy(() => import("../screens/funder/Reporting.tsx"));
 const FGrantees = lazy(() => import("../screens/funder/Grantees.tsx"));
 const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
+const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
@@ -141,7 +143,11 @@ export function App({ services }: { services?: Services }) {
   // Mock mode only: lets a demo or an end-to-end test deliver what only Passport sends in
   // production (a settlement, a destination change taking effect, an outage).
   useEffect(() => {
-    if (resolved.mock) (window as unknown as { __gmsMock?: unknown }).__gmsMock = resolved.api;
+    if (resolved.mock) {
+      (window as unknown as { __gmsMock?: unknown }).__gmsMock = resolved.api;
+      // The mock's install switches (payments through Passport), so a flow can run with them on.
+      (window as unknown as { __gmsLaunch?: unknown }).__gmsLaunch = mockLaunchStore(resolved);
+    }
   }, [resolved]);
   return (
     <ServicesProvider services={resolved}>
@@ -222,6 +228,8 @@ function AppRoutes() {
             <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
+            {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
+            <Route path="settings/connectors" element={<ConnectorReturn />} />
             <Route path="approvals" element={f(<FApprovals />)} />
 
             {/* Applicant workspace */}

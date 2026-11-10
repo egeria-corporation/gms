@@ -4,6 +4,8 @@
 // the requirements that gate later tranches. The disbursed amount is always the figure last read
 // from Passport; this screen never adds to it.
 import { useState } from "react";
+import { useAppConfig } from "../../api/launchHooks.ts";
+import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
 import { Link, useParams } from "react-router";
 import { Banknote, Calendar, CircleCheck, Hand, Plus, Send, Trash2 } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -136,6 +138,7 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
   const cancel = useApiMutation((api, reason: string) => api.cancelTranche(row.id, reason));
   const r = readiness.data ?? null;
   const blocked = r ? releaseBlockedReason(r) : "Checking readiness";
+  const { facilitatedPayments } = useAppConfig();
   const external = row.external as { reference?: string; paidAt?: string; destinationLast4?: string } | null;
   const done = (message: string | null) => {
     setDialog(null);
@@ -197,16 +200,16 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
         )}
         {open && (
           <div className="row wrap">
-            {row.status !== "held" && (
+            {facilitatedPayments && row.status !== "held" && (
               <button type="button" className="btn btn-primary" disabled={blocked !== null} onClick={() => setDialog("release")} aria-describedby={blocked ? `blocked-${row.id}` : undefined}>
                 <Send className="ic" aria-hidden="true" />
                 Release
               </button>
             )}
             {row.status !== "held" && (
-              <button type="button" className="btn btn-secondary" onClick={() => setDialog("external")}>
+              <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} onClick={() => setDialog("external")}>
                 <Banknote className="ic" aria-hidden="true" />
-                Record external payment
+                {facilitatedPayments ? "Record external payment" : RECORD_OUTSIDE_LABEL}
               </button>
             )}
             {row.status === "held" && row.holdReason === "manual" && (
@@ -223,7 +226,7 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
             <button type="button" className="btn btn-ghost" onClick={() => setDialog("cancel")}>
               Cancel tranche
             </button>
-            {blocked && row.status !== "held" && (
+            {facilitatedPayments && blocked && row.status !== "held" && (
               <span className="help" id={`blocked-${row.id}`}>
                 {blocked}
               </span>
@@ -360,6 +363,7 @@ export default function AwardPayments() {
   const base = `/w/${ws.handle}`;
   const { awardId = "" } = useParams();
   const [tab, setTab] = useAwardTab("payments", awardId, base);
+  const { facilitatedPayments } = useAppConfig();
   const [editing, setEditing] = useState(false);
   const page = useApiQuery(async (api) => {
     const [schedule, rows, requirements] = await Promise.all([api.getSchedule(awardId), api.listTranches({ awardId }), api.listRequirements(awardId)]);
@@ -421,6 +425,7 @@ export default function AwardPayments() {
               <AwardTabs active={tab} onChange={setTab} counts={{ payments: d.rows.filter((r) => OPEN.includes(r.status)).length, requirements: d.requirements.length }} />
               <TabPanel idPrefix="award" tab="payments" active={tab}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {!facilitatedPayments && <PaymentsOffNotice />}
                   {!d.rows.length && (
                     <div className="card">
                       <EmptyState icon={Banknote} title="No payment schedule yet">

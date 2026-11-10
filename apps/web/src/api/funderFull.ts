@@ -42,6 +42,14 @@ export interface ComparisonDraft extends AssistDraft {
   criteria: { key: string; evidence: AssistQuote[]; observations: string; gaps: string[] }[];
 }
 
+export interface LetterDraft extends AssistDraft {
+  templateId: string;
+  subject: string;
+  /** The letter, with the template's merge fields left exactly as written. */
+  body: string;
+  mergeFieldsUsed: string[];
+}
+
 export interface SendInput {
   templateId: string;
   recipients: { applicationId?: string; awardId?: string }[];
@@ -70,6 +78,8 @@ export interface FunderFullApi {
   assistStatus(): Promise<AssistStatus>;
   assistSummarize(applicationId: string): Promise<SummaryDraft>;
   assistCompareRubric(applicationId: string, rubricId: string): Promise<ComparisonDraft>;
+  /** A letter drafted from a template. Never saved as a template version and never sent. */
+  assistDraftLetter(templateId: string, input: { purpose: string; tone?: string; applicationId?: string }): Promise<LetterDraft>;
 }
 
 type Json = { data?: unknown; message?: string; errors?: unknown[] };
@@ -103,5 +113,6 @@ export function createHttpFunderFullApi(io: FunderHttpIo): FunderFullApi {
     assistStatus: () => data("GET", "/gms/assist/status"),
     assistSummarize: (applicationId) => data("POST", "/gms/assist/summarize", { applicationId }),
     assistCompareRubric: (applicationId, rubricId) => data("POST", "/gms/assist/compare-rubric", { applicationId, rubricId }),
+    assistDraftLetter: (templateId, input) => data("POST", "/gms/assist/draft-letter", { templateId, purpose: input.purpose, ...(input.tone ? { tone: input.tone } : {}), ...(input.applicationId ? { applicationId: input.applicationId } : {}) }),
   };
 }

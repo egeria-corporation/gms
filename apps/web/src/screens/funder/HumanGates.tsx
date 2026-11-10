@@ -3,6 +3,7 @@
 // gates are locked on; a workspace can add gates to other tools and never remove one.
 import { Circle, Info, Lock } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, Loading, SaveNote } from "../../components/ui.tsx";
 
@@ -24,6 +25,7 @@ const OPTIONAL: [string, string, string][] = [
 ];
 
 export function HumanGates() {
+  const { facilitatedPayments } = useAppConfig();
   const ws = useWorkspace("funder");
   const record = useApiQuery((api) => api.workspaceRecord(ws.id), [ws.id]);
   const save = useApiMutation((api, gatedTools: string[]) => api.updateWorkspace(ws.id, { settings: { ...(record.data?.settings ?? {}), gatedTools } }));
@@ -49,7 +51,7 @@ export function HumanGates() {
         {save.error !== null && <ErrorBanner error={save.error} />}
         {record.status === "ready" && (
           <div className="rc">
-            {LOCKED.map(([tool, label, why]) => (
+            {LOCKED.map(([tool, label, text]) => [tool, label, tool === "release_tranche" && !facilitatedPayments ? "Payments through Passport are not switched on for this install; recording a payment made elsewhere is done by a person" : text] as const).map(([tool, label, why]) => (
               <div key={tool} className="rc-row rc-pass">
                 <Lock className="ic" aria-hidden="true" />
                 <div>

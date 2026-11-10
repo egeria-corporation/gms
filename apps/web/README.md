@@ -3,6 +3,27 @@
 Vite + React front end for OpenGrants GMS. `pnpm dev:web` serves it on :5173; with
 `VITE_USE_MOCKS=true` every screen renders from the fixture workspaces in `src/mocks/`.
 
+## Build settings
+
+Read at build time (`src/env.ts`); all are public values.
+
+| Variable | Purpose |
+|---|---|
+| `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | The API Worker and the Supabase project |
+| `VITE_USE_MOCKS` | `false` to use them; anything else renders the fixture workspaces |
+| `VITE_PASSPORT_BASE_URL` | Passport, default `https://passport.opengrants.io` |
+| `VITE_GOOGLE_PICKER_API_KEY`, `VITE_GOOGLE_OAUTH_CLIENT_ID` | Optional, both or neither. Switch on "Export to Drive" (the Google Picker). The client id must be the Google OAuth client the Composio auth config uses, because `drive.file` grants are per Google Cloud project. Without both, the export control says it is not configured and the Content-Security-Policy names no Google origin |
+
+With both Google values set, `build/headers.ts` adds exactly these to the CSP: scripts from
+`https://apis.google.com` and `https://accounts.google.com/gsi/client`, frames from
+`https://docs.google.com` and `https://accounts.google.com/gsi/`, the Identity Services stylesheet
+and endpoint, and `Cross-Origin-Opener-Policy: same-origin-allow-popups` (Google's sign-in pop-up
+must answer this window). This list has not been run against Google yet; if the Picker reports a
+blocked resource, add that origin here and to `test/launch.test.tsx`.
+
+Payments through Passport and the assistant are switched on the API (`PAYMENTS_FACILITATED`,
+`ASSISTANT_ENABLED`); the web app reads them from `GET /gms/config` and `GET /gms/assist/status`.
+
 ## Accessibility
 
 Target: WCAG 2.2 AA on every applicant-facing and public screen, at desktop (1440) and phone (390) widths.
@@ -134,7 +155,7 @@ live route. **live**: every section of the artboard renders from the API. **part
 live but the listed sections are absent because no API provides them yet. **static**: fixture
 markup only. Compared by headings, table columns and tabs, not pixel by pixel.
 
-Counts: 46 live, 7 partial, 14 static (67 artboards). The static ones are reference boards: email and PDF templates and the component styleguide.
+Counts: 53 live, 0 partial, 14 static (67 artboards). The static ones are reference boards: email and PDF templates and the component styleguide.
 
 | Artboard | Route | Status | Notes |
 |---|---|---|---|
@@ -147,9 +168,9 @@ Counts: 46 live, 7 partial, 14 static (67 artboards). The static ones are refere
 | public/FunderOnboarding | `/onboarding/funder/:step` | live | |
 | public/ApplicantOnboarding | `/onboarding/applicant` | live | "Invite teammates" and "Connect apps" follow the readiness step; apps connect in Passport, by link |
 | public/Notifications | `/notifications` | live | Digest settings beside the list, per workspace |
-| public/AccountSettings | `/account/agents` | partial | Agents show client, scopes and last use. No sessions table: Supabase gives the browser no list of a person's other sessions |
+| public/AccountSettings | `/account/agents` | live | Agents show client, scopes and last use. Sessions table from `GET /gms/me/sessions`: device, network address (the artboard's "Location"; no geolocation service is used), last active, signed in, second factor; another session is ended from the list |
 | funder/Dashboard | `/w/:ws` | live | Recent activity reads the ledger |
-| funder/Programs | `/w/:ws/programs/:id` | partial | Committed, paid, remaining, committed by status, stage and application counts are live. No Owner column (programs have no owner in the API); outcomes rollup counts accepted reports but does not total outcome figures (no route) |
+| funder/Programs | `/w/:ws/programs/:id` | live | Committed, paid, remaining, committed by status, stage and application counts. Owner column and picker; outcomes rollup totals the numeric outcome fields of accepted reports; budget categories editor |
 | funder/OpportunityBuilder | `/w/:ws/opportunities/:id/edit` | live | Public-card preview and "Test against an org" (typed facts; there is no route to search Passport organizations) |
 | funder/FormBuilder | `/w/:ws/forms/:id/edit` | live | |
 | funder/Competition | `/w/:ws/competitions/:id` | live | Stages table (opens, closes, form, rubric, entry rule) and reviewer pool. Entry rules describe who advances; score thresholds are not an API concept |
@@ -171,18 +192,18 @@ Counts: 46 live, 7 partial, 14 static (67 artboards). The static ones are refere
 | funder/SettingsMcp | `/w/:ws/settings/mcp` | live | "Connect an agent" restored |
 | funder/Approvals | `/w/:ws/approvals` | live | Request detail: exact inputs, applications affected, letter preview |
 | applicant/Dashboard | `/w/:ws` | live | |
-| applicant/Organization | `/w/:ws/organization` | partial | Documents locker (references, read live), apps feeding the record, "Who has access" table. Representatives are explained, not listed: Passport does not share them with consented apps |
+| applicant/Organization | `/w/:ws/organization` | live | Documents locker (references, read live), apps feeding the record, "Who has access" table. Representatives read live from Passport with a verified mark; each state (not shared, not linked, unreachable) is said plainly |
 | applicant/FindFunding | `/w/:ws/find` | live | Alerts tab: registered with OpenGrants, remembered with saved listings |
 | applicant/Editor | `/w/:ws/applications/:id/edit` | live | |
 | applicant/EditorSubmit | `/w/:ws/applications/:id/edit/submit` | live | |
 | applicant/Confirmation | `/w/:ws/applications/:id/submitted` | live | Title repeats the competition name in mock mode |
-| applicant/ApplicationStatus | `/w/:ws/applications/:id` | partial | Revision requests with diff, interview and decision sections. Interview times are shown and confirmed in the thread; there is no slot-picking route |
+| applicant/ApplicationStatus | `/w/:ws/applications/:id` | live | Revision requests with diff, interview and decision sections. The applicant picks one of the offered interview times and confirms it; the funder offers times from the application |
 | applicant/GrantOffered | `/w/:ws/grants/:id/offer` | live | "Before you sign", Documents and Messages; budget, amendments and closeout live on the grant screen |
-| applicant/GrantPayments | `/w/:ws/grants/:id` | partial | Payout destination read live from Passport with every state explained; Documents and Messages. No budget category mapping (no route) |
+| applicant/GrantPayments | `/w/:ws/grants/:id` | live | Payout destination read live from Passport with every state explained; Documents and Messages; budget category mapping (own ledger account to the funder's category) |
 | applicant/Reports | `/w/:ws/reports` | live | Budget actuals table beside the report |
 | applicant/AnswerLibrary | `/w/:ws/library` | live | "Adapt to a question" appears when the assistant is on; the draft is copied by the person, never inserted |
-| applicant/TeamAccess | `/w/:ws/team` | partial | Members, Consultants, Funders with access and Agents tabs. "Member since" stands in for last active, and consultants have no organization column (the API has neither) |
-| applicant/Funders | `/w/:ws/funders` | partial | Open items, documents and contact per funder. Contact is the email the funder publishes; named program officers are not exposed |
+| applicant/TeamAccess | `/w/:ws/team` | live | Members, Consultants, Funders with access and Agents tabs. Last active per person; consultants show their organization, set on the invitation |
+| applicant/Funders | `/w/:ws/funders` | live | Open items, documents and contact per funder. Named contacts come from the funder's settings; the public funder page shows the ones marked public |
 | applicant/Settings | `/w/:ws/settings` | live | API tokens (secret shown once, never submit or sign), exports and leaving the workspace |
 | applicant/phone/* (6: Dashboard, Organization, Editor, ApplicationStatus, Grant, Reports) | same routes at 390 | live | Same data as the desktop screens |
 | shared/OAuthConsent | `/oauth/consent` | live | |

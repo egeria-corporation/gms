@@ -229,7 +229,7 @@ function seed(): State {
     servers: [{ id: bare("8", 4), name: "Riverbend CRM", url: "https://crm.riverbendcf.example/mcp", hasAuth: true, allowedTools: ["lookup_organization"], readOnly: true, createdAt: at("2027-02-11"), tools: [{ name: "lookup_organization", description: "Prior relationship with an organization, by name or EIN.", readOnly: true }, { name: "list_site_visits", description: "Site visits on record for an organization.", readOnly: true }, { name: "update_contact", description: "Change a contact record.", readOnly: false }] }],
     connectors: {
       mercury: { provider: "mercury", connected: true, status: "active", scopes: ["transactions:read"], lastSyncAt: at("2027-05-21T18:00") },
-      google_workspace: { provider: "google_workspace", connected: false, status: "not_configured", scopes: [], lastSyncAt: null, connectUrl: null },
+      google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
     },
     ledger,
     passportReachable: true,
@@ -238,7 +238,7 @@ function seed(): State {
   };
 }
 
-const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_configured", scopes: [], lastSyncAt: null, connectUrl: null } } });
+const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null } } });
 
 const clone = <T>(v: T): T => structuredClone(v);
 
@@ -734,14 +734,21 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
     },
     async connectConnector(provider, token) {
       const { s } = await st();
-      if (provider === "google_workspace") throw ctx.fail(503, "Google Workspace is not configured on this installation", [{ code: "connector_not_configured" }]);
+      if (provider === "google_workspace") {
+        const g = s.connectors.google_workspace;
+        if (g.status === "not_configured") throw ctx.fail(503, "Google Workspace is not configured on this installation", [{ code: "connector_not_configured" }]);
+        // As the API does: the first call starts Google's sign-in, the call after the person returns reports it active.
+        // The mock's sign-in address is the place the real one sends the person back to.
+        s.connectors.google_workspace = g.status === "pending" || g.connected ? { ...g, connected: true, status: "active", scopes: ["drive.file", "admin.directory.user.readonly"], connectUrl: null } : { ...g, status: "pending", connectUrl: `/w/${(await ctx.ws()).record.handle}/settings/connectors?connected=google_workspace` };
+        return clone(s.connectors.google_workspace);
+      }
       if (!token || token.length < 8) throw ctx.fail(422, "Paste a read-only Mercury API token", [{ field: "token", message: "Required" }]);
       s.connectors[provider] = { provider, connected: true, status: "active", scopes: ["transactions:read"], lastSyncAt: null };
       return clone(s.connectors[provider]);
     },
     async disconnectConnector(provider) {
       const { s } = await st();
-      s.connectors[provider] = { ...s.connectors[provider], connected: false, status: provider === "mercury" ? "not_connected" : "not_configured", scopes: [], lastSyncAt: null };
+      s.connectors[provider] = { ...s.connectors[provider], connected: false, status: "not_connected", scopes: [], lastSyncAt: null, ...(provider === "google_workspace" ? { connectUrl: null } : {}) };
       return clone(s.connectors[provider]);
     },
     async syncConnector(provider) {

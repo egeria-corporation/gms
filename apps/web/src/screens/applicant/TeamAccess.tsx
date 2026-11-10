@@ -9,6 +9,7 @@ import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHook
 import type { ApplicantMoreApi, McpConnection } from "../../api/applicantMore.ts";
 import { useMoreApi, useMoreMutation } from "../../api/applicantMoreHooks.ts";
 import { roleTitle } from "../../api/client.ts";
+import { useLaunchQuery } from "../../api/launchHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Avatar, FunderChip, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -39,7 +40,8 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("editor");
   const [days, setDays] = useState("30");
-  const invite = useApplicantMutation((api) => api.invite({ email: email.trim(), role, ...(role === "consultant" ? { expiresInDays: Number(days) || 30 } : {}) }));
+  const [firm, setFirm] = useState("");
+  const invite = useApplicantMutation((api) => api.invite({ email: email.trim(), role, ...(role === "consultant" ? { expiresInDays: Number(days) || 30, ...(firm.trim() ? { organizationName: firm.trim() } : {}) } : {}) }));
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const r = await invite.run();
@@ -71,6 +73,11 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
           </select>
         </Field>
         {role === "consultant" && (
+          <Field id="inv-firm" label="Consultant’s organization (optional)" help="The firm they work for. Shown beside their name in the consultants list.">
+            <input className="inp" id="inv-firm" value={firm} maxLength={200} onChange={(e) => setFirm(e.target.value)} autoComplete="off" />
+          </Field>
+        )}
+        {role === "consultant" && (
           <Field id="inv-days" label="Access ends after (days)" help="A consultant only sees the applications you assign sections of to them.">
             <input className="inp" id="inv-days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />
           </Field>
@@ -88,6 +95,7 @@ export default function TeamAccess() {
   const ws = useWorkspace("applicant");
   const more = useMoreApi();
   const query = useApplicantQuery((api) => load(api, more), [ws.id, more]);
+  const activity = useLaunchQuery((api) => api.memberActivity(ws.id), [ws.id]);
   const [tab, setTab] = useState<TabKey>("members");
   const disconnect = useMoreMutation((api, id: string) => api.revokeConnection(id));
   const [revoking, setRevoking] = useState<Consent | null>(null);
@@ -105,6 +113,11 @@ export default function TeamAccess() {
         <span className="nm">{m.name ?? m.email ?? "Member"}</span>
       </span>
     ),
+  };
+  const activityOf = new Map((activity.data ?? []).map((a) => [a.userId, a]));
+  const lastActive = (userId: string) => {
+    const at = activityOf.get(userId)?.lastActiveAt;
+    return at ? timeAgo(at) : <span className="muted">Not recorded</span>;
   };
   const mfa: Column<ApplicantMember> = {
     key: "mfa",
@@ -124,10 +137,12 @@ export default function TeamAccess() {
     { key: "email", header: "Email", cell: (m) => m.email ?? "—", sort: (m) => m.email ?? "" },
     { key: "role", header: "Role", cell: (m) => <span className="role">{roleTitle(m.role)}</span>, sort: (m) => m.role },
     mfa,
+    { key: "active", header: "Last active", cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
     { key: "since", header: "Member since", cell: (m) => formatDate(m.createdAt), sort: (m) => m.createdAt },
   ];
   const consultantColumns: Column<ApplicantMember>[] = [
     who,
+    { key: "firm", header: "Organization", cell: (m) => activityOf.get(m.userId)?.organization ?? <span className="muted">Not recorded</span>, sort: (m) => activityOf.get(m.userId)?.organization ?? null },
     { key: "role", header: "Role", cell: (m) => <span className="role">{roleTitle(m.role)}</span> },
     {
       key: "scope",
@@ -139,6 +154,7 @@ export default function TeamAccess() {
       },
     },
     { key: "expires", header: "Expires", cell: (m) => (m.expiresAt ? formatDate(m.expiresAt) : "No end date"), sort: (m) => m.expiresAt },
+    { key: "active", header: "Last active", cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
     mfa,
   ];
   const agentColumns: Column<McpConnection>[] = [

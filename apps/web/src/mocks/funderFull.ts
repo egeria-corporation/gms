@@ -112,5 +112,22 @@ export function createMockFunderFullApi(ctx: MockFunderCtx, inner: Inner): Funde
         cautions: ["This is not a score. Reviewers score each criterion themselves."],
       };
     },
+    async assistDraftLetter(templateId, input) {
+      const all = await inner.listTemplates();
+      const template = [...all.items, ...all.builtIn].find((t) => t.id === templateId);
+      if (!template) throw ctx.fail(404, "Template not found");
+      const q = spend();
+      return {
+        draft: true,
+        model: "mock-model",
+        quota: q,
+        templateId,
+        subject: template.subject ?? template.name,
+        // The template's own text, merge fields untouched, with one sentence the person must check.
+        body: `${template.body}\n\n[Drafted for a ${input.purpose} letter${input.tone ? `, ${input.tone} in tone` : ""}. Check every sentence before using it.]`,
+        mergeFieldsUsed: [...new Set([...template.body.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))],
+        cautions: ["Merge fields are left as written; they are filled in when the letter is sent."],
+      };
+    },
   };
 }

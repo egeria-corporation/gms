@@ -66,3 +66,8 @@ export async function copyText(text: string): Promise<boolean> {
   ta.remove();
   return ok;
 }
+
+/** Leaves the app for another address (a provider's sign-in page). One place, so tests can stand in for it. */
+export function leaveTo(url: string): void {
+  window.location.assign(url);
+}
