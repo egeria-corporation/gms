@@ -75,8 +75,8 @@ function Agents({ ws }: { ws: MeWorkspace }) {
                   ))}
                 </div>
               </div>
-              <button className="btn btn-sm btn-danger" type="button" onClick={() => setConfirm(c)}>
-                Revoke<span className="sr"> {c.clientName ?? c.clientId} in {ws.name}</span>
+              <button className="btn btn-sm btn-danger" type="button" aria-label={`Revoke ${c.clientName ?? c.clientId} in ${ws.name}`} onClick={() => setConfirm(c)}>
+                Revoke
               </button>
             </li>
           ))}

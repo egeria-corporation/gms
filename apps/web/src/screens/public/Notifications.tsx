@@ -78,8 +78,8 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
         <div className="row" style={{ gap: "10px" }}>
           {list && <span className="muted small">{list.unread > 0 ? `${list.unread} new` : "All read"}</span>}
           {list && list.unread > 0 && (
-            <button className="btn btn-sm btn-secondary" type="button" onClick={() => void markAll(list)}>
-              Mark all read<span className="sr"> in {ws.name}</span>
+            <button className="btn btn-sm btn-secondary" type="button" aria-label={`Mark all read in ${ws.name}`} onClick={() => void markAll(list)}>
+              Mark all read
             </button>
           )}
         </div>
@@ -120,8 +120,8 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
                   </div>
                 </div>
                 {!n.read ? (
-                  <button className="btn btn-sm btn-ghost" type="button" onClick={() => void markOne(list, n.id)}>
-                    Mark read<span className="sr">: {n.title}</span>
+                  <button className="btn btn-sm btn-ghost" type="button" aria-label={`Mark read: ${n.title}`} onClick={() => void markOne(list, n.id)}>
+                    Mark read
                   </button>
                 ) : (
                   <span />

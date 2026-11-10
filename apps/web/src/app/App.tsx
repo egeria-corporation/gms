@@ -208,7 +208,7 @@ function AppRoutes() {
             <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
             <Route path="analytics" element={f(<FAnalytics />)} />
             <Route path="communications" element={f(<FCommunications />)} />
-            <Route path="settings" element={<Navigate to="passport" replace />} />
+            <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="approvals" element={f(<FApprovals />)} />
@@ -226,7 +226,6 @@ function AppRoutes() {
             <Route path="library" element={a(<AAnswerLibrary />)} />
             <Route path="team" element={a(<ATeamAccess />)} />
             <Route path="funders" element={a(<AFunders />)} />
-            <Route path="settings" element={a(<ASettings />)} />
           </Route>
         </Route>
 
