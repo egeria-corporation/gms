@@ -1,0 +1,58 @@
+name: Deploy
+
+# Deploys the three Workers with the production layout (static assets + zone routes). Run it by
+# hand from the Actions tab. It needs these repository secrets and variables:
+#   secrets.CLOUDFLARE_API_TOKEN   Workers Scripts, Workers Routes, R2, KV, Queues: Edit
+#   secrets.CLOUDFLARE_ACCOUNT_ID
+#   vars.<ENV>_SUPABASE_URL, vars.<ENV>_SUPABASE_ANON_KEY, vars.<ENV>_PASSPORT_BASE_URL, vars.<ENV>_WEB_ORIGIN
+# where <ENV> is STAGING or PRODUCTION. Worker secrets are set separately (docs/self-host.md).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ENV_PREFIX: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check before deploying
+        run: pnpm typecheck && pnpm lint && pnpm gate:sensitive && pnpm test
+      - name: Build the OpenAPI asset
+        run: pnpm spec:compile && pnpm --filter @gms/api build:openapi
+      - name: Deploy the API Worker
+        run: pnpm --filter @gms/api exec wrangler deploy --env ${{ inputs.environment }}
+      - name: Deploy the jobs Worker
+        run: pnpm --filter @gms/jobs exec wrangler deploy --env ${{ inputs.environment }}
+      - name: Build the web app
+        env:
+          VITE_USE_MOCKS: "false"
+          VITE_API_BASE_URL: ${{ vars[format('{0}_WEB_ORIGIN', env.ENV_PREFIX)] }}
+          VITE_SUPABASE_URL: ${{ vars[format('{0}_SUPABASE_URL', env.ENV_PREFIX)] }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars[format('{0}_SUPABASE_ANON_KEY', env.ENV_PREFIX)] }}
+          VITE_PASSPORT_BASE_URL: ${{ vars[format('{0}_PASSPORT_BASE_URL', env.ENV_PREFIX)] }}
+        run: pnpm --filter @gms/web build
+      - name: Deploy the web Worker
+        run: pnpm --filter @gms/web exec wrangler deploy --env ${{ inputs.environment }}
