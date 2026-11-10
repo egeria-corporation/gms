@@ -1,0 +1,108 @@
+/* ============================================================
+   App-level additions to the design canvas stylesheet (app.css).
+   1. Frame rules that turn fixed-size artboards into fluid pages.
+   2. Rules the canvas declared per artboard (screen-specific).
+   ============================================================ */
+
+/* ---- 1. frame ---- */
+html, body, #root { margin: 0; min-height: 100%; }
+.gms-frame { display: flex; flex-direction: column; min-height: 100vh; position: relative; }
+/* The canvas positions overlays inside a fixed artboard; in the app they cover the viewport. */
+.ovl { position: fixed; overflow-y: auto; padding-bottom: 32px; }
+.gms-phone { width: 100%; }
+.gms-phone-only { display: none; }
+.email, .print { margin: 24px auto; }
+.preview-frame { background: var(--og-gray-100); min-height: 100vh; padding: 1px 0; }
+
+@media (max-width: 720px) {
+  .gms-applicant.gms-frame > .topbar .search,
+  .gms-applicant.gms-frame > .topbar .ws,
+  .gms-applicant.gms-frame > .shell > .rail { display: none; }
+  .gms-phone-only { display: flex; position: sticky; bottom: 0; z-index: 4; }
+  .gms .main, .gms-applicant .main { padding: 16px; gap: 16px; }
+  /* Multi-column page grids stack; wide tables scroll inside their wrapper. */
+  .gms .main [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .fld-row, .elig, .band, .diff .cols { grid-template-columns: minmax(0, 1fr); }
+  .rail { flex-basis: 100%; }
+  .mdl, .mdl-lg { width: calc(100% - 24px); }
+}
+
+/* ---- 2. screen-specific rules from the canvas ---- */
+/* A4m-Editor */
+.pillrow::-webkit-scrollbar { display:none }
+/* A6m-Grant */
+.tabrow::-webkit-scrollbar { display:none }
+/* C1-StatusVocabulary */
+.voc td { white-space:normal }
+/* C1-StatusVocabulary */
+.voc td:first-child { width:220px }
+/* C1-StatusVocabulary */
+.voc td:last-child { width:300px; color:#4A5C5A }
+/* C2-ComponentsA, C3-ComponentsB */
+.cap { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#4A5C5A }
+/* C2-ComponentsA, C3-ComponentsB */
+.spec { display:flex; flex-direction:column; gap:6px }
+/* C2-ComponentsA */
+.tip { background:#0D2A43; color:#fff; border-radius:8px; padding:12px 14px; font-size:12px; line-height:1.5; max-width:300px; box-shadow:0 8px 24px rgba(13,42,67,.25) }
+/* C2-ComponentsA, C3-ComponentsB */
+.tip a { color:#C2F0ED }
+/* F10-Panel */
+.alloc { width:112px; height:30px; text-align:right; font-size:13px; font-weight:700 }
+/* F10-Panel */
+.rk { width:28px; height:28px; border-radius:50%; background:#EEF3F3; color:#0D2A43; font-weight:800; font-size:12px; display:inline-flex; align-items:center; justify-content:center }
+/* F17-Settings-MCP */
+.snav a { display:flex; align-items:center; justify-content:space-between; height:36px; padding:0 12px; border-radius:6px; color:#1E2D2B; font-weight:500; text-decoration:none }
+/* F17-Settings-MCP */
+.snav a:hover { background:#EEF3F3; text-decoration:none }
+/* F17-Settings-MCP */
+.snav a.on { background:#E1F8F6; color:#145450; font-weight:700 }
+/* F18-Approvals */
+.letter { background:#F7FAFA; border:1px solid #D6DEDE; border-radius:8px; padding:14px 16px; font-size:13px; line-height:1.6; display:flex; flex-direction:column; gap:8px }
+/* F18-Approvals */
+.mf { background:#E1F8F6; color:#145450; border-radius:3px; padding:0 3px }
+/* F4-FormBuilder */
+.pal li { display:flex; align-items:center; gap:10px; height:34px; padding:0 10px; border:1px solid #D6DEDE; border-radius:6px; background:#fff; font-size:13px; font-weight:700; color:#0D2A43; cursor:grab }
+/* F4-FormBuilder */
+.pal li .ic { color:#4A5C5A }
+/* F4-FormBuilder */
+.fld-c { border:1px solid #D6DEDE; border-radius:8px; padding:10px 12px; background:#fff; display:flex; gap:10px; align-items:flex-start }
+/* F4-FormBuilder */
+.fld-c.sel { border-color:#29A79F; box-shadow:0 0 0 3px #E1F8F6 }
+/* F4-FormBuilder */
+.fld-c .grip { color:#9BAAA9; margin-top:2px }
+/* F8-ReviewAssignment */
+.mx td { text-align:center; height:48px }
+/* F8-ReviewAssignment */
+.mx th { text-align:center }
+/* F8-ReviewAssignment */
+.mx th:first-child,.mx td:first-child { text-align:left; position:sticky; left:0; background:#fff; min-width:260px }
+/* F8-ReviewAssignment */
+.cell { width:32px; height:32px; border-radius:6px; border:1px solid #9BAAA9; background:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#fff; padding:0 }
+/* F8-ReviewAssignment */
+.cell.on { background:#145450; border-color:#145450 }
+/* F8-ReviewAssignment */
+.cell.coi { background:repeating-linear-gradient(45deg,#FBE3E3,#FBE3E3 4px,#F1B4B4 4px,#F1B4B4 8px); border-color:#9B1C1C; color:#9B1C1C; cursor:not-allowed }
+/* F8-ReviewAssignment */
+.cell:hover { border-color:#145450 }
+/* F9-ReviewerScoring */
+.masked { display:inline-flex; align-items:center; gap:6px; color:#4A5C5A; font-style:italic; background:#EEF3F3; border-radius:4px; padding:2px 8px; font-size:12px }
+/* S1-ApprovalFlow */
+.mini td { white-space:normal }
+/* S4-PDF-Agreement, S4-PDF-Closeout, S4-PDF-Snapshot */
+.print .sec-h { font-family:var(--font-display); font-weight:700; font-size:14px; color:#0D2A43; padding-bottom:4px; border-bottom:1px solid #D6DEDE; margin-top:6px }
+/* S4-PDF-Agreement */
+.print .cl { display:grid; grid-template-columns:28px minmax(0,1fr); gap:4px 10px; font-size:12.5px }
+/* S4-PDF-Agreement */
+.print .cl .n { font-weight:700; color:#0D2A43 }
+/* S4-PDF-Closeout */
+.print .ck-row { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:start; font-size:12.5px; padding:6px 0; border-bottom:1px solid #EEF3F3 }
+/* S4-PDF-Closeout */
+.print .ck-row .ic { width:16px; height:16px; color:#0B5E47; margin-top:1px }
+/* S4-PDF-Snapshot */
+.print .f { display:grid; grid-template-columns:200px minmax(0,1fr); gap:4px 16px; font-size:12.5px }
+/* S4-PDF-Snapshot */
+.print .f dt { color:#4A5C5A }
+/* S4-PDF-Snapshot */
+.print .f dd { margin:0 }
+/* S4-PDF-Snapshot */
+.print .src { font-size:10.5px; color:#145450; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-left:6px }

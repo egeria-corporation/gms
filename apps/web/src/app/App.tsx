@@ -1,0 +1,226 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
+// funder and applicant workspaces share URL shapes (dashboard, applications/:id).
+import { lazy, Suspense, type ReactNode } from "react";
+import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import { useIsPhone } from "./usePhone.ts";
+import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
+import { NotFound } from "../components/NotFound.tsx";
+
+const Landing = lazy(() => import("../screens/public/Landing.tsx"));
+const FunderPageRiverbend = lazy(() => import("../screens/public/FunderPageRiverbend.tsx"));
+const FunderPageCascade = lazy(() => import("../screens/public/FunderPageCascade.tsx"));
+const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
+const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
+const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
+const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
+const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
+const Notifications = lazy(() => import("../screens/public/Notifications.tsx"));
+const AccountSettings = lazy(() => import("../screens/public/AccountSettings.tsx"));
+const FDashboard = lazy(() => import("../screens/funder/Dashboard.tsx"));
+const FPrograms = lazy(() => import("../screens/funder/Programs.tsx"));
+const FOpportunityBuilder = lazy(() => import("../screens/funder/OpportunityBuilder.tsx"));
+const FFormBuilder = lazy(() => import("../screens/funder/FormBuilder.tsx"));
+const FCompetition = lazy(() => import("../screens/funder/Competition.tsx"));
+const FApplications = lazy(() => import("../screens/funder/Applications.tsx"));
+const FApplicationsEmpty = lazy(() => import("../screens/funder/ApplicationsEmpty.tsx"));
+const FApplicationDetail = lazy(() => import("../screens/funder/ApplicationDetail.tsx"));
+const FReviewAssignment = lazy(() => import("../screens/funder/ReviewAssignment.tsx"));
+const FReviewerAssignments = lazy(() => import("../screens/funder/ReviewerAssignments.tsx"));
+const FReviewerScoring = lazy(() => import("../screens/funder/ReviewerScoring.tsx"));
+const FPanel = lazy(() => import("../screens/funder/Panel.tsx"));
+const FAwardAgreement = lazy(() => import("../screens/funder/AwardAgreement.tsx"));
+const FAwardPayments = lazy(() => import("../screens/funder/AwardPayments.tsx"));
+const FPaymentsDue = lazy(() => import("../screens/funder/PaymentsDue.tsx"));
+const FPaymentsInFlight = lazy(() => import("../screens/funder/PaymentsInFlight.tsx"));
+const FReporting = lazy(() => import("../screens/funder/Reporting.tsx"));
+const FGrantees = lazy(() => import("../screens/funder/Grantees.tsx"));
+const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
+const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
+const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
+const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
+const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
+const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
+const AFindFunding = lazy(() => import("../screens/applicant/FindFunding.tsx"));
+const AEditor = lazy(() => import("../screens/applicant/Editor.tsx"));
+const AEditorSubmit = lazy(() => import("../screens/applicant/EditorSubmit.tsx"));
+const AConfirmation = lazy(() => import("../screens/applicant/Confirmation.tsx"));
+const AApplicationStatus = lazy(() => import("../screens/applicant/ApplicationStatus.tsx"));
+const AGrantOffered = lazy(() => import("../screens/applicant/GrantOffered.tsx"));
+const AGrantPayments = lazy(() => import("../screens/applicant/GrantPayments.tsx"));
+const AReports = lazy(() => import("../screens/applicant/Reports.tsx"));
+const AAnswerLibrary = lazy(() => import("../screens/applicant/AnswerLibrary.tsx"));
+const ATeamAccess = lazy(() => import("../screens/applicant/TeamAccess.tsx"));
+const AFunders = lazy(() => import("../screens/applicant/Funders.tsx"));
+const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
+const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
+const AOrganizationPhone = lazy(() => import("../screens/applicant/phone/OrganizationPhone.tsx"));
+const AEditorPhone = lazy(() => import("../screens/applicant/phone/EditorPhone.tsx"));
+const AApplicationStatusPhone = lazy(() => import("../screens/applicant/phone/ApplicationStatusPhone.tsx"));
+const AGrantPhone = lazy(() => import("../screens/applicant/phone/GrantPhone.tsx"));
+const AReportsPhone = lazy(() => import("../screens/applicant/phone/ReportsPhone.tsx"));
+const SgStatusVocabulary = lazy(() => import("../screens/styleguide/StatusVocabulary.tsx"));
+const SgComponentsA = lazy(() => import("../screens/styleguide/ComponentsA.tsx"));
+const SgComponentsB = lazy(() => import("../screens/styleguide/ComponentsB.tsx"));
+const SgApprovalFlow = lazy(() => import("../screens/styleguide/ApprovalFlow.tsx"));
+const SgPassportConsentReference = lazy(() => import("../screens/styleguide/PassportConsentReference.tsx"));
+const OAuthConsent = lazy(() => import("../screens/shared/OAuthConsent.tsx"));
+const EmailAck = lazy(() => import("../screens/shared/email/EmailAck.tsx"));
+const EmailRevision = lazy(() => import("../screens/shared/email/EmailRevision.tsx"));
+const EmailDecline = lazy(() => import("../screens/shared/email/EmailDecline.tsx"));
+const EmailAward = lazy(() => import("../screens/shared/email/EmailAward.tsx"));
+const EmailReminder = lazy(() => import("../screens/shared/email/EmailReminder.tsx"));
+const EmailPaymentSent = lazy(() => import("../screens/shared/email/EmailPaymentSent.tsx"));
+const PdfSnapshot = lazy(() => import("../screens/shared/pdf/PdfSnapshot.tsx"));
+const PdfAgreement = lazy(() => import("../screens/shared/pdf/PdfAgreement.tsx"));
+const PdfCloseout = lazy(() => import("../screens/shared/pdf/PdfCloseout.tsx"));
+
+/** Renders the funder or the applicant screen for a URL both workspace kinds share. */
+function ByKind({ funder, applicant }: { funder: ReactNode; applicant: ReactNode }) {
+  const ws = useCurrentWorkspace();
+  if (!ws) return <NotFound />;
+  return ws.kind === "funder" ? funder : applicant;
+}
+
+/** Guards a route that exists for one workspace kind only. */
+function Only({ kind, children }: { kind: WorkspaceKind; children: ReactNode }) {
+  const ws = useCurrentWorkspace();
+  return ws?.kind === kind ? children : <NotFound />;
+}
+
+/** Applicant screens with a dedicated phone layout in the design. */
+function Responsive({ desktop, phone }: { desktop: ReactNode; phone: ReactNode }) {
+  return useIsPhone() ? phone : desktop;
+}
+
+function WorkspaceLayout() {
+  return (
+    <WorkspaceProvider>
+      <Outlet />
+    </WorkspaceProvider>
+  );
+}
+
+const FUNDER_PAGES: Record<string, ReactNode> = {
+  riverbend: <FunderPageRiverbend />,
+  "cascade-county": <FunderPageCascade />,
+};
+
+function FunderPublicPage() {
+  const { handle = "" } = useParams();
+  return FUNDER_PAGES[handle] ?? <NotFound />;
+}
+
+const EMAIL_PREVIEWS: Record<string, ReactNode> = {
+  acknowledgment: <EmailAck />,
+  "revision-request": <EmailRevision />,
+  decline: <EmailDecline />,
+  award: <EmailAward />,
+  "report-reminder": <EmailReminder />,
+  "payment-sent": <EmailPaymentSent />,
+};
+
+const PDF_PREVIEWS: Record<string, ReactNode> = {
+  "application-snapshot": <PdfSnapshot />,
+  agreement: <PdfAgreement />,
+  closeout: <PdfCloseout />,
+};
+
+function Preview({ of }: { of: Record<string, ReactNode> }) {
+  const { kind = "" } = useParams();
+  const doc = of[kind];
+  return doc ? <div className="preview-frame">{doc}</div> : <NotFound />;
+}
+
+const f = (el: ReactNode) => <Only kind="funder">{el}</Only>;
+const a = (el: ReactNode) => <Only kind="applicant">{el}</Only>;
+
+export function App() {
+  return (
+    <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/f/:handle" element={<FunderPublicPage />} />
+        <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
+        <Route path="/signin" element={<SignIn />} />
+        <Route path="/workspaces" element={<WorkspaceSwitcher />} />
+        <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/brand" replace />} />
+        <Route path="/onboarding/funder/brand" element={<FunderOnboarding />} />
+        <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/account" element={<Navigate to="/account/agents" replace />} />
+        <Route path="/account/agents" element={<AccountSettings />} />
+        <Route path="/oauth/consent" element={<OAuthConsent />} />
+
+        {/* Reviewer portal: external reviewers have no workspace rail. */}
+        <Route path="/review/assignments" element={<FReviewerAssignments />} />
+        <Route path="/review/score/:appId" element={<FReviewerScoring />} />
+
+        <Route path="/w/:ws" element={<WorkspaceLayout />}>
+          <Route
+            index
+            element={<ByKind funder={<FDashboard />} applicant={<Responsive desktop={<ADashboard />} phone={<ADashboardPhone />} />} />}
+          />
+          <Route
+            path="applications/:appId"
+            element={
+              <ByKind
+                funder={<FApplicationDetail />}
+                applicant={<Responsive desktop={<AApplicationStatus />} phone={<AApplicationStatusPhone />} />}
+              />
+            }
+          />
+
+          {/* Funder workspace */}
+          <Route path="programs" element={f(<FPrograms />)} />
+          <Route path="programs/:programId" element={f(<FPrograms />)} />
+          <Route path="opportunities/:oppId/edit" element={f(<FOpportunityBuilder />)} />
+          <Route path="forms/:formId/edit" element={f(<FFormBuilder />)} />
+          <Route path="competitions/:compId" element={f(<FCompetition />)} />
+          <Route path="competitions/:compId/panel" element={f(<FPanel />)} />
+          <Route path="applications" element={f(<FApplications />)} />
+          <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
+          <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
+          <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
+          <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
+          <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />
+          <Route path="payments" element={<Navigate to="due" replace />} />
+          <Route path="payments/due" element={f(<FPaymentsDue />)} />
+          <Route path="payments/in-flight" element={f(<FPaymentsInFlight />)} />
+          <Route path="reporting" element={f(<FReporting />)} />
+          <Route path="grantees" element={f(<FGrantees />)} />
+          <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
+          <Route path="analytics" element={f(<FAnalytics />)} />
+          <Route path="communications" element={f(<FCommunications />)} />
+          <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
+          <Route path="approvals" element={f(<FApprovals />)} />
+
+          {/* Applicant workspace */}
+          <Route path="organization" element={a(<Responsive desktop={<AOrganization />} phone={<AOrganizationPhone />} />)} />
+          <Route path="find" element={a(<AFindFunding />)} />
+          <Route path="applications/:appId/edit" element={a(<Responsive desktop={<AEditor />} phone={<AEditorPhone />} />)} />
+          <Route path="applications/:appId/edit/submit" element={a(<AEditorSubmit />)} />
+          <Route path="applications/:appId/submitted" element={a(<AConfirmation />)} />
+          <Route path="grants/:awardId" element={a(<Responsive desktop={<AGrantPayments />} phone={<AGrantPhone />} />)} />
+          <Route path="grants/:awardId/offer" element={a(<AGrantOffered />)} />
+          <Route path="reports" element={a(<Responsive desktop={<AReports />} phone={<AReportsPhone />} />)} />
+          <Route path="library" element={a(<AAnswerLibrary />)} />
+          <Route path="team" element={a(<ATeamAccess />)} />
+          <Route path="funders" element={a(<AFunders />)} />
+          <Route path="settings" element={a(<ASettings />)} />
+        </Route>
+
+        {/* Component reference from the design canvas, and the email / PDF templates */}
+        <Route path="/styleguide/status" element={<SgStatusVocabulary />} />
+        <Route path="/styleguide/components-a" element={<SgComponentsA />} />
+        <Route path="/styleguide/components-b" element={<SgComponentsB />} />
+        <Route path="/styleguide/approval-flow" element={<SgApprovalFlow />} />
+        <Route path="/styleguide/passport-consent" element={<SgPassportConsentReference />} />
+        <Route path="/preview/email/:kind" element={<Preview of={EMAIL_PREVIEWS} />} />
+        <Route path="/preview/pdf/:kind" element={<Preview of={PDF_PREVIEWS} />} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+}

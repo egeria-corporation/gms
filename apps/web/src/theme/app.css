@@ -3,6 +3,8 @@
    Loads after ds/opengrants/colors_and_type.css.
    Tenant accent is a CSS var (--tenant / --on-tenant) and is
    applied ONLY where .tenant-* classes are used.
+   App note: base link rules use :where() so component classes
+   (.btn, .tab, .chip) set their own link color.
    ============================================================ */
 
 .gms, .gms * { box-sizing: border-box; }
@@ -22,8 +24,8 @@
 }
 .gms-applicant { font-size: 16px; line-height: 1.5; }
 .gms-phone { font-size: 16px; line-height: 1.5; width: 390px; }
-.gms a { color: var(--og-navy); text-decoration: none; }
-.gms a:hover { color: var(--og-teal-dark); text-decoration: underline; }
+:where(.gms) a { color: var(--og-navy); text-decoration: none; }
+:where(.gms) a:hover { color: var(--og-teal-dark); text-decoration: underline; }
 .gms :focus-visible { outline: 2px solid var(--og-teal); outline-offset: 2px; border-radius: 2px; }
 .gms h1, .gms h2, .gms h3, .gms h4 { font-family: var(--font-display); color: var(--og-navy-dark); margin: 0; line-height: 1.25; }
 .gms h1 { font-size: 22px; font-weight: 700; }
