@@ -201,7 +201,7 @@ export default function Reports() {
           )}
           {query.status === "ready" && list.length > 0 && (
             <>
-              <div className="tbl-wrap">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Reporting requirements, scrollable">
                 <table className="tbl" style={{ fontSize: "15px" }}>
                   <caption className="sr">Reporting requirements</caption>
                   <thead>

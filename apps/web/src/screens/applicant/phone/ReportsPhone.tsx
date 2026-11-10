@@ -114,8 +114,11 @@ export default function ReportsPhone() {
                         <StatusBadge kind="requirement" status={r.status} />
                       </div>
                       {action && (
-                        <button className={`btn btn-lg btn-block ${r.id === selected?.id ? "btn-secondary" : action.primary ? "btn-primary" : "btn-secondary"}`} type="button" aria-pressed={r.id === selected?.id} aria-label={`${action.label}: ${r.title}, ${r.funder?.name ?? "funder"}`} onClick={() => { setParams({ r: r.id }); document.getElementById("editor")?.scrollIntoView({ block: "start" }); }}>
+                        <button className={`btn btn-lg btn-block ${r.id === selected?.id ? "btn-secondary" : action.primary ? "btn-primary" : "btn-secondary"}`} type="button" aria-pressed={r.id === selected?.id} onClick={() => { setParams({ r: r.id }); document.getElementById("editor")?.scrollIntoView({ block: "start" }); }}>
                           {r.id === selected?.id ? "Open below" : action.label}
+                          <span className="sr">
+                            : {r.title}, {r.funder?.name ?? "funder"}
+                          </span>
                         </button>
                       )}
                     </div>

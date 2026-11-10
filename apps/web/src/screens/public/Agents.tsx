@@ -115,7 +115,7 @@ export default function Agents() {
               <p style={{ maxWidth: "760px" }}>
                 When an agent calls one of these tools, nothing happens yet. The call returns <code>pending_approval</code> with a link; a person approves or rejects it in the GMS, and the agent reads the outcome with <code>get_approval</code>. A workspace can gate more tools, never fewer.
               </p>
-              <div className="tbl-wrap">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Tools that need a person, scrollable">
                 <table className="tbl" style={{ fontSize: "15px" }}>
                   <caption className="sr">Tools that need a person</caption>
                   <thead>

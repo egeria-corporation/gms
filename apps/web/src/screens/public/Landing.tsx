@@ -172,7 +172,7 @@ export default function Landing() {
               }}
             >
               <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "#29A79F" }}>$0</div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "var(--og-teal-dark)" }}>$0</div>
                 <div style={{ fontSize: "14px", color: "#4A5C5A" }}>for funders, every plan</div>
               </div>
               <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>

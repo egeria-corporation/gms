@@ -264,7 +264,7 @@ export function BudgetTable({ book, compact = false }: { book: BudgetBook; compa
   const total = rows.reduce((s, r) => ({ approved: s.approved + r.approved, actual: s.actual + r.actual }), { approved: 0, actual: 0 });
   if (!rows.length) return <p className="small muted" style={{ padding: "16px 20px" }}>Your funder has not set an approved budget yet.</p>;
   return (
-    <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+    <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Budget, scrollable">
       <table className="tbl bud" style={{ fontSize: "14px" }}>
         <caption className="sr">Approved budget and actuals to date by category</caption>
         <thead>

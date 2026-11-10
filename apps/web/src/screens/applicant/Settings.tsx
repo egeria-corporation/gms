@@ -49,7 +49,7 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
         </div>
         <SaveNote state={save.state} />
       </div>
-      <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+      <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Notification preferences, scrollable">
         <table className="tbl" style={{ fontSize: "15px" }}>
           <caption className="sr">Notification preferences by event</caption>
           <thead>

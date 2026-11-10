@@ -144,3 +144,13 @@ button.tab { font-family: inherit; }
   .stp .ln { display: none; }
 }
 .fld-c > .tag { flex: none; white-space: nowrap; }
+
+/* ---- 5. accessibility ---- */
+/* A link inside running text is underlined, so it is not told apart by color alone (WCAG 1.4.1). */
+.gms :is(p, dd, li, .help, .d, .r, .who, .bd, .small, .muted, .notice, .meta span) > a:not([class]),
+.gms :is(p, dd, .help, .d) > a.small { text-decoration: underline; text-underline-offset: 2px; }
+/* On a tinted banner the link takes the banner's own text color, which is chosen to pass on it. */
+.bnr a:not(.btn) { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+/* The funder mark is outlined in the tenant's own text color, which is contrast-checked against
+   the accent when the brand is saved; a translucent white plate was not. */
+.pub-hd .lg .mark { background: transparent; border: 1.5px solid currentColor; }

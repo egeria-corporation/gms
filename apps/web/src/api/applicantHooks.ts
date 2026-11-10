@@ -22,6 +22,10 @@ export function provideApplicantApi(services: Pick<Services, "auth">, api: Appli
 // Mock mode: one store per services object, shared with the rest of the applicant port
 // (api/applicantMoreHooks.ts) so a grant, its schedule and its reports are one story.
 const mockStores = new WeakMap<object, ApplicantStore>();
+/** Tests: make both applicant mocks for a services object read and write this store. */
+export function provideMockApplicantStore(services: Pick<Services, "auth">, store: ApplicantStore): void {
+  mockStores.set(services.auth, store);
+}
 export function mockApplicantStore(services: Pick<Services, "auth">): ApplicantStore {
   let store = mockStores.get(services.auth);
   if (!store) mockStores.set(services.auth, (store = seedApplicantStore()));

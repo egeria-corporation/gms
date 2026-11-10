@@ -35,8 +35,9 @@ export function PhoneShell({ title, active, sheet, overlay, children }: PhoneShe
           <Bell className="ic ic-md" aria-hidden="true" />
           {unread > 0 && <span className="dot"></span>}
         </Link>
-        <Link to="/account/agents" className="av av-t" aria-label={`Account: ${ws.member.name}`} style={{ width: "36px", height: "36px", fontSize: "12px" }}>
-          {ws.member.initials}
+        <Link to="/account/agents" className="av av-t" style={{ width: "36px", height: "36px", fontSize: "12px" }}>
+          <span aria-hidden="true">{ws.member.initials}</span>
+          <span className="sr">Account: {ws.member.name}</span>
         </Link>
       </header>
       {menu && (

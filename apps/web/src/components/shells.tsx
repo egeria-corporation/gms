@@ -83,8 +83,9 @@ function TopBar({
         <button className="iconbtn" aria-label="Help">
           <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
         </button>
-        <Link to="/account/agents" className={avatarClass} aria-label={`Account: ${ws.member.name}`}>
-          {ws.member.initials}
+        <Link to="/account/agents" className={avatarClass}>
+          <span aria-hidden="true">{ws.member.initials}</span>
+          <span className="sr">Account: {ws.member.name}</span>
         </Link>
       </div>
     </header>

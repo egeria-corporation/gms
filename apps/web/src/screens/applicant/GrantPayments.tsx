@@ -181,7 +181,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
               {funder} has not set a payment schedule for this grant yet.
             </p>
           ) : (
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Payment schedule, scrollable">
               <table className="tbl" style={{ fontSize: "15px" }}>
                 <caption className="sr">Payment schedule</caption>
                 <thead>

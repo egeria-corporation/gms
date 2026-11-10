@@ -106,8 +106,9 @@ export default function ApplicantOnboarding() {
               <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
             </button>
             {email && (
-              <Link to="/account/agents" className="av av-t" aria-label={`Account: ${email}`}>
-                {initialsOf(email)}
+              <Link to="/account/agents" className="av av-t">
+                <span aria-hidden="true">{initialsOf(email)}</span>
+                <span className="sr">Account: {email}</span>
               </Link>
             )}
           </div>

@@ -26,8 +26,9 @@ export function AccountShell({ active, children }: { active: "notifications" | "
           <Link to="/notifications" className="iconbtn" aria-label="Notifications" aria-current={active === "notifications" ? "page" : undefined} style={active === "notifications" ? { background: "var(--og-gray-100)", color: "var(--og-navy-dark)" } : undefined}>
             <Bell className="ic ic-md" aria-hidden="true" />
           </Link>
-          <Link to="/account/agents" className="av" aria-label={`Account: ${email}`} aria-current={active === "account" ? "page" : undefined}>
-            {initialsOf(email)}
+          <Link to="/account/agents" className="av" aria-current={active === "account" ? "page" : undefined}>
+            <span aria-hidden="true">{initialsOf(email)}</span>
+            <span className="sr">Account: {email}</span>
           </Link>
         </div>
       </header>
