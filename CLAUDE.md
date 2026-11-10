@@ -36,7 +36,7 @@ its stylesheet lives in `apps/web/src/theme/` (tokens.css = OpenGrants Design Sy
   guard → write → ledger → webhook.
 - **Secrets** come from Wrangler secrets / Supabase vault / `.dev.vars` (gitignored).
 - **Design**: use the theme tokens and the classes in `apps/web/src/theme/app.css`; never ad-hoc colors.
-  Status is always icon + label, never color alone. Icons come from `lucide-react` via `components/Icon`.
+  Status is always icon + label, never color alone. Icons come from `lucide-react`, sized with the `ic` classes.
 - SPDX header `// SPDX-License-Identifier: AGPL-3.0-only` on source files. Conventional commits.
 
 ## Layout
