@@ -153,7 +153,7 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
 ## 5. Passport
 
 1. Register the GMS as an OAuth client at your Passport deployment, named "OpenGrants GMS", with
-   the authorization-code + PKCE grant, scopes `org:read org.changes:read org.changes:write`, and
+   the authorization-code + PKCE grant, scopes `org:read org.changes:read org.changes:write payee:read`, and
    the redirect URI `https://<host>/gms/passport/consent/callback`. Put the id and secret in
    `PASSPORT_GMS_CLIENT_ID` / `PASSPORT_GMS_CLIENT_SECRET`.
 2. Subscribe to Passport webhooks at `https://<host>/webhooks/passport` and set

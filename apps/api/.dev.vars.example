@@ -22,7 +22,7 @@ PASSPORT_WEBHOOK_SECRET=
 # "true" once Passport serves the funder award routes (award:write)
 PASSPORT_AWARD_WRITE=false
 # "true" adds payee:read to the applicant Passport consent (payout destination panel). Default off.
-PASSPORT_APPLICANT_PAYEE_READ=false
+PASSPORT_APPLICANT_PAYEE_READ=true
 
 # 32 random bytes, base64url, each
 CREDENTIALS_ENCRYPTION_KEY=

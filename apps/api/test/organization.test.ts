@@ -34,11 +34,11 @@ async function consent(user: string, fixtures: Fixture[], body: Record<string, u
 }
 
 describe("Passport consent", () => {
-  it("sends the browser to Passport with PKCE and the three consent scopes", async () => {
+  it("sends the browser to Passport with PKCE and the consent scopes", async () => {
     const { authorizeUrl } = await consent(NEW_USER, [token(1), ORG, PROFILE]);
     const url = new URL(authorizeUrl);
     expect(url.origin + url.pathname).toBe(`${PASSPORT}/oauth/authorize`);
-    expect(Object.fromEntries(url.searchParams)).toMatchObject({ response_type: "code", client_id: "gms-test-client", redirect_uri: "https://gms.test/gms/passport/consent/callback", scope: "org:read org.changes:read org.changes:write", code_challenge_method: "S256" });
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ response_type: "code", client_id: "gms-test-client", redirect_uri: "https://gms.test/gms/passport/consent/callback", scope: "org:read org.changes:read org.changes:write payee:read", code_challenge_method: "S256" });
     // The verifier is not readable from the URL.
     expect(url.searchParams.get("state")).not.toContain("the-code");
   });

@@ -25,7 +25,7 @@ export function config(c: C): ServiceConfig {
     mailFrom: c.env.RESEND_FROM ?? null,
     passportAwardWrite: c.env.PASSPORT_AWARD_WRITE === "true",
     assistantEnabled: c.env.ASSISTANT_ENABLED === "true",
-    applicantPayeeRead: c.env.PASSPORT_APPLICANT_PAYEE_READ === "true",
+    applicantPayeeRead: c.env.PASSPORT_APPLICANT_PAYEE_READ !== "false",
     webhookSecretKey: c.env.WEBHOOK_SECRET_KEY ?? null,
     passportWebhookSecret: c.env.PASSPORT_WEBHOOK_SECRET ?? null,
     resendInboundSecret: c.env.RESEND_INBOUND_SECRET ?? null,

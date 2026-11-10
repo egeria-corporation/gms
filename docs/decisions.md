@@ -21,6 +21,7 @@ One line each: date · decision · why.
 - 2026-11-10 · Owner decision: the September work (`feat/v1`, `feat/hosted`, PRs #1 and #2) is retired and nothing is ported from it; v1 is built fresh from the build prompt and the design canvas, with no features beyond the prompt (no board voting, diligence screening or audit-log screen) · one design, one stack. PRs #1 and #2 are closed; the branches remain on GitHub.
 - 2026-11-10 · Owner decision: Passport is the portable identity / common app and the GMS leverages it. Where Passport cannot yet serve the GMS (profile read for consented clients, funder award routes), Passport is changed rather than the GMS working around it · see the Passport PR from branch `claude/gms-integration`.
 - 2026-11-10 · The tranche machine gains `releasing → held` and `held → releasing|initiated` · Passport creates a held disbursement itself during a destination change.
+- 2026-11-10 · Owner decision: the applicant's Passport consent includes `payee:read` in addition to `org:read org.changes:read org.changes:write` · applicants see their own payout destination status (bank name and last four) in the GMS, as the design shows. This widens the consent in the build prompt's decision table; `PASSPORT_APPLICANT_PAYEE_READ=false` turns it off. Organizations that consented before this change see the panel as not shared until they reconnect.
 
 ## Open differences with Passport (need an owner decision)
 

@@ -292,6 +292,7 @@ API-client tokens on the matching REST route with `403 approval_required` (`apps
 Not available: account sessions (Supabase Auth exposes no per-user session list to the service role), a member's last
 active time (not recorded), and connected apps and representatives (Passport serves both to member sessions only).
 
-`PASSPORT_APPLICANT_PAYEE_READ=true` adds `payee:read` to the applicant's Passport consent so the payout-destination
-panel can read bank name and last four digits. Off by default; turning it on widens the consent applicants are shown.
+The applicant's Passport consent asks for `payee:read` as well as the three org scopes, so the payout-destination
+panel can read bank name and last four digits. Set `PASSPORT_APPLICANT_PAYEE_READ=false` to leave it out. The GMS
+client registered at Passport must list `payee:read` in its allowed scopes.
 

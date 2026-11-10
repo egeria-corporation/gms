@@ -286,13 +286,13 @@ describe("approval preview", () => {
 });
 
 describe("applicant consent scopes", () => {
-  it("asks for payee:read only when the install opted in", async () => {
+  it("asks for payee:read unless the install turned it off", async () => {
     const start = async () => {
       const res = await h.request("/gms/passport/consent/start", { method: "POST", headers: { ...bearer(await h.session(USER_APPLICANT)).headers, "Content-Type": "application/json" }, body: "{}" });
       return new URL(((await res.json()) as { data: { authorizeUrl: string } }).data.authorizeUrl).searchParams.get("scope");
     };
-    expect(await start()).toBe("org:read org.changes:read org.changes:write");
-    h.env.PASSPORT_APPLICANT_PAYEE_READ = "true";
     expect(await start()).toBe("org:read org.changes:read org.changes:write payee:read");
+    h.env.PASSPORT_APPLICANT_PAYEE_READ = "false";
+    expect(await start()).toBe("org:read org.changes:read org.changes:write");
   });
 });
