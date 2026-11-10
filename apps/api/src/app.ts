@@ -13,6 +13,7 @@ import { ApiError, errorResponse, notFound, notImplemented } from "./lib/errors.
 import { log, loggablePath } from "./lib/log.ts";
 import { agentdocs } from "./routes/agentdocs.ts";
 import { cgApplications } from "./routes/apply.ts";
+import { cgAwards } from "./routes/awards.ts";
 import { authorize } from "./routes/authorize.ts";
 import { gms } from "./routes/gms.ts";
 import { mcp } from "./routes/mcp.ts";
@@ -121,6 +122,7 @@ export function createApp(makeDeps: DepsFactory) {
   // Protocol reads that are implemented; every other protocol route answers 501 until its phase lands.
   app.route("/common-grants", commonGrants);
   app.route("/common-grants", cgApplications);
+  app.route("/common-grants", cgAwards);
   app.get("/sitemap.xml", sitemap);
   app.get("/openapi.json", async (c) => {
     const doc = await c.get("deps").openapi?.(c.env);

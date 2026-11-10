@@ -9,7 +9,7 @@ import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
-import type { FileStorage, OpenGrantsClient } from "./ports.ts";
+import type { FileStorage, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
 export interface ServiceActor {
@@ -43,6 +43,8 @@ export interface ServiceConfig {
   passportClient: { id: string; secret: string } | null;
   /** RESEND_FROM; null when outbound mail is not configured. */
   mailFrom: string | null;
+  /** Mirror accepted awards into Passport (`POST /passport/funders/{orgId}/awards`). Off until Passport serves the route. */
+  passportAwardWrite?: boolean;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
@@ -50,6 +52,8 @@ export interface ServicePorts {
   mailer?: Mailer;
   storage?: FileStorage;
   openGrants?: OpenGrantsClient;
+  /** Names and emails for member lists. */
+  directory?: UserDirectory;
 }
 
 export interface ServiceContext {

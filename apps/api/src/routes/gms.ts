@@ -10,6 +10,7 @@ import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { designRoutes } from "./gms/design.ts";
+import { grantRoutes } from "./gms/grants.ts";
 import { userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { publicPages } from "./public.ts";
@@ -59,6 +60,7 @@ gms.route("/", workspaceRoutes);
 gms.route("/", designRoutes);
 gms.route("/", applicationRoutes);
 gms.route("/", approvalRoutes);
+gms.route("/", grantRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

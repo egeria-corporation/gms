@@ -21,6 +21,7 @@ export function config(c: C): ServiceConfig {
     ...(deps.passportFetch ? { passportFetch: deps.passportFetch } : {}),
     passportClient: c.env.PASSPORT_GMS_CLIENT_ID && c.env.PASSPORT_GMS_CLIENT_SECRET ? { id: c.env.PASSPORT_GMS_CLIENT_ID, secret: c.env.PASSPORT_GMS_CLIENT_SECRET } : null,
     mailFrom: c.env.RESEND_FROM ?? null,
+    passportAwardWrite: c.env.PASSPORT_AWARD_WRITE === "true",
   };
 }
 

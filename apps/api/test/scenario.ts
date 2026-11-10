@@ -14,7 +14,7 @@ export const ALDER_ORG = {
   status: { value: "active" },
   identifiers: { "org:us:ein": { id: "001234567" } },
   mission: "Health navigation and family support for rural households in the Alder Creek valley.",
-  addresses: { primary: { street1: "418 Mill Road", city: "Alder Creek", stateOrProvince: "OR", region: "OR", country: "US", postalCode: "97000" } },
+  addresses: { primary: { street1: "418 Mill Road", city: "Alder Creek", stateOrProvince: "OR", country: "US", postalCode: "97000" } },
   emails: { primary: "info@aldercreekfs.example" },
   customFields: {
     verificationLevel: { name: "verificationLevel", fieldType: "string", value: "L3" },
@@ -30,8 +30,9 @@ export const ALDER_PROFILE = {
   handle: "alder-creek",
   level: "L3",
   fields: [
-    { path: "/profile/financials/annualOperatingBudget", value: 2_400_000, source: "member", fetchedAt: "2027-01-12T17:20:00Z", confidence: 1, confirmedAt: "2027-01-12T17:20:00Z" },
-    { path: "/profile/financials/annualRevenue", value: 2_310_000, source: "irs_990", fetchedAt: "2027-01-10T08:00:00Z", confidence: 0.95, confirmedAt: "2027-01-12T17:20:00Z" },
+    { path: "/commonApp/irs/subsection", value: "03", source: "irs_bmf", fetchedAt: "2027-01-10T08:00:00Z", confidence: 1, confirmedAt: "2027-01-12T17:20:00Z" },
+    { path: "/commonApp/financials/budget", value: 2_400_000, source: "member", fetchedAt: "2027-01-12T17:20:00Z", confidence: 1, confirmedAt: "2027-01-12T17:20:00Z" },
+    { path: "/commonApp/financials/totalRevenue", value: 2_310_000, source: "irs_990", fetchedAt: "2027-01-10T08:00:00Z", confidence: 0.95, confirmedAt: "2027-01-12T17:20:00Z" },
   ],
 };
 
@@ -76,9 +77,9 @@ export async function scenario(h: Harness): Promise<Scenario> {
     acceptedApplicantTypes: ["non_profit_with_501c3"],
     eligibilityRules: {
       all: [
-        { path: "org.orgType.code", op: "in", value: ["EA000000"], label: "Nonprofit organization" },
-        { path: "org.addresses.primary.region", op: "in", value: ["OR", "WA"], label: "Serves the region" },
-        { path: "profile.financials.annualOperatingBudget", op: "lt", value: 5_000_000, missing: "unknown", label: "Annual budget under $5M" },
+        { path: "profile.commonApp.irs.subsection", op: "in", value: ["03"], missing: "unknown", label: "Nonprofit organization" },
+        { path: "org.addresses.primary.stateOrProvince", op: "in", value: ["OR", "WA"], label: "Serves the region" },
+        { path: "profile.commonApp.financials.budget", op: "lt", value: 5_000_000, missing: "unknown", label: "Annual budget under $5M" },
       ],
     },
   });
@@ -106,7 +107,7 @@ export async function scenario(h: Harness): Promise<Scenario> {
         { type: "Control", scope: "#/properties/need", options: { pii: true } },
       ],
     },
-    mappingFromCommonGrants: { legalName: { field: "name" }, annualBudget: { field: "profile.financials.annualOperatingBudget" } },
+    mappingFromCommonGrants: { legalName: { field: "name" }, annualBudget: { field: "profile.commonApp.financials.budget" } },
     mappingToCommonGrants: { title: { field: "projectTitle" }, requestedAmount: { field: "requestedAmount" } },
   });
   await data(funder, "POST", `/gms/forms/${loi.id}/publish`);

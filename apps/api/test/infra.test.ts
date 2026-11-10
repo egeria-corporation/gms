@@ -71,7 +71,7 @@ describe("envelopes", () => {
     const missing = await h.request("/nope");
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ status: 404, message: "Route not found", errors: [{ code: "not_found" }] });
-    for (const path of ["/common-grants/awards", "/gms/tranches", "/webhooks/passport"]) {
+    for (const path of ["/common-grants/orgs", "/gms/tranches", "/webhooks/passport"]) {
       const res = await h.request(path, { method: path.startsWith("/webhooks") ? "POST" : "GET" });
       expect(res.status, path).toBe(501);
       const body = (await res.json()) as { status: number; errors: { code: string }[] };

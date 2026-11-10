@@ -13,7 +13,7 @@
       "identifiers": { "org:us:ein": { "id": "001234567" } },
       "mission": "Health navigation and family support for rural households in the Alder Creek valley.",
       "yearFounded": "1998",
-      "addresses": { "primary": { "street1": "418 Mill Road", "city": "Alder Creek", "stateOrProvince": "OR", "region": "OR", "country": "US", "postalCode": "97000" } },
+      "addresses": { "primary": { "street1": "418 Mill Road", "city": "Alder Creek", "stateOrProvince": "OR", "country": "US", "postalCode": "97000" } },
       "emails": { "primary": "info@aldercreekfs.example" },
       "phones": { "primary": { "countryCode": "+1", "number": "5035550142" } },
       "socials": { "website": "https://aldercreekfs.example" },

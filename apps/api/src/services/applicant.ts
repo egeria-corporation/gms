@@ -204,10 +204,10 @@ export async function updateAnswer(ctx: ServiceContext, answerId: string, input:
 
 function orgContext(ws: Ws): OrgSearchContext {
   const { org, profile } = passportFacts(ws);
-  const revenue = Number(readPath(profile, "financials.annualRevenue") ?? readPath(profile, "financials.annualOperatingBudget"));
+  const revenue = Number(readPath(profile, "commonApp.financials.totalRevenue") ?? readPath(profile, "commonApp.financials.budget"));
   const band = !Number.isFinite(revenue) || revenue <= 0 ? undefined : revenue < 250_000 ? "under_250k" : revenue < 1_000_000 ? "250k_1m" : revenue < 5_000_000 ? "1m_5m" : "over_5m";
   const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  return { orgType: text(readPath(org, "orgType.code")), region: text(readPath(org, "addresses.primary.region")) ?? text(readPath(org, "addresses.primary.stateOrProvince")), mission: text(org.mission)?.slice(0, 500), revenueBand: band };
+  return { orgType: text(readPath(org, "orgType.code")), region: text(readPath(org, "addresses.primary.stateOrProvince")), mission: text(org.mission)?.slice(0, 500), revenueBand: band };
 }
 
 /** Competitions open on this GMS, each with the caller's eligibility. `unknown` is shown as such. */

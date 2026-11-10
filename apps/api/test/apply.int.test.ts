@@ -75,7 +75,7 @@ describe.skipIf(!URL_ || !KEY || !JWT_SECRET)("applying over Supabase", () => {
       description: "Grants for community health navigation.",
       funding: { maxAwardAmount: { amount: "150000.00", currency: "USD" } },
       acceptedApplicantTypes: ["non_profit_with_501c3"],
-      eligibilityRules: { all: [{ path: "org.orgType.code", op: "in", value: ["EA000000"], label: "Nonprofit organization" }, { path: "profile.financials.annualOperatingBudget", op: "lt", value: 5_000_000, missing: "unknown", label: "Budget under $5M" }] },
+      eligibilityRules: { all: [{ path: "profile.commonApp.irs.subsection", op: "in", value: ["03"], missing: "unknown", label: "Nonprofit organization" }, { path: "profile.commonApp.financials.budget", op: "lt", value: 5_000_000, missing: "unknown", label: "Budget under $5M" }] },
     });
     const form = await ok<{ id: string }>("funder", "POST", "/gms/forms", {
       title: "Letter of intent",

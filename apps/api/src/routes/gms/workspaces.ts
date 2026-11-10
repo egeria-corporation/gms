@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../../app.ts";
 import { authenticate, requireUser } from "../../auth/middleware.ts";
-import { created, ok } from "../../lib/errors.ts";
+import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as passport from "../../services/passport-link.ts";
@@ -28,7 +28,11 @@ workspaceRoutes.use("/workspaces/:workspaceId", authenticate());
 workspaceRoutes.get("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.getWorkspace(await svc(c), ws(c)))));
 workspaceRoutes.patch("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.updateWorkspace(await svc(c), ws(c), parse(workspaces.updateWorkspaceInput, await jsonBody(c))))));
 
-workspaceRoutes.get("/workspaces/:workspaceId/members", async (c) => c.json(ok(await workspaces.listMembers(await svc(c), ws(c)))));
+// A list envelope like every other list: `items` + `paginationInfo` (one page; a workspace's team is small).
+workspaceRoutes.get("/workspaces/:workspaceId/members", async (c) => {
+  const items = await workspaces.listMembers(await svc(c), ws(c));
+  return c.json(paginated(items, pageInfo(1, Math.max(items.length, 1), items.length)));
+});
 workspaceRoutes.post("/workspaces/:workspaceId/members", async (c) => c.json(created(await workspaces.addMember(await svc(c), ws(c), parse(workspaces.memberInput, await jsonBody(c)))), 201));
 workspaceRoutes.patch("/workspaces/:workspaceId/members/:userId", async (c) =>
   c.json(ok(await workspaces.updateMember(await svc(c), ws(c), bareUuid(c.req.param("userId"), "Member"), parse(workspaces.memberPatch, await jsonBody(c))))),

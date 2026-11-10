@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@gms/db": "workspace:*",
+    "@gms/documents": "workspace:*",
     "@gms/forms": "workspace:*",
     "@gms/ledger": "workspace:*",
     "@gms/mcp": "workspace:*",

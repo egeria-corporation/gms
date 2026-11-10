@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Dry-run eligibility rules against an organization or supplied facts (build spec §10.3).
 // `unknown` is a result in its own right: it flags for a person and never declines.
+import { passportFacts } from "./apply.ts";
 import { evaluate, parseRules } from "@gms/rules";
 import { z } from "zod";
 import { unprocessable } from "../lib/input.ts";
@@ -36,10 +37,14 @@ export async function evaluateEligibility(ctx: ServiceContext, input: z.output<t
   if (!parsed.ok) throw unprocessable("These eligibility rules are not valid", parsed.errors.map((e) => ({ path: `rules${e.at}`, message: e.message })));
 
   let org: unknown = input.org;
-  if (input.applicantWorkspaceId && org === undefined) {
+  let profile: unknown = input.profile;
+  if (input.applicantWorkspaceId && (org === undefined || profile === undefined)) {
     const id = input.applicantWorkspaceId;
     if (id !== ws.id) await authorize(ctx, { scope: "applications:read", owner: id, consent: { applicantWorkspaceId: id, funderWorkspaceId: ws.id }, what: "Applicant" });
-    org = required(await ctx.repos.table("workspaces").one({ id, kind: "applicant" }), "Applicant").org_projection ?? undefined;
+    // The cached Passport record: the organization, and the Common App profile the `profile.*` rules read.
+    const facts = passportFacts(required(await ctx.repos.table("workspaces").one({ id, kind: "applicant" }), "Applicant"));
+    org ??= Object.keys(facts.org).length ? facts.org : undefined;
+    profile ??= facts.profile ?? undefined;
   }
-  return evaluate(parsed.rules, { org, profile: input.profile, form: input.form, applicant: input.applicant });
+  return evaluate(parsed.rules, { org, profile, form: input.form, applicant: input.applicant });
 }

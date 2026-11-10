@@ -53,7 +53,7 @@ describe("Passport consent", () => {
     expect(ws).toMatchObject({ kind: "applicant", handle: "alder-creek-family-services", display_name: "Alder Creek Family Services", verification_level: "L3", ein: "001234567" });
     expect(location.searchParams.get("ws")).toBe(ws.handle);
     expect((ws.org_projection as { name: string }).name).toBe("Alder Creek Family Services");
-    expect((ws.profile_projection as { fields: unknown[] }).fields).toHaveLength(2);
+    expect((ws.profile_projection as { fields: unknown[] }).fields).toHaveLength(3);
     expect(await h.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: NEW_USER })).toMatchObject({ role: "admin" });
     const link = (await h.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent" }))!;
     expect(link.refresh_token_enc).not.toContain("rt-1");
@@ -123,9 +123,9 @@ describe("the cached organization", () => {
     const { who } = await linked();
     const r = await h.request("/gms/me/organization", { headers: who });
     const d = ((await r.json()) as { data: Record<string, unknown> }).data;
-    expect(d).toMatchObject({ linked: true, level: "L3", verifiedAt: "2027-01-12T17:20:00Z", profile: { financials: { annualOperatingBudget: 2_400_000, annualRevenue: 2_310_000 } }, editUrl: `${PASSPORT}/orgs/${ORG_ALDER}` });
+    expect(d).toMatchObject({ linked: true, level: "L3", verifiedAt: "2027-01-12T17:20:00Z", profile: { commonApp: { irs: { subsection: "03" }, financials: { budget: 2_400_000, totalRevenue: 2_310_000 } } }, editUrl: `${PASSPORT}/orgs/${ORG_ALDER}` });
     expect((d.organization as { name: string }).name).toBe("Alder Creek Family Services");
-    expect((d.profileSources as Record<string, string>)["/profile/financials/annualRevenue"]).toBe("irs_990");
+    expect((d.profileSources as Record<string, string>)["/commonApp/financials/totalRevenue"]).toBe("irs_990");
   });
 
   it("reports readiness as pass, fail or unknown per check", async () => {

@@ -9,7 +9,10 @@ import { ApiError } from "../lib/errors.ts";
 import { uuidOf } from "../lib/ids.ts";
 import * as applicant from "./applicant.ts";
 import * as apply from "./apply.ts";
+import * as agreements from "./agreements.ts";
+import * as awards from "./awards.ts";
 import * as collab from "./collaboration.ts";
+import * as decisions from "./decisions.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
 import * as forms from "./forms.ts";
@@ -18,6 +21,8 @@ import * as opportunities from "./opportunities.ts";
 import * as org from "./organization.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
+import * as reviews from "./reviews.ts";
+import * as templates from "./templates.ts";
 import type { Repos, Row } from "./repos/types.ts";
 
 export type ContextBase = Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">;
@@ -50,6 +55,9 @@ const paged = (i: { page?: number; pageSize?: number }) => {
 };
 const app = (id: string) => uuidOf("application", id, "Application");
 const frm = (id: string) => uuidOf("form", id, "Form");
+const cmp = (id: string) => uuidOf("competition", id, "Competition");
+const awd = (id: string) => uuidOf("award", id, "Award");
+const agr = (id: string) => uuidOf("agreement", id, "Agreement");
 const LEVELS = ["L0", "L1", "L2", "L3"];
 
 type Impl = { [K in keyof ServiceLayer]?: (ctx: ServiceContext, input: Parameters<ServiceLayer[K]>[1]) => Promise<unknown> };
@@ -82,6 +90,36 @@ const IMPLEMENTED: Impl = {
   requestRevision: (ctx, i) => inbox.requestRevision(ctx, app(i.applicationId), { message: i.message, ...(i.dueAt ? { dueAt: i.dueAt } : {}) }),
   declineApplication: (ctx, i) => inbox.declineApplication(ctx, app(i.applicationId), { rationale: i.rationale, sendLetter: true }),
   tagApplication: (ctx, i) => inbox.tagApplication(ctx, app(i.applicationId), { add: i.add, remove: i.remove }),
+
+  // ---- funder: reviews, decisions, awards, agreements ----
+  listReviewAssignments: async (ctx, i) => {
+    const all = await reviews.listAssignments(ctx, { ...(i.competitionId ? { competitionId: cmp(i.competitionId) } : {}), ...(i.applicationId ? { applicationId: app(i.applicationId) } : {}), stage: i.stage, reviewerUserId: i.reviewerUserId, status: i.status });
+    const p = paged(i);
+    return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
+  },
+  assignReviewer: (ctx, i) => reviews.createAssignment(ctx, app(i.applicationId), { stage: i.stage, reviewerUserId: i.reviewerUserId, ...(i.dueAt ? { dueAt: i.dueAt } : {}) }),
+  getScores: async (ctx, i) => ({ items: await reviews.listReviews(ctx, app(i.applicationId), i.stage) }),
+  rankApplications: (ctx, i) => reviews.getRanking(ctx, cmp(i.competitionId), i.stage),
+  proposeDecision: (ctx, i) => decisions.proposeDecisions(ctx, cmp(i.competitionId), i.decisions.map((d) => ({ applicationUuid: app(d.applicationId), outcome: d.outcome, ...(d.amountMinor !== undefined ? { amountMinor: d.amountMinor } : {}), conditions: d.conditions, ...(d.rationale ? { rationale: d.rationale } : {}) }))),
+  // Gated: this runs only after a person approved the call, as that person.
+  commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
+  listAwards: (ctx, i) => awards.listAwards(ctx, paged(i), { status: i.status?.join(","), programId: i.programId, recipientWorkspaceId: i.recipientWorkspaceId }),
+  getAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "funder"),
+  createAwardFromApplication: (ctx, i) => decisions.createAwardFromApplication(ctx, app(i.applicationId), { amountMinor: i.amountMinor, currency: i.currency, startDate: i.startDate, endDate: i.endDate, conditions: i.conditions }),
+  amendAward: (ctx, i) => awards.requestAmendment(ctx, awd(i.awardId), { type: i.type, request: i.request, reason: i.reason }),
+  closeAward: (ctx, i) => (i.outcome === "completed" ? awards.completeAward(ctx, awd(i.awardId)) : awards.cancelAward(ctx, awd(i.awardId), { reason: i.reason?.trim() || "Cancelled" })),
+  generateAgreement: (ctx, i) => agreements.createAgreement(ctx, awd(i.awardId), i.templateId ? { templateId: i.templateId } : {}),
+  sendAgreement: (ctx, i) => agreements.sendAgreement(ctx, agr(i.agreementId), {}),
+  getAgreementStatus: (ctx, i) => agreements.getAgreement(ctx, agr(i.agreementId)),
+  // Gated: this runs only after a person approved the call, as that person.
+  sendCommunication: (ctx, i) =>
+    templates.sendCommunication(
+      ctx,
+      { templateId: i.templateId, recipients: [{}], ...(i.subjectOverride ? { subjectOverride: i.subjectOverride } : {}) },
+      i.recipients.map((r) => ({ ...(r.applicationId ? { applicationUuid: app(r.applicationId) } : {}), ...(r.awardId ? { awardUuid: awd(r.awardId) } : {}), ...(r.applicantWorkspaceId ? { applicantWorkspaceId: r.applicantWorkspaceId } : {}) })),
+    ),
+  // A draft only: the letter is rendered for a person to read and is never sent by this tool.
+  draftLetter: (ctx, i) => templates.renderTemplate(ctx, i.templateId ?? `builtin:${i.kind === "award" ? "award_agreement" : i.kind}`, { fields: {}, ...(i.applicationId ? { applicationUuid: app(i.applicationId) } : {}), ...(i.awardId ? { awardUuid: awd(i.awardId) } : {}) }),
 
   // ---- applicant ----
   getMyOrganization: (ctx, i) => (i.refresh ? org.refreshMyOrganization(ctx) : org.getMyOrganization(ctx)),
@@ -136,6 +174,16 @@ const IMPLEMENTED: Impl = {
   },
   submitApplication: (ctx, i) => apply.submitApplication(ctx, app(i.applicationId)),
   withdrawApplication: (ctx, i) => applicant.withdrawApplication(ctx, app(i.applicationId)),
+  // ---- applicant: awards and agreements ----
+  listMyAwards: (ctx, i) => awards.listMyAwards(ctx, paged(i), { status: i.status?.join(",") }),
+  getMyAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "recipient"),
+  // Gated and never bypassable: this runs only after the workspace's admin approved it, as that person.
+  acceptAward: (ctx, i) => awards.acceptOffer(ctx, awd(i.awardId)),
+  // A signature needs the signer's typed name and attestation, which no agent can supply.
+  signAgreement: async () => {
+    throw new ServiceError("forbidden", "Signing is a human gate: the agreement is signed by a person in the GMS web app, who types their name and confirms their authority. An agent can prepare an agreement, never sign one.");
+  },
+  requestAmendment: (ctx, i) => awards.requestAmendment(ctx, awd(i.awardId), { type: i.type, request: i.request, reason: i.reason }),
   listAnswers: async (ctx, i) => {
     const needle = i.search?.toLowerCase();
     const all = (await applicant.listAnswers(ctx)).filter((a) => !needle || `${a.title} ${a.body}`.toLowerCase().includes(needle));

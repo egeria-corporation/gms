@@ -49,6 +49,11 @@ namespace GMS.Errors {
   alias BadRequest = CommonGrants.Responses.Error & Http.BadRequestResponse;
   alias Conflict = CommonGrants.Responses.Error & Http.ConflictResponse;
 
+  /** The request was understood but cannot be applied; `errors` lists what is wrong. */
+  alias Unprocessable = CommonGrants.Responses.Error & {
+    @statusCode statusCode: 422;
+  };
+
   /** Errors every authenticated GMS route can return. */
   alias AuthErrors = Unauthorized | Forbidden;
 }
@@ -279,7 +284,7 @@ namespace GMS.Routes.Custom {
     op update(@path id: CommonGrants.Types.uuid, @body body: MergePatch): OkT<Workspace> | BadRequest | AuthErrors | NotFound;
 
     @get @route("/workspaces/{id}/members") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op listMembers(@path id: CommonGrants.Types.uuid, ...PageParams): PaginatedT<Member> | AuthErrors | NotFound;
+    op listMembers(@path id: CommonGrants.Types.uuid): PaginatedT<Member> | AuthErrors | NotFound;
 
     @post @route("/workspaces/{id}/members") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op addMember(@path id: CommonGrants.Types.uuid, @body body: MemberInput): CreatedT<Member> | BadRequest | AuthErrors | NotFound | Conflict;
@@ -292,7 +297,7 @@ namespace GMS.Routes.Custom {
 
     /** Invite by email; external reviewers and consultants are scoped and may expire. */
     @post @route("/workspaces/{id}/invitations") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op invite(@path id: CommonGrants.Types.uuid, @body body: Invitation): CreatedT<Invitation> | BadRequest | AuthErrors | NotFound;
+    op invite(@path id: CommonGrants.Types.uuid, @body body: InvitationInput): CreatedT<Invitation> | BadRequest | AuthErrors | NotFound;
 
     /** Store the funder's Passport client (secret encrypted), request a token and verify it against Passport. */
     @post @route("/workspaces/{id}/passport/link") @useAuth(UserSession)
@@ -344,7 +349,7 @@ namespace GMS.Routes.Custom {
 
     /** The CommonGrants record as it would be published, without publishing. */
     @post @route("/opportunities/{id}/preview") @useAuth(GmsOAuth<["opportunities:read"]> | UserSession)
-    op preview(@path id: GmsId): OkT<OpportunityDetails> | BadRequest | AuthErrors | NotFound;
+    op preview(@path id: GmsId): OkT<OpportunityPreview> | BadRequest | AuthErrors | NotFound;
   }
 
   @tag("Competitions (GMS)")
@@ -362,7 +367,7 @@ namespace GMS.Routes.Custom {
     op update(@path id: GmsId, @body body: MergePatch): OkT<GmsCompetition> | BadRequest | AuthErrors | NotFound;
 
     @put @route("/competitions/{id}/stages") @useAuth(GmsOAuth<["competitions:write"]> | UserSession)
-    op setStages(@path id: GmsId, @body body: Stage[]): OkT<GmsCompetition> | BadRequest | AuthErrors | NotFound | Conflict;
+    op setStages(@path id: GmsId, @body body: StagesInput): OkT<GmsCompetition> | BadRequest | AuthErrors | NotFound | Conflict;
 
     /** Pin form versions per stage. On an open competition `migrate: true` is required and re-validates in-progress responses. */
     @put @route("/competitions/{id}/forms") @useAuth(GmsOAuth<["competitions:write"]> | UserSession)
@@ -383,10 +388,10 @@ namespace GMS.Routes.Custom {
 
     /** Applications ranked by weighted score with mean, median, spread and n. */
     @get @route("/competitions/{id}/ranking") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
-    op ranking(@path id: GmsId, @query stage?: string): OkT<RankingRow[]> | AuthErrors | NotFound;
+    op ranking(@path id: GmsId, @query stage?: string): OkT<Ranking> | AuthErrors | NotFound | Conflict;
 
     /** Program headroom: budget − committed − proposed. */
-    @get @route("/competitions/{id}/allocation") @useAuth(GmsOAuth<["decisions:write"]> | UserSession)
+    @get @route("/competitions/{id}/allocation") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
     op allocation(@path id: GmsId): OkT<Allocation> | AuthErrors | NotFound;
   }
 
@@ -476,70 +481,93 @@ namespace GMS.Routes.Custom {
     op createRubric(@body body: RubricInput): CreatedT<Rubric> | BadRequest | AuthErrors;
 
     @get @route("/review-assignments") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
-    op listAssignments(...PageParams, @query competitionId?: GmsId, @query reviewerUserId?: CommonGrants.Types.uuid): PaginatedT<ReviewAssignment> | AuthErrors;
+    op listAssignments(@query competitionId?: GmsId, @query applicationId?: GmsId, @query stage?: string, @query reviewerUserId?: CommonGrants.Types.uuid, @query status?: string): OkT<ReviewAssignment[]> | AuthErrors;
 
+    /** Refused with 409 `conflict_of_interest` when a conflict is on record or the reviewer's email domain is the applicant's. */
     @post @route("/review-assignments") @useAuth(GmsOAuth<["reviews:write"]> | UserSession)
-    op createAssignment(@body body: ReviewAssignmentInput): CreatedT<ReviewAssignment> | BadRequest | AuthErrors | Conflict;
+    op createAssignment(@body body: ReviewAssignmentInput): CreatedT<ReviewAssignment> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
     /** Assign by capacity and expertise tags, excluding declared and domain-matched conflicts. */
     @post @route("/review-assignments/auto") @useAuth(GmsOAuth<["reviews:write"]> | UserSession)
-    op autoAssign(@body body: AutoAssignRequest): CreatedT<ReviewAssignment[]> | BadRequest | AuthErrors;
+    op autoAssign(@body body: AutoAssignRequest): OkT<AutoAssignResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
-    /** Declare a conflict, recuse, save scores or submit the review. */
+    /** Invite an external reviewer by email; accepting creates an `external_reviewer` member scoped to the competition. */
+    @post @route("/review-assignments/invite") @useAuth(UserSession)
+    op inviteReviewer(@body body: InviteReviewerRequest): CreatedT<ReviewerInvitation> | BadRequest | AuthErrors | NotFound;
+
+    /** The reviewer's working view, with the application masked for their role. */
+    @get @route("/review-assignments/{id}") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
+    op readAssignment(@path id: CommonGrants.Types.uuid): OkT<ReviewAssignmentDetail> | AuthErrors | NotFound;
+
+    /** Declare a conflict, save scores, submit the review, recuse or reschedule. */
     @patch @route("/review-assignments/{id}") @useAuth(GmsOAuth<["reviews:write"]> | UserSession)
-    op updateAssignment(@path id: GmsId, @body body: MergePatch): OkT<ReviewAssignment> | BadRequest | AuthErrors | NotFound | Conflict;
+    op updateAssignment(@path id: CommonGrants.Types.uuid, @body body: ReviewAssignmentPatch): OkT<ReviewAssignment> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
     /** In blind mode a reviewer sees other reviews only at the panel. */
     @get @route("/reviews") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
-    op listReviews(...PageParams, @query applicationId?: GmsId): PaginatedT<Review> | AuthErrors;
+    op listReviews(@query applicationId: GmsId, @query stage?: string): OkT<Review[]> | AuthErrors | NotFound;
   }
 
   @tag("Decisions")
   namespace Decisions {
     @post @route("/decisions/propose") @useAuth(GmsOAuth<["decisions:write"]> | UserSession)
-    op propose(@body body: ProposeDecisionsRequest): CreatedT<Decision[]> | BadRequest | AuthErrors;
+    op propose(@body body: ProposeDecisionsRequest): OkT<ProposeDecisionsResult> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    @get @route("/decisions") @useAuth(GmsOAuth<["decisions:write"]> | UserSession)
-    op list(...PageParams, @query competitionId?: GmsId): PaginatedT<Decision> | AuthErrors;
+    @get @route("/decisions") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
+    op list(@query competitionId?: GmsId, @query applicationId?: GmsId, @query committed?: boolean): OkT<Decision[]> | AuthErrors;
 
     /** Creates awards in `offered`, drafts agreements and queues letters. Refuses over-allocation
-     * unless an admin overrides with a reason. Always human-gated for agents.
+     * (409 `over_allocation`) unless an admin overrides with a reason. People only: an agent's
+     * commit runs after a person approves it.
      */
-    @post @route("/decisions/commit") @useAuth(GmsOAuth<["decisions:write"]> | UserSession)
-    op commit(@body body: CommitDecisionsRequest): OkT<Decision[]> | PendingApproval | BadRequest | AuthErrors | Conflict;
+    @post @route("/decisions/commit") @useAuth(UserSession)
+    op commit(@body body: CommitDecisionsRequest): OkT<CommitDecisionsResult> | BadRequest | AuthErrors | NotFound | Conflict;
   }
 
   @tag("Awards (GMS)")
   namespace Awards {
     @get @route("/awards") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op list(...PageParams, @query status?: AwardStatus, @query programId?: CommonGrants.Types.uuid): PaginatedT<GmsAward> | AuthErrors;
+    op list(...PageParams, @query status?: string, @query programId?: CommonGrants.Types.uuid, @query recipientWorkspaceId?: CommonGrants.Types.uuid): PaginatedT<GmsAward> | AuthErrors;
+
+    /** Create an award for an accepted application that has none. */
+    @post @route("/awards") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
+    op createFromApplication(@body body: AwardFromApplicationRequest): CreatedT<AwardFromApplicationResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @get @route("/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op read(@path id: GmsId): OkT<GmsAward> | AuthErrors | NotFound;
+    op read(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;
 
-    /** Recipient accepts the offer; the GMS then mirrors the award to Passport. Human-gated for agents. */
-    @post @route("/awards/{id}/accept-offer") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op acceptOffer(@path id: GmsId): OkT<GmsAward> | PendingApproval | AuthErrors | NotFound | Conflict;
+    @get @route("/awards/{id}/letter.pdf") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op letterPdf(@path id: GmsId): Pdf | AuthErrors | NotFound;
+
+    /** Recipient accepts the offer; the GMS then mirrors the award to Passport. People only. */
+    @post @route("/awards/{id}/accept-offer") @useAuth(UserSession)
+    op acceptOffer(@path id: GmsId): OkT<AcceptedAward> | AuthErrors | NotFound | Conflict;
 
     /** Requires an executed agreement unless the award carries `noAgreementRequired`. */
     @post @route("/awards/{id}/activate") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op activate(@path id: GmsId): OkT<GmsAward> | AuthErrors | NotFound | Conflict;
+    op activate(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound | Conflict;
 
     @post @route("/awards/{id}/suspend") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op suspend(@path id: GmsId, @body body: ReasonBody): OkT<GmsAward> | AuthErrors | NotFound | Conflict;
+    op suspend(@path id: GmsId, @body body: ReasonBody): OkT<GmsAwardDetail> | BadRequest | AuthErrors | NotFound | Conflict;
+
+    @post @route("/awards/{id}/resume") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
+    op resume(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound | Conflict;
 
     @post @route("/awards/{id}/complete") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op complete(@path id: GmsId): OkT<GmsAward> | AuthErrors | NotFound | Conflict;
+    op complete(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound | Conflict;
 
     @post @route("/awards/{id}/cancel") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op cancel(@path id: GmsId, @body body: ReasonBody): OkT<GmsAward> | AuthErrors | NotFound | Conflict;
+    op cancel(@path id: GmsId, @body body: ReasonBody): OkT<GmsAwardDetail> | BadRequest | AuthErrors | NotFound | Conflict;
+
+    @get @route("/awards/{id}/amendments") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op listAmendments(@path id: GmsId): OkT<Amendment[]> | AuthErrors | NotFound;
 
     @post @route("/awards/{id}/amendments") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op createAmendment(@path id: GmsId, @body body: AmendmentInput): CreatedT<Amendment> | BadRequest | AuthErrors | NotFound;
+    op createAmendment(@path id: GmsId, @body body: AmendmentInput): CreatedT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    /** Approve or decline. Approval that changes amount or period patches the Passport award. */
+    /** Approve or decline. Approving an extension or a supplemental changes the award and patches Passport. */
     @patch @route("/amendments/{id}") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op decideAmendment(@path id: string, @body body: MergePatch): OkT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict;
+    op decideAmendment(@path id: CommonGrants.Types.uuid, @body body: AmendmentDecision): OkT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict;
 
     @get @route("/awards/{id}/budget") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op readBudget(@path id: GmsId): OkT<Budget[]> | AuthErrors | NotFound;
@@ -553,25 +581,30 @@ namespace GMS.Routes.Custom {
 
   @tag("Agreements")
   namespace Agreements {
-    /** Draft an agreement from a template. */
+    /** Draft an agreement from a template. Refused while a live agreement exists; void it first. */
     @post @route("/awards/{id}/agreements") @useAuth(GmsOAuth<["agreements:write"]> | UserSession)
-    op create(@path id: GmsId, @body body: AgreementInput): CreatedT<Agreement> | BadRequest | AuthErrors | NotFound;
+    op create(@path id: GmsId, @body body: AgreementInput): CreatedT<Agreement> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
+    @get @route("/agreements/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
+    op read(@path id: GmsId): OkT<Agreement> | AuthErrors | NotFound;
+
+    /** Renders and hashes the document; that hash is what both parties sign. */
     @post @route("/agreements/{id}/send") @useAuth(GmsOAuth<["agreements:write"]> | UserSession)
-    op send(@path id: GmsId): OkT<Agreement> | AuthErrors | NotFound | Conflict;
+    op send(@path id: GmsId): OkT<SentAgreement> | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    /** Grantee click-to-sign: typed name, attestation, IP, time and document hash go to the ledger. Human-only. */
+    /** Grantee click-to-sign: typed name, attestation, network address, time and document hash go to the ledger. People only; the offer must be accepted first. */
     @post @route("/agreements/{id}/sign") @useAuth(UserSession)
     op sign(@path id: GmsId, @body body: SignRequest): OkT<Agreement> | BadRequest | AuthErrors | NotFound | Conflict;
 
-    /** Funder countersignature; the agreement becomes `executed`. Human-only. */
+    /** Funder countersignature; the agreement becomes `executed`, the award `active`, and tranches conditioned on execution become due. People only. */
     @post @route("/agreements/{id}/countersign") @useAuth(UserSession)
-    op countersign(@path id: GmsId, @body body: SignRequest): OkT<Agreement> | BadRequest | AuthErrors | NotFound | Conflict;
+    op countersign(@path id: GmsId, @body body: SignRequest): OkT<ExecutedAgreement> | BadRequest | AuthErrors | NotFound | Conflict;
 
     /** Refused for an executed agreement; issue an amendment instead. */
     @post @route("/agreements/{id}/void") @useAuth(GmsOAuth<["agreements:write"]> | UserSession)
-    op voidAgreement(@path id: GmsId, @body body: ReasonBody): OkT<Agreement> | AuthErrors | NotFound | Conflict;
+    op voidAgreement(@path id: GmsId, @body body: ReasonBody): OkT<Agreement> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /** The executed document once executed; before that, the document sent for signature. `X-Content-SHA256` carries its hash. */
     @get @route("/agreements/{id}/pdf") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op pdf(@path id: GmsId): Pdf | AuthErrors | NotFound;
   }
@@ -709,17 +742,25 @@ namespace GMS.Routes.Custom {
     op updateTask(@path id: CommonGrants.Types.uuid, @body body: TaskPatch): OkT<Task> | BadRequest | AuthErrors | NotFound;
 
     @get @route("/templates") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
-    op listTemplates(...PageParams, @query kind?: string): PaginatedT<Template> | AuthErrors;
+    op listTemplates(@query kind?: string): OkT<TemplateList> | AuthErrors;
 
     @post @route("/templates") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
     op createTemplate(@body body: TemplateInput): CreatedT<Template> | BadRequest | AuthErrors;
 
-    @post @route("/templates/{id}/render") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
-    op renderTemplate(@path id: string, @body body: RenderRequest): OkT<Rendered> | BadRequest | AuthErrors | NotFound;
+    @get @route("/templates/{id}") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
+    op readTemplate(@path id: string): OkT<Template> | AuthErrors | NotFound;
 
-    /** Templated send through Resend. Human-gated for agents. */
-    @post @route("/communications/send") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
-    op send(@body body: SendRequest): OkT<SendResult> | PendingApproval | BadRequest | AuthErrors;
+    /** 422 `missing_merge_fields` lists every field that has no value. */
+    @post @route("/templates/{id}/render") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
+    op renderTemplate(@path id: string, @body body: RenderRequest): OkT<Rendered> | BadRequest | AuthErrors | NotFound | Unprocessable;
+
+    /** The send log, newest first. */
+    @get @route("/communications") @useAuth(GmsOAuth<["communications:write"]> | UserSession)
+    op listCommunications(...PageParams): PaginatedT<SentCommunication> | AuthErrors;
+
+    /** Templated send through Resend. Every letter is rendered first; nothing is sent if any is missing a field. People only: an agent's send runs after a person approves it. */
+    @post @route("/communications/send") @useAuth(UserSession)
+    op send(@body body: SendRequest): OkT<SendResult> | BadRequest | AuthErrors | NotFound | Unprocessable;
   }
 
   @tag("Analytics")
@@ -914,18 +955,18 @@ namespace GMS.Routes.Custom {
     op myAwards(...PageParams): PaginatedT<GmsAward> | AuthErrors;
 
     @get @route("/my/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op myAward(@path id: GmsId): OkT<GmsAward> | AuthErrors | NotFound;
+    op myAward(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;
 
-    /** Human-gated for agents. */
-    @post @route("/my/awards/{id}/accept") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op acceptAward(@path id: GmsId): OkT<GmsAward> | PendingApproval | AuthErrors | NotFound | Conflict;
+    /** People only: the recipient workspace's admin accepts; an agent's accept runs after a person approves it. */
+    @post @route("/my/awards/{id}/accept") @useAuth(UserSession)
+    op acceptAward(@path id: GmsId): OkT<AcceptedAward> | AuthErrors | NotFound | Conflict;
 
     @post @route("/my/awards/{id}/amendments") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
-    op requestAmendment(@path id: GmsId, @body body: AmendmentInput): CreatedT<Amendment> | BadRequest | AuthErrors | NotFound;
+    op requestAmendment(@path id: GmsId, @body body: AmendmentInput): CreatedT<Amendment> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
-    /** Tranches with bank name and last four digits only. */
+    /** The award's payment schedule. No bank data: destinations live in Passport. */
     @get @route("/my/awards/{id}/schedule") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
-    op mySchedule(@path id: GmsId): OkT<Tranche[]> | AuthErrors | NotFound;
+    op mySchedule(@path id: GmsId): OkT<AwardTranche[]> | AuthErrors | NotFound;
 
     @get @route("/my/requirements") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
     op myRequirements(...PageParams): PaginatedT<Requirement> | AuthErrors;

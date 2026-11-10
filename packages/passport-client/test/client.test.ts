@@ -167,8 +167,8 @@ describe("PassportClient", () => {
     const { c } = client([loadFixture("profile-alder-creek")]);
     const profile = await c.getOrgProfile(ORG);
     expect(profile.level).toBe("L3");
-    expect(profileToObject(profile.fields)).toEqual({ name: "Alder Creek Family Services", financials: { annualOperatingBudget: 2_400_000, annualRevenue: 2_310_000, fiscalYearEnd: "06-30" }, staff: { fullTimeEquivalent: 18 } });
-    expect(profileSources(profile.fields)["/profile/financials/annualRevenue"]).toBe("irs_990");
+    expect(profileToObject(profile.fields)).toEqual({ name: "Alder Creek Family Services", commonApp: { irs: { subsection: "03" }, financials: { budget: 2_400_000, totalRevenue: 2_310_000 }, fiscalYearEnd: "06-30", staffCount: 18 } });
+    expect(profileSources(profile.fields)["/commonApp/financials/totalRevenue"]).toBe("irs_990");
   });
 
   it("returns the Location of a proposed org change", async () => {
@@ -213,13 +213,13 @@ describe("money", () => {
 describe("profileToObject", () => {
   it("ignores unsafe and malformed pointers and never replaces a branch with a leaf", () => {
     const out = profileToObject([
-      { path: "/financials/annualRevenue", value: 5 },
-      { path: "/financials", value: "oops" },
+      { path: "/commonApp/financials/totalRevenue", value: 5 },
+      { path: "/commonApp/financials", value: "oops" },
       { path: "/__proto__/polluted", value: true },
       { path: "no-slash", value: 1 },
       { path: "/a~1b/c~0d", value: "escaped" },
     ]);
-    expect(out).toEqual({ financials: { annualRevenue: 5 }, "a/b": { "c~d": "escaped" } });
+    expect(out).toEqual({ commonApp: { financials: { totalRevenue: 5 } }, "a/b": { "c~d": "escaped" } });
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });

@@ -76,16 +76,22 @@ export const workspaceView = (w: Row<"workspaces">) => ({
   updatedAt: w.updated_at,
 });
 
-const memberView = (m: Row<"workspace_members">, kind: WorkspaceKind) => ({
-  userId: m.user_id,
-  role: m.role,
-  scope: m.scope,
-  expiresAt: m.expires_at,
-  mfaEnrolledAt: m.mfa_enrolled_at,
-  requiresMfa: roleRequiresMfa(kind, m.role),
-  invitedBy: m.invited_by,
-  createdAt: m.created_at,
-});
+const memberView = (m: Row<"workspace_members">, kind: WorkspaceKind, who?: { email: string | null; name: string | null }) => {
+  const scope = (m.scope as { email?: unknown; name?: unknown } | null) ?? {};
+  return {
+    userId: m.user_id,
+    // The auth account's address and name; an invited member carries the invited address until then.
+    email: who?.email ?? (typeof scope.email === "string" ? scope.email : null),
+    name: who?.name ?? (typeof scope.name === "string" ? scope.name : null),
+    role: m.role,
+    scope: m.scope,
+    expiresAt: m.expires_at,
+    mfaEnrolledAt: m.mfa_enrolled_at,
+    requiresMfa: roleRequiresMfa(kind, m.role),
+    invitedBy: m.invited_by,
+    createdAt: m.created_at,
+  };
+};
 
 const rolesFor = (kind: WorkspaceKind): readonly string[] => (kind === "funder" ? FUNDER_ROLES : APPLICANT_ROLES);
 
@@ -149,7 +155,9 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
 
 export async function listMembers(ctx: ServiceContext, workspaceId: string) {
   const ws = await authorize(ctx, { scope: "workspace:admin", owner: workspaceId, what: "Workspace" });
-  return (await ctx.repos.table("workspace_members").find({ workspace_id: workspaceId }, { orderBy: "created_at" })).map((m) => memberView(m, ws.kind));
+  const rows = await ctx.repos.table("workspace_members").find({ workspace_id: workspaceId }, { orderBy: "created_at" });
+  const people = (await ctx.ports.directory?.lookup(rows.map((m) => m.user_id))) ?? new Map<string, { email: string | null; name: string | null }>();
+  return rows.map((m) => memberView(m, ws.kind, people.get(m.user_id)));
 }
 
 export const memberInput = z.object({ userId: z.uuid(), role: z.string(), scope: z.record(z.string(), z.unknown()).optional(), expiresAt: z.iso.datetime().optional() }).strict();
@@ -221,7 +229,8 @@ export async function acceptInvitation(ctx: ServiceContext, token: string) {
   if (!inv || inv.accepted_at || Date.parse(inv.expires_at) <= ctx.now().getTime()) throw notFound("Invitation");
   const userId = ctx.actor.userId!;
   const existing = await ctx.repos.table("workspace_members").one({ workspace_id: inv.workspace_id, user_id: userId });
-  if (!existing) await ctx.repos.table("workspace_members").insert({ workspace_id: inv.workspace_id, user_id: userId, role: inv.role, scope: inv.scope, invited_by: inv.invited_by });
+  // The invited address labels the member in lists (the directory replaces it with the account's own).
+  if (!existing) await ctx.repos.table("workspace_members").insert({ workspace_id: inv.workspace_id, user_id: userId, role: inv.role, scope: { ...((inv.scope as Record<string, unknown> | null) ?? {}), email: inv.email } as Row<"workspace_members">["scope"], invited_by: inv.invited_by });
   await ctx.repos.table("invitations").update({ id: inv.id }, { accepted_at: ctx.now().toISOString() });
   await audit(ctx, "invitation.accepted", "workspace", inv.workspace_id, { invitationId: inv.id, userId, role: inv.role }, inv.workspace_id);
   const workspace = required(await ctx.repos.table("workspaces").one({ id: inv.workspace_id }), "Workspace");

@@ -57,7 +57,11 @@ describe("workspaces", () => {
     const admin = await auth(h, USER_ADMIN);
     const officer = await auth(h, USER_OFFICER);
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}/members`, { headers: officer })).status).toBe(403);
-    expect(await data<unknown[]>(await h.request(`/gms/workspaces/${WS_FUNDER}/members`, { headers: admin }))).toHaveLength(3);
+    const list = (await (await h.request(`/gms/workspaces/${WS_FUNDER}/members`, { headers: admin })).json()) as { items: { userId: string; email: string | null; name: string | null }[]; paginationInfo: { totalItems: number } };
+    expect(list.paginationInfo.totalItems).toBe(3);
+    // Names and emails come from the auth directory; a person it does not know is listed without them.
+    expect(list.items.find((m) => m.userId === USER_ADMIN)).toMatchObject({ email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
+    expect(list.items.find((m) => m.userId === USER_AUDITOR)).toMatchObject({ email: null, name: null });
 
     // An applicant role does not exist in a funder workspace.
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}/members`, json(admin, { userId: NEW_USER, role: "editor" }))).status).toBe(422);

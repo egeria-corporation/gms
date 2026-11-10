@@ -5,47 +5,8 @@
 
 // ---------------------------------------------------------------------------------- file storage
 
-export interface StoredFile {
-  storage: "supabase" | "r2";
-  path: string;
-}
-
-export interface FileStorage {
-  /** Store the bytes under `path`; returns where they went. */
-  put(path: string, bytes: Uint8Array, mime: string): Promise<StoredFile>;
-  get(file: StoredFile): Promise<Uint8Array | null>;
-}
-
-export class MemoryFileStorage implements FileStorage {
-  readonly files = new Map<string, { bytes: Uint8Array; mime: string }>();
-  async put(path: string, bytes: Uint8Array, mime: string): Promise<StoredFile> {
-    this.files.set(path, { bytes, mime });
-    return { storage: "r2", path };
-  }
-  async get(file: StoredFile): Promise<Uint8Array | null> {
-    return this.files.get(file.path)?.bytes ?? null;
-  }
-}
-
-/** The `ATTACHMENTS` R2 bucket. Supabase Storage holds small files on installs without R2 (wired by the host). */
-export class R2FileStorage implements FileStorage {
-  constructor(private readonly bucket: R2Bucket) {}
-  async put(path: string, bytes: Uint8Array, mime: string): Promise<StoredFile> {
-    await this.bucket.put(path, bytes, { httpMetadata: { contentType: mime } });
-    return { storage: "r2", path };
-  }
-  async get(file: StoredFile): Promise<Uint8Array | null> {
-    const obj = await this.bucket.get(file.path);
-    return obj ? new Uint8Array(await obj.arrayBuffer()) : null;
-  }
-}
-
-export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
-  let out = "";
-  for (const b of digest) out += b.toString(16).padStart(2, "0");
-  return out;
-}
+// File bytes: the port and its implementations live in `@gms/documents`.
+export { MemoryFileStorage, R2FileStorage, SupabaseFileStorage, TieredFileStorage, sha256Hex, type FileStorage, type StoredFile } from "@gms/documents";
 
 // ---------------------------------------------------------------------------------- OpenGrants
 
@@ -150,5 +111,51 @@ export class McpOpenGrantsClient implements OpenGrantsClient {
     }
     if (body.error) throw new OpenGrantsUnavailableError(body.error.message ?? "OpenGrants refused the request");
     return { items: listingsFrom(body.result), raw: body.result };
+  }
+}
+
+// ---------------------------------------------------------------------------------- user directory
+
+/** What the GMS shows about a member: the address they sign in with and the name on their account. */
+export interface DirectoryUser {
+  email: string | null;
+  name: string | null;
+}
+
+/** Names and emails of people, from the auth provider. Used to label members; never for access decisions. */
+export interface UserDirectory {
+  lookup(userIds: readonly string[]): Promise<Map<string, DirectoryUser>>;
+}
+
+export class MemoryUserDirectory implements UserDirectory {
+  readonly users = new Map<string, DirectoryUser>();
+  async lookup(userIds: readonly string[]): Promise<Map<string, DirectoryUser>> {
+    return new Map(userIds.filter((id) => this.users.has(id)).map((id) => [id, this.users.get(id)!]));
+  }
+}
+
+/** The part of the Supabase admin API the directory uses (service-role client). */
+export interface SupabaseAdminLike {
+  auth: { admin: { getUserById(id: string): Promise<{ data: { user: { email?: string | null; user_metadata?: Record<string, unknown> | null } | null }; error: unknown }> } };
+}
+
+export class SupabaseUserDirectory implements UserDirectory {
+  constructor(private readonly client: SupabaseAdminLike) {}
+  async lookup(userIds: readonly string[]): Promise<Map<string, DirectoryUser>> {
+    const out = new Map<string, DirectoryUser>();
+    // A member list is a page of people, not a table scan: one admin read each, a miss is simply unlabeled.
+    await Promise.all(
+      [...new Set(userIds)].slice(0, 200).map(async (id) => {
+        try {
+          const { data } = await this.client.auth.admin.getUserById(id);
+          const meta = data.user?.user_metadata ?? {};
+          const name = typeof meta.full_name === "string" ? meta.full_name : typeof meta.name === "string" ? meta.name : null;
+          if (data.user) out.set(id, { email: data.user.email ?? null, name });
+        } catch {
+          // Unreachable auth: the list still loads, without labels.
+        }
+      }),
+    );
+    return out;
   }
 }

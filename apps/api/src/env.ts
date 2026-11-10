@@ -24,6 +24,8 @@ export interface Env {
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;
   PASSPORT_WEBHOOK_SECRET?: string;
+  /** "true" once Passport serves the funder award routes (award:write); awards are mirrored on acceptance. */
+  PASSPORT_AWARD_WRITE?: string;
 
   CREDENTIALS_ENCRYPTION_KEY?: string;
   WEBHOOK_SECRET_KEY?: string;

@@ -19,6 +19,8 @@ PASSPORT_ISSUER=
 PASSPORT_GMS_CLIENT_ID=
 PASSPORT_GMS_CLIENT_SECRET=
 PASSPORT_WEBHOOK_SECRET=
+# "true" once Passport serves the funder award routes (award:write)
+PASSPORT_AWARD_WRITE=false
 
 # 32 random bytes, base64url, each
 CREDENTIALS_ENCRYPTION_KEY=

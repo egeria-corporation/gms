@@ -37,7 +37,7 @@ const OPP = {
   funding: { totalAmountAvailable: { amount: "1200000.00", currency: "USD" }, minAwardAmount: { amount: "50000.00", currency: "USD" }, maxAwardAmount: { amount: "150000.00", currency: "USD" } },
   keyDates: { closeDate: { name: "Full proposal deadline", eventType: "singleDate", date: "2027-04-30" } },
   acceptedApplicantTypes: ["non_profit_with_501c3"],
-  eligibilityRules: { all: [{ path: "org.orgType.code", op: "in", value: ["non_profit_with_501c3"], label: "501(c)(3) in good standing" }] },
+  eligibilityRules: { all: [{ path: "profile.commonApp.irs.subsection", op: "in", value: ["03"], missing: "unknown", label: "501(c)(3) in good standing" }] },
 };
 
 /** Program, published opportunity, published LOI form, competition with one stage, opened. */
@@ -240,9 +240,9 @@ describe("opportunities and competitions", () => {
     const set = await data<{ stages: { rubricId: string | null }[] }>(await h.request(`/gms/competitions/${comp.id}/rubric`, json(officer, { rubricId: rubric.id, stage: "loi" }, "PUT")));
     expect(set.stages[0]!.rubricId).toBe(rubric.id);
 
-    const run = async (org: unknown) => data<{ eligible: boolean | "unknown" }>(await h.request("/gms/eligibility/evaluate", json(officer, { opportunityId: opp.id, org })));
-    expect((await run({ orgType: { code: "non_profit_with_501c3" } })).eligible).toBe(true);
-    expect((await run({ orgType: { code: "for_profit_small_business" } })).eligible).toBe(false);
+    const run = async (profile: unknown) => data<{ eligible: boolean | "unknown" }>(await h.request("/gms/eligibility/evaluate", json(officer, { opportunityId: opp.id, profile })));
+    expect((await run({ commonApp: { irs: { subsection: "03" } } })).eligible).toBe(true);
+    expect((await run({ commonApp: { irs: { subsection: "06" } } })).eligible).toBe(false);
     expect((await run({})).eligible).toBe("unknown");
   });
 
@@ -250,7 +250,7 @@ describe("opportunities and competitions", () => {
     const h = await harness();
     const officer = await as(h, USER_OFFICER);
     const { opp } = await launch(h, officer);
-    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { org_projection: { orgType: { code: "non_profit_with_501c3" } } });
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { org_projection: { name: "Alder Creek Family Services" }, profile_projection: { fields: [{ path: "/commonApp/irs/subsection", value: "03" }] } });
     const body = { opportunityId: opp.id, applicantWorkspaceId: WS_APPLICANT };
     expect((await h.request("/gms/eligibility/evaluate", json(officer, body))).status).toBe(404);
     await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });

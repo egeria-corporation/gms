@@ -79,3 +79,21 @@ returned (→ due)`; `waive` from any state but accepted. Submission: `draft →
 - `acceptRequirement`: accepts the requirement and marks its `releases_tranche_id` tranche due.
 
 Dependent transitions run through the same ports, so they are ledgered and announced too.
+
+## How the API drives the award path
+
+The services in `apps/api/src/services` (`decisions.ts`, `awards.ts`, `agreements.ts`) are the only
+callers of these machines for awards:
+
+1. `commitDecisions`: `recommend` (when needed) then `accept` on the application; the award is
+   created in `offered` with its schedule and requirements from the program's `defaults`
+   (`awardPeriod`, `schedule`, `requirements`, `agreementTemplateId`, `noAgreementRequired`,
+   `reminderPlan`), and an agreement `draft`.
+2. `sendAgreement`: `send` with the SHA-256 of the rendered document.
+3. `acceptOffer` (recipient admin, a person): `accept_offer`, then the Passport mirror.
+4. `signAgreement` (recipient admin, a person): `sign`; the award must be `accepted`.
+5. `countersignAgreement` (funder staff, a person): `countersign`, then `executeAgreement`.
+
+Machine patches that have no column (`accepted_at`, `suspend_reason`, `cancel_reason`,
+`void_reason`) are kept in the ledger entry of the transition, not on the row.
+

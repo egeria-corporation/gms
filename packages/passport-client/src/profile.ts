@@ -29,8 +29,8 @@ const unescape = (segment: string) => segment.replace(/~1/g, "/").replace(/~0/g,
 const FORBIDDEN = new Set(["__proto__", "constructor", "prototype"]);
 
 /**
- * Fold `fields[]` into one nested object keyed by the pointer segments, so `/financials/annualRevenue`
- * becomes `{ financials: { annualRevenue } }`. Fields whose pointer starts with `/profile/` are
+ * Fold `fields[]` into one nested object keyed by the pointer segments, so `/commonApp/financials/totalRevenue`
+ * becomes `{ commonApp: { financials: { totalRevenue } } }`. Fields whose pointer starts with `/profile/` are
  * unwrapped (Passport uses both spellings for Common App fields). Later fields win; a field that
  * would overwrite a branch with a leaf (or the reverse) is skipped rather than corrupting the tree.
  */

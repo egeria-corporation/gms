@@ -60,7 +60,7 @@ Implemented responses are validated against the compiled OpenAPI document in
 | `GET /applications/{appId}/forms/{formId}`, `PUT …` | applicant, `applications:write` to write | Implemented. `PUT { response }` merges; validation errors come back in the response and never fail the save. Passport-owned fields are not editable (the ignored paths are listed in `customFields.gmsRejected`). Edits by an agent are marked `agent:<client>` |
 | `PUT /applications/{appId}/submit` | `applications:submit` (human-gated for agents through MCP) | Implemented. Re-validates the stage's forms (`422` lists what is missing), runs the rules, stamps `verificationLevel` and the attestation URL, locks the stage's responses, records the applicant → funder consent, sends the acknowledgment, emits `application.submitted` |
 | `POST /applications/search` | `applications:read` | Implemented. The applicant's own applications, or the funder's submitted ones |
-| `GET /awards`, `GET /awards/{awdId}`, `POST /awards/search` | funder or recipient | Placeholder (phase 3) |
+| `GET /awards`, `GET /awards/{awdId}`, `POST /awards/search` | funder or recipient (`awards:read`) | Implemented. `AwardBase`; `funding.disbursedAmount` is the cached Passport value, absent until Passport reports one |
 | `GET /orgs`, `GET /orgs/{orgId}` | `org:read` | Placeholder (phase 2) |
 | `PATCH /orgs/{orgId}`, `POST /orgs/{orgId}/changes`, `GET /orgs/{orgId}/changes[/{changeId}]` | token; forwarded to Passport | Placeholder (phase 6) |
 
@@ -107,20 +107,51 @@ Implemented:
 | `GET/POST /gms/tasks`, `PATCH /gms/tasks/{id}` | `messages:*` | |
 | `GET /gms/approvals`, `GET /gms/approvals/{id}`, `POST /gms/approvals/{id}/decision` | people in the workspace; deciding needs the gated tool's scope | `{ approve, note? }`. Approving runs the original call once as the approver; the approval ends `executed` or `failed` |
 
+### Review to award (phase 3)
+
+Implemented. Signing, countersigning, accepting an offer, committing decisions and sending
+communications are **people only**: a client-credentials or delegated (agent) token answers
+`403 human_only`. Through MCP the gated tools return `pending_approval` and run as the approver;
+`sign_agreement` never runs for an agent.
+
+| Route | Scope | Notes |
+|---|---|---|
+| `GET /gms/review-assignments` | `reviews:read` | Staff see the matrix; reviewers see their own. Filters: `competitionId`, `applicationId`, `stage`, `reviewerUserId`, `status` |
+| `POST /gms/review-assignments` | `reviews:write` (staff) | 409 `conflict_of_interest` for a declared conflict or a matching email domain; moves the application to `under_review` |
+| `POST /gms/review-assignments/auto` | `reviews:write` (staff) | Capacity, expertise tags, COI exclusion; `dryRun` returns the plan only |
+| `POST /gms/review-assignments/invite` | `reviews:write` (staff, person) | Emails an invitation; accepting creates an `external_reviewer` member scoped to the competition |
+| `GET /gms/review-assignments/{id}` | `reviews:read` | The reviewer's view: rubric, own review, the application masked for their role (no organization record for external reviewers) |
+| `PATCH /gms/review-assignments/{id}` | `reviews:write` | `action`: `declare_coi`, `save`, `submit`, `recuse`, `reschedule`. Scoring needs the COI declaration first |
+| `GET /gms/reviews?applicationId=` | `reviews:read` | Blind by default: a reviewer sees other reviews only once the stage's panel is open (`stages[].panelOpen`, `reviewMode`) |
+| `GET /gms/competitions/{id}/ranking?stage=` | `reviews:read` (staff, observer, auditor) | Mean, median, sample stdev, n, spread flag; recomputed on read |
+| `GET /gms/competitions/{id}/allocation` | `reviews:read` | Budget − committed awards − open proposals, in minor units |
+| `POST /gms/decisions/propose`, `GET /gms/decisions` | `decisions:write` / `reviews:read` | A new proposal replaces the application's open one |
+| `POST /gms/decisions/commit` | `decisions:write` (person) | 409 `over_allocation` unless an admin sends `override.reason`. Approve → award `offered`, agreement draft, schedule, requirements, letter |
+| `GET /gms/awards`, `GET /gms/awards/{id}`, `POST /gms/awards` | `awards:read` / `awards:write` | Detail includes agreement, tranches, requirements, amendments |
+| `POST /gms/awards/{id}/activate`, `/suspend`, `/resume`, `/complete`, `/cancel` | `awards:write` (staff) | Through the award machine; suspend holds due tranches, cancel cancels open ones |
+| `GET/POST /gms/awards/{id}/amendments`, `PATCH /gms/amendments/{id}` | `awards:*` | Extension moves the end date; supplemental creates a child award; Passport is patched when mirrored |
+| `GET /gms/awards/{id}/letter.pdf` | `awards:read` | Award letter PDF |
+| `GET /gms/my/awards`, `/my/awards/{id}`, `/my/awards/{id}/schedule` | `awards:read` (recipient) | |
+| `POST /gms/my/awards/{id}/accept` (also `POST /gms/awards/{id}/accept-offer`) | `awards:write` (recipient admin, person) | Then mirrors the award to Passport when `PASSPORT_AWARD_WRITE=true`; a failed mirror never undoes acceptance |
+| `POST /gms/my/awards/{id}/amendments` | `awards:write` (recipient) | |
+| `POST /gms/awards/{id}/agreements` | `agreements:write` (staff) | Draft from a template version; refused while a live agreement exists |
+| `GET /gms/agreements/{id}`, `GET /gms/agreements/{id}/pdf` | `awards:read` | Either party. The PDF is the executed document once executed; `X-Content-SHA256` carries its hash |
+| `POST /gms/agreements/{id}/send` | `agreements:write` (staff) | Renders and hashes the document; sends the award letter email |
+| `POST /gms/agreements/{id}/sign` | `agreements:write` (recipient admin, person) | Typed name, attestation, network address, time, document hash. The offer must be accepted first |
+| `POST /gms/agreements/{id}/countersign` | `agreements:write` (staff, person) | Executes: award `active`, `onExecution` tranches `due`, executed PDF stored and its hash ledgered (`agreement.document_executed`) |
+| `POST /gms/agreements/{id}/void` | `agreements:write` (staff) | Refused once executed |
+| `GET/POST /gms/templates`, `GET /gms/templates/{id}`, `POST /gms/templates/{id}/render` | `communications:write` | Immutable versions; built-ins under `builtin:*`; 422 lists missing merge fields |
+| `POST /gms/communications/send`, `GET /gms/communications` | `communications:write` (send: staff, person) | Nothing is sent unless every letter renders; the log is read from the ledger |
+
 Placeholder (every other `/gms/*` path answers 501). Funder side:
 
 | Routes | Scope | Phase |
 |---|---|---|
-| `GET/POST /review-assignments`, `POST /review-assignments/auto`, `PATCH /review-assignments/{id}`, `GET /reviews`, `GET /competitions/{id}/ranking` | `reviews:*` | 3 |
-| `POST /decisions/propose`, `GET /decisions`, `POST /decisions/commit`, `GET /competitions/{id}/allocation` | `decisions:write` | 3 |
-| `GET /awards`, `GET /awards/{id}`, `POST …/accept-offer`, `…/activate`, `…/suspend`, `…/complete`, `…/cancel`, `…/amendments`, `PATCH /amendments/{id}` | `awards:*` | 3 |
-| `POST /awards/{id}/agreements`, `POST /agreements/{id}/send`, `…/sign`, `…/countersign`, `…/void`, `GET …/pdf` | `agreements:*` | 3 |
 | `GET/PUT /awards/{id}/schedule`, `GET /tranches`, `GET /tranches/{id}/readiness`, `POST /tranches/{id}/release`, `…/record-external`, `…/hold`, `…/cancel` | `payments:read`, `payments:release` | 4 |
 | `GET /payments/readiness`, `GET /payments/alerts`, `GET /bank-transactions`, `POST /bank-transactions/{id}/match` | `payments:*` | 4 |
 | `GET/POST /awards/{id}/requirements`, `PATCH /requirements/{id}`, `POST …/waive`, `GET /requirements/due`, `POST /requirements/{id}/remind`, `GET /submissions/{id}`, `POST …/accept`, `…/return` | `requirements:*` | 4 |
 | `GET/PUT /awards/{id}/budget`, `GET /awards/{id}/variance` | `awards:*` | 4 |
 | `GET /grantees`, `GET/PATCH /grantees/{id}`, `GET /org-changes`, `POST /org-changes/{id}/accept`, `…/dismiss`, `POST /grantees/{id}/propose-change` | `grantees:*` | 6 |
-| `GET/POST /templates`, `POST /templates/{id}/render`, `POST /communications/send` | `communications:*` | 3 |
 | `GET /analytics/portfolio`, `GET /analytics/cycle/{competitionId}`, `GET /exports/990pf`, `POST /exports/bundle`, `POST /imports/csv` | `analytics:read`, `workspace:admin` | 6 |
 | `GET/POST/DELETE /api-clients`, `/webhooks`, `GET /webhooks/{id}/deliveries`, `GET/DELETE /mcp-connections`, `GET/POST/DELETE /custom-mcp-servers`, `/connectors/{provider}`, `POST /connectors/{provider}/sync` | `workspace:admin` | 5 |
 | `POST /assist/summarize`, `/compare-rubric`, `/draft-letter`, `/adapt-answer` | `assist` | 5 |
@@ -129,7 +160,6 @@ Applicant side:
 
 | Routes | Scope | Phase |
 |---|---|---|
-| `GET /my/awards`, `GET /my/awards/{id}`, `POST …/accept`, `…/amendments`, `GET …/schedule` | `awards:*` | 3 |
 | `GET /my/requirements`, `GET /my/submissions/{id}`, `PUT …/forms/{formId}`, `POST …/submit`, `…/share` | `requirements:*` | 4 |
 | `POST /my/answers/{id}/adapt` | `library:read`, `assist` | 5 |
 

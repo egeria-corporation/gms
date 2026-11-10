@@ -10,7 +10,7 @@ import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/auth/stores.ts";
 import type { Env } from "../src/env.ts";
-import { FixtureOpenGrantsClient, MemoryFileStorage, type OpenGrantsListing } from "../src/services/ports.ts";
+import { FixtureOpenGrantsClient, MemoryFileStorage, MemoryUserDirectory, type OpenGrantsListing } from "../src/services/ports.ts";
 import { MemoryRepos } from "../src/services/repos/memory.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
@@ -43,6 +43,8 @@ export interface Harness {
   mailer: MemoryMailer;
   storage: MemoryFileStorage;
   openGrants: FixtureOpenGrantsClient;
+  /** Names and emails of people, as the auth provider would answer. */
+  directory: MemoryUserDirectory;
   clock: { now: Date };
   privateKey: CryptoKey;
   kid: string;
@@ -113,6 +115,9 @@ export async function harness(): Promise<Harness> {
   const storage = new MemoryFileStorage();
   const openGrants = new FixtureOpenGrantsClient(OPENGRANTS_LISTINGS);
   const kv = new MemoryKv();
+  const directory = new MemoryUserDirectory();
+  directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
+  directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
   const deps: Deps = {
     auth,
     members,
@@ -123,7 +128,7 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants }),
+    ports: () => ({ mailer, storage, openGrants, directory }),
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -142,6 +147,7 @@ export async function harness(): Promise<Harness> {
     mailer,
     storage,
     openGrants,
+    directory,
     clock,
     privateKey,
     kid,

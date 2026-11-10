@@ -72,7 +72,13 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   discover_saved: () => ({ url: null, listing: {}, gms_opportunity_id: null, saved_by: null }),
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
-  awards: () => ({ recipient_workspace_id: null, status: "offered" }),
+  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null }),
+  agreements: () => ({ template_id: null, version: 1, status: "draft", rendered_pdf_path: null, document_sha256: null, grantee_signature: null, funder_signature: null, executed_at: null }),
+  payment_schedules: () => ({ currency: "USD", notes: null }),
+  tranches: () => ({ currency: "USD", condition: { type: "manual" }, status: "scheduled", due_at: null, released_by: null, released_at: null, mode: null, passport_disbursement_id: null, passport_status: null, external: null, hold_reason: null, idempotency_key: null }),
+  requirements: () => ({ form_id: null, form_version: null, due_at: null, recurrence: null, grace_days: 0, reminder_plan: [], status: "scheduled", waived_by: null, releases_tranche_id: null }),
+  reviews: () => ({ scores: {}, narrative: null, recommendation: null, submitted_at: null, visibility: "panel" }),
+  amendments: () => ({ request: {}, status: "requested", requested_by: null, decided_by: null, decided_at: null, child_award_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -86,6 +92,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   rubrics: [{ columns: ["id", "version"] }],
   answers: [{ columns: ["workspace_id", "key", "version"] }],
   discover_saved: [{ columns: ["workspace_id", "source", "external_id"] }],
+  review_assignments: [{ columns: ["application_id", "stage", "reviewer_user_id"] }],
+  agreements: [{ columns: ["award_id", "version"] }],
+  tranches: [{ columns: ["award_id", "seq"] }],
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

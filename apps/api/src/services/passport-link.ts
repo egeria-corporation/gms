@@ -22,7 +22,7 @@ function configured(ctx: ServiceContext): { baseUrl: string; key: string } {
 
 function client(ctx: ServiceContext, baseUrl: string, clientId: string, clientSecret: string): PassportClient {
   const tokens = clientCredentialsTokens({ baseUrl, clientId, clientSecret, scopes: [...FUNDER_LINK_SCOPES], fetch: ctx.config.passportFetch, now: ctx.now });
-  return new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch });
+  return new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch, awardWrite: ctx.config.passportAwardWrite === true });
 }
 
 /** One live call that proves the client works for this funder: its funding sources. */
