@@ -1,0 +1,25 @@
+{
+  "name": "@gms/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gms/db": "workspace:*",
+    "@gms/ledger": "workspace:*",
+    "@gms/passport-client": "workspace:*",
+    "@gms/payments": "workspace:*",
+    "@gms/webhooks": "workspace:*",
+    "@gms/workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261026.1",
+    "wrangler": "4.153.0"
+  }
+}

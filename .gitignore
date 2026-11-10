@@ -1,18 +1,22 @@
 node_modules/
-.next/
 dist/
-.turbo/
+tsp-output/
+.wrangler/
 coverage/
-*.tsbuildinfo
-.env
-.env.local
-.env.*.local
-.gms/
-artifacts/
-test-results/
-playwright-report/
-.netlify/
-supabase/.temp/
-supabase/.branches/
 *.log
 .DS_Store
+
+# secrets — never commit
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+*.pem
+keys/
+supabase/.branches
+supabase/.temp
+
+# Claude Code worktrees
+.claude/worktrees/

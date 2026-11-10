@@ -1,7 +1,0 @@
-pnpm-lock.yaml
-.next
-dist
-node_modules
-supabase/migrations
-LICENSE
-docs/architecture.md

@@ -1,0 +1,19 @@
+# gitleaks configuration: the default rules, plus a narrow allowlist of values that are deliberately
+# fake. Allowlist exact values only — never whole files or directories — so a real key added to the
+# same file is still caught.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures and documentation examples (not secrets)"
+regexTarget = "secret"
+regexes = [
+  # 32-byte AES test key: the bytes 0..31, base64url (webhook-secret encryption tests)
+  '''^AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8$''',
+  # Placeholder SAM.gov keys in importer unit tests
+  '''^sam-key-abcdef0123456789$''',
+  '''^test-key-0123456789abcdef$''',
+  # Illustrative Moov paymentMethodID in the PayeeCredential example of the concept document
+  '''^3afc7533-7095-43bb-b21a-5c4dc5568451$''',
+]
