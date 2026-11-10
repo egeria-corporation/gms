@@ -111,3 +111,36 @@ html, body, #root { margin: 0; min-height: 100%; }
 /* Real checkboxes sit visually hidden beside the drawn box; show focus on the box. */
 .cb input.sr:focus-visible + .c, .radio input.sr:focus-visible + .r { outline: 2px solid var(--og-teal); outline-offset: 2px; }
 .cb { cursor: pointer; }
+
+/* ---- 3. shared live-screen components ---- */
+/* Sortable table header: a real button that looks like the header text. */
+.th-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0; font: inherit; font-weight: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; }
+.rc ul { display: flex; flex-direction: column; }
+.rc-sum.rc-pass .ic { color: var(--s-ok-fg); }
+.rc-sum.rc-fail .ic { color: var(--s-dng-fg); }
+.rc-sum.rc-unk .ic { color: var(--og-gray-600); }
+button.tab { font-family: inherit; }
+
+/* ---- 4. phone width: workspace top bar and multi-column editors ---- */
+@media (max-width: 720px) {
+  /* The top bar wraps instead of pushing the page wider; search moves out of the way. */
+  .gms-frame > .topbar { height: auto; min-height: 56px; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+  .gms-frame > .topbar .search { display: none; }
+  .gms-frame > .topbar > div:has(> .ws),
+  .gms-frame > .topbar .ws { min-width: 0; max-width: 100%; }
+  .gms-frame > .topbar .ws { overflow: hidden; text-overflow: ellipsis; }
+  .gms-funder .rail { flex: 0 0 100%; max-width: 100%; min-width: 0; }
+  .gms-funder .rail ul { flex-direction: row; overflow-x: auto; max-width: 100%; }
+  .shell { max-width: 100%; }
+  .pub [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .pub .card { min-width: 0; }
+  .gms-funder .rail a { white-space: nowrap; }
+  .gms-funder .rail-foot { display: none; }
+  .btn { white-space: normal; height: auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+  .btn-sm { min-height: 28px; }
+  .btn-lg { min-height: 44px; }
+  .ph .actions { width: 100%; }
+  .stp { flex-direction: column; align-items: flex-start; }
+  .stp .ln { display: none; }
+}
+.fld-c > .tag { flex: none; white-space: nowrap; }

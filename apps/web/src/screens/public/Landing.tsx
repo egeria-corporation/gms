@@ -112,7 +112,7 @@ export default function Landing() {
                   and release payments only when a readiness check passes.
                 </p>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
-                  <Link to="/onboarding/funder/brand" className="btn btn-cta">
+                  <Link to="/onboarding/funder" className="btn btn-cta">
                     Create a funder workspace
                     <ArrowRight className="ic" aria-hidden="true" />
                   </Link>

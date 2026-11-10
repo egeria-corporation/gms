@@ -10,8 +10,7 @@ import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./wo
 import { NotFound } from "../components/NotFound.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
-const FunderPageRiverbend = lazy(() => import("../screens/public/FunderPageRiverbend.tsx"));
-const FunderPageCascade = lazy(() => import("../screens/public/FunderPageCascade.tsx"));
+const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
@@ -24,6 +23,9 @@ const FPrograms = lazy(() => import("../screens/funder/Programs.tsx"));
 const FOpportunityBuilder = lazy(() => import("../screens/funder/OpportunityBuilder.tsx"));
 const FFormBuilder = lazy(() => import("../screens/funder/FormBuilder.tsx"));
 const FCompetition = lazy(() => import("../screens/funder/Competition.tsx"));
+const FOpportunities = lazy(() => import("../screens/funder/Opportunities.tsx"));
+const FForms = lazy(() => import("../screens/funder/Forms.tsx"));
+const FSettingsPassport = lazy(() => import("../screens/funder/SettingsPassport.tsx"));
 const FApplications = lazy(() => import("../screens/funder/Applications.tsx"));
 const FApplicationsEmpty = lazy(() => import("../screens/funder/ApplicationsEmpty.tsx"));
 const FApplicationDetail = lazy(() => import("../screens/funder/ApplicationDetail.tsx"));
@@ -104,16 +106,6 @@ function WorkspaceLayout() {
   );
 }
 
-const FUNDER_PAGES: Record<string, ReactNode> = {
-  riverbend: <FunderPageRiverbend />,
-  "cascade-county": <FunderPageCascade />,
-};
-
-function FunderPublicPage() {
-  const { handle = "" } = useParams();
-  return FUNDER_PAGES[handle] ?? <NotFound />;
-}
-
 const EMAIL_PREVIEWS: Record<string, ReactNode> = {
   acknowledgment: <EmailAck />,
   "revision-request": <EmailRevision />,
@@ -153,7 +145,7 @@ function AppRoutes() {
     <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/f/:handle" element={<FunderPublicPage />} />
+        <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
@@ -161,8 +153,8 @@ function AppRoutes() {
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
-          <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/brand" replace />} />
-          <Route path="/onboarding/funder/brand" element={<FunderOnboarding />} />
+          <Route path="/onboarding/funder" element={<Navigate to="/onboarding/funder/organization" replace />} />
+          <Route path="/onboarding/funder/:step" element={<FunderOnboarding />} />
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
@@ -190,7 +182,11 @@ function AppRoutes() {
             {/* Funder workspace */}
             <Route path="programs" element={f(<FPrograms />)} />
             <Route path="programs/:programId" element={f(<FPrograms />)} />
+            <Route path="opportunities" element={f(<FOpportunities />)} />
+            <Route path="opportunities/new" element={f(<FOpportunityBuilder />)} />
             <Route path="opportunities/:oppId/edit" element={f(<FOpportunityBuilder />)} />
+            <Route path="opportunities/:oppId/competition" element={f(<FCompetition />)} />
+            <Route path="forms" element={f(<FForms />)} />
             <Route path="forms/:formId/edit" element={f(<FFormBuilder />)} />
             <Route path="competitions/:compId" element={f(<FCompetition />)} />
             <Route path="competitions/:compId/panel" element={f(<FPanel />)} />
@@ -208,6 +204,8 @@ function AppRoutes() {
             <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
             <Route path="analytics" element={f(<FAnalytics />)} />
             <Route path="communications" element={f(<FCommunications />)} />
+            <Route path="settings" element={<Navigate to="passport" replace />} />
+            <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="approvals" element={f(<FApprovals />)} />
 

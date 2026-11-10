@@ -32,7 +32,7 @@ export default function SettingsMcp() {
               aria-label="Settings sections"
               style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "2px", position: "sticky", top: "16px" }}
             >
-              <Link to="/onboarding/funder/brand">Branding</Link>
+              <Link to="/onboarding/funder">Branding</Link>
               <a href="#team">Team & roles</a>
               <a href="#rubrics">Rubrics</a>
               <Link to="/w/riverbend/communications">Templates</Link>

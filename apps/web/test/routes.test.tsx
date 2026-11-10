@@ -20,7 +20,7 @@ describe("routes", () => {
   it("renders the landing page with both entry points", async () => {
     open("/");
     expect(await screen.findByRole("heading", { level: 1, name: "Grants Management for Funders and Applicants" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Create a funder workspace/ })).toHaveAttribute("href", "/onboarding/funder/brand");
+    expect(screen.getByRole("link", { name: /Create a funder workspace/ })).toHaveAttribute("href", "/onboarding/funder");
   });
 
   it("resolves /w/:ws by workspace kind", async () => {

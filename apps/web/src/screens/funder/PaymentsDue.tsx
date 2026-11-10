@@ -395,7 +395,7 @@ export default function PaymentsDue() {
                         </li>
                       </ul>
                       <div className="row" style={{ gap: "10px" }}>
-                        <Link to="/onboarding/funder/brand" className="btn btn-primary">
+                        <Link to="/onboarding/funder" className="btn btn-primary">
                           Connect Passport
                         </Link>
                         <button className="btn btn-ghost">Record external payment</button>

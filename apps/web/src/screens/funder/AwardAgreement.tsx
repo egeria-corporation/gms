@@ -251,7 +251,7 @@ export default function AwardAgreement() {
                   <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
                     <span className="mono">awd_01J2Q7</span>
                     <span>·</span>
-                    <Link to="/w/riverbend/programs/community-health-2027">Community Health 2027</Link>
+                    <Link to="/w/riverbend/programs">Community Health 2027</Link>
                     <span>·</span>
                     <span>Decision committed May 18, 2027 by Dana Ortiz</span>
                   </div>

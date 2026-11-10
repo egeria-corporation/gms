@@ -1,514 +1,471 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { Link } from "react-router";
-import { Check, CircleCheck, CircleX, ExternalLink, Eye, Lock, Pencil, Plus } from "lucide-react";
+// Competition: the stages an opportunity runs through, the forms and rubric pinned to each, and
+// the launch checklist that gates opening. Reached by competition id, by the opportunity's slug,
+// or from `/opportunities/:oppId/competition`. Application counts per stage join with phase 2.
+import { useState } from "react";
+import { Link, useParams } from "react-router";
+import { Check, ExternalLink, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { Checklist, Competition as CompetitionRecord, FormSummary, Opportunity, Rubric, Stage } from "../../api/types.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { Dialog } from "../../components/Dialog.tsx";
+import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { StatusBadge } from "../../components/status.tsx";
+import { EmptyState, ErrorBanner, Loading, PageHeader, problemFor, ReadinessChecklist } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
+
+const dateOf = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
+const opensAt = (date: string) => (date ? `${date}T00:00:00Z` : null);
+const closesAt = (date: string) => (date ? `${date}T23:59:59Z` : null);
+const keyFrom = (label: string) =>
+  label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^[^a-z]+|_+$/g, "")
+    .slice(0, 40) || "stage";
+
+/** A stage with a stable editor id, so rows keep their identity while keys are retyped. */
+type StageRow = Stage & { rowId: string; isNew: boolean };
+
+function newStage(n: number, previous: StageRow | undefined): StageRow {
+  const label = n === 1 ? "Application" : `Stage ${n}`;
+  return { rowId: `new-${n}-${Date.now()}`, isNew: true, key: n === 1 ? "application" : `stage_${n}`, label, forms: {}, opens: null, closes: null, rubricId: null, reviewers: null, entryFrom: previous ? [previous.key] : [], requiresSubmission: true, decisionRequired: true };
+}
+
+function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { competition: CompetitionRecord; forms: FormSummary[]; rubrics: Rubric[]; onClose: () => void; onSaved: (c: CompetitionRecord) => void }) {
+  const [rows, setRows] = useState<StageRow[]>(() => (competition.stages.length ? competition.stages.map((s, i) => ({ ...s, rowId: `s${i}`, isNew: false })) : [newStage(1, undefined)]));
+  const save = useApiMutation((api, stages: Stage[]) => api.putStages(competition.id, stages));
+  const patch = (rowId: string, change: Partial<StageRow>) => setRows((rs) => rs.map((r) => (r.rowId === rowId ? { ...r, ...change } : r)));
+  const published = forms.filter((f) => f.status === "published");
+  const formName = (id: string) => forms.find((f) => f.id === id)?.title ?? "Unknown form";
+
+  async function submit() {
+    // Entry rules follow the order: each stage is entered from the one before it.
+    const stages = rows.map(({ rowId: _r, isNew: _n, ...s }, i) => ({ ...s, entryFrom: i === 0 ? [] : [rows[i - 1]!.key] }));
+    const saved = await save.run(stages);
+    if (saved) onSaved(saved);
+  }
+
+  return (
+    <Dialog open onClose={onClose} labelledBy="stages-title" size="lg">
+      <div className="hd">
+        <div>
+          <h2 id="stages-title" style={{ fontSize: "16px" }}>
+            Edit stages
+          </h2>
+          <p className="small muted" style={{ marginTop: "4px" }}>
+            Most competitions have one stage. Add a second when applicants are invited from a letter of intent to a full proposal.
+          </p>
+        </div>
+      </div>
+      <div className="bd">
+        {save.error !== null && <ErrorBanner error={save.error} title="The stages could not be saved" />}
+        <ol style={{ display: "flex", flexDirection: "column", gap: "14px" }} aria-label="Stages">
+          {rows.map((s, i) => {
+            const n = i + 1;
+            const pinned = Object.entries(s.forms);
+            const addable = published.filter((f) => !(f.id in s.forms));
+            return (
+              <li key={s.rowId} className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px", gap: "10px", alignItems: "end" }}>
+                  <div className="fld">
+                    <label className="lbl" htmlFor={`${s.rowId}-label`}>
+                      Stage {n} name
+                    </label>
+                    <input
+                      className={problemFor(save.error, `stages.${i}.label`) ? "inp err" : "inp"}
+                      id={`${s.rowId}-label`}
+                      value={s.label}
+                      onChange={(e) => patch(s.rowId, { label: e.target.value, ...(s.isNew ? { key: keyFrom(e.target.value) } : {}) })}
+                    />
+                  </div>
+                  <div className="fld">
+                    <label className="lbl" htmlFor={`${s.rowId}-opens`}>
+                      Opens
+                    </label>
+                    <input className="inp" id={`${s.rowId}-opens`} type="date" value={dateOf(s.opens)} onChange={(e) => patch(s.rowId, { opens: opensAt(e.target.value) })} />
+                  </div>
+                  <div className="fld">
+                    <label className="lbl" htmlFor={`${s.rowId}-closes`}>
+                      Closes
+                    </label>
+                    <input className="inp" id={`${s.rowId}-closes`} type="date" value={dateOf(s.closes)} onChange={(e) => patch(s.rowId, { closes: closesAt(e.target.value) })} />
+                  </div>
+                  <button type="button" className="iconbtn" aria-label={`Remove stage ${n}`} disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((r) => r.rowId !== s.rowId))}>
+                    <Trash2 className="ic" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="fld-row">
+                  <div className="fld">
+                    <span className="lbl" id={`${s.rowId}-forms-label`}>
+                      Forms
+                    </span>
+                    <ul aria-labelledby={`${s.rowId}-forms-label`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {pinned.map(([id, version]) => (
+                        <li key={id} className="row" style={{ justifyContent: "space-between" }}>
+                          <span>
+                            {formName(id)} <span className="tag">v{version}</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            aria-label={`Unpin ${formName(id)} from stage ${n}`}
+                            onClick={() => patch(s.rowId, { forms: Object.fromEntries(pinned.filter(([f]) => f !== id)) })}
+                          >
+                            Unpin
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <label className="sr" htmlFor={`${s.rowId}-add-form`}>
+                      Pin a form to stage {n}
+                    </label>
+                    <select
+                      className="sel"
+                      id={`${s.rowId}-add-form`}
+                      value=""
+                      onChange={(e) => {
+                        const f = published.find((x) => x.id === e.target.value);
+                        if (f) patch(s.rowId, { forms: { ...s.forms, [f.id]: f.version } });
+                      }}
+                    >
+                      <option value="">{addable.length ? "Pin a published form…" : "No more published forms"}</option>
+                      {addable.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.title} · v{f.version}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="help">Only published versions can be pinned; a pinned version never changes under applicants.</span>
+                  </div>
+                  <div className="fld">
+                    <label className="lbl" htmlFor={`${s.rowId}-rubric`}>
+                      Rubric
+                    </label>
+                    <select className="sel" id={`${s.rowId}-rubric`} value={s.rubricId ?? ""} onChange={(e) => patch(s.rowId, { rubricId: e.target.value || null })}>
+                      <option value="">No rubric</option>
+                      {rubrics.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} · v{r.version}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="cb" htmlFor={`${s.rowId}-submission`} style={{ marginTop: "6px" }}>
+                      <input type="checkbox" id={`${s.rowId}-submission`} checked={s.requiresSubmission} onChange={(e) => patch(s.rowId, { requiresSubmission: e.target.checked })} style={{ marginTop: "3px" }} />
+                      <span>Applicants submit forms in this stage</span>
+                    </label>
+                    <label className="cb" htmlFor={`${s.rowId}-decision`}>
+                      <input type="checkbox" id={`${s.rowId}-decision`} checked={s.decisionRequired} onChange={(e) => patch(s.rowId, { decisionRequired: e.target.checked })} style={{ marginTop: "3px" }} />
+                      <span>Reviewers score and a decision is recorded</span>
+                    </label>
+                  </div>
+                </div>
+                {i > 0 && <span className="help">Entered by invitation from “{rows[i - 1]!.label}”.</span>}
+              </li>
+            );
+          })}
+        </ol>
+        <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} onClick={() => setRows((rs) => [...rs, newStage(rs.length + 1, rs[rs.length - 1])])}>
+          <Plus className="ic" aria-hidden="true" />
+          Add stage
+        </button>
+      </div>
+      <div className="ft">
+        <button type="button" className="btn btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={submit} disabled={save.state === "saving"}>
+          Save stages
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function StageTimeline({ stages }: { stages: Stage[] }) {
+  const now = Date.now();
+  return (
+    <ol className="stp" aria-label="Stage timeline" style={{ flexWrap: "wrap", rowGap: "12px" }}>
+      {stages.map((s, i) => {
+        const done = !!s.closes && Date.parse(s.closes) < now;
+        const on = !done && (!s.opens || Date.parse(s.opens) <= now) && (!!s.opens || !!s.closes);
+        return (
+          <li key={s.key} style={{ display: "contents" }}>
+            {i > 0 && <span className={done || on ? "ln done" : "ln"} aria-hidden="true"></span>}
+            <div className={done ? "s done" : on ? "s on" : "s"} aria-current={on ? "step" : undefined}>
+              <span className="n">{done ? <Check className="ic ic-sm" role="img" aria-label="Closed" /> : i + 1}</span>
+              <div>
+                <div>{s.label}</div>
+                <div className="small muted" style={{ fontWeight: 400 }}>
+                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : "No dates yet"} · {done ? "closed" : on ? "open" : "upcoming"}
+                </div>
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+interface Loaded {
+  opportunity: Opportunity;
+  competition: CompetitionRecord | null;
+  forms: FormSummary[];
+  rubrics: Rubric[];
+  checklist: Checklist | null;
+}
 
 export default function Competition() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const { compId, oppId } = useParams();
+  const [editing, setEditing] = useState(false);
+
+  const data = useApiQuery<Loaded | null>(async (api) => {
+    const [opportunities, competitions, own, library, rubrics] = await Promise.all([api.listOpportunities(), api.listCompetitions(), api.listForms(), api.listFormLibrary(), api.listRubrics()]);
+    // Accept the competition id, or the id or slug of its opportunity.
+    const wanted = compId ?? oppId;
+    const byId = competitions.find((c) => c.id === wanted);
+    const opportunity = byId ? opportunities.find((o) => o.id === byId.opportunityId) : opportunities.find((o) => o.id === wanted || o.slug === wanted);
+    if (!opportunity) return null;
+    const competition = byId ?? competitions.find((c) => c.opportunityId === opportunity.id) ?? null;
+    const checklist = competition ? await api.launchCheck(competition.id) : null;
+    return { opportunity, competition, forms: [...own, ...library], rubrics, checklist };
+  }, [ws.id, compId, oppId]);
+
+  const create = useApiMutation((api, o: Opportunity) => api.createCompetition({ opportunityId: o.id, title: o.title }));
+  const open = useApiMutation((api, id: string) => api.openCompetition(id));
+  const close = useApiMutation((api, id: string) => api.closeCompetition(id));
+
+  if (data.status === "ready" && data.data === null) return <NotFound />;
+  const loaded = data.status === "ready" ? data.data : null;
+  const competition = loaded?.competition ?? null;
+  const opportunity = loaded?.opportunity;
+  const checklist = loaded?.checklist ?? null;
+  const formOf = (id: string) => loaded?.forms.find((f) => f.id === id);
+  const rubricOf = (id: string | null | undefined) => loaded?.rubrics.find((r) => r.id === id);
+  const publicPath = opportunity ? `/f/${ws.handle}/o/${opportunity.slug}` : "";
+  const writeError = create.error ?? open.error ?? close.error;
+
   return (
-    <>
-      <title>{"Competition — Community Health Grants 2027"}</title>
-      <FunderShell active="Opportunities">
-        <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <Link to="/w/riverbend/programs/community-health-2027">Community Health 2027</Link>
-            <span>›</span>
-            <span>Community Health Grants 2027</span>
-            <span>›</span>
-            <span>Competition</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Community Health Grants 2027</h1>
-                <span className="bdg bdg-prog">
-                  <Eye className="ic" aria-hidden="true" />
-                  Full proposal stage open
-                </span>
-              </div>
-              <div className="meta">
-                <Link to="/f/riverbend/o/community-health-2027" className="row" style={{ gap: "5px" }}>
-                  <ExternalLink className="ic ic-sm" aria-hidden="true" />
-                  gms.opengrants.io/f/riverbend/o/community-health-2027
-                </Link>
-                <span>·</span>
-                <span>Opened Jan 15, 2027</span>
-                <span>·</span>
-                <span>Decision Jun 15, 2027</span>
-                <span>·</span>
-                <span>Program budget $1,200,000</span>
-              </div>
-            </div>
-            <div className="actions">
-              <button className="btn btn-secondary">
-                <Pencil className="ic" aria-hidden="true" />
-                Edit stages
-              </button>
-              <Link to="/w/riverbend/competitions/community-health-2027/panel" className="btn btn-secondary">
-                Panel
-              </Link>
-              <button className="btn btn-danger">Close stage</button>
-            </div>
-          </div>
-          <div className="card" style={{ padding: "18px 20px" }}>
-            <div className="stp" aria-label="Stage timeline">
-              <div className="s done">
-                <span className="n">
-                  <Check className="ic ic-sm" aria-hidden="true" />
-                </span>
-                <div>
-                  <div>LOI</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
-                    Jan 15 – Feb 28 · 58 received · closed
-                  </div>
-                </div>
-              </div>
-              <div className="ln done"></div>
-              <div className="s on">
-                <span className="n">2</span>
-                <div>
-                  <div>Full proposal</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
-                    Mar 15 – Apr 30 · 36 in stage · open
-                  </div>
-                </div>
-              </div>
-              <div className="ln"></div>
-              <div className="s">
-                <span className="n">3</span>
-                <div>
-                  <div>Interview</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
-                    May 3 – 14 · 4 invited
-                  </div>
-                </div>
-              </div>
-              <div className="ln"></div>
-              <div className="s">
-                <span className="n">4</span>
-                <div>
-                  <div>Decision</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
-                    Panel May 18 · letters Jun 15
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
-            <Link to="/w/riverbend/applications" className="stat" style={{ textDecoration: "none" }}>
-              <span className="stat-l">LOI</span>
-              <span className="stat-v">58</span>
-              <span className="stat-d">36 advanced · 22 declined</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="stat" style={{ textDecoration: "none" }}>
-              <span className="stat-l">Full proposal</span>
-              <span className="stat-v">36</span>
-              <span className="stat-d">28 under review · 4 need screening · 4 revision</span>
-            </Link>
-            <Link to="/w/riverbend/applications" className="stat" style={{ textDecoration: "none" }}>
-              <span className="stat-l">Interview</span>
-              <span className="stat-v">4</span>
-              <span className="stat-d">Invited · slots open May 3–14</span>
-            </Link>
-            <Link to="/w/riverbend/competitions/community-health-2027/panel" className="stat" style={{ textDecoration: "none" }}>
-              <span className="stat-l">Decided</span>
-              <span className="stat-v">0</span>
-              <span className="stat-d">$0 of $1,200,000 allocated</span>
-            </Link>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
+    <FunderShell active="Opportunities">
+      <title>{`${opportunity?.title ?? "Competition"} — Competition`}</title>
+      <main className="main">
+        {data.status === "loading" && <Loading label="Loading the competition" />}
+        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title="The competition could not be loaded" />}
+        {loaded && opportunity && (
+          <>
+            <PageHeader
+              crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: opportunity.title, to: `${base}/opportunities/${opportunity.id}/edit` }, { label: "Competition" }]}
+              title={competition?.title ?? opportunity.title}
+              badge={competition && <StatusBadge kind="competition" status={competition.status} />}
+              meta={
+                <>
+                  {opportunity.published ? (
+                    <Link to={publicPath} className="row" style={{ gap: "5px" }}>
+                      <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                      {publicPath}
+                    </Link>
+                  ) : (
+                    <span>Opportunity not published yet</span>
+                  )}
+                  {competition && (
+                    <>
+                      <span>·</span>
+                      <span>
+                        {competition.stages.length} stage{competition.stages.length === 1 ? "" : "s"}
+                      </span>
+                    </>
+                  )}
+                </>
+              }
+              actions={
+                competition && (
+                  <>
+                    <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)} disabled={competition.status === "closed"}>
+                      <Pencil className="ic" aria-hidden="true" />
+                      Edit stages
+                    </button>
+                    {competition.status === "open" && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={close.state === "saving"}
+                        onClick={async () => {
+                          if (await close.run(competition.id)) data.reload();
+                        }}
+                      >
+                        Close competition
+                      </button>
+                    )}
+                  </>
+                )
+              }
+            />
+            {writeError !== null && <ErrorBanner error={writeError} />}
+
+            {!competition && (
               <div className="card">
-                <div className="card-h" style={{ padding: "12px 16px" }}>
-                  <h3 style={{ fontSize: "14px" }}>Forms</h3>
-                  <Link to="/w/riverbend/forms/loi-v2/edit" className="small b">
-                    Builder
-                  </Link>
-                </div>
-                <div
-                  className="card-b"
-                  style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}
+                <EmptyState
+                  icon={Layers}
+                  title="No competition yet"
+                  actions={
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={create.state === "saving"}
+                      onClick={async () => {
+                        if (await create.run(opportunity)) {
+                          data.reload();
+                          setEditing(true);
+                        }
+                      }}
+                    >
+                      Set up the competition
+                    </button>
+                  }
                 >
-                  <div>
-                    <div className="b" style={{ color: "#0D2A43" }}>
-                      LOI form
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px" }}>
-                      <span className="tag">v1</span>pinned · stage closed
-                    </div>
-                  </div>
-                  <div>
-                    <div className="b" style={{ color: "#0D2A43" }}>
-                      Full proposal form
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px" }}>
-                      <span className="tag">v2</span>pinned ·<Link to="/w/riverbend/forms/loi-v2/edit">v3 draft</Link>in progress
-                    </div>
-                  </div>
-                  <div>
-                    <div className="b" style={{ color: "#0D2A43" }}>
-                      Interview notes
-                    </div>
-                    <div className="row small muted" style={{ gap: "6px" }}>
-                      <span className="tag">v1</span>internal only
-                    </div>
-                  </div>
-                </div>
+                  A competition is how {opportunity.title} takes applications: its stages, the form for each stage and the rubric reviewers score against.
+                </EmptyState>
               </div>
-              <div className="card">
-                <div className="card-h" style={{ padding: "12px 16px" }}>
-                  <h3 style={{ fontSize: "14px" }}>Rubric</h3>
-                  <Link to="/w/riverbend/settings/mcp" className="small b">
-                    Rubrics
-                  </Link>
+            )}
+
+            {competition && (
+              <>
+                <div className="card" style={{ padding: "18px 20px" }}>
+                  {competition.stages.length ? <StageTimeline stages={competition.stages} /> : <span className="muted">No stages yet. Edit stages to add the first one.</span>}
                 </div>
-                <div
-                  className="card-b"
-                  style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}
-                >
-                  <div className="b" style={{ color: "#0D2A43" }}>
-                    Community Health rubric v3{" "}
-                    <span className="muted" style={{ fontWeight: 400 }}>
-                      · 5 criteria, 1–5 scale
-                    </span>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span>Need & evidence</span>
-                    <span className="tag">25%</span>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span>Approach</span>
-                    <span className="tag">25%</span>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span>Capacity</span>
-                    <span className="tag">20%</span>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span>Budget reasonableness</span>
-                    <span className="tag">15%</span>
-                  </div>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span>Outcomes & evaluation</span>
-                    <span className="tag">15%</span>
-                  </div>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-h" style={{ padding: "12px 16px" }}>
-                  <h3 style={{ fontSize: "14px" }}>Reviewer pool</h3>
-                  <Link to="/w/riverbend/reviews/assign" className="small b">
-                    Assign
-                  </Link>
-                </div>
-                <div
-                  className="card-b"
-                  style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}
-                >
-                  <div className="row" style={{ gap: "8px" }}>
-                    <span className="av av-sm av-t">PN</span>
-                    <div>
-                      <div className="b" style={{ color: "#0D2A43" }}>
-                        Priya Natarajan
+
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
+                    <section className="card" aria-labelledby="comp-forms-title">
+                      <div className="card-h" style={{ padding: "12px 16px" }}>
+                        <h3 id="comp-forms-title" style={{ fontSize: "14px" }}>
+                          Forms
+                        </h3>
+                        <Link to={`${base}/forms`} className="small b">
+                          All forms
+                        </Link>
                       </div>
-                      <div className="muted xs">Staff · 14 assigned · health</div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "8px" }}>
-                    <span className="av av-sm av-n">ML</span>
-                    <div>
-                      <div className="b" style={{ color: "#0D2A43" }}>
-                        Marcus Lee
+                      <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+                        {competition.stages.flatMap((s) =>
+                          Object.entries(s.forms).map(([id, version]) => {
+                            const f = formOf(id);
+                            return (
+                              <div key={`${s.key}-${id}`}>
+                                {f && !f.shared ? (
+                                  <Link to={`${base}/forms/${id}/edit`} className="b" style={{ color: "#0D2A43" }}>
+                                    {f.title}
+                                  </Link>
+                                ) : (
+                                  <span className="b" style={{ color: "#0D2A43" }}>
+                                    {f?.title ?? "Unknown form"}
+                                  </span>
+                                )}
+                                <div className="row small muted" style={{ gap: "6px" }}>
+                                  <span className="tag">v{version}</span>
+                                  pinned · {s.label}
+                                  {f && f.version > version ? ` · v${f.version} ${f.status === "draft" ? "draft in progress" : "available"}` : ""}
+                                </div>
+                              </div>
+                            );
+                          }),
+                        )}
+                        {competition.stages.every((s) => !Object.keys(s.forms).length) && <span className="muted">No forms pinned yet.</span>}
                       </div>
-                      <div className="muted xs">Staff · 10 assigned · finance</div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "8px" }}>
-                    <span className="av av-sm av-g">HG</span>
-                    <div>
-                      <div className="b" style={{ color: "#0D2A43" }}>
-                        Dr. Hollis Grant <span className="tag">External</span>
+                    </section>
+
+                    <section className="card" aria-labelledby="comp-rubric-title">
+                      <div className="card-h" style={{ padding: "12px 16px" }}>
+                        <h3 id="comp-rubric-title" style={{ fontSize: "14px" }}>
+                          Rubrics
+                        </h3>
                       </div>
-                      <div className="muted xs">Invited · 12 assigned · clinical</div>
-                    </div>
-                  </div>
-                  <div className="divider"></div>
-                  <div>
-                    <div className="b" style={{ color: "#0D2A43" }}>
-                      Entry rules
-                    </div>
-                    <div className="muted xs">Advance to Interview when mean score ≥ 3.5, ≥ 2 reviews, eligibility passes.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="card">
-              <div className="card-h">
-                <h3>Launch checklist</h3>
-                <span className="bdg bdg-ok">
-                  <CircleCheck className="ic" aria-hidden="true" />7 of 7 ready
-                </span>
-              </div>
-              <div className="card-b" style={{ padding: "8px 20px 16px" }}>
-                <div className="rc">
-                  <div className="rc-row rc-pass" style={{ borderTop: "0" }}>
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Opportunity published</div>
-                      <div className="r">Public page, OpenGrants index, sitemap</div>
-                    </div>
-                    <Link to="/f/riverbend/o/community-health-2027" className="fix">
-                      View
-                    </Link>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Form v2 pinned to this stage</div>
-                      <div className="r">7 fields · 2 Passport prefills · budget table</div>
-                    </div>
-                    <Link to="/w/riverbend/forms/loi-v2/edit" className="fix">
-                      Open
-                    </Link>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Rubric attached</div>
-                      <div className="r">Community Health rubric v3, weights sum to 100%</div>
-                    </div>
-                    <span></span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Reviewer pool ≥ 3</div>
-                      <div className="r">3 reviewers, 1 external with accepted invitation</div>
-                    </div>
-                    <Link to="/w/riverbend/reviews/assign" className="fix">
-                      Pool
-                    </Link>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Dates valid</div>
-                      <div className="r">Stages don’t overlap; decision after last stage</div>
-                    </div>
-                    <span></span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">Public page reachable</div>
-                      <div className="r">200 OK · checked 3 min ago</div>
-                    </div>
-                    <span></span>
-                  </div>
-                  <div className="rc-row rc-pass">
-                    <CircleCheck className="ic" aria-hidden="true" />
-                    <div>
-                      <div className="l">CommonGrants JSON valid</div>
-                      <div className="r">Schema v1.2 · opportunity + 2 forms</div>
-                    </div>
-                    <Link to="/f/riverbend/o/community-health-2027" className="fix">
-                      JSON
-                    </Link>
-                  </div>
-                </div>
-              </div>
-              <div className="card-f" style={{ justifyContent: "space-between" }}>
-                <span className="small muted">Checklist re-runs on every change.</span>
-                <Link to="/f/riverbend/o/community-health-2027" className="btn btn-sm btn-primary">
-                  View public page
-                </Link>
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
-              gap: "20px",
-              marginTop: "8px",
-              alignItems: "start",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · Edit stages (modal)</span>
-              <div className="mdl mdl-lg" style={{ width: "auto", boxShadow: "none", border: "1px solid #D6DEDE" }}>
-                <div className="hd">
-                  <div>
-                    <h3 style={{ fontSize: "16px" }}>Edit stages</h3>
-                    <p className="small muted" style={{ marginTop: "4px" }}>
-                      Closed stages are locked. Changing an open stage’s end date notifies applicants with drafts.
-                    </p>
-                  </div>
-                </div>
-                <div className="bd" style={{ padding: "0" }}>
-                  <table className="tbl">
-                    <thead>
-                      <tr>
-                        <th>Stage</th>
-                        <th>Opens</th>
-                        <th>Closes</th>
-                        <th>Form</th>
-                        <th>Rubric</th>
-                        <th>Entry rule</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="row" style={{ gap: "6px" }}>
-                          <Lock className="ic ic-sm" aria-hidden="true" style={{ color: "#4A5C5A" }} />
-                          LOI
-                        </td>
-                        <td>Jan 15, 2027</td>
-                        <td>Feb 28, 2027</td>
-                        <td>LOI form v1</td>
-                        <td>Screening rubric v1</td>
-                        <td className="muted">—</td>
-                      </tr>
-                      <tr>
-                        <td>Full proposal</td>
-                        <td>
-                          <input
-                            className="inp"
-                            style={{ height: "30px", width: "130px", fontSize: "13px" }}
-                            defaultValue="Mar 15, 2027"
-                            aria-label="Full proposal opens"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="inp"
-                            style={{ height: "30px", width: "130px", fontSize: "13px" }}
-                            defaultValue="Apr 30, 2027"
-                            aria-label="Full proposal closes"
-                          />
-                        </td>
-                        <td>
-                          <select className="sel" style={{ height: "30px", fontSize: "13px" }} aria-label="Full proposal form">
-                            <option>Full proposal form v2</option>
-                          </select>
-                        </td>
-                        <td>
-                          <select className="sel" style={{ height: "30px", fontSize: "13px" }} aria-label="Full proposal rubric">
-                            <option>Community Health rubric v3</option>
-                          </select>
-                        </td>
-                        <td className="small">Invited from LOI</td>
-                      </tr>
-                      <tr>
-                        <td>Interview</td>
-                        <td>
-                          <input
-                            className="inp"
-                            style={{ height: "30px", width: "130px", fontSize: "13px" }}
-                            defaultValue="May 3, 2027"
-                            aria-label="Interview opens"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="inp"
-                            style={{ height: "30px", width: "130px", fontSize: "13px" }}
-                            defaultValue="May 14, 2027"
-                            aria-label="Interview closes"
-                          />
-                        </td>
-                        <td>
-                          <select className="sel" style={{ height: "30px", fontSize: "13px" }} aria-label="Interview form">
-                            <option>Interview notes v1</option>
-                          </select>
-                        </td>
-                        <td className="muted">—</td>
-                        <td className="small">Score ≥ 3.5, ≥ 2 reviews</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div className="ft" style={{ justifyContent: "space-between" }}>
-                  <button className="btn btn-sm btn-secondary">
-                    <Plus className="ic" aria-hidden="true" />
-                    Add stage
-                  </button>
-                  <div className="row" style={{ gap: "8px" }}>
-                    <button className="btn btn-secondary">Cancel</button>
-                    <button className="btn btn-primary">Save stages</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · draft with failing checklist</span>
-              <div className="card">
-                <div className="card-h">
-                  <h3>Launch checklist</h3>
-                  <span className="bdg bdg-dng">
-                    <CircleX className="ic" aria-hidden="true" />5 of 7 ready
-                  </span>
-                </div>
-                <div className="card-b" style={{ padding: "8px 20px 16px" }}>
-                  <div className="rc">
-                    <div className="rc-row rc-pass" style={{ borderTop: "0" }}>
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Opportunity published</div>
+                      <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
+                        {competition.stages.map((s) => {
+                          const r = rubricOf(s.rubricId);
+                          const total = r?.criteria.reduce((sum, c) => sum + c.weight, 0) ?? 0;
+                          return (
+                            <div key={s.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              <div className="b" style={{ color: "#0D2A43" }}>
+                                {s.label}
+                                <span className="muted" style={{ fontWeight: 400 }}>
+                                  {" "}
+                                  · {r ? `${r.name} v${r.version}` : s.decisionRequired ? "no rubric yet" : "not scored"}
+                                </span>
+                              </div>
+                              {r?.criteria.map((c) => (
+                                <div key={c.key} className="row" style={{ justifyContent: "space-between" }}>
+                                  <span>{c.label}</span>
+                                  <span className="tag">{total ? Math.round((c.weight / total) * 100) : 0}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                        {!competition.stages.length && <span className="muted">Rubrics are chosen per stage.</span>}
                       </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-pass">
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Form v2 pinned</div>
-                      </div>
-                      <span></span>
-                    </div>
-                    <div className="rc-row rc-fail">
-                      <CircleX className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">No rubric attached</div>
-                        <div className="r">Reviewers can’t score without one</div>
-                      </div>
-                      <Link to="/w/riverbend/competitions/community-health-2027" className="fix">
-                        Attach rubric
-                      </Link>
-                    </div>
-                    <div className="rc-row rc-fail">
-                      <CircleX className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Reviewer pool has 1 reviewer</div>
-                        <div className="r">Minimum 3 for ≥ 2 reviews per application</div>
-                      </div>
-                      <Link to="/w/riverbend/reviews/assign" className="fix">
-                        Invite reviewers
-                      </Link>
-                    </div>
-                    <div className="rc-row rc-pass">
-                      <CircleCheck className="ic" aria-hidden="true" />
-                      <div>
-                        <div className="l">Dates valid</div>
-                      </div>
-                      <span></span>
-                    </div>
+                    </section>
                   </div>
+
+                  <section className="card" aria-labelledby="launch-title">
+                    <div className="card-h">
+                      <h3 id="launch-title">Launch checklist</h3>
+                    </div>
+                    <div className="card-b" style={{ padding: "8px 20px 16px" }}>
+                      {checklist && <ReadinessChecklist checklist={checklist} />}
+                    </div>
+                    <div className="card-f" style={{ justifyContent: "space-between" }}>
+                      <span className="small muted">
+                        {competition.status === "draft"
+                          ? checklist?.ready
+                            ? "Everything is ready."
+                            : "Opening is available when every line passes."
+                          : competition.status === "open"
+                            ? "This competition is open to applicants."
+                            : "This competition is closed."}
+                      </span>
+                      {competition.status === "draft" && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          disabled={!checklist?.ready || open.state === "saving"}
+                          aria-describedby="launch-title"
+                          onClick={async () => {
+                            if (await open.run(competition.id)) data.reload();
+                          }}
+                        >
+                          Open competition
+                        </button>
+                      )}
+                      {competition.status !== "draft" && opportunity.published && (
+                        <Link to={publicPath} className="btn btn-sm btn-primary">
+                          View public page
+                        </Link>
+                      )}
+                    </div>
+                  </section>
                 </div>
-                <div className="card-f" style={{ justifyContent: "space-between" }}>
-                  <span className="small" style={{ color: "#9B1C1C", fontWeight: 700 }}>
-                    Open is disabled until 2 items pass.
-                  </span>
-                  <button className="btn btn-sm btn-primary" disabled aria-disabled="true">
-                    Open stage
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </FunderShell>
-    </>
+              </>
+            )}
+
+            {editing && competition && (
+              <StagesDialog
+                competition={competition}
+                forms={loaded.forms}
+                rubrics={loaded.rubrics}
+                onClose={() => setEditing(false)}
+                onSaved={() => {
+                  setEditing(false);
+                  data.reload();
+                }}
+              />
+            )}
+          </>
+        )}
+      </main>
+    </FunderShell>
   );
 }

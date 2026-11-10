@@ -56,7 +56,7 @@ export default function ApplicationsEmpty() {
               already evaluated.
             </p>
             <div className="acts" style={{ marginTop: "10px" }}>
-              <Link to="/w/riverbend/programs/community-health-2027" className="btn btn-primary btn-lg">
+              <Link to="/w/riverbend/programs" className="btn btn-primary btn-lg">
                 Create a program
               </Link>
               <Link to="/w/riverbend/settings/mcp" className="b" style={{ fontSize: "14px" }}>
@@ -69,7 +69,7 @@ export default function ApplicationsEmpty() {
               What happens next
             </div>
             <div className="stp" aria-label="Setup steps">
-              <Link to="/w/riverbend/programs/community-health-2027" className="s" style={{ textDecoration: "none" }}>
+              <Link to="/w/riverbend/programs" className="s" style={{ textDecoration: "none" }}>
                 <span className="n">1</span>
                 <div>
                   <div>Program</div>
@@ -89,7 +89,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/forms/loi-v2/edit" className="s" style={{ textDecoration: "none" }}>
+              <Link to="/w/riverbend/forms" className="s" style={{ textDecoration: "none" }}>
                 <span className="n">3</span>
                 <div>
                   <div>Form</div>

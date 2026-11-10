@@ -113,8 +113,8 @@ function RailList({ ws, items, active }: { ws: Workspace; items: RailItem[]; act
 function funderRail(ws: Workspace): RailItem[] {
   return [
     { label: "Dashboard", icon: LayoutDashboard, path: "" },
-    { label: "Programs", icon: Briefcase, path: "/programs/community-health-2027" },
-    { label: "Opportunities", icon: Layers, path: "/opportunities/community-health-2027/edit" },
+    { label: "Programs", icon: Briefcase, path: "/programs" },
+    { label: "Opportunities", icon: Layers, path: "/opportunities" },
     { label: "Applications", icon: Inbox, path: "/applications" },
     { label: "Reviews", icon: ClipboardCheck, path: "/reviews/assign" },
     { label: "Awards", icon: Award, path: "/awards/awd_01J2Q7/agreement" },
@@ -124,7 +124,7 @@ function funderRail(ws: Workspace): RailItem[] {
     { label: "Analytics", icon: ChartColumn, path: "/analytics" },
     { label: "Communications", icon: Mail, path: "/communications" },
     { label: "Approvals", icon: Bot, path: "/approvals", count: ws.pendingApprovals },
-    { label: "Settings", icon: Settings, path: "/settings/mcp" },
+    { label: "Settings", icon: Settings, path: "/settings" },
   ];
 }
 

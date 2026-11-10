@@ -144,7 +144,7 @@ export default function Analytics() {
                 </div>
                 <p className="small muted">
                   Bars are scaled to the largest program budget ($1,200,000). Rapid Response Fund is over-committed by $10,000 — see{" "}
-                  <Link to="/w/riverbend/programs/community-health-2027">Programs</Link>.
+                  <Link to="/w/riverbend/programs">Programs</Link>.
                 </p>
               </div>
             </div>

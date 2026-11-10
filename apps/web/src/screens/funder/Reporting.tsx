@@ -51,7 +51,7 @@ export default function Reporting() {
                 </Link>
                 <Link to="/w/riverbend/reporting">List</Link>
               </div>
-              <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-secondary">
+              <Link to="/w/riverbend/forms" className="btn btn-secondary">
                 <FileText className="ic" aria-hidden="true" />
                 Report forms
               </Link>
@@ -540,7 +540,7 @@ export default function Reporting() {
               <div className="card">
                 <div className="card-h">
                   <h3>Report forms</h3>
-                  <Link to="/w/riverbend/forms/loi-v2/edit" className="small b">
+                  <Link to="/w/riverbend/forms" className="small b">
                     Open form builder →
                   </Link>
                 </div>
@@ -559,7 +559,7 @@ export default function Reporting() {
                       <div className="b">Interim report form v2</div>
                       <div className="small muted">Reuses the form builder · prefill chips: prior report, QuickBooks</div>
                     </div>
-                    <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-sm btn-secondary">
+                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
                       Edit
                     </Link>
                   </li>
@@ -577,7 +577,7 @@ export default function Reporting() {
                       <div className="b">Final report form v3</div>
                       <div className="small muted">Adds outcomes table and closeout attestation</div>
                     </div>
-                    <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-sm btn-secondary">
+                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
                       Edit
                     </Link>
                   </li>
@@ -586,7 +586,7 @@ export default function Reporting() {
                       <div className="b">Quarterly financial v1</div>
                       <div className="small muted">Budget table only · actuals from QuickBooks</div>
                     </div>
-                    <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-sm btn-secondary">
+                    <Link to="/w/riverbend/forms" className="btn btn-sm btn-secondary">
                       Edit
                     </Link>
                   </li>

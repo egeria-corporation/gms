@@ -50,7 +50,7 @@ export default function Dashboard() {
               <Link to="/w/riverbend/opportunities/community-health-2027/edit" className="btn btn-secondary">
                 New opportunity
               </Link>
-              <Link to="/w/riverbend/programs/community-health-2027" className="btn btn-primary">
+              <Link to="/w/riverbend/programs" className="btn btn-primary">
                 <Plus className="ic" aria-hidden="true" />
                 New program
               </Link>
@@ -165,7 +165,7 @@ export default function Dashboard() {
                 </div>
                 <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <div className="bar-h">
-                    <Link to="/w/riverbend/programs/community-health-2027" className="b" style={{ color: "#0D2A43" }}>
+                    <Link to="/w/riverbend/programs" className="b" style={{ color: "#0D2A43" }}>
                       Community Health 2027
                     </Link>
                     <div className="trk" aria-label="Committed $720,000, paid $0 of $1,200,000">
@@ -175,7 +175,7 @@ export default function Dashboard() {
                     <span className="num small">$720,000 / $1.2M</span>
                   </div>
                   <div className="bar-h">
-                    <Link to="/w/riverbend/programs/community-health-2027" className="b" style={{ color: "#0D2A43" }}>
+                    <Link to="/w/riverbend/programs" className="b" style={{ color: "#0D2A43" }}>
                       Housing Stability 2027
                     </Link>
                     <div className="trk" aria-label="Committed $0, paid $0 of $800,000">
@@ -185,7 +185,7 @@ export default function Dashboard() {
                     <span className="num small">$0 / $800,000</span>
                   </div>
                   <div className="bar-h">
-                    <Link to="/w/riverbend/programs/community-health-2027" className="b" style={{ color: "#0D2A43" }}>
+                    <Link to="/w/riverbend/programs" className="b" style={{ color: "#0D2A43" }}>
                       Community Health 2026
                     </Link>
                     <div className="trk" aria-label="Committed $610,000, paid $548,000 of $700,000">
@@ -196,7 +196,7 @@ export default function Dashboard() {
                   </div>
                   <div className="bar-h">
                     <Link
-                      to="/w/riverbend/programs/community-health-2027"
+                      to="/w/riverbend/programs"
                       className="b"
                       style={{ color: "#9B1C1C", display: "inline-flex", alignItems: "center", gap: "5px" }}
                     >
@@ -414,7 +414,7 @@ export default function Dashboard() {
                 <h3>Start with a program</h3>
                 <p>A program holds a budget, default rubric and templates. Opportunities, competitions and awards hang off it.</p>
                 <div className="acts">
-                  <Link to="/w/riverbend/programs/community-health-2027" className="btn btn-primary">
+                  <Link to="/w/riverbend/programs" className="btn btn-primary">
                     Create a program
                   </Link>
                   <Link to="/w/riverbend/settings/mcp" className="small b">

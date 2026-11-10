@@ -173,7 +173,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
               }}
             >
               <Link
-                to="/onboarding/funder/brand"
+                to="/onboarding/funder"
                 role="menuitem"
                 onClick={() => setOpen(false)}
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}

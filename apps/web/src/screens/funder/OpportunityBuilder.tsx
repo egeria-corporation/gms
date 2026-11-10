@@ -1,591 +1,545 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { CSSProperties } from "react";
-import { Link } from "react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  CircleCheck,
-  CircleDashed,
-  Clock,
-  Eye,
-  MessageSquare,
-  Pencil,
-  Plus,
-  Search,
-  Shield,
-  TriangleExclamationPoint,
-  X,
-} from "lucide-react";
+// Opportunity builder: basics, funding, dates, who can apply, then publish. One draft is edited
+// across the steps and saved through `/gms/opportunities`; publishing validates the CommonGrants
+// record on the server. `/opportunities/new` creates; `/opportunities/:id/edit` edits (the id may
+// also be the opportunity's slug).
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import { ArrowLeft, ArrowRight, Check, CircleCheck, Clock, Eye } from "lucide-react";
+import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import type { CgEvent, Opportunity, OpportunityInput, OppFunding, Program } from "../../api/types.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
+import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { StatusBadge } from "../../components/status.tsx";
+import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
+import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
+import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
+import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
 
-export default function OpportunityBuilder() {
+const STEPS = [
+  { key: "basics", title: "Basics", hint: "Title, summary, program" },
+  { key: "funding", title: "Funding", hint: "Award range and count" },
+  { key: "dates", title: "Dates", hint: "Opens, closes, decision" },
+  { key: "who", title: "Who can apply", hint: "Applicant types and rules" },
+  { key: "publish", title: "Publish", hint: "Targets and public page" },
+] as const;
+type StepKey = (typeof STEPS)[number]["key"];
+const isStep = (v: string): v is StepKey => STEPS.some((s) => s.key === v);
+
+interface Draft {
+  title: string;
+  slug: string;
+  description: string;
+  programId: string;
+  total: string;
+  min: string;
+  max: string;
+  minCount: string;
+  maxCount: string;
+  fundingDetails: string;
+  opens: string;
+  closes: string;
+  closesName: string;
+  decision: string;
+  periodStart: string;
+  types: string[];
+  rows: RuleRow[];
+  publicPage: boolean;
+  openGrantsIndex: boolean;
+  sitemap: boolean;
+}
+
+const dollars = (m: { amount: string } | undefined) => (m ? String(Number(m.amount)) : "");
+const other = (o: Opportunity | undefined, key: string) => o?.keyDates.otherDates?.[key]?.date ?? "";
+
+function draftOf(o: Opportunity | undefined, programId: string): Draft {
+  return {
+    title: o?.title ?? "",
+    slug: o?.slug ?? "",
+    description: o?.description ?? "",
+    programId: o?.programId ?? programId,
+    total: dollars(o?.funding.totalAmountAvailable),
+    min: dollars(o?.funding.minAwardAmount),
+    max: dollars(o?.funding.maxAwardAmount),
+    minCount: o?.funding.minAwardCount ? String(o.funding.minAwardCount) : "",
+    maxCount: o?.funding.maxAwardCount ? String(o.funding.maxAwardCount) : "",
+    fundingDetails: o?.funding.details ?? "",
+    opens: o?.keyDates.postDate?.date ?? "",
+    closes: o?.keyDates.closeDate?.date ?? "",
+    closesName: o?.keyDates.closeDate?.name ?? "Closes",
+    decision: other(o, "decision"),
+    periodStart: other(o, "periodStart"),
+    types: o?.acceptedApplicantTypes ?? ["non_profit_with_501c3"],
+    rows: rulesToRows(o?.eligibilityRules),
+    publicPage: o?.publish.publicPage !== false,
+    openGrantsIndex: o?.publish.openGrantsIndex !== false,
+    sitemap: o?.publish.sitemap !== false,
+  };
+}
+
+type Errors = Partial<Record<keyof Draft, string>>;
+
+function check(d: Draft): Errors {
+  const e: Errors = {};
+  if (!d.title.trim()) e.title = "Give the opportunity a title";
+  if (d.slug && !/^[a-z0-9][a-z0-9-]{0,98}[a-z0-9]$/.test(d.slug)) e.slug = "Use lowercase letters, digits and hyphens";
+  for (const key of ["total", "min", "max"] as const) if (d[key].trim() && parseDollars(d[key]) === null) e[key] = "Enter an amount in dollars";
+  const min = parseDollars(d.min);
+  const max = parseDollars(d.max);
+  if (min !== null && max !== null && d.min.trim() && d.max.trim() && min > max) e.max = "The largest award is smaller than the smallest";
+  for (const key of ["minCount", "maxCount"] as const) if (d[key].trim() && !/^\d+$/.test(d[key].trim())) e[key] = "Enter a whole number";
+  if (d.opens && d.closes && d.opens >= d.closes) e.closes = "The closing date must be after the opening date";
+  return e;
+}
+
+const STEP_FIELDS: Record<StepKey, (keyof Draft)[]> = {
+  basics: ["title", "slug", "description", "programId"],
+  funding: ["total", "min", "max", "minCount", "maxCount"],
+  dates: ["opens", "closes"],
+  who: ["rows"],
+  publish: [],
+};
+
+function toInput(d: Draft): OpportunityInput {
+  const money = (text: string) => {
+    const minor = text.trim() ? parseDollars(text) : null;
+    return minor === null ? undefined : { amount: String(minor / 100), currency: "USD" };
+  };
+  const funding: OppFunding = {};
+  const total = money(d.total);
+  const min = money(d.min);
+  const max = money(d.max);
+  if (total) funding.totalAmountAvailable = total;
+  if (min) funding.minAwardAmount = min;
+  if (max) funding.maxAwardAmount = max;
+  if (d.minCount.trim()) funding.minAwardCount = Number(d.minCount);
+  if (d.maxCount.trim()) funding.maxAwardCount = Number(d.maxCount);
+  if (d.fundingDetails.trim()) funding.details = d.fundingDetails.trim();
+  const day = (name: string, date: string): CgEvent => ({ name, eventType: "singleDate", date });
+  const otherDates: Record<string, CgEvent> = {};
+  if (d.decision) otherDates.decision = day("Decisions announced", d.decision);
+  if (d.periodStart) otherDates.periodStart = day("Grant period starts", d.periodStart);
+  return {
+    title: d.title.trim(),
+    ...(d.slug ? { slug: d.slug } : {}),
+    description: d.description.trim(),
+    programId: d.programId || null,
+    funding,
+    keyDates: { ...(d.opens ? { postDate: day("Opens", d.opens) } : {}), ...(d.closes ? { closeDate: day(d.closesName.trim() || "Closes", d.closes) } : {}), ...(Object.keys(otherDates).length ? { otherDates } : {}) },
+    acceptedApplicantTypes: d.types,
+    eligibilityRules: rowsToRules(d.rows),
+    publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap },
+  };
+}
+
+function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; onAccent: string } }) {
+  const input = toInput(draft);
+  const count = formatAwardCount(input.funding);
   return (
-    <>
-      <title>{"Opportunity builder — Who can apply"}</title>
-      <FunderShell active="Opportunities">
-        <main className="main">
-          <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
-            <span>›</span>
-            <Link to="/w/riverbend/programs/community-health-2027">Community Health 2027</Link>
-            <span>›</span>
-            <span>Community Health Grants 2027</span>
-            <span>›</span>
-            <span>Edit</span>
-          </div>
-          <div className="ph">
-            <div>
-              <div className="title">
-                <h1>Opportunity builder</h1>
-                <span className="bdg bdg-neutral">
-                  <Pencil className="ic" aria-hidden="true" />
-                  Draft
-                </span>
-                <span className="pill-warn">
-                  <Clock className="ic ic-sm" aria-hidden="true" />
-                  Unpublished changes
-                </span>
-              </div>
-              <div className="meta">
-                <span>Community Health Grants 2027</span>
-                <span>·</span>
-                <span>Program: Community Health 2027</span>
-                <span>·</span>
-                <span className="row" style={{ gap: "5px" }}>
-                  <Check className="ic ic-sm" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                  Saved 8 s ago
-                </span>
-              </div>
+    <section className="card" aria-labelledby="preview-card-title">
+      <div className="card-h" style={{ padding: "12px 16px" }}>
+        <h3 id="preview-card-title" style={{ fontSize: "14px" }}>
+          Live preview · public card
+        </h3>
+      </div>
+      <div className="card-b" style={{ padding: "14px 16px" }}>
+        <div className="pub" style={{ fontSize: "15px", "--tenant": brand.accent, "--on-tenant": brand.onAccent, background: "transparent" } as CSSProperties}>
+          <div className="oc" style={{ padding: "18px" }}>
+            <span className="eyebrow">{draft.closes ? `${draft.closesName} ${formatDate(draft.closes)}` : "No closing date"}</span>
+            <h3 style={{ fontSize: "17px" }}>{draft.title || "Untitled opportunity"}</h3>
+            <div className="amt" style={{ fontSize: "18px" }}>
+              {formatAwardRange(input.funding)}
             </div>
-            <div className="actions">
-              <Link to="/f/riverbend/o/community-health-2027" className="btn btn-secondary">
+            <div className="meta" style={{ fontSize: "13px" }}>
+              {count && <span>{count}</span>}
+              <span>{draft.types.map(applicantTypeLabel).join(", ") || "No applicant types chosen"}</span>
+            </div>
+            <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }} aria-hidden="true">
+              Apply with Passport
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity | undefined; programs: Program[]; onSaved: (o: Opportunity) => void }) {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [search] = useSearchParams();
+  const [draft, setDraft] = useState<Draft>(() => draftOf(opportunity, search.get("program") ?? ""));
+  const [dirty, setDirty] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  const hash = location.hash.slice(1);
+  const step: StepKey = isStep(hash) ? hash : "basics";
+  const goto = (key: StepKey) => navigate({ hash: key }, { replace: true });
+
+  const errors = useMemo(() => {
+    const e = check(draft);
+    if (draft.rows.some((r) => rowProblem(r))) e.rows = "Finish or remove the incomplete rule";
+    return e;
+  }, [draft]);
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
+    setDraft((d) => ({ ...d, [key]: value }));
+    setDirty(true);
+  };
+  const text = (key: keyof Draft) => ({ value: draft[key] as string, onChange: (e: { target: { value: string } }) => set(key, e.target.value as never) });
+  const err = (key: keyof Draft) => (showErrors ? (errors[key] ?? null) : null);
+
+  const save = useApiMutation((api, input: OpportunityInput) => (opportunity ? api.updateOpportunity(opportunity.id, input) : api.createOpportunity(input)));
+  const publish = useApiMutation((api, id: string, status: "forecasted" | "open") => api.publishOpportunity(id, status));
+  const close = useApiMutation((api, id: string) => api.closeOpportunity(id));
+
+  async function saveDraft(): Promise<Opportunity | undefined> {
+    setShowErrors(true);
+    if (Object.keys(errors).length) {
+      const firstBad = STEPS.find((s) => STEP_FIELDS[s.key].some((f) => errors[f]));
+      if (firstBad) goto(firstBad.key);
+      return undefined;
+    }
+    const saved = await save.run(toInput(draft));
+    if (saved) {
+      setDirty(false);
+      setDraft((d) => ({ ...d, slug: saved.slug }));
+      onSaved(saved);
+    }
+    return saved;
+  }
+  async function publishAs(status: "forecasted" | "open") {
+    const saved = dirty || !opportunity ? await saveDraft() : opportunity;
+    if (!saved) return;
+    const live = await publish.run(saved.id, status);
+    if (live) onSaved(live);
+  }
+
+  const stepDone = (key: StepKey) => {
+    if (STEP_FIELDS[key].some((f) => errors[f])) return false;
+    if (key === "basics") return !!draft.title.trim() && !!draft.description.trim();
+    if (key === "funding") return !!draft.max.trim() || !!draft.min.trim();
+    if (key === "dates") return !!draft.closes;
+    if (key === "who") return draft.types.length > 0;
+    return !!opportunity?.published;
+  };
+  const index = STEPS.findIndex((s) => s.key === step);
+  const prev = STEPS[index - 1];
+  const next = STEPS[index + 1];
+  const program = programs.find((p) => p.id === draft.programId);
+  const publicPath = opportunity ? `/f/${ws.handle}/o/${opportunity.slug}` : null;
+  const writeError = save.error ?? publish.error ?? close.error;
+
+  return (
+    <main className="main">
+      <PageHeader
+        crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: opportunity?.title ?? "New opportunity" }]}
+        title="Opportunity builder"
+        badge={
+          <>
+            {opportunity ? <StatusBadge kind="opportunity" status={opportunity.status} label={opportunity.published ? undefined : "Draft"} /> : <StatusBadge kind="form" status="draft" />}
+            {dirty && (
+              <span className="pill-warn">
+                <Clock className="ic ic-sm" aria-hidden="true" />
+                Unsaved changes
+              </span>
+            )}
+          </>
+        }
+        meta={
+          <>
+            <span>{draft.title || "Untitled opportunity"}</span>
+            {program && (
+              <>
+                <span>·</span>
+                <span>Program: {program.name}</span>
+              </>
+            )}
+            <SaveNote state={save.state === "saving" ? "saving" : !dirty && save.state === "saved" ? "saved" : "idle"} />
+          </>
+        }
+        actions={
+          <>
+            {publicPath && opportunity?.published && (
+              <Link to={publicPath} className="btn btn-secondary">
                 <Eye className="ic" aria-hidden="true" />
-                Preview public page
+                Open public page
               </Link>
-              <button className="btn btn-secondary">Save draft</button>
-              <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-primary">
-                Continue to forms
+            )}
+            <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving"}>
+              Save draft
+            </button>
+            {opportunity && (
+              <Link to={`${base}/opportunities/${opportunity.id}/competition`} className="btn btn-primary">
+                Competition &amp; stages
                 <ArrowRight className="ic" aria-hidden="true" />
               </Link>
-            </div>
+            )}
+          </>
+        }
+      />
+      {writeError !== null && <ErrorBanner error={writeError} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 360px", gap: "20px", alignItems: "start" }}>
+        <nav className="card" style={{ padding: "18px 16px" }} aria-label="Builder steps">
+          <div className="eyebrow" style={{ marginBottom: "14px" }}>
+            Steps
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 360px", gap: "20px", alignItems: "start" }}>
-            <aside className="card" style={{ padding: "18px 16px" }}>
-              <div className="eyebrow" style={{ marginBottom: "14px" }}>
-                Steps
-              </div>
-              <div className="stp-v" aria-label="Builder steps">
-                <a href="#basics" className="s done" style={{ textDecoration: "none" }}>
-                  <span className="n">
-                    <Check className="ic ic-sm" aria-hidden="true" />
-                  </span>
+          <ol className="stp-v">
+            {STEPS.map((s, i) => {
+              const done = stepDone(s.key);
+              const on = s.key === step;
+              return (
+                <li key={s.key} className={on ? "s on" : done ? "s done" : "s"}>
+                  <span className="n">{done && !on ? <Check className="ic ic-sm" role="img" aria-label="Complete" /> : i + 1}</span>
                   <div>
-                    <div className="t">Basics</div>
-                    <div className="d">Title, summary, program</div>
-                  </div>
-                </a>
-                <a href="#funding" className="s done" style={{ textDecoration: "none" }}>
-                  <span className="n">
-                    <Check className="ic ic-sm" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <div className="t">Funding</div>
-                    <div className="d">$50,000–$150,000 · 8–12 awards</div>
-                  </div>
-                </a>
-                <a href="#dates" className="s done" style={{ textDecoration: "none" }}>
-                  <span className="n">
-                    <Check className="ic ic-sm" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <div className="t">Dates</div>
-                    <div className="d">Opens Jan 15 · decision Jun 15</div>
-                  </div>
-                </a>
-                <a href="#who" className="s on" style={{ textDecoration: "none" }} aria-current="step">
-                  <span className="n">4</span>
-                  <div>
-                    <div className="t">Who can apply</div>
-                    <div className="d">Applicant types and rules</div>
-                  </div>
-                </a>
-                <Link to="/w/riverbend/competitions/community-health-2027" className="s" style={{ textDecoration: "none" }}>
-                  <span className="n">5</span>
-                  <div>
-                    <div className="t">Competition & stages</div>
-                    <div className="d">LOI → Full → Interview</div>
-                  </div>
-                </Link>
-                <a href="#publish" className="s" style={{ textDecoration: "none" }}>
-                  <span className="n">6</span>
-                  <div>
-                    <div className="t">Publish</div>
-                    <div className="d">Targets and launch checklist</div>
-                  </div>
-                </a>
-              </div>
-            </aside>
-            <section className="card" id="who" style={{ minWidth: "0" }}>
-              <div className="card-h">
-                <div>
-                  <h2 style={{ fontSize: "18px" }}>Who can apply</h2>
-                  <p className="small muted">
-                    Applicant types come from the CommonGrants list. Rules are evaluated against each organization’s Passport record and
-                    shown to applicants in plain language.
-                  </p>
-                </div>
-              </div>
-              <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-                <div className="fld">
-                  <span className="lbl">
-                    Applicant types
-                    <span className="muted" style={{ fontWeight: 400 }}>
-                      · multiselect
-                    </span>
-                  </span>
-                  <div className="row wrap" style={{ gap: "8px" }} role="group" aria-label="Applicant types">
-                    <button className="fchip on" aria-pressed="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                      Nonprofit 501(c)(3)
-                    </button>
-                    <button className="fchip on" aria-pressed="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                      Tribal government
-                    </button>
-                    <button className="fchip on" aria-pressed="true">
-                      <Check className="ic ic-sm" aria-hidden="true" />
-                      Local government
-                    </button>
-                    <button className="fchip" aria-pressed="false">
-                      Small business
-                    </button>
-                    <button className="fchip" aria-pressed="false">
-                      Individual
-                    </button>
-                    <button className="fchip" aria-pressed="false">
-                      School district
-                    </button>
-                    <button className="fchip" aria-pressed="false">
-                      Higher education
-                    </button>
-                  </div>
-                  <span className="help">
-                    Maps to CommonGrants <span className="mono">applicantTypes</span>. Organizations of other types see “Not eligible:
-                    applicant type” on the public page.
-                  </span>
-                </div>
-                <div className="fld">
-                  <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                    <span className="lbl">Eligibility rules</span>
-                    <div className="seg" role="group" aria-label="Rule grouping">
-                      <button className="on">All of these</button>
-                      <button>Any of these</button>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <div
-                      style={{
-                        border: "1px solid #D6DEDE",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        background: "#fff",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px",
-                          gap: "8px",
-                          alignItems: "center",
-                        }}
-                      >
-                        <select className="sel" aria-label="Source field, rule 1">
-                          <option>Passport · organization.annualBudget</option>
-                        </select>
-                        <select className="sel" aria-label="Operator, rule 1">
-                          <option>is under</option>
-                        </select>
-                        <input className="inp" aria-label="Value, rule 1" defaultValue="$5,000,000" />
-                        <button className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label="Remove rule 1">
-                          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="row small" style={{ gap: "6px", color: "#145450" }}>
-                        <MessageSquare className="ic ic-sm" aria-hidden="true" />
-                        <span>
-                          Applicants read:{" "}
-                          <span className="b" style={{ color: "#1E2D2B" }}>
-                            “Your organization’s annual budget is under $5,000,000.”
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        border: "1px solid #D6DEDE",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        background: "#fff",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px",
-                          gap: "8px",
-                          alignItems: "center",
-                        }}
-                      >
-                        <select className="sel" aria-label="Source field, rule 2">
-                          <option>Passport · organization.serviceArea</option>
-                        </select>
-                        <select className="sel" aria-label="Operator, rule 2">
-                          <option>includes</option>
-                        </select>
-                        <input className="inp" aria-label="Value, rule 2" defaultValue="Riverbend County" />
-                        <button className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label="Remove rule 2">
-                          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="row small" style={{ gap: "6px", color: "#145450" }}>
-                        <MessageSquare className="ic ic-sm" aria-hidden="true" />
-                        <span>
-                          Applicants read:{" "}
-                          <span className="b" style={{ color: "#1E2D2B" }}>
-                            “Your service area includes Riverbend County.”
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        border: "1px solid #D6DEDE",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        background: "#fff",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px",
-                          gap: "8px",
-                          alignItems: "center",
-                        }}
-                      >
-                        <select className="sel" aria-label="Source field, rule 3">
-                          <option>Passport · organization.taxStatus</option>
-                        </select>
-                        <select className="sel" aria-label="Operator, rule 3">
-                          <option>is</option>
-                        </select>
-                        <select className="sel" aria-label="Value, rule 3">
-                          <option>501(c)(3), in good standing</option>
-                        </select>
-                        <button className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label="Remove rule 3">
-                          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="row small" style={{ gap: "6px", color: "#145450" }}>
-                        <MessageSquare className="ic ic-sm" aria-hidden="true" />
-                        <span>
-                          Applicants read:{" "}
-                          <span className="b" style={{ color: "#1E2D2B" }}>
-                            “Your tax status is 501(c)(3) in good standing.”
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        border: "1px solid #D6DEDE",
-                        borderRadius: "8px",
-                        padding: "12px 14px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        background: "#fff",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px",
-                          gap: "8px",
-                          alignItems: "center",
-                        }}
-                      >
-                        <select className="sel" aria-label="Source field, rule 4">
-                          <option>GMS · awards.active (this funder)</option>
-                        </select>
-                        <select className="sel" aria-label="Operator, rule 4">
-                          <option>has none in program</option>
-                        </select>
-                        <select className="sel" aria-label="Value, rule 4">
-                          <option>Community Health</option>
-                        </select>
-                        <button className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label="Remove rule 4">
-                          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="row small" style={{ gap: "6px", color: "#145450" }}>
-                        <MessageSquare className="ic ic-sm" aria-hidden="true" />
-                        <span>
-                          Applicants read:{" "}
-                          <span className="b" style={{ color: "#1E2D2B" }}>
-                            “You have no active award in Riverbend’s Community Health program.”
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: "12px" }}>
-                    <button className="btn btn-sm btn-secondary">
-                      <Plus className="ic" aria-hidden="true" />
-                      Add rule
-                    </button>
-                    <button className="btn btn-sm btn-ghost">Add rule group</button>
-                    <span className="help" style={{ marginLeft: "auto" }}>
-                      Unknown values never pass: a missing field shows Unknown and the applicant is told what to add in Passport.
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="card-f" style={{ justifyContent: "space-between" }}>
-                <a href="#dates" className="btn btn-ghost">
-                  <ArrowLeft className="ic" aria-hidden="true" />
-                  Dates
-                </a>
-                <div className="row" style={{ gap: "8px" }}>
-                  <button className="btn btn-secondary">Save draft</button>
-                  <Link to="/w/riverbend/forms/loi-v2/edit" className="btn btn-primary">
-                    Continue to forms
-                    <ArrowRight className="ic" aria-hidden="true" />
-                  </Link>
-                </div>
-              </div>
-            </section>
-            <aside style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "0" }}>
-              <div className="card">
-                <div className="card-h" style={{ padding: "12px 16px" }}>
-                  <h3 style={{ fontSize: "14px" }}>Live preview · public card on /f/riverbend</h3>
-                </div>
-                <div className="card-b" style={{ padding: "16px", background: "#F7FAFA", borderRadius: "0 0 12px 12px" }}>
-                  <div className="pub" style={{ fontSize: "15px", "--tenant": "#1F6F8B", "--on-tenant": "#FFFFFF" } as CSSProperties}>
-                    <div className="oc" style={{ padding: "18px", gap: "8px" }}>
-                      <span className="eyebrow">Open · closes in 10 days</span>
-                      <h3 style={{ fontSize: "16px" }}>Community Health Grants 2027</h3>
-                      <div className="amt" style={{ fontSize: "17px" }}>
-                        $50,000 – $150,000
-                      </div>
-                      <div className="meta" style={{ fontSize: "13px" }}>
-                        <span>8–12 awards</span>
-                        <span>Nonprofits, tribal & local governments</span>
-                        <span>Decision Jun 15</span>
-                      </div>
-                      <Link
-                        to="/f/riverbend/o/community-health-2027"
-                        className="btn btn-tenant btn-sm"
-                        style={{ alignSelf: "flex-start", marginTop: "4px" }}
-                      >
-                        Apply with Passport
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card drawer" style={{ borderLeft: "1px solid #D6DEDE" }}>
-                <div className="hd" style={{ padding: "12px 16px" }}>
-                  <h3 style={{ fontSize: "14px" }}>Test against an org</h3>
-                  <button className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Close drawer">
-                    <X className="ic" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="bd" style={{ padding: "16px", gap: "14px" }}>
-                  <div className="inp-icon">
-                    <Search className="ic" aria-hidden="true" />
-                    <input className="inp" aria-label="Search organizations in Passport" defaultValue="Alder Creek Family Services" />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <span className="b" style={{ color: "#0D2A43" }}>
-                        Alder Creek Family Services{" "}
-                        <span className="lvl lvl-3">
-                          <Shield className="ic" aria-hidden="true" />
-                          L3
-                        </span>
-                      </span>
-                      <span className="bdg bdg-ok">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        Eligible
-                      </span>
-                    </div>
-                    <div className="rc" style={{ fontSize: "13px" }}>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Annual budget under $5,000,000</div>
-                          <div className="r">$2,400,000 (FY2026)</div>
-                        </div>
-                        <span></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Service area includes Riverbend County</div>
-                          <div className="r">Riverbend, Alder, Copper counties</div>
-                        </div>
-                        <span></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">501(c)(3) in good standing</div>
-                          <div className="r">Verified by Passport Mar 2027</div>
-                        </div>
-                        <span></span>
-                      </div>
-                      <div className="rc-row rc-pass">
-                        <CircleCheck className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">No active Community Health award</div>
-                          <div className="r">Last award closed Jun 2026</div>
-                        </div>
-                        <span></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="divider"></div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <span className="b" style={{ color: "#0D2A43" }}>
-                        Copper Valley Clinic <span className="lvl lvl-1">L1</span>
-                      </span>
-                      <span className="bdg bdg-neutral">
-                        <CircleDashed className="ic" aria-hidden="true" />
-                        Unknown
-                      </span>
-                    </div>
-                    <div className="rc" style={{ fontSize: "13px" }}>
-                      <div className="rc-row rc-unk">
-                        <CircleDashed className="ic" aria-hidden="true" />
-                        <div>
-                          <div className="l">Annual budget under $5,000,000</div>
-                          <div className="r">No budget on the Passport record (L1 orgs haven’t verified documents)</div>
-                        </div>
-                        <span className="fix">3 pass</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </aside>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: "20px",
-              marginTop: "8px",
-              alignItems: "start",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · validation error</span>
-              <div
-                style={{
-                  border: "1px solid #C53030",
-                  borderRadius: "8px",
-                  padding: "12px 14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px",
-                  background: "#fff",
-                }}
-              >
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)",
-                    gap: "8px",
-                    alignItems: "center",
-                  }}
-                >
-                  <select className="sel" aria-label="Source field, new rule">
-                    <option>Passport · organization.foundedYear</option>
-                  </select>
-                  <select className="sel" aria-label="Operator, new rule">
-                    <option>is before</option>
-                  </select>
-                  <input className="inp err" aria-label="Value, new rule" placeholder="Year" defaultValue="" />
-                </div>
-                <span className="err-msg">
-                  <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                  Enter a value or remove this rule. Rules with no value can’t be published.
-                </span>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <span className="eyebrow">State · unpublished changes</span>
-              <div className="bnr bnr-warn">
-                <Clock className="ic" aria-hidden="true" />
-                <div className="grow">
-                  <div className="t">3 unpublished changes</div>
-                  <div className="d">Applicant types, rule 4 and the decision date differ from the published version (Mar 2).</div>
-                  <div className="clears">
-                    Review diff ·<a href="#publish">Publish</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }} id="publish">
-              <span className="eyebrow">State · published</span>
-              <div className="bnr bnr-ok">
-                <CircleCheck className="ic" aria-hidden="true" />
-                <div className="grow">
-                  <div className="t">
-                    Published · live at{" "}
-                    <Link to="/f/riverbend/o/community-health-2027" className="mono" style={{ color: "#0B5E47" }}>
-                      gms.opengrants.io/f/riverbend/o/community-health-2027
+                    <Link to={{ hash: `#${s.key}` }} replace className="t" aria-current={on ? "step" : undefined} style={{ display: "block", textDecoration: "none" }}>
+                      {s.title}
                     </Link>
+                    <div className="d">{s.hint}</div>
                   </div>
-                  <div className="d">Publish targets: public page · OpenGrants index · sitemap. CommonGrants JSON valid.</div>
-                  <div className="clears">
-                    <Link to="/f/riverbend/o/community-health-2027">Open public page</Link>·
-                    <Link to="/w/riverbend/competitions/community-health-2027">Competition</Link>
-                  </div>
-                </div>
-              </div>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+
+        <section className="card" id={step} aria-labelledby="step-title">
+          <div className="card-h">
+            <div>
+              <h2 id="step-title">{STEPS[index]!.title}</h2>
+              <p className="small muted">
+                {step === "basics" && "What the opportunity is called and what it funds. The summary appears on your public page and in the CommonGrants record."}
+                {step === "funding" && "How much is available and the size of a typical award. Amounts are in US dollars."}
+                {step === "dates" && "Key dates shown to applicants. Stage dates are set on the competition."}
+                {step === "who" && "Applicant types come from the CommonGrants list. Rules are evaluated against each organization's Passport record and shown to applicants in plain language."}
+                {step === "publish" && "Where the opportunity is listed once it is published."}
+              </p>
             </div>
           </div>
+          <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            {step === "basics" && (
+              <>
+                <Field id="opp-title" label="Title" required error={err("title") ?? problemFor(save.error, "title")}>
+                  <input className={err("title") ? "inp err" : "inp"} id="opp-title" {...text("title")} required aria-invalid={!!err("title")} />
+                </Field>
+                <Field id="opp-description" label="Summary" help="One or two paragraphs. Required before publishing.">
+                  <textarea className="ta" id="opp-description" style={{ minHeight: "140px" }} {...text("description")} />
+                </Field>
+                <div className="fld-row">
+                  <Field id="opp-program" label="Program" help="The budget this opportunity awards from.">
+                    <select className="sel" id="opp-program" value={draft.programId} onChange={(e) => set("programId", e.target.value)}>
+                      <option value="">No program</option>
+                      {programs.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field id="opp-slug" label="Public address" help={`/f/${ws.handle}/o/${draft.slug || slugify(draft.title || "your-title")}`} error={err("slug") ?? problemFor(save.error, "slug")}>
+                    <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || "your-title")} {...text("slug")} />
+                  </Field>
+                </div>
+              </>
+            )}
+            {step === "funding" && (
+              <>
+                <Field id="opp-total" label="Total available" error={err("total")}>
+                  <input className={err("total") ? "inp err" : "inp"} id="opp-total" inputMode="decimal" placeholder="1,200,000" {...text("total")} />
+                </Field>
+                <div className="fld-row">
+                  <Field id="opp-min" label="Smallest award" error={err("min")}>
+                    <input className={err("min") ? "inp err" : "inp"} id="opp-min" inputMode="decimal" placeholder="50,000" {...text("min")} />
+                  </Field>
+                  <Field id="opp-max" label="Largest award" error={err("max")}>
+                    <input className={err("max") ? "inp err" : "inp"} id="opp-max" inputMode="decimal" placeholder="150,000" {...text("max")} />
+                  </Field>
+                </div>
+                <div className="fld-row">
+                  <Field id="opp-min-count" label="Fewest awards expected" error={err("minCount")}>
+                    <input className={err("minCount") ? "inp err" : "inp"} id="opp-min-count" inputMode="numeric" {...text("minCount")} />
+                  </Field>
+                  <Field id="opp-max-count" label="Most awards expected" error={err("maxCount")}>
+                    <input className={err("maxCount") ? "inp err" : "inp"} id="opp-max-count" inputMode="numeric" {...text("maxCount")} />
+                  </Field>
+                </div>
+                <Field id="opp-funding-details" label="Notes on funding" help="For example: reviewed monthly, or matching funds required.">
+                  <input className="inp" id="opp-funding-details" {...text("fundingDetails")} />
+                </Field>
+              </>
+            )}
+            {step === "dates" && (
+              <>
+                <div className="fld-row">
+                  <Field id="opp-opens" label="Opens">
+                    <input className="inp" id="opp-opens" type="date" {...text("opens")} />
+                  </Field>
+                  <Field id="opp-closes" label="Closes" help="Leave empty for a rolling opportunity." error={err("closes")}>
+                    <input className={err("closes") ? "inp err" : "inp"} id="opp-closes" type="date" {...text("closes")} />
+                  </Field>
+                </div>
+                <Field id="opp-closes-name" label="What closes on that date" help="Shown next to the date, e.g. “LOI closes”.">
+                  <input className="inp" id="opp-closes-name" {...text("closesName")} />
+                </Field>
+                <div className="fld-row">
+                  <Field id="opp-decision" label="Decisions announced">
+                    <input className="inp" id="opp-decision" type="date" {...text("decision")} />
+                  </Field>
+                  <Field id="opp-period" label="Grant period starts">
+                    <input className="inp" id="opp-period" type="date" {...text("periodStart")} />
+                  </Field>
+                </div>
+              </>
+            )}
+            {step === "who" && (
+              <>
+                <ApplicantTypes value={draft.types} onChange={(v) => set("types", v)} />
+                <RuleRows rows={draft.rows} onChange={(rows) => set("rows", rows)} />
+              </>
+            )}
+            {step === "publish" && (
+              <>
+                <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <legend className="lbl" style={{ marginBottom: "8px" }}>
+                    Publish targets
+                  </legend>
+                  {(
+                    [
+                      ["publicPage", "Public page", `Listed on /f/${ws.handle}`],
+                      ["openGrantsIndex", "OpenGrants index", "Pulled by the OpenGrants importer from the CommonGrants feed"],
+                      ["sitemap", "Sitemap", "Listed in sitemap.xml for search engines"],
+                    ] as const
+                  ).map(([key, label, help]) => (
+                    <label key={key} className="cb" htmlFor={`target-${key}`}>
+                      <input type="checkbox" id={`target-${key}`} checked={draft[key]} onChange={(e) => set(key, e.target.checked)} style={{ marginTop: "3px" }} />
+                      <span>
+                        <span className="b">{label}</span>
+                        <span className="help" style={{ display: "block" }}>
+                          {help}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                {opportunity?.published && opportunity.status !== "closed" && publicPath && (
+                  <div className="bnr bnr-ok" role="status">
+                    <CircleCheck className="ic" aria-hidden="true" />
+                    <div className="grow">
+                      <div className="t">
+                        Published · live at{" "}
+                        <Link to={publicPath} className="mono" style={{ fontSize: "13px" }}>
+                          {publicPath}
+                        </Link>
+                      </div>
+                      <div className="d">Published {formatDate(opportunity.publishedAt)}. Saved changes appear on the public page at once.</div>
+                    </div>
+                  </div>
+                )}
+                {opportunity?.status === "closed" && <Notice tone="neu" title="This opportunity is closed">It no longer accepts applications and cannot be reopened.</Notice>}
+                {!draft.description.trim() && <Notice tone="warn" title="Add a summary before publishing">The public page and the CommonGrants record both need one.</Notice>}
+                {opportunity?.status !== "closed" && (
+                  <div className="row wrap" style={{ gap: "8px" }}>
+                    <button type="button" className="btn btn-primary" disabled={!draft.description.trim() || publish.state === "saving"} onClick={() => publishAs("open")}>
+                      {opportunity?.published && opportunity.status === "open" ? "Publish changes" : "Publish as open"}
+                    </button>
+                    {!(opportunity?.published && opportunity.status === "open") && (
+                      <button type="button" className="btn btn-secondary" disabled={!draft.description.trim() || publish.state === "saving"} onClick={() => publishAs("forecasted")}>
+                        Publish as forecasted
+                      </button>
+                    )}
+                    {opportunity?.published && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={close.state === "saving"}
+                        onClick={async () => {
+                          const closed = await close.run(opportunity.id);
+                          if (closed) onSaved(closed);
+                        }}
+                      >
+                        Close opportunity
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="card-f" style={{ justifyContent: "space-between" }}>
+            {prev ? (
+              <Link to={{ hash: `#${prev.key}` }} replace className="btn btn-ghost">
+                <ArrowLeft className="ic" aria-hidden="true" />
+                {prev.title}
+              </Link>
+            ) : (
+              <span />
+            )}
+            <div className="row" style={{ gap: "8px" }}>
+              <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving"}>
+                Save draft
+              </button>
+              {next && (
+                <Link to={{ hash: `#${next.key}` }} replace className="btn btn-primary">
+                  {next.title}
+                  <ArrowRight className="ic" aria-hidden="true" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "0" }}>
+          <PreviewCard draft={draft} brand={ws.brand} />
+          {step === "who" && <EligibilityDryRun rows={draft.rows} />}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function OpportunityBuilder() {
+  const ws = useWorkspace("funder");
+  const { oppId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const data = useApiQuery(async (api) => {
+    const [programs, opportunities] = await Promise.all([api.listPrograms(), oppId ? api.listOpportunities() : Promise.resolve([])]);
+    // The URL may carry the id or the public slug.
+    return { programs, opportunity: opportunities.find((o) => o.id === oppId || o.slug === oppId) };
+  }, [ws.id, oppId]);
+  const [saved, setSaved] = useState<Opportunity | null>(null);
+  useEffect(() => setSaved(null), [oppId]);
+
+  if (data.status === "ready" && oppId && !data.data.opportunity) return <NotFound />;
+  const opportunity = saved ?? (data.status === "ready" ? data.data.opportunity : undefined);
+
+  return (
+    <FunderShell active="Opportunities">
+      <title>{`${opportunity?.title ?? "New opportunity"} — Opportunity builder`}</title>
+      {data.status === "loading" && (
+        <main className="main">
+          <Loading label="Loading the opportunity" />
         </main>
-      </FunderShell>
-    </>
+      )}
+      {data.status === "error" && (
+        <main className="main">
+          <ErrorBanner error={data.error} onRetry={data.reload} title="The opportunity could not be loaded" />
+        </main>
+      )}
+      {data.status === "ready" && (
+        <Builder
+          key={data.data.opportunity?.id ?? "new"}
+          opportunity={opportunity}
+          programs={data.data.programs}
+          onSaved={(o) => {
+            setSaved(o);
+            // A new opportunity gets its own address once it exists.
+            if (!oppId) navigate({ pathname: `/w/${ws.handle}/opportunities/${o.id}/edit`, hash: location.hash }, { replace: true });
+          }}
+        />
+      )}
+    </FunderShell>
   );
 }

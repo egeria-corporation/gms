@@ -160,7 +160,7 @@ export default function SignIn() {
     });
   };
   const continueFirstRun = () => {
-    if (choice === "funder") navigate("/onboarding/funder/brand");
+    if (choice === "funder") navigate("/onboarding/funder");
     else if (choice === "applicant") navigate("/onboarding/applicant");
     else if (!invite.trim()) setError("Paste the invitation code from your email.");
     else setError("Joining with a code is not available yet. Open the link in your invitation email instead.");

@@ -412,7 +412,7 @@ export default function WorkspaceSwitcher() {
                 fontSize: "13px",
               }}
             >
-              <Link to="/onboarding/funder/brand" style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <Link to="/onboarding/funder" style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 <Plus className="ic" aria-hidden="true" />
                 Create a workspace
               </Link>
