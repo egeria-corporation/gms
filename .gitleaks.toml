@@ -19,4 +19,6 @@ regexes = [
   # Mock-mode authenticator setup key shown by the web app when VITE_USE_MOCKS=true (apps/web/src/mocks/auth.ts)
   '''^QHX7-R2MP-4TLC-W9KD$''',
   '''^QHX7R2MP4TLCW9KD$''',
+  # Resend (Svix) webhook test secret: whsec_ + the bytes 0..31, base64 (apps/api/test/helpers.ts)
+  '''^whsec_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=$''',
 ]
