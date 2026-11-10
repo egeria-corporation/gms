@@ -154,3 +154,5 @@ button.tab { font-family: inherit; }
 /* The funder mark is outlined in the tenant's own text color, which is contrast-checked against
    the accent when the brand is saved; a translucent white plate was not. */
 .pub-hd .lg .mark { background: transparent; border: 1.5px solid currentColor; }
+/* Switches keep their 36×20 look and gain a 24px-tall target (WCAG 2.5.8). */
+.gms-applicant .tog { box-sizing: content-box; padding: 0; border: solid transparent; border-width: 2px 0; background-clip: padding-box; border-radius: 12px; }

@@ -31,7 +31,7 @@ for console errors and horizontal overflow at the same time:
    `axe.run(document, { runOnly: { type: "tag", values: [the five tags above] } })`, and compare
    `document.documentElement.scrollWidth` with `window.innerWidth`.
 
-Result on 2026-11-10 (27 routes × 2 widths): 66 serious findings before the fixes, 2 after.
+Result on 2026-11-10 (27 routes × 2 widths): 66 serious findings before the fixes, 3 after.
 
 | Rule | Before | After | Fix |
 |---|---|---|---|
@@ -39,11 +39,13 @@ Result on 2026-11-10 (27 routes × 2 widths): 66 serious findings before the fix
 | `link-in-text-block` | 10 | 0 | Links inside running text and banners are underlined |
 | `color-contrast` | 8 | 0 | Landing stat, funder mark and banner link colors |
 | `scrollable-region-focusable` | 2 | 0 | Scrolling table wrappers are focusable, labelled regions |
-| `target-size` | 2 | 2 | See below |
+| `target-size` | 2 | 3 | See below |
 
-The two remaining `target-size` findings are at 390px, where a sticky bar (the editor's validation
-sheet, the bottom tabs) overlaps a control at the page's initial scroll position. The control is
-full size once scrolled into view; axe measures the unobscured part.
+The remaining `target-size` findings are at 390px (editor, application status, settings), where a
+sticky bar (the editor's validation sheet, the bottom tabs) overlaps a control at the page's
+initial scroll position. The control is full size once scrolled into view; axe measures the
+unobscured part. Settings was not reachable when the first run was made, so its finding is new
+to the count, not a regression.
 
 No console errors and no horizontal overflow on any route at either width.
 
