@@ -254,6 +254,24 @@ export interface WebhookSubscription {
 }
 
 /** A reference to a document in an organization's Passport locker: display metadata, never bytes. */
+/**
+ * A representative Passport has verified (officer match plus a verified channel; `L3` when the
+ * control officer also passed identity verification). Shared with consented clients so a relying
+ * app can check who may sign for the organization. No contact details.
+ */
+export interface VerifiedRepresentative {
+  id: string;
+  /** Name as verified against the officer evidence. */
+  fullName: string;
+  title: string;
+  role: string;
+  isControlOfficer: boolean;
+  matchedTo: string | null;
+  verificationLevel: "L2" | "L3";
+  verifiedAt: string;
+  identityVerifiedAt: string | null;
+}
+
 export interface LockerDocument {
   id: string;
   kind: string;

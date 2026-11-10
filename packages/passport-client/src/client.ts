@@ -8,6 +8,7 @@ import type { FetchLike, TokenProvider } from "./tokens.ts";
 import { GMS_AWARD_REGISTRY } from "./types.ts";
 import type {
   LockerDocument,
+  VerifiedRepresentative,
   CgAward,
   CgOrgChange,
   CgOrganization,
@@ -162,6 +163,14 @@ export class PassportClient {
    */
   async listOrgDocuments(orgId: string): Promise<LockerDocument[]> {
     return (await this.request<PaginatedEnvelope<LockerDocument>>({ method: "GET", path: `/passport/orgs/${seg(orgId)}/documents` })).body.items ?? [];
+  }
+
+  /**
+   * The organization's verified representatives (scope `org:read`, same consent rule as
+   * `getOrgProfile`). Only people Passport has verified are listed.
+   */
+  async listVerifiedRepresentatives(orgId: string): Promise<VerifiedRepresentative[]> {
+    return (await this.request<PaginatedEnvelope<VerifiedRepresentative>>({ method: "GET", path: `/passport/orgs/${seg(orgId)}/verified-representatives` })).body.items ?? [];
   }
 
   // --------------------------------------------------------------------------------- CommonGrants: awards

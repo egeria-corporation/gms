@@ -172,6 +172,14 @@ describe("PassportClient", () => {
     expect(JSON.stringify(docs)).not.toMatch(/storage|path/i);
   });
 
+  it("lists verified representatives without contact details", async () => {
+    const { c, fx } = client([loadFixture("representatives-alder-creek")]);
+    const reps = await c.listVerifiedRepresentatives(ORG);
+    expect(reps.map((r) => [r.fullName, r.isControlOfficer, r.verificationLevel])).toEqual([["Maria Santos", true, "L3"], ["Jamal Reed", false, "L2"]]);
+    expect(fx.calls.at(-1)!.path).toBe(`/passport/orgs/${ORG}/verified-representatives`);
+    expect(JSON.stringify(reps)).not.toMatch(/email|phone/i);
+  });
+
   it("reads the Common App profile and folds its fields for prefill and rules", async () => {
     const { c } = client([loadFixture("profile-alder-creek")]);
     const profile = await c.getOrgProfile(ORG);
