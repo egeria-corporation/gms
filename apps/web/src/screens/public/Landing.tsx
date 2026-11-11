@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
+import { useServices } from "../../app/services.tsx";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, Download, ExternalLink, FileText, Landmark, ShieldCheck } from "lucide-react";
 
 export default function Landing() {
+  // The example funder, applicant and opportunity exist only in the demo data (mock mode).
+  const { mock: demo } = useServices();
   return (
     <>
       <title>{"OpenGrants GMS — Landing"}</title>
@@ -118,9 +121,11 @@ export default function Landing() {
                     Create a funder workspace
                     <ArrowRight className="ic" aria-hidden="true" />
                   </Link>
-                  <Link to="/f/riverbend" style={{ fontSize: "14px", fontWeight: 700 }}>
-                    See an example funder page
-                  </Link>
+                  {demo && (
+                    <Link to="/f/riverbend" style={{ fontSize: "14px", fontWeight: 700 }}>
+                      See an example funder page
+                    </Link>
+                  )}
                 </div>
               </div>
               <div
@@ -149,8 +154,8 @@ export default function Landing() {
                 </p>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
                   <PassportButton className="btn btn-primary" />
-                  <Link to="/w/alder-creek/find" style={{ fontSize: "14px", fontWeight: 700 }}>
-                    Find funding
+                  <Link to={demo ? "/w/alder-creek/find" : "/signin"} style={{ fontSize: "14px", fontWeight: 700 }}>
+                    {demo ? "Find funding" : "Sign in with email"}
                   </Link>
                 </div>
               </div>
@@ -248,13 +253,15 @@ export default function Landing() {
                   <Bot className="ic" aria-hidden="true" />
                   For agents (MCP)
                 </Link>
-                <Link
-                  to="/f/riverbend/o/community-health-2027"
-                  style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
-                >
-                  <ExternalLink className="ic" aria-hidden="true" />
-                  View a live opportunity
-                </Link>
+                {demo && (
+                  <Link
+                    to="/f/riverbend/o/community-health-2027"
+                    style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <ExternalLink className="ic" aria-hidden="true" />
+                    View a live opportunity
+                  </Link>
+                )}
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>

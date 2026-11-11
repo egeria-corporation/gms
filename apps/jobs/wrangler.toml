@@ -41,14 +41,17 @@ binding = "EXPORTS"
 bucket_name = "gms-exports-dev"
 
 # ---- staging ----
+# 2026-11-11: this environment serves gms.opengrants.io. The owner pointed the production address
+# at the existing Workers and database instead of standing up a second set, so the Worker and
+# resource names keep their "-staging" suffix. gms-staging.opengrants.io redirects here.
 [env.staging]
 name = "gms-jobs-staging"
 
 [env.staging.vars]
 # Launch runs without facilitated payments: the jobs never attempt a release or its reconciliation.
 PAYMENTS_FACILITATED = "false"
-GMS_BASE_URL = "https://gms-staging.opengrants.io"
-WEB_BASE_URL = "https://gms-staging.opengrants.io"
+GMS_BASE_URL = "https://gms.opengrants.io"
+WEB_BASE_URL = "https://gms.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
 
 [env.staging.triggers]
