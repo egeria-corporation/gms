@@ -206,7 +206,7 @@ export async function linkApplicantOrganization(
     await svc.repos.table("workspace_members").insert({ workspace_id: ws.id, user_id: userId, role: first ? "admin" : "editor" });
     await audit(svc, "member.added", "workspace", ws.id, { userId, role: first ? "admin" : "editor", via: input.via }, ws.id);
   }
-  await svc.repos.table("passport_links").update({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }, { revoked_at: at });
+  await svc.repos.table("passport_links").update({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }, { revoked_at: at, access_token_enc: null, access_token_expires_at: null });
   const orgScopes = tokens.scopes.filter((s) => !["openid", "email", "profile"].includes(s));
   await svc.repos.table("passport_links").insert({ workspace_id: ws.id, mode: "applicant_consent", client_id: client.id, refresh_token_enc: await encryptSecret(tokens.refreshToken, key), scopes: orgScopes.length ? orgScopes : [...APPLICANT_CONSENT_SCOPES], linked_by_user_id: userId, linked_at: at, last_ok_at: at });
   await audit(svc, "passport.linked", "workspace", ws.id, { mode: "applicant_consent", passportOrgId: tokens.orgId, via: input.via }, ws.id);
@@ -286,7 +286,7 @@ async function consentedPassport(ctx: ServiceContext, workspaceId: string, row: 
 async function passportFailure(ctx: ServiceContext, linkId: string, e: unknown): Promise<never> {
   if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now");
   if (e instanceof PassportAuthError) {
-    const [gone] = await ctx.repos.table("passport_links").update({ id: linkId, revoked_at: null }, { revoked_at: ctx.now().toISOString() });
+    const [gone] = await ctx.repos.table("passport_links").update({ id: linkId, revoked_at: null }, { revoked_at: ctx.now().toISOString(), access_token_enc: null, access_token_expires_at: null });
     // The workspace lost its link to Passport: an access change, so it is on the ledger.
     if (gone) await audit(ctx, "passport.unlinked", "workspace", gone.workspace_id, { mode: "applicant_consent", reason: "consent_refused_by_passport" }, gone.workspace_id);
     throw new ApiError(409, "passport_consent_revoked", "Passport no longer accepts this workspace's consent. Connect to Passport again");
@@ -324,7 +324,7 @@ export async function refreshMyOrganization(ctx: ServiceContext) {
   } catch (e) {
     if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now. The cached record is unchanged");
     if (e instanceof PassportAuthError) {
-      await ctx.repos.table("passport_links").update({ id: link.id }, { revoked_at: ctx.now().toISOString() });
+      await ctx.repos.table("passport_links").update({ id: link.id }, { revoked_at: ctx.now().toISOString(), access_token_enc: null, access_token_expires_at: null });
       throw new ApiError(409, "passport_consent_revoked", "Passport no longer accepts this workspace's consent. Connect to Passport again");
     }
     if (e instanceof PassportApiError) throw new ApiError(502, "passport_refused", "Passport refused the request for this organization");

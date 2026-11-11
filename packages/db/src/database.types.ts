@@ -1556,6 +1556,8 @@ export type Database = {
       };
       passport_links: {
         Row: {
+          access_token_enc: string | null;
+          access_token_expires_at: string | null;
           client_id: string | null;
           client_secret_enc: string | null;
           created_at: string;
@@ -1567,10 +1569,13 @@ export type Database = {
           refresh_token_enc: string | null;
           revoked_at: string | null;
           scopes: string[];
+          token_version: number;
           updated_at: string;
           workspace_id: string;
         };
         Insert: {
+          access_token_enc?: string | null;
+          access_token_expires_at?: string | null;
           client_id?: string | null;
           client_secret_enc?: string | null;
           created_at?: string;
@@ -1582,10 +1587,13 @@ export type Database = {
           refresh_token_enc?: string | null;
           revoked_at?: string | null;
           scopes?: string[];
+          token_version?: number;
           updated_at?: string;
           workspace_id: string;
         };
         Update: {
+          access_token_enc?: string | null;
+          access_token_expires_at?: string | null;
           client_id?: string | null;
           client_secret_enc?: string | null;
           created_at?: string;
@@ -1597,6 +1605,7 @@ export type Database = {
           refresh_token_enc?: string | null;
           revoked_at?: string | null;
           scopes?: string[];
+          token_version?: number;
           updated_at?: string;
           workspace_id?: string;
         };
