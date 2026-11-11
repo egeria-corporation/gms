@@ -36,7 +36,8 @@ export interface Env {
   CREDENTIALS_ENCRYPTION_KEY?: string;
   WEBHOOK_SECRET_KEY?: string;
 
-  OPENGRANTS_MCP_URL?: string;
+  /** OpenGrants REST API base (default https://ops.opengrants.io/functions/v1). Funding search is on when OPENGRANTS_API_KEY is set. */
+  OPENGRANTS_API_URL?: string;
   OPENGRANTS_API_KEY?: string;
   COMPOSIO_API_KEY?: string;
   COMPOSIO_GOOGLE_AUTH_CONFIG_ID?: string;

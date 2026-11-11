@@ -143,7 +143,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `OPENGRANTS_API_KEY` | api | Optional |
 
 Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_URL`,
-`OAUTH_ISSUER`, `PASSPORT_BASE_URL`, `PASSPORT_ISSUER`, `OPENGRANTS_MCP_URL`, `ASSISTANT_ENABLED`,
+`OAUTH_ISSUER`, `PASSPORT_BASE_URL`, `PASSPORT_ISSUER`, `OPENGRANTS_API_URL`, `ASSISTANT_ENABLED`,
 `ASSISTANT_MODEL`, `PASSPORT_AWARD_WRITE`, `RESEND_INBOUND_DOMAIN`, `OAUTH_DCR_REDIRECT_HOSTS`.
 
 ## 4. Resend
