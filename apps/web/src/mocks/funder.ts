@@ -213,7 +213,9 @@ function seed(): State {
   const templates = [
     template("builtin:decline", "email", "Standard decline", "Your application to {{opportunity.title}}", TEMPLATE_DECLINE, true),
     template("builtin:award_letter", "letter", "Award letter", null, "Dear {{recipient.name}},\n\n{{funder.name}} is pleased to award {{award.amount}} for “{{award.title}}”.\n\nThe grant agreement follows for signature.", true),
-    template("builtin:agreement", "agreement", "Standard grant agreement", null, "Grant Agreement\n\n1. Parties. {{funder.name}} and {{recipient.name}}.\n2. Purpose and amount. {{award.amount}} for {{award.title}}.", true),
+    template("builtin:agreement", "agreement", "Standard grant agreement", null, "Grant Agreement\n\n1. Parties. {{funder.name}} and {{recipient.name}}.\n2. Purpose and amount. {{award.amount}} for {{award.title}}.\n3. Term. {{award.startDate}} to {{award.endDate}}.", true),
+    // Like the real built-in reminder: it uses requirement fields, which only the built-in templates name.
+    template("builtin:report_reminder", "email", "Report reminder", "{{requirement.title}} is due {{requirement.dueDate}}", "Hello {{recipient.name}},\n\n{{requirement.title}} for “{{award.title}}” is due {{requirement.dueDate}}.\n\n{{funder.name}}", true),
     template(uid("7", 3), "email", "Standard decline v3", "Your application to {{opportunity.title}}", TEMPLATE_DECLINE, false),
   ];
   const sent = (subjectId: string, templateName: string, when: string, status: "sent" | "failed" = "sent"): SentCommunication => ({ status, subjectType: "application", subjectId, template: "builtin:decline", templateName, batch: null, actor: `user:${USERS.dana}`, at: at(when) });

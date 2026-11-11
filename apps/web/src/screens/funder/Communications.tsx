@@ -13,7 +13,8 @@ import { LetterAssistant } from "./LetterAssist.tsx";
 import { BulkSend } from "./BulkSend.tsx";
 import { actorLabel, dateTime, usePeople, timeAgo } from "./shared.tsx";
 
-const MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
+/** Fields every install can fill. The built-in templates name the rest (award dates, requirement and payment details), so the list shown is theirs plus these. */
+const BASE_MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
 const mergeField = (name: string) => `{{${name}}}`;
 const KIND_LABEL: Record<Template["kind"], string> = { email: "Email", letter: "Letter", agreement: "Agreement" };
 
@@ -38,6 +39,9 @@ export default function Communications() {
   const [preview, setPreview] = useState<Rendered | null>(null);
   const body = useRef<HTMLTextAreaElement>(null);
   const all = [...(templates.data?.items ?? []), ...(templates.data?.builtIn ?? [])];
+  // What a template may use is what the server can fill: every field one of its own built-in
+  // templates uses. A fixed list here went stale and flagged the built-in templates themselves.
+  const mergeFields = [...new Set([...BASE_MERGE_FIELDS, ...(templates.data?.builtIn ?? []).flatMap((t) => t.fields ?? [])])];
   /** When a template last went out, from the send log (by id, or by name for older entries). */
   const lastUsed = (t: Template) =>
     (log.data ?? [])
@@ -62,7 +66,7 @@ export default function Communications() {
   const save = useApiMutation((api, input: TemplateInput) => api.createTemplate(input));
   const render = useApiMutation((api, id: string) => api.renderTemplate(id, { ...(sample.data ? { applicationId: sample.data.id } : {}), fields: { decision: { message: "After review, this application will not move forward." } } }));
   const dirty = !current || draft.name !== current.name || draft.body !== current.body || draft.subject !== (current.subject ?? "") || draft.kind !== current.kind;
-  const unknown = [...new Set([...`${draft.subject}\n${draft.body}`.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].filter((f) => !MERGE_FIELDS.includes(f));
+  const unknown = [...new Set([...`${draft.subject}\n${draft.body}`.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)].map((m) => m[1]!))].filter((f) => !mergeFields.includes(f));
   const missing = problemsOf(render.error)
     .map((p) => (p as { field?: string }).field ?? p.path ?? "")
     .filter(Boolean);
@@ -165,7 +169,7 @@ export default function Communications() {
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <span className="eyebrow">Merge fields</span>
                     <p className="small muted">Click to insert at the cursor.</p>
-                    {MERGE_FIELDS.map((f) => (
+                    {mergeFields.map((f) => (
                       <button key={f} type="button" className="chip" style={{ justifyContent: "flex-start" }} onClick={() => insert(f)} aria-label={`Insert ${f}`}>
                         <span className="mono" style={{ fontSize: "11px" }}>
                           {mergeField(f)}

@@ -285,6 +285,22 @@ describe("communications", () => {
     expect(within(screen.getByRole("table", { name: "Send log" })).getByText("Award letter")).toBeInTheDocument();
   });
 
+  it("accepts every field a built-in template uses", async () => {
+    // The editor's allowed fields come from the built-in templates. A fixed list once flagged the
+    // built-in templates' own fields (award dates, requirement and payment details) as unknown.
+    open("/w/riverbend/communications");
+    await screen.findByRole("table", { name: "Send log" });
+    const rows = screen.getAllByRole("row").filter((r) => within(r).queryByText("Built in"));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      await userEvent.click(within(row).getByRole("button"));
+      expect(screen.queryByText(/Unknown merge field/), row.textContent ?? "").not.toBeInTheDocument();
+    }
+    // A field no built-in template uses is still flagged.
+    fireEvent.change(screen.getByLabelText("Body"), { target: { value: "Dear {{recipient.name}}, EIN {{applicant.ein}}" } });
+    expect(screen.getAllByText(/Unknown merge field/)).toHaveLength(1);
+  });
+
   it("saves an edit as a new version and warns about an unknown merge field", async () => {
     const services = await riverbend();
     open("/w/riverbend/communications", services);
