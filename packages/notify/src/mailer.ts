@@ -32,7 +32,9 @@ export class MailerError extends Error {
 export class ResendMailer implements Mailer {
   constructor(
     private readonly apiKey: string,
-    private readonly fetchImpl: typeof fetch = fetch,
+    // A wrapper, not `fetch` itself: called as `this.fetchImpl(...)`, the platform's `fetch` throws
+    // "Illegal invocation" on Cloudflare Workers (packages/passport-client has the same note).
+    private readonly fetchImpl: typeof fetch = (input, init) => fetch(input, init),
     private readonly baseUrl = "https://api.resend.com",
   ) {}
 
