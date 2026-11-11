@@ -179,7 +179,7 @@ Release, record-external and bank match are **human only**: the service refuses 
 | `GET /common-grants/orgs`, `GET /common-grants/orgs/{id}`, `POST /common-grants/orgs/search` | `grantees:read` | Consented organizations only |
 | `GET /gms/analytics/portfolio`, `GET /gms/analytics/cycle/{competitionId}` | `analytics:read` | |
 | `GET /gms/exports/990pf`, `POST /gms/exports/bundle`, `POST /gms/imports/csv` | `analytics:read` / `workspace:admin` | CSV cells are guarded against formula injection. `exports/bundle` in an applicant workspace exports that organization's own applications, reports, answers and organization reference |
-| `POST /gms/imports/bundle` | `workspace:admin`, admin in person | Restore a bundle written by `gms export`: `{ gms: <gms.json> }`. Rows keep their ids; existing rows are left alone; applications and awards whose applicant workspace is not on this instance are skipped and counted |
+| `POST /gms/imports/bundle` | none | Answers 410 `import_not_available`. Restoring a bundle is the operator's `gms import` (`apps/api/scripts/gms.ts`): rows are written as exported, so it is never available from a workspace. The operator's import sets every row's workspace to the target, skips rows that reference another workspace's records, and does not adopt ids that exist elsewhere |
 | `GET/POST/DELETE /gms/webhooks`, `GET /gms/webhooks/{id}/deliveries` | `workspace:admin` | The secret is shown once |
 | `POST /gms/webhooks/{id}/deliveries/{deliveryId}/replay` | `workspace:admin`, person | A new delivery with the same event and body |
 | `GET/POST/DELETE /gms/api-clients` | `workspace:admin` (create/revoke: person) | Works for applicant workspaces too; their tokens never carry `applications:submit`, `agreements:write` or `workspace:admin` |

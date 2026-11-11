@@ -71,6 +71,9 @@ adminRoutes.get("/exports/990pf", async (c) => {
   return c.json(ok(json));
 });
 adminRoutes.post("/exports/bundle", async (c) => c.json(ok(await analytics.exportBundle(await svc(c), { inline: c.req.query("inline") === "true" }))));
-// Restore a bundle written by `gms export` (JSON body: `{ gms: <gms.json> }`).
-adminRoutes.post("/imports/bundle", async (c) => c.json(ok(await analytics.importBundle(await svc(c), (await jsonBody(c)) as { gms?: unknown }))));
+// Restoring a bundle is the operator's `gms import` (scripts/gms.ts), never a workspace's: the rows are
+// written as exported, with the service role. The path stays so old clients get a clear answer.
+adminRoutes.post("/imports/bundle", () => {
+  throw new ApiError(410, "import_not_available", analytics.IMPORT_NOT_AVAILABLE);
+});
 adminRoutes.post("/imports/csv", async (c) => c.json(ok(await analytics.importAwardsCsv(await svc(c), parse(analytics.importInput, await jsonBody(c))))));

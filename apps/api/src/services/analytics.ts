@@ -159,7 +159,7 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
   const funder = (await ctx.repos.table("workspaces").one({ id: ws.id }))!;
   const t = <N extends Parameters<typeof ctx.repos.table>[0]>(name: N) => ctx.repos.table(name).find({ workspace_id: ws.id } as never, { limit: 10000 });
-  const [opps, comps, forms, apps, awards, programs, rubrics, decisions, agreements, tranches, requirements, submissions, budgets, amendments, templates, documents, assignments] = await Promise.all([t("opportunities"), t("competitions"), t("forms"), t("applications"), t("awards"), t("programs"), t("rubrics"), t("decisions"), t("agreements"), t("tranches"), t("requirements"), t("submissions"), t("budgets"), t("amendments"), t("templates"), t("documents"), t("review_assignments")]);
+  const [opps, comps, forms, apps, awards, programs, rubrics, decisions, agreements, tranches, requirements, submissions, budgets, amendments, templates, documents, assignments, paymentSchedules] = await Promise.all([t("opportunities"), t("competitions"), t("forms"), t("applications"), t("awards"), t("programs"), t("rubrics"), t("decisions"), t("agreements"), t("tranches"), t("requirements"), t("submissions"), t("budgets"), t("amendments"), t("templates"), t("documents"), t("review_assignments"), t("payment_schedules")]);
   const reviews = assignments.length ? await ctx.repos.table("reviews").find({ assignment_id: assignments.map((a) => a.id) }, { limit: 10000 }) : [];
   const responses = await t("form_responses");
   const applicantIds = [...new Set([...apps.map((a) => a.applicant_workspace_id), ...awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x)])];
@@ -187,7 +187,7 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     orgs: applicants.map((w) => ({ passportOrgId: w.passport_org_id, name: w.display_name, projection: consents.some((c) => c.applicant_workspace_id === w.id) ? w.org_projection : null })),
   };
   const strip = <R extends { workspace_id?: string }>(rows: R[]) => rows;
-  const gms = { exportedAt: ctx.now().toISOString(), workspace: { id: funder.id, handle: funder.handle, displayName: funder.display_name, brand: funder.brand }, programs, rubrics, formResponses: responses, reviewAssignments: assignments, reviews, decisions, agreements: strip(agreements), tranches, requirements, submissions, budgets, amendments, templates,
+  const gms = { exportedAt: ctx.now().toISOString(), workspace: { id: funder.id, handle: funder.handle, displayName: funder.display_name, brand: funder.brand }, programs, rubrics, formResponses: responses, reviewAssignments: assignments, reviews, decisions, agreements: strip(agreements), paymentSchedules, tranches, requirements, submissions, budgets, amendments, templates,
     // The workspace's own rows behind the CommonGrants projections, so `gms import` restores them exactly.
     records: { opportunities: opps, competitions: comps, forms, applications: apps, awards } };
   const attachments = documents.map((d) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, storage: d.storage, path: d.path, subjectType: d.subject_type, subjectId: d.subject_id, passportDocumentId: d.passport_document_id }));
@@ -382,67 +382,101 @@ type AnyRow = Record<string, unknown> & { id?: unknown };
 const rowsOf = (v: unknown): AnyRow[] => (Array.isArray(v) ? v.filter((r): r is AnyRow => typeof r === "object" && r !== null && typeof (r as AnyRow).id === "string") : []);
 
 /**
+ * What a column of an imported row may point at:
+ * - `own`: a row of that table in the target workspace (already there, or inserted by this run);
+ * - `library`: the same, or a shared-library row (`workspace_id` null);
+ * - `applicant`: an applicant workspace on this instance.
+ */
+type Ref = { table: TableName; kind: "own" | "library" | "applicant" };
+const own = (table: TableName): Ref => ({ table, kind: "own" });
+const library = (table: TableName): Ref => ({ table, kind: "library" });
+
+/** Why a tenant cannot call the import. One message for the route and the service. */
+export const IMPORT_NOT_AVAILABLE = "Restoring a bundle is done by the server's operator with `gms import`. It is not available from a workspace";
+
+/**
  * `gms import`: restore a bundle written by `gms export` into a funder workspace (a move between
- * instances, or a restore). Rows keep their ids and are inserted in dependency order; a row whose
- * id already exists is left alone, so an import can be re-run. Applications and awards need their
- * applicant workspace on this instance (matched by id): those that do not have one are skipped
- * with everything that hangs off them, and counted. Nothing imported can be paid: tranches arrive
- * in the status they were exported in, and release still goes through the readiness checks.
+ * instances, or a restore). **Operator only**: the rows are inserted as they were exported, with
+ * the service role, so this is never reachable from a workspace's own session (it was, and any
+ * signed-in person could write rows into other tenants with it; red team 2026-11).
+ *
+ * Even for the operator, an import cannot write outside the workspace it was given:
+ * - every row's `workspace_id` is set to the target workspace, never left null (a null on forms,
+ *   rubrics or templates is the shared library) and never taken from the row;
+ * - every reference a row carries must be to a row of the target workspace, or one inserted by
+ *   this run; a row that names another workspace's record is skipped with what hangs off it;
+ * - a row whose id already exists in another workspace is skipped, not adopted.
+ * Rows keep their ids and are inserted in dependency order; a row already in the target workspace
+ * is left alone, so an import can be re-run. Applications and awards need their applicant
+ * workspace on this instance. Nothing imported can be paid without the readiness checks.
  */
 export async function importBundle(ctx: ServiceContext, bundle: { gms?: unknown }) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], ...(ctx.actor.kind === "system" ? {} : { person: true }) });
+  if (ctx.actor.kind !== "system") throw new ApiError(410, "import_not_available", IMPORT_NOT_AVAILABLE);
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"] });
   const g = (bundle.gms ?? {}) as Record<string, unknown>;
   const records = (g.records ?? {}) as Record<string, unknown>;
   if (!g.workspace || !g.records) throw new ApiError(422, "not_a_bundle", "This is not a GMS export bundle (gms.json with `workspace` and `records` is required)");
   const counts: Record<string, { inserted: number; existing: number; skipped: number }> = {};
   const kept = new Map<string, Set<string>>();
-  // Each step: table, rows, and the parents a row needs (column → table whose imported/existing ids it must be in).
-  const steps: { table: TableName; rows: AnyRow[]; needs?: Record<string, TableName>; workspaceColumn?: boolean }[] = [
+  const responses = rowsOf(g.formResponses);
+  // Each step: table, rows, and what each reference column may point at. Order follows the foreign keys.
+  const steps: { table: TableName; rows: AnyRow[]; refs?: Record<string, Ref> }[] = [
     { table: "programs", rows: rowsOf(g.programs) },
     { table: "rubrics", rows: rowsOf(g.rubrics) },
     { table: "templates", rows: rowsOf(g.templates) },
     { table: "forms", rows: rowsOf(records.forms) },
-    { table: "opportunities", rows: rowsOf(records.opportunities) },
-    { table: "competitions", rows: rowsOf(records.competitions), needs: { opportunity_id: "opportunities" } },
-    { table: "applications", rows: rowsOf(records.applications), needs: { competition_id: "competitions", applicant_workspace_id: "workspaces" } },
-    { table: "form_responses", rows: rowsOf(g.formResponses), needs: { application_id: "applications" } },
-    { table: "review_assignments", rows: rowsOf(g.reviewAssignments), needs: { application_id: "applications" } },
-    { table: "reviews", rows: rowsOf(g.reviews), needs: { assignment_id: "review_assignments" }, workspaceColumn: false },
-    { table: "decisions", rows: rowsOf(g.decisions), needs: { application_id: "applications" } },
-    { table: "awards", rows: rowsOf(records.awards), needs: { recipient_workspace_id: "workspaces" } },
-    { table: "agreements", rows: rowsOf(g.agreements), needs: { award_id: "awards" } },
-    { table: "requirements", rows: rowsOf(g.requirements), needs: { award_id: "awards" } },
-    { table: "tranches", rows: rowsOf(g.tranches), needs: { award_id: "awards" } },
-    { table: "submissions", rows: rowsOf(g.submissions), needs: { requirement_id: "requirements" } },
-    { table: "budgets", rows: rowsOf(g.budgets) },
-    { table: "amendments", rows: rowsOf(g.amendments), needs: { award_id: "awards" } },
+    { table: "opportunities", rows: rowsOf(records.opportunities), refs: { program_id: own("programs") } },
+    { table: "competitions", rows: rowsOf(records.competitions), refs: { opportunity_id: own("opportunities") } },
+    { table: "applications", rows: rowsOf(records.applications), refs: { competition_id: own("competitions"), opportunity_id: own("opportunities"), applicant_workspace_id: { table: "workspaces", kind: "applicant" } } },
+    { table: "form_responses", rows: responses.filter((r) => !r.submission_id), refs: { application_id: own("applications") } },
+    { table: "review_assignments", rows: rowsOf(g.reviewAssignments), refs: { application_id: own("applications") } },
+    { table: "reviews", rows: rowsOf(g.reviews), refs: { assignment_id: own("review_assignments") } },
+    { table: "decisions", rows: rowsOf(g.decisions), refs: { application_id: own("applications"), competition_id: own("competitions"), letter_template_id: library("templates") } },
+    { table: "awards", rows: rowsOf(records.awards), refs: { recipient_workspace_id: { table: "workspaces", kind: "applicant" }, application_id: own("applications"), opportunity_id: own("opportunities"), program_id: own("programs"), parent_award_id: own("awards") } },
+    { table: "agreements", rows: rowsOf(g.agreements), refs: { award_id: own("awards"), template_id: library("templates") } },
+    { table: "payment_schedules", rows: rowsOf(g.paymentSchedules), refs: { award_id: own("awards") } },
+    { table: "tranches", rows: rowsOf(g.tranches), refs: { award_id: own("awards"), schedule_id: own("payment_schedules") } },
+    { table: "requirements", rows: rowsOf(g.requirements), refs: { award_id: own("awards"), releases_tranche_id: own("tranches") } },
+    { table: "submissions", rows: rowsOf(g.submissions), refs: { requirement_id: own("requirements"), award_id: own("awards") } },
+    { table: "form_responses", rows: responses.filter((r) => !!r.submission_id), refs: { submission_id: own("submissions") } },
+    { table: "budgets", rows: rowsOf(g.budgets), refs: { award_id: own("awards"), application_id: own("applications") } },
+    { table: "amendments", rows: rowsOf(g.amendments), refs: { award_id: own("awards"), child_award_id: own("awards") } },
   ];
-  const known = async (table: TableName, id: unknown): Promise<boolean> => {
+  const allowed = async (ref: Ref, id: unknown): Promise<boolean> => {
     if (id === null || id === undefined) return true;
     if (typeof id !== "string") return false;
-    if (kept.get(table)?.has(id)) return true;
-    return !!(await ctx.repos.table(table).one({ id } as never));
+    if (ref.kind === "applicant") return !!(await ctx.repos.table("workspaces").one({ id, kind: "applicant" }));
+    if (kept.get(ref.table)?.has(id)) return true;
+    const rows = (await ctx.repos.table(ref.table).find({ id } as never, { limit: 50 })) as { workspace_id?: string | null }[];
+    return rows.some((r) => r.workspace_id === ws.id || (ref.kind === "library" && (r.workspace_id ?? null) === null));
   };
   for (const step of steps) {
-    const c = (counts[step.table] = { inserted: 0, existing: 0, skipped: 0 });
+    const c = (counts[step.table] ??= { inserted: 0, existing: 0, skipped: 0 });
     const ids = kept.get(step.table) ?? new Set<string>();
     kept.set(step.table, ids);
     for (const row of step.rows) {
       const id = row.id as string;
       // Form versions share an id; the pair (id, version) is the key.
       const where = step.table === "forms" ? { id, version: row.version } : { id };
-      if (await ctx.repos.table(step.table).one(where as never)) {
-        c.existing++;
-        ids.add(id);
+      const there = (await ctx.repos.table(step.table).one(where as never)) as { workspace_id?: string | null } | null;
+      if (there) {
+        // Already in the target workspace: an earlier run. In any other workspace (or the shared
+        // library): somebody else's row, which this import neither changes nor builds on.
+        if (there.workspace_id === ws.id) {
+          c.existing++;
+          ids.add(id);
+        } else c.skipped++;
         continue;
       }
       let ok = true;
-      for (const [column, parent] of Object.entries(step.needs ?? {})) if (!(await known(parent, row[column]))) ok = false;
+      for (const [column, ref] of Object.entries(step.refs ?? {})) if (!(await allowed(ref, row[column]))) ok = false;
       if (!ok) {
         c.skipped++;
         continue;
       }
-      const insert = { ...row, ...(step.workspaceColumn === false || !("workspace_id" in row) || row.workspace_id === null ? {} : { workspace_id: ws.id }) };
+      // A shared report keeps its pointer to the original only when that original is on this instance.
+      const shared = step.table === "submissions" && typeof row.shared_from_submission_id === "string" && !(await ctx.repos.table("submissions").one({ id: row.shared_from_submission_id }));
+      const insert = { ...row, ...(shared ? { shared_from_submission_id: null } : {}), workspace_id: ws.id };
       try {
         await ctx.repos.table(step.table).insert(insert as never);
         c.inserted++;
