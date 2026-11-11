@@ -14,6 +14,20 @@ export interface AppConfig {
    * records payments the funder made elsewhere.
    */
   facilitatedPayments: boolean;
+  /**
+   * Which optional connections this server can make. Absent while the config is loading or when an
+   * older server does not say: a screen then behaves as if the connection may work.
+   */
+  available?: Availability;
+}
+
+/** Optional connections; each is true only when the server has what it needs. */
+export interface Availability {
+  openGrants: boolean;
+  assistant: boolean;
+  googleWorkspace: boolean;
+  mercury: boolean;
+  customMcp: boolean;
 }
 
 /** One signed-in session of the current person. */
@@ -223,7 +237,15 @@ export function createHttpLaunchApi(opts: HttpLaunchOptions): LaunchApi {
   };
 
   return {
-    config: () => optional(async () => ({ facilitatedPayments: rec(await get<unknown>("/gms/config")).facilitatedPayments === true }), { facilitatedPayments: false }),
+    config: () =>
+      optional(async () => {
+        const c = rec(await get<unknown>("/gms/config"));
+        const a = c.available && typeof c.available === "object" ? rec(c.available) : null;
+        return {
+          facilitatedPayments: c.facilitatedPayments === true,
+          ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true } } : {}),
+        };
+      }, { facilitatedPayments: false }),
 
     sessions: () =>
       optional(

@@ -9,7 +9,7 @@ export default function Landing() {
   const { mock: demo } = useServices();
   return (
     <>
-      <title>{"OpenGrants GMS — Landing"}</title>
+      <title>{"OpenGrants GMS — free, open-source grants management"}</title>
       <div className="gms pub" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#FFFFFF" }}>
         <header style={{ borderBottom: "1px solid #D6DEDE", background: "#FFFFFF" }}>
           <div
@@ -238,7 +238,7 @@ export default function Landing() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
                 <a
-                  href="#selfhost"
+                  href="https://github.com/egeria-corporation/gms/blob/main/docs/self-host.md"
                   id="selfhost"
                   style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
                 >
@@ -318,11 +318,10 @@ export default function Landing() {
               <span>OpenGrants GMS · gms.opengrants.io</span>
             </div>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-              <a href="#how">Docs</a>
-              <a href="#how">CommonGrants spec</a>
-              <a href="#selfhost">Source</a>
-              <a href="#how">Privacy</a>
-              <a href="#how">Status</a>
+              <Link to="/agents">For agents</Link>
+              <a href="/openapi.json">API</a>
+              <a href="https://commongrants.org">CommonGrants spec</a>
+              <a href="https://github.com/egeria-corporation/gms">Source</a>
             </div>
           </div>
         </footer>

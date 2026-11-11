@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Find funding: competitions open on this GMS with this organization's eligibility, the OpenGrants
 // index searched with the Passport profile as context, and saved listings.
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { Bookmark, CircleCheck, CircleDashed, CircleX, ExternalLink, Info, Search } from "lucide-react";
 import type { ApplicantApi, DiscoverCompetition, OpenGrantsListing, SavedListing } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
+import { forgetWanted, wantedFrom } from "../../lib/wantedOpportunity.ts";
 import { ApiError } from "../../api/client.ts";
 import type { OppFunding } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -199,8 +201,8 @@ function OpenGrantsIndex({ base, saved, onSaved, onStart }: { base: string; save
           </div>
         )}
         {unavailable && (
-          <Notice tone="neu" title="OpenGrants can’t be reached right now">
-            Competitions open on this GMS are listed under “Open here”. Try the index again in a few minutes.
+          <Notice tone="neu" title="OpenGrants did not answer">
+            Nothing was searched. Competitions open on this GMS are listed under “Open here”.
           </Notice>
         )}
         {state.status === "error" && !unavailable && <ErrorBanner error={state.error} />}
@@ -271,6 +273,19 @@ export default function FindFunding() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("here");
   const query = useApplicantQuery(load, [ws.id]);
+  // Funding search across OpenGrants exists only where the server is set up for it. Unknown
+  // (still loading) counts as available, so the tab does not flicker.
+  const indexAvailable = useAppConfig().available?.openGrants !== false;
+  // Arriving from "Apply" on a public opportunity page: show that opportunity first.
+  const [params] = useSearchParams();
+  const [wanted] = useState(() => wantedFrom(params));
+  const wantedCard = useRef<HTMLDivElement | null>(null);
+  const loaded = query.status === "ready";
+  useEffect(() => {
+    if (!wanted || !loaded) return;
+    forgetWanted();
+    wantedCard.current?.scrollIntoView?.({ block: "center" });
+  }, [wanted, loaded]);
   const [startingId, setStartingId] = useState<string | null>(null);
   const start = useApplicantMutation((api, competitionId: string) => api.startApplication(competitionId));
 
@@ -301,8 +316,17 @@ export default function FindFunding() {
             {({ competitions, saved: everySaved }) => {
               // An alert is remembered as a saved listing; it belongs on the Alerts tab, not under Saved.
               const saved = everySaved.filter((x) => !x.externalId.startsWith("alert:"));
+              const isWanted = (c: DiscoverCompetition) => !!wanted && c.opportunity.slug === wanted.opportunity && c.funder.handle === wanted.funder;
+              const found = wanted ? competitions.find(isWanted) : undefined;
+              // The opportunity the person came for goes first.
+              const ordered = found ? [found, ...competitions.filter((c) => c !== found)] : competitions;
               return (
               <>
+                {wanted && !found && (
+                  <Notice tone="neu" title="That opportunity is not open for applications right now">
+                    It may not have opened yet, or its deadline has passed. Everything that is open is listed below.
+                  </Notice>
+                )}
                 <Tabs<Tab>
                   label="Where to look"
                   idPrefix="find"
@@ -310,9 +334,9 @@ export default function FindFunding() {
                   onChange={setTab}
                   tabs={[
                     { key: "here", label: "Open here", count: competitions.length },
-                    { key: "index", label: "OpenGrants index" },
+                    ...(indexAvailable ? [{ key: "index" as const, label: "OpenGrants index" }] : []),
                     { key: "saved", label: "Saved", count: saved.length },
-                    { key: "alerts", label: "Alerts" },
+                    ...(indexAvailable ? [{ key: "alerts" as const, label: "Alerts" }] : []),
                   ]}
                 />
                 {start.error ? <ErrorBanner error={start.error} title="The application could not be started" /> : null}
@@ -321,13 +345,18 @@ export default function FindFunding() {
                   {competitions.length === 0 ? (
                     <div className="card">
                       <EmptyState icon={Search} title="Nothing is open here right now">
-                        Funders on this GMS have no open competitions. Search the OpenGrants index for opportunities elsewhere.
+                        {indexAvailable
+                          ? "Funders on this GMS have no open competitions. Search the OpenGrants index for opportunities elsewhere."
+                          : "Funders on this GMS have no open competitions yet. When one opens, it is listed here with your eligibility. Funding search across OpenGrants isn’t available on this site yet."}
                       </EmptyState>
                     </div>
                   ) : (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
-                      {competitions.map((c) => (
-                        <CompetitionCard key={c.competitionId} c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} />
+                      {ordered.map((c) => (
+                        <div key={c.competitionId} ref={c === found ? wantedCard : undefined} style={c === found ? { outline: "2px solid var(--og-teal)", outlineOffset: "2px", borderRadius: "12px" } : undefined} data-wanted={c === found ? "true" : undefined}>
+                          {c === found && <div className="small b" style={{ padding: "0 0 6px 4px" }}>The opportunity you chose</div>}
+                          <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} />
+                        </div>
                       ))}
                     </div>
                   )}

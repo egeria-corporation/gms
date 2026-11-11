@@ -78,6 +78,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   const now = () => (opts.now ?? (() => new Date()))().toISOString();
   let currentId: string | null = null;
 
+  /** Invitations already used (by id): a link works once. */
+  const accepted = new Set<string>();
   const me = async (): Promise<Me> => {
     const session = await opts.session();
     if (!session) throw new ApiError(401, "Sign in to continue");
@@ -212,7 +214,10 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
         const r = data!.record;
         return { id: r.id, handle: r.handle, kind: r.kind, name: r.displayName, sub: r.kind === "funder" ? "Funder workspace" : "Applicant workspace", brand: { accent: r.brand.accent ?? "#1F6F8B", onAccent: r.brand.onAccent ?? "#FFFFFF" }, member: { name: profile.email, initials: profile.email.slice(0, 2).toUpperCase(), title: "Admin" }, unreadNotifications: 0, pendingApprovals: 0 };
       }
-      return data ? { ...shell, name: data.record.displayName, brand: { accent: data.record.brand.accent ?? shell.brand.accent, onAccent: data.record.brand.onAccent ?? shell.brand.onAccent } } : shell;
+      // The membership's role key travels with the workspace, as it does from the real API.
+      const role = profile.workspaces.find((m) => m.handle === handle)?.role;
+      const view = data ? { ...shell, name: data.record.displayName, brand: { accent: data.record.brand.accent ?? shell.brand.accent, onAccent: data.record.brand.onAccent ?? shell.brand.onAccent } } : shell;
+      return { ...view, member: { ...view.member, ...(role ? { role } : {}) } };
     },
 
     async publicFunder(handle) {
@@ -281,6 +286,22 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       const invitation = { id: uuid(), email: input.email, role: input.role, expiresAt: new Date(Date.parse(now()) + (input.expiresInDays ?? 14) * 86_400_000).toISOString(), acceptUrl: `/invitations/accept?token=mock-${w.invitations.length + 1}` };
       w.invitations.push(invitation);
       return clone(invitation);
+    },
+    async acceptInvitation(token) {
+      const profile = await me();
+      // An invitation is found by the token in its link, and works once.
+      for (const w of store.workspaces) {
+        const inv = w.invitations.find((i) => (i as { acceptUrl?: string }).acceptUrl?.endsWith(`token=${token}`));
+        if (!inv || accepted.has(inv.id) || Date.parse(inv.expiresAt) <= Date.parse(now())) continue;
+        accepted.add(inv.id);
+        const existing = memberships.find((m) => m.id === w.record.id);
+        if (!existing) {
+          w.members.push({ userId: profile.userId, role: inv.role, email: profile.email });
+          memberships.push({ id: w.record.id, handle: w.record.handle, name: w.record.displayName, kind: w.record.kind, role: inv.role, requiresMfa: false });
+        }
+        return { workspace: { handle: w.record.handle, kind: w.record.kind, name: w.record.displayName }, role: existing?.role ?? inv.role };
+      }
+      throw notFound("Invitation");
     },
     async passportStatus(id) {
       return clone((await member(id)).passport);

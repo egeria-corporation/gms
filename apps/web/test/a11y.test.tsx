@@ -60,7 +60,6 @@ const FUNDER = [
   `${F}/competitions/${IDS.compHealth27}`,
   `${F}/competitions/${IDS.compHealth27}/panel`,
   `${F}/applications`,
-  `${F}/applications/first-run`,
   `${F}/applications/${MOCK_IDS.alder}`,
   `${F}/reviews/assign`,
   `${F}/awards`,
@@ -79,7 +78,7 @@ const FUNDER = [
   `${F}/approvals`,
   "/review/assignments",
   `/review/score/${MOCK_IDS.danaScoring}`,
-  "/oauth/consent",
+  "/consent",
   "/onboarding/funder/organization",
   "/onboarding/funder/brand",
 ];

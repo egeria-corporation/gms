@@ -53,15 +53,27 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
     [ws.id],
     ws.id,
   );
+  // A failed "mark read" says so; before, the click simply did nothing.
+  const [markError, setMarkError] = useState<unknown>(null);
   const markAll = async (list: NotificationList) => {
-    const r = await api.markRead({ all: true }, ws.id);
-    onCount(ws.id, r.unread);
-    query.set({ unread: r.unread, items: list.items.map((n) => ({ ...n, read: true })) });
+    setMarkError(null);
+    try {
+      const r = await api.markRead({ all: true }, ws.id);
+      onCount(ws.id, r.unread);
+      query.set({ unread: r.unread, items: list.items.map((n) => ({ ...n, read: true })) });
+    } catch (error) {
+      setMarkError(error);
+    }
   };
   const markOne = async (list: NotificationList, id: string) => {
-    const r = await api.markRead({ ids: [id] }, ws.id);
-    onCount(ws.id, r.unread);
-    query.set({ unread: r.unread, items: list.items.map((n) => (n.id === id ? { ...n, read: true } : n)) });
+    setMarkError(null);
+    try {
+      const r = await api.markRead({ ids: [id] }, ws.id);
+      onCount(ws.id, r.unread);
+      query.set({ unread: r.unread, items: list.items.map((n) => (n.id === id ? { ...n, read: true } : n)) });
+    } catch (error) {
+      setMarkError(error);
+    }
   };
   const list = query.status === "ready" ? query.data : null;
   const items = list ? (filter === "unread" ? list.items.filter((n) => !n.read) : list.items) : [];
@@ -93,6 +105,11 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
       {query.status === "error" && (
         <div style={{ padding: "16px 20px" }}>
           <ErrorBanner error={query.error} onRetry={query.reload} />
+        </div>
+      )}
+      {markError !== null && (
+        <div style={{ padding: "16px 20px 0" }}>
+          <ErrorBanner error={markError} title="Could not mark as read" />
         </div>
       )}
       {list && items.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>{filter === "unread" ? "Nothing unread here." : "Nothing has happened here yet."}</p>}

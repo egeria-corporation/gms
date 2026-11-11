@@ -105,7 +105,7 @@ describe("applicant screens render from the API", () => {
     open("/w/alder-creek/find", { store });
     await userEvent.click(await screen.findByRole("tab", { name: "OpenGrants index" }));
     await userEvent.click(screen.getByRole("button", { name: "Match to my profile" }));
-    expect(await screen.findByText("OpenGrants can’t be reached right now")).toBeInTheDocument();
+    expect(await screen.findByText("OpenGrants did not answer")).toBeInTheDocument();
   });
 
   it("applications, status with the shared thread, funders, answers and team", async () => {

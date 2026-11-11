@@ -339,7 +339,7 @@ describe("OAuth consent", () => {
     const services = await riverbend();
     const decide = vi.spyOn(services.api, "decideConsent");
     const go = vi.spyOn(browser, "go").mockImplementation(() => {});
-    open("/oauth/consent?req=signed-request", services);
+    open("/consent?req=signed-request", services);
     expect(await screen.findByRole("heading", { level: 1, name: "Claude wants to connect to OpenGrants GMS" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("radio", { name: /Riverbend Community Foundation/ })).toBeChecked());
     expect(screen.getByText(/Sign an agreement/).closest("li")).toHaveTextContent("always a person");
@@ -352,13 +352,13 @@ describe("OAuth consent", () => {
   it("denies without granting anything", async () => {
     const services = await riverbend();
     const go = vi.spyOn(browser, "go").mockImplementation(() => {});
-    open("/oauth/consent?req=signed-request", services);
+    open("/consent?req=signed-request", services);
     await userEvent.click(await screen.findByRole("button", { name: "Deny" }));
     await waitFor(() => expect(go).toHaveBeenCalledWith(expect.stringContaining("error=access_denied")));
   });
 
   it("sends a signed-out person to sign in first", async () => {
-    open("/oauth/consent?req=signed-request", createMockServices({ session: null }));
+    open("/consent?req=signed-request", createMockServices({ session: null }));
     await waitFor(() => expect(where()).toContain("/signin"));
   });
 });

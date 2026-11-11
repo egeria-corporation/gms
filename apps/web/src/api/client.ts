@@ -56,6 +56,10 @@ export interface MeWorkspace {
 export interface Me {
   userId: string;
   email: string;
+  /** What to call the person: the name on their account, else the first part of their address. */
+  displayName?: string | null;
+  /** How this session was started. */
+  signInMethod?: "passport" | "email";
   mfaVerified: boolean;
   workspaces: MeWorkspace[];
 }
@@ -70,7 +74,8 @@ export interface Workspace {
   sub: string;
   /** Tenant accent; applied only where tenant-* classes and funder chips use it. */
   brand: { accent: string; onAccent: string };
-  member: { name: string; initials: string; title: string };
+  /** `role` is the membership role key (`admin`, `reviewer` and so on); `title` is how it reads on screen. */
+  member: { name: string; initials: string; title: string; role?: string };
   unreadNotifications: number;
   pendingApprovals: number;
 }
@@ -98,6 +103,8 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi {
   updateWorkspace(id: string, patch: { displayName?: string; brand?: Brand; settings?: Record<string, unknown> }): Promise<WorkspaceWrite>;
   listMembers(workspaceId: string): Promise<Member[]>;
   createInvitation(workspaceId: string, input: InvitationInput): Promise<Invitation>;
+  /** Join the workspace an invitation names. Rejects with a 404 ApiError when the invitation is used, expired or unknown. */
+  acceptInvitation(token: string): Promise<{ workspace: { handle: string; kind: WorkspaceKind; name: string }; role: string }>;
   passportStatus(workspaceId: string): Promise<PassportStatus>;
   linkPassport(workspaceId: string, input: { clientId: string; clientSecret: string }): Promise<PassportStatus>;
   unlinkPassport(workspaceId: string): Promise<{ linked: boolean }>;
@@ -218,6 +225,8 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
       userId: data.userId,
       // The session holds the address; the API echoes it when the token carries one.
       email: data.email ?? (await opts.identity()).email,
+      displayName: data.displayName ?? null,
+      ...(data.signInMethod ? { signInMethod: data.signInMethod } : {}),
       mfaVerified: data.mfaVerified,
       workspaces: data.workspaces.map((w) => ({ id: w.id, handle: w.handle, name: w.name, kind: w.kind, role: w.role, requiresMfa: w.requiresMfa })),
     };
@@ -287,6 +296,10 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
       return json.items ?? json.data ?? [];
     },
     createInvitation: (id, input) => call("POST", `/gms/workspaces/${e(id)}/invitations`, input),
+    acceptInvitation: async (token) => {
+      const r = await call<{ workspace: { handle: string; kind: WorkspaceKind; displayName: string }; role: string }>("POST", "/gms/invitations/accept", { token });
+      return { workspace: { handle: r.workspace.handle, kind: r.workspace.kind, name: r.workspace.displayName }, role: r.role };
+    },
     passportStatus: (id) => get(`/gms/workspaces/${e(id)}/passport/status`),
     linkPassport: (id, input) => call("POST", `/gms/workspaces/${e(id)}/passport/link`, input),
     unlinkPassport: (id) => call("DELETE", `/gms/workspaces/${e(id)}/passport/link`),
@@ -333,6 +346,13 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
       const ws: components["schemas"]["Models.Workspace"] = unwrap(
         await http.GET("/gms/workspaces/{id}", { params: { path: { id: membership.id } } }),
       );
+      // The bell and the Approvals count. Each is one cheap read; a failure (or a role that may
+      // not read approvals) leaves the count at zero and never stops the workspace from opening.
+      const count = async (read: () => Promise<number>) => read().catch(() => 0);
+      const [unread, pending] = await Promise.all([
+        count(async () => Number((await get<{ unread?: number }>("/gms/notifications?unread=true")).unread ?? 0)),
+        ws.kind === "funder" ? count(async () => (await all<unknown>("/gms/approvals?status=pending&pageSize=100")).length) : Promise.resolve(0),
+      ]);
       return {
         id: ws.id,
         handle: ws.handle,
@@ -340,10 +360,9 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
         name: ws.displayName,
         sub: ws.kind === "funder" ? "Funder workspace" : "Applicant workspace",
         brand: { accent: ws.brand?.accent ?? DEFAULT_BRAND.accent, onAccent: ws.brand?.onAccent ?? DEFAULT_BRAND.onAccent },
-        member: { name: who.email, initials: initialsOf(who.email), title: roleTitle(membership.role) },
-        // Counts arrive with the notifications and approvals routes (phases 2 and 5).
-        unreadNotifications: 0,
-        pendingApprovals: 0,
+        member: { name: profile.displayName || who.email, initials: initialsOf(profile.displayName || who.email), title: roleTitle(membership.role), role: membership.role },
+        unreadNotifications: unread,
+        pendingApprovals: pending,
       };
     },
   };

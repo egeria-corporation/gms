@@ -12,7 +12,6 @@ import {
   Briefcase,
   Building,
   ChartColumn,
-  CircleQuestionMark,
   ClipboardCheck,
   FileText,
   House,
@@ -27,6 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useWorkspace, type Workspace } from "../app/workspace.tsx";
+import { hiddenFunderRailItems } from "../lib/roles.ts";
 import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
 
 export interface RailItem {
@@ -52,12 +52,10 @@ export function tenantStyle(ws: Workspace): CSSProperties {
 function TopBar({
   ws,
   roleLabel,
-  searchLabel,
   avatarClass,
 }: {
   ws: Workspace;
   roleLabel: string;
-  searchLabel: string;
   avatarClass: string;
 }) {
   const unread = ws.unreadNotifications;
@@ -70,19 +68,11 @@ function TopBar({
       <WorkspaceMenu currentHandle={ws.handle}>
         {ws.name} <span className="role">{roleLabel}</span>
       </WorkspaceMenu>
-      <div className="search">
-        <Search className="ic" aria-hidden="true" />
-        <input type="search" aria-label={searchLabel} placeholder={searchLabel} />
-        <span className="kbd">⌘K</span>
-      </div>
       <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
         <Link to="/notifications" className="iconbtn" aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}>
           <Bell className="ic ic-md" aria-hidden="true" />
           {unread > 0 && <span className="dot"></span>}
         </Link>
-        <button className="iconbtn" aria-label="Help">
-          <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
-        </button>
         <Link to="/account/agents" className={avatarClass}>
           <span aria-hidden="true">{ws.member.initials}</span>
           <span className="sr">Account: {ws.member.name}</span>
@@ -112,6 +102,8 @@ function RailList({ ws, items, active }: { ws: Workspace; items: RailItem[]; act
 }
 
 function funderRail(ws: Workspace): RailItem[] {
+  // A role is shown only what it can use; the API still decides access.
+  const hidden = hiddenFunderRailItems(ws.member.role ?? "admin");
   return [
     { label: "Dashboard", icon: LayoutDashboard, path: "" },
     { label: "Programs", icon: Briefcase, path: "/programs" },
@@ -121,12 +113,12 @@ function funderRail(ws: Workspace): RailItem[] {
     { label: "Awards", icon: Award, path: "/awards" },
     { label: "Payments", icon: Banknote, path: "/payments/due" },
     { label: "Reporting", icon: FileText, path: "/reporting" },
-    { label: "Grantees", icon: Users, path: "/grantees/org_alder-creek" },
+    { label: "Grantees", icon: Users, path: "/grantees" },
     { label: "Analytics", icon: ChartColumn, path: "/analytics" },
     { label: "Communications", icon: Mail, path: "/communications" },
     { label: "Approvals", icon: Bot, path: "/approvals", count: ws.pendingApprovals },
     { label: "Settings", icon: Settings, path: "/settings" },
-  ];
+  ].filter((item) => !hidden.has(item.label));
 }
 
 export const APPLICANT_RAIL: RailItem[] = [
@@ -157,7 +149,7 @@ export function FunderShell({ active, overlay, firstRun = false, children }: She
   const ws = firstRun ? { ...base, unreadNotifications: 0, pendingApprovals: 0 } : base;
   return (
     <div className="gms gms-funder gms-frame" style={tenantStyle(ws)}>
-      <TopBar ws={ws} roleLabel="Funder" searchLabel="Search applications, awards, grantees, opportunities" avatarClass="av" />
+      <TopBar ws={ws} roleLabel="Funder" avatarClass="av" />
       <div className="shell">
         <nav className="rail" aria-label="Funder workspace">
           <div className="rail-tenant">
@@ -180,7 +172,7 @@ export function ApplicantShell({ active, overlay, children }: ShellProps) {
   const ws = useWorkspace("applicant");
   return (
     <div className="gms gms-applicant gms-frame" style={tenantStyle(ws)}>
-      <TopBar ws={ws} roleLabel="Applicant" searchLabel="Search applications, grants, reports, funders" avatarClass="av av-t" />
+      <TopBar ws={ws} roleLabel="Applicant" avatarClass="av av-t" />
       <div className="shell">
         <nav className="rail" aria-label="Applicant workspace">
           <div className="rail-brand">

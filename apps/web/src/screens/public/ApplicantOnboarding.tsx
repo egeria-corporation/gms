@@ -3,7 +3,8 @@
 // The GMS never asks for organization details here; they are read from Passport with consent.
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleQuestionMark, CircleX } from "lucide-react";
+import { wantedFrom, wantedQuery } from "../../lib/wantedOpportunity.ts";
+import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX } from "lucide-react";
 import type { ApplicantReadiness, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { initialsOf } from "../../api/client.ts";
@@ -36,6 +37,8 @@ export default function ApplicantOnboarding() {
   const outcome = params.get("passport");
   const reason = params.get("reason") ?? "";
   const linkedHandle = params.get("ws");
+  // The opportunity the person clicked Apply on, if that is how they got here.
+  const wanted = wantedFrom(params);
 
   const memberships = meState.status === "ready" ? meState.me.workspaces.filter((w) => w.kind === "applicant") : [];
   const workspace = memberships.find((w) => w.handle === linkedHandle) ?? memberships[0] ?? null;
@@ -103,9 +106,6 @@ export default function ApplicantOnboarding() {
             Set up your applicant workspace
           </span>
           <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-            <button className="iconbtn" type="button" aria-label="Help">
-              <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
-            </button>
             {email && (
               <Link to="/account/agents" className="av av-t">
                 <span aria-hidden="true">{initialsOf(email)}</span>
@@ -244,10 +244,10 @@ export default function ApplicantOnboarding() {
                     })}
                   </ul>
                   <p className="small muted" style={{ marginTop: "10px" }}>
-                    You can apply at any level. Payments through the GMS need a verified payee (L3).
+                    You can apply at any level. A funder who pays through Passport needs your payee verified (L3).
                   </p>
                   {step === 2 && workspace && (
-                    <Link to={`/w/${workspace.handle}`} className="btn btn-primary btn-lg" style={{ marginTop: "12px" }}>
+                    <Link to={wanted ? `/w/${workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${workspace.handle}`} className="btn btn-primary btn-lg" style={{ marginTop: "12px" }}>
                       Go to your workspace
                     </Link>
                   )}

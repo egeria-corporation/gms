@@ -118,7 +118,10 @@ describe.each([
   it("says, with or without a session, whether payments through Passport are on", async () => {
     // The switch itself belongs to the installation (the API's test harness runs with it on).
     const config = await b.visitor.config();
-    expect(config).toEqual({ facilitatedPayments: expect.any(Boolean) });
+    expect(config).toMatchObject({ facilitatedPayments: expect.any(Boolean) });
+    // Which optional connections this server can make, each a plain yes or no.
+    expect(Object.values(config.available ?? {}).every((v) => typeof v === "boolean")).toBe(true);
+    expect(Object.keys(config.available ?? {}).sort()).toEqual(["assistant", "customMcp", "googleWorkspace", "mercury", "openGrants"]);
     expect(await b.funder.config()).toEqual(config);
   });
 

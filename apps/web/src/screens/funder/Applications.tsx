@@ -390,9 +390,15 @@ export default function Applications() {
                 </tbody>
               </table>
               {rows.length === 0 && (
-                <EmptyState icon={Inbox} title="No applications match">
-                  Change or clear the filters to see more.
-                </EmptyState>
+                filtered ? (
+                  <EmptyState icon={Inbox} title="No applications match">
+                    Change or clear the filters to see more.
+                  </EmptyState>
+                ) : (
+                  <EmptyState icon={Inbox} title="No applications yet" actions={<Link to={`/w/${ws.handle}/opportunities`}>Go to opportunities</Link>}>
+                    Applications arrive here once an opportunity is open and someone applies.
+                  </EmptyState>
+                )
               )}
             </div>
           )}

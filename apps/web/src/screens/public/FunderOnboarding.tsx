@@ -4,11 +4,12 @@
 // what was done; the workspace exists from the first step on.
 import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
-import { ArrowLeft, ArrowRight, Check, CircleQuestionMark, RefreshCw, TriangleExclamationPoint } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, RefreshCw, TriangleExclamationPoint } from "lucide-react";
 import { initialsOf } from "../../api/client.ts";
 import { useApiMutation } from "../../api/hooks.ts";
 import type { Invitation, WorkspaceRecord } from "../../api/types.ts";
 import { useServices } from "../../app/services.tsx";
+import { Busy } from "../../auth/RequireAuth.tsx";
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { ErrorBanner, Field, problemFor } from "../../components/ui.tsx";
 import { checkBrand, isHexColor, suggestOnAccent, SYSTEM_BRAND } from "../../lib/contrast.ts";
@@ -100,11 +101,49 @@ function BrandPreview({ name, handle, accent, onAccent, logoUrl }: { name: strin
   );
 }
 
+/** The workspace this tab is setting up, kept so a reload resumes instead of starting over. */
+const RESUME_KEY = "gms.onboarding.funder";
+function keptWorkspaceId(): string | null {
+  try {
+    return window.sessionStorage.getItem(RESUME_KEY);
+  } catch {
+    return null;
+  }
+}
+function keepWorkspaceId(id: string | null): void {
+  try {
+    if (id) window.sessionStorage.setItem(RESUME_KEY, id);
+    else window.sessionStorage.removeItem(RESUME_KEY);
+  } catch {
+    // No session storage: a reload starts the steps again, as before.
+  }
+}
+
 export default function FunderOnboarding() {
   const { step: stepParam } = useParams();
   const navigate = useNavigate();
-  const { meState, reloadMe } = useServices();
+  const { api, meState, reloadMe } = useServices();
   const [workspace, setWorkspace] = useState<WorkspaceRecord | null>(null);
+  // After a reload the workspace made in step one is still there: pick it up again.
+  const [resuming, setResuming] = useState(() => keptWorkspaceId() !== null);
+  useEffect(() => {
+    if (!resuming || workspace || meState.status === "loading") return;
+    const id = keptWorkspaceId();
+    const mine = meState.status === "ready" && id ? meState.me.workspaces.find((w) => w.id === id && w.kind === "funder" && w.role === "admin") : undefined;
+    if (!mine) {
+      keepWorkspaceId(null);
+      setResuming(false);
+      return;
+    }
+    let live = true;
+    api.workspaceRecord(mine.id).then(
+      (record) => live && (setWorkspace(record), setResuming(false)),
+      () => live && setResuming(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, meState, resuming, workspace]);
   const [warnings, setWarnings] = useState<string[]>([]);
 
   // organization
@@ -142,6 +181,7 @@ export default function FunderOnboarding() {
   if (!isStep(stepParam)) return <Navigate to="/onboarding/funder/organization" replace />;
   const step = stepParam;
   // Later steps need the workspace the first step creates.
+  if (resuming && !workspace) return <Busy />;
   if (step !== "organization" && !workspace) return <Navigate to="/onboarding/funder/organization" replace />;
 
   const index = STEPS.findIndex((s) => s.key === step);
@@ -161,6 +201,7 @@ export default function FunderOnboarding() {
     const result = await create.run();
     if (!result) return;
     setWorkspace(result.workspace);
+    keepWorkspaceId(result.workspace.id);
     reloadMe();
     go("brand");
   }
@@ -188,7 +229,10 @@ export default function FunderOnboarding() {
     if (budget.trim() && minor === null) return setBudgetError("Enter an amount in dollars, such as 1,200,000");
     setBudgetError(null);
     const program = await createProgram.run(workspace, minor);
-    if (program) navigate(`/w/${workspace.handle}/programs/${program.id}`);
+    if (program) {
+      keepWorkspaceId(null);
+      navigate(`/w/${workspace.handle}/programs/${program.id}`);
+    }
   }
 
   return (
@@ -203,9 +247,6 @@ export default function FunderOnboarding() {
           Set up your funder workspace
         </span>
         <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-          <button type="button" className="iconbtn" aria-label="Help">
-            <CircleQuestionMark className="ic ic-md" aria-hidden="true" />
-          </button>
           <Link to="/account/agents" className="av">
             <span aria-hidden="true">{initialsOf(email)}</span>
             <span className="sr">Account: {email}</span>
@@ -226,7 +267,7 @@ export default function FunderOnboarding() {
           </div>
           {workspace && (
             <div className="actions">
-              <Link to={`/w/${workspace.handle}`} className="btn btn-ghost">
+              <Link to={`/w/${workspace.handle}`} className="btn btn-ghost" onClick={() => keepWorkspaceId(null)}>
                 Finish later
               </Link>
             </div>

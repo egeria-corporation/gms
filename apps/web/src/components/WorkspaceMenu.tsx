@@ -179,7 +179,16 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Plus className="ic" aria-hidden="true" />
-                Create a workspace
+                Create a funder workspace
+              </Link>
+              <Link
+                to="/onboarding/applicant"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Plus className="ic" aria-hidden="true" />
+                Link an applicant organization
               </Link>
               <button
                 type="button"

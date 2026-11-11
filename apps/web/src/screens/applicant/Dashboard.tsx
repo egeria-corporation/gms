@@ -5,12 +5,13 @@ import { Link } from "react-router";
 import { CircleCheck, CircleDashed, CircleX, Info, Search } from "lucide-react";
 import type { ApplicantApi, ApplicantReadiness, AwardDetail, MyApplication, Task, Thread } from "../../api/applicant.ts";
 import { useApplicantQuery } from "../../api/applicantHooks.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
 import { useIsPhone } from "../../app/usePhone.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, closesPhrase, firstName, FunderChip, greeting, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
-import { EmptyState } from "../../components/ui.tsx";
+import { EmptyState, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 
 const OPEN: MyApplication["status"][] = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
@@ -21,16 +22,25 @@ export interface DashboardData {
   awards: AwardDetail[];
   threads: Thread[];
   tasks: Task[];
+  /** Parts that could not be loaded this time; the rest of the dashboard still shows. */
+  missing: string[];
 }
 
 export async function loadDashboard(api: ApplicantApi): Promise<DashboardData> {
-  const [readiness, applications, awardList, tasks] = await Promise.all([api.readiness(), api.applications(), api.awards(), api.tasks()]);
+  // One list failing must not blank the whole dashboard: it shows empty, with a note saying so.
+  const missing: string[] = [];
+  const or = <T,>(what: string, read: Promise<T[]>): Promise<T[]> =>
+    read.catch(() => {
+      missing.push(what);
+      return [] as T[];
+    });
+  const [readiness, applications, awardList, tasks] = await Promise.all([api.readiness(), or("applications", api.applications()), or("grants", api.awards()), or("tasks", api.tasks())]);
   const active = applications.filter((a) => OPEN.includes(a.status));
   const [awards, threads] = await Promise.all([
     Promise.all(awardList.filter((w) => w.status !== "cancelled").map((w) => api.award(w.id))),
     Promise.all(active.slice(0, 5).map((a) => api.threads(a.id).catch(() => [] as Thread[]))),
   ]);
-  return { readiness, applications: active, awards, threads: threads.flat(), tasks };
+  return { readiness, applications: active, awards, threads: threads.flat(), tasks, missing };
 }
 
 const CHECK = {
@@ -41,6 +51,9 @@ const CHECK = {
 
 function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; base: string }) {
   const failing = readiness.checks.find((c) => c.state === "fail");
+  // Whether funders on this site can pay through Passport at all. Where they cannot, a missing
+  // payee holds nothing up, and the card must not say it does.
+  const { facilitatedPayments } = useAppConfig();
   return (
     <section className="card" aria-labelledby="ready-h">
       <div className="card-h">
@@ -51,7 +64,7 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
           <LevelBadge level={readiness.level} />
         </div>
         <Link to={`${base}/organization`} className="small b">
-          Manage in Passport
+          View organization
         </Link>
       </div>
       <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
@@ -78,10 +91,23 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
       )}
       {readiness.linked && failing && (
         <div className="card-f">
-          <Link to={`${base}/organization`} className="btn btn-primary">
-            {failing.key === "payee_verified" ? "Verify payee in Passport" : "Fix in Passport"}
-          </Link>
-          <span className="help">{failing.key === "payee_verified" ? "Awards can be offered but no payment can be released until L3." : failing.reason}</span>
+          {failing.fixHref ? (
+            // Opens Passport itself, where the fix is made.
+            <a href={failing.fixHref} className="btn btn-primary">
+              {failing.key === "payee_verified" ? "Verify payee in Passport" : "Fix in Passport"}
+            </a>
+          ) : (
+            <Link to={`${base}/organization`} className="btn btn-primary">
+              See what is needed
+            </Link>
+          )}
+          <span className="help">
+            {failing.key !== "payee_verified"
+              ? failing.reason
+              : facilitatedPayments
+                ? "Awards can be offered, but a funder cannot pay through Passport until your payee is verified (L3)."
+                : "Funders on this site pay outside the GMS, so this holds nothing up today. A verified payee (L3) is needed where a funder pays through Passport."}
+          </span>
         </div>
       )}
       {readiness.summary.unknown > 0 && readiness.linked && (
@@ -367,7 +393,12 @@ export default function Dashboard() {
               return (
                 <>
                   <ReadinessCard readiness={d.readiness} base={base} />
-                  {nothing ? (
+                  {d.missing.length > 0 && (
+                    <Notice tone="neu" title={`Your ${d.missing.join(" and ")} could not be loaded just now`}>
+                      The rest of the dashboard is up to date. Reload the page to try again.
+                    </Notice>
+                  )}
+                  {nothing && d.missing.length === 0 ? (
                     <div className="card">
                       <EmptyState
                         icon={Search}

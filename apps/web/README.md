@@ -206,7 +206,7 @@ Counts: 53 live, 0 partial, 14 static (67 artboards). The static ones are refere
 | applicant/Funders | `/w/:ws/funders` | live | Open items, documents and contact per funder. Named contacts come from the funder's settings; the public funder page shows the ones marked public |
 | applicant/Settings | `/w/:ws/settings` | live | API tokens (secret shown once, never submit or sign), exports and leaving the workspace |
 | applicant/phone/* (6: Dashboard, Organization, Editor, ApplicationStatus, Grant, Reports) | same routes at 390 | live | Same data as the desktop screens |
-| shared/OAuthConsent | `/oauth/consent` | live | |
+| shared/OAuthConsent | `/consent` | live | |
 | shared/email/* (6) | `/preview/email/:kind` | static | Reference layouts for `packages/notify` |
 | shared/pdf/* (3) | `/preview/pdf/:kind` | static | Reference layouts for `packages/documents` |
 | styleguide/* (5) | `/styleguide/*` | static | Component reference |

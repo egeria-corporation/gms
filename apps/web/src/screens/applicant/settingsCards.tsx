@@ -3,6 +3,7 @@
 // sign), exports of everything the workspace entered, and leaving the workspace.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useServices } from "../../app/services.tsx";
 import { Download, Key } from "lucide-react";
 import { APPLICANT_TOKEN_SCOPES, type NewApiToken } from "../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../api/applicantFullHooks.ts";
@@ -225,9 +226,13 @@ export function DangerZone({ workspaceId, name }: { workspaceId: string; name: s
   const [confirming, setConfirming] = useState(false);
   const leave = useFullMutation((api) => api.leaveWorkspace(workspaceId));
   const navigate = useNavigate();
+  const { reloadMe } = useServices();
   const confirm = async () => {
     const r = await leave.run();
-    if (r?.left) void navigate("/workspaces");
+    if (!r?.left) return;
+    // The switcher lists memberships: read them again so the workspace just left is gone.
+    reloadMe();
+    void navigate("/workspaces");
   };
   return (
     <div className="card" style={{ borderColor: "var(--s-dng-bd)" }}>
