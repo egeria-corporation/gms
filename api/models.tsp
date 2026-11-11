@@ -1871,6 +1871,13 @@ model Me {
 
   userId: CommonGrants.Types.uuid;
   email: string | null;
+
+  /** What to call the person on screen: the name on their account, else the first part of their address. */
+  displayName?: string | null;
+
+  /** How this session was started. */
+  signInMethod?: "passport" | "email";
+
   /** Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
   mfaVerified: boolean;
   workspaces: MyWorkspace[];

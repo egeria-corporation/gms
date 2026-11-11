@@ -179,10 +179,16 @@ export default function AccountSettings() {
               </div>
               <div className="card-b">
                 <dl className="kv" style={{ fontSize: "14px" }}>
+                  {meState.status === "ready" && meState.me.displayName ? (
+                    <>
+                      <dt>Name</dt>
+                      <dd>{meState.me.displayName}</dd>
+                    </>
+                  ) : null}
                   <dt>Email</dt>
                   <dd>{session?.email ?? "—"}</dd>
                   <dt>Sign-in</dt>
-                  <dd>One-time code or magic link sent to this email</dd>
+                  <dd>{meState.status === "ready" && meState.me.signInMethod === "passport" ? "OpenGrants Passport" : "One-time code sent to this email"}</dd>
                 </dl>
                 <p className="help" style={{ marginTop: "10px" }}>
                   Your organization's details are kept in OpenGrants Passport, not here.

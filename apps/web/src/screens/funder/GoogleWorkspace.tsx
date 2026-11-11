@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { CircleCheck, FolderUp, Plug } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
 import type { DirectoryPerson, DriveExport, DriveExportKind } from "../../api/launch.ts";
 import { useLaunchApi, useLaunchMutation } from "../../api/launchHooks.ts";
 import { ErrorBanner, Notice } from "../../components/ui.tsx";
@@ -37,6 +38,8 @@ export function GoogleWorkspaceCard() {
     void run().then((next) => next && set(next));
   }, [run, set]);
 
+  // The server says outright when it has no Composio connection: no Connect button is offered then.
+  const unavailable = useAppConfig().available?.googleWorkspace === false;
   const start = async () => {
     const next = await connect.run();
     if (!next) return;
@@ -44,7 +47,7 @@ export function GoogleWorkspaceCard() {
     if (!next.connected && next.connectUrl) leaveTo(next.connectUrl);
   };
   if (!c) return status.status === "error" ? <ErrorBanner error={status.error} onRetry={status.reload} /> : null;
-  const notConfigured = c.status === "not_configured" || (connect.error !== null && !c.connected && c.status !== "pending");
+  const notConfigured = unavailable || c.status === "not_configured" || (connect.error !== null && !c.connected && c.status !== "pending");
   const label = c.connected ? "Connected" : c.status === "pending" ? "Waiting for Google sign-in" : notConfigured ? "Not configured" : "Not connected";
 
   return (
@@ -68,7 +71,7 @@ export function GoogleWorkspaceCard() {
           </button>
         </div>
       ) : notConfigured ? (
-        <Notice tone="neu" title="Not configured on this installation">
+        <Notice tone="neu" title="Not available on this installation">
           Google Workspace needs a Composio connection set up by whoever hosts this GMS. Everything else works without it.
         </Notice>
       ) : (

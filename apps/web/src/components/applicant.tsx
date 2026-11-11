@@ -73,7 +73,11 @@ export function greeting(now: Date = new Date()): string {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-export const firstName = (name: string) => name.replace(/@.*$/, "").split(/[\s._-]+/)[0] ?? name;
+/** The first name to greet someone by. An address is cut at the @; a lower-case local part is capitalised. */
+export const firstName = (name: string) => {
+  const first = name.replace(/@.*$/, "").split(/[\s._-]+/)[0] ?? name;
+  return first && first === first.toLowerCase() ? first.charAt(0).toUpperCase() + first.slice(1) : first;
+};
 
 const SOURCE_LABELS: Record<string, string> = {
   irs_bmf: "IRS records",

@@ -4,6 +4,7 @@
 // report can make a tranche due, and the screen says so before and after.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { useServices } from "../../app/services.tsx";
 import { Bell, CircleCheck, ClipboardCheck, Mail, RotateCcw, Share2, TriangleAlert } from "lucide-react";
 import type { JsonObject } from "@gms/forms";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -174,6 +175,8 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
 }
 
 export default function Reporting() {
+  // The reminder preview is a design reference with sample content: demo mode only.
+  const { mock } = useServices();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();
@@ -296,9 +299,11 @@ export default function Reporting() {
                               <Mail className="ic ic-sm" aria-hidden="true" />
                               Send reminder to {overdue.length}
                             </button>
-                            <Link to="/preview/email/report-reminder" className="small b">
-                              Preview the reminder
-                            </Link>
+                            {mock && (
+                              <Link to="/preview/email/report-reminder" className="small b">
+                                Preview the reminder
+                              </Link>
+                            )}
                           </div>
                         </div>
                       </section>

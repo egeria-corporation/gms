@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// OAuth consent for an MCP client (`/oauth/consent?req=…`). The signed request names the client and
+// OAuth consent for an MCP client (`/consent?req=…`). The signed request names the client and
 // the scopes it asked for; the person picks one workspace, can untick scopes, sees which actions
 // stay behind a human gate, and approves or denies. The API returns where to send the browser.
 import { useEffect, useState } from "react";

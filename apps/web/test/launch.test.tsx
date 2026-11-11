@@ -395,7 +395,7 @@ describe("Google Workspace", () => {
     show(`${R}/settings/mcp`, services);
     const integrations = within(await waitFor(() => card("Integrations")));
     await userEvent.click(await integrations.findByRole("button", { name: "Connect Google Workspace" }));
-    expect(await integrations.findByText("Not configured on this installation")).toBeInTheDocument();
+    expect(await integrations.findByText("Not available on this installation")).toBeInTheDocument();
     expect(left.to).toEqual([]);
   });
 

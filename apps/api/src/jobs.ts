@@ -27,7 +27,7 @@ export { sendDigests } from "./services/member-mail.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";
-export { McpOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
+export { RestOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
 
 const sys = (base: BaseContext, job: string, workspaceId: string): ServiceContext => systemContext(base, { job }, { id: workspaceId, kind: "funder" });
 

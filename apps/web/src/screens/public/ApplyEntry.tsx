@@ -6,6 +6,7 @@ import { Navigate, useParams } from "react-router";
 import { Busy } from "../../auth/RequireAuth.tsx";
 import { useServices } from "../../app/services.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
+import { rememberWanted, wantedQuery } from "../../lib/wantedOpportunity.ts";
 
 export default function ApplyEntry() {
   const { handle = "", slug = "" } = useParams();
@@ -20,6 +21,8 @@ export default function ApplyEntry() {
     );
   }
   const applicant = meState.me.workspaces.find((w) => w.kind === "applicant");
-  const want = `funder=${encodeURIComponent(handle)}&opportunity=${encodeURIComponent(slug)}`;
+  // Kept for the trip through Passport and onboarding, which cannot carry it in the address.
+  rememberWanted({ funder: handle, opportunity: slug });
+  const want = wantedQuery({ funder: handle, opportunity: slug });
   return <Navigate to={applicant ? `/w/${applicant.handle}/find?${want}` : `/onboarding/applicant?${want}`} replace />;
 }

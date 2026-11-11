@@ -54,7 +54,13 @@ describe("authorization code + PKCE", () => {
     const h = await harness();
     const { step1, req, session } = await authorizeAs(h, USER_OFFICER, { approve: false });
     expect(step1.status).toBe(302);
-    expect(step1.headers.get("Location")!.startsWith(`${WEB}/oauth/consent?req=`)).toBe(true);
+    expect(step1.headers.get("Location")!.startsWith(`${WEB}/consent?req=`)).toBe(true);
+    // Not under /oauth/: the hosted site routes that whole prefix to this Worker, which has no pages.
+    expect(step1.headers.get("Location")).not.toContain("/oauth/consent");
+    // A link issued before the page moved is sent on, with its request intact.
+    const old = await h.request("/oauth/consent?req=signed.request");
+    expect(old.status).toBe(302);
+    expect(old.headers.get("Location")).toBe(`${WEB}/consent?req=signed.request`);
 
     const view = await h.request(`/oauth/authorize/request?req=${encodeURIComponent(req)}`, bearer(session));
     expect(view.status).toBe(200);

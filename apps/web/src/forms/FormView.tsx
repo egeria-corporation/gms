@@ -227,7 +227,7 @@ export function FormView(props: FormViewProps) {
     touch: (path) => setTouched((prev) => (prev.has(path) ? prev : new Set(prev).add(path))),
     uid,
     uploadFile: props.uploadFile,
-    passportUrl: props.passportUrl ?? "https://passport.opengrants.io",
+    passportUrl: props.passportUrl ?? "https://app.passport.opengrants.io",
   };
 
   const body = <Element el={form.uiSchema} ctx={ctx} />;

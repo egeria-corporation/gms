@@ -39,6 +39,8 @@ export interface ServiceConfig {
   baseUrl: string;
   webBaseUrl: string;
   passportBaseUrl: string | null;
+  /** Passport's web app, for links a person opens. Never the API address: that answers 404 to a browser. */
+  passportWebUrl?: string | null;
   /** PASSPORT_ISSUER: the `iss` of Passport's tokens; the base URL when not set. */
   passportIssuer?: string | null;
   /** CREDENTIALS_ENCRYPTION_KEY; null when the install has not configured Passport linking. */

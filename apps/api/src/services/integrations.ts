@@ -262,6 +262,9 @@ export async function getConnector(ctx: ServiceContext, provider: Provider) {
     });
     return { ...accountView(a, provider), connected: s.connected, connectUrl: s.connectUrl };
   }
+  // Google Workspace without Composio on this server: say so, so the app does not offer a
+  // Connect button that can only fail.
+  if (provider === "google_workspace") return { ...accountView(a, provider), status: "not_configured" as const };
   return accountView(a, provider);
 }
 

@@ -95,7 +95,7 @@ export interface PassportProblem {
 
 /** What each `?passport_error=` code means to the person, and what to do next. */
 export function passportProblem(code: string | null): PassportProblem | null {
-  const passport = env.passportBaseUrl.replace("//passport.", "//app.passport.");
+  const passport = env.passportWebUrl;
   switch (code as PassportErrorCode | null) {
     case null:
       return null;

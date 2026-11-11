@@ -13,7 +13,7 @@ import { createApp, type Deps } from "./app.ts";
 import { SupabaseAuthStore } from "./auth/supabase-store.ts";
 import { trimSlash, type Env } from "./env.ts";
 import type { ServicePorts } from "./services/context.ts";
-import { McpOpenGrantsClient, R2FileStorage, SupabaseIdentity, SupabaseSecondSteps, SupabaseSessions, SupabaseUserDirectory, type SupabaseAdminLike, type SupabaseIdentityLike, type SupabaseRpcLike } from "./services/ports.ts";
+import { RestOpenGrantsClient, R2FileStorage, SupabaseIdentity, SupabaseSecondSteps, SupabaseSessions, SupabaseUserDirectory, type SupabaseAdminLike, type SupabaseIdentityLike, type SupabaseRpcLike } from "./services/ports.ts";
 import { RepoMembershipStore } from "./services/repos/membership.ts";
 import { SupabaseRepos } from "./services/repos/supabase.ts";
 
@@ -51,7 +51,8 @@ function ports(env: Env): ServicePorts {
   return {
     ...(env.RESEND_API_KEY ? { mailer: new ResendMailer(env.RESEND_API_KEY) } : {}),
     ...(env.ATTACHMENTS ? { storage: new R2FileStorage(env.ATTACHMENTS) } : {}),
-    ...(env.OPENGRANTS_MCP_URL ? { openGrants: new McpOpenGrantsClient(env.OPENGRANTS_MCP_URL, env.OPENGRANTS_API_KEY ?? null) } : {}),
+    // The REST API with a server-side key. Without a key there is no funding search; the web app says so.
+    ...(env.OPENGRANTS_API_KEY ? { openGrants: new RestOpenGrantsClient(env.OPENGRANTS_API_URL ?? "https://ops.opengrants.io/functions/v1", env.OPENGRANTS_API_KEY) } : {}),
     // Mercury is read-only reconciliation, never a rail.
     bank: new MercuryBankFeed(),
     // The funder's Google Workspace through Composio, only when both the key and the auth config are set.

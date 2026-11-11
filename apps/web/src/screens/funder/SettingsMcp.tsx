@@ -7,13 +7,14 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowRight, Bot, Check, Download, KeyRound, Plug, Plus, ShieldCheck, Webhook as WebhookIcon } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
 import type { ApiClientIssued, LedgerEvent, McpServer, RemoteTool, Webhook, WebhookCreated } from "../../api/funderMoney.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
+import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { env } from "../../env.ts";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
@@ -160,6 +161,21 @@ function McpServers() {
     await api.removeMcpServer(id);
     return true;
   });
+  // Where this server cannot store a server's credentials, the form could only fail: say so instead.
+  if (useAppConfig().available?.customMcp === false) {
+    return (
+      <section id="servers" className="card" aria-labelledby="servers-h">
+        <div className="card-h">
+          <h3 id="servers-h">Custom MCP servers</h3>
+        </div>
+        <div className="card-b">
+          <Notice tone="neu" title="Not available on this installation">
+            Custom MCP servers need to be switched on by whoever hosts this GMS. Everything else works without them.
+          </Notice>
+        </div>
+      </section>
+    );
+  }
   return (
     <section id="servers" className="card" aria-labelledby="servers-h">
       <div className="card-h">
@@ -236,6 +252,20 @@ function Connectors() {
   const sync = useApiMutation((api) => api.syncConnector("mercury"));
   const disconnect = useApiMutation((api) => api.disconnectConnector("mercury"));
   const [mercury] = page.data ?? [];
+  if (useAppConfig().available?.mercury === false) {
+    return (
+      <section id="integrations" className="card" aria-labelledby="integrations-h">
+        <div className="card-h">
+          <h3 id="integrations-h">Integrations</h3>
+        </div>
+        <div className="card-b">
+          <Notice tone="neu" title="Mercury reconciliation is not available on this installation">
+            It needs to be switched on by whoever hosts this GMS. Payments can still be recorded by hand.
+          </Notice>
+        </div>
+      </section>
+    );
+  }
   return (
     <section id="integrations" className="card" aria-labelledby="integrations-h">
       <div className="card-h">
@@ -597,7 +627,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
           }
         }}
       >
-        <input className="inp" type="email" aria-label="Email to invite" placeholder="name@organization.example" value={email} onChange={(e) => setEmail(e.target.value)} style={{ maxWidth: "280px" }} />
+        <input className="inp" type="email" aria-label="Email to invite" placeholder="name@organization.org" value={email} onChange={(e) => setEmail(e.target.value)} style={{ maxWidth: "280px" }} />
         <select className="sel" aria-label="Role for the invitation" value={role} onChange={(e) => setRole(e.target.value)} style={{ maxWidth: "180px" }}>
           {FUNDER_ROLES.map((r) => (
             <option key={r} value={r}>
@@ -762,7 +792,7 @@ function ConnectAgent({ workspaceName }: { workspaceName: string }) {
             See which actions need a person
           </a>
           {mock && (
-            <Link to="/oauth/consent?req=preview" className="small b">
+            <Link to="/consent?req=preview" className="small b">
               Preview the consent screen
             </Link>
           )}

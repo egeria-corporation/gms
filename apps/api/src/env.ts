@@ -20,6 +20,8 @@ export interface Env {
   OAUTH_DCR_REDIRECT_HOSTS?: string;
 
   PASSPORT_BASE_URL?: string;
+  /** Where people use Passport in a browser (its web app), for links. The API lives at PASSPORT_BASE_URL. */
+  PASSPORT_WEB_URL?: string;
   PASSPORT_ISSUER?: string;
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;
@@ -34,7 +36,8 @@ export interface Env {
   CREDENTIALS_ENCRYPTION_KEY?: string;
   WEBHOOK_SECRET_KEY?: string;
 
-  OPENGRANTS_MCP_URL?: string;
+  /** OpenGrants REST API base (default https://ops.opengrants.io/functions/v1). Funding search is on when OPENGRANTS_API_KEY is set. */
+  OPENGRANTS_API_URL?: string;
   OPENGRANTS_API_KEY?: string;
   COMPOSIO_API_KEY?: string;
   COMPOSIO_GOOGLE_AUTH_CONFIG_ID?: string;

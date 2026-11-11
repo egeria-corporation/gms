@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
 import { Columns3, Download, Inbox } from "lucide-react";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 
+/** What Applications shows a funder who has no program yet: the four steps to the first application. */
 export default function ApplicationsEmpty() {
+  const ws = useWorkspace("funder");
+  const base = `/w/${ws.handle}`;
   return (
     <>
-      <title>{"Applications — first run (empty)"}</title>
+      <title>{`Applications — ${ws.name}`}</title>
       <FunderShell active="Applications" firstRun>
         <main className="main">
           <div className="crumbs">
-            <Link to="/w/riverbend">Riverbend</Link>
+            <Link to={base}>{ws.name}</Link>
             <span>›</span>
             <span>Applications</span>
           </div>
@@ -35,7 +39,7 @@ export default function ApplicationsEmpty() {
             </div>
           </div>
           <nav className="tabs" aria-label="Saved views">
-            <Link to="/w/riverbend/applications/first-run" className="tab on" aria-current="page">
+            <Link to={`${base}/applications`} className="tab on" aria-current="page">
               All<span className="n">0</span>
             </Link>
             <span className="tab" aria-disabled="true">
@@ -56,10 +60,10 @@ export default function ApplicationsEmpty() {
               already evaluated.
             </p>
             <div className="acts" style={{ marginTop: "10px" }}>
-              <Link to="/w/riverbend/programs" className="btn btn-primary btn-lg">
+              <Link to={`${base}/programs`} className="btn btn-primary btn-lg">
                 Create a program
               </Link>
-              <Link to="/w/riverbend/analytics" className="b" style={{ fontSize: "14px" }}>
+              <Link to={`${base}/analytics`} className="b" style={{ fontSize: "14px" }}>
                 Import applications from CSV
               </Link>
             </div>
@@ -69,7 +73,7 @@ export default function ApplicationsEmpty() {
               What happens next
             </div>
             <div className="stp" aria-label="Setup steps">
-              <Link to="/w/riverbend/programs" className="s" style={{ textDecoration: "none" }}>
+              <Link to={`${base}/programs`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">1</span>
                 <div>
                   <div>Program</div>
@@ -79,7 +83,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/opportunities/new" className="s" style={{ textDecoration: "none" }}>
+              <Link to={`${base}/opportunities/new`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">2</span>
                 <div>
                   <div>Opportunity</div>
@@ -89,7 +93,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/forms" className="s" style={{ textDecoration: "none" }}>
+              <Link to={`${base}/forms`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">3</span>
                 <div>
                   <div>Form</div>
@@ -99,7 +103,7 @@ export default function ApplicationsEmpty() {
                 </div>
               </Link>
               <div className="ln"></div>
-              <Link to="/w/riverbend/opportunities" className="s" style={{ textDecoration: "none" }}>
+              <Link to={`${base}/opportunities`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">4</span>
                 <div>
                   <div>Launch</div>

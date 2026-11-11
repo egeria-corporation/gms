@@ -5,7 +5,7 @@ import { mockLaunchStore } from "../api/launchHooks.ts";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
-import { createServices, ServicesProvider, type Services } from "./services.tsx";
+import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
@@ -16,6 +16,7 @@ const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
+const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -158,6 +159,8 @@ export function App({ services }: { services?: Services }) {
 }
 
 function AppRoutes() {
+  // The design reference boards and template previews carry demo content: demo (mock) mode only.
+  const { mock } = useServices();
   return (
     <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
       <Routes>
@@ -168,7 +171,8 @@ function AppRoutes() {
         <Route path="/auth/passport" element={<PassportReturn />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
-        <Route path="/oauth/consent" element={<OAuthConsent />} />
+        {/* The agent consent page. Not under /oauth/: the site hands every /oauth/ path to the API. */}
+        <Route path="/consent" element={<OAuthConsent />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -176,6 +180,7 @@ function AppRoutes() {
           <Route path="/onboarding/funder/:step" element={<FunderOnboarding />} />
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
           <Route path="/apply/:handle/:slug" element={<ApplyEntry />} />
+          <Route path="/invitations/accept" element={<InvitationAccept />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />
@@ -251,14 +256,18 @@ function AppRoutes() {
         </Route>
 
         {/* Component reference from the design canvas, and the email / PDF templates */}
-        <Route path="/styleguide/form" element={<SgFormRenderer />} />
-        <Route path="/styleguide/status" element={<SgStatusVocabulary />} />
-        <Route path="/styleguide/components-a" element={<SgComponentsA />} />
-        <Route path="/styleguide/components-b" element={<SgComponentsB />} />
-        <Route path="/styleguide/approval-flow" element={<SgApprovalFlow />} />
-        <Route path="/styleguide/passport-consent" element={<SgPassportConsentReference />} />
-        <Route path="/preview/email/:kind" element={<Preview of={EMAIL_PREVIEWS} />} />
-        <Route path="/preview/pdf/:kind" element={<Preview of={PDF_PREVIEWS} />} />
+        {mock && (
+          <>
+            <Route path="/styleguide/form" element={<SgFormRenderer />} />
+            <Route path="/styleguide/status" element={<SgStatusVocabulary />} />
+            <Route path="/styleguide/components-a" element={<SgComponentsA />} />
+            <Route path="/styleguide/components-b" element={<SgComponentsB />} />
+            <Route path="/styleguide/approval-flow" element={<SgApprovalFlow />} />
+            <Route path="/styleguide/passport-consent" element={<SgPassportConsentReference />} />
+            <Route path="/preview/email/:kind" element={<Preview of={EMAIL_PREVIEWS} />} />
+            <Route path="/preview/pdf/:kind" element={<Preview of={PDF_PREVIEWS} />} />
+          </>
+        )}
 
         <Route path="*" element={<NotFound />} />
       </Routes>

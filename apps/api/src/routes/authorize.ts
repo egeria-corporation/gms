@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Authorization code flow with PKCE, in three steps:
 //   1. GET  /oauth/authorize           the client's request is validated, signed, and the person is
-//                                      sent to the web consent screen (`/oauth/consent?req=…`)
+//                                      sent to the web consent screen (`/consent?req=…`)
 //   2. GET  /oauth/authorize/request   what that screen shows: client, scopes, gated actions, workspaces
 //   3. POST /oauth/authorize/decision  the person's answer; returns where to send the browser
 // The person chooses one workspace; the token is bound to user + workspace + scopes (build spec §10.9).
@@ -53,7 +53,15 @@ authorize.get("/authorize", async (c) => {
     { client_id: client.id, redirect_uri: redirectUri, scope: scopes.join(" "), code_challenge: q("code_challenge")!, ...(state !== undefined ? { state } : {}) },
     now(),
   );
-  return c.redirect(`${trimSlash(c.env.WEB_BASE_URL)}/oauth/consent?req=${encodeURIComponent(req)}`, 302);
+  // `/consent`, not `/oauth/consent`: on the hosted site every `/oauth/` path is routed to this
+  // Worker, so a web page under it can never load.
+  return c.redirect(`${trimSlash(c.env.WEB_BASE_URL)}/consent?req=${encodeURIComponent(req)}`, 302);
+});
+
+/** Links issued before the page moved: send the browser on to where it lives now. */
+authorize.get("/consent", (c) => {
+  const req = c.req.query("req");
+  return c.redirect(`${trimSlash(c.env.WEB_BASE_URL)}/consent${req ? `?req=${encodeURIComponent(req)}` : ""}`, 302);
 });
 
 async function loadRequest(c: { env: AppEnv["Bindings"]; get: (k: "deps") => AppEnv["Variables"]["deps"] }, token: string | undefined) {

@@ -11309,12 +11309,27 @@ export interface components {
             /** @description The answer, with this use recorded in `usedIn` */
             answer: components["schemas"]["Models.Answer"];
         };
+        /** @description Optional connections, each true only when the server has what it needs (a key, a binding). */
+        "Models.InstallAvailability": {
+            /** @description Funding search across OpenGrants. False: `/gms/discover/opengrants/*` answers 503. */
+            openGrants: boolean;
+            /** @description The drafting assistant: switched on and holding a model key. */
+            assistant: boolean;
+            /** @description Google Workspace through Composio. */
+            googleWorkspace: boolean;
+            /** @description Mercury read-only reconciliation. */
+            mercury: boolean;
+            /** @description Custom MCP servers a workspace may add. */
+            customMcp: boolean;
+        };
         /** @description What this server has switched on. Read before sign-in so the web app can hide controls. */
         "Models.InstallConfig": {
             /** @description False: `POST /gms/tranches/{id}/release` answers 409 `facilitated_payments_disabled` and payments are recorded after being paid outside the GMS. */
             facilitatedPayments: boolean;
             /** @description False: every drafting route under `/gms/assist/` answers 404. */
             assistantEnabled: boolean;
+            /** @description Which optional connections this server can make. The web app offers a control only where its entry is true. */
+            available?: components["schemas"]["Models.InstallAvailability"];
         };
         /** @description Name the time by its `slotId` from the proposal or by the time itself: one of the two. */
         "Models.InterviewConfirmation": {
@@ -11535,6 +11550,13 @@ export interface components {
             features?: components["schemas"]["Models.InstallConfig"];
             userId: components["schemas"]["CommonGrants.Types.uuid"];
             email: string | null;
+            /** @description What to call the person on screen: the name on their account, else the first part of their address. */
+            displayName?: string | null;
+            /**
+             * @description How this session was started.
+             * @enum {string}
+             */
+            signInMethod?: "passport" | "email";
             /** @description Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
             mfaVerified: boolean;
             workspaces: components["schemas"]["Models.MyWorkspace"][];

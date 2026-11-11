@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: [".claude/**", "**/node_modules/**", "**/dist/**", "**/tsp-output/**", "**/.wrangler/**", "**/.front-worker/**", "packages/db/src/database.types.ts", "api/base/**"],
+    ignores: [".claude/**", "**/node_modules/**", "**/dist/**", "**/tsp-output/**", "**/.wrangler/**", "**/.front-worker/**", "**/.e2e-dist/**", "packages/db/src/database.types.ts", "api/base/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

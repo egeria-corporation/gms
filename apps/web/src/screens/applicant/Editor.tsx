@@ -77,7 +77,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const api = useApplicantApi();
   const more = useMoreApi();
   const realtime = useRealtime();
-  const { sessionState } = useServices();
+  const { sessionState, mock } = useServices();
   const navigate = useNavigate();
   const { app, summary, defs } = data;
 
@@ -330,9 +330,12 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />
             ))}
           </div>
-          <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
-            Preview
-          </Link>
+          {/* The template preview is a design reference with sample content: demo mode only. */}
+          {mock && (
+            <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
+              Preview
+            </Link>
+          )}
           <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
             Submit…
           </button>

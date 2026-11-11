@@ -9,6 +9,7 @@ import { useServices } from "../../app/services.tsx";
 import type { TotpEnrollment } from "../../auth/types.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
+import { isReviewOnly } from "../../lib/roles.ts";
 import { MOCK_CODE } from "../../mocks/auth.ts";
 
 type Step = "email" | "code" | "mfa" | "first-run";
@@ -71,6 +72,14 @@ function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v:
   );
 }
 
+/** The token in a pasted invitation: the whole link from the email, or the token on its own. */
+export function invitationToken(pasted: string): string | null {
+  const text = pasted.trim();
+  const fromLink = /[?&]token=([^&#\s]+)/.exec(text)?.[1];
+  const token = fromLink ? decodeURIComponent(fromLink) : text;
+  return /^[A-Za-z0-9_-]{10,200}$/.test(token) ? token : null;
+}
+
 export default function SignIn() {
   const { auth, sessionState, meState, reloadMe, mock } = useServices();
   const navigate = useNavigate();
@@ -101,7 +110,9 @@ export default function SignIn() {
     const needsMfa = !me.mfaVerified && (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa));
     if (needsMfa) return setStep("mfa");
     if (me.workspaces.length === 0 && !next) return setStep("first-run");
-    navigate(next ?? `/w/${me.workspaces[0]!.handle}`, { replace: true });
+    // Someone whose only job here is reviewing works in the reviewer portal, not the funder workspace.
+    const first = me.workspaces[0]!;
+    navigate(next ?? (isReviewOnly(first.role) && me.workspaces.every((w) => isReviewOnly(w.role)) ? "/review/assignments" : `/w/${first.handle}`), { replace: true });
   }, [sessionState.status, meState, next, navigate]);
 
   // Entering the second step: challenge an enrolled authenticator, or start enrollment.
@@ -163,8 +174,11 @@ export default function SignIn() {
   const continueFirstRun = () => {
     if (choice === "funder") navigate("/onboarding/funder");
     else if (choice === "applicant") navigate("/onboarding/applicant");
-    else if (!invite.trim()) setError("Paste the invitation code from your email.");
-    else setError("Joining with a code is not available yet. Open the link in your invitation email instead.");
+    else {
+      const token = invitationToken(invite);
+      if (!token) setError("Paste the link from your invitation email.");
+      else navigate(`/invitations/accept?token=${encodeURIComponent(token)}`);
+    }
   };
 
   const waiting = sessionState.status === "signedIn" && meState.status === "loading";
@@ -521,12 +535,12 @@ export default function SignIn() {
                           {key === "invite" && on && (
                             <div className="fld">
                               <label className="sr" htmlFor="invite">
-                                Invitation code
+                                Invitation link
                               </label>
                               <input
                                 className="inp"
                                 id="invite"
-                                placeholder="Paste invitation code"
+                                placeholder="Paste the link from your invitation email"
                                 value={invite}
                                 onChange={(e) => setInvite(e.target.value)}
                                 style={{ height: "40px" }}
@@ -559,10 +573,9 @@ export default function SignIn() {
               flexWrap: "wrap",
             }}
           >
-            <span>By continuing you agree to the OpenGrants GMS terms.</span>
-            <Link to="/">Terms</Link>
-            <Link to="/">Privacy</Link>
-            <Link to="/">Status</Link>
+            <span>OpenGrants GMS is free and open source.</span>
+            <a href="https://github.com/egeria-corporation/gms">Source</a>
+            <Link to="/agents">For agents</Link>
           </div>
         </main>
       </div>

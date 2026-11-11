@@ -16,6 +16,27 @@ model InstallConfig {
 
   /** False: every drafting route under `/gms/assist/` answers 404. */
   assistantEnabled: boolean;
+
+  /** Which optional connections this server can make. The web app offers a control only where its entry is true. */
+  available?: InstallAvailability;
+}
+
+/** Optional connections, each true only when the server has what it needs (a key, a binding). */
+model InstallAvailability {
+  /** Funding search across OpenGrants. False: `/gms/discover/opengrants/*` answers 503. */
+  openGrants: boolean;
+
+  /** The drafting assistant: switched on and holding a model key. */
+  assistant: boolean;
+
+  /** Google Workspace through Composio. */
+  googleWorkspace: boolean;
+
+  /** Mercury read-only reconciliation. */
+  mercury: boolean;
+
+  /** Custom MCP servers a workspace may add. */
+  customMcp: boolean;
 }
 
 /** One sign-in session of the calling person. */
