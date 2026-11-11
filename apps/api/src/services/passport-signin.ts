@@ -134,6 +134,10 @@ export interface PassportIdentity {
   emailVerified: boolean;
   name: string | null;
   acr: string | null;
+  /** How the person signed in at Passport, as it reports it (RFC 8176 values; `mfa` = its authenticator). */
+  amr: string[];
+  /** When they did, in seconds since the epoch; null when Passport did not say. */
+  authTime: number | null;
 }
 
 /**
@@ -159,7 +163,70 @@ export async function verifyIdToken(idToken: string, opts: { keys: JSONWebKeySet
     emailVerified: payload.email_verified === true,
     name: typeof payload.name === "string" ? payload.name.slice(0, 200) : null,
     acr: typeof payload.acr === "string" ? payload.acr : null,
+    amr: Array.isArray(payload.amr) ? payload.amr.filter((m): m is string => typeof m === "string").slice(0, 10) : [],
+    authTime: typeof payload.auth_time === "number" && Number.isFinite(payload.auth_time) ? payload.auth_time : null,
   };
+}
+
+// ---- Passport's authenticator as this app's second step --------------------------------------
+// The owner decided (2026-11-11) that a person who passed Passport's authenticator is not asked for
+// this app's as well. The ID token says so (`acr: aal2`, with `mfa` among the methods). That fact
+// has to reach the session the web app is about to get, and nothing else:
+//   1. the callback records it against the SHA-256 of the one-time sign-in token it hands over;
+//   2. the web app redeems the token for a session, then presents the same token to
+//      `POST /gms/passport/signin/second-step`;
+//   3. the record is bound to that session's id, once. Only that session counts as verified, and
+//      only until the trust runs out.
+// An email-code session never holds the token, so it cannot claim; a second session of the same
+// person does not inherit it; the record alone gives no access.
+
+/** How long after the hand-over the session may claim. The one-time token itself is redeemed in seconds. */
+export const SECOND_STEP_CLAIM_MS = 10 * 60 * 1000;
+/** How long Passport's authenticator is trusted, counted from when the person passed it at Passport. */
+export const SECOND_STEP_TRUST_MS = 12 * 60 * 60 * 1000;
+
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+  return [...digest].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Whether Passport's ID token says the person passed its authenticator. */
+export function passedPassportAuthenticator(who: Pick<PassportIdentity, "acr" | "amr">): boolean {
+  return who.acr === "aal2" && who.amr.includes("mfa");
+}
+
+async function rememberSecondStep(ctx: BaseContext, userId: string, who: PassportIdentity, tokenHash: string): Promise<void> {
+  const store = ctx.ports.secondSteps;
+  if (!store || !passedPassportAuthenticator(who) || who.authTime === null) return;
+  const now = ctx.now();
+  const authTime = new Date(who.authTime * 1000);
+  // A time ahead of ours (beyond clock skew) is not a time we can count from.
+  if (authTime.getTime() > now.getTime() + CLOCK_SKEW_SEC * 1000) return;
+  const validUntil = new Date(authTime.getTime() + SECOND_STEP_TRUST_MS);
+  if (validUntil <= now) return;
+  try {
+    await store.record({ userId, tokenDigest: await sha256Hex(tokenHash), acr: "aal2", authTime, claimBy: new Date(now.getTime() + SECOND_STEP_CLAIM_MS), validUntil });
+  } catch {
+    // The sign-in still works; the person is asked for this app's own second step instead.
+  }
+}
+
+/** A one-time sign-in token as Supabase issues it: URL-safe, bounded. */
+const TOKEN_HASH = /^[A-Za-z0-9_-]{16,256}$/;
+
+/**
+ * Step 3, called by the web app with the session it just received: bind Passport's second step to
+ * this session. Answers whether the session now counts as verified; never says why not.
+ */
+export async function claimSecondStep(ctx: ServiceContext, input: { tokenHash: string; sessionId: string | null }): Promise<{ verified: boolean; validUntil: string | null }> {
+  const none = { verified: false, validUntil: null };
+  const store = ctx.ports.secondSteps;
+  const userId = ctx.actor.userId;
+  if (!store || !userId || !input.sessionId || !TOKEN_HASH.test(input.tokenHash)) return none;
+  const claimed = await store.claim(userId, await sha256Hex(input.tokenHash), input.sessionId, ctx.now());
+  if (!claimed) return none;
+  await audit(ctx, "auth.second_step_from_passport", "user", userId, { validUntil: claimed.validUntil.toISOString() });
+  return { verified: true, validUntil: claimed.validUntil.toISOString() };
 }
 
 export type SignInOutcome = { ok: true; redirect: string; userId: string; workspaceId: string | null } | { ok: false; redirect: string; code: SignInErrorCode };
@@ -251,6 +318,7 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   await audit(svc, "auth.passport_signin", "user", userId, { created, linkedOrganization: !!ws, acr: who.acr }, ws?.id);
 
   const signIn = await identity.signInToken(who.email);
+  await rememberSecondStep(ctx, userId, who, signIn.tokenHash);
   const next = sealed.r ?? (ws ? `/w/${ws.handle}` : null);
   const fragment = new URLSearchParams({ token_hash: signIn.tokenHash, type: signIn.type, hop: sealed.h, ...(next ? { next } : {}) });
   return { ok: true, userId, workspaceId: ws?.id ?? null, redirect: `${ctx.config.webBaseUrl}/auth/passport#${fragment.toString()}` };

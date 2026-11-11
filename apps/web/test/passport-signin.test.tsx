@@ -94,14 +94,26 @@ describe("Continue with Passport", () => {
     expect(literal).toBe(RETURN_TO.source);
   });
 
-  it("in mock mode walks the whole path: Passport, back, second step, workspace", async () => {
+  it("in mock mode walks the whole path: Passport, back, straight into the workspace (Passport's authenticator is enough)", async () => {
     const services = createMockServices({ session: null });
     open("/signin", services);
     await userEvent.click(await screen.findByRole("button", { name: "Continue with Passport" }));
-    expect(await screen.findByRole("heading", { name: "Set Up Two-Step Verification" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
+    // This app's own second step was never asked for, and never started.
+    expect(screen.queryByRole("heading", { name: /Two-Step Verification/ })).not.toBeInTheDocument();
+    expect(await services.auth.listTotpFactors()).toEqual([]);
     expect(await services.auth.getSession()).toMatchObject({ aal: "aal1" });
+    expect((await services.api.me()).mfaVerified).toBe(true);
     // The one-time sign-in is gone from the address bar.
     expect(where()).not.toContain(MOCK_PASSPORT_TOKEN);
+  });
+
+  it("asks for this app's second step when Passport does not vouch for its own", async () => {
+    const services = createMockServices({ session: null, passportSecondStep: false });
+    open("/signin", services);
+    await userEvent.click(await screen.findByRole("button", { name: "Continue with Passport" }));
+    expect(await screen.findByRole("heading", { name: "Set Up Two-Step Verification" })).toBeInTheDocument();
+    expect((await services.api.me()).mfaVerified).toBe(false);
     await userEvent.type(screen.getByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
     await userEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
     expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
@@ -121,7 +133,7 @@ describe("coming back from Passport", () => {
 
   it("ignores an off-site destination in the fragment", async () => {
     startedHere();
-    open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}&next=%2F%2Fevil.example`, createMockServices({ session: null, totpEnrolled: true }));
+    open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}&next=%2F%2Fevil.example`, createMockServices({ session: null, totpEnrolled: true, passportSecondStep: false }));
     expect(await screen.findByRole("heading", { name: "Two-Step Verification" })).toBeInTheDocument();
     expect(where()).not.toContain("evil.example");
   });
@@ -214,5 +226,60 @@ describe("when Passport sends the person back without a session", () => {
       expect(p.title.length).toBeGreaterThan(5);
       expect(p.detail).toMatch(/again|below|Start|Claim|Confirm/);
     }
+  });
+});
+
+describe("Passport's authenticator as the second step", () => {
+  it("presents the one-time token once, after redeeming it, and only then hands over", async () => {
+    const services = createMockServices({ session: null });
+    const order: string[] = [];
+    const redeem = services.auth.redeemSignIn.bind(services.auth);
+    vi.spyOn(services.auth, "redeemSignIn").mockImplementation(async (...a) => {
+      order.push("redeem");
+      return redeem(...a);
+    });
+    const claim = services.api.claimPassportSecondStep.bind(services.api);
+    const claimed = vi.spyOn(services.api, "claimPassportSecondStep").mockImplementation(async (t) => {
+      order.push("claim");
+      return claim(t);
+    });
+    startedHere();
+    open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}&next=%2Fw%2Fcascade-county`, services);
+    expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
+    expect(order).toEqual(["redeem", "claim"]);
+    expect(claimed).toHaveBeenCalledExactlyOnceWith(MOCK_PASSPORT_TOKEN);
+    expect(screen.queryByRole("heading", { name: /Two-Step Verification/ })).not.toBeInTheDocument();
+  });
+
+  it("still signs the person in when the claim cannot be made, and asks for this app's second step", async () => {
+    const services = createMockServices({ session: null, totpEnrolled: true });
+    vi.spyOn(services.api, "claimPassportSecondStep").mockRejectedValue(new Error("network"));
+    startedHere();
+    open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}`, services);
+    expect(await screen.findByRole("heading", { name: "Two-Step Verification" })).toBeInTheDocument();
+    expect(await services.auth.getSession()).toMatchObject({ aal: "aal1" });
+  });
+
+  it("is never claimed for a sign-in this tab did not start, or when someone is already signed in", async () => {
+    const foreign = createMockServices({ session: null });
+    const a = vi.spyOn(foreign.api, "claimPassportSecondStep");
+    const first = open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}`, foreign);
+    expect(await screen.findByText("That sign-in could not be confirmed")).toBeInTheDocument();
+    expect(a).not.toHaveBeenCalled();
+    first.unmount();
+
+    const signedIn = createMockServices({});
+    const b = vi.spyOn(signedIn.api, "claimPassportSecondStep");
+    startedHere();
+    open(`/auth/passport#token_hash=${MOCK_PASSPORT_TOKEN}&type=magiclink&hop=${HOP}`, signedIn);
+    expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
+    expect(b).not.toHaveBeenCalled();
+  });
+
+  it("belongs to the session that claimed it: an email-code session with the same token gets nothing", async () => {
+    const services = createMockServices({ session: null });
+    await services.auth.verifyCode("ana@riverbendcf.example", MOCK_CODE);
+    expect(await services.api.claimPassportSecondStep(MOCK_PASSPORT_TOKEN)).toEqual({ verified: false });
+    expect((await services.api.me()).mfaVerified).toBe(false);
   });
 });

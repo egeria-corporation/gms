@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { CHALLENGE, generateAuthCode, sha256b64url } from "../auth/crypto.ts";
 import { requireUser } from "../auth/middleware.ts";
+import { secondStepVerified } from "../auth/second-step.ts";
 import { APPROVALS_BYPASS_SCOPE, DEFAULT_GATED_TOOLS, SCOPE_DESCRIPTIONS, isScope, parseScopeString, roleRequiresMfa, scopesForRole, type Scope } from "../auth/scopes.ts";
 import type { OAuthClient } from "../auth/stores.ts";
 import { CODE_TTL_SEC, readConsentRequest, signConsentRequest } from "../auth/tokens.ts";
@@ -72,6 +73,7 @@ authorize.get("/authorize/request", requireUser(), async (c) => {
   const requested = parseScopeString(req.scope);
   const nowMs = c.get("deps").now().getTime();
   const memberships = (await c.get("deps").members.listForUser(user.userId)).filter((m) => !m.expiresAt || Date.parse(m.expiresAt) > nowMs);
+  const verified = await secondStepVerified(c, user);
   return c.json(
     ok({
       client: { id: client.id, name: client.name, dynamicallyRegistered: client.dynamic, redirectHost: new URL(req.redirect_uri).host },
@@ -86,7 +88,7 @@ authorize.get("/authorize/request", requireUser(), async (c) => {
           kind: m.workspaceKind,
           role: m.role,
           grantableScopes: requested.filter((s) => role.has(s)),
-          requiresMfa: roleRequiresMfa(m.workspaceKind, m.role) && user.aal !== "aal2",
+          requiresMfa: roleRequiresMfa(m.workspaceKind, m.role) && !verified,
         };
       }),
     }),
@@ -106,7 +108,7 @@ authorize.post("/authorize/decision", requireUser(), async (c) => {
   const m = await members.getMembership(body.workspaceId, user.userId);
   const at = now();
   if (!m || (m.expiresAt && Date.parse(m.expiresAt) <= at.getTime())) throw new ApiError(403, "workspace_mismatch", "You are not a member of this workspace");
-  if (roleRequiresMfa(m.workspaceKind, m.role) && user.aal !== "aal2") throw new ApiError(403, "mfa_required", "Verify with your authenticator app before connecting an agent to this workspace");
+  if (roleRequiresMfa(m.workspaceKind, m.role) && !(await secondStepVerified(c, user))) throw new ApiError(403, "mfa_required", "Verify with your authenticator app before connecting an agent to this workspace");
 
   // Granted = requested ∩ (what the person kept ticked) ∩ (what their role allows). Never more.
   const requested = parseScopeString(req.scope);

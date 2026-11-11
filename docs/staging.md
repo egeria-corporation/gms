@@ -84,6 +84,11 @@ Added 2026-11-11 (not deployed with this note). Going live needs, in this order:
    triggers on `auth.users` (no account keeps a password; nothing set before an email was proven
    survives the proof) and clears any password already stored.
 
+Passport's authenticator as the second step (migration `0018`, not deployed with this note):
+apply `0018`, then redeploy the API and the web app together. The web app calls
+`POST /gms/passport/signin/second-step` right after it redeems the sign-in; an older API answers
+404 and the person is simply asked for this app's own second step.
+
 `PASSPORT_ISSUER` is not set on staging; the issuer defaults to `PASSPORT_BASE_URL`
 (`https://passport.opengrants.io`), which is what Passport signs with.
 

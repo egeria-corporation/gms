@@ -90,6 +90,17 @@ applicationRoutes.get("/passport/signin/callback", async (c) => {
   return c.redirect(outcome.redirect, 302);
 });
 
+// The web app, holding the session it just redeemed, presents the same one-time token so that
+// Passport's authenticator counts as this session's second step. A wrong or used token is not an
+// error: the answer is simply "not verified" and the app asks for its own second step.
+applicationRoutes.post("/passport/signin/second-step", requireUser(), async (c) => {
+  noStore(c);
+  const body = parse(z.object({ tokenHash: z.string().min(1).max(512) }).strict(), await jsonBody(c));
+  const user = c.get("user");
+  const result = await passportSignIn.claimSecondStep(userSvc(c), { tokenHash: body.tokenHash, sessionId: user.sessionId ?? null });
+  return c.json(ok({ verified: result.verified, validUntil: result.validUntil }));
+});
+
 for (const prefix of ["me/representatives", "me/organization", "me/documents", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
   applicationRoutes.use(`/${prefix}`, authenticate());
   applicationRoutes.use(`/${prefix}/*`, authenticate());

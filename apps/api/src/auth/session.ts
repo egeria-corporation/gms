@@ -3,7 +3,8 @@
 // `authenticated`. Current Supabase projects sign it with an asymmetric key (ES256 or RS256)
 // published at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`; older and self-hosted projects sign
 // it with HS256 and the project's JWT secret. Both are accepted. `aal` says whether the session
-// passed TOTP (aal2).
+// passed this app's TOTP (aal2); whether a session has passed *a* second step is decided in
+// auth/second-step.ts, which also accepts Passport's authenticator.
 import { createRemoteJWKSet, decodeJwt, decodeProtectedHeader, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from "jose";
 import { trimSlash } from "../env.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -15,6 +16,11 @@ export interface SessionUser {
   aal: "aal1" | "aal2";
   /** Supabase Auth's id for this session (`session_id` claim), when the token carries one. */
   sessionId?: string | null;
+  /**
+   * Whether this session holds Passport's second step. Filled in by `secondStepVerified`
+   * (auth/second-step.ts) the first time a check needs it; never read it directly.
+   */
+  passportStep?: boolean;
 }
 
 export interface SessionConfig {

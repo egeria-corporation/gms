@@ -327,3 +327,78 @@ export class MemoryIdentity implements IdentityPort {
     return { tokenHash, type: "magiclink" };
   }
 }
+
+// ------------------------------------------------------------------------------------ Passport's second step
+
+/** What the API remembers when Passport says a sign-in passed its authenticator. */
+export interface SecondStepRecord {
+  userId: string;
+  /** SHA-256 (hex) of the one-time sign-in token handed to the web app. The token itself is never stored. */
+  tokenDigest: string;
+  acr: string;
+  /** When the person passed Passport's authenticator. */
+  authTime: Date;
+  /** The session must claim the record before this. */
+  claimBy: Date;
+  /** The trust ends here, whatever the session does. */
+  validUntil: Date;
+}
+
+/**
+ * Passport's authenticator, accepted as this app's second step for one session (owner's decision,
+ * 2026-11-11). A record is made when a Passport sign-in arrives with `acr: aal2`; the session that
+ * redeems that sign-in's one-time token claims it; from then until `validUntil` that session counts
+ * as two-step verified. A record gives no access by itself and cannot be claimed without the token.
+ */
+export interface SecondStepPort {
+  record(row: SecondStepRecord): Promise<void>;
+  /** Bind the unclaimed, unexpired record for this person and token to `sessionId`. Null when there is none. */
+  claim(userId: string, tokenDigest: string, sessionId: string, now: Date): Promise<{ validUntil: Date } | null>;
+  /** Whether `sessionId` holds a claimed record that has not run out. */
+  verified(userId: string, sessionId: string, now: Date): Promise<boolean>;
+}
+
+/** Through three service-role-only database functions (migration 0018). */
+export class SupabaseSecondSteps implements SecondStepPort {
+  constructor(private readonly client: SupabaseRpcLike) {}
+  async record(row: SecondStepRecord): Promise<void> {
+    const { error } = await this.client.rpc("gms_passport_second_step_record", {
+      p_user: row.userId,
+      p_digest: row.tokenDigest,
+      p_acr: row.acr,
+      p_auth_time: row.authTime.toISOString(),
+      p_claim_by: row.claimBy.toISOString(),
+      p_valid_until: row.validUntil.toISOString(),
+    });
+    if (error) throw new Error(`Recording Passport's second step failed: ${error.message}`);
+  }
+  async claim(userId: string, tokenDigest: string, sessionId: string, _now: Date): Promise<{ validUntil: Date } | null> {
+    // The database's clock decides: the function compares against now() in the same statement that claims.
+    const { data, error } = await this.client.rpc("gms_passport_second_step_claim", { p_user: userId, p_digest: tokenDigest, p_session: sessionId });
+    if (error) throw new Error(`Claiming Passport's second step failed: ${error.message}`);
+    return typeof data === "string" && data ? { validUntil: new Date(data) } : null;
+  }
+  async verified(userId: string, sessionId: string, _now: Date): Promise<boolean> {
+    const { data, error } = await this.client.rpc("gms_passport_second_step_ok", { p_user: userId, p_session: sessionId });
+    if (error) throw new Error(`Reading Passport's second step failed: ${error.message}`);
+    return data === true;
+  }
+}
+
+export class MemorySecondSteps implements SecondStepPort {
+  readonly rows: (SecondStepRecord & { sessionId: string | null })[] = [];
+  async record(row: SecondStepRecord): Promise<void> {
+    this.rows.push({ ...row, sessionId: null });
+  }
+  async claim(userId: string, tokenDigest: string, sessionId: string, now: Date): Promise<{ validUntil: Date } | null> {
+    // One record per session, as the database's unique index has it.
+    if (this.rows.some((r) => r.sessionId === sessionId)) return null;
+    const row = this.rows.find((r) => r.userId === userId && r.tokenDigest === tokenDigest && r.sessionId === null && r.claimBy > now && r.validUntil > now);
+    if (!row) return null;
+    row.sessionId = sessionId;
+    return { validUntil: row.validUntil };
+  }
+  async verified(userId: string, sessionId: string, now: Date): Promise<boolean> {
+    return this.rows.some((r) => r.userId === userId && r.sessionId === sessionId && r.validUntil > now);
+  }
+}

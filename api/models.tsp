@@ -1871,6 +1871,7 @@ model Me {
 
   userId: CommonGrants.Types.uuid;
   email: string | null;
+  /** Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
   mfaVerified: boolean;
   workspaces: MyWorkspace[];
 }
@@ -2770,4 +2771,16 @@ model InboundWebhook {
   id?: string;
   type?: string;
   data?: Record<unknown>;
+}
+
+/** The one-time sign-in token the session was redeemed from (`token_hash` in the `/auth/passport` fragment). */
+model PassportSecondStepClaim {
+  @minLength(1) @maxLength(512) tokenHash: string;
+}
+
+model PassportSecondStepResult {
+  /** Whether this session now counts as two-step verified. */
+  verified: boolean;
+  /** When that ends; null when not verified. */
+  validUntil: utcDateTime | null;
 }

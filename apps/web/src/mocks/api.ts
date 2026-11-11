@@ -20,6 +20,7 @@ import type {
 } from "../api/types.ts";
 import type { Session } from "../auth/types.ts";
 import { checkBrand } from "../lib/contrast.ts";
+import { MOCK_PASSPORT_SESSION, MOCK_PASSPORT_TOKEN } from "../lib/passportSignIn.ts";
 import { slugify } from "../lib/format.ts";
 import { FIXTURE_WORKSPACES, MOCK_MEMBERSHIPS } from "./fixtures.ts";
 import { seedStore, type Store, type WorkspaceData } from "./store.ts";
@@ -33,6 +34,11 @@ export interface MockApiOptions {
   workspaces?: Workspace[];
   store?: Store;
   now?: () => Date;
+  /**
+   * Whether the mock Passport reports that the person passed its authenticator (as the real one
+   * always does today). False walks the path where the app asks for its own second step.
+   */
+  passportSecondStep?: boolean;
 }
 
 const clone = <T>(v: T): T => structuredClone(v);
@@ -75,7 +81,18 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   const me = async (): Promise<Me> => {
     const session = await opts.session();
     if (!session) throw new ApiError(401, "Sign in to continue");
-    return { userId: session.userId, email: session.email, mfaVerified: session.aal === "aal2", workspaces: memberships };
+    return { userId: session.userId, email: session.email, mfaVerified: session.aal === "aal2" || passportVerified === session.accessToken, workspaces: memberships };
+  };
+
+  // The session (by its token) that claimed Passport's second step; another sign-in does not inherit it.
+  let passportVerified: string | null = null;
+  const claimPassportSecondStep = async (tokenHash: string): Promise<{ verified: boolean }> => {
+    const session = await opts.session();
+    if (!session) throw new ApiError(401, "Sign in to continue");
+    // Only the session that the one-time token was redeemed for can claim.
+    const verified = opts.passportSecondStep !== false && tokenHash === MOCK_PASSPORT_TOKEN && session.accessToken === MOCK_PASSPORT_SESSION;
+    if (verified) passportVerified = session.accessToken;
+    return { verified };
   };
 
   /** The funder workspace the caller is acting in. */
@@ -183,6 +200,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
 
   return {
     me,
+    claimPassportSecondStep,
     async workspace(handle) {
       const profile = await me();
       const shell = shells.find((w) => w.handle === handle);
