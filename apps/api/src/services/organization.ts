@@ -16,18 +16,18 @@ import {
   exchangeAuthorizationCode,
   profileSources,
   profileToObject,
-  refreshTokenTokens,
   staticToken,
   type CgOrganization,
   type OrgProfile,
   type ProfileField,
   type VerifiedRepresentative,
 } from "@gms/passport-client";
-import { readPassportFields } from "@gms/protocol";
+import { readOrganizationKind, readPassportFields } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { slugify } from "./opportunities.ts";
+import { consentTokens } from "./passport-tokens.ts";
 import type { Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -246,7 +246,20 @@ function view(ws: Ws, linked: boolean) {
 export const passportWeb = (ctx: Pick<ServiceContext, "config">): string | null =>
   ctx.config.passportWebUrl ?? (ctx.config.passportBaseUrl ? ctx.config.passportBaseUrl.replace("//passport.", "//app.passport.") : null);
 
-const editUrl = (ctx: ServiceContext, ws: Ws) => (ws.passport_org_id && passportWeb(ctx) ? `${passportWeb(ctx)}/orgs/${ws.passport_org_id}` : null);
+/**
+ * Where a person manages this organization in Passport. Passport keeps two workspaces: `/funders/:id`
+ * for an organization that only makes grants, `/orgs/:id` for one that receives them (or does both).
+ * The kind comes from the cached Passport record; a record cached before Passport published it
+ * falls back to what this workspace is.
+ */
+export function passportOrgUrl(ctx: Pick<ServiceContext, "config">, ws: Pick<Ws, "passport_org_id" | "org_projection" | "kind">): string | null {
+  const web = passportWeb(ctx);
+  if (!web || !ws.passport_org_id) return null;
+  const kind = readOrganizationKind(ws.org_projection as { customFields?: unknown } | null) ?? (ws.kind === "funder" ? "funder" : "nonprofit");
+  return `${web}/${kind === "funder" ? "funders" : "orgs"}/${ws.passport_org_id}`;
+}
+
+const editUrl = passportOrgUrl;
 
 async function liveLink(ctx: ServiceContext, workspaceId: string) {
   return ctx.repos.table("passport_links").one({ workspace_id: workspaceId, mode: "applicant_consent", revoked_at: null });
@@ -259,24 +272,13 @@ export async function getMyOrganization(ctx: ServiceContext) {
   return { ...view(row, !!(await liveLink(ctx, ws.id))), editUrl: editUrl(ctx, row), representatives: { state: reps.state, items: reps.items.map(representativeView) } };
 }
 
-/** A Passport client acting with the workspace's stored consent. The rotated refresh token is persisted on use. */
+/** A Passport client acting with the workspace's stored consent (see passport-tokens.ts for how the refresh token is shared safely). */
 async function consentedPassport(ctx: ServiceContext, workspaceId: string, row: Ws) {
   const link = await liveLink(ctx, workspaceId);
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   if (!link?.refresh_token_enc || !row.passport_org_id) throw new ApiError(409, "passport_not_linked", "Connect this workspace to Passport first");
   if (!baseUrl || !key || !client) throw new ApiError(503, "passport_not_configured", "Passport linking is not configured on this server");
-  const tokens = refreshTokenTokens({
-    baseUrl,
-    clientId: client.id,
-    clientSecret: client.secret,
-    refreshToken: await decryptSecret(link.refresh_token_enc, key),
-    fetch: ctx.config.passportFetch,
-    now: ctx.now,
-    // Passport rotates the refresh token on every use; losing the new one would strand the link.
-    onRotate: async (rt) => {
-      await ctx.repos.table("passport_links").update({ id: link.id }, { refresh_token_enc: await encryptSecret(rt, key) });
-    },
-  });
+  const tokens = consentTokens(ctx, link.id, { baseUrl, clientId: client.id, clientSecret: client.secret, key });
   return { link, passport: new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch }) };
 }
 
@@ -344,7 +346,7 @@ export async function getMyReadiness(ctx: ServiceContext) {
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const linked = !!(await liveLink(ctx, ws.id));
   const org = row.org_projection as { status?: { value?: string } } | null;
-  const passport = passportWeb(ctx) && row.passport_org_id ? `${passportWeb(ctx)}/orgs/${row.passport_org_id}` : null;
+  const passport = passportOrgUrl(ctx, row);
   const level = row.verification_level;
   const rank = level ? (RANK[level] ?? 0) : null;
   const need = (min: number, key: string, label: string, pass: string, failText: string): ReadinessCheck =>
@@ -384,7 +386,7 @@ export interface PayoutDestinationView {
 
 export async function payoutDestinationFor(ctx: ServiceContext, workspaceId: string): Promise<PayoutDestinationView> {
   const row = required(await ctx.repos.table("workspaces").one({ id: workspaceId }), "Workspace");
-  const manageUrl = passportWeb(ctx) && row.passport_org_id ? `${passportWeb(ctx)}/orgs/${row.passport_org_id}` : null;
+  const manageUrl = passportOrgUrl(ctx, row);
   // What Passport's own events have told the GMS: display facts only, used when the live read is not possible.
   const told = (row.settings as { passportPayee?: { pendingDestinationChange?: { bankName: string | null; last4: string | null; requestedAt: string } | null } } | null)?.passportPayee?.pendingDestinationChange ?? null;
   const toldPending = told ? { state: null, bankName: told.bankName, last4: told.last4, requestedAt: told.requestedAt, coolingOffUntil: null } : null;

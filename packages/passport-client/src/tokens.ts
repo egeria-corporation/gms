@@ -107,6 +107,24 @@ export function refreshTokenTokens(o: RefreshTokenOptions): TokenProvider {
   });
 }
 
+export interface RefreshExchange {
+  accessToken: string;
+  /** Seconds the access token lives. */
+  expiresIn: number;
+  /** The rotated refresh token; null if Passport sent none. */
+  refreshToken: string | null;
+}
+
+/**
+ * Spend a refresh token once and return what Passport answered. No caching and no persistence:
+ * the caller decides where the rotated token goes. Use this when several requests (or several
+ * Workers isolates) share one stored refresh token and must coordinate around the store.
+ */
+export async function exchangeRefreshToken(o: CommonOptions & { refreshToken: string }): Promise<RefreshExchange> {
+  const t = await requestToken(o, { grant_type: "refresh_token", refresh_token: o.refreshToken });
+  return { accessToken: t.access_token, expiresIn: t.expires_in, refreshToken: typeof t.refresh_token === "string" && t.refresh_token ? t.refresh_token : null };
+}
+
 /** A fixed token (tests, or a token obtained elsewhere). */
 export function staticToken(token: string): TokenProvider {
   return { getToken: () => Promise.resolve(token), invalidate: () => {} };

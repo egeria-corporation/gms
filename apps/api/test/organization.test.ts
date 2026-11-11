@@ -4,6 +4,7 @@
 import { decryptSecret, fixtureFetch, type Fixture } from "@gms/passport-client";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PASSPORT, TEST_CREDENTIALS_KEY, USER_ADMIN, WEB, WS_APPLICANT, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
+import { passportOrgUrl } from "../src/services/organization.ts";
 import { ALDER_ORG, ALDER_PROFILE, ORG_ALDER } from "./scenario.ts";
 
 const NEW_USER = "12121212-1212-4212-8212-121212121212";
@@ -16,6 +17,8 @@ const token = (n: number): Fixture => ({ method: "POST", path: "/oauth/token", s
 const PASSPORT_WEB = PASSPORT.replace("//passport.", "//app.passport.");
 const ORG: Fixture = { method: "GET", path: `/common-grants/orgs/${ORG_ALDER}`, status: 200, body: env(ALDER_ORG) };
 const PROFILE: Fixture = { method: "GET", path: `/passport/orgs/${ORG_ALDER}/profile`, status: 200, body: env(ALDER_PROFILE) };
+
+const CFG = { config: { passportBaseUrl: PASSPORT } } as Parameters<typeof passportOrgUrl>[0];
 
 let h: Harness;
 beforeEach(async () => {
@@ -147,6 +150,29 @@ describe("the cached organization", () => {
     await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
     const none = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: { checks: { key: string; state: string }[] } }).data;
     expect(none.checks.map((c) => c.state)).toEqual(["fail", "unknown", "unknown", "unknown", "unknown"]);
+  });
+
+  it("links a funder organization to Passport's funder workspace, a nonprofit to its own", async () => {
+    // The applicant workspace is linked to an organization that Passport says only makes grants.
+    const kind = (value: string) => ({ ...ALDER_ORG, customFields: { ...ALDER_ORG.customFields, verificationLevel: { name: "verificationLevel", fieldType: "string", value: "L1" }, organizationKind: { name: "organizationKind", fieldType: "string", value } } });
+    await consent(NEW_USER, [token(1), { ...ORG, body: env(kind("funder")) }, PROFILE]);
+    const ws = (await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER }))!;
+    const who = { ...(await session(NEW_USER)), "X-GMS-Workspace": ws.id };
+    const get = async <T>(path: string) => ((await (await h.request(path, { headers: who })).json()) as { data: T }).data;
+    const funders = `${PASSPORT_WEB}/funders/${ORG_ALDER}`;
+    expect((await get<{ editUrl: string }>("/gms/me/organization")).editUrl).toBe(funders);
+    await h.repos.table("workspaces").update({ id: ws.id }, { verification_level: "L1" });
+    expect((await get<{ checks: { key: string; fixHref: string | null }[] }>("/gms/me/readiness")).checks.find((c) => c.key === "payee_verified")!.fixHref).toBe(funders);
+    h.passport.fetch = fixtureFetch([token(2), { method: "GET", path: `/passport/orgs/${ORG_ALDER}/verified-representatives`, status: 200, body: { status: 200, message: "Success", items: [], paginationInfo: { page: 1, pageSize: 0, totalItems: 0, totalPages: 0 } } }]).fetch;
+    expect((await get<{ manageUrl: string }>("/gms/me/representatives")).manageUrl).toBe(funders);
+    expect(passportOrgUrl(CFG, { ...ws, kind: "applicant" })).toBe(funders);
+
+    // An organization that does both, and one that only receives grants, use the nonprofit workspace.
+    for (const value of ["both", "nonprofit"]) expect(passportOrgUrl(CFG, { ...ws, org_projection: kind(value) as never })).toBe(`${PASSPORT_WEB}/orgs/${ORG_ALDER}`);
+    // A record cached before Passport published the kind falls back to what the workspace is.
+    expect(passportOrgUrl(CFG, { ...ws, org_projection: ALDER_ORG as never, kind: "applicant" })).toBe(`${PASSPORT_WEB}/orgs/${ORG_ALDER}`);
+    expect(passportOrgUrl(CFG, { ...ws, org_projection: null, kind: "funder" })).toBe(funders);
+    expect(passportOrgUrl(CFG, { ...ws, passport_org_id: null })).toBeNull();
   });
 
   it("lists the Passport locker as references and marks what can be attached", async () => {
