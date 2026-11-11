@@ -23,6 +23,8 @@ export interface SessionUser {
   passportStep?: boolean;
   /** The name on the account (`user_metadata.full_name` or `.name`), when the token carries one. For display only. */
   name?: string | null;
+  /** Whether the token says the account is linked to a Passport user (`app_metadata.passport_user_id`). A hint only. */
+  passportLinked?: boolean;
 }
 
 export interface SessionConfig {
@@ -87,7 +89,11 @@ export async function verifySupabaseSession(token: string, config: SessionConfig
     throw authError("invalid_session", "Session is invalid or has expired");
   }
   if (typeof payload.sub !== "string" || !payload.sub) throw authError("invalid_session", "Session is invalid or has expired");
-  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}), ...(accountName(payload.user_metadata) ? { name: accountName(payload.user_metadata) } : {}) };
+  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}), ...(accountName(payload.user_metadata) ? { name: accountName(payload.user_metadata) } : {}), ...(passportLinked(payload.app_metadata) ? { passportLinked: true } : {}) };
+}
+
+function passportLinked(meta: unknown): boolean {
+  return !!meta && typeof meta === "object" && typeof (meta as Record<string, unknown>).passport_user_id === "string" && !!(meta as Record<string, unknown>).passport_user_id;
 }
 
 /** The display name Supabase Auth keeps in `user_metadata`; null when there is none. */

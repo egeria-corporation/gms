@@ -212,6 +212,54 @@ async function rememberSecondStep(ctx: BaseContext, userId: string, who: Passpor
   }
 }
 
+/**
+ * How long the session that redeemed a first Passport sign-in for an existing account has to pass
+ * that account's own second step for the Passport identity to be linked. After it, nothing is
+ * linked and the next Passport sign-in starts again.
+ */
+export const LINK_CONFIRM_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * The account existed before this Passport user arrived (matched by verified email). Nothing is
+ * linked yet and Passport's authenticator is NOT taken as this app's second step: the request is
+ * remembered against the one-time sign-in token, for the one session that redeems it.
+ */
+async function requestLink(ctx: BaseContext, userId: string, who: PassportIdentity, tokenHash: string): Promise<void> {
+  const store = ctx.ports.secondSteps;
+  if (!store) return;
+  const now = ctx.now();
+  try {
+    await store.requestLink({ userId, tokenDigest: await sha256Hex(tokenHash), passportUserId: who.passportUserId, claimBy: new Date(now.getTime() + SECOND_STEP_CLAIM_MS), validUntil: new Date(now.getTime() + LINK_CONFIRM_WINDOW_MS) });
+  } catch {
+    // The sign-in still works, single-step. The link is offered again at the next Passport sign-in.
+  }
+}
+
+/**
+ * Called for a session that has passed THIS account's own second step (Supabase `aal2`): if that
+ * same session redeemed a first Passport sign-in, the Passport identity is now linked to the
+ * account, once, and ledgered. Answers whether a link was recorded by this call.
+ */
+export async function confirmPassportLink(ctx: ServiceContext, sessionId: string | null, accountEmail?: string | null): Promise<boolean> {
+  const store = ctx.ports.secondSteps;
+  const identity = ctx.ports.identity;
+  const userId = ctx.actor.userId;
+  if (!store || !identity || !userId || !sessionId) return false;
+  const passportUserId = await store.pendingLink(userId, sessionId, ctx.now());
+  if (!passportUserId) return false;
+  const linked = await identity.linkPassportUser(userId, passportUserId, ctx.now());
+  // Recorded or refused (the account or the Passport user is linked elsewhere), the requests are spent.
+  await store.settleLinks(userId);
+  if (!linked) return false;
+  await audit(ctx, "auth.passport_linked", "user", userId, { passportUserId, confirmedBy: "own_second_step" });
+  // Tell the account's own address: a link the person did not make is something to act on.
+  if (accountEmail && ctx.ports.mailer && ctx.config.mailFrom) {
+    const text = `Your OpenGrants GMS account can now be signed in to with OpenGrants Passport.\n\nThis was set up just now, after a Passport sign-in for this email address was confirmed with this account's own two-step verification.\n\nIf this was not you, sign in at ${ctx.config.webBaseUrl} and end your other sessions, then tell your workspace administrator.`;
+    await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [accountEmail], subject: "Passport sign-in was linked to your account", text, html: `<p>${text.replace(/\n\n/g, "</p><p>")}</p>`, idempotencyKey: `passport-linked:${userId}` }).catch(() => undefined);
+  }
+  return true;
+}
+
 /** A one-time sign-in token as Supabase issues it: URL-safe, bounded. */
 const TOKEN_HASH = /^[A-Za-z0-9_-]{16,256}$/;
 
@@ -224,8 +272,14 @@ export async function claimSecondStep(ctx: ServiceContext, input: { tokenHash: s
   const store = ctx.ports.secondSteps;
   const userId = ctx.actor.userId;
   if (!store || !userId || !input.sessionId || !TOKEN_HASH.test(input.tokenHash)) return none;
-  const claimed = await store.claim(userId, await sha256Hex(input.tokenHash), input.sessionId, ctx.now());
-  if (!claimed) return none;
+  const digest = await sha256Hex(input.tokenHash);
+  const claimed = await store.claim(userId, digest, input.sessionId, ctx.now());
+  if (!claimed) {
+    // A first Passport sign-in for an account that already existed: the session takes the pending
+    // link, which verifies nothing until this account's own second step is passed.
+    await store.claimLink(userId, digest, input.sessionId, ctx.now());
+    return none;
+  }
   await audit(ctx, "auth.second_step_from_passport", "user", userId, { validUntil: claimed.validUntil.toISOString() });
   return { verified: true, validUntil: claimed.validUntil.toISOString() };
 }
@@ -325,13 +379,17 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
     if (e instanceof AccountMismatchError) return fail("account_mismatch", "account", e);
     throw e;
   }
-  const { userId, created } = account;
+  const { userId, created, link } = account;
   const svc: ServiceContext = { ...ctx, actor: makeActor("user", userId, null), workspace: null, scopes: [] };
   const ws = org && read ? await linkApplicantOrganization(svc, { userId, tokens: org, read, workspaceHint: null, via: "passport_signin" }) : null;
-  await audit(svc, "auth.passport_signin", "user", userId, { created, linkedOrganization: !!ws, acr: who.acr }, ws?.id);
+  await audit(svc, "auth.passport_signin", "user", userId, { created, linkedOrganization: !!ws, acr: who.acr, passportLink: link }, ws?.id);
 
   const signIn = await identity.signInToken(who.email);
-  await rememberSecondStep(ctx, userId, who, signIn.tokenHash);
+  // Passport's authenticator stands in for this app's second step only for an account already
+  // linked to this Passport user (or made by this sign-in). An account that merely shares the
+  // email must pass its own second step first; see `confirmPassportLink`.
+  if (link === "recorded") await rememberSecondStep(ctx, userId, who, signIn.tokenHash);
+  else await requestLink(ctx, userId, who, signIn.tokenHash);
   const next = sealed.r ?? (ws ? `/w/${ws.handle}` : null);
   const fragment = new URLSearchParams({ token_hash: signIn.tokenHash, type: signIn.type, hop: sealed.h, ...(next ? { next } : {}) });
   return { ok: true, userId, workspaceId: ws?.id ?? null, redirect: `${ctx.config.webBaseUrl}/auth/passport#${fragment.toString()}` };

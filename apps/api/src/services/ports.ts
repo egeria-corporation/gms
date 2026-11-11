@@ -296,10 +296,25 @@ export interface IdentityPort {
   /**
    * Find or create the account for a verified email. An existing account is adopted only if its
    * own email was proven: one that was never confirmed (anyone can start a sign-up for any address)
-   * is deleted and made afresh. The Passport user id is recorded on first use and is then fixed:
-   * a different Passport user presenting the same email throws {@link AccountMismatchError}.
+   * is deleted and made afresh.
+   *
+   * The link to the Passport user is `recorded` when this call created the account, or when the
+   * account was linked to that same Passport user before. For an existing account with no link it
+   * is `pending`: nothing is written, and the caller must have the account's own second step
+   * passed before calling {@link linkPassportUser} (red team G1: an email match alone must not
+   * let Passport's authenticator stand in for the account's own).
+   *
+   * A link is never re-pointed: a different Passport user presenting the account's email, or a
+   * Passport user already linked to another account presenting this one's, throws
+   * {@link AccountMismatchError}; so does a linked Passport user arriving with an email that has
+   * no account (it would otherwise get a second one).
    */
-  ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }>;
+  ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean; link: "recorded" | "pending" }>;
+  /**
+   * Record that `userId` is this Passport user. Only for an account with no link, and a Passport
+   * user linked to no other account. Answers whether the account is now linked to that user.
+   */
+  linkPassportUser(userId: string, passportUserId: string, at: Date): Promise<boolean>;
   signInToken(email: string): Promise<SignInToken>;
 }
 
@@ -334,18 +349,26 @@ export class SupabaseIdentity implements IdentityPort {
     return { id: row.id, confirmed: row.email_confirmed === true, passportUserId: typeof row.passport_user_id === "string" && row.passport_user_id ? row.passport_user_id : null };
   }
 
-  async ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }> {
-    const existing = await this.account(email);
+  /** The account already linked to this Passport user, if any. */
+  private async byPassportUser(passportUserId: string): Promise<string | null> {
+    const { data, error } = await this.client.rpc("gms_user_id_by_passport_user", { p_passport_user: passportUserId });
+    if (error) throw new Error(`Looking up the Passport link failed: ${error.message}`);
+    return typeof data === "string" && data ? data : null;
+  }
+
+  async ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean; link: "recorded" | "pending" }> {
+    const [existing, linkedAccount] = await Promise.all([this.account(email), this.byPassportUser(link.passportUserId)]);
     if (existing?.confirmed) {
       if (existing.passportUserId && existing.passportUserId !== link.passportUserId) throw new AccountMismatchError();
-      if (!existing.passportUserId) {
-        // First Passport sign-in for an account whose email was already proven here. The id goes
-        // in app metadata (server-controlled; it merges with what is there) and is never replaced.
-        const { error } = await this.client.auth.admin.updateUserById(existing.id, { app_metadata: { passport_user_id: link.passportUserId } });
-        if (error) throw new Error(`Linking the account failed: ${error.message}`);
-      }
-      return { userId: existing.id, created: false };
+      // This Passport user is someone else here already (its email changed at Passport).
+      if (linkedAccount && linkedAccount !== existing.id) throw new AccountMismatchError();
+      // First Passport sign-in for an account whose email was already proven here: nothing is
+      // written. The link is recorded by `linkPassportUser`, after the account's own second step.
+      return { userId: existing.id, created: false, link: existing.passportUserId ? "recorded" : "pending" };
     }
+    // A linked Passport user arriving with an email that has no (proven) account here: its account
+    // is the linked one, and it does not get another.
+    if (linkedAccount) throw new AccountMismatchError();
     if (existing) {
       // Never confirmed: whoever started it did not prove the address, and it could not have been
       // signed in to, so it holds nothing of the owner's. Confirming it in place would hand its
@@ -359,11 +382,24 @@ export class SupabaseIdentity implements IdentityPort {
       app_metadata: { passport_user_id: link.passportUserId },
       ...(link.name ? { user_metadata: { full_name: link.name } } : {}),
     });
-    if (data.user) return { userId: data.user.id, created: true };
+    if (data.user) return { userId: data.user.id, created: true, link: "recorded" };
     // Two sign-ins for a new person at once: the other one created the account.
     const raced = await this.account(email);
-    if (raced?.confirmed && (!raced.passportUserId || raced.passportUserId === link.passportUserId)) return { userId: raced.id, created: false };
+    if (raced?.confirmed && (!raced.passportUserId || raced.passportUserId === link.passportUserId)) return { userId: raced.id, created: false, link: raced.passportUserId ? "recorded" : "pending" };
     throw new Error(`Creating the account failed: ${error?.message ?? "no user returned"}`);
+  }
+
+  async linkPassportUser(userId: string, passportUserId: string, at: Date): Promise<boolean> {
+    const { data, error } = await this.client.rpc("gms_account_passport_user", { p_user: userId });
+    if (error) throw new Error(`Reading the Passport link failed: ${error.message}`);
+    const current = typeof data === "string" && data ? data : null;
+    if (current) return current === passportUserId;
+    const other = await this.byPassportUser(passportUserId);
+    if (other && other !== userId) return false;
+    // App metadata is server-controlled and merges with what is there. Once set it is never replaced.
+    const { error: failed } = await this.client.auth.admin.updateUserById(userId, { app_metadata: { passport_user_id: passportUserId, passport_linked_at: at.toISOString() } });
+    if (failed) throw new Error(`Linking the account failed: ${failed.message}`);
+    return true;
   }
 
   async signInToken(email: string): Promise<SignInToken> {
@@ -376,25 +412,41 @@ export class SupabaseIdentity implements IdentityPort {
 
 export class MemoryIdentity implements IdentityPort {
   /** email (lower case) → account. `confirmed: false` is a sign-up nobody proved. */
-  readonly users = new Map<string, { userId: string; passportUserId: string | null; confirmed?: boolean }>();
+  readonly users = new Map<string, { userId: string; passportUserId: string | null; confirmed?: boolean; linkedAt?: Date }>();
   readonly issued: { email: string; tokenHash: string }[] = [];
   /** Accounts removed because they were never confirmed. */
   readonly deleted: string[] = [];
   async findByEmail(email: string): Promise<string | null> {
     return this.users.get(email.trim().toLowerCase())?.userId ?? null;
   }
-  async ensureUser(email: string, link: { passportUserId: string }): Promise<{ userId: string; created: boolean }> {
+  private byPassportUser(passportUserId: string): string | null {
+    for (const u of this.users.values()) if (u.passportUserId === passportUserId && u.confirmed !== false) return u.userId;
+    return null;
+  }
+  async ensureUser(email: string, link: { passportUserId: string }): Promise<{ userId: string; created: boolean; link: "recorded" | "pending" }> {
     const key = email.trim().toLowerCase();
     const existing = this.users.get(key);
+    const linkedAccount = this.byPassportUser(link.passportUserId);
     if (existing && existing.confirmed !== false) {
       if (existing.passportUserId && existing.passportUserId !== link.passportUserId) throw new AccountMismatchError();
-      existing.passportUserId = link.passportUserId;
-      return { userId: existing.userId, created: false };
+      if (linkedAccount && linkedAccount !== existing.userId) throw new AccountMismatchError();
+      return { userId: existing.userId, created: false, link: existing.passportUserId ? "recorded" : "pending" };
     }
+    if (linkedAccount) throw new AccountMismatchError();
     if (existing) this.deleted.push(existing.userId);
     const userId = crypto.randomUUID();
     this.users.set(key, { userId, passportUserId: link.passportUserId, confirmed: true });
-    return { userId, created: true };
+    return { userId, created: true, link: "recorded" };
+  }
+  async linkPassportUser(userId: string, passportUserId: string, at: Date): Promise<boolean> {
+    const account = [...this.users.values()].find((u) => u.userId === userId && u.confirmed !== false);
+    if (!account) return false;
+    if (account.passportUserId) return account.passportUserId === passportUserId;
+    const other = this.byPassportUser(passportUserId);
+    if (other && other !== userId) return false;
+    account.passportUserId = passportUserId;
+    account.linkedAt = at;
+    return true;
   }
   async signInToken(email: string): Promise<SignInToken> {
     const tokenHash = `th_${crypto.randomUUID().replace(/-/g, "")}`;
@@ -431,6 +483,30 @@ export interface SecondStepPort {
   claim(userId: string, tokenDigest: string, sessionId: string, now: Date): Promise<{ validUntil: Date } | null>;
   /** Whether `sessionId` holds a claimed record that has not run out. */
   verified(userId: string, sessionId: string, now: Date): Promise<boolean>;
+
+  // A Passport identity waiting to be linked to an account that already existed (red team G1).
+  // The same shape as a second-step record, and it verifies nothing: it only remembers which
+  // Passport user signed in, for the one session that redeems the sign-in, until that session
+  // passes the account's own second step.
+  requestLink(row: LinkRequest): Promise<void>;
+  /** Bind the unclaimed, unexpired request for this person and token to `sessionId`. */
+  claimLink(userId: string, tokenDigest: string, sessionId: string, now: Date): Promise<boolean>;
+  /** The Passport user waiting on `sessionId`, when its request has not run out. */
+  pendingLink(userId: string, sessionId: string, now: Date): Promise<string | null>;
+  /** Forget every request for this person (the link was recorded, or cannot be). */
+  settleLinks(userId: string): Promise<void>;
+}
+
+/** A Passport sign-in for an existing, unlinked account, waiting for that account's own second step. */
+export interface LinkRequest {
+  userId: string;
+  /** SHA-256 (hex) of the one-time sign-in token. The token itself is never stored. */
+  tokenDigest: string;
+  passportUserId: string;
+  /** The session must claim the request before this. */
+  claimBy: Date;
+  /** The request is dead after this, whatever the session does. */
+  validUntil: Date;
 }
 
 /** Through three service-role-only database functions (migration 0018). */
@@ -458,6 +534,24 @@ export class SupabaseSecondSteps implements SecondStepPort {
     if (error) throw new Error(`Reading Passport's second step failed: ${error.message}`);
     return data === true;
   }
+  async requestLink(row: LinkRequest): Promise<void> {
+    const { error } = await this.client.rpc("gms_passport_link_request", { p_user: row.userId, p_digest: row.tokenDigest, p_passport_user: row.passportUserId, p_claim_by: row.claimBy.toISOString(), p_valid_until: row.validUntil.toISOString() });
+    if (error) throw new Error(`Recording the Passport link request failed: ${error.message}`);
+  }
+  async claimLink(userId: string, tokenDigest: string, sessionId: string, _now: Date): Promise<boolean> {
+    const { data, error } = await this.client.rpc("gms_passport_link_claim", { p_user: userId, p_digest: tokenDigest, p_session: sessionId });
+    if (error) throw new Error(`Claiming the Passport link request failed: ${error.message}`);
+    return data === true;
+  }
+  async pendingLink(userId: string, sessionId: string, _now: Date): Promise<string | null> {
+    const { data, error } = await this.client.rpc("gms_passport_link_pending", { p_user: userId, p_session: sessionId });
+    if (error) throw new Error(`Reading the Passport link request failed: ${error.message}`);
+    return typeof data === "string" && data ? data : null;
+  }
+  async settleLinks(userId: string): Promise<void> {
+    const { error } = await this.client.rpc("gms_passport_link_settle", { p_user: userId });
+    if (error) throw new Error(`Clearing the Passport link requests failed: ${error.message}`);
+  }
 }
 
 export class MemorySecondSteps implements SecondStepPort {
@@ -475,5 +569,22 @@ export class MemorySecondSteps implements SecondStepPort {
   }
   async verified(userId: string, sessionId: string, now: Date): Promise<boolean> {
     return this.rows.some((r) => r.userId === userId && r.sessionId === sessionId && r.validUntil > now);
+  }
+  readonly links: (LinkRequest & { sessionId: string | null })[] = [];
+  async requestLink(row: LinkRequest): Promise<void> {
+    this.links.push({ ...row, sessionId: null });
+  }
+  async claimLink(userId: string, tokenDigest: string, sessionId: string, now: Date): Promise<boolean> {
+    if (this.links.some((r) => r.sessionId === sessionId)) return false;
+    const row = this.links.find((r) => r.userId === userId && r.tokenDigest === tokenDigest && r.sessionId === null && r.claimBy > now && r.validUntil > now);
+    if (!row) return false;
+    row.sessionId = sessionId;
+    return true;
+  }
+  async pendingLink(userId: string, sessionId: string, now: Date): Promise<string | null> {
+    return this.links.find((r) => r.userId === userId && r.sessionId === sessionId && r.validUntil > now)?.passportUserId ?? null;
+  }
+  async settleLinks(userId: string): Promise<void> {
+    for (let i = this.links.length - 1; i >= 0; i--) if (this.links[i]!.userId === userId) this.links.splice(i, 1);
   }
 }
