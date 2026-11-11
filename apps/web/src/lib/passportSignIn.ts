@@ -10,16 +10,18 @@ export const passportBrowser = { go: (url: string) => window.location.assign(url
 export const MOCK_PASSPORT_TOKEN = "mock-passport";
 
 /**
- * A destination inside this app: letters, digits, `_`, `-` and single slashes. The same allow-list
+ * A destination inside this app: a path of letters, digits, `_`, `-` and single slashes, with an
+ * optional query string of URL-safe characters (sign-in carries "which opportunity" that way).
+ * The same allow-list
  * as the API's `RETURN_TO` (apps/api/src/services/passport-signin.ts; a test holds the two equal),
  * so nothing a browser could read as another site gets through: no `//`, backslash, scheme, tab,
  * newline or other control character.
  */
-export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}$/;
+export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}(?:\?[A-Za-z0-9_\-.~%=&+]{0,300})?$/;
 
 /** Only plain paths in this app are honored as a destination. */
 export function safeNext(next: string | null | undefined): string | null {
-  return next && RETURN_TO.test(next) && !next.includes("//") ? next : null;
+  return next && RETURN_TO.test(next) && !next.split("?")[0]!.includes("//") ? next : null;
 }
 
 // ---- the last hop -----------------------------------------------------------------------------

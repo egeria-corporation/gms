@@ -79,9 +79,11 @@ describe("Continue with Passport", () => {
     expect(passportSignInUrl("//evil.example", false, HOP)).toBe(`http://api.test/gms/passport/signin/start?hop=${HOP}`);
     expect(passportSignInUrl("https://evil.example", false, HOP)).toBe(`http://api.test/gms/passport/signin/start?hop=${HOP}`);
     expect(safeNext("/w/alder-creek")).toBe("/w/alder-creek");
+    // The app carries "which opportunity" through sign-in as a query string.
+    expect(safeNext("/onboarding/applicant?funder=riverbend&opportunity=community-health-2027")).toBe("/onboarding/applicant?funder=riverbend&opportunity=community-health-2027");
     // Everything a browser could read as another site, including the tab and newline that
     // browsers strip before resolving a URL.
-    for (const bad of ["/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "//evil.example", "/a//b", "/\u0000x", "/w/x?y=1", "/w/x#y", "javascript:alert(1)", "/w/ x", "w/x", ""]) {
+    for (const bad of ["/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "//evil.example", "/a//b", "/\u0000x", "/w/x?y=1#z", "/w/x?y=<script>", "/w/x?a b", "/a//b?x=1", "/w/x#y", "javascript:alert(1)", "/w/ x", "w/x", ""]) {
       expect(safeNext(bad), JSON.stringify(bad)).toBeNull();
     }
   });

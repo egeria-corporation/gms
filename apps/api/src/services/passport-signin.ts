@@ -35,8 +35,12 @@ import { AccountMismatchError } from "./ports.ts";
 
 export const SIGNIN_COOKIE = "__Host-gms_passport_signin";
 const STATE_TTL_MS = 10 * 60 * 1000;
-/** A path in the web app: letters, digits, `_`, `-` and single slashes. Anything else is ignored. */
-export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}$/;
+/**
+ * A destination in the web app: a path of letters, digits, `_`, `-` and single slashes, with an
+ * optional query string of URL-safe characters (the app passes which opportunity someone wanted
+ * through sign-in that way). Anything else is ignored.
+ */
+export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}(?:\?[A-Za-z0-9_\-.~%=&+]{0,300})?$/;
 /** The web app's last-hop binding: base64url, long enough to be unguessable, short enough for a URL. */
 const HOP = /^[A-Za-z0-9_-]{22,128}$/;
 const CLOCK_SKEW_SEC = 60;
@@ -63,7 +67,7 @@ export const signInErrorRedirect = (ctx: Pick<ServiceContext, "config">, code: S
 
 /** `returnTo` if it is a plain path in the web app; null otherwise (never an error: the person still signs in). */
 export function safeReturnTo(raw: string | undefined | null): string | null {
-  return raw && RETURN_TO.test(raw) && !raw.includes("//") ? raw : null;
+  return raw && RETURN_TO.test(raw) && !raw.split("?")[0]!.includes("//") ? raw : null;
 }
 
 export type SignInStart = { ok: true; redirect: string; binding: string; maxAgeSeconds: number } | { ok: false; redirect: string; code: SignInErrorCode };
