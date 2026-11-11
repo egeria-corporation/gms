@@ -85,8 +85,9 @@ async function moveSubmission(ctx: ServiceContext, s: Sub, action: SubmissionAct
 
 async function ownRequirement(ctx: ServiceContext, requirementId: string, write: boolean): Promise<{ r: Req; ws: ServiceWorkspace }> {
   const ws = await authorize(ctx, { scope: write ? "requirements:write" : "requirements:read", kind: "funder", ...(write ? { roles: REQUIREMENT_STAFF } : {}) });
-  const r = await ctx.repos.table("requirements").one({ id: requirementId });
-  if (!r || r.workspace_id !== ws.id) throw notFound("Requirement");
+  const r = await ctx.repos.table("requirements").one({ id: requirementId, workspace_id: ws.id });
+  // A requirement is on one of this workspace's own awards; a row that names another funder's award is not one.
+  if (!r || !(await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: ws.id }))) throw notFound("Requirement");
   return { r, ws };
 }
 
@@ -96,7 +97,7 @@ export async function listRequirements(ctx: ServiceContext, awardId: string) {
   const ws = await authorize(ctx, { scope: "requirements:read" });
   const award = await ctx.repos.table("awards").one({ id: awardId });
   if (!award || !((ws.kind === "funder" && award.workspace_id === ws.id) || (ws.kind === "applicant" && award.recipient_workspace_id === ws.id))) throw notFound("Award");
-  const rows = await ctx.repos.table("requirements").find({ award_id: award.id }, { orderBy: "due_at" });
+  const rows = await ctx.repos.table("requirements").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "due_at" });
   return Promise.all(rows.map(async (r) => requirementView(r, await latestSubmission(ctx, r.id))));
 }
 
@@ -129,7 +130,8 @@ async function pinnedForm(ctx: ServiceContext, ws: ServiceWorkspace, formId: str
 async function ownTranche(ctx: ServiceContext, awardId: string, trancheId: string | undefined): Promise<string | null> {
   if (!trancheId) return null;
   const t = await ctx.repos.table("tranches").one({ id: bare(trancheId, "trn") });
-  if (!t || t.award_id !== awardId) throw new ApiError(422, "unknown_tranche", "That tranche is not on this award");
+  const award = t ? await ctx.repos.table("awards").one({ id: awardId, workspace_id: t.workspace_id }) : null;
+  if (!t || t.award_id !== awardId || !award) throw new ApiError(422, "unknown_tranche", "That tranche is not on this award");
   if (t.status !== "scheduled") throw new ApiError(422, "tranche_not_scheduled", "Only a scheduled tranche can wait on a requirement");
   return t.id;
 }
@@ -259,7 +261,7 @@ async function reminderRecipients(ctx: ServiceContext, workspaceId: string | nul
  */
 export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ sent: number | null; skipped: number[] }> {
   if (!r.due_at) return { sent: null, skipped: [] };
-  const award = await ctx.repos.table("awards").one({ id: r.award_id });
+  const award = await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: r.workspace_id });
   if (!award || !["active", "accepted", "suspended"].includes(award.status)) return { sent: null, skipped: [] };
   const mailer = ctx.ports.mailer;
   const from = ctx.config.mailFrom;
@@ -301,7 +303,7 @@ export async function remindNow(ctx: ServiceContext, requirementId: string) {
   if (!["scheduled", "due", "overdue", "returned"].includes(r.status)) throw new ApiError(409, "nothing_to_remind", `A ${r.status.replace(/_/g, " ")} requirement needs no reminder`);
   if (!r.due_at) throw new ApiError(422, "no_due_date", "Set a due date before sending a reminder");
   if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_unavailable", "Outbound mail is not configured on this server");
-  const award = required(await ctx.repos.table("awards").one({ id: r.award_id }), "Award");
+  const award = required(await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: r.workspace_id }), "Award");
   const offset = Math.round((ctx.now().getTime() - Date.parse(r.due_at)) / 86_400_000);
   const { to, rendered } = await reminderEmail(ctx, r, award, offset);
   if (!to) throw new ApiError(422, "no_recipient_email", "The grantee has no primary email in Passport");
@@ -341,7 +343,9 @@ async function submissionDetail(ctx: ServiceContext, s: Sub) {
 async function accessSubmission(ctx: ServiceContext, submissionId: string, write: boolean): Promise<{ s: Sub; side: "funder" | "recipient"; ws: ServiceWorkspace; award: Award | null }> {
   const ws = await authorize(ctx, { scope: write ? "requirements:write" : "requirements:read" });
   const s = await ctx.repos.table("submissions").one({ id: submissionId });
-  const award = s?.award_id ? await ctx.repos.table("awards").one({ id: s.award_id }) : null;
+  // The award of the submission's own workspace, or none: the report and the award it reports on are one funder's.
+  const award = s?.award_id ? await ctx.repos.table("awards").one({ id: s.award_id, workspace_id: s.workspace_id }) : null;
+  if (s?.award_id && !award) throw notFound("Submission");
   if (s && ws.kind === "funder" && s.workspace_id === ws.id && (s.status !== "draft" || s.shared_from_submission_id)) return { s, side: "funder", ws, award };
   if (s && ws.kind === "applicant" && award?.recipient_workspace_id === ws.id && !s.shared_from_submission_id) return { s, side: "recipient", ws, award };
   throw notFound("Submission");
@@ -369,7 +373,8 @@ export async function acceptSubmission(ctx: ServiceContext, submissionId: string
   sub = await moveSubmission(ctx, sub, "accept", "funder", { ...(input.note ? { reviewNote: input.note } : {}) });
   let r = required(await ctx.repos.table("requirements").one({ id: sub.requirement_id! }), "Requirement");
   if (r.status === "submitted") r = await moveRequirement(ctx, r, "start_review", "funder");
-  const tranche = r.releases_tranche_id ? await ctx.repos.table("tranches").one({ id: r.releases_tranche_id }) : null;
+  // Only a tranche of the same award and workspace can be waiting on this requirement.
+  const tranche = r.releases_tranche_id ? await ctx.repos.table("tranches").one({ id: r.releases_tranche_id, award_id: r.award_id, workspace_id: r.workspace_id }) : null;
   const result = await acceptRequirement(
     { requirement: { id: r.id, status: r.status as RequirementStatus, releasesTrancheId: r.releases_tranche_id }, tranche: tranche ? { id: tranche.id, status: tranche.status as TrancheStatus, condition: tranche.condition as unknown as TrancheCondition } : null },
     { id: ctx.actor.id, kind: "funder" },

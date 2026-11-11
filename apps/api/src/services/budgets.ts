@@ -34,7 +34,7 @@ const view = (b: Budget) => ({ id: b.id, kind: b.kind, currency: b.currency, cat
 
 export async function getBudget(ctx: ServiceContext, awardId: string) {
   const { award } = await accessAward(ctx, awardId, "awards:read");
-  const rows = await ctx.repos.table("budgets").find({ award_id: award.id }, { orderBy: "created_at" });
+  const rows = await ctx.repos.table("budgets").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "created_at" });
   const proposed = award.application_id ? (await ctx.repos.table("budgets").find({ application_id: award.application_id, kind: "proposed" }, { orderBy: "created_at", ascending: false, limit: 1 }))[0] : undefined;
   const approved = rows.filter((b) => b.kind === "approved").pop();
   return { awardId: apiId("award", award.id), currency: currencyOf(award), awardedAmountMinor: minorOf(fundingOf(award).awardedAmount), proposed: proposed ? view(proposed) : null, approved: approved ? view(approved) : null, actuals: rows.filter((b) => b.kind === "actual").map(view) };
@@ -51,13 +51,13 @@ export async function putBudget(ctx: ServiceContext, awardId: string, input: z.o
     if (side !== "funder" || (ws.role !== null && !(STAFF_ROLES as readonly string[]).includes(ws.role))) throw new ApiError(403, "forbidden", "Only the funder's program staff set the approved budget");
     const awarded = minorOf(fundingOf(award).awardedAmount) ?? 0;
     if (total(input.lines) > awarded) throw new ApiError(422, "budget_over_award", "The approved budget is more than the awarded amount");
-    const existing = (await ctx.repos.table("budgets").find({ award_id: award.id, kind: "approved" })).pop();
+    const existing = (await ctx.repos.table("budgets").find({ award_id: award.id, workspace_id: award.workspace_id, kind: "approved" })).pop();
     const saved = existing ? (await ctx.repos.table("budgets").update({ id: existing.id }, { lines: lines as unknown as Budget["lines"], categories: categories as unknown as Budget["categories"], source }))[0]! : await ctx.repos.table("budgets").insert({ workspace_id: award.workspace_id, award_id: award.id, kind: "approved", currency, lines: lines as unknown as Budget["lines"], categories: categories as unknown as Budget["categories"], source });
     await audit(ctx, "budget.approved", "award", award.id, { totalMinor: total(input.lines), categories: categories.length }, award.workspace_id);
     return view(saved);
   }
   if (side !== "recipient") throw new ApiError(403, "forbidden", "Actuals are reported by the grantee");
-  const same = (await ctx.repos.table("budgets").find({ award_id: award.id, kind: "actual" })).find((b) => b.period_start === input.periodStart && b.period_end === input.periodEnd);
+  const same = (await ctx.repos.table("budgets").find({ award_id: award.id, workspace_id: award.workspace_id, kind: "actual" })).find((b) => b.period_start === input.periodStart && b.period_end === input.periodEnd);
   const saved = same ? (await ctx.repos.table("budgets").update({ id: same.id }, { lines: lines as unknown as Budget["lines"], categories: categories as unknown as Budget["categories"], source }))[0]! : await ctx.repos.table("budgets").insert({ workspace_id: award.workspace_id, award_id: award.id, kind: "actual", currency, lines: lines as unknown as Budget["lines"], categories: categories as unknown as Budget["categories"], source, period_start: input.periodStart!, period_end: input.periodEnd! });
   await audit(ctx, "budget.actuals_reported", "award", award.id, { totalMinor: total(input.lines), periodStart: input.periodStart, periodEnd: input.periodEnd }, award.workspace_id);
   return view(saved);
@@ -76,7 +76,7 @@ const mappingList = (m: Record<string, string>) => Object.entries(m).map(([ownCa
 async function funderCategories(ctx: ServiceContext, award: Award): Promise<string[]> {
   const fromProgram = award.program_id ? budgetCategoriesOf(await ctx.repos.table("programs").one({ id: award.program_id })) : [];
   if (fromProgram.length) return fromProgram;
-  const approved = (await ctx.repos.table("budgets").find({ award_id: award.id, kind: "approved" })).pop();
+  const approved = (await ctx.repos.table("budgets").find({ award_id: award.id, workspace_id: award.workspace_id, kind: "approved" })).pop();
   return approved ? [...new Set(linesOf(approved).map((l) => l.category))] : [];
 }
 

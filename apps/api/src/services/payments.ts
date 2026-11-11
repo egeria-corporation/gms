@@ -66,10 +66,23 @@ export const trancheView = (t: TrancheRow) => ({
 
 async function loadTranche(ctx: ServiceContext, trancheId: string, scope: "payments:read" | "payments:release", roles: readonly string[]) {
   const ws = await authorize(ctx, { scope, kind: "funder", roles });
-  const tranche = await ctx.repos.table("tranches").one({ id: trancheId });
-  if (!tranche || tranche.workspace_id !== ws.id) throw notFound("Tranche");
-  const award = required(await ctx.repos.table("awards").one({ id: tranche.award_id }), "Award");
+  const tranche = await ctx.repos.table("tranches").one({ id: trancheId, workspace_id: ws.id });
+  if (!tranche) throw notFound("Tranche");
+  // The award must be this workspace's too. Everything that matters in a payment follows the
+  // award (whose Passport client is used, who is paid, how much is left), so a tranche row that
+  // names another funder's award is not a payment of this workspace, whatever its own columns say.
+  const award = await ctx.repos.table("awards").one({ id: tranche.award_id, workspace_id: ws.id });
+  if (!award) throw notFound("Tranche");
   return { ws, tranche, award };
+}
+
+/**
+ * A tranche and the award it is paid from are one funder's. Callers that are handed both rows (the
+ * jobs, the Payments center) pass through here, so a row pair from two workspaces never reaches
+ * Passport: 404, the same answer as a tranche that does not exist.
+ */
+export function assertTrancheOfAward(tranche: Pick<TrancheRow, "award_id" | "workspace_id">, award: Pick<Award, "id" | "workspace_id">): void {
+  if (tranche.award_id !== award.id || tranche.workspace_id !== award.workspace_id) throw notFound("Tranche");
 }
 
 async function awardForPayments(ctx: ServiceContext, award: Award): Promise<{ a: AwardForPayments | null; recipient: Ws | null }> {
@@ -103,11 +116,12 @@ export interface Readiness {
 
 /** The seven readiness checks, evaluated live (§10.7). `unknown` is its own state: Passport unreachable is neither pass nor fail. */
 export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, award: Award, opts: { duplicateConfirmed?: boolean } = {}): Promise<Readiness> {
+  assertTrancheOfAward(tranche, award);
   const [{ a, recipient }, funder, agreement, siblings, link] = await Promise.all([
     awardForPayments(ctx, award),
     ctx.repos.table("workspaces").one({ id: award.workspace_id }),
-    latestAgreement(ctx, award.id),
-    ctx.repos.table("tranches").find({ award_id: award.id }),
+    latestAgreement(ctx, award),
+    ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }),
     ctx.repos.table("passport_links").one({ workspace_id: award.workspace_id, mode: "funder_client", revoked_at: null }),
   ]);
   let passport: PassportClient | null = null;
@@ -178,7 +192,7 @@ export async function getTrancheReadiness(ctx: ServiceContext, trancheId: string
 
 export async function getSchedule(ctx: ServiceContext, awardId: string) {
   const { award } = await accessAward(ctx, awardId, "awards:read");
-  const tranches = await ctx.repos.table("tranches").find({ award_id: award.id }, { orderBy: "seq" });
+  const tranches = await ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "seq" });
   const f = fundingOf(award);
   return { awardId: apiId("award", award.id), currency: currencyOf(award), awardedAmountMinor: minorOf(f.awardedAmount), disbursedAmountMinor: minorOf(f.disbursedAmount), disbursedAsOf: award.disbursed_at, tranches: tranches.map(trancheView) };
 }
@@ -202,12 +216,12 @@ export async function putSchedule(ctx: ServiceContext, awardId: string, input: z
   const award = await ctx.repos.table("awards").one({ id: awardId });
   if (!award || award.workspace_id !== ws.id) throw notFound("Award");
   if (["completed", "cancelled"].includes(award.status)) throw new ApiError(409, "award_closed", `The schedule of a ${award.status} award cannot change`);
-  const existing = await ctx.repos.table("tranches").find({ award_id: award.id }, { orderBy: "seq" });
+  const existing = await ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: ws.id }, { orderBy: "seq" });
   const kept = existing.filter((t) => !["scheduled", "due", "ready"].includes(t.status));
   const replaceable = existing.filter((t) => ["scheduled", "due", "ready"].includes(t.status));
   const awarded = minorOf(fundingOf(award).awardedAmount) ?? 0;
   const remaining = awarded - kept.filter((t) => t.status !== "cancelled").reduce((sum, t) => sum + t.amount_minor, 0);
-  const requirementIds = new Set((await ctx.repos.table("requirements").find({ award_id: award.id })).map((r) => r.id));
+  const requirementIds = new Set((await ctx.repos.table("requirements").find({ award_id: award.id, workspace_id: ws.id })).map((r) => r.id));
   const plan: PlanItem[] = input.tranches.map((t) => {
     const condition = t.condition.type === "onReportAccepted" ? { type: "onReportAccepted" as const, requirementId: t.condition.requirementId.replace(/^req_/, "") } : t.condition;
     if (condition.type === "onReportAccepted" && !requirementIds.has(condition.requirementId)) throw new ApiError(422, "unknown_requirement", "A tranche names a requirement that is not on this award");
@@ -250,7 +264,7 @@ export async function listTranches(ctx: ServiceContext, page: PageRequest, f: Tr
   if (f.view && !statuses) throw new ApiError(400, "bad_request", `view must be one of ${Object.keys(VIEWS).join(", ")}`);
   const where = { workspace_id: ws.id, ...(statuses ? { status: statuses } : {}), ...(f.awardId ? { award_id: f.awardId } : {}) };
   const [rows, total] = await Promise.all([ctx.repos.table("tranches").find(where, { orderBy: "due_at", limit: page.pageSize, offset: page.offset }), ctx.repos.table("tranches").count(where)]);
-  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))] }) : [];
+  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
   const items = rows.map((t) => {
     const a = awards.find((x) => x.id === t.award_id);
@@ -412,7 +426,7 @@ export async function cancelTranche(ctx: ServiceContext, trancheId: string, inpu
 export async function paymentsReadiness(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "payments:read", kind: "funder", roles: PAYMENT_READERS });
   const rows = await ctx.repos.table("tranches").find({ workspace_id: ws.id, status: ["due", "ready", "held"] }, { orderBy: "due_at", limit: 100 });
-  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))] }) : [];
+  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const items = [];
   for (const t of rows) {
     const award = awards.find((a) => a.id === t.award_id);
@@ -427,7 +441,7 @@ export async function paymentsReadiness(ctx: ServiceContext) {
 export async function paymentAlerts(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "payments:read", kind: "funder", roles: PAYMENT_READERS });
   const rows = await ctx.repos.table("tranches").find({ workspace_id: ws.id }, { limit: 1000 });
-  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))] }) : [];
+  const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
   const nameOf = (awardId: string) => recipients.find((r) => r.id === awards.find((a) => a.id === awardId)?.recipient_workspace_id)?.display_name ?? "The grantee";
   const alerts: { kind: string; tone: "warn" | "danger" | "neutral"; title: string; detail: string; trancheId?: string; awardId?: string; recipientWorkspaceId?: string }[] = [];
@@ -459,7 +473,7 @@ export async function listBankTransactions(ctx: ServiceContext, page: PageReques
   const ws = await authorize(ctx, { scope: "payments:read", kind: "funder", roles: PAYMENT_READERS });
   const all = (await ctx.repos.table("bank_transactions").find({ workspace_id: ws.id }, { orderBy: "posted_at", ascending: false, limit: 1000 })).filter((t) => f.matched === undefined || (t.matched_tranche_id !== null) === f.matched);
   const open = await ctx.repos.table("tranches").find({ workspace_id: ws.id, status: ["due", "ready"] });
-  const awards = open.length ? await ctx.repos.table("awards").find({ id: [...new Set(open.map((t) => t.award_id))] }) : [];
+  const awards = open.length ? await ctx.repos.table("awards").find({ id: [...new Set(open.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
   const candidates = open.map((t) => {
     const r = recipients.find((x) => x.id === awards.find((a) => a.id === t.award_id)?.recipient_workspace_id);
@@ -479,8 +493,8 @@ export async function matchBankTransaction(ctx: ServiceContext, transactionId: s
   const txn = await ctx.repos.table("bank_transactions").one({ id: transactionId });
   if (!txn || txn.workspace_id !== ws.id) throw notFound("Bank transaction");
   if (txn.matched_tranche_id) throw new ApiError(409, "already_matched", "This transaction is already matched to a payment");
-  const tranche = await ctx.repos.table("tranches").one({ id: trancheUuid });
-  if (!tranche || tranche.workspace_id !== ws.id) throw notFound("Tranche");
+  const tranche = await ctx.repos.table("tranches").one({ id: trancheUuid, workspace_id: ws.id });
+  if (!tranche) throw notFound("Tranche");
   if (Math.abs(tranche.amount_minor - txn.amount_minor) > 1 || tranche.currency !== txn.currency) throw new ApiError(422, "amount_mismatch", "The transaction amount does not match this tranche");
   const recorded = await recordExternalPayment(ctx, tranche.id, { reference: `${txn.provider}:${txn.external_txn_id}`, paidAt: txn.posted_at, destinationLast4 });
   await ctx.repos.table("bank_transactions").update({ id: txn.id }, { matched_tranche_id: tranche.id, matched_at: ctx.now().toISOString(), matched_by: ctx.actor.userId });

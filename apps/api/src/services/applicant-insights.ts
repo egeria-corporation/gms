@@ -40,8 +40,8 @@ export async function myFundersDetail(ctx: ServiceContext) {
   if (!ids.length) return [];
   const [funders, requirements, agreements] = await Promise.all([
     ctx.repos.table("workspaces").find({ id: ids }, { orderBy: "display_name" }),
-    awards.length ? ctx.repos.table("requirements").find({ award_id: awards.map((a) => a.id) }) : Promise.resolve([]),
-    awards.length ? ctx.repos.table("agreements").find({ award_id: awards.map((a) => a.id) }) : Promise.resolve([]),
+    awards.length ? ctx.repos.table("requirements").find({ award_id: awards.map((a) => a.id) }).then((rows) => rows.filter((r) => awards.some((a) => a.id === r.award_id && a.workspace_id === r.workspace_id))) : Promise.resolve([]),
+    awards.length ? ctx.repos.table("agreements").find({ award_id: awards.map((a) => a.id) }).then((rows) => rows.filter((g) => awards.some((a) => a.id === g.award_id && a.workspace_id === g.workspace_id))) : Promise.resolve([]),
   ]);
   return funders.map((f) => {
     const theirAwards = awards.filter((a) => a.workspace_id === f.id);
@@ -81,7 +81,7 @@ async function awardParty(ctx: ServiceContext, awardId: string, scope: "awards:r
 /** A grant's documents as either party may see them: agreements and files attached to the award. */
 export async function awardDocuments(ctx: ServiceContext, awardId: string) {
   const { award } = await awardParty(ctx, awardId, "awards:read");
-  const [agreements, docs] = await Promise.all([ctx.repos.table("agreements").find({ award_id: award.id }, { orderBy: "version" }), ctx.repos.table("documents").find({ subject_type: "award", subject_id: award.id }, { orderBy: "created_at" })]);
+  const [agreements, docs] = await Promise.all([ctx.repos.table("agreements").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "version" }), ctx.repos.table("documents").find({ subject_type: "award", subject_id: award.id }, { orderBy: "created_at" })]);
   return [
     ...agreements.filter((g) => g.status !== "draft").map((g) => ({ kind: "agreement", id: apiId("agreement", g.id), name: `Grant agreement v${g.version}`, status: g.status, sha256: g.document_sha256, at: g.executed_at ?? g.updated_at, href: `${ctx.config.baseUrl}/gms/agreements/${apiId("agreement", g.id)}/pdf` })),
     ...docs.map((d) => ({ kind: "file", id: d.id, name: d.name, status: d.scan_status, sha256: d.sha256, at: d.created_at, href: null })),

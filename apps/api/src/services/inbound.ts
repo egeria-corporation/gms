@@ -33,7 +33,8 @@ export type Received = { status: 200; outcome: "processed" | "duplicate" | "queu
 const tranchesOfRecipient = async (base: BaseContext, orgId: string) => {
   const recipients = (await base.repos.table("workspaces").find({ passport_org_id: orgId })).filter((w) => w.kind === "applicant");
   const awards = recipients.length ? await base.repos.table("awards").find({ recipient_workspace_id: recipients.map((w) => w.id) }) : [];
-  const tranches = awards.length ? await base.repos.table("tranches").find({ award_id: awards.map((a) => a.id) }) : [];
+  // Only tranches of the award's own workspace: a row elsewhere that names the award is not one of its payments.
+  const tranches = awards.length ? (await base.repos.table("tranches").find({ award_id: awards.map((a) => a.id) })).filter((t) => awards.some((a) => a.id === t.award_id && a.workspace_id === t.workspace_id)) : [];
   return { recipients, awards, tranches };
 };
 

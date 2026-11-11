@@ -29,7 +29,7 @@ beforeEach(async () => {
 /** The rows an attacker would send: shared-library rows, children of another funder's records, and finished states. */
 function hostileBundle(ownWs: string) {
   const template = crypto.randomUUID();
-  const ids = { template, agreement: crypto.randomUUID(), tranche: crypto.randomUUID(), competition: crypto.randomUUID(), decision: crypto.randomUUID(), form: crypto.randomUUID(), rubric: crypto.randomUUID(), amendment: crypto.randomUUID(), requirement: crypto.randomUUID(), budget: crypto.randomUUID() };
+  const ids = { template, agreement: crypto.randomUUID(), tranche: crypto.randomUUID(), competition: crypto.randomUUID(), decision: crypto.randomUUID(), form: crypto.randomUUID(), rubric: crypto.randomUUID(), amendment: crypto.randomUUID(), requirement: crypto.randomUUID(), budget: crypto.randomUUID(), submission: crypto.randomUUID() };
   const gms = {
     workspace: { handle: "x" },
     // No workspace_id: these used to land in the library every funder sees.
@@ -39,6 +39,8 @@ function hostileBundle(ownWs: string) {
     requirements: [{ id: ids.requirement, workspace_id: ownWs, award_id: victimAward, type: "report", title: "Planted", status: "accepted" }],
     amendments: [{ id: ids.amendment, workspace_id: ownWs, award_id: victimAward, type: "supplemental", request: { amountMinor: 1 }, status: "approved" }],
     budgets: [{ id: ids.budget, workspace_id: ownWs, award_id: victimAward, kind: "approved", lines: [] }],
+    tranches: [{ id: ids.tranche, workspace_id: ownWs, schedule_id: crypto.randomUUID(), award_id: victimAward, seq: 99, amount_minor: 7_500_000, currency: "USD", condition: { type: "manual" }, status: "due", idempotency_key: `trn_${ids.tranche}` }],
+    submissions: [{ id: ids.submission, workspace_id: ownWs, requirement_id: ids.requirement, award_id: victimAward, status: "submitted", submitted_at: "2027-01-01T00:00:00Z" }],
     decisions: [{ id: ids.decision, workspace_id: ownWs, competition_id: s.uuid.comp, application_id: victimApp, outcome: "decline", committed_at: "2027-01-01T00:00:00Z" }],
     records: {
       forms: [{ id: ids.form, version: 1, title: "Planted form", purpose: "application", published_at: "2027-01-01T00:00:00Z" }],
@@ -60,7 +62,7 @@ describe("bundle import", () => {
     // The victim funder's own admin is refused the same way: restoring is the operator's job.
     const admin = { ...bearer(await h.session(USER_ADMIN)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
     expect((await s.call(admin, "POST", "/gms/imports/bundle", { gms })).status).toBe(410);
-    for (const [table, id] of [["templates", ids.template], ["rubrics", ids.rubric], ["agreements", ids.agreement], ["requirements", ids.requirement], ["amendments", ids.amendment], ["budgets", ids.budget], ["decisions", ids.decision], ["forms", ids.form], ["competitions", ids.competition]] as const) {
+    for (const [table, id] of [["templates", ids.template], ["rubrics", ids.rubric], ["agreements", ids.agreement], ["requirements", ids.requirement], ["amendments", ids.amendment], ["budgets", ids.budget], ["decisions", ids.decision], ["forms", ids.form], ["competitions", ids.competition], ["tranches", ids.tranche], ["submissions", ids.submission]] as const) {
       expect(await h.repos.table(table).count({ id } as never), table).toBe(0);
     }
   });
@@ -74,7 +76,7 @@ describe("bundle import", () => {
     expect((await h.repos.table("rubrics").one({ id: ids.rubric }))!.workspace_id).toBe(WS_OTHER);
     expect((await h.repos.table("forms").one({ id: ids.form }))!.workspace_id).toBe(WS_OTHER);
     // Children of another workspace's award, application or opportunity are skipped.
-    for (const [table, id] of [["agreements", ids.agreement], ["requirements", ids.requirement], ["amendments", ids.amendment], ["budgets", ids.budget], ["decisions", ids.decision], ["competitions", ids.competition]] as const) {
+    for (const [table, id] of [["agreements", ids.agreement], ["requirements", ids.requirement], ["amendments", ids.amendment], ["budgets", ids.budget], ["decisions", ids.decision], ["competitions", ids.competition], ["tranches", ids.tranche], ["submissions", ids.submission]] as const) {
       expect(await h.repos.table(table).count({ id } as never), table).toBe(0);
     }
     expect(out.counts.agreements).toEqual({ inserted: 0, existing: 0, skipped: 1 });
