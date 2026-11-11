@@ -10,7 +10,7 @@ import { apiId } from "../lib/ids.ts";
 import { type App, access, passportFacts, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { listMyDocuments } from "./organization.ts";
-import { OpenGrantsUnavailableError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
+import { OpenGrantsProfileError, OpenGrantsUnavailableError, OpenGrantsUnsupportedError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -329,6 +329,8 @@ export async function openGrants(ctx: ServiceContext, tool: OpenGrantsTool, args
       value = { items: r.items };
     } catch (e) {
       if (e instanceof OpenGrantsUnavailableError) throw new ApiError(503, "opengrants_unavailable", "OpenGrants can't be reached right now");
+      if (e instanceof OpenGrantsUnsupportedError) throw new ApiError(501, "opengrants_not_supported", tool === "alerts" ? "Funding alerts are set up on opengrants.io; they are not available from here yet" : "That OpenGrants feature is not available from here yet");
+      if (e instanceof OpenGrantsProfileError) throw new ApiError(422, "opengrants_profile_incomplete", "Matching needs to know what your organization does. Add a mission statement in Passport, then refresh.");
       throw e;
     }
     if (tool !== "alerts") cache.set(key, { at: now, value });

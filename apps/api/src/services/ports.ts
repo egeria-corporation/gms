@@ -40,7 +40,10 @@ export interface OpenGrantsClient {
 }
 
 export class OpenGrantsUnavailableError extends Error {
-  constructor(message = "OpenGrants could not be reached") {
+  constructor(
+    message = "OpenGrants could not be reached",
+    readonly status?: number,
+  ) {
     super(message);
     this.name = "OpenGrantsUnavailableError";
   }
@@ -57,63 +60,135 @@ export class FixtureOpenGrantsClient implements OpenGrantsClient {
   }
 }
 
-/** Tool names on the hosted OpenGrants MCP for each proxy route. */
-const MCP_TOOL: Record<OpenGrantsTool, string> = { search: "search_grants", match: "match_grants", eligibility: "check_eligibility", alerts: "create_funding_alert" };
-
-function listingsFrom(result: unknown): OpenGrantsListing[] {
-  const r = result as { structuredContent?: unknown; content?: { type?: string; text?: string }[] } | null;
-  let payload: unknown = r?.structuredContent;
-  if (payload === undefined) {
-    const text = r?.content?.find((c) => c.type === "text")?.text;
-    try {
-      payload = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      payload = null;
-    }
+/** A tool the OpenGrants REST API has no endpoint for (eligibility checks and alerts live in its MCP and web app). */
+export class OpenGrantsUnsupportedError extends Error {
+  constructor(readonly tool: OpenGrantsTool) {
+    super(`OpenGrants does not offer ${tool} through its API`);
+    this.name = "OpenGrantsUnsupportedError";
   }
-  const list = Array.isArray(payload) ? payload : ((payload as { items?: unknown; results?: unknown; grants?: unknown } | null)?.items ?? (payload as { results?: unknown } | null)?.results ?? (payload as { grants?: unknown } | null)?.grants);
-  if (!Array.isArray(list)) return [];
-  return list
-    .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
-    .map((x) => ({ ...x, id: String(x.id ?? x.slug ?? x.url ?? ""), title: String(x.title ?? x.name ?? "Untitled") }))
-    .filter((x) => x.id !== "");
 }
 
-/**
- * The hosted OpenGrants MCP over Streamable HTTP (stateless `tools/call`). The applicant's org
- * context travels as the `organization` argument; nothing else about the workspace is sent.
- */
-export class McpOpenGrantsClient implements OpenGrantsClient {
-  constructor(
-    private readonly url: string,
-    private readonly apiKey: string | null,
-    private readonly doFetch: (input: string, init?: RequestInit) => Promise<Response> = (i, init) => fetch(i, init),
-  ) {}
+/** Matching needs to know what the organization does; Passport has no mission for it yet. */
+export class OpenGrantsProfileError extends Error {
+  constructor() {
+    super("Matching needs a mission statement on the organization");
+    this.name = "OpenGrantsProfileError";
+  }
+}
 
-  async call(tool: OpenGrantsTool, args: Record<string, unknown>, org: OrgSearchContext) {
+const usd = (n: unknown): string | null => (typeof n === "number" && Number.isFinite(n) && n > 0 ? `$${Math.round(n).toLocaleString("en-US")}` : null);
+
+/** "$5,000 – $25,000", "up to $30,000", "from $5,000", or nothing when the listing gives no amount. */
+export function amountRange(min: unknown, max: unknown): string | undefined {
+  const lo = usd(min);
+  const hi = usd(max);
+  if (lo && hi) return lo === hi ? lo : `${lo} – ${hi}`;
+  if (hi) return `up to ${hi}`;
+  if (lo) return `from ${lo}`;
+  return undefined;
+}
+
+const text = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+const clip = (v: unknown, n: number): string | undefined => {
+  const t = text(v);
+  return t ? (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t) : undefined;
+};
+
+/** CommonGrants organization type code → the applicant types OpenGrants scores against. */
+const APPLICANT_TYPE: Record<string, string> = {
+  nonprofit: "nonprofit",
+  for_profit: "for_profit",
+  government: "municipality",
+  municipality: "municipality",
+  tribal: "tribal",
+  individual: "individual",
+  academic: "academic",
+  education: "academic",
+};
+
+/**
+ * The OpenGrants REST API (https://ops.opengrants.io/openapi.json): `GET /grants-api` for search and
+ * `POST /match-grants-api` for matching, authenticated with an API key as a bearer token. The hosted
+ * MCP server takes OAuth sign-in only, so a server-side key cannot use it. Only the applicant's org
+ * context (type, state, mission) is sent; nothing else about the workspace leaves.
+ */
+export class RestOpenGrantsClient implements OpenGrantsClient {
+  private readonly base: string;
+  constructor(
+    baseUrl: string,
+    private readonly apiKey: string,
+    // A wrapper, never the bare `fetch`: Workers rejects the platform fetch called as a method.
+    private readonly doFetch: (input: string, init?: RequestInit) => Promise<Response> = (i, init) => fetch(i, init),
+  ) {
+    this.base = baseUrl.replace(/\/+$/, "");
+  }
+
+  private async request(path: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
     let res: Response;
     try {
-      res = await this.doFetch(this.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}) },
-        body: JSON.stringify({ jsonrpc: "2.0", id: crypto.randomUUID(), method: "tools/call", params: { name: MCP_TOOL[tool], arguments: { ...args, organization: org } } }),
+      res = await this.doFetch(`${this.base}${path}`, {
+        ...init,
+        headers: { Accept: "application/json", Authorization: `Bearer ${this.apiKey}`, ...(init.body ? { "Content-Type": "application/json" } : {}) },
       });
-    } catch {
-      throw new OpenGrantsUnavailableError();
+    } catch (e) {
+      throw new OpenGrantsUnavailableError(`OpenGrants could not be reached${e instanceof Error ? `: ${e.message.slice(0, 120)}` : ""}`);
     }
-    if (!res.ok) throw new OpenGrantsUnavailableError(`OpenGrants answered ${res.status}`);
-    let text = await res.text();
-    // A Streamable HTTP server may answer one JSON-RPC message as a single SSE event.
-    if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) text = text.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).pop() ?? "";
-    let body: { result?: unknown; error?: { message?: string } };
-    try {
-      body = JSON.parse(text) as typeof body;
-    } catch {
-      throw new OpenGrantsUnavailableError("OpenGrants returned a body that is not JSON");
-    }
-    if (body.error) throw new OpenGrantsUnavailableError(body.error.message ?? "OpenGrants refused the request");
-    return { items: listingsFrom(body.result), raw: body.result };
+    const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!res.ok || !body) throw new OpenGrantsUnavailableError(`OpenGrants answered ${res.status}`, res.status);
+    return body;
   }
+
+  async call(tool: OpenGrantsTool, args: Record<string, unknown>, org: OrgSearchContext) {
+    if (tool === "search") {
+      const q = new URLSearchParams({ limit: "20" });
+      const query = text(args.query);
+      if (query) {
+        q.set("search", query.slice(0, 200));
+        q.set("search_mode", "hybrid");
+      }
+      if (org.region) {
+        q.set("states", org.region);
+        q.set("include_national", "true");
+      }
+      const body = await this.request(`/grants-api?${q.toString()}`);
+      const rows = Array.isArray(body.results) ? (body.results as Record<string, unknown>[]) : [];
+      return { items: rows.map(searchListing).filter((l) => l.id !== ""), raw: body };
+    }
+    if (tool === "match") {
+      if (!org.mission) throw new OpenGrantsProfileError();
+      const applicantType = org.orgType ? APPLICANT_TYPE[org.orgType] : undefined;
+      const profile = { mission: org.mission, ...(org.region ? { geography: org.region } : {}), ...(applicantType ? { applicant_type: applicantType } : {}) };
+      const body = await this.request("/match-grants-api", { method: "POST", body: JSON.stringify({ profile, limit: 20 }) });
+      const rows = Array.isArray(body.matches) ? (body.matches as Record<string, unknown>[]) : [];
+      return { items: rows.map(matchListing).filter((l) => l.id !== ""), raw: body };
+    }
+    throw new OpenGrantsUnsupportedError(tool);
+  }
+}
+
+function listing(r: Record<string, unknown>, f: { funder: unknown; url: unknown; deadline: unknown; min: unknown; max: unknown; summary: unknown }): OpenGrantsListing {
+  const url = text(f.url);
+  const deadline = text(f.deadline);
+  const amount = amountRange(f.min, f.max);
+  const funder = text(f.funder);
+  const summary = clip(f.summary, 320);
+  return {
+    id: String(r.id ?? ""),
+    title: text(r.title) ?? "Untitled",
+    ...(funder ? { funder } : {}),
+    ...(url ? { url, source: url } : {}),
+    ...(deadline ? { deadline } : {}),
+    ...(amount ? { amount } : {}),
+    ...(summary ? { summary } : {}),
+  };
+}
+
+const searchListing = (r: Record<string, unknown>): OpenGrantsListing =>
+  listing(r, { funder: r.funder_name, url: r.listing_url, deadline: r.deadline_date, min: r.amount_min, max: r.amount_max, summary: r.description });
+
+function matchListing(r: Record<string, unknown>): OpenGrantsListing {
+  const base = listing(r, { funder: r.funder, url: r.url, deadline: r.deadline, min: r.award_min_usd, max: r.award_max_usd, summary: r.why_it_fits });
+  return typeof r.match_score === "number" ? { ...base, matchScore: Math.round(r.match_score) } : base;
 }
 
 // ---------------------------------------------------------------------------------- user directory

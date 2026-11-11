@@ -11,7 +11,7 @@ in `connector_accounts`; they are never returned or logged.
 |---|---|---|---|---|
 | Mercury (`mercury`) | `BankFeed` | `MercuryBankFeed` | Yes, 2026-11-10 (see below) | **No** |
 | Google Workspace (`google_workspace`) | `WorkspaceApps` | **None**: `FixtureWorkspaceApps` only | No | No |
-| OpenGrants discovery | `OpenGrantsClient` | `McpOpenGrantsClient` | **No** (tool names are a guess) | **No** |
+| OpenGrants discovery | `OpenGrantsClient` | `RestOpenGrantsClient` | Yes, 2026-11-11 (OpenAPI 1.2.0) | **Yes**, 2026-11-11: search and match against the live API |
 | Custom MCP servers | `McpDirectory` | `HttpMcpDirectory` (`tools/list`, `tools/call`) | MCP Streamable HTTP, stateless JSON-RPC | Against in-process fakes only |
 | Resend | `Mailer` (`@gms/notify`) | `ResendMailer` | Not re-checked in this pass | **No** |
 | Anthropic (assistant) | `LlmClient` (`@gms/assist`) | `AnthropicLlmClient` (official SDK) | SDK types + request-shape test | **No** |
@@ -145,17 +145,35 @@ its Content-Security-Policy.
 
 ## OpenGrants discovery
 
-`McpOpenGrantsClient` calls the hosted OpenGrants MCP (`OPENGRANTS_MCP_URL`) with a stateless
-`tools/call`, passing the applicant's organization context (org type, region, mission, revenue
-band) and nothing else about the workspace. Results are cached 15 minutes per organization.
+`RestOpenGrantsClient` calls the OpenGrants REST API (`OPENGRANTS_API_URL`, default
+`https://ops.opengrants.io/functions/v1`, described by `https://ops.opengrants.io/openapi.json`)
+with `OPENGRANTS_API_KEY` as a bearer token. Funding search is on when the key is set; without it
+the routes answer 503 `opengrants_not_configured`.
 
-**The tool names are unverified.** The proxy maps its four routes to `search_grants`,
-`match_grants`, `check_eligibility` and `create_funding_alert`. `mcp.opengrants.io` was not
-reachable from the build environment (proxy 403) and the OpenGrants connector in the build session
-was not authorized, so `tools/list` was never read. Before enabling discovery, run `tools/list`
-against the hosted MCP and correct `MCP_TOOL` in `apps/api/src/services/ports.ts`, and check how
-results are shaped (`listingsFrom` accepts `items`, `results` or `grants`). Until then the routes
-work against the fixture client only.
+| GMS route | OpenGrants call | Sent about the organization |
+|---|---|---|
+| `POST /gms/discover/opengrants/search` | `GET /grants-api?search=…&search_mode=hybrid&limit=20` | State (`states=…&include_national=true`) when known |
+| `POST /gms/discover/opengrants/match` | `POST /match-grants-api` | Mission (required), state, applicant type |
+| `…/eligibility`, `…/alerts` | none: the REST API has no such endpoint | 501 `opengrants_not_supported` |
+
+Nothing else about the workspace leaves. Results are cached 15 minutes per organization. Matching
+needs a mission on the Passport record; without one the route answers 422
+`opengrants_profile_incomplete` and the person is told to add it in Passport.
+
+**Why not the MCP server.** The hosted MCP at `mcp.opengrants.io/mcp` accepts OAuth sign-in only
+(dynamic client registration, a person approves access); it answered `invalid_token` to an API key
+on 2026-11-11. A server-side key therefore cannot use it. Its tools are also named
+`opengrants_search_grants`, `opengrants_match_grants` and so on, not the names the first client
+guessed. Eligibility checks and alerts exist only there and on opengrants.io.
+
+**Limits.** The Pro plan allows 25 API requests a day and the Developer plan is unlimited; matching
+needs Pro or Developer. The hosted install uses a Developer key (the API reported no limit).
+
+Verify against the live API:
+
+```bash
+cd apps/api && OPENGRANTS_API_KEY=<key> node --experimental-transform-types scripts/opengrants-smoke.ts
+```
 
 ## Custom MCP servers
 
