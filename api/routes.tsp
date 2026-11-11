@@ -436,7 +436,10 @@ namespace GMS.Routes.Custom {
 
   @tag("Applications (GMS)")
   namespace Applications {
-    /** Dry-run the eligibility rules against an organization or an application. */
+    /** Dry-run the eligibility rules against an organization or an application. Reviewer roles get
+     * 403. When the rules run against another organization's cached Passport record, each result
+     * carries the outcome and label only: `actual` is omitted and `explain` does not quote the value.
+     */
     @post @route("/eligibility/evaluate") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
     op evaluateEligibility(@body body: EligibilityRequest): OkT<EligibilityResult> | BadRequest | AuthErrors | NotFound;
 

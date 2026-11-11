@@ -2092,7 +2092,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Dry-run the eligibility rules against an organization or an application. */
+        /**
+         * @description Dry-run the eligibility rules against an organization or an application. Reviewer roles get
+         *     403. When the rules run against another organization's cached Passport record, each result
+         *     carries the outcome and label only: `actual` is omitted and `explain` does not quote the value.
+         */
         post: operations["Applications_evaluateEligibility"];
         delete?: never;
         options?: never;
