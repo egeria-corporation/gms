@@ -1,4 +1,8 @@
-# Staging: gms-staging.opengrants.io
+# The hosted GMS: gms.opengrants.io
+
+**2026-11-11:** `gms.opengrants.io` now points at the Workers and database described below (the owner chose this over a second set). `gms-staging.opengrants.io` permanently redirects to it. The Worker, bucket, queue and Supabase project names keep their `staging` suffix. The demo data was removed from the database; the five global templates were kept. There is no separate staging environment: every deploy goes to real users.
+
+The rest of this page was written when the address was `gms-staging.opengrants.io`; read that name as `gms.opengrants.io`, and add `--redirect-from gms-staging.opengrants.io` to the front Worker build.
 
 Deployed 2026-11-10 from a Claude Code cloud session. Production (`gms.opengrants.io`) is not deployed.
 

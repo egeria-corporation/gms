@@ -7,7 +7,8 @@
 //   - forwards the API path prefixes to the API Worker over a service binding,
 // so one custom domain gives the web app and the API the same origin, as the production routes do.
 //
-//   node scripts/build-front-worker.mjs --name gms-web-staging --host gms-staging.opengrants.io --api gms-api-staging
+//   node scripts/build-front-worker.mjs --name gms-web-staging --host gms.opengrants.io --api gms-api-staging \
+//     [--redirect-from gms-staging.opengrants.io]   an old address that permanently redirects to --host
 //
 // Writes apps/web/.front-worker/{index.js,assets.js,wrangler.toml}; deploy with
 //   pnpm --filter @gms/web exec wrangler deploy --config .front-worker/wrangler.toml
@@ -113,9 +114,17 @@ function matches(pattern, path) {
   return pattern.endsWith("*") ? path.startsWith(pattern.slice(0, -1)) : pattern === path;
 }
 
+const HOST = ${JSON.stringify(args.host)};
+const REDIRECT_FROM = ${JSON.stringify(args["redirect-from"] ?? null)};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // The old address: send people (and their bookmarks) to the same page on the new one.
+    if (REDIRECT_FROM && url.hostname === REDIRECT_FROM) {
+      url.hostname = HOST;
+      return Response.redirect(url.toString(), 308);
+    }
     if (isApi(url.pathname)) return env.API.fetch(request);
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
 
@@ -143,7 +152,7 @@ name = "${args.name}"
 main = "index.js"
 compatibility_date = "2026-10-01"
 workers_dev = false
-routes = [{ pattern = "${args.host}", custom_domain = true }]
+routes = [{ pattern = "${args.host}", custom_domain = true }${args["redirect-from"] ? `, { pattern = "${args["redirect-from"]}", custom_domain = true }` : ""}]
 
 [[services]]
 binding = "API"
