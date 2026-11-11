@@ -244,7 +244,8 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   const fail = (code: SignInErrorCode, step?: string, cause?: unknown): SignInOutcome => {
     const e = cause instanceof Error ? cause : null;
     log(code === "cancelled" ? "info" : "warn", "passport.signin_failed", {
-      code,
+      // Not `code`: the logger blanks any field of that name, as it does an authorization code.
+      outcome: code,
       ...(step ? { step } : {}),
       ...(e ? { error: e.name, detail: e.message.slice(0, 200), ...(typeof (e as { status?: unknown }).status === "number" ? { upstreamStatus: (e as { status?: number }).status } : {}) } : {}),
     });
