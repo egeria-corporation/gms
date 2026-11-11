@@ -37,6 +37,19 @@ export function readPassportFields(org: { customFields?: unknown } | null | unde
   };
 }
 
+export const ORGANIZATION_KINDS = ["nonprofit", "funder", "both"] as const;
+export type OrganizationKind = (typeof ORGANIZATION_KINDS)[number];
+const orgKind = z.enum(ORGANIZATION_KINDS);
+
+/**
+ * Passport's `organizationKind` custom field: whether the organization receives grants, makes them,
+ * or both. Null when the record does not say (records cached before Passport published the field).
+ */
+export function readOrganizationKind(org: { customFields?: unknown } | null | undefined): OrganizationKind | null {
+  const k = orgKind.safeParse(fieldValue(org?.customFields, "organizationKind"));
+  return k.success ? k.data : null;
+}
+
 export const levelRank = (value: VerificationLevel): number => VERIFICATION_LEVELS.indexOf(value);
 
 export const meetsLevel = (actual: VerificationLevel, required: VerificationLevel): boolean => levelRank(actual) >= levelRank(required);
