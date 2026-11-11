@@ -9,6 +9,8 @@ useDefault = true
 description = "Test fixtures and documentation examples (not secrets)"
 regexTarget = "secret"
 regexes = [
+  # Made-up invitation token in the web test for pasted invitation links (apps/web/test/review-fixes.test.tsx)
+  '''^gms_inv_AbC123-xyz_$''',
   # 32-byte AES test key: the bytes 0..31, base64url (webhook-secret encryption tests)
   '''^AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8$''',
   # Placeholder SAM.gov keys in importer unit tests
