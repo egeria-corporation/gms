@@ -35,10 +35,10 @@ model ApplicationBudgetView {
 }
 
 model InterviewState {
-  /** `{ slots[], note, location, at }` once the funder has offered times */
+  /** `{ slots[], slotOptions[{ id, at }], note, location, at }` once the funder has offered times */
   proposed: Record<unknown> | null;
 
-  /** `{ slot, at }` once the applicant has confirmed one */
+  /** `{ slot, slotId, at }` once the applicant has confirmed one */
   confirmed: Record<unknown> | null;
 }
 
@@ -48,8 +48,10 @@ model InterviewProposal {
   location?: string;
 }
 
+/** Name the time by its `slotId` from the proposal or by the time itself: one of the two. */
 model InterviewConfirmation {
-  slot: utcDateTime;
+  slot?: utcDateTime;
+  slotId?: string;
 }
 
 model ApplicationFollowUps {
@@ -65,6 +67,9 @@ model ApplicationFollowUps {
 }
 
 model ProgramRollup {
+  owner?: ProgramOwner | null;
+  outcomes?: ProgramOutcomes;
+
   programId: string;
   budgetMinor: int64 | null;
   currency: string;
@@ -148,9 +153,19 @@ model SignatureRecord {
   party: "grantee" | "funder";
   name: string | null;
   userId: string | null;
+  /** The signer's network address. Returned to funder admins and finance, and to admins of the signer's own workspace; null for everyone else. */
   ip: string | null;
+
+  /** Whether this caller may see the address */
+  ipVisible?: boolean;
+
   at: utcDateTime | null;
   documentSha256: string | null;
+
+  /** Grantee signatures: `passport_representative` or `admin_role` */
+  signerRule?: string | null;
+
+  signerRuleReason?: string | null;
 }
 
 model CloseoutCheck {

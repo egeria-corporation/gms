@@ -68,6 +68,8 @@ export async function evaluateTranchesDue(base: BaseContext): Promise<{ awards: 
  * or the one the person released. A tranche Passport cannot confirm stays where it is for the next run.
  */
 export async function reconcileStuckReleases(base: BaseContext, olderThanMs: number = STUCK_RELEASE_MS): Promise<{ stuck: number; resolved: number; unconfirmed: number; failed: number }> {
+  // Reconciling repeats the release request to Passport, so it is a payment attempt: never while payments through Passport are off.
+  if (!base.config.facilitatedPayments) return { stuck: 0, resolved: 0, unconfirmed: 0, failed: 0 };
   const cutoff = base.now().getTime() - olderThanMs;
   const stuck = (await base.repos.table("tranches").find({ status: "releasing" }, { limit: 500 })).filter((t) => t.mode === "facilitated" && (!t.released_at || Date.parse(t.released_at) <= cutoff));
   let resolved = 0;

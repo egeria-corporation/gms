@@ -229,6 +229,12 @@ model WorkspaceInput {
  * shows the invited address until they have signed in.
  */
 model Member {
+  /** Last authenticated request in this workspace, to the nearest 15 minutes */
+  lastActiveAt?: utcDateTime | null;
+
+  /** The firm a consultant works for, when the invitation named one */
+  organization?: string | null;
+
   userId: CommonGrants.Types.uuid;
   email: string | null;
   name: string | null;
@@ -265,6 +271,9 @@ model Invitation {
 }
 
 model InvitationInput {
+  /** Consultants only: the firm they work for. Kept on the membership as `scope.organization`. */
+  organizationName?: string;
+
   email: string;
   role: MemberRole;
 
@@ -307,6 +316,15 @@ model PassportLinkStatus {
 // #########################################################
 
 model Program {
+  /** The staff member who owns the program */
+  ownerUserId?: CommonGrants.Types.uuid | null;
+
+  ownerName?: string | null;
+  owner?: ProgramOwner | null;
+
+  /** The funder's budget categories for awards under the program (`defaults.budgetCategories`) */
+  budgetCategories?: string[];
+
   id: CommonGrants.Types.uuid;
   name: string;
   description: string | null;
@@ -325,6 +343,9 @@ model Program {
 }
 
 model ProgramInput {
+  /** Must be a member of the workspace (422 `owner_not_a_member`); null clears it */
+  ownerUserId?: CommonGrants.Types.uuid | null;
+
   name: string;
   description?: string | null;
   fiscalYear?: int32 | null;
@@ -1386,6 +1407,9 @@ model GmsAwardDetail {
 
 /** `POST /gms/my/awards/{id}/accept`: the award plus what happened with the Passport mirror. */
 model AcceptedAward {
+  /** Which rule let the grantee's signer act for the organization (accept and sign answers) */
+  signerAuthority?: SignerAuthority;
+
   ...GmsAwardDetail;
   mirror: {
     state: "synced" | "skipped" | "failed";
@@ -1493,6 +1517,9 @@ model AgreementSummary {
 }
 
 model Agreement {
+  /** Which rule let the grantee's signer act for the organization (accept and sign answers) */
+  signerAuthority?: SignerAuthority;
+
   ...AgreementSummary;
   awardId: PrefixedId;
   templateId: CommonGrants.Types.uuid | null;
@@ -1772,6 +1799,9 @@ model ApplicantReadiness {
 
 /** The applicant's organization as cached from Passport. Read-only here: edits happen in Passport. */
 model MyOrganization {
+  /** The organization's verified representatives, read live from Passport */
+  representatives?: Representatives;
+
   workspaceId: CommonGrants.Types.uuid;
   handle: string;
   displayName: string;
@@ -1836,6 +1866,9 @@ model MyWorkspace {
 
 /** The signed-in person and the workspaces they can open. */
 model Me {
+  /** The same switches as `GET /gms/config` */
+  features?: InstallConfig;
+
   userId: CommonGrants.Types.uuid;
   email: string | null;
   mfaVerified: boolean;
@@ -1854,6 +1887,12 @@ model WhoAmI {
 
 /** What a funder shows publicly. */
 model PublicFunder {
+  /** The funder's general address: `settings.contactEmail`, else the one on its published organization record */
+  contactEmail?: string | null;
+
+  /** Named contacts the funder marked public */
+  contacts?: FunderContact[];
+
   handle: string;
   name: string;
   brand: {
@@ -2275,6 +2314,15 @@ model AssistQuota {
 model AssistStatus {
   /** False when ASSISTANT_ENABLED is off or no model is configured; the web app then hides its panels. */
   enabled: boolean;
+
+  /** The model drafts are made with: ASSISTANT_MODEL, else the built-in default. Null when off. */
+  `model`?: string | null;
+
+  /** Drafts the workspace may make per month. Null when off. */
+  monthlyQuota?: int32 | null;
+
+  /** Drafts made this month. Null when off. */
+  used?: int32 | null;
 
   quota: AssistQuota | null;
 }

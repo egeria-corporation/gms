@@ -325,6 +325,8 @@ describe("Passport consent", () => {
 describe("accepting and signing an award", () => {
   it("accepts the offer, then signs only with a typed name and the attestation", async () => {
     const { store } = open(`/w/alder-creek/grants/awd_${APPLICANT_IDS.awardHealth}/offer`);
+    // Passport lists verified representatives for this organization, so the person accepting names themself.
+    await userEvent.type(await screen.findByLabelText("Your full legal name"), "Maria Santos");
     await userEvent.click(await screen.findByRole("button", { name: "Accept award" }));
     await waitFor(() => expect(store.awards[0]!.status).toBe("accepted"));
 

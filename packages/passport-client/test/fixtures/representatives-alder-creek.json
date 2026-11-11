@@ -1,0 +1,39 @@
+{
+  "method": "GET",
+  "path": "/passport/orgs/0193a1c0-0000-7000-8000-0000000000a1/verified-representatives",
+  "status": 200,
+  "body": {
+    "status": 200,
+    "message": "Success",
+    "items": [
+      {
+        "id": "0193a1c0-0000-7000-8000-00000000e001",
+        "fullName": "Maria Santos",
+        "title": "Executive Director",
+        "role": "control_officer",
+        "isControlOfficer": true,
+        "matchedTo": "irs_990_officer",
+        "verificationLevel": "L3",
+        "verifiedAt": "2027-01-12T17:00:00Z",
+        "identityVerifiedAt": "2027-01-12T17:30:00Z"
+      },
+      {
+        "id": "0193a1c0-0000-7000-8000-00000000e002",
+        "fullName": "Jamal Reed",
+        "title": "Board Treasurer",
+        "role": "second_representative",
+        "isControlOfficer": false,
+        "matchedTo": "irs_990_officer",
+        "verificationLevel": "L2",
+        "verifiedAt": "2027-01-14T17:00:00Z",
+        "identityVerifiedAt": null
+      }
+    ],
+    "paginationInfo": {
+      "page": 1,
+      "pageSize": 2,
+      "totalItems": 2,
+      "totalPages": 1
+    }
+  }
+}

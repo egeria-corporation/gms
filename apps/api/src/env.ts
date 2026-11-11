@@ -28,6 +28,8 @@ export interface Env {
   PASSPORT_APPLICANT_PAYEE_READ?: string;
   /** "true" once Passport serves the funder award routes (award:write); awards are mirrored on acceptance. */
   PASSPORT_AWARD_WRITE?: string;
+  /** "true" lets the GMS release payments through Passport. Off by default: payments are recorded after being paid elsewhere. */
+  PAYMENTS_FACILITATED?: string;
 
   CREDENTIALS_ENCRYPTION_KEY?: string;
   WEBHOOK_SECRET_KEY?: string;

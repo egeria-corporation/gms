@@ -13,7 +13,7 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { payoutDestinationFor } from "./organization.ts";
+import { checkSigner, payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
@@ -375,15 +375,20 @@ export async function retryAwardMirrors(ctx: ServiceContext, workspaceId: string
 export const humanOnly = (what: string) => forbidden("human_only", `${what} is a human gate: it must be done by a signed-in person in the GMS, never by an agent or API client`);
 
 /** The recipient accepts the offer. Human-only; acceptance triggers the Passport mirror. */
-export async function acceptOffer(ctx: ServiceContext, awardId: string) {
+export const acceptOfferInput = z.object({ name: z.string().trim().min(2).max(200).optional() }).strict();
+
+export async function acceptOffer(ctx: ServiceContext, awardId: string, input: z.output<typeof acceptOfferInput> = {}) {
   await authorize(ctx, { scope: "awards:write", kind: "applicant", roles: ["admin"], person: true });
   if (ctx.actor.kind !== "user") throw humanOnly("Accepting an award");
   const { award, side } = await accessAward(ctx, awardId, "awards:write");
   if (side !== "recipient") throw notFound("Award");
+  // The typed legal name must be a verified representative when Passport lists any.
+  const authority = await checkSigner(ctx, award.recipient_workspace_id!, input.name ?? null);
   const accepted = await transitionAward(ctx, award, "accept_offer", "applicant");
+  await audit(ctx, "award.acceptance_signer_checked", "award", award.id, { rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId, name: input.name ?? null }, award.workspace_id);
   const mirror = awardEffects("accepted").mirrorToPassport ? await mirrorAward(ctx, accepted) : null;
   const fresh = required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
-  return { ...(await awardDetail(ctx, fresh)), mirror };
+  return { ...(await awardDetail(ctx, fresh)), mirror, signerAuthority: authority };
 }
 
 async function funderAward(ctx: ServiceContext, awardId: string): Promise<Award> {

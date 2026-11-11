@@ -7,6 +7,7 @@ import { parseRules, type Rule } from "@gms/rules";
 import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
+import { contactsOf } from "./workspaces.ts";
 import type { Row } from "./repos/types.ts";
 
 export type PublicContext = Pick<ServiceContext, "repos" | "config" | "now">;
@@ -149,8 +150,13 @@ const brandOf = (w: Row<"workspaces">) => {
 };
 
 function publicFunder(w: Row<"workspaces">) {
-  const org = (w.org_projection ?? {}) as { mission?: unknown; socials?: { website?: unknown } };
-  return { handle: w.handle, name: w.display_name, brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: w.verification_level };
+  const org = (w.org_projection ?? {}) as { mission?: unknown; socials?: { website?: unknown }; emails?: { primary?: unknown } };
+  const settings = (w.settings ?? {}) as { contactEmail?: unknown };
+  // The funder's general address: the one it set, else the one on its published organization record.
+  const contactEmail = typeof settings.contactEmail === "string" ? settings.contactEmail : typeof org.emails?.primary === "string" ? org.emails.primary : null;
+  // Only contacts the funder marked public; the rest are for organizations it already works with.
+  const contacts = contactsOf(w).filter((c) => c.public);
+  return { contactEmail, contacts, handle: w.handle, name: w.display_name, brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: w.verification_level };
 }
 
 const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;

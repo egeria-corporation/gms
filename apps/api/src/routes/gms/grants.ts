@@ -91,7 +91,7 @@ grantRoutes.post("/awards", async (c) => {
 });
 grantRoutes.get("/awards/:id", async (c) => c.json(ok(await awards.getAward(await svc(c), awardId(c), "funder"))));
 grantRoutes.get("/awards/:id/letter.pdf", async (c) => pdf(await agreements.awardLetterPdf(await svc(c), awardId(c))));
-grantRoutes.post("/awards/:id/accept-offer", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c)))));
+grantRoutes.post("/awards/:id/accept-offer", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c), parse(awards.acceptOfferInput, await jsonBody(c))))));
 grantRoutes.post("/awards/:id/activate", async (c) => c.json(ok(await awards.activateAward(await svc(c), awardId(c)))));
 grantRoutes.post("/awards/:id/suspend", async (c) => c.json(ok(await awards.suspendAward(await svc(c), awardId(c), parse(awards.reasonInput, await jsonBody(c))))));
 grantRoutes.post("/awards/:id/resume", async (c) => c.json(ok(await awards.resumeAward(await svc(c), awardId(c)))));
@@ -111,7 +111,7 @@ grantRoutes.get("/my/awards/:id", async (c) => c.json(ok(await awards.getMyAward
 grantRoutes.get("/my/awards/:id/schedule", async (c) => c.json(ok((await awards.getAward(await svc(c), awardId(c), "recipient")).tranches)));
 // Where Passport would pay this grant: bank name and last four digits, read live, never stored.
 grantRoutes.get("/my/awards/:id/payout-destination", async (c) => c.json(ok(await awards.getMyPayoutDestinationForAward(await svc(c), awardId(c)))));
-grantRoutes.post("/my/awards/:id/accept", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c)))));
+grantRoutes.post("/my/awards/:id/accept", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c), parse(awards.acceptOfferInput, await jsonBody(c))))));
 grantRoutes.post("/my/awards/:id/amendments", async (c) => c.json(created(await awards.requestAmendment(await svc(c), awardId(c), parse(awards.amendmentInput, await jsonBody(c)))), 201));
 
 // ---- agreements ----

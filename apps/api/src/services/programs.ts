@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Programs and rubrics: what a funder sets up before designing an opportunity.
 import { z } from "zod";
+import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -18,11 +19,37 @@ export const programInput = z
     budgetAmountMinor: z.number().int().min(0).nullable().optional(),
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
     defaults: z.record(z.string(), z.unknown()).optional(),
+    /** The staff member who owns the program; null clears it. Must be a member of the workspace. */
+    ownerUserId: z.uuid().nullable().optional(),
   })
   .strict();
+
+/** The funder's budget categories for awards under a program: short, unique names. */
+export const budgetCategoriesInput = z
+  .object({
+    categories: z
+      .array(z.string().trim().min(1).max(100))
+      .max(50)
+      .refine((c) => new Set(c.map((x) => x.toLowerCase())).size === c.length, "Category names must be unique"),
+  })
+  .strict();
+
+export const budgetCategoriesOf = (p: Pick<Row<"programs">, "defaults"> | null | undefined): string[] => {
+  const raw = (p?.defaults as { budgetCategories?: unknown } | null)?.budgetCategories;
+  return Array.isArray(raw) ? raw.filter((c): c is string => typeof c === "string" && !!c.trim()) : [];
+};
 export const programPatch = programInput.partial();
 
-const programView = (p: Row<"programs">) => ({
+type Owner = { userId: string; name: string | null } | null;
+
+/** Owner names for a page of programs: one directory read. */
+async function ownersOf(ctx: ServiceContext, rows: Row<"programs">[]): Promise<Map<string, Owner>> {
+  const ids = [...new Set(rows.map((p) => p.owner_user_id).filter((id): id is string => !!id))];
+  const people = ids.length ? await ctx.ports.directory?.lookup(ids) : undefined;
+  return new Map(rows.map((p) => [p.id, p.owner_user_id ? { userId: p.owner_user_id, name: people?.get(p.owner_user_id)?.name ?? people?.get(p.owner_user_id)?.email ?? null } : null]));
+}
+
+const programView = (p: Row<"programs">, owner: Owner = p.owner_user_id ? { userId: p.owner_user_id, name: null } : null) => ({
   id: p.id,
   name: p.name,
   description: p.description,
@@ -30,6 +57,10 @@ const programView = (p: Row<"programs">) => ({
   budgetAmountMinor: p.budget_amount_minor,
   currency: p.currency,
   defaults: p.defaults,
+  budgetCategories: budgetCategoriesOf(p),
+  ownerUserId: p.owner_user_id,
+  ownerName: owner?.name ?? null,
+  owner,
   createdAt: p.created_at,
   updatedAt: p.updated_at,
 });
@@ -42,6 +73,7 @@ function programColumns(i: z.output<typeof programPatch>) {
     ...(i.budgetAmountMinor !== undefined ? { budget_amount_minor: i.budgetAmountMinor } : {}),
     ...(i.currency !== undefined ? { currency: i.currency } : {}),
     ...(i.defaults !== undefined ? { defaults: i.defaults as Row<"programs">["defaults"] } : {}),
+    ...(i.ownerUserId !== undefined ? { owner_user_id: i.ownerUserId } : {}),
   };
 }
 
@@ -49,28 +81,58 @@ export async function listPrograms(ctx: ServiceContext, page: PageRequest) {
   const ws = await authorize(ctx, { scope: "programs:read", kind: "funder" });
   const where = { workspace_id: ws.id };
   const [rows, total] = await Promise.all([ctx.repos.table("programs").find(where, { orderBy: "name", limit: page.pageSize, offset: page.offset }), ctx.repos.table("programs").count(where)]);
-  return { items: rows.map(programView), total };
+  const owners = await ownersOf(ctx, rows);
+  return { items: rows.map((p) => programView(p, owners.get(p.id))), total };
 }
 
 export async function getProgram(ctx: ServiceContext, id: string) {
   const ws = await authorize(ctx, { scope: "programs:read", kind: "funder" });
-  return programView(required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program"));
+  return withOwner(ctx, required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program"));
+}
+
+const withOwner = async (ctx: ServiceContext, p: Row<"programs">) => programView(p, (await ownersOf(ctx, [p])).get(p.id));
+
+/** What a program patch may carry beyond plain columns: an owner who is on the team, and well-formed budget categories. */
+async function checkProgramInput(ctx: ServiceContext, workspaceId: string, input: z.output<typeof programPatch>) {
+  if (input.ownerUserId && !(await ctx.repos.table("workspace_members").one({ workspace_id: workspaceId, user_id: input.ownerUserId }))) {
+    throw new ApiError(422, "owner_not_a_member", "The program owner must be a member of this workspace", [{ code: "invalid", field: "ownerUserId" }]);
+  }
+  const cats = (input.defaults as { budgetCategories?: unknown } | undefined)?.budgetCategories;
+  if (cats !== undefined && !budgetCategoriesInput.safeParse({ categories: cats }).success) {
+    throw new ApiError(422, "invalid_budget_categories", "Budget categories are up to 50 unique names of at most 100 characters", [{ code: "invalid", field: "defaults.budgetCategories" }]);
+  }
+}
+
+export async function getBudgetCategories(ctx: ServiceContext, id: string) {
+  const ws = await authorize(ctx, { scope: "programs:read", kind: "funder" });
+  return { programId: id, categories: budgetCategoriesOf(required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program")) };
+}
+
+export async function putBudgetCategories(ctx: ServiceContext, id: string, input: z.output<typeof budgetCategoriesInput>) {
+  const ws = await authorize(ctx, { scope: "programs:write", kind: "funder" });
+  const before = required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program");
+  const defaults = { ...((before.defaults as Record<string, unknown> | null) ?? {}), budgetCategories: input.categories };
+  await ctx.repos.table("programs").update({ id, workspace_id: ws.id }, { defaults: defaults as Row<"programs">["defaults"] });
+  await audit(ctx, "program.budget_categories_set", "program", id, { categories: input.categories });
+  return { programId: id, categories: input.categories };
 }
 
 export async function createProgram(ctx: ServiceContext, input: z.output<typeof programInput>) {
   const ws = await authorize(ctx, { scope: "programs:write", kind: "funder" });
+  await checkProgramInput(ctx, ws.id, input);
   const row = await guardWrite("This program", () => ctx.repos.table("programs").insert({ workspace_id: ws.id, name: input.name, ...programColumns(input) }));
   await audit(ctx, "program.created", "program", row.id, { name: row.name, budgetAmountMinor: row.budget_amount_minor, currency: row.currency });
-  return programView(row);
+  return withOwner(ctx, row);
 }
 
 export async function updateProgram(ctx: ServiceContext, id: string, input: z.output<typeof programPatch>) {
   const ws = await authorize(ctx, { scope: "programs:write", kind: "funder" });
   const before = required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program");
+  await checkProgramInput(ctx, ws.id, input);
   const [row] = await guardWrite("This program", () => ctx.repos.table("programs").update({ id, workspace_id: ws.id }, programColumns(input)));
   // The budget is money the allocator reads, so a change to it is always on the ledger with both values.
   await audit(ctx, "program.updated", "program", id, { fields: Object.keys(input), ...(input.budgetAmountMinor !== undefined ? { budgetFromMinor: before.budget_amount_minor, budgetToMinor: input.budgetAmountMinor } : {}) });
-  return programView(row!);
+  return withOwner(ctx, row!);
 }
 
 const criterion = z

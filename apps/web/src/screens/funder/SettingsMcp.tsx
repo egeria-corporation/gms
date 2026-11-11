@@ -13,10 +13,12 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
+import { ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
 import { env } from "../../env.ts";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
+import { ContactsEditor } from "./ContactsEditor.tsx";
+import { DirectorySuggestions, GoogleWorkspaceCard } from "./GoogleWorkspace.tsx";
 import { HumanGates } from "./HumanGates.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { actorLabel, dateTime, timeAgo, usePeople } from "./shared.tsx";
@@ -228,13 +230,12 @@ function McpServers() {
 }
 
 function Connectors() {
-  const page = useApiQuery(async (api) => Promise.all([api.getConnector("mercury"), api.getConnector("google_workspace")]), []);
+  const page = useApiQuery(async (api) => Promise.all([api.getConnector("mercury")]), []);
   const [token, setToken] = useState("");
   const connect = useApiMutation((api) => api.connectConnector("mercury", token.trim()));
   const sync = useApiMutation((api) => api.syncConnector("mercury"));
   const disconnect = useApiMutation((api) => api.disconnectConnector("mercury"));
-  const google = useApiMutation((api) => api.connectConnector("google_workspace"));
-  const [mercury, workspace] = page.data ?? [];
+  const [mercury] = page.data ?? [];
   return (
     <section id="integrations" className="card" aria-labelledby="integrations-h">
       <div className="card-h">
@@ -284,30 +285,7 @@ function Connectors() {
             )}
           </div>
         )}
-        {workspace && (
-          <div className="cmt">
-            <div className="row wrap" style={{ justifyContent: "space-between" }}>
-              <div>
-                <div className="b">Google Workspace</div>
-                <div className="small muted">Export letters and agreements to a Drive folder you choose, and suggest teammates when inviting.</div>
-              </div>
-              <span className={workspace.connected ? "bdg bdg-ok" : "bdg bdg-neutral"}>
-                <Plug className="ic" aria-hidden="true" />
-                {workspace.connected ? "Connected" : workspace.status === "not_configured" ? "Not configured" : "Not connected"}
-              </span>
-            </div>
-            {!workspace.connected &&
-              (workspace.status === "not_configured" || google.error !== null ? (
-                <Notice tone="neu" title="Not configured on this installation">
-                  Google Workspace needs a Composio connection set up by whoever hosts this GMS. Everything else works without it.
-                </Notice>
-              ) : (
-                <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} onClick={async () => (await google.run()) && page.reload()}>
-                  Connect Google Workspace
-                </button>
-              ))}
-          </div>
-        )}
+        <GoogleWorkspaceCard />
       </div>
     </section>
   );
@@ -630,6 +608,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
         <button type="submit" className="btn btn-secondary" disabled={!/^\S+@\S+\.\S+$/.test(email.trim()) || invite.state === "saving"}>
           Invite
         </button>
+        <DirectorySuggestions query={email} onChoose={(p) => setEmail(p.email)} />
         {sent && (
           <span className="notice" role="status">
             Invitation created for {sent}.
@@ -819,6 +798,7 @@ export default function SettingsMcp() {
                   ["api", "API clients"],
                   ["webhooks", "Webhooks"],
                   ["team", "Team & roles"],
+                  ["contacts", "Contacts for applicants"],
                   ["audit", "Audit ledger"],
                 ].map(([id, label]) => (
                   <a key={id} href={`#${id}`}>
@@ -843,6 +823,7 @@ export default function SettingsMcp() {
               <ApiClients />
               <Webhooks />
               <Team workspaceId={ws.id} />
+              <ContactsEditor />
               <Ledger />
             </div>
           </div>

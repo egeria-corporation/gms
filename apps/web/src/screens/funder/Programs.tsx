@@ -7,11 +7,13 @@ import { Briefcase, Plus } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { AwardSummary } from "../../api/funder.ts";
 import type { Submission } from "../../api/funderMoney.ts";
-import type { Competition, Opportunity, Program, ProgramInput } from "../../api/types.ts";
+import type { Competition, Member, Opportunity, Program, ProgramInput } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
+import type { ProgramOwner } from "../../api/launch.ts";
+import { BudgetCategoriesEditor, ProgramOutcomes, ProgramOwnerField, useProgramOwners } from "./ProgramExtras.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 
@@ -85,7 +87,7 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
   );
 }
 
-function ProgramDetail({ program, opportunities, awards, competitions, received, submissions, base, onEdit }: { program: Program; opportunities: Opportunity[]; awards: AwardSummary[]; competitions: Competition[]; received: Map<string, number | null>; submissions: Submission[]; base: string; onEdit: () => void }) {
+function ProgramDetail({ program, opportunities, awards, competitions, received, submissions, base, onEdit, owner, members, onOwnerChanged }: { owner: ProgramOwner | null; members: Member[]; onOwnerChanged: () => void; program: Program; opportunities: Opportunity[]; awards: AwardSummary[]; competitions: Competition[]; received: Map<string, number | null>; submissions: Submission[]; base: string; onEdit: () => void }) {
   const defaults = program.defaults as { reminderPlan?: number[] };
   const competitionOf = (o: Opportunity) => competitions.find((c) => c.opportunityId === o.id);
   const byStatus = (["offered", "accepted", "active", "suspended", "completed"] as const).map((status) => {
@@ -105,7 +107,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
             {program.name}
           </h2>
           <div className="small muted" style={{ marginTop: "4px" }}>
-            {program.fiscalYear ? `FY${program.fiscalYear}` : "No fiscal year"} · Budget {formatMinor(program.budgetAmountMinor, program.currency)} · Updated {formatDate(program.updatedAt)}
+            {program.fiscalYear ? `FY${program.fiscalYear}` : "No fiscal year"} · Budget {formatMinor(program.budgetAmountMinor, program.currency)} · {owner ? `Owner ${owner.name}` : "No owner"} · Updated {formatDate(program.updatedAt)}
           </div>
         </div>
         <div className="row" style={{ gap: "8px" }}>
@@ -121,6 +123,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
       <div className="card-b" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: "0" }}>
           {program.description && <p>{program.description}</p>}
+          <ProgramOwnerField programId={program.id} owner={owner} members={members} onChanged={onOwnerChanged} />
           <h3>Opportunities</h3>
           <DataTable
             label={`Opportunities in ${program.name}`}
@@ -181,18 +184,8 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
               ))}
             </dl>
           </div>
-          <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
-            <h3 style={{ fontSize: "14px" }}>Outcomes rollup</h3>
-            <span className="small muted">
-              {accepted} of {reports.length} reports accepted
-            </span>
-          </div>
-          <div className="card-b" style={{ padding: "14px 16px" }}>
-            <p className="small muted">{reports.length ? "Outcome figures are in each accepted report under Reporting; they are not totalled across grantees yet." : "Outcomes appear once grantees in this program report."}</p>
-            <Link to={`${base}/reporting`} className="small b">
-              Open reporting
-            </Link>
-          </div>
+          <ProgramOutcomes programId={program.id} reportsTotal={reports.length} reportsAccepted={accepted} base={base} />
+          <BudgetCategoriesEditor programId={program.id} />
         </div>
       </div>
     </section>
@@ -224,6 +217,8 @@ export default function Programs() {
   const countFor = (p: Program) => opportunities.filter((o) => o.programId === p.id).length;
   const totalBudget = programs.reduce((sum, p) => sum + (p.budgetAmountMinor ?? 0), 0);
   const moneyFor = (p: Program) => (data.status === "ready" ? data.data.money.get(p.id) : undefined);
+  const owners = useProgramOwners();
+  const members = useApiQuery((api) => api.listMembers(ws.id), [ws.id]);
 
   // An unknown id in the URL (an old link) falls back to the list.
   useEffect(() => {
@@ -247,6 +242,7 @@ export default function Programs() {
       },
       sort: (p) => (p.budgetAmountMinor === null ? null : p.budgetAmountMinor - (moneyFor(p)?.committedMinor ?? 0)),
     },
+    { key: "owner", header: "Owner", cell: (p) => owners.data?.[p.id]?.name ?? <span className="muted">—</span>, sort: (p) => owners.data?.[p.id]?.name ?? null },
     { key: "opps", header: "Opportunities", numeric: true, cell: countFor, sort: countFor },
   ];
 
@@ -301,6 +297,9 @@ export default function Programs() {
             />
             {selected && (
               <ProgramDetail
+                owner={owners.data?.[selected.id] ?? null}
+                members={members.data ?? []}
+                onOwnerChanged={owners.reload}
                 program={selected}
                 opportunities={opportunities.filter((o) => o.programId === selected.id)}
                 awards={data.data.awards.filter((a) => a.programId === selected.id)}

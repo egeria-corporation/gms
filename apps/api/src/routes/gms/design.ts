@@ -35,6 +35,8 @@ designRoutes.get("/programs", async (c) => {
 });
 designRoutes.post("/programs", async (c) => c.json(created(await programs.createProgram(await svc(c), parse(programs.programInput, await jsonBody(c)))), 201));
 designRoutes.get("/programs/:id", async (c) => c.json(ok(await programs.getProgram(await svc(c), programId(c)))));
+designRoutes.get("/programs/:id/budget-categories", async (c) => c.json(ok(await programs.getBudgetCategories(await svc(c), programId(c)))));
+designRoutes.put("/programs/:id/budget-categories", async (c) => c.json(ok(await programs.putBudgetCategories(await svc(c), programId(c), parse(programs.budgetCategoriesInput, await jsonBody(c))))));
 designRoutes.patch("/programs/:id", async (c) => c.json(ok(await programs.updateProgram(await svc(c), programId(c), parse(programs.programPatch, await jsonBody(c))))));
 
 // ---- rubrics ----

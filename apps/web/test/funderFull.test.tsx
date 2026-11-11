@@ -55,7 +55,8 @@ describe("payments center", () => {
     expect(next.getByText("Total in window")).toBeInTheDocument();
     expect(next.getAllByRole("listitem").length).toBeGreaterThan(0);
     const explained = within(card("Readiness explained"));
-    expect(explained.getByText(/Treated as blocking, never as pass/)).toBeInTheDocument();
+    // The legend follows the switch, which is read after the first paint; off in the mock.
+    expect(await explained.findByText(/Never shown as a pass|Treated as blocking, never as pass/)).toBeInTheDocument();
   });
 
   it("reconciles bank transactions against tranches on its own tab", async () => {

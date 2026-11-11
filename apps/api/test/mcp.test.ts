@@ -230,3 +230,15 @@ describe("agent docs", () => {
     expect(full).toContain('"$schema"');
   });
 });
+
+describe("release_tranche without facilitated payments", () => {
+  it("answers the same refusal as the REST route and files no approval", async () => {
+    h.env.PAYMENTS_FACILITATED = "false";
+    const token = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "payments:read payments:release", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-release-off" });
+    const out = await tool(token, "release_tranche", { trancheId: "trn_00000000-0000-4000-8000-000000000000" });
+    expect(out.isError).toBe(true);
+    expect(out.structuredContent).toMatchObject({ error: { code: "conflict" } });
+    expect(JSON.stringify(out.structuredContent)).toContain("facilitated_payments_disabled");
+    expect(await h.repos.table("approvals").count({})).toBe(0);
+  });
+});

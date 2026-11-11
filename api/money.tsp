@@ -103,6 +103,12 @@ model PaymentReadinessCheck {
 
 /** The seven readiness checks for one tranche, evaluated live. */
 model TrancheReadiness {
+  /** `facilitated`: released through Passport. `resolve`: this server records payments after they are paid outside the GMS. */
+  mode?: "facilitated" | "resolve";
+
+  /** Plain words for `resolve` mode; null otherwise */
+  modeNote?: string | null;
+
   checks: PaymentReadinessCheck[];
   passed: int32;
   failed: int32;
@@ -370,6 +376,12 @@ model BudgetPut {
 }
 
 model BudgetVariance {
+  /** The grantee's category mapping the comparison used */
+  mapping?: BudgetCategoryMapping[];
+
+  /** The grantee's categories that match no funder category and are not mapped yet */
+  unmappedCategories?: string[];
+
   awardId: PrefixedId;
   currency: string;
   hasApprovedBudget: boolean;

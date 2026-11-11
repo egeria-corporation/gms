@@ -48,3 +48,7 @@ workspaceRoutes.post("/workspaces/:workspaceId/invitations", async (c) => c.json
 workspaceRoutes.post("/workspaces/:workspaceId/passport/link", async (c) => c.json(created(await passport.linkPassport(await svc(c), ws(c), parse(passport.linkInput, await jsonBody(c)))), 201));
 workspaceRoutes.get("/workspaces/:workspaceId/passport/status", async (c) => c.json(ok(await passport.passportStatus(await svc(c), ws(c)))));
 workspaceRoutes.delete("/workspaces/:workspaceId/passport/link", async (c) => c.json(ok(await passport.unlinkPassport(await svc(c), ws(c)))));
+
+// ---- the funder's named contacts (settings.contacts) ----
+workspaceRoutes.get("/contacts", authenticate(), async (c) => c.json(ok(await workspaces.getContacts(await svc(c)))));
+workspaceRoutes.put("/contacts", authenticate(), async (c) => c.json(ok(await workspaces.putContacts(await svc(c), parse(workspaces.contactsInput, await jsonBody(c))))));

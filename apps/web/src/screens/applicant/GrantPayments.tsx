@@ -2,6 +2,7 @@
 // A grant after acceptance: what was awarded and received, the payment schedule with what each
 // payment waits on, where payments go (bank name and last four only, managed in Passport), the
 // budget against actuals, amendments and what closes the grant out.
+import { BudgetMappingForm } from "./grantBudgetMapping.tsx";
 import { Link, useParams } from "react-router";
 import { Award as AwardIcon, CircleCheck, CircleDashed, Info } from "lucide-react";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -249,6 +250,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
             </div>
           </div>
           <BudgetTable book={data.budget} />
+          <BudgetMappingForm awardId={award.id} categories={[...new Set((data.budget.approved?.lines ?? []).map((l) => l.category))]} />
           {award.status === "active" && <ActualsForm data={data} onSaved={reload} />}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

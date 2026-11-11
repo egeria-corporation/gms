@@ -5,6 +5,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
+import { mockLaunchStore } from "../src/api/launchHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
 import type { ApplicationEvent } from "../src/api/funder.ts";
@@ -16,6 +17,8 @@ import { flattenPatch } from "../src/screens/funder/Grantees.tsx";
 async function riverbend(): Promise<Services> {
   const services = createMockServices({ session: demoSession() });
   await services.api.workspace("riverbend");
+  // These screens are tested with payments through Passport switched on; launch.test.tsx covers off.
+  mockLaunchStore(services)!.config.facilitatedPayments = true;
   return services;
 }
 const controls = (s: Services) => s.api as unknown as MockMoneyControls;
@@ -34,7 +37,7 @@ describe("payments center · due", () => {
     const alder = within(await waitFor(() => card("Alder Creek Family Services")));
     expect(alder.getByText(/7 of 7 checks pass/)).toBeInTheDocument();
     expect(alder.getByText("To River City Credit Union •••• 4821")).toBeInTheDocument();
-    expect(alder.getByRole("button", { name: "Release" })).toBeEnabled();
+    expect(await alder.findByRole("button", { name: "Release" })).toBeEnabled();
 
     // A failing check blocks the release and says why.
     const copper = within(card("Copper Valley Clinic"));
@@ -48,7 +51,7 @@ describe("payments center · due", () => {
     await controls(services).simulatePassport({ type: "passport.unreachable", unreachable: true });
     open("/w/riverbend/payments/due", services);
     const alder = within(await waitFor(() => card("Alder Creek Family Services")));
-    expect(alder.getByRole("button", { name: "Release" })).toBeDisabled();
+    expect(await alder.findByRole("button", { name: "Release" })).toBeDisabled();
     expect(alder.getByText("Readiness is unknown until Passport can be reached")).toBeInTheDocument();
     expect(alder.getAllByRole("img", { name: "Unknown" }).length).toBeGreaterThan(0);
     expect(alder.queryByRole("img", { name: "Needs fixing" })).not.toBeInTheDocument();
@@ -59,7 +62,7 @@ describe("payments center · due", () => {
     const services = await riverbend();
     const view = open("/w/riverbend/payments/due", services);
     const alder = within(await waitFor(() => card("Alder Creek Family Services")));
-    await userEvent.click(alder.getByRole("button", { name: "Release" }));
+    await userEvent.click(await alder.findByRole("button", { name: "Release" }));
     const dialog = within(await screen.findByRole("dialog", { name: "Release tranche 1" }));
     const go = dialog.getByRole("button", { name: "Release $75,000" });
     expect(go).toBeDisabled();
@@ -84,14 +87,14 @@ describe("payments center · due", () => {
     const banner = harbor.getByText("Harbor Light Shelter · destination change pending").closest("[data-cause]")!;
     expect(banner).toHaveAttribute("data-cause", "pending_destination_change");
     expect(within(banner as HTMLElement).getByText("Clears automatically on Jun 3, 2027.")).toBeInTheDocument();
-    expect(harbor.getByRole("button", { name: "Release" })).toBeDisabled();
+    expect(await harbor.findByRole("button", { name: "Release" })).toBeDisabled();
     view.unmount();
 
     await controls(services).simulatePassport({ type: "payee.destination.changed", workspaceId: MONEY_IDS.wsHarbor });
     open("/w/riverbend/payments/due", services);
     const after = within(await waitFor(() => card("Harbor Light Shelter")));
     expect(after.queryByText("Harbor Light Shelter · destination change pending")).not.toBeInTheDocument();
-    expect(after.getByRole("button", { name: "Release" })).toBeEnabled();
+    expect(await after.findByRole("button", { name: "Release" })).toBeEnabled();
   });
 
   it("says to connect Passport when the workspace has no link", async () => {
@@ -288,7 +291,7 @@ describe("settings · integrations and audit", () => {
     await userEvent.click(within(card("Custom MCP servers")).getByRole("button", { name: "Tools" }));
     expect(await screen.findByRole("checkbox", { name: /lookup_organization/ })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /update_contact/ })).toBeDisabled();
-    expect(within(card("Integrations")).getByText("Not configured on this installation")).toBeInTheDocument();
+    expect(await within(card("Integrations")).findByRole("button", { name: "Connect Google Workspace" })).toBeInTheDocument();
     expect(within(card("Audit ledger")).getByText("tranche.release")).toBeInTheDocument();
   });
 });

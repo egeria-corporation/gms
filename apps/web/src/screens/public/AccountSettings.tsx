@@ -3,7 +3,7 @@
 // the agents connected on their behalf in each workspace (each can be revoked here).
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Bell, Bot, KeyRound, LogOut, MonitorSmartphone, ShieldCheck, User } from "lucide-react";
+import { Bell, Bot, KeyRound, MonitorSmartphone, ShieldCheck, User } from "lucide-react";
 import type { McpConnection } from "../../api/applicantMore.ts";
 import { useMoreApi, useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import { roleTitle, type MeWorkspace } from "../../api/client.ts";
@@ -13,6 +13,7 @@ import { AccountShell } from "../../components/AccountShell.tsx";
 import { timeAgo } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Loading } from "../../components/ui.tsx";
+import { SessionsCard } from "./accountSessions.tsx";
 import { formatDate } from "../../lib/format.ts";
 
 function Agents({ ws }: { ws: MeWorkspace }) {
@@ -220,30 +221,13 @@ export default function AccountSettings() {
               </div>
             </section>
 
-            <section className="card" id="sessions" aria-labelledby="sessions-h">
-              <div className="card-h">
-                <h2 id="sessions-h" style={{ fontSize: "15px" }}>
-                  Sessions
-                </h2>
-              </div>
-              <div className="card-b" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
-                <div>
-                  <div className="b">This browser</div>
-                  <div className="help">Signed in as {session?.email}. Sessions on other devices are not listed here; signing in again with a new code replaces them.</div>
-                </div>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  onClick={async () => {
-                    await auth.signOut();
-                    navigate("/signin");
-                  }}
-                >
-                  <LogOut className="ic" aria-hidden="true" />
-                  Sign out
-                </button>
-              </div>
-            </section>
+            <SessionsCard
+              email={session?.email ?? null}
+              onSignOut={async () => {
+                await auth.signOut();
+                navigate("/signin");
+              }}
+            />
 
             <section className="card" id="agents" aria-labelledby="agents-h">
               <div className="card-h">

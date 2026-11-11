@@ -2,6 +2,7 @@
 // Read models the workspace screens need beyond the core records: rollups, per-criterion scores,
 // activity feeds, upcoming payments, breakdowns. Every function is a read that starts with
 // `authorize`; nothing here writes except the bulk send, interview scheduling and funding alerts.
+import { getAt, outcomeFields, parsePointer, type FieldMeta, type JsonObject, type UiElement } from "@gms/forms";
 import { renderPdf, sha256Hex, type Block } from "@gms/documents";
 import { scoreReview, type Scores } from "@gms/review";
 import { z } from "zod";
@@ -75,7 +76,8 @@ export async function programRollup(ctx: ServiceContext, programId: string) {
     s.awardedMinor += awarded(a);
   }
   const committed = awards.filter((a) => !["cancelled"].includes(a.status)).reduce((s, a) => s + awarded(a), 0);
-  const defaults = (program.defaults ?? {}) as { ownerUserId?: string };
+  const ownerUserId = program.owner_user_id;
+  const who = ownerUserId ? (await ctx.ports.directory?.lookup([ownerUserId]))?.get(ownerUserId) : undefined;
   return {
     programId: program.id,
     budgetMinor: program.budget_amount_minor,
@@ -86,8 +88,39 @@ export async function programRollup(ctx: ServiceContext, programId: string) {
     committedByStatus: byStatus,
     awards: awards.length,
     opportunities: opps.length,
-    ownerUserId: defaults.ownerUserId ?? null,
+    ownerUserId,
+    owner: ownerUserId ? { userId: ownerUserId, name: who?.name ?? who?.email ?? null } : null,
+    outcomes: await programOutcomes(ctx, awards.map((a) => a.id)),
   };
+}
+
+/**
+ * Outcome totals for a set of awards: numeric answers to report fields the form marks
+ * `outcome: true`, added up over accepted report submissions. Reports that are still in review,
+ * returned, or shared copies are not counted.
+ */
+async function programOutcomes(ctx: ServiceContext, awardIds: string[]) {
+  const empty = { reportsAccepted: 0, totals: [] as { key: string; label: string; unit: string | null; total: number; reports: number }[] };
+  if (!awardIds.length) return empty;
+  const accepted = (await ctx.repos.table("submissions").find({ award_id: awardIds, status: "accepted" })).filter((s) => s.requirement_id && !s.shared_from_submission_id);
+  if (!accepted.length) return empty;
+  const responses = await ctx.repos.table("form_responses").find({ submission_id: accepted.map((s) => s.id) });
+  const formIds = [...new Set(responses.map((r) => r.form_id))];
+  const forms = formIds.length ? await ctx.repos.table("forms").find({ id: formIds }) : [];
+  const totals = new Map<string, { key: string; label: string; unit: string | null; total: number; reports: number }>();
+  for (const r of responses) {
+    const form = forms.find((f) => f.id === r.form_id && f.version === r.form_version);
+    if (!form) continue;
+    for (const field of outcomeFields({ uiSchema: form.ui_schema as unknown as UiElement, fieldMeta: (form.field_meta ?? {}) as unknown as Record<string, FieldMeta> })) {
+      const value = getAt(r.response as JsonObject, parsePointer(field.path));
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const t = totals.get(field.key) ?? { key: field.key, label: field.label, unit: field.unit, total: 0, reports: 0 };
+      t.total += value;
+      t.reports += 1;
+      totals.set(field.key, t);
+    }
+  }
+  return { reportsAccepted: accepted.length, totals: [...totals.values()].sort((a, b) => a.label.localeCompare(b.label)) };
 }
 
 // ------------------------------------------------------------------------------------ competitions
@@ -228,12 +261,34 @@ export async function awardActivity(ctx: ServiceContext, awardId: string) {
 }
 
 /** Who signed each agreement version, when, and against which document hash. */
+type Sig = { name?: string; user_id?: string; userId?: string; ip?: string; at?: string; authority?: { rule?: string; reason?: string | null } } | null;
+
+/**
+ * Signature records of an award's agreements. The network address is personal data: `showIp` says
+ * for which party this caller may see it; everyone else gets `ip: null`.
+ */
+function signatureRows(agreements: Row<"agreements">[], showIp: (party: "grantee" | "funder") => boolean) {
+  const sig = (s: Sig, party: "grantee" | "funder", a: Row<"agreements">) =>
+    s
+      ? [{ agreementId: apiId("agreement", a.id), version: a.version, party, name: s.name ?? null, userId: s.userId ?? s.user_id ?? null, ip: showIp(party) ? (s.ip ?? null) : null, ipVisible: showIp(party), at: s.at ?? null, documentSha256: a.document_sha256, signerRule: s.authority?.rule ?? null, signerRuleReason: s.authority?.reason ?? null }]
+      : [];
+  return agreements.flatMap((a) => [...sig(a.grantee_signature as Sig, "grantee", a), ...sig(a.funder_signature as Sig, "funder", a)]);
+}
+
+/** Who signed, for the funder. Admins and finance see the signers' network addresses. */
 export async function awardSignatures(ctx: ServiceContext, awardId: string) {
-  const { award } = await funderAward(ctx, awardId);
+  const { ws, award } = await funderAward(ctx, awardId);
   const agreements = await ctx.repos.table("agreements").find({ award_id: award.id }, { orderBy: "version" });
-  type Sig = { name?: string; user_id?: string; userId?: string; ip?: string; at?: string; hash?: string } | null;
-  const sig = (s: Sig, party: string, agreementId: string, version: number, documentSha256: string | null) => (s ? [{ agreementId: apiId("agreement", agreementId), version, party, name: s.name ?? null, userId: s.userId ?? s.user_id ?? null, ip: s.ip ?? null, at: s.at ?? null, documentSha256: s.hash ?? documentSha256 }] : []);
-  return agreements.flatMap((a) => [...sig(a.grantee_signature as Sig, "grantee", a.id, a.version, a.document_sha256), ...sig(a.funder_signature as Sig, "funder", a.id, a.version, a.document_sha256)]);
+  const privileged = ws.role === "admin" || ws.role === "finance";
+  return signatureRows(agreements, () => privileged);
+}
+
+/** Who signed, for the grantee. Its admins see the address of their own organization's signer only. */
+export async function myAwardSignatures(ctx: ServiceContext, awardId: string) {
+  const ws = await authorize(ctx, { scope: "awards:read", kind: "applicant" });
+  const award = required(await ctx.repos.table("awards").one({ id: awardId, recipient_workspace_id: ws.id }), "Award");
+  const agreements = (await ctx.repos.table("agreements").find({ award_id: award.id }, { orderBy: "version" })).filter((a) => a.status !== "draft");
+  return signatureRows(agreements, (party) => party === "grantee" && ws.role === "admin");
 }
 
 /** What stands between an award and closing it out, each line with its state. */
@@ -427,7 +482,11 @@ export async function recentActivity(ctx: ServiceContext, limit = 20) {
 // -------------------------------------------------------------------------------------- interviews
 
 export const interviewInput = z.object({ slots: z.array(z.iso.datetime({ offset: true })).min(1).max(10), note: z.string().trim().max(2000).optional(), location: z.string().trim().max(500).optional() }).strict();
-export const interviewConfirmInput = z.object({ slot: z.iso.datetime({ offset: true }) }).strict();
+/** The applicant names the time it picks, by its `slotId` from the proposal or by the time itself. */
+export const interviewConfirmInput = z
+  .object({ slot: z.iso.datetime({ offset: true }).optional(), slotId: z.string().regex(/^slot_\d{1,2}$/).optional() })
+  .strict()
+  .refine((i) => !!i.slot !== !!i.slotId, "Send slotId or slot, one of them");
 
 /** The funder proposes interview times; they appear on the applicant's status page. */
 export async function proposeInterview(ctx: ServiceContext, appId: string, input: z.output<typeof interviewInput>) {
@@ -443,9 +502,10 @@ export async function confirmInterview(ctx: ServiceContext, appId: string, input
   const { app, side } = await access(ctx, appId, "applications:write");
   if (side !== "applicant") throw new ApiError(403, "wrong_workspace_kind", "The applicant confirms the interview time");
   const state = await interviewState(ctx, app.id);
-  if (!state.proposed || !state.proposed.slots.includes(input.slot)) throw new ApiError(422, "slot_not_offered", "Choose one of the times the funder offered");
-  await recordEvent(ctx, app, "interview_confirmed", { payload: { slot: input.slot } });
-  await audit(ctx, "application.interview_confirmed", "application", app.id, { slot: input.slot }, app.workspace_id);
+  const slot = input.slotId ? state.proposed?.slotOptions.find((o) => o.id === input.slotId)?.at : state.proposed?.slots.find((s) => Date.parse(s) === Date.parse(input.slot!));
+  if (!slot) throw new ApiError(422, "slot_not_offered", "Choose one of the times the funder offered");
+  await recordEvent(ctx, app, "interview_confirmed", { payload: { slot } });
+  await audit(ctx, "application.interview_confirmed", "application", app.id, { slot }, app.workspace_id);
   return interviewState(ctx, app.id);
 }
 
@@ -454,9 +514,10 @@ async function interviewState(ctx: ServiceContext, applicationId: string) {
   const proposed = [...events].reverse().find((e) => e.type === "interview_proposed");
   const confirmed = proposed ? [...events].reverse().find((e) => e.type === "interview_confirmed" && e.created_at >= proposed.created_at) : undefined;
   const p = (proposed?.payload ?? {}) as { slots?: string[]; note?: string | null; location?: string | null };
+  const chosen = (confirmed?.payload as { slot?: string } | undefined)?.slot ?? null;
   return {
-    proposed: proposed ? { slots: p.slots ?? [], note: p.note ?? null, location: p.location ?? null, at: proposed.created_at } : null,
-    confirmed: confirmed ? { slot: (confirmed.payload as { slot?: string }).slot ?? null, at: confirmed.created_at } : null,
+    proposed: proposed ? { slots: p.slots ?? [], slotOptions: (p.slots ?? []).map((at, i) => ({ id: `slot_${i + 1}`, at })), note: p.note ?? null, location: p.location ?? null, at: proposed.created_at } : null,
+    confirmed: confirmed ? { slot: chosen, slotId: chosen ? `slot_${(p.slots ?? []).indexOf(chosen) + 1}` : null, at: confirmed.created_at } : null,
   };
 }
 

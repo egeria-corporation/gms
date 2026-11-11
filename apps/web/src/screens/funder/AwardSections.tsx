@@ -9,11 +9,13 @@ import { useNavigate, useSearchParams } from "react-router";
 import { CircleCheck, CircleDashed, CircleX, Download, FileText } from "lucide-react";
 import type { Agreement, AwardDetail } from "../../api/funder.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { useLaunchQuery } from "../../api/launchHooks.ts";
 import { ActivityTimeline } from "../../components/ActivityTimeline.tsx";
 import { ReasonDialog } from "../../components/payments.tsx";
 import { ErrorBanner, Loading, Notice, Tabs } from "../../components/ui.tsx";
 import { openBlob } from "../../lib/browser.ts";
 import { formatMinor } from "../../lib/format.ts";
+import { DriveExportButton } from "./GoogleWorkspace.tsx";
 import { dateTime, usePeople } from "./shared.tsx";
 
 export type AwardTab = "agreement" | "payments" | "requirements" | "budget" | "amendments" | "documents" | "messages" | "activity" | "closeout";
@@ -55,10 +57,19 @@ export function AwardTabs({ active, onChange, counts = {} }: { active: AwardTab;
 const shortHash = (sha: string | null | undefined) => (sha ? `${sha.slice(0, 8)}…${sha.slice(-4)}` : "—");
 
 /** Who signed, when, and which document: the audit record behind a click-to-sign agreement. */
-export function SignatureRecords({ agreement, recipientName, funderName }: { agreement: Agreement; recipientName: string; funderName: string }) {
+export function SignatureRecords({ awardId, agreement, recipientName, funderName }: { awardId: string; agreement: Agreement; recipientName: string; funderName: string }) {
+  // Network addresses come from a separate read: only admins and finance receive them.
+  const records = useLaunchQuery((api) => api.signatures(awardId), [awardId]);
+  const record = (party: "grantee" | "funder") => (records.data ?? []).filter((r) => r.party === party && r.version === agreement.version).at(-1) ?? null;
+  const ipOf = (party: "grantee" | "funder") => {
+    const r = record(party);
+    if (r?.ip) return <span className="mono">{r.ip}</span>;
+    if (r && !r.ipVisible) return <span className="muted">Recorded · shown to admins and finance</span>;
+    return "Recorded";
+  };
   const rows = [
-    { signature: agreement.granteeSignature, role: `Grantee · ${recipientName}` },
-    { signature: agreement.funderSignature, role: `Funder · ${funderName}` },
+    { signature: agreement.granteeSignature, role: `Grantee · ${recipientName}`, party: "grantee" as const },
+    { signature: agreement.funderSignature, role: `Funder · ${funderName}`, party: "funder" as const },
   ];
   return (
     <section className="card" aria-labelledby="signatures-h">
@@ -73,7 +84,7 @@ export function SignatureRecords({ agreement, recipientName, funderName }: { agr
               <th>Signer</th>
               <th>Role</th>
               <th>Signed</th>
-              <th>IP</th>
+              <th>IP address</th>
               <th>Document hash</th>
             </tr>
           </thead>
@@ -83,7 +94,7 @@ export function SignatureRecords({ agreement, recipientName, funderName }: { agr
                 <td className="b">{r.signature?.name ?? <span className="muted">Not signed yet</span>}</td>
                 <td>{r.role}</td>
                 <td>{r.signature ? dateTime(r.signature.at) : "—"}</td>
-                <td>{r.signature ? "Recorded" : "—"}</td>
+                <td>{r.signature ? ipOf(r.party) : "—"}</td>
                 <td className="mono">{r.signature ? `sha256 ${shortHash(agreement.documentSha256)}` : "—"}</td>
               </tr>
             ))}
@@ -123,6 +134,7 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
             <Download className="ic" aria-hidden="true" />
             Open
           </button>
+          <DriveExportButton kind="award_letter" id={award.id} label="the award letter" />
         </div>
         {agreement && agreement.documentSha256 ? (
           <div className="doc">
@@ -145,6 +157,7 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
               <Download className="ic" aria-hidden="true" />
               Open
             </button>
+            <DriveExportButton kind="agreement" id={agreement.id} label="the grant agreement" />
           </div>
         ) : (
           <div className="doc">

@@ -139,25 +139,33 @@ export interface DirectoryPerson {
 
 /**
  * The funder's Google Workspace through Composio (one entity per funder workspace, `drive.file`
- * through the Picker plus directory read-only). Only a fixture implementation ships: the Composio
- * request shapes are not written from memory. A production implementation goes behind this port
- * once it can be built against Composio's documentation and a real auth config.
+ * through the Picker plus directory read-only). `GoogleWorkspaceConnector` (./composio.ts) is the
+ * production implementation; `FixtureWorkspaceApps` stands in for it in tests.
  */
 export interface WorkspaceApps {
-  /** Whether the workspace has a live Composio connection; `connectUrl` starts one when it does not. */
-  status(entityId: string): Promise<{ connected: boolean; connectUrl: string | null }>;
+  /**
+   * Whether the workspace has a live Composio connection. With `link`, a workspace that is not
+   * connected also gets a `connectUrl` to start one; plain reads never create anything.
+   */
+  status(entityId: string, opts?: { link?: boolean; returnTo?: string }): Promise<{ connected: boolean; connectUrl: string | null }>;
+  /** Remove the workspace's connection at Composio. */
+  disconnect?(entityId: string): Promise<void>;
   /** People in the funder's directory, to suggest members at invite time. */
   listDirectory(entityId: string, query: string): Promise<DirectoryPerson[]>;
   /** Save a rendered PDF to a Drive folder the person chose in the Picker. Returns the file's URL. */
-  exportToDrive(entityId: string, file: { name: string; bytes: Uint8Array; folderId: string }): Promise<{ url: string }>;
+  exportToDrive(entityId: string, file: { name: string; bytes: Uint8Array; folderId: string }): Promise<{ url: string; id?: string }>;
 }
 
 export class FixtureWorkspaceApps implements WorkspaceApps {
   connected = true;
   readonly exported: { entityId: string; name: string; folderId: string; size: number }[] = [];
   constructor(public people: DirectoryPerson[] = []) {}
-  async status(entityId: string) {
-    return this.connected ? { connected: true, connectUrl: null } : { connected: false, connectUrl: `https://composio.invalid/connect?entity=${encodeURIComponent(entityId)}` };
+  async status(entityId: string, opts: { link?: boolean; returnTo?: string } = {}) {
+    if (this.connected) return { connected: true, connectUrl: null };
+    return { connected: false, connectUrl: opts.link ? `https://composio.invalid/connect?entity=${encodeURIComponent(entityId)}` : null };
+  }
+  async disconnect(_entityId: string) {
+    this.connected = false;
   }
   async listDirectory(_entityId: string, query: string) {
     const q = query.trim().toLowerCase();
@@ -165,7 +173,7 @@ export class FixtureWorkspaceApps implements WorkspaceApps {
   }
   async exportToDrive(entityId: string, file: { name: string; bytes: Uint8Array; folderId: string }) {
     this.exported.push({ entityId, name: file.name, folderId: file.folderId, size: file.bytes.byteLength });
-    return { url: `https://drive.google.invalid/file/${this.exported.length}` };
+    return { url: `https://drive.google.invalid/file/${this.exported.length}`, id: `fixture-file-${this.exported.length}` };
   }
 }
 
@@ -278,3 +286,5 @@ export function isRegistrableMcpUrl(url: string): boolean {
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(h) || h.includes(":")) return false; // IP literals
   return true;
 }
+
+export * from "./composio.ts";

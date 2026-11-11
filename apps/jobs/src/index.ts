@@ -19,6 +19,7 @@ export interface Env {
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;
   PASSPORT_AWARD_WRITE?: string;
+  PAYMENTS_FACILITATED?: string;
   CREDENTIALS_ENCRYPTION_KEY?: string;
   WEBHOOK_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
@@ -47,6 +48,8 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
       passportClient: env.PASSPORT_GMS_CLIENT_ID && env.PASSPORT_GMS_CLIENT_SECRET ? { id: env.PASSPORT_GMS_CLIENT_ID, secret: env.PASSPORT_GMS_CLIENT_SECRET } : null,
       mailFrom: env.RESEND_FROM ?? null,
       passportAwardWrite: env.PASSPORT_AWARD_WRITE === "true",
+      // Jobs never start a payment; with this off they also leave any `releasing` tranche to a person.
+      facilitatedPayments: env.PAYMENTS_FACILITATED === "true",
       webhookSecretKey: env.WEBHOOK_SECRET_KEY ?? null,
     },
     ports: {

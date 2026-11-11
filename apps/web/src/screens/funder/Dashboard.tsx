@@ -2,6 +2,7 @@
 // Funder dashboard: what needs a person today. Counts, the pipeline of each competition by stage,
 // committed money by program, open tasks, agent requests awaiting approval, and payee alerts
 // (holds, destination changes, level drops) as Passport reports them.
+import { useAppConfig } from "../../api/launchHooks.ts";
 import { Link } from "react-router";
 import { Bot, Briefcase, ClipboardCheck, Eye, Gavel, Info } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -18,6 +19,7 @@ const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
 const OPEN = ["submitted", "screening", "under_review", "revision_requested", "interview", "recommended"];
 
 export default function Dashboard() {
+  const { facilitatedPayments } = useAppConfig();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const programs = useApiQuery((api) => api.listPrograms(), []);
@@ -279,7 +281,7 @@ export default function Dashboard() {
                       {alerts.data && !alerts.data.length && <p className="muted small">No holds, destination changes or level drops right now.</p>}
                       {payments.data && (
                         <p className="small muted">
-                          {formatMinor(payments.data.totals.dueMinor)} due · {payments.data.totals.releasable} ready to release · {payments.data.totals.blocked} blocked
+                          {formatMinor(payments.data.totals.dueMinor)} due · {facilitatedPayments ? `${payments.data.totals.releasable} ready to release · ${payments.data.totals.blocked} blocked` : `${payments.data.totals.blocked} with a readiness check to fix`}
                         </p>
                       )}
                     </div>

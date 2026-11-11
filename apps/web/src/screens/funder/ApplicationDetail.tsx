@@ -3,6 +3,7 @@
 // from, and a right rail with the applicant's Passport record, eligibility, reviews, the shared
 // and internal threads, and the activity timeline. Stage and status change only through the
 // actions here (advance, request a revision, decline).
+import { InterviewCard } from "./InterviewPanel.tsx";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import { Bot, CircleCheck, CircleDashed, CircleX, Lock, RefreshCw, Send, User } from "lucide-react";
@@ -473,6 +474,7 @@ export default function ApplicationDetail() {
             </div>
 
             <aside className="col" style={{ gap: "16px" }}>
+              <InterviewCard applicationId={a.id} canOffer={open} />
               <Tabs
                 label="Application panels"
                 idPrefix="rail"

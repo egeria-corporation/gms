@@ -13,6 +13,8 @@ export interface SessionUser {
   userId: string;
   email: string | null;
   aal: "aal1" | "aal2";
+  /** Supabase Auth's id for this session (`session_id` claim), when the token carries one. */
+  sessionId?: string | null;
 }
 
 export interface SessionConfig {
@@ -77,5 +79,5 @@ export async function verifySupabaseSession(token: string, config: SessionConfig
     throw authError("invalid_session", "Session is invalid or has expired");
   }
   if (typeof payload.sub !== "string" || !payload.sub) throw authError("invalid_session", "Session is invalid or has expired");
-  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1" };
+  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}) };
 }

@@ -32,7 +32,7 @@ const data = async <T>(who: Record<string, string>, method: string, path: string
 };
 const ledger = (type: string) => h.ledger.events.filter((e) => e.eventType === type);
 const tranche = async (id: string) => (await h.repos.table("tranches").one({ id: id.slice(4) }))!;
-const base = (): BaseContext => ({ repos: h.repos, ledger: h.ledger, webhooks: h.webhooks, now: () => h.clock.now, ports: { mailer: h.mailer, storage: h.storage }, config: { baseUrl: BASE, webBaseUrl: WEB, passportBaseUrl: PASSPORT, credentialsKey: TEST_CREDENTIALS_KEY, passportClient: null, mailFrom: "OpenGrants GMS <notices@gms.test>", webhookSecretKey: TEST_CREDENTIALS_KEY, ...(h.passport.fetch ? { passportFetch: h.passport.fetch } : {}) } });
+const base = (): BaseContext => ({ repos: h.repos, ledger: h.ledger, webhooks: h.webhooks, now: () => h.clock.now, ports: { mailer: h.mailer, storage: h.storage }, config: { baseUrl: BASE, webBaseUrl: WEB, passportBaseUrl: PASSPORT, credentialsKey: TEST_CREDENTIALS_KEY, passportClient: null, mailFrom: "OpenGrants GMS <notices@gms.test>", webhookSecretKey: TEST_CREDENTIALS_KEY, facilitatedPayments: true, ...(h.passport.fetch ? { passportFetch: h.passport.fetch } : {}) } });
 
 const env = (body: unknown, status = 200) => ({ status, message: "Success", data: body });
 const TOKEN: Fixture = { method: "POST", path: "/oauth/token", status: 200, body: { access_token: "passport-access-token-for-tests", token_type: "Bearer", expires_in: 3600, scope: "org:read payee:read award:write disbursement:read disbursement:write" } };

@@ -21,6 +21,8 @@ GMS_BASE_URL = "http://localhost:8787"
 WEB_BASE_URL = "http://localhost:5173"
 OAUTH_ISSUER = "http://localhost:8787"
 ASSISTANT_ENABLED = "false"
+# Launch runs without facilitated payments: tranches are recorded after being paid outside the GMS.
+PAYMENTS_FACILITATED = "false"
 
 [[r2_buckets]]
 binding = "ATTACHMENTS"
@@ -68,7 +70,13 @@ OAUTH_ISSUER = "https://gms-staging.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
-ASSISTANT_ENABLED = "false"
+# The assistant is on for launch (owner decision); it stays inactive until ANTHROPIC_API_KEY is set as a secret.
+ASSISTANT_ENABLED = "true"
+ASSISTANT_MODEL = "claude-sonnet-5-5"
+# Passport serves the funder award routes since 2026-11-10, so accepted awards are mirrored.
+PASSPORT_AWARD_WRITE = "true"
+# Launch runs without facilitated payments: tranches are recorded after being paid outside the GMS.
+PAYMENTS_FACILITATED = "false"
 
 [[env.staging.r2_buckets]]
 binding = "ATTACHMENTS"
@@ -117,6 +125,8 @@ PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
 ASSISTANT_ENABLED = "false"
+# Launch runs without facilitated payments: tranches are recorded after being paid outside the GMS.
+PAYMENTS_FACILITATED = "false"
 
 [[env.production.r2_buckets]]
 binding = "ATTACHMENTS"

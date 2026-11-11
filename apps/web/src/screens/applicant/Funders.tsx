@@ -6,6 +6,7 @@ import type { ApplicantApi, MyFunder } from "../../api/applicant.ts";
 import { useApplicantQuery } from "../../api/applicantHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, Loaded } from "../../components/applicant.tsx";
+import { FunderContactRows } from "../../components/launch.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, type Column } from "../../components/ui.tsx";
@@ -206,8 +207,7 @@ export default function Funders() {
                             </div>
                             <div className="card-b">
                               <dl className="kv" style={{ fontSize: "15px" }}>
-                                <dt>Email</dt>
-                                <dd>{contacts[f.workspaceId] ? <a href={`mailto:${contacts[f.workspaceId]}`}>{contacts[f.workspaceId]}</a> : <span className="muted">Not published. Use the shared thread on an application.</span>}</dd>
+                                <FunderContactRows handle={f.handle} fallbackEmail={contacts[f.workspaceId] ?? null} />
                                 <dt>Public page</dt>
                                 <dd>
                                   <Link to={`/f/${f.handle}`}>gms.opengrants.io/f/{f.handle}</Link>

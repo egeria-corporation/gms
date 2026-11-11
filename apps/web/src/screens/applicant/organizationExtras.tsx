@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The parts of the Organization screen that sit beside the Passport record: representatives, the
 // documents locker (references only, read live), the apps that feed the record, and who may read it.
-import { BadgeCheck, Check, Cloud, FileSpreadsheet, Landmark, UserCheck } from "lucide-react";
+import { BadgeCheck, Check, CircleDashed, Cloud, FileSpreadsheet, Landmark, UserCheck } from "lucide-react";
 import { Link } from "react-router";
 import type { Consent } from "../../api/applicant.ts";
 import { useApplicantMutation } from "../../api/applicantHooks.ts";
 import { useFullQuery } from "../../api/applicantFullHooks.ts";
+import { useLaunchQuery } from "../../api/launchHooks.ts";
 import { FunderChip, Loaded, sourceLabel } from "../../components/applicant.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
@@ -19,29 +20,96 @@ const fileTag = (name: string, mime: string | null): { cls: string; text: string
 };
 const kindLabel = (kind: string) => kind.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
-/** Representatives are verified and kept in Passport, which does not share them with other apps. */
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+
+/** Representatives are verified and kept in Passport; the list is read from there and never stored here. */
 export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
+  const reps = useLaunchQuery((api) => api.representatives(), []);
+  const data = reps.data;
+  const manage = data?.manageUrl ?? editUrl;
   return (
     <section className="card" aria-labelledby="reps-h">
       <div className="card-h">
         <h2 id="reps-h" style={{ fontSize: "18px" }}>
           Representatives
         </h2>
-        {editUrl ? (
-          <a href={editUrl} className="small b">
+        {manage ? (
+          <a href={manage} className="small b">
             Manage in Passport
           </a>
         ) : null}
       </div>
-      <div className="card-b row" style={{ gap: "12px", alignItems: "flex-start" }}>
-        <UserCheck className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)", marginTop: "2px" }} />
-        <div>
-          <p>The people who can sign and act for your organization are verified and kept in Passport.</p>
-          <p className="help" style={{ marginTop: "4px" }}>
-            Passport does not share the list with other apps, so it is not shown here. Funders see only that your organization's representatives are verified, as part of its level.
-          </p>
+      {reps.status === "error" && (
+        <div className="card-b">
+          <ErrorBanner error={reps.error} onRetry={reps.reload} />
         </div>
-      </div>
+      )}
+      {data && data.state === "ok" && data.items.length > 0 && (
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Representatives, scrollable">
+          <table className="tbl" style={{ fontSize: "14px" }} aria-label="Representatives">
+            <thead>
+              <tr>
+                <th scope="col">Person</th>
+                <th scope="col">Title</th>
+                <th scope="col">Verified</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((r) => (
+                <tr key={r.name}>
+                  <td>
+                    <span className="row" style={{ gap: "8px" }}>
+                      <span className="av av-sm av-t" aria-hidden="true">
+                        {initials(r.name)}
+                      </span>
+                      <span className="b">{r.name}</span>
+                    </span>
+                  </td>
+                  <td>{r.title ?? <span className="muted">—</span>}</td>
+                  <td>
+                    {r.verified ? (
+                      <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
+                        <BadgeCheck className="ic" aria-hidden="true" />
+                        Verified{r.verifiedAt ? ` ${formatDate(r.verifiedAt)}` : ""}
+                      </span>
+                    ) : (
+                      <span className="row muted" style={{ gap: "5px" }}>
+                        <CircleDashed className="ic" aria-hidden="true" />
+                        Not verified yet
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {(!data || data.state !== "ok" || data.items.length === 0) && reps.status !== "error" && (
+        <div className="card-b row" style={{ gap: "12px", alignItems: "flex-start" }}>
+          <UserCheck className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)", marginTop: "2px" }} />
+          <div>
+            <p>The people who can sign and act for your organization are verified and kept in Passport.</p>
+            <p className="help" style={{ marginTop: "4px" }}>
+              {!data
+                ? "Loading the list from Passport."
+                : data.state === "unknown"
+                  ? "Passport could not be reached just now, so the list is not shown. Nothing about your representatives has changed."
+                  : data.state === "not_linked"
+                    ? "Connect your organization's Passport record to see them here."
+                    : data.state === "not_shared"
+                      ? "Your organization's consent does not share the list with the GMS, so it is not shown here. Funders see only that your representatives are verified, as part of your level."
+                      : "No representatives are recorded in Passport yet."}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

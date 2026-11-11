@@ -31,13 +31,14 @@ applicationRoutes.get("/passport/consent/callback", async (c) => {
   return c.redirect(outcome.redirect, 302);
 });
 
-for (const prefix of ["me/organization", "me/documents", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
+for (const prefix of ["me/representatives", "me/organization", "me/documents", "me/readiness", "me/notification-preferences", "notifications", "my", "discover", "applications", "threads", "tasks"]) {
   applicationRoutes.use(`/${prefix}`, authenticate());
   applicationRoutes.use(`/${prefix}/*`, authenticate());
 }
 
 // ---- the applicant's organization, as cached from Passport ----
 applicationRoutes.get("/me/organization", async (c) => c.json(ok(await org.getMyOrganization(await svc(c)))));
+applicationRoutes.get("/me/representatives", async (c) => c.json(ok(await org.getMyRepresentatives(await svc(c)))));
 applicationRoutes.post("/me/organization/refresh", async (c) => c.json(ok(await org.refreshMyOrganization(await svc(c)))));
 // The Passport locker, as references the editor can attach. Never bytes.
 applicationRoutes.get("/me/documents", async (c) => c.json(ok(await org.listMyDocuments(await svc(c)))));

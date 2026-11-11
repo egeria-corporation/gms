@@ -12,6 +12,8 @@ export interface SignatureRecord {
   ip: string;
   at: string;
   documentSha256: string;
+  /** Which rule let this person sign for their organization (grantee signatures). */
+  authority?: { rule: "passport_representative" | "admin_role"; reason: string | null; representativeId: string | null; verificationLevel: string | null };
 }
 
 export interface AgreementContext {

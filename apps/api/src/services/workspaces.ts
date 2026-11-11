@@ -79,7 +79,7 @@ export const workspaceView = (w: Row<"workspaces">) => ({
 });
 
 const memberView = (m: Row<"workspace_members">, kind: WorkspaceKind, who?: { email: string | null; name: string | null }) => {
-  const scope = (m.scope as { email?: unknown; name?: unknown } | null) ?? {};
+  const scope = (m.scope as { email?: unknown; name?: unknown; organization?: unknown } | null) ?? {};
   return {
     userId: m.user_id,
     // The auth account's address and name; an invited member carries the invited address until then.
@@ -87,6 +87,10 @@ const memberView = (m: Row<"workspace_members">, kind: WorkspaceKind, who?: { em
     name: who?.name ?? (typeof scope.name === "string" ? scope.name : null),
     role: m.role,
     scope: m.scope,
+    /** The firm a consultant works for, when the invitation named one. */
+    organization: typeof scope.organization === "string" ? scope.organization : null,
+    /** Last authenticated request in this workspace, to the nearest 15 minutes. */
+    lastActiveAt: m.last_active_at,
     expiresAt: m.expires_at,
     mfaEnrolledAt: m.mfa_enrolled_at,
     requiresMfa: roleRequiresMfa(kind, m.role),
@@ -223,20 +227,28 @@ export async function leaveWorkspace(ctx: ServiceContext, workspaceId: string) {
 }
 
 export const invitationInput = z
-  .object({ email: z.email().max(320), role: z.string(), scope: z.record(z.string(), z.unknown()).optional(), expiresInDays: z.number().int().min(1).max(90).optional() })
+  .object({
+    email: z.email().max(320),
+    role: z.string(),
+    scope: z.record(z.string(), z.unknown()).optional(),
+    /** The firm a consultant works for. Kept on the membership as `scope.organization`. */
+    organizationName: z.string().trim().min(1).max(200).optional(),
+    expiresInDays: z.number().int().min(1).max(90).optional(),
+  })
   .strict();
 
 /** Create an invitation. The token is returned once, for the invitation link; only its hash is stored. */
 export async function createInvitation(ctx: ServiceContext, workspaceId: string, input: z.output<typeof invitationInput>) {
   const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: workspaceId, what: "Workspace" });
   assertRole(ws.kind, input.role);
+  if (input.organizationName && input.role !== "consultant") throw new ApiError(422, "organization_for_consultants", "An organization name is recorded for consultants only", [{ code: "invalid", field: "organizationName" }]);
   const token = randomToken("gms_inv_");
   const expiresAt = new Date(ctx.now().getTime() + (input.expiresInDays ?? 14) * 86_400_000).toISOString();
   const row = await ctx.repos.table("invitations").insert({
     workspace_id: workspaceId,
     email: input.email.toLowerCase(),
     role: input.role,
-    scope: (input.scope ?? {}) as Row<"invitations">["scope"],
+    scope: { ...(input.scope ?? {}), ...(input.organizationName ? { organization: input.organizationName } : {}) } as Row<"invitations">["scope"],
     token_hash: await sha256b64url(token),
     invited_by: ctx.actor.userId,
     expires_at: expiresAt,
@@ -256,7 +268,7 @@ export async function createInvitation(ctx: ServiceContext, workspaceId: string,
       // The invitation stands; the admin can pass the link on.
     }
   }
-  return { id: row.id, email: row.email, role: row.role, expiresAt, token, emailed, acceptUrl };
+  return { id: row.id, email: row.email, role: row.role, organization: input.organizationName ?? null, expiresAt, token, emailed, acceptUrl };
 }
 
 /** A signed-in person redeems an invitation and joins the workspace. */
@@ -272,4 +284,51 @@ export async function acceptInvitation(ctx: ServiceContext, token: string) {
   await audit(ctx, "invitation.accepted", "workspace", inv.workspace_id, { invitationId: inv.id, userId, role: inv.role }, inv.workspace_id);
   const workspace = required(await ctx.repos.table("workspaces").one({ id: inv.workspace_id }), "Workspace");
   return { workspace: workspaceView(workspace), role: existing?.role ?? inv.role };
+}
+
+// ------------------------------------------------------------------------------ named contacts
+
+const contact = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    title: z.string().trim().max(200).nullable().optional(),
+    email: z.email().max(320),
+    phone: z.string().trim().max(50).nullable().optional(),
+    /** True: also shown on the public funder page. False: only to organizations that applied or hold an award. */
+    public: z.boolean().optional(),
+  })
+  .strict();
+export const contactsInput = z.object({ contacts: z.array(contact).max(20) }).strict();
+
+export interface FunderContact {
+  name: string;
+  title: string | null;
+  email: string;
+  phone: string | null;
+  public: boolean;
+}
+
+/** The named contacts a funder keeps in `settings.contacts`. Anything malformed is left out. */
+export const contactsOf = (w: Pick<Row<"workspaces">, "settings">): FunderContact[] => {
+  const raw = (w.settings as { contacts?: unknown } | null)?.contacts;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((c) => {
+    const r = contact.safeParse(c);
+    return r.success ? [{ name: r.data.name, title: r.data.title || null, email: r.data.email, phone: r.data.phone || null, public: r.data.public === true }] : [];
+  });
+};
+
+export async function getContacts(ctx: ServiceContext) {
+  const ws = await authorize(ctx, { scope: "programs:read", kind: "funder" });
+  return contactsOf(required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace"));
+}
+
+/** Replace the funder's named contacts. Admins only. */
+export async function putContacts(ctx: ServiceContext, input: z.output<typeof contactsInput>) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"] });
+  const current = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
+  const contacts = input.contacts.map((c) => ({ name: c.name, title: c.title || null, email: c.email.toLowerCase(), phone: c.phone || null, public: c.public === true }));
+  await ctx.repos.table("workspaces").update({ id: ws.id }, { settings: { ...((current.settings as Record<string, unknown> | null) ?? {}), contacts } as Row<"workspaces">["settings"] });
+  await audit(ctx, "workspace.contacts_updated", "workspace", ws.id, { contacts: contacts.length, public: contacts.filter((c) => c.public).length });
+  return contacts;
 }

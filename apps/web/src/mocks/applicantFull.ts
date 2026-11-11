@@ -183,7 +183,9 @@ export function createMockApplicantFullApi(opts: MockApplicantFullOptions): Appl
       if (!answer) throw new ApiError(404, "Answer not found");
       const words = answer.body.split(/\s+/).filter(Boolean);
       const max = input.maxWords ?? words.length;
-      if (full.assist.quota) full.assist.quota = { ...full.assist.quota, used: (full.assist.quota.used ?? 0) + 1 };
+      const q = full.assist.quota;
+      if (q && q.limit !== undefined && (q.used ?? 0) >= q.limit) throw new ApiError(429, `This workspace has used its ${q.limit} assistant drafts for the month.`);
+      if (q) full.assist.quota = { ...q, used: (q.used ?? 0) + 1, ...(q.limit !== undefined ? { remaining: Math.max(0, q.limit - (q.used ?? 0) - 1) } : {}) };
       return { text: words.slice(0, max).join(" "), overLimit: false, answerVersion: answer.version };
     },
 

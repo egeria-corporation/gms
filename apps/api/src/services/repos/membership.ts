@@ -15,6 +15,7 @@ const toMembership = (m: Row<"workspace_members">, w: Row<"workspaces">): Member
   role: m.role,
   scope: m.scope && typeof m.scope === "object" && !Array.isArray(m.scope) && Object.keys(m.scope).length ? (m.scope as Record<string, unknown>) : null,
   expiresAt: m.expires_at,
+  lastActiveAt: m.last_active_at,
 });
 
 export class RepoMembershipStore implements MembershipStore {

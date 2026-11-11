@@ -2,15 +2,18 @@
 // Workspace integrations (build spec §9.2 "Integrations", §10.10): outbound webhooks, API
 // clients, MCP connections, funder-registered MCP servers, and the Mercury / Google Workspace
 // connectors. Every secret is shown once at creation or stored as ciphertext; none is returned.
-import { ConnectorAuthError, ConnectorUnavailableError, isRegistrableMcpUrl } from "@gms/connectors";
+import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isRegistrableMcpUrl } from "@gms/connectors";
+import { printValue, renderApplicationSnapshot, type SnapshotForm } from "@gms/documents";
 import { decryptSecret, encryptSecret } from "@gms/passport-client";
 import { WEBHOOK_EVENT_TYPES, encryptSecret as encryptWebhookSecret, generateWebhookSecret, isDeliverableUrl } from "@gms/webhooks";
 import { z } from "zod";
 import { generateClientSecret, hashSecret } from "../auth/crypto.ts";
 import { SCOPES, scopesForRole, type Scope } from "../auth/scopes.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
-import { apiId } from "../lib/ids.ts";
+import { apiId, uuidOf } from "../lib/ids.ts";
+import { agreementPdf, awardLetterPdf } from "./agreements.ts";
 import { audit, authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { getApplicationDetail } from "./inbox.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 const admin = (ctx: ServiceContext, opts: { person?: boolean } = {}): Promise<ServiceWorkspace> => authorize(ctx, { scope: "workspace:admin", roles: ["admin"], ...(opts.person ? { person: true } : {}) });
@@ -239,11 +242,24 @@ export function providerOf(value: string | undefined): Provider {
 
 const account = (ctx: ServiceContext, wsId: string, provider: Provider) => ctx.repos.table("connector_accounts").one({ workspace_id: wsId, provider });
 
+/** What a failed Composio or Google call means for the person connecting Google Workspace. */
+function googleWorkspaceError(e: unknown): never {
+  if (e instanceof ConnectorScopeError) throw new ApiError(422, "connector_scope_rejected", e.message);
+  if (e instanceof ConnectorScopeUnverifiedError) throw new ApiError(422, "connector_scope_unverified", e.message);
+  if (e instanceof ConnectorAuthError) throw new ApiError(502, "connector_rejected", "Composio rejected this server's connection settings. Nothing was changed");
+  if (e instanceof ConnectorUnavailableError) throw new ApiError(503, "connector_unavailable", "Composio could not be reached. Nothing was changed");
+  throw e;
+}
+
 export async function getConnector(ctx: ServiceContext, provider: Provider) {
   const ws = await authorize(ctx, { scope: "payments:read", kind: "funder", roles: ["admin", "finance"] });
   const a = await account(ctx, ws.id, provider);
   if (provider === "google_workspace" && ctx.ports.workspaceApps) {
-    const s = await ctx.ports.workspaceApps.status(ws.id);
+    // A read never starts a connection, and an unreachable Composio shows the stored state as not connected.
+    const s = await ctx.ports.workspaceApps.status(ws.id).catch((e: unknown) => {
+      if (e instanceof ConnectorScopeError || e instanceof ConnectorScopeUnverifiedError || e instanceof ConnectorAuthError || e instanceof ConnectorUnavailableError) return { connected: false, connectUrl: null };
+      throw e;
+    });
     return { ...accountView(a, provider), connected: s.connected, connectUrl: s.connectUrl };
   }
   return accountView(a, provider);
@@ -259,7 +275,10 @@ export async function connect(ctx: ServiceContext, provider: Provider, input: z.
   const existing = await account(ctx, ws.id, provider);
   if (provider === "google_workspace") {
     if (!ctx.ports.workspaceApps) throw new ApiError(503, "connector_not_configured", "Google Workspace through Composio is not configured on this server");
-    const s = await ctx.ports.workspaceApps.status(ws.id);
+    // Not connected yet: Composio returns a hosted Google sign-in link for this workspace's entity.
+    // Composio sends the browser back to this workspace's connector settings.
+    const home = await ctx.repos.table("workspaces").one({ id: ws.id });
+    const s = await ctx.ports.workspaceApps.status(ws.id, { link: true, ...(home ? { returnTo: `/w/${home.handle}/settings/connectors` } : {}) }).catch(googleWorkspaceError);
     const patch = { status: s.connected ? "active" : "pending", scopes: ["drive.file", "admin.directory.user.readonly"], external_id: ws.id };
     const row = existing ? (await ctx.repos.table("connector_accounts").update({ id: existing.id }, patch))[0]! : await ctx.repos.table("connector_accounts").insert({ workspace_id: ws.id, provider, ...patch });
     await audit(ctx, "connector.connected", "connector_account", row.id, { provider, state: row.status });
@@ -285,6 +304,8 @@ export async function disconnect(ctx: ServiceContext, provider: Provider) {
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
   const a = await account(ctx, ws.id, provider);
   if (!a) throw notFound("Connector");
+  // Google's credential lives at Composio, so the connection is removed there before the row is marked.
+  if (provider === "google_workspace" && ctx.ports.workspaceApps?.disconnect) await ctx.ports.workspaceApps.disconnect(ws.id).catch(googleWorkspaceError);
   await ctx.repos.table("connector_accounts").update({ id: a.id }, { status: "revoked", secret_enc: null });
   await audit(ctx, "connector.disconnected", "connector_account", a.id, { provider });
   return accountView({ ...a, status: "revoked" }, provider);
@@ -333,8 +354,80 @@ export async function syncConnector(ctx: ServiceContext, provider: Provider) {
 export async function suggestMembers(ctx: ServiceContext, query: string) {
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"] });
   if (!ctx.ports.workspaceApps) return [];
-  const s = await ctx.ports.workspaceApps.status(ws.id);
-  return s.connected ? (await ctx.ports.workspaceApps.listDirectory(ws.id, query)).slice(0, 20) : [];
+  // Suggestions are a convenience: any connector failure means none, never a failed invite screen.
+  try {
+    const s = await ctx.ports.workspaceApps.status(ws.id);
+    return s.connected ? (await ctx.ports.workspaceApps.listDirectory(ws.id, query)).slice(0, 20) : [];
+  } catch (e) {
+    if (e instanceof ConnectorScopeError || e instanceof ConnectorScopeUnverifiedError || e instanceof ConnectorAuthError || e instanceof ConnectorUnavailableError) return [];
+    throw e;
+  }
+}
+
+/**
+ * The funder's Google directory for invite suggestions, as its own route. Unlike `suggestMembers`
+ * it says why there is nothing: not configured, not connected, or a connection that cannot be used.
+ */
+export async function searchDirectory(ctx: ServiceContext, query: string) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"] });
+  if (!ctx.ports.workspaceApps) throw new ApiError(503, "connector_not_configured", "Google Workspace through Composio is not configured on this server");
+  const apps = ctx.ports.workspaceApps;
+  const s = await apps.status(ws.id).catch(googleWorkspaceError);
+  if (!s.connected) throw new ApiError(409, "connector_not_connected", "Connect Google Workspace first");
+  return (await apps.listDirectory(ws.id, query.slice(0, 200)).catch(googleWorkspaceError)).slice(0, 20);
+}
+
+export const driveExportInput = z
+  .object({
+    /** `letter`: an award's letter. `agreement`: an agreement (executed once executed). `snapshot`: an application as submitted. */
+    documentKind: z.enum(["letter", "agreement", "snapshot"]),
+    /** The award, agreement or application id, prefixed or bare. */
+    subjectId: z.string().min(1).max(100),
+    /** The Drive folder the person chose in the Google Picker. */
+    folderId: z.string().regex(/^[A-Za-z0-9_-]{10,128}$/),
+  })
+  .strict();
+
+const SUBJECT = { letter: "award", agreement: "agreement", snapshot: "application" } as const;
+
+/** An application as a funder may read it, printed form by form. */
+async function snapshotPdf(ctx: ServiceContext, applicationId: string): Promise<{ bytes: Uint8Array; filename: string }> {
+  // The detail read authorizes the caller and applies reviewer masking; the rows below only add names.
+  const detail = await getApplicationDetail(ctx, applicationId);
+  const app = await ctx.repos.table("applications").one({ id: applicationId });
+  const [funder, applicant, opportunity] = await Promise.all([
+    ctx.repos.table("workspaces").one({ id: ctx.workspace!.id }),
+    app ? ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id }) : null,
+    app ? ctx.repos.table("opportunities").one({ id: app.opportunity_id }) : null,
+  ]);
+  const forms: SnapshotForm[] = detail.formResponses.map((r) => ({ title: r.formTitle ?? "Form", status: r.status, fields: Object.entries(r.response ?? {}).map(([k, v]): [string, string] => [k, printValue(v)]) }));
+  const bytes = await renderApplicationSnapshot(
+    { title: detail.title ?? "Application", applicant: applicant?.display_name ?? "Applicant", opportunity: opportunity?.title ?? "", submittedAt: detail.submittedAt ?? null, verificationLevel: detail.verificationLevelAtSubmit ?? null, forms },
+    { funderName: funder?.display_name ?? "", accent: (funder?.brand as { accent?: string } | null)?.accent, createdAt: detail.submittedAt ?? ctx.now().toISOString(), reference: apiId("application", applicationId) },
+  );
+  return { bytes, filename: `application-${apiId("application", applicationId)}.pdf` };
+}
+
+/**
+ * Save an award letter, an agreement or an application snapshot as a PDF into a Drive folder the
+ * person picked. The file is rendered (or loaded) by the same services that serve the download,
+ * so the caller must be able to read the record; nothing but the PDF leaves the GMS.
+ */
+export async function exportToDrive(ctx: ServiceContext, input: z.output<typeof driveExportInput>) {
+  const ws = await authorize(ctx, { scope: input.documentKind === "snapshot" ? "applications:read" : "awards:read", kind: "funder", roles: ["admin", "program_officer"], person: true });
+  if (!ctx.ports.workspaceApps) throw new ApiError(503, "connector_not_configured", "Google Workspace through Composio is not configured on this server");
+  const id = uuidOf(SUBJECT[input.documentKind], input.subjectId, input.documentKind === "snapshot" ? "Application" : input.documentKind === "letter" ? "Award" : "Agreement");
+  const file = input.documentKind === "letter" ? await awardLetterPdf(ctx, id) : input.documentKind === "agreement" ? await agreementPdf(ctx, id) : await snapshotPdf(ctx, id);
+  let saved;
+  try {
+    saved = await ctx.ports.workspaceApps.exportToDrive(ws.id, { name: file.filename, bytes: file.bytes, folderId: input.folderId });
+  } catch (e) {
+    // A folder that was not picked, or a connection without Drive access, is the person's to fix.
+    if (e instanceof ConnectorAuthError) throw new ApiError(409, "drive_folder_unavailable", "Google Drive would not take the file. Connect Google Workspace, then choose the folder again in the Google Picker");
+    googleWorkspaceError(e);
+  }
+  await audit(ctx, "connector.drive_export", SUBJECT[input.documentKind], id, { provider: "google_workspace", documentKind: input.documentKind, fileName: file.filename, driveFileId: saved.id ?? null, bytes: file.bytes.byteLength });
+  return { documentKind: input.documentKind, subjectId: apiId(SUBJECT[input.documentKind], id), fileId: saved.id ?? null, fileName: file.filename, name: file.filename, url: saved.url };
 }
 
 export { apiId };

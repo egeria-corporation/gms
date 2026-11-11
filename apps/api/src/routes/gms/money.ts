@@ -87,6 +87,10 @@ moneyRoutes.post("/my/submissions/:id/share", async (c) => c.json(created(await 
 moneyRoutes.get("/awards/:id/budget", async (c) => c.json(ok(await budgets.getBudget(await svc(c), awardId(c)))));
 moneyRoutes.put("/awards/:id/budget", async (c) => c.json(ok(await budgets.putBudget(await svc(c), awardId(c), parse(budgets.budgetInput, await jsonBody(c))))));
 moneyRoutes.get("/awards/:id/variance", async (c) => c.json(ok(await budgets.getVariance(await svc(c), awardId(c)))));
+moneyRoutes.get("/awards/:id/budget-mapping", async (c) => c.json(ok(await budgets.getBudgetMapping(await svc(c), awardId(c)))));
+moneyRoutes.get("/my/awards/:id/budget-mapping", async (c) => c.json(ok(await budgets.getBudgetMapping(await svc(c), awardId(c)))));
+moneyRoutes.put("/my/awards/:id/budget-mapping", async (c) => c.json(ok(await budgets.putBudgetMapping(await svc(c), awardId(c), parse(budgets.budgetMappingInput, await jsonBody(c))))));
+moneyRoutes.get("/my/awards/:id/variance", async (c) => c.json(ok(await budgets.getVariance(await svc(c), awardId(c)))));
 moneyRoutes.get("/my/awards/:id/budget", async (c) => c.json(ok(await budgets.getBudget(await svc(c), awardId(c)))));
 moneyRoutes.put("/my/awards/:id/budget", async (c) => c.json(ok(await budgets.putBudget(await svc(c), awardId(c), parse(budgets.budgetInput, await jsonBody(c))))));
 

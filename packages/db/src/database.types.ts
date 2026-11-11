@@ -405,6 +405,7 @@ export type Database = {
       awards: {
         Row: {
           application_id: string | null;
+          budget_category_mapping: Json;
           cg: Json | null;
           cg_status: string;
           conditions: string[];
@@ -428,6 +429,7 @@ export type Database = {
         };
         Insert: {
           application_id?: string | null;
+          budget_category_mapping?: Json;
           cg?: Json | null;
           cg_status?: string;
           conditions?: string[];
@@ -451,6 +453,7 @@ export type Database = {
         };
         Update: {
           application_id?: string | null;
+          budget_category_mapping?: Json;
           cg?: Json | null;
           cg_status?: string;
           conditions?: string[];
@@ -1639,6 +1642,7 @@ export type Database = {
           fiscal_year: number | null;
           id: string;
           name: string;
+          owner_user_id: string | null;
           updated_at: string;
           workspace_id: string;
         };
@@ -1651,6 +1655,7 @@ export type Database = {
           fiscal_year?: number | null;
           id?: string;
           name: string;
+          owner_user_id?: string | null;
           updated_at?: string;
           workspace_id: string;
         };
@@ -1663,6 +1668,7 @@ export type Database = {
           fiscal_year?: number | null;
           id?: string;
           name?: string;
+          owner_user_id?: string | null;
           updated_at?: string;
           workspace_id?: string;
         };
@@ -2205,6 +2211,7 @@ export type Database = {
           expires_at: string | null;
           id: string;
           invited_by: string | null;
+          last_active_at: string | null;
           mfa_enrolled_at: string | null;
           notification_preferences: Json;
           notifications_read_at: string | null;
@@ -2220,6 +2227,7 @@ export type Database = {
           expires_at?: string | null;
           id?: string;
           invited_by?: string | null;
+          last_active_at?: string | null;
           mfa_enrolled_at?: string | null;
           notification_preferences?: Json;
           notifications_read_at?: string | null;
@@ -2235,6 +2243,7 @@ export type Database = {
           expires_at?: string | null;
           id?: string;
           invited_by?: string | null;
+          last_active_at?: string | null;
           mfa_enrolled_at?: string | null;
           notification_preferences?: Json;
           notifications_read_at?: string | null;

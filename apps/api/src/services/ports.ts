@@ -3,6 +3,8 @@
 // in-memory implementation for tests and local development and a production implementation
 // (R2 / the hosted OpenGrants MCP).
 
+import type { AuthSession, SessionsPort } from "./sessions.ts";
+
 // ---------------------------------------------------------------------------------- file storage
 
 // File bytes: the port and its implementations live in `@gms/documents`.
@@ -157,5 +159,38 @@ export class SupabaseUserDirectory implements UserDirectory {
       }),
     );
     return out;
+  }
+}
+
+/** The part of the Supabase client the sessions port uses: two service-role-only functions. */
+export interface SupabaseRpcLike {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+}
+
+/** A person's own Supabase Auth sessions, through `gms_sessions_of` / `gms_end_session_of`. */
+export class SupabaseSessions implements SessionsPort {
+  constructor(private readonly client: SupabaseRpcLike) {}
+  async list(userId: string): Promise<AuthSession[]> {
+    const { data, error } = await this.client.rpc("gms_sessions_of", { person: userId });
+    if (error) throw new Error(`Reading sessions failed: ${error.message}`);
+    return ((data as { id: string; created_at: string; last_active_at: string | null; user_agent: string | null; ip: string | null; aal: string | null }[] | null) ?? []).map((s) => ({ id: s.id, createdAt: s.created_at, lastActiveAt: s.last_active_at, userAgent: s.user_agent, ip: s.ip, aal: s.aal }));
+  }
+  async end(userId: string, sessionId: string): Promise<boolean> {
+    const { data, error } = await this.client.rpc("gms_end_session_of", { person: userId, session_id: sessionId });
+    if (error) throw new Error(`Ending the session failed: ${error.message}`);
+    return data === true;
+  }
+}
+
+export class MemorySessions implements SessionsPort {
+  constructor(readonly rows: (AuthSession & { userId: string })[] = []) {}
+  async list(userId: string): Promise<AuthSession[]> {
+    return this.rows.filter((s) => s.userId === userId).map(({ userId: _u, ...s }) => s);
+  }
+  async end(userId: string, sessionId: string): Promise<boolean> {
+    const i = this.rows.findIndex((s) => s.userId === userId && s.id === sessionId);
+    if (i < 0) return false;
+    this.rows.splice(i, 1);
+    return true;
   }
 }

@@ -110,7 +110,7 @@ export interface ApplicantApi {
   funders(): Promise<MyFunder[]>;
   members(): Promise<ApplicantMember[]>;
   /** Invites a teammate, or a consultant whose access ends after `expiresInDays`. */
-  invite(input: { email: string; role: string; expiresInDays?: number; expiresAt?: string | null }): Promise<ApplicantInvitation>;
+  invite(input: { email: string; role: string; expiresInDays?: number; expiresAt?: string | null; organizationName?: string }): Promise<ApplicantInvitation>;
 
   // ---- applications ----
   applications(): Promise<MyApplication[]>;
@@ -153,7 +153,8 @@ export interface ApplicantApi {
   // ---- awards ----
   awards(): Promise<Award[]>;
   award(id: string): Promise<AwardDetail>;
-  acceptAward(id: string): Promise<AwardDetail>;
+  /** `name`: the typed legal name of the person accepting, checked against Passport's verified representatives when it lists any. */
+  acceptAward(id: string, name?: string): Promise<AwardDetail>;
   agreement(id: string): Promise<Agreement>;
   /** Signing is for people: the server answers 403 `human_only` to any agent or client token. */
   signAgreement(id: string, input: { name: string; attest: true; documentSha256?: string }): Promise<Agreement>;
@@ -326,10 +327,10 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
       const id = opts.workspaceId();
       return id ? call<ApplicantMember[]>("GET", `/gms/workspaces/${e(id)}/members`, undefined, true) : [];
     },
-    invite: async ({ email, role, expiresInDays }) => {
+    invite: async ({ email, role, expiresInDays, organizationName }) => {
       const id = opts.workspaceId();
       if (!id) throw new ApiError(400, "Open a workspace first");
-      return call("POST", `/gms/workspaces/${e(id)}/invitations`, { email, role, ...(expiresInDays ? { expiresInDays } : {}) });
+      return call("POST", `/gms/workspaces/${e(id)}/invitations`, { email, role, ...(expiresInDays ? { expiresInDays } : {}), ...(organizationName && role === "consultant" ? { organizationName } : {}) });
     },
 
     applications: () => get("/gms/my/applications"),
@@ -368,7 +369,7 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
 
     awards: () => all("/gms/my/awards?pageSize=100"),
     award: (id) => get(`/gms/my/awards/${e(id)}`),
-    acceptAward: (id) => call("POST", `/gms/my/awards/${e(id)}/accept`, {}),
+    acceptAward: (id, name) => call("POST", `/gms/my/awards/${e(id)}/accept`, name ? { name } : {}),
     agreement: (id) => get(`/gms/agreements/${e(id)}`),
     signAgreement: (id, input) => call("POST", `/gms/agreements/${e(id)}/sign`, input),
 

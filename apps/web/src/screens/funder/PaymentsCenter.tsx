@@ -15,6 +15,8 @@ import { checklistOf, destinationLabel, HoldBanner, RecordExternalDialog, Releas
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist } from "../../components/ui.tsx";
+import { useAppConfig } from "../../api/launchHooks.ts";
+import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
@@ -106,6 +108,7 @@ function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
 }
 
 function ReadinessExplained() {
+  const { facilitatedPayments } = useAppConfig();
   return (
     <section className="card" aria-labelledby="explained-h">
       <div className="card-h">
@@ -125,7 +128,7 @@ function ReadinessExplained() {
             <CircleX className="ic" aria-hidden="true" />
             <div>
               <div className="l">Fail</div>
-              <div className="r">Blocks release. The row says what clears it and when.</div>
+              <div className="r">{facilitatedPayments ? "Blocks release." : "Something to settle with the grantee before you pay."} The row says what clears it and when.</div>
             </div>
             <span></span>
           </div>
@@ -133,7 +136,7 @@ function ReadinessExplained() {
             <CircleDashed className="ic" aria-hidden="true" />
             <div>
               <div className="l">Unknown</div>
-              <div className="r">Could not be checked (Passport unreachable). Treated as blocking, never as pass.</div>
+              <div className="r">Could not be checked (Passport unreachable). {facilitatedPayments ? "Treated as blocking, never as pass." : "Never shown as a pass."}</div>
             </div>
             <span></span>
           </div>
@@ -155,6 +158,7 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
   const [dialog, setDialog] = useState<"release" | "external" | null>(null);
   const t = item.tranche;
   const name = row?.recipient?.name ?? "Grantee";
+  const { facilitatedPayments } = useAppConfig();
   const blocked = releaseBlockedReason(item);
   return (
     <section className="card" aria-labelledby={`due-${t.id}`}>
@@ -182,15 +186,17 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
         <ReadinessChecklist checklist={checklistOf(item)} title="Readiness" />
       </div>
       <div className="card-f">
-        <button type="button" className="btn btn-primary" disabled={blocked !== null} onClick={() => setDialog("release")}>
-          <Send className="ic" aria-hidden="true" />
-          Release
-        </button>
-        <button type="button" className="btn btn-secondary" disabled={t.status === "held"} onClick={() => setDialog("external")}>
+        {facilitatedPayments && (
+          <button type="button" className="btn btn-primary" disabled={blocked !== null} onClick={() => setDialog("release")}>
+            <Send className="ic" aria-hidden="true" />
+            Release
+          </button>
+        )}
+        <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} disabled={t.status === "held"} onClick={() => setDialog("external")}>
           <Banknote className="ic" aria-hidden="true" />
-          Record external payment
+          {facilitatedPayments ? "Record external payment" : RECORD_OUTSIDE_LABEL}
         </button>
-        {blocked && <span className="help">{blocked}</span>}
+        {facilitatedPayments && blocked && <span className="help">{blocked}</span>}
       </div>
       {dialog === "release" && (
         <ReleaseDialog
@@ -483,6 +489,7 @@ function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personN
 }
 
 export function PaymentsCenter({ view }: { view: PaymentsView }) {
+  const { facilitatedPayments } = useAppConfig();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [note, setNote] = useState<string | null>(null);
@@ -523,9 +530,15 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                 <>
                   <span>{formatMinor(d.center.totals.dueMinor)} due</span>
                   <span>·</span>
-                  <span>{d.center.totals.releasable} ready to release</span>
-                  <span>·</span>
-                  <span>{d.center.totals.blocked} blocked</span>
+                  {facilitatedPayments ? (
+                    <>
+                      <span>{d.center.totals.releasable} ready to release</span>
+                      <span>·</span>
+                      <span>{d.center.totals.blocked} blocked</span>
+                    </>
+                  ) : (
+                    <span>{d.center.totals.blocked} with a readiness check to fix</span>
+                  )}
                 </>
               ) : undefined
             }
@@ -536,6 +549,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
             <>
               <ViewSwitch base={base} view={view} due={d.center.items.length} inFlight={flying.length + d.alerts.length} unmatched={d.bank.length} />
               {note && <Notice tone="ok" title={note} />}
+              {!facilitatedPayments && <PaymentsOffNotice />}
               {!d.link.linked && (
                 <HoldBanner
                   banner={{ cause: "passport_not_linked", tone: "neutral", title: "Connect Passport to pay", detail: "Awards, agreements and reporting work without it, but no payment can be released or recorded until this workspace is linked to Passport.", clears: "Clears when an admin connects Passport." }}
@@ -561,7 +575,11 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     {d.center.items.map((item) => (
                       <DueItem key={item.tranche.id} item={item} row={d.rows.find((r) => r.id === item.tranche.id)} base={base} onChanged={changed} />
                     ))}
-                    <p className="notice">Payments are released one at a time. Each release is confirmed by a person and paid through OpenGrants Passport to the payee’s verified destination.</p>
+                    <p className="notice">
+                      {facilitatedPayments
+                        ? "Payments are released one at a time. Each release is confirmed by a person and paid through OpenGrants Passport to the payee’s verified destination."
+                        : "Payments are recorded one at a time, by a person. Passport checks the last four digits you enter against the payee’s verified destination; a payment it cannot verify is kept as unverified."}
+                    </p>
                   </div>
                   <aside style={{ display: "flex", flexDirection: "column", gap: "16px" }} aria-label="Upcoming payments and how readiness works">
                     <NextThirtyDays rows={d.rows} now={new Date()} />

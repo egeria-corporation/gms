@@ -7,6 +7,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { Award as AwardIcon, Check, Clock, Globe, Hash, Lock, Mail, PenLine, User, X } from "lucide-react";
 import type { Agreement, ApplicantApi, Award, AwardDetail } from "../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
+import { useLaunchQuery } from "../../api/launchHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, isNotFound, Loaded } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -42,6 +43,8 @@ const shortHash = (h: string | null | undefined) => (h ? `${h.slice(0, 4)}…${h
 function SignDialog({ award, agreement, open, onClose, onSigned }: { award: AwardDetail; agreement: Agreement; open: boolean; onClose: () => void; onSigned: (a: Agreement) => void }) {
   const ws = useWorkspace("applicant");
   const [name, setName] = useState("");
+  const reps = useLaunchQuery((api) => api.representatives(), []);
+  const verified = reps.data?.state === "ok" ? reps.data.items.filter((r) => r.verified).map((r) => r.name) : [];
   const [attest, setAttest] = useState(false);
   const sign = useApplicantMutation((api) => api.signAgreement(agreement.id, { name: name.trim(), attest: true, ...(agreement.documentSha256 ? { documentSha256: agreement.documentSha256 } : {}) }));
   return (
@@ -83,7 +86,7 @@ function SignDialog({ award, agreement, open, onClose, onSigned }: { award: Awar
               Type your full legal name
             </label>
             <input className="inp" id="sign-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" style={{ fontFamily: "var(--font-emphasis)", fontStyle: "italic", fontSize: "20px", height: "48px" }} />
-            <span className="help">Signing is for a workspace admin who is authorized to bind the organization.</span>
+            <span className="help">{verified.length > 0 ? `Signing is for a verified representative. The name must match one in Passport: ${verified.join(", ")}.` : "Signing is for a workspace admin who is authorized to bind the organization."}</span>
           </div>
           <label className="cb" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} style={{ width: "18px", height: "18px", marginTop: "2px" }} />
@@ -145,7 +148,11 @@ export default function GrantOffered() {
   const { awardId } = useParams();
   const query = useApplicantQuery((api) => load(api, awardId), [awardId, ws.id]);
   const [signing, setSigning] = useState(false);
-  const accept = useApplicantMutation((api, id: string) => api.acceptAward(id));
+  // Where Passport lists verified representatives, the person accepting types their legal name and it must match one.
+  const reps = useLaunchQuery((api) => api.representatives(), [ws.id]);
+  const verified = reps.data?.state === "ok" ? reps.data.items.filter((r) => r.verified).map((r) => r.name) : [];
+  const [acceptName, setAcceptName] = useState("");
+  const accept = useApplicantMutation((api, id: string) => api.acceptAward(id, acceptName.trim() || undefined));
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
 
   return (
@@ -229,6 +236,17 @@ export default function GrantOffered() {
                           </div>
                         </div>
                         {accept.error ? <ErrorBanner error={accept.error} title="The award was not accepted" /> : null}
+                        {award.status === "offered" && verified.length > 0 && (
+                          <div className="fld" style={{ maxWidth: "460px" }}>
+                            <label className="lbl" htmlFor="accept-name">
+                              Your full legal name
+                            </label>
+                            <input className="inp" id="accept-name" value={acceptName} onChange={(e) => setAcceptName(e.target.value)} autoComplete="name" aria-describedby="accept-name-help" />
+                            <span className="help" id="accept-name-help">
+                              Accepting is for a verified representative of your organization. The name must match one in Passport: {verified.join(", ")}.
+                            </span>
+                          </div>
+                        )}
                         {award.status === "offered" && (
                           <div className="bnr bnr-info">
                             <Mail className="ic" aria-hidden="true" />
@@ -244,7 +262,7 @@ export default function GrantOffered() {
                             <button
                               className="btn btn-primary act"
                               type="button"
-                              disabled={accept.state === "saving"}
+                              disabled={accept.state === "saving" || (verified.length > 0 && acceptName.trim().length < 2)}
                               onClick={async () => {
                                 const next = await accept.run(award.id);
                                 if (next) query.set({ awards: awards.map((w) => (w.id === next.id ? { ...w, status: next.status } : w)), award: next, agreement });

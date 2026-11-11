@@ -2,6 +2,7 @@
 // "Adapt to a question": the assistant rewrites a library answer for one question, within a word
 // limit. The result is a draft the person copies and edits; nothing is written into an application.
 // Hidden entirely unless the assistant is switched on for the workspace.
+import { quotaSpent, QuotaSpentNote } from "../../components/launch.tsx";
 import { useState } from "react";
 import { Bot, Sparkles } from "lucide-react";
 import type { Answer } from "../../api/applicant.ts";
@@ -20,6 +21,7 @@ export function AdaptPanel({ answer }: { answer: Answer }) {
   const adapt = useFullMutation((api, input: { question: string; maxWords?: number }) => api.adaptAnswer(answer.id, input));
   if (status.status !== "ready" || !status.data.enabled) return null;
   const quota = status.data.quota;
+  const spent = quotaSpent(quota);
   const limit = Number.parseInt(maxWords, 10);
   const run = async () => {
     const r = await adapt.run({ question: question.trim(), ...(Number.isFinite(limit) && limit > 0 ? { maxWords: limit } : {}) });
@@ -54,12 +56,13 @@ export function AdaptPanel({ answer }: { answer: Answer }) {
           </dd>
         </dl>
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-primary" disabled={!question.trim() || adapt.state === "saving"} onClick={() => void run()}>
+          <button type="button" className="btn btn-primary" disabled={spent || !question.trim() || adapt.state === "saving"} onClick={() => void run()}>
             <Sparkles className="ic" aria-hidden="true" />
             {adapt.state === "saving" ? "Adapting…" : "Adapt"}
           </button>
           <span className="help">Nothing is written into an application until you insert it yourself.</span>
         </div>
+        {spent ? <QuotaSpentNote resetsAt={quota?.resetsAt} /> : null}
         {adapt.error ? <ErrorBanner error={adapt.error} title="The assistant could not draft this" /> : null}
         {draft ? (
           <div style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "14px 16px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }} role="status">

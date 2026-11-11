@@ -69,6 +69,7 @@ insightRoutes.get("/activity", auth, async (c) => {
 
 // ---- applicant ----
 insightRoutes.get("/me/access", auth, async (c) => c.json(ok(await mine.whoHasAccess(await svc(c)))));
+insightRoutes.get("/my/awards/:id/signatures", auth, async (c) => c.json(ok(await insights.myAwardSignatures(await svc(c), award(c)))));
 insightRoutes.get("/my/funders/detail", auth, async (c) => c.json(ok(await mine.myFundersDetail(await svc(c)))));
 insightRoutes.get("/my/applications/:id/follow-ups", auth, async (c) => c.json(ok(await insights.applicationFollowUps(await svc(c), app(c)))));
 insightRoutes.post("/my/applications/:id/interview/confirm", auth, async (c) => c.json(ok(await insights.confirmInterview(await svc(c), app(c), parse(insights.interviewConfirmInput, await jsonBody(c))))));

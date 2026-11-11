@@ -9,6 +9,7 @@ import type { Rendered, Template, TemplateInput } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNote } from "../../components/ui.tsx";
+import { LetterAssistant } from "./LetterAssist.tsx";
 import { BulkSend } from "./BulkSend.tsx";
 import { actorLabel, dateTime, usePeople, timeAgo } from "./shared.tsx";
 
@@ -219,6 +220,7 @@ export default function Communications() {
                         <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
                       </section>
                     )}
+                    {current && <LetterAssistant templateId={current.id} templateName={current.name} />}
                   </div>
                 </div>
               </section>

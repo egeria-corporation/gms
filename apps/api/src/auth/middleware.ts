@@ -58,6 +58,23 @@ export function requireUser(): MiddlewareHandler<AppEnv> {
   };
 }
 
+export const LAST_ACTIVE_EVERY_MS = 15 * 60 * 1000;
+
+/**
+ * Note that a member used the workspace: one small write at most every 15 minutes per member, and
+ * none at all on the requests in between. A failed write never fails the request.
+ */
+async function touchLastActive(c: Context<AppEnv>, m: { workspaceId: string; userId: string; lastActiveAt?: string | null }): Promise<void> {
+  const deps = c.get("deps");
+  const now = deps.now();
+  if (m.lastActiveAt && now.getTime() - Date.parse(m.lastActiveAt) < LAST_ACTIVE_EVERY_MS) return;
+  try {
+    await deps.repos.table("workspace_members").update({ workspace_id: m.workspaceId, user_id: m.userId }, { last_active_at: now.toISOString() });
+  } catch {
+    // Activity is a convenience for the member list, not a reason to refuse a request.
+  }
+}
+
 async function principalFromSession(c: Context<AppEnv>, user: SessionUser): Promise<Principal> {
   const workspaceId = namedWorkspace(c);
   if (!workspaceId) throw forbidden("workspace_required", `Name a workspace with the ${WORKSPACE_HEADER} header`);
@@ -66,6 +83,7 @@ async function principalFromSession(c: Context<AppEnv>, user: SessionUser): Prom
   if (!m) throw forbidden("workspace_mismatch", "You are not a member of this workspace");
   if (m.expiresAt && Date.parse(m.expiresAt) <= c.get("deps").now().getTime()) throw forbidden("membership_expired", "Your access to this workspace has expired");
   if (roleRequiresMfa(m.workspaceKind, m.role) && user.aal !== "aal2") throw forbidden("mfa_required", "This role requires two-step verification. Verify with your authenticator app to continue");
+  await touchLastActive(c, m);
   return { kind: "user", userId: user.userId, clientId: null, workspaceId, role: m.role, scopes: scopesForRole(m.workspaceKind, m.role), memberScope: m.scope, jti: null };
 }
 
