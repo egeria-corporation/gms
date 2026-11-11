@@ -53,6 +53,7 @@ PAYMENTS_FACILITATED = "false"
 GMS_BASE_URL = "https://gms.opengrants.io"
 WEB_BASE_URL = "https://gms.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
+PASSPORT_WEB_URL = "https://app.passport.opengrants.io"
 
 [env.staging.triggers]
 crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
@@ -81,6 +82,7 @@ PAYMENTS_FACILITATED = "false"
 GMS_BASE_URL = "https://gms.opengrants.io"
 WEB_BASE_URL = "https://gms.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
+PASSPORT_WEB_URL = "https://app.passport.opengrants.io"
 
 [env.production.triggers]
 crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]

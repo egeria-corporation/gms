@@ -20,6 +20,8 @@ export interface Env {
   OAUTH_DCR_REDIRECT_HOSTS?: string;
 
   PASSPORT_BASE_URL?: string;
+  /** Where people use Passport in a browser (its web app), for links. The API lives at PASSPORT_BASE_URL. */
+  PASSPORT_WEB_URL?: string;
   PASSPORT_ISSUER?: string;
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;

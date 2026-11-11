@@ -42,7 +42,7 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
   if (status.status === "error") return <ErrorBanner error={status.error} onRetry={status.reload} title="The Passport connection could not be checked" />;
   const s = status.data;
   const look = STATE[s.check.state];
-  const consoleUrl = s.passportOrgId ? `${env.passportBaseUrl}/funders/${s.passportOrgId}/clients` : env.passportBaseUrl;
+  const consoleUrl = s.passportOrgId ? `${env.passportWebUrl}/funders/${s.passportOrgId}/clients` : env.passportWebUrl;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>

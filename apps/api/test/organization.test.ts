@@ -12,6 +12,8 @@ const jwt = (claims: Record<string, unknown>) => `h.${btoa(JSON.stringify(claims
 const env = <T>(data: T) => ({ status: 200, message: "Success", data });
 
 const token = (n: number): Fixture => ({ method: "POST", path: "/oauth/token", status: 200, body: { access_token: jwt({ "https://commongrants.org/org_id": ORG_ALDER, n }), refresh_token: `rt-${n}`, expires_in: 600, scope: "org:read org.changes:read org.changes:write" } });
+/** Where a person opens Passport: its web app, not the API at PASSPORT. */
+const PASSPORT_WEB = PASSPORT.replace("//passport.", "//app.passport.");
 const ORG: Fixture = { method: "GET", path: `/common-grants/orgs/${ORG_ALDER}`, status: 200, body: env(ALDER_ORG) };
 const PROFILE: Fixture = { method: "GET", path: `/passport/orgs/${ORG_ALDER}/profile`, status: 200, body: env(ALDER_PROFILE) };
 
@@ -123,7 +125,7 @@ describe("the cached organization", () => {
     const { who } = await linked();
     const r = await h.request("/gms/me/organization", { headers: who });
     const d = ((await r.json()) as { data: Record<string, unknown> }).data;
-    expect(d).toMatchObject({ linked: true, level: "L3", verifiedAt: "2027-01-12T17:20:00Z", profile: { commonApp: { irs: { subsection: "03" }, financials: { budget: 2_400_000, totalRevenue: 2_310_000 } } }, editUrl: `${PASSPORT}/orgs/${ORG_ALDER}` });
+    expect(d).toMatchObject({ linked: true, level: "L3", verifiedAt: "2027-01-12T17:20:00Z", profile: { commonApp: { irs: { subsection: "03" }, financials: { budget: 2_400_000, totalRevenue: 2_310_000 } } }, editUrl: `${PASSPORT_WEB}/orgs/${ORG_ALDER}` });
     expect((d.organization as { name: string }).name).toBe("Alder Creek Family Services");
     expect((d.profileSources as Record<string, string>)["/commonApp/financials/totalRevenue"]).toBe("irs_990");
   });
@@ -138,7 +140,7 @@ describe("the cached organization", () => {
     await h.repos.table("workspaces").update({ id: ws.id }, { verification_level: "L1" });
     const partial = await read();
     expect(partial.checks.filter((c) => c.state === "fail").map((c) => c.key)).toEqual(["identity_verified", "payee_verified"]);
-    expect(partial.checks.find((c) => c.key === "payee_verified")!.fixHref).toBe(`${PASSPORT}/orgs/${ORG_ALDER}`);
+    expect(partial.checks.find((c) => c.key === "payee_verified")!.fixHref).toBe(`${PASSPORT_WEB}/orgs/${ORG_ALDER}`);
 
     // An unlinked workspace knows nothing about the organization: unknown, never a guess.
     const bare = { ...(await session(USER_ADMIN)), "X-GMS-Workspace": WS_APPLICANT };

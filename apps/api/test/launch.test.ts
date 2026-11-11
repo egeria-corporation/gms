@@ -209,7 +209,9 @@ describe("who may sign for the grantee", () => {
       { id: "rep_maria", name: "María  Santos-López", title: "Executive Director", role: "control_officer", isControlOfficer: true, verified: true, verificationLevel: "L3", verifiedAt: "2027-01-12T17:00:00Z" },
       { id: "rep_jamal", name: "Jamal Reed", title: "Board Treasurer", role: "second_representative", isControlOfficer: false, verified: true, verificationLevel: "L2", verifiedAt: "2027-01-12T17:00:00Z" },
     ]);
-    expect(reps.manageUrl).toBe(`${PASSPORT}/orgs/${ORG_ALDER}`);
+    // A link a person opens goes to Passport's web app, never to its API (which answers 404 to a browser).
+    expect(reps.manageUrl).toBe(`${PASSPORT.replace("//passport.", "//app.passport.")}/orgs/${ORG_ALDER}`);
+    expect(reps.manageUrl).not.toContain(`${PASSPORT}/`);
     const org = await data<{ representatives: { state: string; items: unknown[] } }>(s.applicant, "GET", "/gms/me/organization");
     expect(org.representatives).toMatchObject({ state: "ok" });
     expect(org.representatives.items).toHaveLength(2);

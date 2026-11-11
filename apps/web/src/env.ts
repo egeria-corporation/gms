@@ -11,6 +11,8 @@ export const env = {
   supabaseUrl: trim(raw.VITE_SUPABASE_URL),
   supabaseAnonKey: (raw.VITE_SUPABASE_ANON_KEY ?? "").trim(),
   passportBaseUrl: trim(raw.VITE_PASSPORT_BASE_URL) || "https://passport.opengrants.io",
+  /** Passport's web app, where a person manages their organization. Links go here, never to the API. */
+  passportWebUrl: trim(raw.VITE_PASSPORT_WEB_URL) || (trim(raw.VITE_PASSPORT_BASE_URL) || "https://passport.opengrants.io").replace("//passport.", "//app.passport."),
   /** Google Picker (Export to Drive). Both are public values; without both the export control explains what is missing. */
   googlePickerApiKey: (raw.VITE_GOOGLE_PICKER_API_KEY ?? "").trim(),
   googleOAuthClientId: (raw.VITE_GOOGLE_OAUTH_CLIENT_ID ?? "").trim(),

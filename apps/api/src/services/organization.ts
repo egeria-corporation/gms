@@ -238,7 +238,15 @@ function view(ws: Ws, linked: boolean) {
 }
 
 /** Profile edits happen in Passport; the GMS only links there. */
-const editUrl = (ctx: ServiceContext, ws: Ws) => (ws.passport_org_id && ctx.config.passportBaseUrl ? `${ctx.config.passportBaseUrl}/orgs/${ws.passport_org_id}` : null);
+/**
+ * Passport's web app, for links a person opens. PASSPORT_BASE_URL is the API and answers 404 to a
+ * browser, so a link must never be built from it. Without PASSPORT_WEB_URL, the hosted layout is
+ * assumed (`passport.` is the API, `app.passport.` the web app).
+ */
+export const passportWeb = (ctx: Pick<ServiceContext, "config">): string | null =>
+  ctx.config.passportWebUrl ?? (ctx.config.passportBaseUrl ? ctx.config.passportBaseUrl.replace("//passport.", "//app.passport.") : null);
+
+const editUrl = (ctx: ServiceContext, ws: Ws) => (ws.passport_org_id && passportWeb(ctx) ? `${passportWeb(ctx)}/orgs/${ws.passport_org_id}` : null);
 
 async function liveLink(ctx: ServiceContext, workspaceId: string) {
   return ctx.repos.table("passport_links").one({ workspace_id: workspaceId, mode: "applicant_consent", revoked_at: null });
@@ -336,7 +344,7 @@ export async function getMyReadiness(ctx: ServiceContext) {
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const linked = !!(await liveLink(ctx, ws.id));
   const org = row.org_projection as { status?: { value?: string } } | null;
-  const passport = ctx.config.passportBaseUrl && row.passport_org_id ? `${ctx.config.passportBaseUrl}/orgs/${row.passport_org_id}` : null;
+  const passport = passportWeb(ctx) && row.passport_org_id ? `${passportWeb(ctx)}/orgs/${row.passport_org_id}` : null;
   const level = row.verification_level;
   const rank = level ? (RANK[level] ?? 0) : null;
   const need = (min: number, key: string, label: string, pass: string, failText: string): ReadinessCheck =>
@@ -376,7 +384,7 @@ export interface PayoutDestinationView {
 
 export async function payoutDestinationFor(ctx: ServiceContext, workspaceId: string): Promise<PayoutDestinationView> {
   const row = required(await ctx.repos.table("workspaces").one({ id: workspaceId }), "Workspace");
-  const manageUrl = ctx.config.passportBaseUrl && row.passport_org_id ? `${ctx.config.passportBaseUrl}/orgs/${row.passport_org_id}` : null;
+  const manageUrl = passportWeb(ctx) && row.passport_org_id ? `${passportWeb(ctx)}/orgs/${row.passport_org_id}` : null;
   // What Passport's own events have told the GMS: display facts only, used when the live read is not possible.
   const told = (row.settings as { passportPayee?: { pendingDestinationChange?: { bankName: string | null; last4: string | null; requestedAt: string } | null } } | null)?.passportPayee?.pendingDestinationChange ?? null;
   const toldPending = told ? { state: null, bankName: told.bankName, last4: told.last4, requestedAt: told.requestedAt, coolingOffUntil: null } : null;

@@ -16,6 +16,7 @@ export interface Env {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   PASSPORT_BASE_URL?: string;
+  PASSPORT_WEB_URL?: string;
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;
   PASSPORT_AWARD_WRITE?: string;
@@ -44,6 +45,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
       baseUrl: trim(env.GMS_BASE_URL),
       webBaseUrl: trim(env.WEB_BASE_URL),
       passportBaseUrl: env.PASSPORT_BASE_URL ? trim(env.PASSPORT_BASE_URL) : null,
+      passportWebUrl: env.PASSPORT_WEB_URL ? trim(env.PASSPORT_WEB_URL) : null,
       credentialsKey: env.CREDENTIALS_ENCRYPTION_KEY ?? null,
       passportClient: env.PASSPORT_GMS_CLIENT_ID && env.PASSPORT_GMS_CLIENT_SECRET ? { id: env.PASSPORT_GMS_CLIENT_ID, secret: env.PASSPORT_GMS_CLIENT_SECRET } : null,
       mailFrom: env.RESEND_FROM ?? null,

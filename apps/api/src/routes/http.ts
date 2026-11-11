@@ -19,6 +19,7 @@ export function config(c: C): ServiceConfig {
     baseUrl: trimSlash(c.env.GMS_BASE_URL),
     webBaseUrl: trimSlash(c.env.WEB_BASE_URL),
     passportBaseUrl: c.env.PASSPORT_BASE_URL ? trimSlash(c.env.PASSPORT_BASE_URL) : null,
+    passportWebUrl: c.env.PASSPORT_WEB_URL ? trimSlash(c.env.PASSPORT_WEB_URL) : null,
     passportIssuer: c.env.PASSPORT_ISSUER ? trimSlash(c.env.PASSPORT_ISSUER) : c.env.PASSPORT_BASE_URL ? trimSlash(c.env.PASSPORT_BASE_URL) : null,
     credentialsKey: c.env.CREDENTIALS_ENCRYPTION_KEY ?? null,
     ...(deps.passportFetch ? { passportFetch: deps.passportFetch } : {}),
