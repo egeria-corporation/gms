@@ -53,7 +53,10 @@ export class PassportClient {
   constructor(o: PassportClientOptions) {
     this.base = o.baseUrl.replace(/\/+$/, "");
     this.tokens = o.tokens;
-    this.doFetch = o.fetch ?? (fetch as FetchLike);
+    // Never store the platform's `fetch` itself: Cloudflare Workers throws "Illegal invocation"
+    // when it is called as a method of another object (`this.doFetch(...)`). Node does not, so
+    // only a deployed Worker fails. Call it through a plain function instead.
+    this.doFetch = o.fetch ?? ((input, init) => fetch(input, init));
     this.awardWrite = o.awardWrite ?? false;
   }
 
@@ -73,8 +76,9 @@ export class PassportClient {
         },
         ...(call.body === undefined ? {} : { body: JSON.stringify(call.body) }),
       });
-    } catch {
-      throw new PassportUnavailableError("Passport could not be reached");
+    } catch (e) {
+      // Keep why: a network failure and a programming error look the same from outside.
+      throw new PassportUnavailableError(`Passport could not be reached${e instanceof Error ? `: ${e.message.slice(0, 160)}` : ""}`);
     }
   }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertPaymentFieldsSafe,
   BankDataError,
@@ -173,6 +173,20 @@ describe("template rendering", () => {
 });
 
 describe("mailer", () => {
+  it("sends with the platform fetch the way a Worker requires", async () => {
+    // Workers throws "Illegal invocation" when `fetch` runs as a method of another object.
+    const strict = function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation: function called with incorrect `this` reference.");
+      return Promise.resolve(Response.json({ id: "email-1" }));
+    };
+    vi.stubGlobal("fetch", strict);
+    try {
+      await expect(new ResendMailer("test-key").send({ from: "a@gms.example", to: ["b@gms.example"], subject: "s", html: "<p>x</p>" } as never)).resolves.toEqual({ id: "email-1" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("posts to Resend with the idempotency key and hides the response body on failure", async () => {
     const seen: { url: string; init: RequestInit }[] = [];
     const ok: typeof fetch = async (url, init) => {

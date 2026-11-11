@@ -29,6 +29,7 @@ import {
 } from "@gms/passport-client";
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify, type JSONWebKeySet } from "jose";
 import { b64url, timingSafeEqual } from "../auth/crypto.ts";
+import { log } from "../lib/log.ts";
 import { audit, makeActor, type BaseContext, type ServiceContext } from "./context.ts";
 import { consentScopes, linkApplicantOrganization, readConsentedOrganization } from "./organization.ts";
 import { AccountMismatchError } from "./ports.ts";
@@ -237,7 +238,19 @@ export type SignInOutcome = { ok: true; redirect: string; userId: string; worksp
  * to a server or logged) or to `/signin?passport_error=<code>`.
  */
 export async function completeSignIn(ctx: BaseContext, query: { code?: string; state?: string; error?: string }, cookieBinding: string | undefined): Promise<SignInOutcome> {
-  const fail = (code: SignInErrorCode): SignInOutcome => ({ ok: false, code, redirect: signInErrorRedirect(ctx, code) });
+  // The person sees one of a few plain messages; the log says which step stopped and why, so a
+  // failed sign-in can be diagnosed. Never a token, a code or an email: the step, the error's
+  // class and message, and an upstream status when there is one.
+  const fail = (code: SignInErrorCode, step?: string, cause?: unknown): SignInOutcome => {
+    const e = cause instanceof Error ? cause : null;
+    log(code === "cancelled" ? "info" : "warn", "passport.signin_failed", {
+      // Not `code`: the logger blanks any field of that name, as it does an authorization code.
+      outcome: code,
+      ...(step ? { step } : {}),
+      ...(e ? { error: e.name, detail: e.message.slice(0, 200), ...(typeof (e as { status?: unknown }).status === "number" ? { upstreamStatus: (e as { status?: number }).status } : {}) } : {}),
+    });
+    return { ok: false, code, redirect: signInErrorRedirect(ctx, code) };
+  };
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   const identity = ctx.ports.identity;
   if (!baseUrl || !key || !client || !identity) return fail("not_configured");
@@ -245,8 +258,8 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   let sealed: SealedSignIn;
   try {
     sealed = JSON.parse(await decryptSecret(query.state ?? "", key)) as SealedSignIn;
-  } catch {
-    return fail("state_mismatch");
+  } catch (e) {
+    return fail("state_mismatch", "state", e);
   }
   if (!sealed.v || !sealed.n || !sealed.b || typeof sealed.h !== "string" || !HOP.test(sealed.h) || typeof sealed.exp !== "number") return fail("state_mismatch");
   // The flow must finish in the browser that started it.
@@ -260,9 +273,9 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   try {
     tokens = await exchangeCode({ baseUrl, clientId: client.id, clientSecret: client.secret, code: query.code, codeVerifier: sealed.v, redirectUri: callbackUri(ctx), fetch: ctx.config.passportFetch });
   } catch (e) {
-    if (e instanceof PassportUnavailableError) return fail("unavailable");
+    if (e instanceof PassportUnavailableError) return fail("unavailable", "token_exchange", e);
     // A used, expired or foreign code: the person starts again.
-    if (e instanceof PassportAuthError) return fail("expired");
+    if (e instanceof PassportAuthError) return fail("expired", "token_exchange", e);
     throw e;
   }
   if (!tokens.idToken) return fail("state_mismatch");
@@ -272,13 +285,13 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
     // Passport rotated its key since the set was cached: read it again, once.
     const kid = kidOf(tokens.idToken);
     if (kid && !keys.keys.some((k) => k.kid === kid)) keys = await passportJwks(ctx, baseUrl, { fresh: true });
-  } catch {
-    return fail("unavailable");
+  } catch (e) {
+    return fail("unavailable", "keys", e);
   }
   try {
     who = await verifyIdToken(tokens.idToken, { keys, issuer: ctx.config.passportIssuer ?? baseUrl, clientId: client.id, nonce: sealed.n, now: ctx.now() });
-  } catch {
-    return fail("state_mismatch");
+  } catch (e) {
+    return fail("state_mismatch", "id_token", e);
   }
   if (!who.email || !who.emailVerified) return fail("email_unverified");
 
@@ -299,7 +312,7 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
     try {
       read = await readConsentedOrganization(ctx, tokens.accessToken, org.orgId);
     } catch (e) {
-      if (e instanceof PassportUnavailableError || e instanceof PassportAuthError || e instanceof PassportApiError) return fail("unavailable");
+      if (e instanceof PassportUnavailableError || e instanceof PassportAuthError || e instanceof PassportApiError) return fail("unavailable", "organization_read", e);
       throw e;
     }
   }
@@ -309,7 +322,7 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
     account = await identity.ensureUser(who.email, { passportUserId: who.passportUserId, name: who.name });
   } catch (e) {
     // The email already belongs to an account tied to a different Passport user.
-    if (e instanceof AccountMismatchError) return fail("account_mismatch");
+    if (e instanceof AccountMismatchError) return fail("account_mismatch", "account", e);
     throw e;
   }
   const { userId, created } = account;
