@@ -15,6 +15,7 @@ const Agents = lazy(() => import("../screens/public/Agents.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
+const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -164,6 +165,7 @@ function AppRoutes() {
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
         <Route path="/signin" element={<SignIn />} />
+        <Route path="/auth/passport" element={<PassportReturn />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         <Route path="/oauth/consent" element={<OAuthConsent />} />

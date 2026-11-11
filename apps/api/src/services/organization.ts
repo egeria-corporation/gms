@@ -157,13 +157,37 @@ export async function completeConsent(ctx: Pick<ServiceContext, "repos" | "ledge
     throw e;
   }
 
-  const at = ctx.now().toISOString();
+  const ws = await linkApplicantOrganization(svc, { userId: sealed.u, tokens, read, workspaceHint: sealed.w, via: "passport_consent" });
+  return { ok: true, workspaceId: ws.id, redirect: `${web}${sealed.r ?? "/onboarding/applicant"}?passport=linked&ws=${encodeURIComponent(ws.handle)}` };
+}
+
+/** What Passport said about the organization a person just consented for. */
+export type PassportRead = { org: CgOrganization; profile: OrgProfile | null };
+
+/** Read the organization and its profile with the access token from a code exchange. */
+export function readConsentedOrganization(ctx: Pick<ServiceContext, "config">, accessToken: string, orgId: string): Promise<PassportRead> {
+  return readPassport(new PassportClient({ baseUrl: ctx.config.passportBaseUrl!, tokens: staticToken(accessToken), fetch: ctx.config.passportFetch }), orgId);
+}
+
+/**
+ * Link the organization a person consented for at Passport to its applicant workspace: find or
+ * create the workspace, cache the record, add the person, and store the refresh token encrypted.
+ * Shared by the consent callback and Sign in with Passport, so both link the same way.
+ */
+export async function linkApplicantOrganization(
+  svc: ServiceContext,
+  input: { userId: string; tokens: { orgId: string; refreshToken: string; scopes: string[] }; read: PassportRead; workspaceHint: string | null; via: "passport_consent" | "passport_signin" },
+): Promise<Ws> {
+  const { userId, tokens, read } = input;
+  const { credentialsKey: key, passportClient: client } = svc.config;
+  if (!key || !client) throw new ApiError(503, "passport_not_configured", "Passport linking is not configured on this server");
+  const at = svc.now().toISOString();
   const columns = projectionColumns(read.org, read.profile, at);
   let workspace = await svc.repos.table("workspaces").one({ passport_org_id: tokens.orgId, kind: "applicant" });
-  if (!workspace && sealed.w) {
+  if (!workspace && input.workspaceHint) {
     // Link the workspace the person named, if they still administer it and it is still unlinked.
-    const m = await svc.repos.table("workspace_members").one({ workspace_id: sealed.w, user_id: sealed.u, role: "admin" });
-    const named = m ? await svc.repos.table("workspaces").one({ id: sealed.w, kind: "applicant" }) : null;
+    const m = await svc.repos.table("workspace_members").one({ workspace_id: input.workspaceHint, user_id: userId, role: "admin" });
+    const named = m ? await svc.repos.table("workspaces").one({ id: input.workspaceHint, kind: "applicant" }) : null;
     if (named && !named.passport_org_id) workspace = (await svc.repos.table("workspaces").update({ id: named.id }, { passport_org_id: tokens.orgId, ...columns }))[0] ?? null;
   }
   if (workspace) {
@@ -172,20 +196,21 @@ export async function completeConsent(ctx: Pick<ServiceContext, "repos" | "ledge
     const name = columns.legal_name ?? "Organization";
     const handle = await uniqueHandle(svc, name);
     workspace = await guardWrite("A workspace for this organization", () => svc.repos.table("workspaces").insert({ kind: "applicant", handle, display_name: name, passport_org_id: tokens.orgId, status: "active", ...columns }));
-    await audit(svc, "workspace.created", "workspace", workspace.id, { kind: "applicant", handle, via: "passport_consent" }, workspace.id);
+    await audit(svc, "workspace.created", "workspace", workspace.id, { kind: "applicant", handle, via: input.via }, workspace.id);
   }
   const ws = workspace!;
   // Consenting for the organization on Passport is the proof of standing: the first person in
   // becomes the workspace admin, later ones join as editors until an admin changes their role.
-  if (!(await svc.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: sealed.u }))) {
+  if (!(await svc.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: userId }))) {
     const first = (await svc.repos.table("workspace_members").count({ workspace_id: ws.id })) === 0;
-    await svc.repos.table("workspace_members").insert({ workspace_id: ws.id, user_id: sealed.u, role: first ? "admin" : "editor" });
-    await audit(svc, "member.added", "workspace", ws.id, { userId: sealed.u, role: first ? "admin" : "editor", via: "passport_consent" }, ws.id);
+    await svc.repos.table("workspace_members").insert({ workspace_id: ws.id, user_id: userId, role: first ? "admin" : "editor" });
+    await audit(svc, "member.added", "workspace", ws.id, { userId, role: first ? "admin" : "editor", via: input.via }, ws.id);
   }
   await svc.repos.table("passport_links").update({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }, { revoked_at: at });
-  await svc.repos.table("passport_links").insert({ workspace_id: ws.id, mode: "applicant_consent", client_id: client.id, refresh_token_enc: await encryptSecret(tokens.refreshToken, key), scopes: tokens.scopes.length ? tokens.scopes : [...APPLICANT_CONSENT_SCOPES], linked_by_user_id: sealed.u, linked_at: at, last_ok_at: at });
-  await audit(svc, "passport.linked", "workspace", ws.id, { mode: "applicant_consent", passportOrgId: tokens.orgId }, ws.id);
-  return { ok: true, workspaceId: ws.id, redirect: `${web}${sealed.r ?? "/onboarding/applicant"}?passport=linked&ws=${encodeURIComponent(ws.handle)}` };
+  const orgScopes = tokens.scopes.filter((s) => !["openid", "email", "profile"].includes(s));
+  await svc.repos.table("passport_links").insert({ workspace_id: ws.id, mode: "applicant_consent", client_id: client.id, refresh_token_enc: await encryptSecret(tokens.refreshToken, key), scopes: orgScopes.length ? orgScopes : [...APPLICANT_CONSENT_SCOPES], linked_by_user_id: userId, linked_at: at, last_ok_at: at });
+  await audit(svc, "passport.linked", "workspace", ws.id, { mode: "applicant_consent", passportOrgId: tokens.orgId, via: input.via }, ws.id);
+  return ws;
 }
 
 // ------------------------------------------------------------------------------------ the cached record

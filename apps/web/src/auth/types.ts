@@ -27,6 +27,11 @@ export interface AuthClient {
   /** Emails a one-time code (the same email carries a magic link). */
   sendCode(email: string): Promise<void>;
   verifyCode(email: string, code: string): Promise<Session>;
+  /**
+   * Redeems the one-time sign-in the API hands back after Sign in with Passport
+   * (`/auth/passport#token_hash=…&type=…`) for a session.
+   */
+  redeemSignIn(tokenHash: string, type: string): Promise<Session>;
   /** Ids of this user's verified TOTP factors. */
   listTotpFactors(): Promise<string[]>;
   enrollTotp(): Promise<TotpEnrollment>;

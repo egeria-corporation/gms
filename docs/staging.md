@@ -72,6 +72,21 @@ Staging switches (`apps/api/wrangler.toml`): assistant on with `claude-sonnet-5-
 Not set yet: `PASSPORT_GMS_CLIENT_ID`, `PASSPORT_GMS_CLIENT_SECRET`, `PASSPORT_WEBHOOK_SECRET`,
 `RESEND_INBOUND_SECRET`, `COMPOSIO_API_KEY`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
 
+## Sign in with Passport
+
+Added 2026-11-11 (not deployed with this note). Going live needs, in this order:
+
+1. Passport deployed with OpenID Connect (its migration `0055`).
+2. The GMS client at Passport (`OpenGrants GMS`, owned by Egeria Corporation) given the sign-in
+   redirect URIs `https://gms.opengrants.io/gms/passport/signin/callback` and
+   `https://gms-staging.opengrants.io/gms/passport/signin/callback`.
+3. GMS migrations `0016` and `0017` applied, then the API and web app redeployed. `0017` adds two
+   triggers on `auth.users` (no account keeps a password; nothing set before an email was proven
+   survives the proof) and clears any password already stored.
+
+`PASSPORT_ISSUER` is not set on staging; the issuer defaults to `PASSPORT_BASE_URL`
+(`https://passport.opengrants.io`), which is what Passport signs with.
+
 ## Known limits on staging
 
 - Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks;

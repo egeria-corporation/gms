@@ -53,6 +53,16 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
       if (!session) throw new AuthError("That code didn't match.", "invalid_code");
       return session;
     },
+    async redeemSignIn(tokenHash, type) {
+      // The API issues a magic-link token; `signup` is what Supabase calls the same thing for an
+      // address it has not seen confirmed. Anything else is not a sign-in and is refused here.
+      if (type !== "magiclink" && type !== "signup") throw new AuthError("That sign-in is not valid.", "invalid_code");
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: type === "signup" ? "signup" : "magiclink" });
+      if (error) fail(error);
+      const session = toSession(data.session);
+      if (!session) throw new AuthError("That sign-in has expired.", "invalid_code");
+      return session;
+    },
     async listTotpFactors() {
       const { data, error } = await supabase.auth.mfa.listFactors();
       if (error) fail(error);

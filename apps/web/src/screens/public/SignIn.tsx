@@ -4,18 +4,16 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { ArrowRight, CircleX, Lock, ShieldCheck, TriangleExclamationPoint } from "lucide-react";
+import { ArrowRight, CircleX, ExternalLink, Info, Lock, TriangleExclamationPoint } from "lucide-react";
 import { useServices } from "../../app/services.tsx";
 import type { TotpEnrollment } from "../../auth/types.ts";
+import { PassportButton } from "../../components/PassportButton.tsx";
+import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
 import { MOCK_CODE } from "../../mocks/auth.ts";
 
 type Step = "email" | "code" | "mfa" | "first-run";
 type Choice = "funder" | "applicant" | "invite";
 
-/** Only same-origin paths are honored as a post-sign-in destination. */
-function safeNext(next: string | null): string | null {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-}
 
 function Problem({ children }: { children: ReactNode }) {
   return (
@@ -78,6 +76,8 @@ export default function SignIn() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
+  // Passport sent the person back without a session: say why, and what to do next.
+  const passport = sessionState.status === "signedIn" ? null : passportProblem(params.get("passport_error"));
 
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
@@ -230,6 +230,22 @@ export default function SignIn() {
               </div>
             )}
 
+            {passport && step === "email" && (
+              <div className={`bnr bnr-${passport.tone}`} role={passport.tone === "dng" ? "alert" : "status"}>
+                {passport.tone === "info" ? <Info className="ic" aria-hidden="true" /> : passport.tone === "dng" ? <CircleX className="ic" aria-hidden="true" /> : <TriangleExclamationPoint className="ic" aria-hidden="true" />}
+                <div>
+                  <div className="t">{passport.title}</div>
+                  <div className="d">{passport.detail}</div>
+                  {passport.action && (
+                    <a className="d" href={passport.action.href} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
+                      {passport.action.label}
+                      <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             {step === "email" && (
               <div className="card" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }}>
                 <h2 style={{ fontSize: "20px" }}>Enter Your Email</h2>
@@ -261,12 +277,9 @@ export default function SignIn() {
                   <span className="divider" style={{ flex: 1 }}></span>Applying for funding?
                   <span className="divider" style={{ flex: 1 }}></span>
                 </div>
-                <Link to="/onboarding/applicant" className="btn btn-cta btn-lg">
-                  <ShieldCheck className="ic" aria-hidden="true" />
-                  Continue with Passport
-                </Link>
+                <PassportButton returnTo={next} />
                 <p className="help" style={{ textAlign: "center" }}>
-                  Your organization's Passport record signs you in and pre-fills applications.
+                  Sign in at Passport and choose your organization. You come back signed in, with applications pre-filled from its record.
                 </p>
               </div>
             )}

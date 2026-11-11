@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
+import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, Download, ExternalLink, FileText, Landmark, ShieldCheck } from "lucide-react";
 
 export default function Landing() {
@@ -147,10 +148,7 @@ export default function Landing() {
                   with your team, track every status, and report once.
                 </p>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
-                  <Link to="/signin" className="btn btn-primary">
-                    Continue with Passport
-                    <ArrowRight className="ic" aria-hidden="true" />
-                  </Link>
+                  <PassportButton className="btn btn-primary" />
                   <Link to="/w/alder-creek/find" style={{ fontSize: "14px", fontWeight: 700 }}>
                     Find funding
                   </Link>

@@ -12,7 +12,7 @@ import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
-import type { FileStorage, OpenGrantsClient, UserDirectory } from "./ports.ts";
+import type { FileStorage, IdentityPort, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
 export interface ServiceActor {
@@ -39,6 +39,8 @@ export interface ServiceConfig {
   baseUrl: string;
   webBaseUrl: string;
   passportBaseUrl: string | null;
+  /** PASSPORT_ISSUER: the `iss` of Passport's tokens; the base URL when not set. */
+  passportIssuer?: string | null;
   /** CREDENTIALS_ENCRYPTION_KEY; null when the install has not configured Passport linking. */
   credentialsKey: string | null;
   /** Injected in tests (recorded fixtures); the platform `fetch` otherwise. */
@@ -92,6 +94,8 @@ export interface ServicePorts {
   llm?: LlmClient;
   /** A person's own sign-in sessions (Supabase Auth). */
   sessions?: SessionsPort;
+  /** Accounts by verified email, for Sign in with Passport (Supabase Auth admin). */
+  identity?: IdentityPort;
 }
 
 export interface ServiceContext {

@@ -28,7 +28,12 @@ export interface AuthorizeUrlInput {
   state: string;
   codeChallenge: string;
   scopes?: readonly string[];
+  /** OpenID Connect nonce; Passport echoes it in the ID token. */
+  nonce?: string;
 }
+
+/** The OpenID Connect scopes the GMS asks for when a person signs in with Passport. */
+export const SIGN_IN_SCOPES = ["openid", "email"] as const;
 
 export function buildAuthorizeUrl(i: AuthorizeUrlInput): string {
   const url = new URL(`${i.baseUrl.replace(/\/+$/, "")}/oauth/authorize`);
@@ -40,6 +45,7 @@ export function buildAuthorizeUrl(i: AuthorizeUrlInput): string {
     state: i.state,
     code_challenge: i.codeChallenge,
     code_challenge_method: "S256",
+    ...(i.nonce ? { nonce: i.nonce } : {}),
   }).toString();
   return url.toString();
 }
@@ -76,7 +82,22 @@ export function orgIdFromAccessToken(accessToken: string): string | null {
   }
 }
 
-export async function exchangeAuthorizationCode(i: CodeExchangeInput): Promise<ConsentTokens> {
+/** What Passport's token endpoint answered for an authorization code, before any policy is applied. */
+export interface CodeExchangeResult {
+  accessToken: string;
+  /** Absent when the person signed in without an organization. */
+  refreshToken: string | null;
+  expiresIn: number;
+  /** The scopes Passport actually granted. */
+  scopes: string[];
+  /** The organization the person consented for, if any. */
+  orgId: string | null;
+  /** OpenID Connect ID token, when `openid` was granted. Verify it before trusting any claim. */
+  idToken: string | null;
+}
+
+/** Exchange an authorization code. Shared by organization consent and sign-in. */
+export async function exchangeCode(i: CodeExchangeInput): Promise<CodeExchangeResult> {
   const doFetch = i.fetch ?? (fetch as FetchLike);
   let res: Response;
   try {
@@ -92,10 +113,22 @@ export async function exchangeAuthorizationCode(i: CodeExchangeInput): Promise<C
   } catch {
     throw new PassportUnavailableError("Passport's token endpoint could not be reached");
   }
-  const body = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string };
+  const body = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string };
   if (res.status >= 500) throw new PassportUnavailableError("Passport's token endpoint is unavailable", res.status);
   if (!res.ok || !body.access_token) throw new PassportAuthError(body.error ?? "invalid_grant", body.error_description ?? "Passport refused the authorization code");
-  const orgId = orgIdFromAccessToken(body.access_token);
-  if (!orgId || !body.refresh_token) throw new PassportAuthError("invalid_token_response", "Passport's token response did not name an organization or carry a refresh token");
-  return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresIn: body.expires_in ?? 0, scopes: body.scope ? body.scope.split(/\s+/).filter(Boolean) : [], orgId };
+  return {
+    accessToken: body.access_token,
+    refreshToken: typeof body.refresh_token === "string" && body.refresh_token ? body.refresh_token : null,
+    expiresIn: body.expires_in ?? 0,
+    scopes: body.scope ? body.scope.split(/\s+/).filter(Boolean) : [],
+    orgId: orgIdFromAccessToken(body.access_token),
+    idToken: typeof body.id_token === "string" && body.id_token ? body.id_token : null,
+  };
+}
+
+/** Organization consent: the answer must name an organization and carry a refresh token. */
+export async function exchangeAuthorizationCode(i: CodeExchangeInput): Promise<ConsentTokens> {
+  const t = await exchangeCode(i);
+  if (!t.orgId || !t.refreshToken) throw new PassportAuthError("invalid_token_response", "Passport's token response did not name an organization or carry a refresh token");
+  return { accessToken: t.accessToken, refreshToken: t.refreshToken, expiresIn: t.expiresIn, scopes: t.scopes, orgId: t.orgId };
 }
