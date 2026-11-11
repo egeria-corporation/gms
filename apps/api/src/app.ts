@@ -76,7 +76,8 @@ export function createApp(makeDeps: DepsFactory) {
     await next();
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) c.res.headers.set(k, v);
     c.res.headers.set("X-Request-Id", requestId);
-    log(c.res.status >= 500 ? "error" : "info", "request", { requestId, method: c.req.method, path: loggablePath(c.req.url), status: c.res.status, ms: Date.now() - started });
+    // 501 is a route that does not exist yet, not a fault: it is not logged as an error.
+    log(c.res.status >= 500 && c.res.status !== 501 ? "error" : "info", "request", { requestId, method: c.req.method, path: loggablePath(c.req.url), status: c.res.status, ms: Date.now() - started });
   });
 
   // CORS. Public discovery and protocol reads are open to any origin; everything that carries a

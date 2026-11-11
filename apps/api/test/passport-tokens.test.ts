@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The refresh-token race that stranded the Passport link on the hosted site (2026-11-11).
+// The refresh-token race that stranded the Passport link on the hosted site (2026-11-11), and the
+// stored access token that keeps cold workers from refreshing at all.
 // The fake token endpoint below behaves as Passport does: a refresh token works once, and a token
 // presented again withdraws the consent for good (optionally forgiving a replay, as Passport does
 // for a few seconds after a rotation).
@@ -113,10 +114,83 @@ describe("requests through the API", () => {
   });
 });
 
-describe("two isolates sharing one stored refresh token", () => {
-  it("the loser of the swap keeps its access token and leaves the winner's refresh token stored", async () => {
-    // Isolate B rotates rt-1 and stores rt-2 while isolate A is between reading the row and
-    // presenting rt-1. Passport forgives A's replay and hands it a sibling token.
+/** What another worker does when it wins: store a new refresh token (and maybe an access token) and bump the version. */
+async function otherWorkerStores(refresh: string, access?: { token: string; expiresAt: Date }) {
+  const row = (await h.repos.table("passport_links").one({ id: linkId }))!;
+  await h.repos.table("passport_links").update(
+    { id: linkId },
+    {
+      refresh_token_enc: await encryptSecret(refresh, TEST_CREDENTIALS_KEY),
+      access_token_enc: access ? await encryptSecret(access.token, TEST_CREDENTIALS_KEY) : null,
+      access_token_expires_at: access ? access.expiresAt.toISOString() : null,
+      token_version: row.token_version + 1,
+    },
+  );
+}
+const row = async () => (await h.repos.table("passport_links").one({ id: linkId }))!;
+const inTenMinutes = () => new Date(h.clock.now.getTime() + 600_000);
+
+describe("workers sharing one stored access token", () => {
+  it("cold workers read the stored access token: one token call for all of them", async () => {
+    const p = strictPassport();
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
+    const saved = await row();
+    expect(saved.access_token_enc).not.toContain("at-2");
+    expect(await decryptSecret(saved.access_token_enc!, TEST_CREDENTIALS_KEY)).toBe("at-2");
+    expect(saved.token_version).toBe(1);
+    for (let i = 0; i < 6; i++) {
+      clearPassportTokenCache(); // a worker that has just started
+      expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
+    }
+    expect(p.state.tokenCalls).toBe(1);
+    expect(await stored()).toBe("rt-2");
+  });
+
+  it("a stored token is not used in its last minute, and one refresh replaces it", async () => {
+    const p = strictPassport();
+    await consentTokens(ctx(p.fetch), linkId, OPTS).getToken();
+    h.clock.now = new Date(h.clock.now.getTime() + 9 * 60_000 + 1000);
+    clearPassportTokenCache();
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
+    clearPassportTokenCache();
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
+    expect(p.state.tokenCalls).toBe(2);
+    expect((await row()).token_version).toBe(2);
+  });
+
+  it("cold workers that find the token expired one after another refresh once between them", async () => {
+    // Sequential cold starts against the strict Passport (no forgiveness): the first refreshes
+    // and stores, the rest read. Truly simultaneous expiry is the one case left to Passport's
+    // replay window; see the next test.
+    const p = strictPassport();
+    await consentTokens(ctx(p.fetch), linkId, OPTS).getToken();
+    h.clock.now = new Date(h.clock.now.getTime() + 11 * 60_000);
+    for (let i = 0; i < 5; i++) {
+      clearPassportTokenCache();
+      expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
+    }
+    expect(p.state.tokenCalls).toBe(2);
+    expect(p.state.revoked).toBe(false);
+  });
+
+  it("workers that refresh at the same instant end up holding the same stored token", async () => {
+    // Needs Passport's forgiveness: both present rt-1. The loser of the swap adopts the winner's
+    // access token, so the row and every worker agree.
+    const p = strictPassport({ forgiveReplay: true });
+    const got = await Promise.all([consentTokens(ctx(p.fetch), linkId, OPTS).getToken(), consentTokens(ctx(p.fetch), linkId, OPTS).getToken(), consentTokens(ctx(p.fetch), linkId, OPTS).getToken()]);
+    const saved = await row();
+    const kept = await decryptSecret(saved.access_token_enc!, TEST_CREDENTIALS_KEY);
+    expect(saved.token_version).toBe(1);
+    expect(got).toContain(kept);
+    clearPassportTokenCache();
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe(kept);
+    expect(p.state.live.has(await stored())).toBe(true);
+    expect(p.state.revoked).toBe(false);
+  });
+
+  it("the loser of the swap adopts the winner's access token and leaves its refresh token stored", async () => {
+    // Worker B rotates rt-1 and stores its pair while worker A is between reading the row and
+    // presenting rt-1. Passport forgives A's replay; A's write finds the version moved on.
     let raced = false;
     const p = strictPassport({
       forgiveReplay: true,
@@ -127,17 +201,16 @@ describe("two isolates sharing one stored refresh token", () => {
         p.state.spent.add("rt-1");
         p.state.live.add("rt-2");
         p.state.n = 2;
-        await h.repos.table("passport_links").update({ id: linkId }, { refresh_token_enc: await encryptSecret("rt-2", TEST_CREDENTIALS_KEY) });
+        await otherWorkerStores("rt-2", { token: "at-2", expiresAt: inTenMinutes() });
       },
     });
-    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
     expect(await stored()).toBe("rt-2");
+    expect((await row()).token_version).toBe(1);
     expect(p.state.revoked).toBe(false);
   });
 
-  it("a refused token is retried once with the token another request stored meanwhile", async () => {
-    // Same interleaving against a Passport that does not forgive the replay but has not revoked
-    // (the refusal is a plain invalid_grant): the row now holds a newer token, so that is used.
+  it("a refused token uses the access token another worker stored meanwhile, without a second call", async () => {
     let raced = false;
     const p = strictPassport({
       beforeToken: async (presented) => {
@@ -146,7 +219,24 @@ describe("two isolates sharing one stored refresh token", () => {
         p.state.live.delete("rt-1");
         p.state.live.add("rt-2");
         p.state.n = 2;
-        await h.repos.table("passport_links").update({ id: linkId }, { refresh_token_enc: await encryptSecret("rt-2", TEST_CREDENTIALS_KEY) });
+        await otherWorkerStores("rt-2", { token: "at-2", expiresAt: inTenMinutes() });
+      },
+    });
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
+    expect(p.state.presented).toEqual(["rt-1"]);
+    expect(await stored()).toBe("rt-2");
+  });
+
+  it("a refused token is retried once with the refresh token another worker stored, when no access token came with it", async () => {
+    let raced = false;
+    const p = strictPassport({
+      beforeToken: async (presented) => {
+        if (raced || presented !== "rt-1") return;
+        raced = true;
+        p.state.live.delete("rt-1");
+        p.state.live.add("rt-2");
+        p.state.n = 2;
+        await otherWorkerStores("rt-2");
       },
     });
     expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
@@ -164,15 +254,47 @@ describe("two isolates sharing one stored refresh token", () => {
     expect(p.state.tokenCalls).toBe(2);
   });
 
-  it("invalidate() drops the cached token, as after a 401", async () => {
+  it("invalidate() skips the stored token, as after a 401, and the refresh replaces it for everyone", async () => {
     const p = strictPassport();
     const tokens = consentTokens(ctx(p.fetch), linkId, OPTS);
     expect(await tokens.getToken()).toBe("at-2");
-    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
     tokens.invalidate();
     expect(await tokens.getToken()).toBe("at-3");
+    expect(await decryptSecret((await row()).access_token_enc!, TEST_CREDENTIALS_KEY)).toBe("at-3");
+    // A worker that never saw the 401 now reads the replacement, not the rejected token.
     clearPassportTokenCache();
-    expect(await tokens.getToken()).toBe("at-4");
-    expect(await stored()).toBe("rt-4");
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-3");
+    expect(await tokens.getToken()).toBe("at-3");
+    expect(p.state.tokenCalls).toBe(2);
+  });
+
+  it("a stored token that cannot be decrypted is ignored and replaced", async () => {
+    const p = strictPassport();
+    await h.repos.table("passport_links").update({ id: linkId }, { access_token_enc: "v1.not.ciphertext", access_token_expires_at: inTenMinutes().toISOString() });
+    expect(await consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).toBe("at-2");
+    expect(await decryptSecret((await row()).access_token_enc!, TEST_CREDENTIALS_KEY)).toBe("at-2");
+  });
+
+  it("a revoked link is never written to and hands out nothing", async () => {
+    const p = strictPassport();
+    await h.repos.table("passport_links").update({ id: linkId }, { revoked_at: h.clock.now.toISOString() });
+    await expect(consentTokens(ctx(p.fetch), linkId, OPTS).getToken()).rejects.toBeInstanceOf(PassportAuthError);
+    expect(p.state.tokenCalls).toBe(0);
+  });
+
+  it("a consent Passport refuses unlinks the workspace and clears the stored tokens' access copy", async () => {
+    const p = strictPassport();
+    h.passport.fetch = p.fetch;
+    const who = { ...bearer(await h.session(USER_OFFICER)).headers, "X-GMS-Workspace": WS_APPLICANT };
+    expect((await h.request("/gms/me/documents", { headers: who })).status).toBe(200);
+    expect((await row()).access_token_enc).not.toBeNull();
+    p.state.revoked = true;
+    clearPassportTokenCache();
+    const refused = await h.request("/gms/me/documents", { headers: who });
+    expect(refused.status).toBe(409);
+    const after = await row();
+    expect(after.revoked_at).not.toBeNull();
+    expect(after.access_token_enc).toBeNull();
+    expect(after.access_token_expires_at).toBeNull();
   });
 });
