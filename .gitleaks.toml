@@ -21,4 +21,7 @@ regexes = [
   '''^QHX7R2MP4TLCW9KD$''',
   # Resend (Svix) webhook test secret: whsec_ + the bytes 0..31, base64 (apps/api/test/helpers.ts)
   '''^whsec_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=$''',
+  # Composio auth config id for staging: an identifier, not a credential. It was committed once in
+  # apps/api/wrangler.toml and then moved to a Worker secret; this entry covers that one commit.
+  '''^ac_fDKkT7ucr-hy$''',
 ]

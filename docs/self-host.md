@@ -125,7 +125,8 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | Secret | Worker | Notes |
 |---|---|---|
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | both | |
-| `SUPABASE_JWT_SECRET`, `SUPABASE_ANON_KEY` | api | Verifies user sessions |
+| `SUPABASE_ANON_KEY` | api | |
+| `SUPABASE_JWT_SECRET` | api | Only for projects that sign sessions with the legacy HS256 secret. Current projects sign with an asymmetric key, which the API verifies from `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` |
 | `OAUTH_KID`, `OAUTH_SIGNING_KEY_JWK` | api | From `keygen`. Keep the printed public key for rotation |
 | `JWKS_EXTRA_PUBLIC_KEYS` | api | Only during a key rotation (see the runbook) |
 | `CREDENTIALS_ENCRYPTION_KEY` | both | Encrypts stored Passport client secrets, refresh tokens and connector tokens. Losing it strands every link |

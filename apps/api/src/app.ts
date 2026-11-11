@@ -5,6 +5,7 @@ import type { LedgerStore } from "@gms/ledger";
 import type { FetchLike } from "@gms/passport-client";
 import type { WebhookStore } from "@gms/webhooks";
 import { Hono } from "hono";
+import type { JWTVerifyGetKey } from "jose";
 import type { Principal } from "./auth/middleware.ts";
 import type { SessionUser } from "./auth/session.ts";
 import type { AuthStore, MembershipStore } from "./auth/stores.ts";
@@ -35,6 +36,8 @@ export interface Deps {
   repos: Repos;
   webhooks: WebhookStore;
   now: () => Date;
+  /** Overrides the Supabase project's published session keys (tests). */
+  sessionKeys?: JWTVerifyGetKey;
   /** Recorded Passport responses in tests; the platform fetch otherwise. */
   passportFetch?: FetchLike;
   /** Mail, file storage and the OpenGrants discovery client; absent ports degrade (no mail sent, no upload). */

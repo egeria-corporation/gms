@@ -43,15 +43,30 @@ binding = "RATE_LIMIT"
 id = "00000000000000000000000000000000"
 
 # ---- staging ----
+# gms-staging.opengrants.io. The API shares the web app's origin, as in production.
 [env.staging]
 name = "gms-api-staging"
+workers_dev = false
+routes = [
+  { pattern = "gms-staging.opengrants.io/common-grants/*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/gms/*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/oauth/*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/.well-known/*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/mcp*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/webhooks/*", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/llms.txt", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/llms-full.txt", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/openapi.json", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/sitemap.xml", zone_name = "opengrants.io" },
+  { pattern = "gms-staging.opengrants.io/health", zone_name = "opengrants.io" },
+]
 
 [env.staging.vars]
-GMS_BASE_URL = "https://staging.gms.opengrants.io"
-WEB_BASE_URL = "https://staging.gms.opengrants.io"
-OAUTH_ISSUER = "https://staging.gms.opengrants.io"
-PASSPORT_BASE_URL = "https://test.passport.opengrants.io"
-PASSPORT_ISSUER = "https://test.passport.opengrants.io"
+GMS_BASE_URL = "https://gms-staging.opengrants.io"
+WEB_BASE_URL = "https://gms-staging.opengrants.io"
+OAUTH_ISSUER = "https://gms-staging.opengrants.io"
+PASSPORT_BASE_URL = "https://passport.opengrants.io"
+PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
 ASSISTANT_ENABLED = "false"
 
@@ -73,7 +88,7 @@ queue = "gms-events-staging"
 
 [[env.staging.kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "00000000000000000000000000000000"
+id = "ac7c78a51fbf4cd69e1245130403c75e"
 
 # ---- production ----
 # The API shares the web app's origin: the Worker takes the API path prefixes, static assets serve the rest.
