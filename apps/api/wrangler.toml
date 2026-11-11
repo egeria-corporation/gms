@@ -46,27 +46,30 @@ id = "00000000000000000000000000000000"
 
 # ---- staging ----
 # gms-staging.opengrants.io. The API shares the web app's origin, as in production.
+# 2026-11-11: this environment serves gms.opengrants.io. The owner pointed the production address
+# at the existing Workers and database instead of standing up a second set, so the Worker and
+# resource names keep their "-staging" suffix. gms-staging.opengrants.io redirects here.
 [env.staging]
 name = "gms-api-staging"
 workers_dev = false
 routes = [
-  { pattern = "gms-staging.opengrants.io/common-grants/*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/gms/*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/oauth/*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/.well-known/*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/mcp*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/webhooks/*", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/llms.txt", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/llms-full.txt", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/openapi.json", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/sitemap.xml", zone_name = "opengrants.io" },
-  { pattern = "gms-staging.opengrants.io/health", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/common-grants/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/gms/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/oauth/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/.well-known/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/mcp*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/webhooks/*", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/llms.txt", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/llms-full.txt", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/openapi.json", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/sitemap.xml", zone_name = "opengrants.io" },
+  { pattern = "gms.opengrants.io/health", zone_name = "opengrants.io" },
 ]
 
 [env.staging.vars]
-GMS_BASE_URL = "https://gms-staging.opengrants.io"
-WEB_BASE_URL = "https://gms-staging.opengrants.io"
-OAUTH_ISSUER = "https://gms-staging.opengrants.io"
+GMS_BASE_URL = "https://gms.opengrants.io"
+WEB_BASE_URL = "https://gms.opengrants.io"
+OAUTH_ISSUER = "https://gms.opengrants.io"
 PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_MCP_URL = "https://mcp.opengrants.io/mcp"
