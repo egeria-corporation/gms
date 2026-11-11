@@ -5,6 +5,7 @@
 import { encryptSecret, fixtureFetch, type Fixture } from "@gms/passport-client";
 import { beforeEach, describe, expect, it } from "vitest";
 import { reconcileStuckReleases } from "../src/jobs.ts";
+import { displayNameOf } from "../src/routes/gms.ts";
 import type { BaseContext } from "../src/services/context.ts";
 import { normalizeName } from "../src/services/organization.ts";
 import { describeDevice } from "../src/services/sessions.ts";
@@ -122,12 +123,37 @@ describe("launching without facilitated payments", () => {
 
   it("tells the web app, signed in or not, which switches are on", async () => {
     const res = await h.request("/gms/config");
-    expect(((await res.json()) as { data: unknown }).data).toEqual({ facilitatedPayments: false, assistantEnabled: false });
-    const me = (await (await h.request("/gms/me", bearer(await h.session(USER_ADMIN)))).json()) as { data: { features: unknown } };
-    expect(me.data.features).toEqual({ facilitatedPayments: false, assistantEnabled: false });
+    const first = ((await res.json()) as { data: { available: Record<string, boolean> } }).data;
+    expect(first).toMatchObject({ facilitatedPayments: false, assistantEnabled: false });
+    // Which optional connections can work here: every entry is a plain yes or no, and the
+    // assistant is never offered while it is switched off.
+    expect(Object.keys(first.available).sort()).toEqual(["assistant", "customMcp", "googleWorkspace", "mercury", "openGrants"]);
+    expect(Object.values(first.available).every((v) => typeof v === "boolean")).toBe(true);
+    expect(first.available.assistant).toBe(false);
+    // No OpenGrants key on this server: funding search is not offered.
+    expect(first.available.openGrants).toBe(false);
+    const me = (await (await h.request("/gms/me", bearer(await h.session(USER_ADMIN)))).json()) as { data: { features: unknown; displayName: string | null; signInMethod: string } };
+    expect(me.data.features).toMatchObject({ facilitatedPayments: false, assistantEnabled: false });
+    // Someone with no name on their account is called by the first part of their address.
+    expect(typeof me.data.displayName).toBe("string");
+    expect(me.data.signInMethod).toBe("email");
     h.env.PAYMENTS_FACILITATED = "true";
     h.env.ASSISTANT_ENABLED = "true";
-    expect(((await (await h.request("/gms/config")).json()) as { data: unknown }).data).toEqual({ facilitatedPayments: true, assistantEnabled: true });
+    expect(((await (await h.request("/gms/config")).json()) as { data: unknown }).data).toMatchObject({ facilitatedPayments: true, assistantEnabled: true });
+  });
+
+  it("calls someone by the name on their account, else by the first part of their address", () => {
+    expect(displayNameOf("Maria Santos", "maria@aldercreek.example")).toBe("Maria Santos");
+    expect(displayNameOf(null, "sedale@opengrants.example")).toBe("Sedale");
+    expect(displayNameOf("  ", "dana.ortiz@riverbendcf.example")).toBe("Dana Ortiz");
+    expect(displayNameOf(undefined, null)).toBeNull();
+  });
+
+  it("says Google Workspace is not configured when this server has no Composio connection", async () => {
+    // No Connect button should be offered where connecting can only fail.
+    h.withoutPorts.add("workspaceApps");
+    expect(((await (await h.request("/gms/config")).json()) as { data: { available: { googleWorkspace: boolean } } }).data.available.googleWorkspace).toBe(false);
+    expect(await data<{ status: string; connected: boolean }>(admin, "GET", "/gms/connectors/google_workspace")).toMatchObject({ status: "not_configured", connected: false });
   });
 
   it("refuses a release with a clear 409, and readiness says the payment is recorded after the fact", async () => {

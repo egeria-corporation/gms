@@ -21,6 +21,8 @@ export interface SessionUser {
    * (auth/second-step.ts) the first time a check needs it; never read it directly.
    */
   passportStep?: boolean;
+  /** The name on the account (`user_metadata.full_name` or `.name`), when the token carries one. For display only. */
+  name?: string | null;
 }
 
 export interface SessionConfig {
@@ -85,5 +87,13 @@ export async function verifySupabaseSession(token: string, config: SessionConfig
     throw authError("invalid_session", "Session is invalid or has expired");
   }
   if (typeof payload.sub !== "string" || !payload.sub) throw authError("invalid_session", "Session is invalid or has expired");
-  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}) };
+  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}), ...(accountName(payload.user_metadata) ? { name: accountName(payload.user_metadata) } : {}) };
+}
+
+/** The display name Supabase Auth keeps in `user_metadata`; null when there is none. */
+function accountName(meta: unknown): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  const m = meta as Record<string, unknown>;
+  const name = typeof m.full_name === "string" ? m.full_name : typeof m.name === "string" ? m.name : "";
+  return name.trim() ? name.trim().slice(0, 200) : null;
 }

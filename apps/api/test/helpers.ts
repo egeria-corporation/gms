@@ -47,6 +47,8 @@ export interface Harness {
   openGrants: FixtureOpenGrantsClient;
   bank: FixtureBankFeed;
   workspaceApps: FixtureWorkspaceApps;
+  /** Port names to leave out of the next requests, as on a server where that connection is not set up. */
+  withoutPorts: Set<string>;
   mcpDirectory: FixtureMcpDirectory;
   /** The assistant's model. Off until a test sets `env.ASSISTANT_ENABLED = "true"`; `llmAnswer` is what it returns. */
   llm: FakeLlmClient;
@@ -147,6 +149,7 @@ export async function harness(): Promise<Harness> {
   const secondSteps = new MemorySecondSteps();
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
   directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
+  const withoutPorts = new Set<string>();
   const deps: Deps = {
     auth,
     members,
@@ -157,7 +160,11 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key, body) => void exported.set(key, body) } }),
+    ports: () => {
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
+      for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
+      return all;
+    },
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -178,6 +185,7 @@ export async function harness(): Promise<Harness> {
     openGrants,
     bank,
     workspaceApps,
+    withoutPorts,
     mcpDirectory,
     llm,
     llmAnswer,

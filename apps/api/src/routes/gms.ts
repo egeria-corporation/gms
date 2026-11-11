@@ -27,8 +27,28 @@ export const gms = new Hono<AppEnv>();
 /** What this server has switched on. No token: the web app reads it before sign-in to decide which controls to show. */
 const features = (c: Parameters<typeof config>[0]) => {
   const cfg = config(c);
-  return { facilitatedPayments: !!cfg.facilitatedPayments, assistantEnabled: !!cfg.assistantEnabled };
+  const ports = c.get("deps").ports?.(c.env) ?? {};
+  return {
+    facilitatedPayments: !!cfg.facilitatedPayments,
+    assistantEnabled: !!cfg.assistantEnabled,
+    // Which optional connections this server can actually make, so the app offers a control only
+    // where it can work. Each is true only when what it needs (a key, a port) is present.
+    available: {
+      openGrants: !!ports.openGrants && !!c.env.OPENGRANTS_API_KEY,
+      assistant: !!cfg.assistantEnabled && !!ports.llm,
+      googleWorkspace: !!ports.workspaceApps,
+      mercury: !!ports.bank && !!cfg.credentialsKey,
+      customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
+    },
+  };
 };
+
+/** What to call someone on screen: the name on their account, else the part of their address before the @. */
+export function displayNameOf(name: string | null | undefined, email: string | null): string | null {
+  if (name?.trim()) return name.trim();
+  const local = email?.split("@")[0]?.replace(/[._+-]+/g, " ").trim();
+  return local ? local.replace(/\b\p{L}/gu, (ch) => ch.toUpperCase()) : null;
+}
 gms.get("/config", (c) => c.json(ok(features(c))));
 
 /** The signed-in person and the workspaces they can open (workspace switcher, routing by handle). */
@@ -40,6 +60,9 @@ gms.get("/me", requireUser(), async (c) => {
     ok({
       userId: user.userId,
       email: user.email,
+      displayName: displayNameOf(user.name, user.email),
+      // A session that holds Passport's second step was started at Passport; any other by emailed code.
+      signInMethod: user.passportStep ? "passport" : "email",
       mfaVerified,
       features: features(c),
       workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel })),
