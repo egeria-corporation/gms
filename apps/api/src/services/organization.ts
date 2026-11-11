@@ -16,7 +16,6 @@ import {
   exchangeAuthorizationCode,
   profileSources,
   profileToObject,
-  refreshTokenTokens,
   staticToken,
   type CgOrganization,
   type OrgProfile,
@@ -28,6 +27,7 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { slugify } from "./opportunities.ts";
+import { consentTokens } from "./passport-tokens.ts";
 import type { Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -259,24 +259,13 @@ export async function getMyOrganization(ctx: ServiceContext) {
   return { ...view(row, !!(await liveLink(ctx, ws.id))), editUrl: editUrl(ctx, row), representatives: { state: reps.state, items: reps.items.map(representativeView) } };
 }
 
-/** A Passport client acting with the workspace's stored consent. The rotated refresh token is persisted on use. */
+/** A Passport client acting with the workspace's stored consent (see passport-tokens.ts for how the refresh token is shared safely). */
 async function consentedPassport(ctx: ServiceContext, workspaceId: string, row: Ws) {
   const link = await liveLink(ctx, workspaceId);
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   if (!link?.refresh_token_enc || !row.passport_org_id) throw new ApiError(409, "passport_not_linked", "Connect this workspace to Passport first");
   if (!baseUrl || !key || !client) throw new ApiError(503, "passport_not_configured", "Passport linking is not configured on this server");
-  const tokens = refreshTokenTokens({
-    baseUrl,
-    clientId: client.id,
-    clientSecret: client.secret,
-    refreshToken: await decryptSecret(link.refresh_token_enc, key),
-    fetch: ctx.config.passportFetch,
-    now: ctx.now,
-    // Passport rotates the refresh token on every use; losing the new one would strand the link.
-    onRotate: async (rt) => {
-      await ctx.repos.table("passport_links").update({ id: link.id }, { refresh_token_enc: await encryptSecret(rt, key) });
-    },
-  });
+  const tokens = consentTokens(ctx, link.id, { baseUrl, clientId: client.id, clientSecret: client.secret, key });
   return { link, passport: new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch }) };
 }
 

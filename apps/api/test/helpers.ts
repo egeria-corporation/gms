@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { clearPassportTokenCache } from "../src/services/passport-tokens.ts";
 import { FakeLlmClient } from "@gms/assist";
 import { FixtureBankFeed, FixtureMcpDirectory, FixtureWorkspaceApps } from "@gms/connectors";
 import { MemoryLedgerStore } from "@gms/ledger";
@@ -84,6 +85,8 @@ export const OPENGRANTS_LISTINGS: OpenGrantsListing[] = [
 ];
 
 export async function harness(): Promise<Harness> {
+  // Passport access tokens are cached per isolate; a test starts with none.
+  clearPassportTokenCache();
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk: JWK = await exportJWK(privateKey);
   const kid = "oauth-test-1";

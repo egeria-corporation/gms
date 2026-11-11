@@ -2,7 +2,8 @@
 // The grantee directory and organization changes in both directions (build spec §11.8), plus the
 // CommonGrants `/orgs` routes. Passport is the identity source: the GMS shows the cached
 // projection and proposes changes to Passport; it never edits a profile locally.
-import { PassportApiError, PassportAuthError, PassportClient, PassportUnavailableError, decryptSecret, encryptSecret, refreshTokenTokens, type CgOrgChange } from "@gms/passport-client";
+import { PassportApiError, PassportAuthError, PassportClient, PassportUnavailableError, type CgOrgChange } from "@gms/passport-client";
+import { consentTokens } from "./passport-tokens.ts";
 import { z } from "zod";
 import { fundingOf, minorOf } from "./awards.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -241,7 +242,7 @@ async function callerPassport(ctx: ServiceContext, ws: ServiceWorkspace): Promis
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   const link = await ctx.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null });
   if (!baseUrl || !key || !client || !link?.refresh_token_enc) throw new ApiError(409, "passport_not_linked", "Connect this workspace to Passport first");
-  const tokens = refreshTokenTokens({ baseUrl, clientId: client.id, clientSecret: client.secret, refreshToken: await decryptSecret(link.refresh_token_enc, key), fetch: ctx.config.passportFetch, now: ctx.now, onRotate: async (rt) => void (await ctx.repos.table("passport_links").update({ id: link.id }, { refresh_token_enc: await encryptSecret(rt, key) })) });
+  const tokens = consentTokens(ctx, link.id, { baseUrl, clientId: client.id, clientSecret: client.secret, key });
   return new PassportClient({ baseUrl, tokens, fetch: ctx.config.passportFetch });
 }
 
