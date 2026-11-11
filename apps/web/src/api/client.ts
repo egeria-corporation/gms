@@ -77,6 +77,12 @@ export interface Workspace {
 
 export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi {
   me(): Promise<Me>;
+  /**
+   * After a Passport sign-in: present the one-time token this session was redeemed from, so that
+   * Passport's authenticator counts as this session's second step. `verified: false` is not an
+   * error: the app then asks for its own second step when a workspace requires one.
+   */
+  claimPassportSecondStep(tokenHash: string): Promise<{ verified: boolean }>;
   /** The workspace with this handle, if the caller is a member. Rejects with a 404 ApiError otherwise. */
   workspace(handle: string): Promise<Workspace>;
 
@@ -217,6 +223,20 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     };
   };
 
+  const claimPassportSecondStep = async (tokenHash: string): Promise<{ verified: boolean }> => {
+    const token = await opts.token();
+    const res = await (opts.fetch ?? fetch)(
+      new Request(`${opts.baseUrl}/gms/passport/signin/second-step`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ tokenHash }),
+      }),
+    );
+    if (!res.ok) return { verified: false };
+    const body = (await res.json().catch(() => null)) as { data?: { verified?: unknown } } | null;
+    return { verified: body?.data?.verified === true };
+  };
+
   // Routes whose spec models do not yet match what the Worker answers (see types.ts) go through
   // this call, typed by the shapes in types.ts. test/contract.test.ts holds them to the real Worker.
   async function call<T>(method: string, path: string, body?: unknown, list?: false): Promise<T>;
@@ -250,6 +270,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     ...createHttpFunderMoneyApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpFunderFullApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
+    claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),
     publicCompetition: (id) => get(`/common-grants/competitions/${e(id)}`),

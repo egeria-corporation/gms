@@ -8,6 +8,8 @@ export const passportBrowser = { go: (url: string) => window.location.assign(url
 
 /** The token the mock auth client accepts on `/auth/passport`. */
 export const MOCK_PASSPORT_TOKEN = "mock-passport";
+/** The mock session that token is redeemed for, so the mock API can tell it from an email-code session. */
+export const MOCK_PASSPORT_SESSION = "mock.aal1.passport";
 
 /**
  * A destination inside this app: a path of letters, digits, `_`, `-` and single slashes, with an

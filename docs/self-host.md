@@ -164,9 +164,13 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
    the id and secret in `PASSPORT_GMS_CLIENT_ID` / `PASSPORT_GMS_CLIENT_SECRET`.
    Sign in with Passport needs nothing else: it uses the same client, `CREDENTIALS_ENCRYPTION_KEY`
    and the Supabase service-role key, and it asks Passport for `openid email` on top of the scopes
-   above (Passport grants identity scopes to any authorization-code client). `PASSPORT_ISSUER`
+   above (at Passport the operator adds `openid` and `email` to the client's allowed scopes; the
+   funder console cannot grant them). `PASSPORT_ISSUER`
    must equal the `iss` of Passport's tokens when it differs from `PASSPORT_BASE_URL`. Without the
    client the button reports that Passport sign-in is not set up and email sign-in still works.
+   A person who passed Passport's authenticator is not asked for this app's as well: migration
+   `0018` holds that for the one session that signed in, for twelve hours from the Passport
+   authenticator check (see `docs/decisions.md`, 2026-11-11). Nothing to configure.
    Migration `0016` adds the service-role lookup the callback uses; `0017` makes accounts
    passwordless and adds the account lookup (below).
 2. Subscribe to Passport webhooks at `https://<host>/webhooks/passport` and set

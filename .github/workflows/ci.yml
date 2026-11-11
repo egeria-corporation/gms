@@ -113,5 +113,11 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @gms/web exec playwright install --with-deps chromium
+      # The browser itself comes from Playwright's CDN. `--with-deps` also asks apt for system
+      # libraries and fonts; when the Ubuntu mirrors cannot be reached that step fails before any
+      # test runs. The runner image already carries what Chromium needs, so fall back to the
+      # browser alone: the tests still run, and fail loudly if a library really is missing.
+      - run: |
+          pnpm --filter @gms/web exec playwright install --with-deps chromium \
+            || pnpm --filter @gms/web exec playwright install chromium
       - run: pnpm --filter @gms/web e2e -- --trace off

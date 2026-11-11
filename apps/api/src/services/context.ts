@@ -12,7 +12,7 @@ import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
-import type { FileStorage, IdentityPort, OpenGrantsClient, UserDirectory } from "./ports.ts";
+import type { FileStorage, IdentityPort, SecondStepPort, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
 export interface ServiceActor {
@@ -96,6 +96,8 @@ export interface ServicePorts {
   sessions?: SessionsPort;
   /** Accounts by verified email, for Sign in with Passport (Supabase Auth admin). */
   identity?: IdentityPort;
+  /** Passport's authenticator accepted as the second step for one session; absent, the app asks for its own. */
+  secondSteps?: SecondStepPort;
 }
 
 export interface ServiceContext {

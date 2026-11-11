@@ -2,7 +2,7 @@
 // Mock auth for `VITE_USE_MOCKS=true` and tests. Any email signs in; the one-time code and the
 // authenticator code are both MOCK_CODE. Starts signed in so the fixture workspaces open directly.
 import { AuthError, type AuthClient, type Session } from "../auth/types.ts";
-import { MOCK_PASSPORT_TOKEN } from "../lib/passportSignIn.ts";
+import { MOCK_PASSPORT_SESSION, MOCK_PASSPORT_TOKEN } from "../lib/passportSignIn.ts";
 import { MOCK_USER } from "./fixtures.ts";
 
 export const MOCK_CODE = "123456";
@@ -71,7 +71,7 @@ export function createMockAuth(opts: MockAuthOptions = {}): AuthClient {
     },
     async redeemSignIn(tokenHash) {
       if (tokenHash !== MOCK_PASSPORT_TOKEN) throw new AuthError("That sign-in has expired.", "invalid_code");
-      return set(demoSession("aal1"))!;
+      return set({ ...demoSession("aal1"), accessToken: MOCK_PASSPORT_SESSION })!;
     },
     listTotpFactors: async () => (enrolled ? ["mock-totp"] : []),
     enrollTotp: async () => ({

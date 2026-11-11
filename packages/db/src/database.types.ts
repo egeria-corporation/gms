@@ -1602,6 +1602,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      passport_second_steps: {
+        Row: {
+          acr: string;
+          auth_time: string;
+          claimed_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          session_id: string | null;
+          token_digest: string;
+          updated_at: string;
+          user_id: string;
+          valid_until: string;
+        };
+        Insert: {
+          acr: string;
+          auth_time: string;
+          claimed_at?: string | null;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          session_id?: string | null;
+          token_digest: string;
+          updated_at?: string;
+          user_id: string;
+          valid_until: string;
+        };
+        Update: {
+          acr?: string;
+          auth_time?: string;
+          claimed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          session_id?: string | null;
+          token_digest?: string;
+          updated_at?: string;
+          user_id?: string;
+          valid_until?: string;
+        };
+        Relationships: [];
+      };
       payment_schedules: {
         Row: {
           award_id: string;
@@ -2330,4 +2372,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","awards","bank_transactions","budgets","competitions","connector_accounts","consents","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","passport_links","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_members","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","awards","bank_transactions","budgets","competitions","connector_accounts","consents","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_members","workspaces"] as const satisfies readonly TableName[];

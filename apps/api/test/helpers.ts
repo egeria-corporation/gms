@@ -12,7 +12,7 @@ import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/auth/stores.ts";
 import type { Env } from "../src/env.ts";
-import { FixtureOpenGrantsClient, MemoryFileStorage, MemorySessions, MemoryUserDirectory, type OpenGrantsListing, MemoryIdentity } from "../src/services/ports.ts";
+import { FixtureOpenGrantsClient, MemoryFileStorage, MemorySessions, MemoryUserDirectory, type OpenGrantsListing, MemoryIdentity, MemorySecondSteps } from "../src/services/ports.ts";
 import { MemoryRepos } from "../src/services/repos/memory.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
@@ -59,6 +59,7 @@ export interface Harness {
   directory: MemoryUserDirectory;
   /** Accounts by email, as the auth provider's admin API would hold them (Sign in with Passport). */
   identity: MemoryIdentity;
+  secondSteps: MemorySecondSteps;
   clock: { now: Date };
   privateKey: CryptoKey;
   kid: string;
@@ -143,6 +144,7 @@ export async function harness(): Promise<Harness> {
   const sessions = new MemorySessions();
   const directory = new MemoryUserDirectory();
   const identity = new MemoryIdentity();
+  const secondSteps = new MemorySecondSteps();
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
   directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
   const deps: Deps = {
@@ -155,7 +157,7 @@ export async function harness(): Promise<Harness> {
     get passportFetch() {
       return passport.fetch;
     },
-    ports: () => ({ mailer, storage, openGrants, directory, identity, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key, body) => void exported.set(key, body) } }),
+    ports: () => ({ mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key, body) => void exported.set(key, body) } }),
     kv: () => kv,
     openapi: async () => ({ openapi: "3.0.0", info: { title: "OpenGrants GMS API" } }),
   };
@@ -183,6 +185,7 @@ export async function harness(): Promise<Harness> {
     sessions,
     directory,
     identity,
+    secondSteps,
     clock,
     privateKey,
     kid,

@@ -1165,6 +1165,16 @@ namespace GMS.Routes.Custom {
     @get @route("/passport/signin/callback")
     op passportSignInCallback(@query code?: string, @query state?: string, @query error?: string): Redirect;
 
+    /** Sign in with Passport, step 3. The web app, holding the session it just redeemed, presents
+     * the same one-time token so that Passport's authenticator counts as this session's second
+     * step (when Passport's ID token said `acr: aal2`). Bound to that one session, once, within ten
+     * minutes of the sign-in; the trust ends twelve hours after the person passed Passport's
+     * authenticator. A wrong, used or late token is not an error: `verified` is false and the app
+     * asks for its own second step. People only.
+     */
+    @post @route("/passport/signin/second-step") @useAuth(UserSession)
+    op passportSecondStep(@body body: PassportSecondStepClaim): OkT<PassportSecondStepResult> | BadRequest | AuthErrors;
+
     @get @route("/me/organization") @useAuth(GmsOAuth<["org:read"]> | UserSession)
     op myOrganization(): OkT<MyOrganization> | AuthErrors | NotFound;
 

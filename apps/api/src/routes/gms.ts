@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
+import { secondStepVerified } from "../auth/second-step.ts";
 import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
 import { bareUuid } from "../lib/ids.ts";
@@ -33,12 +34,13 @@ gms.get("/config", (c) => c.json(ok(features(c))));
 /** The signed-in person and the workspaces they can open (workspace switcher, routing by handle). */
 gms.get("/me", requireUser(), async (c) => {
   const user = c.get("user");
+  const mfaVerified = await secondStepVerified(c, user);
   const mine = await listMyWorkspaces(userSvc(c));
   return c.json(
     ok({
       userId: user.userId,
       email: user.email,
-      mfaVerified: user.aal === "aal2",
+      mfaVerified,
       features: features(c),
       workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel })),
     }),

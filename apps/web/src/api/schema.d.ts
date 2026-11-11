@@ -3349,6 +3349,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/passport/signin/second-step": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Sign in with Passport, step 3. The web app, holding the session it just redeemed, presents
+         *     the same one-time token so that Passport's authenticator counts as this session's second
+         *     step (when Passport's ID token said `acr: aal2`). Bound to that one session, once, within ten
+         *     minutes of the sign-in; the trust ends twelve hours after the person passed Passport's
+         *     authenticator. A wrong, used or late token is not an error: `verified` is false and the app
+         *     asks for its own second step. People only.
+         */
+        post: operations["Applicant_passportSecondStep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/passport/signin/start": {
         parameters: {
             query?: never;
@@ -11511,6 +11535,7 @@ export interface components {
             features?: components["schemas"]["Models.InstallConfig"];
             userId: components["schemas"]["CommonGrants.Types.uuid"];
             email: string | null;
+            /** @description Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
             mfaVerified: boolean;
             workspaces: components["schemas"]["Models.MyWorkspace"][];
         };
@@ -11938,6 +11963,19 @@ export interface components {
             };
             /** @description Whether Passport reports a funding source the funder can pay from; null when unknown */
             canDebit: boolean | null;
+        };
+        /** @description The one-time sign-in token the session was redeemed from (`token_hash` in the `/auth/passport` fragment). */
+        "Models.PassportSecondStepClaim": {
+            tokenHash: string;
+        };
+        "Models.PassportSecondStepResult": {
+            /** @description Whether this session now counts as two-step verified. */
+            verified: boolean;
+            /**
+             * Format: date-time
+             * @description When that ends; null when not verified.
+             */
+            validUntil: string | null;
         };
         "Models.PaymentAlert": {
             /** @enum {string} */
@@ -26031,6 +26069,60 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    Applicant_passportSecondStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PassportSecondStepClaim"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PassportSecondStepResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
             };
         };
     };
