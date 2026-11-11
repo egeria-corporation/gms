@@ -18,11 +18,14 @@ const STATE = {
 
 const REQUIRED_SCOPES = ["org:read", "payee:read", "award:write", "disbursement:read", "disbursement:write"];
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: string; onLinked?: (status: PassportStatus) => void }) {
   const status = useApiQuery((api) => api.passportStatus(workspaceId), [workspaceId]);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const link = useApiMutation((api) => api.linkPassport(workspaceId, { clientId: clientId.trim(), clientSecret }));
+  const [orgId, setOrgId] = useState("");
+  const link = useApiMutation((api) => api.linkPassport(workspaceId, { clientId: clientId.trim(), clientSecret, ...(orgId.trim() ? { passportOrgId: orgId.trim() } : {}) }));
   const unlink = useApiMutation((api) => api.unlinkPassport(workspaceId));
 
   async function submit(e: FormEvent) {
@@ -100,6 +103,11 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
             </li>
             <li>Paste its id and secret below. Passport shows the secret once.</li>
           </ol>
+          {!s.passportOrgId && (
+            <Field id="passport-org-id" label="Your organization's Passport ID" required help="Shown on your organization's page in Passport. The client is checked against it before anything is saved.">
+              <input className="inp mono" id="passport-org-id" value={orgId} onChange={(e) => setOrgId(e.target.value)} autoComplete="off" placeholder="00000000-0000-0000-0000-000000000000" required />
+            </Field>
+          )}
           {link.error !== null && <ErrorBanner error={link.error} title="Passport could not be connected" />}
           <div className="fld-row">
             <Field id="passport-client-id" label="Client id" required>
@@ -110,7 +118,7 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
             </Field>
           </div>
           <div>
-            <button type="submit" className="btn btn-primary" disabled={link.state === "saving" || !clientId.trim() || clientSecret.length < 8}>
+            <button type="submit" className="btn btn-primary" disabled={link.state === "saving" || !clientId.trim() || clientSecret.length < 8 || (!s.passportOrgId && !UUID.test(orgId.trim()))}>
               Connect Passport
             </button>
           </div>

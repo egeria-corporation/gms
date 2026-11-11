@@ -260,7 +260,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       const profile = await me();
       if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(input.handle)) throw invalid("Check the handle", [{ path: "handle", message: "Use 3 to 64 lowercase letters, digits and hyphens" }]);
       if (store.workspaces.some((w) => w.record.handle === input.handle)) throw new ApiError(409, "A workspace with this handle already exists", [{ path: "handle", message: "This handle is taken" }]);
-      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.legalName ?? null, passportOrgId: input.passportOrgId ?? null, verificationLevel: null, brand: {}, settings: {}, status: "active" };
+      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.legalName ?? null, passportOrgId: null, verificationLevel: null, brand: {}, settings: {}, status: "active" };
       const warnings = brandWrite(record, input.brand);
       store.workspaces.push({ record, profile: { mission: null, website: null }, members: [{ userId: profile.userId, role: "admin", email: profile.email }], invitations: [], passport: { linked: false, passportOrgId: record.passportOrgId, check: { state: "fail", reason: "Connect Passport to pay. Awards still work without it" }, canDebit: null }, programs: [], rubrics: [], opportunities: [], competitions: [], forms: [] });
       memberships.push({ id: record.id, handle: record.handle, name: record.displayName, kind: record.kind, role: "admin", requiresMfa: true });
@@ -311,6 +311,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       // The mock accepts any client whose id looks like one Passport issues, so both outcomes can be seen.
       const ok = /^pc_/.test(input.clientId);
       if (!ok) return { linked: false, passportOrgId: w.record.passportOrgId, check: { state: "fail", reason: "Passport rejected the client id or secret" }, canDebit: null };
+      // As on the server: the workspace carries a Passport organization only once a client was verified against it.
+      if (input.passportOrgId) w.record.passportOrgId = input.passportOrgId;
       w.passport = { linked: true, passportOrgId: w.record.passportOrgId, clientId: input.clientId, scopes: ["org:read", "payee:read", "award:write", "disbursement:read", "disbursement:write"], linkedAt: now(), lastOkAt: now(), check: { state: "pass", reason: "Passport accepted the client and a funding source can be debited" }, canDebit: true };
       return clone(w.passport);
     },

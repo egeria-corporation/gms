@@ -217,11 +217,13 @@ model Workspace {
   ...Timestamps;
 }
 
+/** A workspace gets its Passport organization only from Passport: a consent or sign-in for that
+ * organization (applicants), or a client verified against it (funders). It cannot be named here.
+ */
 model WorkspaceInput {
   kind: WorkspaceKind;
   handle: string;
   displayName: string;
-  passportOrgId?: CommonGrants.Types.uuid;
   brand?: Brand;
 }
 
@@ -289,6 +291,11 @@ model InvitationInput {
 model PassportLinkRequest {
   clientId: string;
   clientSecret: string;
+
+  /** The funder's organization in Passport. Needed the first time: the client is verified against
+   * it, and only then does the workspace carry it.
+   */
+  passportOrgId?: CommonGrants.Types.uuid;
 }
 
 /** The funder's Passport client link and a live check of it. */
@@ -1842,6 +1849,20 @@ model ConsentStart {
 
   scopes: string[];
   expiresInSeconds: int32;
+}
+
+/** What the web app received in the URL fragment after Passport sent the browser back. */
+model ConsentFinishRequest {
+  code: string;
+  state: string;
+}
+
+model ConsentFinished {
+  workspaceId: CommonGrants.Types.uuid;
+  handle: string;
+
+  /** Where the web app goes next: the page the flow started from, with `?passport=linked&ws=<handle>`. */
+  redirect: url;
 }
 
 /** A workspace as the signed-in person sees it in the switcher. */

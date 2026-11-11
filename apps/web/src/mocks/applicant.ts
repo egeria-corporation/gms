@@ -593,6 +593,11 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
       store.organization.linked = true;
       return { authorizeUrl: `${input.returnTo ?? "/onboarding/applicant"}?passport=linked&ws=${store.organization.handle}`, scopes: ["org:read", "org.changes:read", "org.changes:write"], expiresInSeconds: 600 };
     },
+    async finishConsent() {
+      await signedIn();
+      store.organization.linked = true;
+      return { workspaceId: store.organization.workspaceId, handle: store.organization.handle, redirect: `/onboarding/applicant?passport=linked&ws=${store.organization.handle}` };
+    },
     async consents() {
       await signedIn();
       return clone(store.consents);

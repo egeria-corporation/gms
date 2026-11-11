@@ -106,7 +106,8 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi {
   /** Join the workspace an invitation names. Rejects with a 404 ApiError when the invitation is used, expired or unknown. */
   acceptInvitation(token: string): Promise<{ workspace: { handle: string; kind: WorkspaceKind; name: string }; role: string }>;
   passportStatus(workspaceId: string): Promise<PassportStatus>;
-  linkPassport(workspaceId: string, input: { clientId: string; clientSecret: string }): Promise<PassportStatus>;
+  /** `passportOrgId` is needed the first time: the client is verified against that organization before the workspace carries it. */
+  linkPassport(workspaceId: string, input: { clientId: string; clientSecret: string; passportOrgId?: string }): Promise<PassportStatus>;
   unlinkPassport(workspaceId: string): Promise<{ linked: boolean }>;
 
   // ---- the routes below act in the workspace last opened with `workspace()` ----

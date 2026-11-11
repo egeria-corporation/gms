@@ -26,11 +26,18 @@ const appId = (c: P) => uuidOf("application", c.req.param("id"), "Application");
 
 // ---- Passport consent (applicant) ----
 applicationRoutes.post("/passport/consent/start", requireUser(), async (c) => c.json(ok(await org.startConsent(userSvc(c), parse(org.consentStartInput, await jsonBody(c))))));
-// Passport redirects the browser here: no bearer. The sealed `state` names who started the flow.
+// Passport redirects the browser here: no bearer, so nothing is linked and nothing is redeemed. The
+// code goes back to the web app in the fragment, and the person who started the flow finishes it
+// with their own session below.
 applicationRoutes.get("/passport/consent/callback", async (c) => {
-  const deps = c.get("deps");
-  const outcome = await org.completeConsent({ ...publicCtx(c), ledger: deps.ledger, webhooks: deps.webhooks, ports: deps.ports?.(c.env) ?? {} }, { code: c.req.query("code"), state: c.req.query("state"), error: c.req.query("error") });
+  c.header("Cache-Control", "no-store");
+  c.header("Referrer-Policy", "no-referrer");
+  const outcome = await org.completeConsent(publicCtx(c), { code: c.req.query("code"), state: c.req.query("state"), error: c.req.query("error") });
   return c.redirect(outcome.redirect, 302);
+});
+applicationRoutes.post("/passport/consent/finish", requireUser(), async (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(ok(await org.finishConsent(userSvc(c), parse(org.consentFinishInput, await jsonBody(c)))));
 });
 
 // ---- Sign in with Passport (public: the person has no GMS session yet) ----

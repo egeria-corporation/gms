@@ -3293,13 +3293,34 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Passport sends the browser here. Exchanges the code, caches the organization and its Common
-         *     App profile, and creates or links the applicant workspace. Always redirects into the web app:
-         *     `?passport=linked&ws=<handle>` or `?passport=error&reason=<code>`.
+         * @description Passport sends the browser here. The request carries no session, so nothing is linked and the
+         *     code is not redeemed. Always redirects into the web app: `?passport=finish#code=…&state=…`
+         *     (the code travels in the fragment), or `?passport=error&reason=<code>`.
          */
         get: operations["Applicant_consentCallback"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/passport/consent/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Finish the consent with the session of the person who started it. Exchanges the code, caches
+         *     the organization and its Common App profile, and creates or links the applicant workspace.
+         *     403 `consent_not_yours` when another account started the flow; the code is then left unredeemed.
+         */
+        post: operations["Applicant_consentFinish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10319,6 +10340,20 @@ export interface components {
             /** Format: date-time */
             revokedAt: string | null;
         };
+        /** @description What the web app received in the URL fragment after Passport sent the browser back. */
+        "Models.ConsentFinishRequest": {
+            code: string;
+            state: string;
+        };
+        "Models.ConsentFinished": {
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            handle: string;
+            /**
+             * Format: uri
+             * @description Where the web app goes next: the page the flow started from, with `?passport=linked&ws=<handle>`.
+             */
+            redirect: string;
+        };
         "Models.ConsentStart": {
             /**
              * Format: uri
@@ -11965,6 +12000,11 @@ export interface components {
         "Models.PassportLinkRequest": {
             clientId: string;
             clientSecret: string;
+            /**
+             * @description The funder's organization in Passport. Needed the first time: the client is verified against
+             *     it, and only then does the workspace carry it.
+             */
+            passportOrgId?: components["schemas"]["CommonGrants.Types.uuid"];
         };
         /** @description The funder's Passport client link and a live check of it. */
         "Models.PassportLinkStatus": {
@@ -13610,11 +13650,14 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description A workspace gets its Passport organization only from Passport: a consent or sign-in for that
+         *     organization (applicants), or a client verified against it (funders). It cannot be named here.
+         */
         "Models.WorkspaceInput": {
             kind: components["schemas"]["Models.WorkspaceKind"];
             handle: string;
             displayName: string;
-            passportOrgId?: components["schemas"]["CommonGrants.Types.uuid"];
             brand?: components["schemas"]["Models.Brand"];
         };
         /** @enum {string} */
@@ -26005,6 +26048,69 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    Applicant_consentFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ConsentFinishRequest"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ConsentFinished"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
             };
         };
     };

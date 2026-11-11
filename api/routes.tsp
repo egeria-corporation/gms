@@ -1135,12 +1135,19 @@ namespace GMS.Routes.Custom {
     @post @route("/passport/consent/start") @useAuth(UserSession)
     op consentStart(@body body?: ConsentStartRequest): OkT<ConsentStart> | BadRequest | AuthErrors | NotFound;
 
-    /** Passport sends the browser here. Exchanges the code, caches the organization and its Common
-     * App profile, and creates or links the applicant workspace. Always redirects into the web app:
-     * `?passport=linked&ws=<handle>` or `?passport=error&reason=<code>`.
+    /** Passport sends the browser here. The request carries no session, so nothing is linked and the
+     * code is not redeemed. Always redirects into the web app: `?passport=finish#code=…&state=…`
+     * (the code travels in the fragment), or `?passport=error&reason=<code>`.
      */
     @get @route("/passport/consent/callback")
     op consentCallback(@query code?: string, @query state?: string, @query error?: string): Redirect;
+
+    /** Finish the consent with the session of the person who started it. Exchanges the code, caches
+     * the organization and its Common App profile, and creates or links the applicant workspace.
+     * 403 `consent_not_yours` when another account started the flow; the code is then left unredeemed.
+     */
+    @post @route("/passport/consent/finish") @useAuth(UserSession)
+    op consentFinish(@body body: ConsentFinishRequest): OkT<ConsentFinished> | BadRequest | AuthErrors | Unprocessable;
 
     /** Sign in with Passport, step 1 (no session needed). Redirects the browser to Passport's
      * authorization endpoint asking for `openid email` plus the applicant consent scopes, with PKCE

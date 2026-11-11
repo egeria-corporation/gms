@@ -23,7 +23,8 @@ export const createWorkspaceInput = z
     handle: z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/, "Use 3 to 64 lowercase letters, digits and hyphens"),
     displayName: z.string().trim().min(1).max(200),
     legalName: z.string().trim().min(1).max(300).optional(),
-    passportOrgId: z.uuid().optional(),
+    // No `passportOrgId`: a workspace gets its Passport organization only from Passport, through a
+    // consent or sign-in for that organization (applicants) or a client verified against it (funders).
     brand: brandInput.optional(),
   })
   .strict();
@@ -128,7 +129,7 @@ export async function createWorkspace(ctx: ServiceContext, input: z.output<typeo
       handle: input.handle,
       display_name: input.displayName,
       legal_name: input.legalName ?? null,
-      passport_org_id: input.passportOrgId ?? null,
+      passport_org_id: null,
       brand,
       status: "active",
     }),

@@ -105,6 +105,11 @@ export interface ApplicantApi {
   readiness(): Promise<ApplicantReadiness>;
   /** Where to send the browser to consent in Passport. `workspaceId` re-links an existing workspace. */
   startConsent(input?: { workspaceId?: string; returnTo?: string }): Promise<ConsentStart>;
+  /**
+   * Finish the consent after Passport sent the browser back with `?passport=finish#code=…&state=…`.
+   * Only the account that started the flow can finish it. Answers where to go next.
+   */
+  finishConsent(input: { code: string; state: string }): Promise<{ workspaceId: string; handle: string; redirect: string }>;
   consents(): Promise<Consent[]>;
   revokeConsent(id: string): Promise<{ revoked: boolean }>;
   funders(): Promise<MyFunder[]>;
@@ -320,6 +325,7 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
     refreshOrganization: () => call("POST", "/gms/me/organization/refresh", {}),
     readiness: () => get("/gms/me/readiness"),
     startConsent: (input = {}) => call("POST", "/gms/passport/consent/start", input),
+    finishConsent: (input) => call("POST", "/gms/passport/consent/finish", input),
     consents: () => get("/gms/my/consents"),
     revokeConsent: (id) => call("DELETE", `/gms/my/consents/${e(id)}`),
     funders: () => get("/gms/my/funders"),
