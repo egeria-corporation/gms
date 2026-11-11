@@ -459,6 +459,14 @@ export async function importBundle(ctx: ServiceContext, bundle: { gms?: unknown 
       // Form versions share an id; the pair (id, version) is the key.
       const where = step.table === "forms" ? { id, version: row.version } : { id };
       const there = (await ctx.repos.table(step.table).one(where as never)) as { workspace_id?: string | null } | null;
+      // Forms and rubrics are versioned under one id. A new version under an id that another
+      // workspace or the shared library already uses would supersede theirs: skipped.
+      const versioned = step.table === "forms" || step.table === "rubrics";
+      const foreign = versioned && !there ? ((await ctx.repos.table(step.table).find({ id } as never, { limit: 50 })) as { workspace_id?: string | null }[]).some((r) => r.workspace_id !== ws.id) : false;
+      if (foreign) {
+        c.skipped++;
+        continue;
+      }
       if (there) {
         // Already in the target workspace: an earlier run. In any other workspace (or the shared
         // library): somebody else's row, which this import neither changes nor builds on.

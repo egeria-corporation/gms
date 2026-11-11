@@ -83,6 +83,21 @@ describe("bundle import", () => {
     expect(out.counts.competitions).toEqual({ inserted: 0, existing: 0, skipped: 1 });
   });
 
+  it("as the operator, cannot supersede a form or rubric of the shared library or of another workspace", async () => {
+    const shared = await h.repos.table("forms").insert({ workspace_id: null, title: "Shared library form", purpose: "application", published_at: h.clock.now.toISOString() });
+    const theirs = (await h.repos.table("rubrics").find({ workspace_id: WS_FUNDER }))[0]!;
+    const gms = {
+      workspace: { handle: "x" },
+      rubrics: [{ id: theirs.id, version: 99, name: "Superseding rubric", criteria: [], overall: {} }],
+      records: { forms: [{ id: shared.id, version: 99, title: "Superseding form", purpose: "application", published_at: "2027-01-01T00:00:00Z" }] },
+    };
+    const out = await importWorkspaceBundle(baseOf(h), WS_OTHER, { gms });
+    expect(out.counts.forms).toEqual({ inserted: 0, existing: 0, skipped: 1 });
+    expect(out.counts.rubrics).toEqual({ inserted: 0, existing: 0, skipped: 1 });
+    expect(await h.repos.table("forms").count({ id: shared.id })).toBe(1);
+    expect(await h.repos.table("rubrics").count({ id: theirs.id, version: 99 })).toBe(0);
+  });
+
   it("as the operator, does not adopt a row that already exists in another workspace", async () => {
     // A tranche whose award id is another funder's existing award: "already exists" must not make it a known parent.
     const schedule = await h.repos.table("payment_schedules").insert({ workspace_id: WS_FUNDER, award_id: victimAward });

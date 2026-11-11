@@ -114,6 +114,13 @@ describe("a tranche whose award belongs to another workspace", () => {
       }
       expect((await tranche(id)).status).toBe(before.status);
     }
+    // The same with payments through Passport switched off (the install default): no "paid elsewhere"
+    // record can be posted against another funder's award either.
+    h.env.PAYMENTS_FACILITATED = "false";
+    const resolve = await plantedTranche("due");
+    expect((await s.call(resolve.evil, "POST", `/gms/tranches/${resolve.id}/record-external`, { reference: "wire 123", paidAt: "2027-04-16", destinationLast4: "4821" })).status).toBe(404);
+    expect((await tranche(resolve.id)).status).toBe("due");
+    h.env.PAYMENTS_FACILITATED = "true";
     expect(fx.calls.length).toBe(calls);
     expect(posts()).toHaveLength(0);
     // The victim funder's own tranches are where they were.
