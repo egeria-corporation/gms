@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(12);
 
 insert into auth.users (id, email, aud, role) values
   ('5e000000-0000-4000-8000-0000000000a1', 'ana@sessions.example', 'authenticated', 'authenticated'),
@@ -26,6 +26,7 @@ select is(gms.end_my_session('5e500000-0000-4000-8000-0000000000a1'), true, 'end
 select is((select count(*)::int from gms.my_sessions()), 1, 'and it is gone');
 select throws_ok($$ select * from public.gms_sessions_of('5e000000-0000-4000-8000-0000000000b1') $$, '42501', null, 'a signed-in person cannot call the service-role lookup');
 select throws_ok($$ select public.gms_end_session_of('5e000000-0000-4000-8000-0000000000b1', '5e500000-0000-4000-8000-0000000000b1') $$, '42501', null, 'or the service-role removal');
+select throws_ok($$ select public.gms_user_id_by_email('ben@sessions.example') $$, '42501', null, 'or look up another person''s account by email');
 
 -- ---------------------------------------------------------------- signed out
 reset role;
@@ -36,6 +37,12 @@ select throws_ok($$ select * from gms.my_sessions() $$, '42501', null, 'anonymou
 -- ---------------------------------------------------------------- the rows themselves
 reset role;
 select is((select count(*)::int from auth.sessions where user_id = '5e000000-0000-4000-8000-0000000000b1'), 1, 'the other person''s session is untouched');
+
+-- ---------------------------------------------------------------- the service role (the API Worker)
+reset role;
+set local role service_role;
+select is(public.gms_user_id_by_email(' BEN@sessions.example '), '5e000000-0000-4000-8000-0000000000b1'::uuid, 'the service role finds an account by email, ignoring case and spaces');
+reset role;
 
 select * from finish();
 rollback;

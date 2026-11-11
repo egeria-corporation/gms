@@ -1142,6 +1142,24 @@ namespace GMS.Routes.Custom {
     @get @route("/passport/consent/callback")
     op consentCallback(@query code?: string, @query state?: string, @query error?: string): Redirect;
 
+    /** Sign in with Passport, step 1 (no session needed). Redirects the browser to Passport's
+     * authorization endpoint asking for `openid email` plus the applicant consent scopes, with PKCE
+     * and a nonce, and sets a short-lived HttpOnly cookie that binds the flow to this browser.
+     * `returnTo` is honored only when it is a plain path in the web app.
+     */
+    @get @route("/passport/signin/start")
+    op passportSignInStart(@query returnTo?: string): Redirect;
+
+    /** Sign in with Passport, step 2. Passport sends the browser here. Checks the sealed state and
+     * the browser binding, exchanges the code, verifies the ID token, selects the account by the
+     * email Passport verified, links the approved organization's workspace, and redirects into the
+     * web app: `/auth/passport#token_hash=…&type=…&next=…` (a one-time sign-in, in the fragment) or
+     * `/signin?passport_error=<code>` with one of `cancelled`, `no_organization`,
+     * `email_unverified`, `expired`, `state_mismatch`, `unavailable`, `not_configured`.
+     */
+    @get @route("/passport/signin/callback")
+    op passportSignInCallback(@query code?: string, @query state?: string, @query error?: string): Redirect;
+
     @get @route("/me/organization") @useAuth(GmsOAuth<["org:read"]> | UserSession)
     op myOrganization(): OkT<MyOrganization> | AuthErrors | NotFound;
 

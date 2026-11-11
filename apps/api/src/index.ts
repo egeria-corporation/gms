@@ -13,7 +13,7 @@ import { createApp, type Deps } from "./app.ts";
 import { SupabaseAuthStore } from "./auth/supabase-store.ts";
 import { trimSlash, type Env } from "./env.ts";
 import type { ServicePorts } from "./services/context.ts";
-import { McpOpenGrantsClient, R2FileStorage, SupabaseSessions, SupabaseUserDirectory, type SupabaseAdminLike, type SupabaseRpcLike } from "./services/ports.ts";
+import { McpOpenGrantsClient, R2FileStorage, SupabaseIdentity, SupabaseSessions, SupabaseUserDirectory, type SupabaseAdminLike, type SupabaseIdentityLike, type SupabaseRpcLike } from "./services/ports.ts";
 import { RepoMembershipStore } from "./services/repos/membership.ts";
 import { SupabaseRepos } from "./services/repos/supabase.ts";
 
@@ -35,7 +35,7 @@ function depsFor(env: Env): Deps | null {
         repos,
         webhooks: new SupabaseWebhookStore(db),
         now: () => new Date(),
-        ports: (e) => ({ ...ports(e), directory: new SupabaseUserDirectory(db as unknown as SupabaseAdminLike), sessions: new SupabaseSessions(db as unknown as SupabaseRpcLike) }),
+        ports: (e) => ({ ...ports(e), directory: new SupabaseUserDirectory(db as unknown as SupabaseAdminLike), sessions: new SupabaseSessions(db as unknown as SupabaseRpcLike), identity: new SupabaseIdentity(db as unknown as SupabaseIdentityLike) }),
         kv: (e) => (e.RATE_LIMIT ? { get: (k) => e.RATE_LIMIT!.get(k), put: (k, v, o) => e.RATE_LIMIT!.put(k, v, o) } : memoryKv),
         openapi,
       },

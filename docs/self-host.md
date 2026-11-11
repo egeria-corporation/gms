@@ -156,8 +156,15 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
 
 1. Register the GMS as an OAuth client at your Passport deployment, named "OpenGrants GMS", with
    the authorization-code + PKCE grant, scopes `org:read org.changes:read org.changes:write payee:read`, and
-   the redirect URI `https://<host>/gms/passport/consent/callback`. Put the id and secret in
-   `PASSPORT_GMS_CLIENT_ID` / `PASSPORT_GMS_CLIENT_SECRET`.
+   the redirect URIs `https://<host>/gms/passport/consent/callback` (link an organization from
+   inside the GMS) and `https://<host>/gms/passport/signin/callback` (Sign in with Passport). Put
+   the id and secret in `PASSPORT_GMS_CLIENT_ID` / `PASSPORT_GMS_CLIENT_SECRET`.
+   Sign in with Passport needs nothing else: it uses the same client, `CREDENTIALS_ENCRYPTION_KEY`
+   and the Supabase service-role key, and it asks Passport for `openid email` on top of the scopes
+   above (Passport grants identity scopes to any authorization-code client). `PASSPORT_ISSUER`
+   must equal the `iss` of Passport's tokens when it differs from `PASSPORT_BASE_URL`. Without the
+   client the button reports that Passport sign-in is not set up and email sign-in still works.
+   Migration `0016` adds the service-role lookup the callback uses.
 2. Subscribe to Passport webhooks at `https://<host>/webhooks/passport` and set
    `PASSPORT_WEBHOOK_SECRET` to the subscription's signing secret.
 3. Each funder connects its own Passport client in Settings → Payments (client credentials with

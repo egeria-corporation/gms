@@ -194,3 +194,98 @@ export class MemorySessions implements SessionsPort {
     return true;
   }
 }
+
+// ------------------------------------------------------------------------------------ identity (Sign in with Passport)
+
+/** A one-time sign-in the web app redeems for a session (`supabase.auth.verifyOtp({ token_hash, type })`). */
+export interface SignInToken {
+  tokenHash: string;
+  type: string;
+}
+
+/**
+ * Accounts, for Sign in with Passport. The caller has already verified the person's email with
+ * Passport's ID token; this port never checks who is asking.
+ */
+export interface IdentityPort {
+  /** The account with this email, without creating one. */
+  findByEmail(email: string): Promise<string | null>;
+  /** Find or create the account for a verified email, and record the Passport user id on it. */
+  ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }>;
+  signInToken(email: string): Promise<SignInToken>;
+}
+
+/** The parts of the Supabase service-role client the identity port uses. */
+export interface SupabaseIdentityLike {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  auth: {
+    admin: {
+      createUser(attrs: { email: string; email_confirm: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }): Promise<{ data: { user: { id: string } | null }; error: { message: string; code?: string; status?: number } | null }>;
+      updateUserById(id: string, attrs: { app_metadata?: Record<string, unknown>; email_confirm?: boolean }): Promise<{ error: { message: string } | null }>;
+      generateLink(params: { type: "magiclink"; email: string }): Promise<{ data: { properties?: { hashed_token?: string; verification_type?: string } | null }; error: { message: string } | null }>;
+    };
+  };
+}
+
+export class SupabaseIdentity implements IdentityPort {
+  constructor(private readonly client: SupabaseIdentityLike) {}
+
+  async findByEmail(email: string): Promise<string | null> {
+    const { data, error } = await this.client.rpc("gms_user_id_by_email", { p_email: email });
+    if (error) throw new Error(`Looking up the account failed: ${error.message}`);
+    return typeof data === "string" && data ? data : null;
+  }
+
+  async ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }> {
+    const existing = await this.findByEmail(email);
+    if (existing) {
+      // Passport verified the address, so the account's email counts as confirmed; the Passport
+      // user id is kept in app metadata (server-controlled), which merges with what is there.
+      await this.client.auth.admin.updateUserById(existing, { app_metadata: { passport_user_id: link.passportUserId }, email_confirm: true });
+      return { userId: existing, created: false };
+    }
+    const { data, error } = await this.client.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      app_metadata: { passport_user_id: link.passportUserId },
+      ...(link.name ? { user_metadata: { full_name: link.name } } : {}),
+    });
+    if (data.user) return { userId: data.user.id, created: true };
+    // Two sign-ins for a new person at once: the other one created the account.
+    const raced = await this.findByEmail(email);
+    if (raced) return { userId: raced, created: false };
+    throw new Error(`Creating the account failed: ${error?.message ?? "no user returned"}`);
+  }
+
+  async signInToken(email: string): Promise<SignInToken> {
+    const { data, error } = await this.client.auth.admin.generateLink({ type: "magiclink", email });
+    const hash = data.properties?.hashed_token;
+    if (error || !hash) throw new Error(`Creating the sign-in failed: ${error?.message ?? "no token returned"}`);
+    return { tokenHash: hash, type: data.properties?.verification_type ?? "magiclink" };
+  }
+}
+
+export class MemoryIdentity implements IdentityPort {
+  /** email (lower case) → account. */
+  readonly users = new Map<string, { userId: string; passportUserId: string | null }>();
+  readonly issued: { email: string; tokenHash: string }[] = [];
+  async findByEmail(email: string): Promise<string | null> {
+    return this.users.get(email.trim().toLowerCase())?.userId ?? null;
+  }
+  async ensureUser(email: string, link: { passportUserId: string }): Promise<{ userId: string; created: boolean }> {
+    const key = email.trim().toLowerCase();
+    const existing = this.users.get(key);
+    if (existing) {
+      existing.passportUserId = link.passportUserId;
+      return { userId: existing.userId, created: false };
+    }
+    const userId = crypto.randomUUID();
+    this.users.set(key, { userId, passportUserId: link.passportUserId });
+    return { userId, created: true };
+  }
+  async signInToken(email: string): Promise<SignInToken> {
+    const tokenHash = `th_${crypto.randomUUID().replace(/-/g, "")}`;
+    this.issued.push({ email: email.trim().toLowerCase(), tokenHash });
+    return { tokenHash, type: "magiclink" };
+  }
+}
