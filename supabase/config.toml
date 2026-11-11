@@ -31,7 +31,10 @@ enable_signup = true
 
 [auth.email]
 enable_signup = true
-enable_confirmations = false
+# Must stay on. With it off, anyone can sign up as any address and is handed a session for a
+# "confirmed" account at once; the emailed code is what proves the address (docs/decisions.md,
+# 2026-11-11). Email-code sign-in works the same either way.
+enable_confirmations = true
 
 [auth.mfa.totp]
 enroll_enabled = true

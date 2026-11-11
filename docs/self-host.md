@@ -39,8 +39,11 @@ node scripts/bootstrap-supabase.ts --db-url "postgresql://postgres:<password>@db
    Add `--seed` for the fictional demo data (never in production). The script records what it
    applied in `gms_meta.schema_migrations` and is safe to re-run after an upgrade. `supabase db push`
    works as well if you prefer the Supabase CLI; use one or the other, not both.
-3. Authentication → Providers → Email: enable email sign-in with one-time codes / magic links;
-   turn "Confirm email" off (the code is the confirmation).
+3. Authentication → Providers → Email: enable email sign-in with one-time codes / magic links,
+   and keep **"Confirm email" on**. With it off, anyone can sign up as any address and is handed
+   a session for it at once, before the address is proven. Email-code sign-in works the same with
+   it on. Migration `0017` also removes every password and anything set on an account before its
+   email was proven, so accounts are passwordless whatever a client sends.
 4. Authentication → Multi-factor: enable TOTP enroll and verify. The GMS requires TOTP for funder
    admin and finance and for applicant admin.
 5. Authentication → URL configuration: Site URL = your web origin (`https://gms.example.org`);
@@ -164,7 +167,8 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
    above (Passport grants identity scopes to any authorization-code client). `PASSPORT_ISSUER`
    must equal the `iss` of Passport's tokens when it differs from `PASSPORT_BASE_URL`. Without the
    client the button reports that Passport sign-in is not set up and email sign-in still works.
-   Migration `0016` adds the service-role lookup the callback uses.
+   Migration `0016` adds the service-role lookup the callback uses; `0017` makes accounts
+   passwordless and adds the account lookup (below).
 2. Subscribe to Passport webhooks at `https://<host>/webhooks/passport` and set
    `PASSPORT_WEBHOOK_SECRET` to the subscription's signing secret.
 3. Each funder connects its own Passport client in Settings → Payments (client credentials with

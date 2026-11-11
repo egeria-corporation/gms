@@ -35,15 +35,23 @@ applicationRoutes.get("/passport/consent/callback", async (c) => {
 
 // ---- Sign in with Passport (public: the person has no GMS session yet) ----
 const SIGNIN_LIMIT = { limit: 30, windowSeconds: 600 };
+/** With no network address to count against, one shared counter, sized so it cannot lock everyone out at a person's limit. */
+const SIGNIN_LIMIT_SHARED = 600;
 const fallbackSignInKv = new MemoryKv();
-/** Fixed-window counter per network address, so the two routes cannot be used to hammer Passport. */
-async function signInAllowed(c: Context<AppEnv>): Promise<boolean> {
+/**
+ * Fixed-window counter per network address and per route, so neither route can be used to hammer
+ * Passport and a burst on one does not use up the other. Cloudflare always sets
+ * `CF-Connecting-IP`; behind another proxy the first forwarded address is used. KV has no atomic
+ * increment, so two requests at once can count as one: the limit is a brake, not a quota.
+ */
+async function signInAllowed(c: Context<AppEnv>, route: "start" | "callback"): Promise<boolean> {
   const kv: KvPort = c.get("deps").kv?.(c.env) ?? fallbackSignInKv;
-  const who = c.req.header("CF-Connecting-IP") ?? "unknown";
+  const address = c.req.header("CF-Connecting-IP") ?? c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() ?? c.req.header("X-Real-IP");
+  const who = address && /^[0-9A-Fa-f:.]{2,64}$/.test(address) ? address : null;
   const window = Math.floor(c.get("deps").now().getTime() / 1000 / SIGNIN_LIMIT.windowSeconds);
-  const key = `passport-signin:${who}:${window}`;
+  const key = `passport-signin:${route}:${who ?? "no-address"}:${window}`;
   const used = Number((await kv.get(key)) ?? "0");
-  if (used >= SIGNIN_LIMIT.limit) return false;
+  if (used >= (who ? SIGNIN_LIMIT.limit : SIGNIN_LIMIT_SHARED)) return false;
   await kv.put(key, String(used + 1), { expirationTtl: SIGNIN_LIMIT.windowSeconds * 2 });
   return true;
 }
@@ -66,8 +74,8 @@ const noStore = (c: Context<AppEnv>) => {
 applicationRoutes.get("/passport/signin/start", async (c) => {
   noStore(c);
   const ctx = signInCtx(c);
-  if (!(await signInAllowed(c))) return c.redirect(passportSignIn.signInErrorRedirect(ctx, "unavailable"), 302);
-  const start = await passportSignIn.startSignIn(ctx, { returnTo: c.req.query("returnTo") });
+  if (!(await signInAllowed(c, "start"))) return c.redirect(passportSignIn.signInErrorRedirect(ctx, "unavailable"), 302);
+  const start = await passportSignIn.startSignIn(ctx, { returnTo: c.req.query("returnTo"), hop: c.req.query("hop") });
   if (start.ok) c.header("Set-Cookie", signInCookie(start.binding, start.maxAgeSeconds));
   return c.redirect(start.redirect, 302);
 });
@@ -77,7 +85,7 @@ applicationRoutes.get("/passport/signin/callback", async (c) => {
   const ctx = signInCtx(c);
   // The binding is single-use: it is cleared whatever the outcome.
   c.header("Set-Cookie", signInCookie("", 0));
-  if (!(await signInAllowed(c))) return c.redirect(passportSignIn.signInErrorRedirect(ctx, "unavailable"), 302);
+  if (!(await signInAllowed(c, "callback"))) return c.redirect(passportSignIn.signInErrorRedirect(ctx, "unavailable"), 302);
   const outcome = await passportSignIn.completeSignIn(ctx, { code: c.req.query("code"), state: c.req.query("state"), error: c.req.query("error") }, readSignInCookie(c.req.header("Cookie")));
   return c.redirect(outcome.redirect, 302);
 });

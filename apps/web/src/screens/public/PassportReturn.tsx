@@ -3,11 +3,15 @@
 // The one-time sign-in is in the fragment, so no server or log ever saw it. This page redeems it
 // for a session, drops it from the address bar, and hands over to the sign-in page, which already
 // knows what comes next (the second step when a workspace requires it, then the destination).
+//
+// It redeems only what this tab asked for: the fragment must carry the value the button stored
+// before leaving for Passport. An address with someone else's sign-in, opened here, is refused,
+// and a tab that is already signed in is never switched to another account.
 import { useEffect, useRef } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { useServices } from "../../app/services.tsx";
-import { safeNext } from "../../lib/passportSignIn.ts";
+import { endPassportHop, safeNext } from "../../lib/passportSignIn.ts";
 
 export default function PassportReturn() {
   const { auth } = useServices();
@@ -23,14 +27,24 @@ export default function PassportReturn() {
     const type = fragment.get("type") ?? "magiclink";
     const next = safeNext(fragment.get("next"));
     const signin = (query: Record<string, string>) => `/signin${Object.keys(query).length ? `?${new URLSearchParams(query)}` : ""}`;
+    // Used up whatever happens, so a second address cannot ride on the same trip.
+    const mine = endPassportHop(fragment.get("hop"));
     if (!tokenHash) {
       navigate(signin({ passport_error: "state_mismatch" }), { replace: true });
       return;
     }
-    auth.redeemSignIn(tokenHash, type).then(
-      () => navigate(signin(next ? { next } : {}), { replace: true }),
-      () => navigate(signin({ passport_error: "expired" }), { replace: true }),
-    );
+    void auth
+      .getSession()
+      .catch(() => null)
+      .then((session) => {
+        // Already signed in: keep that account and just go on.
+        if (session) return navigate(signin(next ? { next } : {}), { replace: true });
+        if (!mine) return navigate(signin({ passport_error: "state_mismatch" }), { replace: true });
+        return auth.redeemSignIn(tokenHash, type).then(
+          () => navigate(signin(next ? { next } : {}), { replace: true }),
+          () => navigate(signin({ passport_error: "expired" }), { replace: true }),
+        );
+      });
   }, [auth, location.hash, navigate]);
 
   return (

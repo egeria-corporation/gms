@@ -80,7 +80,9 @@ Added 2026-11-11 (not deployed with this note). Going live needs, in this order:
 2. The GMS client at Passport (`OpenGrants GMS`, owned by Egeria Corporation) given the sign-in
    redirect URIs `https://gms.opengrants.io/gms/passport/signin/callback` and
    `https://gms-staging.opengrants.io/gms/passport/signin/callback`.
-3. GMS migration `0016` applied, then the API and web app redeployed.
+3. GMS migrations `0016` and `0017` applied, then the API and web app redeployed. `0017` adds two
+   triggers on `auth.users` (no account keeps a password; nothing set before an email was proven
+   survives the proof) and clears any password already stored.
 
 `PASSPORT_ISSUER` is not set on staging; the issuer defaults to `PASSPORT_BASE_URL`
 (`https://passport.opengrants.io`), which is what Passport signs with.

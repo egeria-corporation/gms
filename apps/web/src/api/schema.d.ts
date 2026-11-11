@@ -3334,9 +3334,11 @@ export interface paths {
          * @description Sign in with Passport, step 2. Passport sends the browser here. Checks the sealed state and
          *     the browser binding, exchanges the code, verifies the ID token, selects the account by the
          *     email Passport verified, links the approved organization's workspace, and redirects into the
-         *     web app: `/auth/passport#token_hash=…&type=…&next=…` (a one-time sign-in, in the fragment) or
-         *     `/signin?passport_error=<code>` with one of `cancelled`, `no_organization`,
-         *     `email_unverified`, `expired`, `state_mismatch`, `unavailable`, `not_configured`.
+         *     web app: `/auth/passport#token_hash=…&type=…&hop=…&next=…` (a one-time sign-in, in the
+         *     fragment) or `/signin?passport_error=<code>` with one of `cancelled`, `no_organization`,
+         *     `email_unverified`, `expired`, `state_mismatch`, `unavailable`, `not_configured`,
+         *     `account_mismatch`. An account whose email was never confirmed is replaced, not adopted; an
+         *     account already tied to a different Passport user is refused (`account_mismatch`).
          */
         get: operations["Applicant_passportSignInCallback"];
         put?: never;
@@ -3358,7 +3360,10 @@ export interface paths {
          * @description Sign in with Passport, step 1 (no session needed). Redirects the browser to Passport's
          *     authorization endpoint asking for `openid email` plus the applicant consent scopes, with PKCE
          *     and a nonce, and sets a short-lived HttpOnly cookie that binds the flow to this browser.
-         *     `returnTo` is honored only when it is a plain path in the web app.
+         *     `returnTo` is honored only when it is a plain path in the web app. `hop` is a random value
+         *     the web app made in the tab (base64url, 22 to 128 characters); it is sealed in the state and
+         *     returned in the fragment at the end, and the web app redeems the sign-in only when it matches.
+         *     Without a valid `hop` the flow is not started (`passport_error=state_mismatch`).
          */
         get: operations["Applicant_passportSignInStart"];
         put?: never;
@@ -26032,6 +26037,7 @@ export interface operations {
     Applicant_passportSignInStart: {
         parameters: {
             query?: {
+                hop?: string;
                 returnTo?: string;
             };
             header?: never;

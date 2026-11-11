@@ -7,7 +7,10 @@ create or replace function public.gms_user_id_by_email(p_email text)
 returns uuid
 language sql stable security definer set search_path = ''
 as $$
-  select u.id from auth.users u where lower(u.email) = lower(btrim(p_email)) and u.deleted_at is null limit 1;
+  -- One account per email in practice; if there were ever two, always the same one: a confirmed
+  -- account before an unconfirmed one, then the oldest.
+  select u.id from auth.users u where lower(u.email) = lower(btrim(p_email)) and u.deleted_at is null
+  order by (u.email_confirmed_at is not null) desc, u.created_at, u.id limit 1;
 $$;
 
 revoke all on function public.gms_user_id_by_email(text) from public, anon, authenticated;

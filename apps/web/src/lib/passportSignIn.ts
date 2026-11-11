@@ -9,9 +9,63 @@ export const passportBrowser = { go: (url: string) => window.location.assign(url
 /** The token the mock auth client accepts on `/auth/passport`. */
 export const MOCK_PASSPORT_TOKEN = "mock-passport";
 
-/** Only same-origin paths are honored as a destination. */
+/**
+ * A destination inside this app: letters, digits, `_`, `-` and single slashes. The same allow-list
+ * as the API's `RETURN_TO` (apps/api/src/services/passport-signin.ts; a test holds the two equal),
+ * so nothing a browser could read as another site gets through: no `//`, backslash, scheme, tab,
+ * newline or other control character.
+ */
+export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}$/;
+
+/** Only plain paths in this app are honored as a destination. */
 export function safeNext(next: string | null | undefined): string | null {
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
+  return next && RETURN_TO.test(next) && !next.includes("//") ? next : null;
+}
+
+// ---- the last hop -----------------------------------------------------------------------------
+// The sign-in comes back as a one-time token in the address. Anyone can put such an address in
+// front of someone else, so the token is redeemed only in the tab that started the trip: the
+// button makes a random value, keeps it in this tab's session storage and sends it with the
+// request; the API seals it and returns it next to the token; the return page compares the two.
+const HOP_KEY = "gms.passport.hop";
+const HOP = /^[A-Za-z0-9_-]{22,128}$/;
+
+function tabStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Make and remember this tab's value for one trip to Passport. Null when the browser offers no session storage. */
+export function beginPassportHop(): string | null {
+  const store = tabStorage();
+  if (!store) return null;
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let raw = "";
+  for (const b of bytes) raw += String.fromCharCode(b);
+  const hop = btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  try {
+    store.setItem(HOP_KEY, hop);
+  } catch {
+    return null;
+  }
+  return hop;
+}
+
+/** True only when `hop` is the value this tab started with. The value is used up either way. */
+export function endPassportHop(hop: string | null): boolean {
+  const store = tabStorage();
+  if (!store) return false;
+  let mine: string | null = null;
+  try {
+    mine = store.getItem(HOP_KEY);
+    store.removeItem(HOP_KEY);
+  } catch {
+    return false;
+  }
+  return !!hop && !!mine && HOP.test(hop) && hop === mine;
 }
 
 /**
@@ -19,13 +73,13 @@ export function safeNext(next: string | null | undefined): string | null {
  * redirects to Passport; in mock mode it is the return page with a token the mock accepts, so the
  * whole path can be walked without Passport.
  */
-export function passportSignInUrl(returnTo: string | null, mock: boolean): string {
+export function passportSignInUrl(returnTo: string | null, mock: boolean, hop: string): string {
   const next = safeNext(returnTo);
-  if (mock) return `/auth/passport#${new URLSearchParams({ token_hash: MOCK_PASSPORT_TOKEN, type: "magiclink", ...(next ? { next } : {}) })}`;
-  return `${env.apiBaseUrl}/gms/passport/signin/start${next ? `?returnTo=${encodeURIComponent(next)}` : ""}`;
+  if (mock) return `/auth/passport#${new URLSearchParams({ token_hash: MOCK_PASSPORT_TOKEN, type: "magiclink", hop, ...(next ? { next } : {}) })}`;
+  return `${env.apiBaseUrl}/gms/passport/signin/start?${new URLSearchParams({ hop, ...(next ? { returnTo: next } : {}) })}`;
 }
 
-export type PassportErrorCode = "cancelled" | "no_organization" | "email_unverified" | "expired" | "state_mismatch" | "unavailable" | "not_configured";
+export type PassportErrorCode = "cancelled" | "no_organization" | "email_unverified" | "expired" | "state_mismatch" | "unavailable" | "not_configured" | "account_mismatch";
 
 export interface PassportProblem {
   tone: "warn" | "dng" | "info";
@@ -56,6 +110,12 @@ export function passportProblem(code: string | null): PassportProblem | null {
       return { tone: "warn", title: "That sign-in ran out of time", detail: "A Passport sign-in has to finish within ten minutes and can be used once. Continue with Passport again." };
     case "state_mismatch":
       return { tone: "dng", title: "That sign-in could not be confirmed", detail: "It did not start in this browser, or it was changed on the way back. Nothing was signed in. Start again from this page." };
+    case "account_mismatch":
+      return {
+        tone: "dng",
+        title: "This email is linked to a different Passport account",
+        detail: "An account here already uses this email with another Passport sign-in, so nobody was signed in. Sign in with your email below; if you did not expect this, contact support.",
+      };
     case "unavailable":
       return { tone: "warn", title: "Passport did not answer", detail: "This is usually brief. Try again in a moment, or sign in with your email below." };
     case "not_configured":

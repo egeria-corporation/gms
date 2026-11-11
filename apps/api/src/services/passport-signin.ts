@@ -7,7 +7,14 @@
 // callback URL cannot be planted in someone else's browser); the ID token is verified against
 // Passport's published keys for this client, this issuer and this nonce; and only an email Passport
 // marks verified selects an account. A matching account is signed in to (owner decision,
-// 2026-11-10: Passport's verified email is the same proof of control as the email code).
+// 2026-11-10: Passport's verified email is the same proof of control as the email code), but only
+// an account whose email was itself proven: an unconfirmed one is replaced, never adopted, and an
+// account already tied to a different Passport user is refused (ports.ts, `ensureUser`).
+//
+// The last hop is bound too. The web app makes a random value before it leaves for Passport, keeps
+// it in the tab, and sends it here; it is sealed in `state` and returned in the fragment next to
+// the one-time sign-in, and the web app redeems that only when the two match. A link carrying
+// someone else's sign-in therefore does nothing in a browser that did not start the flow.
 import {
   PassportApiError,
   PassportAuthError,
@@ -20,18 +27,21 @@ import {
   exchangeCode,
   type FetchLike,
 } from "@gms/passport-client";
-import { createLocalJWKSet, jwtVerify, type JSONWebKeySet } from "jose";
+import { createLocalJWKSet, decodeProtectedHeader, jwtVerify, type JSONWebKeySet } from "jose";
 import { b64url, timingSafeEqual } from "../auth/crypto.ts";
 import { audit, makeActor, type BaseContext, type ServiceContext } from "./context.ts";
 import { consentScopes, linkApplicantOrganization, readConsentedOrganization } from "./organization.ts";
+import { AccountMismatchError } from "./ports.ts";
 
 export const SIGNIN_COOKIE = "__Host-gms_passport_signin";
 const STATE_TTL_MS = 10 * 60 * 1000;
 /** A path in the web app: letters, digits, `_`, `-` and single slashes. Anything else is ignored. */
-const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}$/;
+export const RETURN_TO = /^\/(?!\/)[A-Za-z0-9_\-/]{0,200}$/;
+/** The web app's last-hop binding: base64url, long enough to be unguessable, short enough for a URL. */
+const HOP = /^[A-Za-z0-9_-]{22,128}$/;
 const CLOCK_SKEW_SEC = 60;
 
-export type SignInErrorCode = "cancelled" | "no_organization" | "email_unverified" | "expired" | "state_mismatch" | "unavailable" | "not_configured";
+export type SignInErrorCode = "cancelled" | "no_organization" | "email_unverified" | "expired" | "state_mismatch" | "unavailable" | "not_configured" | "account_mismatch";
 
 interface SealedSignIn {
   /** PKCE verifier */
@@ -42,6 +52,8 @@ interface SealedSignIn {
   b: string;
   /** Where to land in the web app */
   r: string | null;
+  /** Last-hop binding: made by the web app, echoed back to it in the fragment */
+  h: string;
   exp: number;
 }
 
@@ -57,11 +69,13 @@ export function safeReturnTo(raw: string | undefined | null): string | null {
 export type SignInStart = { ok: true; redirect: string; binding: string; maxAgeSeconds: number } | { ok: false; redirect: string; code: SignInErrorCode };
 
 /** Step 1: where to send the browser, and the binding value to set as a cookie. */
-export async function startSignIn(ctx: Pick<ServiceContext, "config" | "now" | "ports">, input: { returnTo?: string | null }): Promise<SignInStart> {
+export async function startSignIn(ctx: Pick<ServiceContext, "config" | "now" | "ports">, input: { returnTo?: string | null; hop?: string | null }): Promise<SignInStart> {
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
   if (!baseUrl || !key || !client || !ctx.ports.identity) return { ok: false, code: "not_configured", redirect: signInErrorRedirect(ctx, "not_configured") };
+  // A flow the web app did not start cannot be finished by it, so it is not started at all.
+  if (!input.hop || !HOP.test(input.hop)) return { ok: false, code: "state_mismatch", redirect: signInErrorRedirect(ctx, "state_mismatch") };
   const { verifier, challenge } = await createPkce();
-  const sealed: SealedSignIn = { v: verifier, n: random(), b: random(), r: safeReturnTo(input.returnTo), exp: ctx.now().getTime() + STATE_TTL_MS };
+  const sealed: SealedSignIn = { v: verifier, n: random(), b: random(), r: safeReturnTo(input.returnTo), h: input.hop, exp: ctx.now().getTime() + STATE_TTL_MS };
   const state = await encryptSecret(JSON.stringify(sealed), key);
   const redirect = buildAuthorizeUrl({ baseUrl, clientId: client.id, redirectUri: callbackUri(ctx), state, codeChallenge: challenge, nonce: sealed.n, scopes: [...SIGN_IN_SCOPES, ...consentScopes(ctx)] });
   return { ok: true, redirect, binding: sealed.b, maxAgeSeconds: STATE_TTL_MS / 1000 };
@@ -71,9 +85,20 @@ export async function startSignIn(ctx: Pick<ServiceContext, "config" | "now" | "
 const jwksCache = new Map<string, { at: number; keys: JSONWebKeySet }>();
 const JWKS_TTL_MS = 10 * 60 * 1000;
 
-async function passportJwks(ctx: Pick<ServiceContext, "config" | "now">, baseUrl: string): Promise<JSONWebKeySet> {
+/**
+ * Passport publishes every public key it signs with (attestations included). ID tokens are signed
+ * with the OAuth family, whose key ids start `oauth-`; when the set names any such key only those
+ * are kept, so a signature from another family can never verify here. A deployment that names its
+ * keys differently keeps the whole set (the audience, nonce and `typ` checks still apply).
+ */
+export function signInKeys(set: JSONWebKeySet): JSONWebKeySet {
+  const oauth = set.keys.filter((k) => typeof k.kid === "string" && k.kid.startsWith("oauth-"));
+  return oauth.length ? { keys: oauth } : set;
+}
+
+async function passportJwks(ctx: Pick<ServiceContext, "config" | "now">, baseUrl: string, opts: { fresh?: boolean } = {}): Promise<JSONWebKeySet> {
   const injected = ctx.config.passportFetch;
-  const cached = injected ? undefined : jwksCache.get(baseUrl);
+  const cached = injected || opts.fresh ? undefined : jwksCache.get(baseUrl);
   if (cached && ctx.now().getTime() - cached.at < JWKS_TTL_MS) return cached.keys;
   const doFetch: FetchLike = injected ?? (fetch as FetchLike);
   let res: Response;
@@ -84,8 +109,19 @@ async function passportJwks(ctx: Pick<ServiceContext, "config" | "now">, baseUrl
   }
   const body = (await res.json().catch(() => null)) as JSONWebKeySet | null;
   if (!res.ok || !body || !Array.isArray(body.keys)) throw new PassportUnavailableError("Passport's keys could not be fetched", res.status);
-  if (!injected) jwksCache.set(baseUrl, { at: ctx.now().getTime(), keys: body });
-  return body;
+  const keys = signInKeys(body);
+  if (!injected) jwksCache.set(baseUrl, { at: ctx.now().getTime(), keys });
+  return keys;
+}
+
+/** The key id an ID token names, without trusting anything else about it. */
+function kidOf(idToken: string): string | null {
+  try {
+    const kid = decodeProtectedHeader(idToken).kid;
+    return typeof kid === "string" ? kid : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface PassportIdentity {
@@ -97,12 +133,14 @@ export interface PassportIdentity {
 }
 
 /**
- * Verify Passport's ID token: ES256 signature against its published keys, issuer, audience (this
- * client), expiry, and the nonce this flow started with. Throws on any mismatch.
+ * Verify Passport's ID token: ES256 signature against its published keys, the `JWT` type (so no
+ * other kind of Passport token is accepted here), issuer, audience (this client), expiry, and the
+ * nonce this flow started with. Throws on any mismatch.
  */
 export async function verifyIdToken(idToken: string, opts: { keys: JSONWebKeySet; issuer: string; clientId: string; nonce: string; now: Date }): Promise<PassportIdentity> {
   const { payload } = await jwtVerify(idToken, createLocalJWKSet(opts.keys), {
     algorithms: ["ES256"],
+    typ: "JWT",
     issuer: opts.issuer,
     audience: opts.clientId,
     clockTolerance: CLOCK_SKEW_SEC,
@@ -139,7 +177,7 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   } catch {
     return fail("state_mismatch");
   }
-  if (!sealed.v || !sealed.n || !sealed.b || typeof sealed.exp !== "number") return fail("state_mismatch");
+  if (!sealed.v || !sealed.n || !sealed.b || typeof sealed.h !== "string" || !HOP.test(sealed.h) || typeof sealed.exp !== "number") return fail("state_mismatch");
   // The flow must finish in the browser that started it.
   if (!cookieBinding || !timingSafeEqual(cookieBinding, sealed.b)) return fail("state_mismatch");
   if (sealed.exp < ctx.now().getTime()) return fail("expired");
@@ -160,6 +198,9 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   let keys: JSONWebKeySet;
   try {
     keys = await passportJwks(ctx, baseUrl);
+    // Passport rotated its key since the set was cached: read it again, once.
+    const kid = kidOf(tokens.idToken);
+    if (kid && !keys.keys.some((k) => k.kid === kid)) keys = await passportJwks(ctx, baseUrl, { fresh: true });
   } catch {
     return fail("unavailable");
   }
@@ -192,13 +233,21 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
     }
   }
 
-  const { userId, created } = await identity.ensureUser(who.email, { passportUserId: who.passportUserId, name: who.name });
+  let account;
+  try {
+    account = await identity.ensureUser(who.email, { passportUserId: who.passportUserId, name: who.name });
+  } catch (e) {
+    // The email already belongs to an account tied to a different Passport user.
+    if (e instanceof AccountMismatchError) return fail("account_mismatch");
+    throw e;
+  }
+  const { userId, created } = account;
   const svc: ServiceContext = { ...ctx, actor: makeActor("user", userId, null), workspace: null, scopes: [] };
   const ws = org && read ? await linkApplicantOrganization(svc, { userId, tokens: org, read, workspaceHint: null, via: "passport_signin" }) : null;
   await audit(svc, "auth.passport_signin", "user", userId, { created, linkedOrganization: !!ws, acr: who.acr }, ws?.id);
 
   const signIn = await identity.signInToken(who.email);
   const next = sealed.r ?? (ws ? `/w/${ws.handle}` : null);
-  const fragment = new URLSearchParams({ token_hash: signIn.tokenHash, type: signIn.type, ...(next ? { next } : {}) });
+  const fragment = new URLSearchParams({ token_hash: signIn.tokenHash, type: signIn.type, hop: sealed.h, ...(next ? { next } : {}) });
   return { ok: true, userId, workspaceId: ws?.id ?? null, redirect: `${ctx.config.webBaseUrl}/auth/passport#${fragment.toString()}` };
 }

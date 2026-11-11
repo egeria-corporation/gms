@@ -203,6 +203,14 @@ export interface SignInToken {
   type: string;
 }
 
+/** The email already has an account tied to a different Passport user: nobody is signed in. */
+export class AccountMismatchError extends Error {
+  constructor() {
+    super("This email is linked to a different Passport user");
+    this.name = "AccountMismatchError";
+  }
+}
+
 /**
  * Accounts, for Sign in with Passport. The caller has already verified the person's email with
  * Passport's ID token; this port never checks who is asking.
@@ -210,7 +218,12 @@ export interface SignInToken {
 export interface IdentityPort {
   /** The account with this email, without creating one. */
   findByEmail(email: string): Promise<string | null>;
-  /** Find or create the account for a verified email, and record the Passport user id on it. */
+  /**
+   * Find or create the account for a verified email. An existing account is adopted only if its
+   * own email was proven: one that was never confirmed (anyone can start a sign-up for any address)
+   * is deleted and made afresh. The Passport user id is recorded on first use and is then fixed:
+   * a different Passport user presenting the same email throws {@link AccountMismatchError}.
+   */
   ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }>;
   signInToken(email: string): Promise<SignInToken>;
 }
@@ -221,7 +234,8 @@ export interface SupabaseIdentityLike {
   auth: {
     admin: {
       createUser(attrs: { email: string; email_confirm: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }): Promise<{ data: { user: { id: string } | null }; error: { message: string; code?: string; status?: number } | null }>;
-      updateUserById(id: string, attrs: { app_metadata?: Record<string, unknown>; email_confirm?: boolean }): Promise<{ error: { message: string } | null }>;
+      updateUserById(id: string, attrs: { app_metadata?: Record<string, unknown> }): Promise<{ error: { message: string } | null }>;
+      deleteUser(id: string): Promise<{ error: { message: string } | null }>;
       generateLink(params: { type: "magiclink"; email: string }): Promise<{ data: { properties?: { hashed_token?: string; verification_type?: string } | null }; error: { message: string } | null }>;
     };
   };
@@ -236,13 +250,33 @@ export class SupabaseIdentity implements IdentityPort {
     return typeof data === "string" && data ? data : null;
   }
 
+  /** The account for an email with what `ensureUser` decides on; null when there is none. */
+  private async account(email: string): Promise<{ id: string; confirmed: boolean; passportUserId: string | null } | null> {
+    const { data, error } = await this.client.rpc("gms_account_by_email", { p_email: email });
+    if (error) throw new Error(`Looking up the account failed: ${error.message}`);
+    const row = (Array.isArray(data) ? data[0] : data) as { id?: unknown; email_confirmed?: unknown; passport_user_id?: unknown } | null | undefined;
+    if (!row || typeof row.id !== "string" || !row.id) return null;
+    return { id: row.id, confirmed: row.email_confirmed === true, passportUserId: typeof row.passport_user_id === "string" && row.passport_user_id ? row.passport_user_id : null };
+  }
+
   async ensureUser(email: string, link: { passportUserId: string; name?: string | null }): Promise<{ userId: string; created: boolean }> {
-    const existing = await this.findByEmail(email);
+    const existing = await this.account(email);
+    if (existing?.confirmed) {
+      if (existing.passportUserId && existing.passportUserId !== link.passportUserId) throw new AccountMismatchError();
+      if (!existing.passportUserId) {
+        // First Passport sign-in for an account whose email was already proven here. The id goes
+        // in app metadata (server-controlled; it merges with what is there) and is never replaced.
+        const { error } = await this.client.auth.admin.updateUserById(existing.id, { app_metadata: { passport_user_id: link.passportUserId } });
+        if (error) throw new Error(`Linking the account failed: ${error.message}`);
+      }
+      return { userId: existing.id, created: false };
+    }
     if (existing) {
-      // Passport verified the address, so the account's email counts as confirmed; the Passport
-      // user id is kept in app metadata (server-controlled), which merges with what is there.
-      await this.client.auth.admin.updateUserById(existing, { app_metadata: { passport_user_id: link.passportUserId }, email_confirm: true });
-      return { userId: existing, created: false };
+      // Never confirmed: whoever started it did not prove the address, and it could not have been
+      // signed in to, so it holds nothing of the owner's. Confirming it in place would hand its
+      // creator whatever they set on it; it is removed and the owner gets a fresh account.
+      const { error } = await this.client.auth.admin.deleteUser(existing.id);
+      if (error) throw new Error(`Replacing the unconfirmed account failed: ${error.message}`);
     }
     const { data, error } = await this.client.auth.admin.createUser({
       email,
@@ -252,8 +286,8 @@ export class SupabaseIdentity implements IdentityPort {
     });
     if (data.user) return { userId: data.user.id, created: true };
     // Two sign-ins for a new person at once: the other one created the account.
-    const raced = await this.findByEmail(email);
-    if (raced) return { userId: raced, created: false };
+    const raced = await this.account(email);
+    if (raced?.confirmed && (!raced.passportUserId || raced.passportUserId === link.passportUserId)) return { userId: raced.id, created: false };
     throw new Error(`Creating the account failed: ${error?.message ?? "no user returned"}`);
   }
 
@@ -266,21 +300,25 @@ export class SupabaseIdentity implements IdentityPort {
 }
 
 export class MemoryIdentity implements IdentityPort {
-  /** email (lower case) → account. */
-  readonly users = new Map<string, { userId: string; passportUserId: string | null }>();
+  /** email (lower case) → account. `confirmed: false` is a sign-up nobody proved. */
+  readonly users = new Map<string, { userId: string; passportUserId: string | null; confirmed?: boolean }>();
   readonly issued: { email: string; tokenHash: string }[] = [];
+  /** Accounts removed because they were never confirmed. */
+  readonly deleted: string[] = [];
   async findByEmail(email: string): Promise<string | null> {
     return this.users.get(email.trim().toLowerCase())?.userId ?? null;
   }
   async ensureUser(email: string, link: { passportUserId: string }): Promise<{ userId: string; created: boolean }> {
     const key = email.trim().toLowerCase();
     const existing = this.users.get(key);
-    if (existing) {
+    if (existing && existing.confirmed !== false) {
+      if (existing.passportUserId && existing.passportUserId !== link.passportUserId) throw new AccountMismatchError();
       existing.passportUserId = link.passportUserId;
       return { userId: existing.userId, created: false };
     }
+    if (existing) this.deleted.push(existing.userId);
     const userId = crypto.randomUUID();
-    this.users.set(key, { userId, passportUserId: link.passportUserId });
+    this.users.set(key, { userId, passportUserId: link.passportUserId, confirmed: true });
     return { userId, created: true };
   }
   async signInToken(email: string): Promise<SignInToken> {

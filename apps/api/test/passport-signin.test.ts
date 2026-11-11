@@ -5,7 +5,7 @@
 import { fixtureFetch, type Fixture } from "@gms/passport-client";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { SIGNIN_COOKIE, safeReturnTo } from "../src/services/passport-signin.ts";
+import { SIGNIN_COOKIE, safeReturnTo, signInKeys } from "../src/services/passport-signin.ts";
 import { PASSPORT, USER_OFFICER, WEB, WS_APPLICANT, harness, type Harness } from "./helpers.ts";
 import { ALDER_ORG, ALDER_PROFILE, ORG_ALDER } from "./scenario.ts";
 
@@ -35,6 +35,9 @@ const JWKS: Fixture = { method: "GET", path: "/.well-known/jwks.json", status: 2
 const ORG: Fixture = { method: "GET", path: `/common-grants/orgs/${ORG_ALDER}`, status: 200, body: env(ALDER_ORG) };
 const PROFILE: Fixture = { method: "GET", path: `/passport/orgs/${ORG_ALDER}/profile`, status: 200, body: env(ALDER_PROFILE) };
 
+/** The value the web app makes in the tab before leaving for Passport. */
+const HOP = "tab-value-made-by-the-web-app-0123456789_-A";
+
 interface Flow {
   location: URL;
   state: string;
@@ -43,17 +46,17 @@ interface Flow {
 }
 
 async function start(returnTo?: string): Promise<Flow> {
-  const res = await h.request(`/gms/passport/signin/start${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`);
+  const res = await h.request(`/gms/passport/signin/start?hop=${HOP}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`);
   expect(res.status).toBe(302);
   const location = new URL(res.headers.get("Location")!);
   const setCookie = res.headers.get("Set-Cookie") ?? "";
   return { location, state: location.searchParams.get("state") ?? "", nonce: location.searchParams.get("nonce") ?? "", cookie: setCookie.split(";")[0] ?? "" };
 }
 
-async function idToken(flow: Flow, over: Record<string, unknown> = {}, opts: { key?: CryptoKey; kid?: string } = {}) {
+async function idToken(flow: Flow, over: Record<string, unknown> = {}, opts: { key?: CryptoKey; kid?: string; typ?: string } = {}) {
   const iat = Math.floor(h.clock.now.getTime() / 1000);
   return new SignJWT({ iss: PASSPORT, aud: CLIENT, sub: PASSPORT_USER, iat, exp: iat + 300, nonce: flow.nonce, email: EMAIL, email_verified: true, acr: "aal2", ...over })
-    .setProtectedHeader({ alg: "ES256", kid: opts.kid ?? KID, typ: "JWT" })
+    .setProtectedHeader({ alg: "ES256", kid: opts.kid ?? KID, typ: opts.typ ?? "JWT" })
     .sign(opts.key ?? signingKey);
 }
 
@@ -98,7 +101,7 @@ const expectRefused = async (r: Awaited<ReturnType<typeof callback>>, code: stri
 
 describe("starting a Passport sign-in", () => {
   it("sends the browser to Passport with PKCE, a nonce, sign-in and organization scopes, and binds the flow to this browser", async () => {
-    const res = await h.request("/gms/passport/signin/start?returnTo=/w/alder-creek/applications");
+    const res = await h.request(`/gms/passport/signin/start?hop=${HOP}&returnTo=/w/alder-creek/applications`);
     const url = new URL(res.headers.get("Location")!);
     expect(url.origin + url.pathname).toBe(`${PASSPORT}/oauth/authorize`);
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
@@ -113,19 +116,29 @@ describe("starting a Passport sign-in", () => {
     expect(cookie).toMatch(new RegExp(`^${SIGNIN_COOKIE}=[A-Za-z0-9_-]{43}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax$`));
     // Neither the binding nor the PKCE verifier is readable from the URL.
     expect(url.toString()).not.toContain(cookie.split("=")[1]!.split(";")[0]!);
+    // Nor is the web app's own value: it travels sealed inside `state`.
+    expect(url.toString()).not.toContain(HOP);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("does not start a flow the web app could not finish: no value from the tab, or a malformed one", async () => {
+    for (const hop of ["", "?hop=short", `?hop=${"a".repeat(200)}`, "?hop=has%20space%20and%2Fslash-0123456789abcdef"]) {
+      const res = await h.request(`/gms/passport/signin/start${hop}`);
+      expect(res.headers.get("Location")).toBe(`${WEB}/signin?passport_error=state_mismatch`);
+      expect(res.headers.get("Set-Cookie")).toBeNull();
+    }
   });
 
   it("says so when Passport sign-in is not configured", async () => {
     delete h.env.PASSPORT_GMS_CLIENT_SECRET;
-    const res = await h.request("/gms/passport/signin/start");
+    const res = await h.request(`/gms/passport/signin/start?hop=${HOP}`);
     expect(res.headers.get("Location")).toBe(`${WEB}/signin?passport_error=not_configured`);
     expect(res.headers.get("Set-Cookie")).toBeNull();
   });
 
   it("only honors a plain path in the web app as the return address", () => {
     expect(safeReturnTo("/w/alder-creek/applications")).toBe("/w/alder-creek/applications");
-    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/a//b", "/w/x?next=https://evil.example", "/w/x#frag", "javascript:alert(1)", "w/x", "/" + "a".repeat(300), "", undefined]) {
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a//b", "/w/x?next=https://evil.example", "/w/x#frag", "javascript:alert(1)", "w/x", "/" + "a".repeat(300), "", undefined]) {
       expect(safeReturnTo(bad)).toBeNull();
     }
   });
@@ -161,6 +174,8 @@ describe("finishing a Passport sign-in", () => {
     expect(r.res.headers.get("Set-Cookie")).toMatch(new RegExp(`^${SIGNIN_COOKIE}=; Path=/; Max-Age=0;`));
     expect(r.res.headers.get("Cache-Control")).toBe("no-store");
     expect(r.res.headers.get("Referrer-Policy")).toBe("no-referrer");
+    // The tab's own value comes back next to the one-time sign-in, for the web app to compare.
+    expect(r.fragment.get("hop")).toBe(HOP);
   });
 
   it("signs in to the existing account when the verified email matches one (owner decision)", async () => {
@@ -173,6 +188,40 @@ describe("finishing a Passport sign-in", () => {
     expect(h.identity.users.get(EMAIL)).toEqual({ userId: USER_OFFICER, passportUserId: PASSPORT_USER });
     const ws = (await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER }))!;
     expect(await h.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: USER_OFFICER })).toBeTruthy();
+  });
+
+  it("replaces an account nobody ever confirmed instead of adopting it: a stranger's sign-up for this email gets nothing", async () => {
+    const STRANGERS = "99999999-9999-4999-8999-999999999999";
+    h.identity.users.set(EMAIL, { userId: STRANGERS, passportUserId: null, confirmed: false });
+    const flow = await start();
+    passport(await idToken(flow));
+    const r = await callback(flow);
+    expect(r.error).toBeNull();
+    const account = h.identity.users.get(EMAIL)!;
+    expect(account.userId).not.toBe(STRANGERS);
+    expect(account).toMatchObject({ confirmed: true, passportUserId: PASSPORT_USER });
+    expect(h.identity.deleted).toEqual([STRANGERS]);
+    // The workspace belongs to the new account, never to the one the stranger made.
+    const ws = (await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER }))!;
+    expect(await h.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: account.userId })).toBeTruthy();
+    expect(await h.repos.table("workspace_members").count({ user_id: STRANGERS })).toBe(0);
+  });
+
+  it("keeps an account tied to the Passport user it was first linked with", async () => {
+    h.identity.users.set(EMAIL, { userId: USER_OFFICER, passportUserId: PASSPORT_USER });
+    // The same Passport user again: signed in.
+    let flow = await start();
+    passport(await idToken(flow));
+    expect((await callback(flow)).error).toBeNull();
+    // A different Passport user presenting the same verified email: nobody is signed in, nothing is linked or changed.
+    const issued = h.identity.issued.length;
+    flow = await start();
+    passport(await idToken(flow, { sub: "8b8b8b8b-8b8b-48b8-88b8-8b8b8b8b8b8b" }));
+    const r = await callback(flow);
+    expect(r.error).toBe("account_mismatch");
+    expect(r.location.hash).toBe("");
+    expect(h.identity.issued).toHaveLength(issued);
+    expect(h.identity.users.get(EMAIL)).toMatchObject({ userId: USER_OFFICER, passportUserId: PASSPORT_USER });
   });
 
   it("signs in a person who approved no organization when they already belong to a workspace, without linking", async () => {
@@ -215,6 +264,10 @@ describe("what the callback refuses", () => {
       (f) => idToken(f, { nonce: "someone-elses-nonce" }),
       (f) => idToken(f, { nonce: undefined }),
       (f) => idToken(f, { iat: iat() - 7200, exp: iat() - 3600 }),
+      // Another kind of Passport token (an access token is `at+jwt`), even correctly signed for this client.
+      (f) => idToken(f, {}, { typ: "at+jwt" }),
+      // Signed by a key Passport does not publish under that id.
+      (f) => idToken(f, {}, { kid: "oauth-unknown" }),
       async (f) => `${btoa(JSON.stringify({ alg: "none", typ: "JWT" }))}.${btoa(JSON.stringify({ iss: PASSPORT, aud: CLIENT, sub: PASSPORT_USER, nonce: f.nonce, email: EMAIL, email_verified: true, exp: iat() + 300, iat: iat() }))}.`,
       async () => "not-a-token",
     ];
@@ -225,6 +278,23 @@ describe("what the callback refuses", () => {
     }
     expect(h.identity.users.size).toBe(0);
     expect(await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER })).toBeNull();
+  });
+
+  it("a token signed by a Passport key outside the sign-in family, such as the attestation key", async () => {
+    const attest = await generateKeyPair("ES256", { extractable: true });
+    const attestJwk: JWK = { ...(await exportJWK(attest.publicKey)), kid: "attest-passport-test", alg: "ES256", use: "sig" };
+    const flow = await start();
+    // Passport really publishes this key, and the token is otherwise perfect.
+    h.passport.fetch = fixtureFetch([
+      { method: "POST", path: "/oauth/token", status: 200, body: { access_token: fakeJwt({ "https://commongrants.org/org_id": ORG_ALDER }), expires_in: 900, scope: "org:read openid email", refresh_token: "rt", id_token: await idToken(flow, {}, { key: attest.privateKey, kid: "attest-passport-test" }) } },
+      { ...JWKS, body: { keys: [publicJwk, attestJwk] } },
+      ORG,
+      PROFILE,
+    ]).fetch;
+    await expectRefused(await callback(flow), "state_mismatch");
+    // The filter itself: sign-in keys only when the set names any; the whole set otherwise.
+    expect(signInKeys({ keys: [publicJwk, attestJwk] }).keys.map((k) => k.kid)).toEqual([KID]);
+    expect(signInKeys({ keys: [attestJwk] }).keys.map((k) => k.kid)).toEqual(["attest-passport-test"]);
   });
 
   it("an answer with no ID token at all", async () => {
@@ -313,10 +383,26 @@ describe("what the callback refuses", () => {
   });
 
   it("more than thirty attempts from one address in ten minutes", async () => {
-    const hit = () => h.request("/gms/passport/signin/start", { headers: { "CF-Connecting-IP": "203.0.113.9" } });
+    const from = (headers: Record<string, string>) => h.request(`/gms/passport/signin/start?hop=${HOP}`, { headers });
+    const hit = () => from({ "CF-Connecting-IP": "203.0.113.9" });
     for (let i = 0; i < 30; i++) expect(new URL((await hit()).headers.get("Location")!).origin).toBe(PASSPORT);
     expect((await hit()).headers.get("Location")).toBe(`${WEB}/signin?passport_error=unavailable`);
     // Another address is unaffected.
-    expect(new URL((await h.request("/gms/passport/signin/start", { headers: { "CF-Connecting-IP": "203.0.113.10" } })).headers.get("Location")!).origin).toBe(PASSPORT);
+    expect(new URL((await from({ "CF-Connecting-IP": "203.0.113.10" })).headers.get("Location")!).origin).toBe(PASSPORT);
+    // So is the callback for the same address: the two routes are counted apart, so starting
+    // thirty sign-ins cannot stop the one that is coming back.
+    const flow = await start();
+    passport(await idToken(flow));
+    const res = await h.request(`/gms/passport/signin/callback?${new URLSearchParams({ code: "the-code", state: flow.state })}`, { headers: { Cookie: flow.cookie, "CF-Connecting-IP": "203.0.113.9" } });
+    expect(new URL(res.headers.get("Location")!).pathname).toBe("/auth/passport");
+    // Behind another proxy the first forwarded address is the one counted.
+    for (let i = 0; i < 30; i++) await from({ "X-Forwarded-For": "198.51.100.7, 10.0.0.1" });
+    expect((await from({ "X-Forwarded-For": "198.51.100.7, 10.0.0.2" })).headers.get("Location")).toBe(`${WEB}/signin?passport_error=unavailable`);
+    expect(new URL((await from({ "X-Forwarded-For": "198.51.100.8" })).headers.get("Location")!).origin).toBe(PASSPORT);
+  });
+
+  it("requests with no network address at all share one large allowance, not one person's", async () => {
+    // Forty with no address (more than a person's thirty) still go through.
+    for (let i = 0; i < 40; i++) expect(new URL((await h.request(`/gms/passport/signin/start?hop=${HOP}`)).headers.get("Location")!).origin).toBe(PASSPORT);
   });
 });

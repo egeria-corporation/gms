@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useServices } from "../app/services.tsx";
-import { passportBrowser, passportSignInUrl } from "../lib/passportSignIn.ts";
+import { beginPassportHop, passportBrowser, passportSignInUrl } from "../lib/passportSignIn.ts";
 
 export function PassportButton({ returnTo = null, className = "btn btn-cta btn-lg", children }: { returnTo?: string | null; className?: string; children?: ReactNode }) {
   const { mock } = useServices();
@@ -13,8 +13,15 @@ export function PassportButton({ returnTo = null, className = "btn btn-cta btn-l
   const [busy, setBusy] = useState(false);
   const go = () => {
     if (busy) return;
+    // This tab's value for the trip; the return page redeems the sign-in only if it comes back.
+    const hop = beginPassportHop();
+    if (!hop) {
+      // No session storage (blocked by the browser): the trip could not be finished safely.
+      navigate("/signin?passport_error=state_mismatch", { replace: true });
+      return;
+    }
     setBusy(true);
-    const url = passportSignInUrl(returnTo, mock);
+    const url = passportSignInUrl(returnTo, mock, hop);
     if (mock) navigate(url);
     else passportBrowser.go(url);
   };
