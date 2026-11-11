@@ -24,3 +24,6 @@ supabase/.temp
 # generated front Worker (scripts/build-front-worker.mjs) and session-only wrangler configs
 apps/web/.front-worker/
 wrangler.session.toml
+
+# the built app the end-to-end flows run against
+.e2e-dist/

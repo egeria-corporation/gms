@@ -16,6 +16,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
+import { useServices } from "../../app/services.tsx";
 import { FundingAlerts } from "./fundingAlerts.tsx";
 
 type Tab = "here" | "index" | "saved" | "alerts";
@@ -276,6 +277,10 @@ export default function FindFunding() {
   // Funding search across OpenGrants exists only where the server is set up for it. Unknown
   // (still loading) counts as available, so the tab does not flicker.
   const indexAvailable = useAppConfig().available?.openGrants !== false;
+  // Alerts are created on opengrants.io: the OpenGrants REST API this server uses has no endpoint
+  // for them, so the tab is offered only in the mock, where the demo data answers.
+  const { mock } = useServices();
+  const alertsAvailable = indexAvailable && mock;
   // Arriving from "Apply" on a public opportunity page: show that opportunity first.
   const [params] = useSearchParams();
   const [wanted] = useState(() => wantedFrom(params));
@@ -336,7 +341,7 @@ export default function FindFunding() {
                     { key: "here", label: "Open here", count: competitions.length },
                     ...(indexAvailable ? [{ key: "index" as const, label: "OpenGrants index" }] : []),
                     { key: "saved", label: "Saved", count: saved.length },
-                    ...(indexAvailable ? [{ key: "alerts" as const, label: "Alerts" }] : []),
+                    ...(alertsAvailable ? [{ key: "alerts" as const, label: "Alerts" }] : []),
                   ]}
                 />
                 {start.error ? <ErrorBanner error={start.error} title="The application could not be started" /> : null}

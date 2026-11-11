@@ -20,11 +20,14 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     viewport: { width: 1440, height: 900 },
   },
+  // A built app, not the dev server. The dev server reloads the page the first time it has to
+  // optimize a dependency it had not seen; a reload mid-flow wipes typed input and the in-page mock
+  // state, which is how "applicant applies" used to fail on a cold run. A build cannot do that.
   webServer: {
-    command: `pnpm exec vite --port ${PORT} --strictPort`,
+    command: `pnpm exec vite build --outDir .e2e-dist --logLevel warn && pnpm exec vite preview --outDir .e2e-dist --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     env: { VITE_USE_MOCKS: "true" },
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    timeout: 120_000,
   },
 });
