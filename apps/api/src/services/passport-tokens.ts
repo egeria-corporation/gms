@@ -9,7 +9,10 @@
 //
 //   1. The access token is kept in this isolate's memory until shortly before it expires, so most
 //      requests spend no refresh token at all.
-//   2. Within an isolate, concurrent callers for one link share a single refresh.
+//   2. Within one request, concurrent callers for one link share a single refresh. Requests do not
+//      share a pending refresh: on Workers a promise belongs to the request that created it, and
+//      if that request is cancelled the others would wait on it for good. Two requests that both
+//      refresh are covered by 3 and by Passport forgiving a token presented twice within seconds.
 //   3. Across isolates, the write-back is a compare-and-swap on the ciphertext that was read. A
 //      request that loses keeps its access token (still valid) and leaves the winner's refresh
 //      token stored; a refused refresh re-reads the row once and retries with what is there now.
@@ -26,14 +29,12 @@ interface Cached {
 }
 
 const cache = new Map<string, Cached>();
-const inFlight = new Map<string, Promise<string>>();
 /** Hand a token out only while it has at least this long to live. */
 const SKEW_MS = 60_000;
 
-/** Test hook: forget every cached token and pending refresh. */
+/** Test hook: forget every cached token. */
 export function clearPassportTokenCache(): void {
   cache.clear();
-  inFlight.clear();
 }
 
 type Ctx = Pick<ServiceContext, "repos" | "now" | "config">;
@@ -55,21 +56,31 @@ async function refresh(ctx: Ctx, linkId: string, opts: { baseUrl: string; client
     spent = link.refresh_token_enc;
     tokens = await exchangeRefreshToken({ ...opts, refreshToken: await decryptSecret(spent, opts.key) });
   }
+  // Keep the access token before the write-back, so a failed write does not throw it away.
+  cache.set(linkId, { token: tokens.accessToken, goodUntil: ctx.now().getTime() + tokens.expiresIn * 1000 - SKEW_MS });
   if (tokens.refreshToken) {
     // Store the new refresh token only if the row still holds the one just spent. Losing the swap
     // means another request already stored a live token; the access token in hand is still good.
-    await ctx.repos.table("passport_links").update({ id: linkId, refresh_token_enc: spent }, { refresh_token_enc: await encryptSecret(tokens.refreshToken, opts.key) });
+    // A write that fails is tried once more: the row would otherwise keep a spent token.
+    const next = await encryptSecret(tokens.refreshToken, opts.key);
+    const write = () => ctx.repos.table("passport_links").update({ id: linkId, refresh_token_enc: spent }, { refresh_token_enc: next });
+    try {
+      await write();
+    } catch {
+      await write();
+    }
   }
-  cache.set(linkId, { token: tokens.accessToken, goodUntil: ctx.now().getTime() + tokens.expiresIn * 1000 - SKEW_MS });
   return tokens.accessToken;
 }
 
 /**
- * A token provider for one `passport_links` row (an applicant's consent). Create it per request;
- * the cache and the single-flight are shared by every provider for the same link in this isolate.
+ * A token provider for one `passport_links` row (an applicant's consent). Create it per request:
+ * the cache is shared by every provider for the same link in this isolate, the pending refresh is
+ * this provider's own.
  */
 export function consentTokens(ctx: Ctx, linkId: string, opts: { baseUrl: string; clientId: string; clientSecret: string; key: string }): TokenProvider {
   const withFetch = { ...opts, ...(ctx.config.passportFetch ? { fetch: ctx.config.passportFetch } : {}) };
+  let pending: Promise<string> | undefined;
   return {
     invalidate() {
       cache.delete(linkId);
@@ -77,13 +88,9 @@ export function consentTokens(ctx: Ctx, linkId: string, opts: { baseUrl: string;
     getToken() {
       const hit = cache.get(linkId);
       if (hit && ctx.now().getTime() < hit.goodUntil) return Promise.resolve(hit.token);
-      let pending = inFlight.get(linkId);
-      if (!pending) {
-        pending = refresh(ctx, linkId, withFetch).finally(() => {
-          inFlight.delete(linkId);
-        });
-        inFlight.set(linkId, pending);
-      }
+      pending ??= refresh(ctx, linkId, withFetch).finally(() => {
+        pending = undefined;
+      });
       return pending;
     },
   };

@@ -51,24 +51,65 @@ const stored = async () => decryptSecret((await h.repos.table("passport_links").
 const ctx = (fetch: FetchLike) => ({ repos: h.repos, now: () => h.clock.now, config: { passportFetch: fetch } }) as unknown as Parameters<typeof consentTokens>[0];
 
 describe("requests through the API", () => {
-  it("a page's parallel requests spend the refresh token once and leave the link working", async () => {
-    const p = strictPassport();
+  it("a page's parallel requests leave the link working", async () => {
+    // Each request refreshes for itself (requests never wait on each other's promises), so
+    // Passport sees rt-1 several times within a moment and forgives it, as the real one does.
+    const p = strictPassport({ forgiveReplay: true });
     h.passport.fetch = p.fetch;
     const who = { ...bearer(await h.session(USER_OFFICER)).headers, "X-GMS-Workspace": WS_APPLICANT };
     const answers = await Promise.all(Array.from({ length: 8 }, () => h.request("/gms/me/documents", { headers: who })));
     expect(answers.map((r) => r.status)).toEqual(Array(8).fill(200));
-    expect(p.state.tokenCalls).toBe(1);
     expect(p.state.revoked).toBe(false);
-    expect(await stored()).toBe("rt-2");
+    // Only rt-1 was ever presented, and exactly one of the answers was stored.
+    expect(new Set(p.state.presented)).toEqual(new Set(["rt-1"]));
+    const kept = await stored();
+    expect(p.state.live.has(kept)).toBe(true);
     expect(await h.repos.table("passport_links").count({ id: linkId, revoked_at: null })).toBe(1);
 
     // Later requests reuse the access token; nothing is spent until it is close to expiring.
+    const calls = p.state.tokenCalls;
     expect((await h.request("/gms/me/documents", { headers: who })).status).toBe(200);
-    expect(p.state.tokenCalls).toBe(1);
+    expect(p.state.tokenCalls).toBe(calls);
     h.clock.now = new Date(h.clock.now.getTime() + 9 * 60_000 + 1000);
     expect((await h.request("/gms/me/documents", { headers: who })).status).toBe(200);
-    expect(p.state.tokenCalls).toBe(2);
-    expect(await stored()).toBe("rt-3");
+    expect(p.state.tokenCalls).toBe(calls + 1);
+    expect(p.state.presented.at(-1)).toBe(kept);
+    expect(p.state.revoked).toBe(false);
+  });
+
+  it("concurrent callers within one request share a single refresh", async () => {
+    const p = strictPassport();
+    const tokens = consentTokens(ctx(p.fetch), linkId, OPTS);
+    expect(await Promise.all([tokens.getToken(), tokens.getToken(), tokens.getToken()])).toEqual(["at-2", "at-2", "at-2"]);
+    expect(p.state.tokenCalls).toBe(1);
+    expect(await stored()).toBe("rt-2");
+  });
+
+  it("a write-back that fails once is retried, and the access token is kept", async () => {
+    const p = strictPassport();
+    const table = h.repos.table.bind(h.repos);
+    let failed = false;
+    const repos = {
+      table: (name: string) => {
+        const t = table(name as "passport_links");
+        if (name !== "passport_links") return t;
+        return new Proxy(t, {
+          get(target, prop, receiver) {
+            if (prop === "update" && !failed) {
+              return async () => {
+                failed = true;
+                throw new Error("write failed");
+              };
+            }
+            return Reflect.get(target, prop, receiver) as unknown;
+          },
+        });
+      },
+    };
+    const c = { repos, now: () => h.clock.now, config: { passportFetch: p.fetch } } as unknown as Parameters<typeof consentTokens>[0];
+    expect(await consentTokens(c, linkId, OPTS).getToken()).toBe("at-2");
+    expect(failed).toBe(true);
+    expect(await stored()).toBe("rt-2");
   });
 });
 
