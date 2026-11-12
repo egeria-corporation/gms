@@ -2,7 +2,7 @@
 // verify: the instance answers as it should, then a sign-in code goes to the operator.
 import type { Ctx, Result } from "../core.ts";
 import { confirmOrDry, isResult, loadState, patchState, requireConfig, res } from "../core.ts";
-import { Supabase, supabaseToken } from "../supabase-api.ts";
+import { KEYS_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
 import { LOGIN_MESSAGE } from "./supabase.ts";
 
 interface Check {
@@ -61,6 +61,8 @@ export async function verify(ctx: Ctx): Promise<Result> {
 
   if (ctx.dryRun) return res("ok", `Dry run. Would check ${url} and send a sign-in code to ${config.email}.`, { dryRun: true }, null);
   const checks = await runChecks(ctx, url);
+  // A project that signs sessions with its legacy secret breaks sign-in without SUPABASE_JWT_SECRET on the API Worker.
+  if (state.supabase?.legacySigning && !(state.secrets?.api ?? []).includes("SUPABASE_JWT_SECRET")) checks.push({ name: "session signing", ok: false, detail: "this Supabase project signs sessions with its legacy secret but SUPABASE_JWT_SECRET is not set on the API Worker; run the secrets step" });
   const failed = checks.filter((c) => !c.ok);
   const record = (extra: Check[]) => patchState(ctx, { verify: { at: ctx.now().toISOString(), ok: [...checks, ...extra].every((c) => c.ok), checks: [...checks, ...extra] } });
   if (failed.length) {
@@ -73,7 +75,7 @@ export async function verify(ctx: Ctx): Promise<Result> {
   const token = supabaseToken(ctx);
   if (!token) return res("needs_login", LOGIN_MESSAGE, {}, null);
   const keys = await new Supabase(ctx, token).keys(ref);
-  if (!keys) return res("error", "Could not read the Supabase API keys.", { checks }, null);
+  if (!keys) return res("error", KEYS_MESSAGE, { checks }, null);
   const r = await ctx.fetch(`${state.supabase.url}/auth/v1/otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: keys.anon },

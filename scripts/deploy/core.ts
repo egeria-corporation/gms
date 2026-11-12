@@ -72,7 +72,7 @@ export function flagStr(ctx: Ctx, name: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
-const BOOLEAN_FLAGS = new Set(["yes", "dry-run", "rotate", "force", "help"]);
+const BOOLEAN_FLAGS = new Set(["yes", "dry-run", "rotate-keys", "force", "help", "adopt-existing", "replace-dns", "allow-existing-tables"]);
 export function parseArgs(argv: string[]): { positional: string[]; flags: Flags } {
   const positional: string[] = [];
   const flags: Flags = {};

@@ -2,7 +2,7 @@
 // supabase: create (or adopt) the project and wait until it is healthy. Only the ref and URL are stored.
 import type { Ctx, Result } from "../core.ts";
 import { confirmOrDry, flagStr, isResult, loadState, patchState, requireConfig, res } from "../core.ts";
-import { apiMessage, isActiveProject, LOGIN_MESSAGE, projectRef, Supabase, supabaseToken, TERMINAL_STATUSES } from "../supabase-api.ts";
+import { apiMessage, isActiveProject, KEYS_MESSAGE, LOGIN_MESSAGE, projectRef, Supabase, supabaseToken, TERMINAL_STATUSES } from "../supabase-api.ts";
 
 export { LOGIN_MESSAGE };
 const FREE_PLAN_LIMIT = 2;
@@ -54,7 +54,7 @@ export async function supabase(ctx: Ctx): Promise<Result> {
     if (ctx.dryRun) return res("ok", `Dry run. Would adopt project ${adopt} and record its address.`, { dryRun: true }, "migrate");
     const status = r.body.status === "ACTIVE_HEALTHY" ? r.body.status : await waitHealthy(ctx, api, adopt);
     if (status !== "ACTIVE_HEALTHY") return res("error", `The project is ${status}, not healthy yet. Re-run in a few minutes.`, {}, "supabase");
-    if (!(await api.keys(adopt))) return res("error", "The project is healthy but its API keys could not be read with this token.", {}, null);
+    if (!(await api.keys(adopt))) return res("error", KEYS_MESSAGE, {}, null);
     patchState(ctx, { supabase: { ref: adopt, url: `https://${adopt}.supabase.co`, region: config.region, adopted: true } });
     return res("ok", `Adopted the existing Supabase project ${adopt}.`, { ref: adopt, url: `https://${adopt}.supabase.co` }, "migrate");
   }
@@ -112,6 +112,6 @@ export async function supabase(ctx: Ctx): Promise<Result> {
 
   const status = await waitHealthy(ctx, api, ref);
   if (status !== "ACTIVE_HEALTHY") return res("error", `The project was created (${ref}) but is still ${status}. Re-run this step to keep waiting.`, { ref }, "supabase");
-  if (!(await api.keys(ref))) return res("error", "The project is healthy but its API keys could not be read.", { ref }, null);
+  if (!(await api.keys(ref))) return res("error", KEYS_MESSAGE, { ref }, null);
   return res("ok", `Created the Supabase project ${ref} and it is healthy.`, { ref, url: `https://${ref}.supabase.co` }, "migrate");
 }

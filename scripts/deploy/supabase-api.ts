@@ -67,6 +67,18 @@ export class Supabase {
     const service = r.body.find((k) => k.name === "service_role")?.api_key;
     return anon && service ? { anon, service } : null;
   }
+  /** The signing keys the project uses for sessions, or null when the endpoint cannot be read. */
+  async signingKeys(ref: string): Promise<{ algorithm?: string; status?: string }[] | null> {
+    const r = await this.call<{ keys?: { algorithm?: string; status?: string }[] } | { algorithm?: string; status?: string }[]>("GET", `/projects/${ref}/config/auth/signing-keys`);
+    if (r.status !== 200) return null;
+    const list = Array.isArray(r.body) ? r.body : (r.body as { keys?: unknown[] })?.keys;
+    return Array.isArray(list) ? (list as { algorithm?: string; status?: string }[]) : null;
+  }
+  /** The legacy HS256 JWT secret, registered as a secret. */
+  async jwtSecret(ref: string): Promise<string | null> {
+    const r = await this.call<{ jwt_secret?: string }>("GET", `/projects/${ref}/postgrest`);
+    return r.status === 200 && r.body?.jwt_secret ? reveal(this.ctx, r.body.jwt_secret) : null;
+  }
   query<T = any>(ref: string, query: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
     return this.call<T[] | { message?: string }>("POST", `/projects/${ref}/database/query`, { query });
   }
@@ -82,3 +94,5 @@ export function apiMessage(body: unknown): string {
   if (body && typeof body === "object" && "message" in body) return String((body as { message: unknown }).message).slice(0, 300);
   return typeof body === "string" ? body.slice(0, 300) : "no message";
 }
+
+export const KEYS_MESSAGE = "Could not read the project's anon and service_role API keys. If the project's legacy keys are turned off, turn them on again in the Supabase dashboard (Project Settings, API Keys, Legacy): this version of the GMS needs them.";

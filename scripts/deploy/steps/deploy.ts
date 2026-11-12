@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Ctx, Result } from "../core.ts";
 import { brief, confirmOrDry, isResult, loadState, names, patchState, requireConfig, res } from "../core.ts";
-import { Supabase, supabaseToken } from "../supabase-api.ts";
+import { KEYS_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
 import { LOGIN_MESSAGE } from "./supabase.ts";
 
 export async function currentVersion(ctx: Ctx): Promise<{ version: string; commit: string }> {
@@ -49,7 +49,7 @@ export async function deploy(ctx: Ctx): Promise<Result> {
     return r.code === 0 ? null : res("error", `${label} failed: ${brief(ctx, r)}`, { stage: label }, "deploy");
   };
   const keys = await new Supabase(ctx, token).keys(state.supabase.ref);
-  if (!keys) return res("error", "Could not read the Supabase API keys.", {}, null);
+  if (!keys) return res("error", KEYS_MESSAGE, {}, null);
 
   const wrangler = (app: string, config_: string) => ["--filter", app, "exec", "wrangler", "deploy", "--config", config_];
   const stages: [string, string, string[], Record<string, string>?][] = [

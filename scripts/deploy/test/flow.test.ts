@@ -306,7 +306,9 @@ describe("secrets", () => {
     expect(part.r.data?.jobs).toEqual(["WEBHOOK_SECRET_KEY"]);
     expect(f.calls.filter((c) => c.args.includes("put")).length - putsBefore).toBe(1);
     expect(readFileSync(rec, "utf8")).toBe(before); // the same value is reused, so the file is unchanged
-    const rot = await f.step("secrets", "--rotate", "--recovery-file", rec);
+    expect((await f.step("secrets", "--rotate", "--recovery-file", rec)).r.code).toBe("needs_input");
+    expect((await f.step("secrets", "--rotate", "WEBHOOK_SECRET_KEY", "--recovery-file", rec)).r.code).toBe("needs_input");
+    const rot = await f.step("secrets", "--rotate", "WEBHOOK_SECRET_KEY", "--rotate-keys", "--recovery-file", rec);
     expect(rot.r.code).toBe("needs_confirmation");
     expect(rot.r.message).toContain("unreadable");
   });

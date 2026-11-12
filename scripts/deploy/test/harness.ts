@@ -54,6 +54,8 @@ export interface SbState {
   failMigration: string | null;
   otpStatus: number;
   nextRef: string;
+  signing: { algorithm: string; status: string }[] | null;
+  jwtSecret: string;
 }
 export interface CfState {
   buckets: Set<string>;
@@ -65,6 +67,7 @@ export interface CfState {
   accounts: { id: string; name: string }[];
   subdomain: string | null;
   failPut: string | null;
+  listOutput: string | null;
 }
 
 const json = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -106,8 +109,10 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
     failMigration: null,
     otpStatus: 200,
     nextRef: "abcdefghijklmnopqrst",
+    signing: [{ algorithm: "ES256", status: "in_use" }],
+    jwtSecret: "legacy-jwt-secret-GGGGGGGGGGGG",
   };
-  const cf: CfState = { buckets: new Set(), queues: new Set(), kv: [], secrets: new Map(), loggedIn: true, accounts: [{ id: "acct1", name: "Acct" }], subdomain: "tester", failPut: null };
+  const cf: CfState = { buckets: new Set(), queues: new Set(), kv: [], secrets: new Map(), loggedIn: true, accounts: [{ id: "acct1", name: "Acct" }], subdomain: "tester", failPut: null, listOutput: null };
 
   const fetchFake = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = String(input);
@@ -146,6 +151,8 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
       }
       m = /^\/projects\/([a-z]+)\/api-keys\?reveal=true$/.exec(path);
       if (m) return json(200, [{ name: "anon", api_key: SECRET.anon }, { name: "service_role", api_key: SECRET.service }]);
+      if (/\/config\/auth\/signing-keys$/.test(path)) return sb.signing ? json(200, sb.signing) : json(404, { message: "nope" });
+      if (/\/postgrest$/.test(path)) return json(200, { jwt_secret: sb.jwtSecret });
       m = /^\/projects\/([a-z]+)\/config\/auth$/.exec(path);
       if (m) {
         if (method === "GET") return json(200, sb.authConfig);
@@ -201,6 +208,7 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
         const cfg = (w[w.indexOf("--config") + 1] ?? "").split("/").pop()!;
         const set = cf.secrets.get(cfg) ?? new Set<string>();
         cf.secrets.set(cfg, set);
+        if (w[1] === "list" && cf.listOutput !== null) return ok(cf.listOutput);
         if (w[1] === "list") return ok(JSON.stringify([...set].map((name) => ({ name, type: "secret_text" }))));
         if (w[1] === "put") {
           if (cf.failPut === w[2]) return fail("boom");
