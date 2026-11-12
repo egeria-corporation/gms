@@ -259,18 +259,19 @@ $$;
 --
 -- Such an account carries the Passport user in its app metadata (`passport_user_id`, written by
 -- the Worker at the first Passport sign-in and never replaced). It is recorded as linked, with a
--- ledger entry, when at least one of these is true:
---   a. Passport's second step has been honoured for it before (the ledger says so, or a claimed
---      record is still in `passport_second_steps`): the person relies on it, and is not stopped;
+-- ledger entry, when one of these is true:
 --   b. the ledger shows a Passport sign-in created the account: the rule for new accounts;
 --   c. it has no verified second factor of its own: there is nothing of the account's that
 --      Passport's authenticator would be standing in for, and the new rule would only have asked
 --      the person to enrol one in the session they were already in.
--- Every other such account (it has its own authenticator and Passport's was never honoured for
--- it) is left as it is: its Passport sign-in keeps working, the Passport user in its app metadata
--- is still the only one that may ever be linked to it, and the link is recorded the first time a
--- session that signed in with Passport passes the account's own second step. A Passport user
--- found on more than one account is linked to none of them here.
+-- That Passport's second step was honoured for an account before (rule a, kept as evidence only)
+-- is NOT enough on its own: it is exactly what the hole this migration closes leaves behind, so
+-- for an account with its own authenticator it would make a past takeover permanent (red team
+-- re-review, 2026-11-12). Every other such account is left as it is: its Passport sign-in keeps
+-- working, the Passport user in its app metadata is still the only one that may ever be linked
+-- to it, and the link is recorded the first time a session that signed in with Passport passes
+-- the account's own second step (one authenticator code, once). A Passport user found on more
+-- than one account is linked to none of them here.
 --
 -- Not security definer and granted to nobody: only the database owner can run it. It is kept so
 -- the rule is tested with the schema; running it again later links only accounts that still carry
@@ -310,7 +311,7 @@ begin
 
   with chosen as (
     select c.* from pg_temp.gms_0023_candidates c
-    where (c.second_step_honoured or c.created_by_passport or c.no_second_step_of_its_own)
+    where (c.created_by_passport or c.no_second_step_of_its_own)
       and (select count(*) from pg_temp.gms_0023_candidates o where o.passport_user_id = c.passport_user_id) = 1
       and not exists (select 1 from public.passport_account_links l where l.passport_user_id = c.passport_user_id)
   ), made as (

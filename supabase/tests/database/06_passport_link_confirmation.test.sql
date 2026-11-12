@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(61);
+select plan(62);
 
 insert into auth.users (id, email, aud, role, email_confirmed_at, created_at, raw_app_meta_data) values
   -- Two accounts made by emailed code that have never used Passport.
@@ -164,30 +164,29 @@ insert into auth.sessions (id, user_id, created_at, aal) values ('9c150000-0000-
 insert into public.passport_second_steps (user_id, token_digest, acr, auth_time, expires_at, session_id, claimed_at, valid_until) values
   ('9c100000-0000-4000-8000-000000000002', repeat('9', 64), 'aal2', now() - interval '1 day', now() - interval '1 day', '9c150000-0000-4000-8000-000000000002', now() - interval '1 day', now() - interval '12 hours');
 
-select is((select row(linked, left_for_own_second_step)::text from gms.passport_links_backfill()), '(5,3)', 'the one-time step links five of the eight confirmed accounts');
+select is((select row(linked, left_for_own_second_step)::text from gms.passport_links_backfill()), '(3,5)', 'the one-time step links three of the eight confirmed accounts');
 select results_eq(
   $$ select right(user_id::text, 1), basis from public.passport_account_links where user_id::text like '9c100000-%' order by 1 $$,
-  $$ values ('1', 'predates_link_record'), ('2', 'predates_link_record'), ('3', 'predates_link_record'), ('4', 'predates_link_record'), ('8', 'predates_link_record') $$,
-  'those Passport''s second step was honoured for, those a Passport sign-in created, and those with no second step of their own'
+  $$ values ('3', 'predates_link_record'), ('4', 'predates_link_record'), ('8', 'predates_link_record') $$,
+  'those a Passport sign-in created and those with no second step of their own; Passport''s second step honoured before is not enough for an account with its own authenticator'
 );
 select results_eq(
   $$ select right(subject_id, 1), actor, data ->> 'confirmedBy', data ->> 'passportUserId', data -> 'evidence' from public.ledger_events
      where event_type = 'auth.passport_linked' and subject_id like '9c100000-%' order by 1 $$,
-  $$ values ('1', 'system:migration_0023', 'predates_link_record', 'pp-h1', '["passport_second_step_honoured_before"]'::jsonb),
-            ('2', 'system:migration_0023', 'predates_link_record', 'pp-h2', '["passport_second_step_honoured_before"]'::jsonb),
-            ('3', 'system:migration_0023', 'predates_link_record', 'pp-h3', '["account_created_by_passport_sign_in"]'::jsonb),
+  $$ values ('3', 'system:migration_0023', 'predates_link_record', 'pp-h3', '["account_created_by_passport_sign_in"]'::jsonb),
             ('4', 'system:migration_0023', 'predates_link_record', 'pp-h4', '["no_second_step_of_its_own"]'::jsonb),
             ('8', 'system:migration_0023', 'predates_link_record', 'pp-h8', '["no_second_step_of_its_own"]'::jsonb) $$,
   'each with a ledger entry that says why'
 );
-select is((select row(linked, left_for_own_second_step)::text from gms.passport_links_backfill()), '(0,3)', 'running it again links nobody else and writes nothing');
-select is((select count(*)::int from public.ledger_events where event_type = 'auth.passport_linked' and subject_id like '9c100000-%'), 5, 'no second ledger entry');
+select is((select row(linked, left_for_own_second_step)::text from gms.passport_links_backfill()), '(0,5)', 'running it again links nobody else and writes nothing');
+select is((select count(*)::int from public.ledger_events where event_type = 'auth.passport_linked' and subject_id like '9c100000-%'), 3, 'no second ledger entry');
 
 set local role service_role;
 -- The account with its own authenticator that Passport's was never honoured for keeps its Passport
 -- sign-in, is still tied to the same Passport user, and is linked after its own second step.
 select is((select row(account_passport_user, passport_user_account)::text from public.gms_passport_link_state('9c100000-0000-4000-8000-000000000005', 'pp-h5')), '(,)', 'the account left alone has no link');
 select is((select passport_user_id from public.gms_account_by_email('h5@link.example')), 'pp-h5', 'and still names its Passport user, the only one that may ever be linked to it');
+select is((select row(account_passport_user, passport_user_account)::text from public.gms_passport_link_state('9c100000-0000-4000-8000-000000000001', 'pp-h1')), '(,)', 'an account with its own authenticator is not linked just because Passport''s second step was honoured for it before');
 reset role;
 
 select * from finish();
