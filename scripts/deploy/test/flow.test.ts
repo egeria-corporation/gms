@@ -347,6 +347,52 @@ describe("deploy", () => {
     expect(f.everythingVisible()).not.toContain(SECRET.anon);
     expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("skipped");
   });
+  it("deploys the same version again when init changed a choice that shapes the build, refreshing the Worker configs", async () => {
+    const f = makeFake();
+    await ready(f, "--host", "grants.example.org", "--passport", "off");
+    const api = () => readFileSync(join(f.deployDir, "generated", "api.toml"), "utf8");
+    const webEnv = (from: number) => f.calls.slice(from).find((c) => c.args.join(" ").includes("@gms/web build"))!.env;
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m);
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    // Passport switched on: the same version and commit, but a different build.
+    expect((await f.step("init", "--passport", "on")).r.code).toBe("ok");
+    const ask = await f.step("deploy");
+    expect(ask.r.code).toBe("needs_confirmation");
+    expect((ask.r.data?.plan as string[]).join(" ")).toMatch(/refresh the generated api and jobs Worker configs.*version v1\.0\.0 again/);
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m); // nothing written before the person agrees
+    const m = f.calls.length;
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect(webEnv(m)).toMatchObject({ VITE_PASSPORT_BASE_URL: "https://passport.opengrants.io" });
+    expect(api()).toMatch(/^PASSPORT_BASE_URL = "https:\/\/passport\.opengrants\.io"$/m);
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    // And off again.
+    expect((await f.step("init", "--passport", "off")).r.code).toBe("ok");
+    const k = f.calls.length;
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect(webEnv(k)).not.toHaveProperty("VITE_PASSPORT_BASE_URL");
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m);
+  });
+  it("redeploys once a state written before fingerprints, and sends a new name or address to the cloudflare step", async () => {
+    const f = makeFake();
+    await ready(f, "--host", "grants.example.org");
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    const statePath = join(f.deployDir, "state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(state.deploy.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    delete state.deploy.fingerprint;
+    writeFileSync(statePath, JSON.stringify(state));
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    expect((await f.step("init", "--host", "other.example.org")).r.code).toBe("ok");
+    const moved = await f.step("deploy", "--yes");
+    expect(moved.r).toMatchObject({ code: "needs_input", next: "cloudflare" });
+    expect((await f.step("init", "--host", "grants.example.org", "--name", "renamed")).r.code).toBe("ok");
+    expect((await f.step("deploy", "--yes")).r).toMatchObject({ code: "needs_input", next: "cloudflare" });
+  });
   it("needs the earlier steps", async () => {
     const f = makeFake();
     await initted(f);

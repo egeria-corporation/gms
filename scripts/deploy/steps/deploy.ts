@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // deploy: build, then deploy the API Worker, the jobs Worker and the single front Worker that
 // serves the web app and forwards API paths to the API Worker over a service binding.
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cfToken, hostUsage } from "../cloudflare.ts";
-import type { Ctx, Result } from "../core.ts";
-import { brief, confirmOrDry, isResult, loadState, names, patchState, requireConfig, res } from "../core.ts";
+import type { Config, Ctx, Result, State } from "../core.ts";
+import { brief, confirmOrDry, instanceUrl, isResult, loadState, names, patchState, requireConfig, res, writeText } from "../core.ts";
 import { KEYS_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
+import { renderConfigs } from "./cloudflare.ts";
 import { LOGIN_MESSAGE } from "./supabase.ts";
 
 /** Wrangler/Cloudflare wording for plan limits: cron triggers per account, script size. */
@@ -19,6 +21,45 @@ export async function currentVersion(ctx: Ctx): Promise<{ version: string; commi
   const d = await ctx.run("git", ["describe", "--tags", "--always", "--dirty"], { cwd: ctx.root });
   const c = await ctx.run("git", ["rev-parse", "HEAD"], { cwd: ctx.root });
   return { version: d.code === 0 ? d.stdout.trim() : "unknown", commit: c.code === 0 ? c.stdout.trim() : "unknown" };
+}
+
+const readOr = (path: string): string => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * The generated Worker configs as the current choices and the checked-in wrangler.toml files make
+ * them, and which of the files on disk differ. init changes config.json only, and a release can
+ * change a wrangler.toml; deploying the old files would publish an API without the Passport
+ * settings the web app was built with (or the other way round). Null before the cloudflare step.
+ */
+function currentConfigs(ctx: Ctx, config: Config, state: State, url: string): { rendered: Record<"api" | "jobs", string>; stale: string[] } | null {
+  const kvId = state.cloudflare?.kvId as string | undefined;
+  if (!kvId) return null;
+  const rendered = renderConfigs(ctx, config.name, url, kvId, { on: config.passport, url: config.passportUrl });
+  return { rendered, stale: (["api", "jobs"] as const).filter((app) => readOr(join(ctx.deployDir, "generated", `${app}.toml`)) !== rendered[app]) };
+}
+
+/**
+ * A hash of every choice that shapes what `deploy` builds and publishes besides the code: the web
+ * app's build settings (addresses, Passport on or off), the front Worker's name and address, and
+ * the API and jobs Worker configs. A deploy of the same version is skipped only when this is
+ * unchanged too, so switching Passport on with init redeploys. Holds no secret: the anon key is
+ * not a choice and is left out.
+ */
+export function buildFingerprint(config: Config, state: State, url: string, workerConfigs: Record<"api" | "jobs", string>): string {
+  const n = names(config.name);
+  const choices = {
+    web: { apiBaseUrl: url, supabaseUrl: state.supabase?.url ?? null, passportBaseUrl: config.passport ? config.passportUrl : null },
+    front: { name: n.web, api: n.api, host: new URL(url).host, workersDev: !config.host },
+    api: createHash("sha256").update(workerConfigs.api).digest("hex"),
+    jobs: createHash("sha256").update(workerConfigs.jobs).digest("hex"),
+  };
+  return createHash("sha256").update(JSON.stringify(choices)).digest("hex");
 }
 
 /** The front Worker's config for workers.dev: no custom-domain route. */
@@ -39,10 +80,18 @@ export async function deploy(ctx: Ctx): Promise<Result> {
 
   const url = state.urls.instance as string;
   const n = names(config.name);
+  // A new name or address needs the cloudflare step first: it records the address and checks that
+  // the resources under the new names are this instance's, not someone else's.
+  const chosen = instanceUrl(config, state);
+  if ((chosen && chosen !== url) || (state.workers?.api && state.workers.api !== n.api)) return res("needs_input", "The name or address chosen with init is not the one the Cloudflare resources were set up for. Run the cloudflare step, then deploy.", { chosen: chosen ?? null, current: url }, "cloudflare");
+  const configs = currentConfigs(ctx, config, state, url);
   const { version, commit } = await currentVersion(ctx);
-  if (state.deploy?.version === version && state.deploy?.commit === commit && !version.endsWith("-dirty") && ctx.flags.force !== true) {
+  const fingerprint = buildFingerprint(config, state, url, configs?.rendered ?? { api: readOr(join(gen, "api.toml")), jobs: readOr(join(gen, "jobs.toml")) });
+  const sameCode = state.deploy?.version === version && state.deploy?.commit === commit && !version.endsWith("-dirty");
+  if (sameCode && state.deploy?.fingerprint === fingerprint && ctx.flags.force !== true) {
     return res("skipped", `Version ${version} is already deployed at ${url}.`, { version, url }, "verify");
   }
+  const rebuild = sameCode && state.deploy?.fingerprint !== fingerprint;
 
   if (!state.auth?.configured) return res("needs_input", "Supabase Auth has not been set up yet, so sign-in would use Supabase's defaults. Run the auth step first.", {}, "auth");
 
@@ -57,13 +106,16 @@ export async function deploy(ctx: Ctx): Promise<Result> {
     return res("needs_confirmation", `Attaching ${config.host} to ${n.web} would replace whatever uses it now: ${conflicts.join("; ")}. If ${config.host} is not in use (or you want it replaced), re-run with --replace-dns --yes. Otherwise choose another host with init --host.`, { conflicts, plan: ["replace what uses " + config.host] }, "deploy");
   }
 
+  const stale = configs?.stale ?? [];
   const gate = confirmOrDry(ctx, "deploy", [
     ...(conflicts.length ? [`REPLACE what uses ${config.host} now: ${conflicts.join("; ")}`] : []),
+    ...(stale.length ? [`refresh the generated ${stale.join(" and ")} Worker config${stale.length > 1 ? "s" : ""} under deploy/generated/ for the current choices`] : []),
     `build the API description and the web app (pointing at ${url})`,
     `deploy the Workers ${n.api}, ${n.jobs} and ${n.web}${config.host ? `, and attach ${config.host} to ${n.web}` : " on workers.dev"}`,
-    `version ${version}`,
+    rebuild ? `version ${version} again: the choices that shape the build changed since it was deployed (for example Passport switched on or off)` : `version ${version}`,
   ], { version, url });
   if (gate) return gate;
+  if (configs) for (const app of stale) writeText(ctx, join(gen, `${app}.toml`), configs.rendered[app as "api" | "jobs"]);
 
   const step = async (label: string, cmd: string, args: string[], env?: Record<string, string>) => {
     ctx.log(label);
@@ -110,6 +162,6 @@ export async function deploy(ctx: Ctx): Promise<Result> {
   const pushed = await step("Deploying the front Worker", "pnpm", ["--filter", "@gms/web", "exec", "wrangler", "deploy", "--config", ".front-worker/wrangler.toml"]);
   if (pushed) return pushed;
 
-  patchState(ctx, { deploy: { domainAttached: !!config.host, version, commit, at: ctx.now().toISOString(), urls: { instance: url, api: `${url}/gms/config` } }, version });
+  patchState(ctx, { deploy: { domainAttached: !!config.host, version, commit, fingerprint, at: ctx.now().toISOString(), urls: { instance: url, api: `${url}/gms/config` } }, version });
   return res("ok", `Deployed ${version} to ${url}.`, { version, url }, "verify");
 }
