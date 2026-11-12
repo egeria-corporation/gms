@@ -41,7 +41,7 @@ async function workersSubdomain(ctx: Ctx, accountId: string): Promise<string | n
 export function renderConfigs(ctx: Ctx, instance: string, url: string, kvId: string, passport: { on: boolean; url?: string }) {
   const n = names(instance);
   const make = (app: "api" | "jobs", workerName: string) =>
-    HEADER(`${app} Worker`) + generateConfig(readFileSync(join(ctx.root, "apps", app, "wrangler.toml"), "utf8"), { name: instance, workerName, url, kvId, appDir: join(ctx.root, "apps", app), passport });
+    HEADER(`${app} Worker`) + generateConfig(readFileSync(join(ctx.root, "apps", app, "wrangler.toml"), "utf8"), { name: instance, workerName, url, kvId, appDir: join(ctx.root, "apps", app), passport, dropAssets: app === "api" });
   return { api: make("api", n.api), jobs: make("jobs", n.jobs) };
 }
 

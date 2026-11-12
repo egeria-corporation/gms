@@ -12,6 +12,9 @@ import { LOGIN_MESSAGE } from "./supabase.ts";
 /** Wrangler/Cloudflare wording for plan limits: cron triggers per account, script size. */
 export const PLAN_LIMIT = /exceeded the limit of \d+ cron|too many cron|cron triggers? limit|script (is )?too large|exceeds the size limit|workers paid|10027|10054|upgrade (to|your) .*plan/i;
 
+/** Must equal OPENAPI_OBJECT_KEY in apps/api/src/index.ts (a test checks). */
+export const OPENAPI_OBJECT_KEY = "site/openapi.json";
+
 export async function currentVersion(ctx: Ctx): Promise<{ version: string; commit: string }> {
   const d = await ctx.run("git", ["describe", "--tags", "--always", "--dirty"], { cwd: ctx.root });
   const c = await ctx.run("git", ["rev-parse", "HEAD"], { cwd: ctx.root });
@@ -29,6 +32,7 @@ export async function deploy(ctx: Ctx): Promise<Result> {
   const state = loadState(ctx);
   const gen = join(ctx.deployDir, "generated");
   if (!state.supabase?.ref || !state.urls?.instance || !existsSync(join(gen, "api.toml"))) return res("needs_input", "Resources are not ready. Run supabase, migrate, auth, cloudflare and secrets first.", {}, "cloudflare");
+  if (readFileSync(join(gen, "api.toml"), "utf8").includes("[assets]")) return res("needs_input", "The generated API Worker config still has a static-assets block, which needs a token that can upload assets. Re-run the cloudflare step to regenerate it.", {}, "cloudflare");
   if (!state.secrets?.api) return res("needs_input", "Worker secrets are not set yet. Run the secrets step first.", {}, "secrets");
   const token = supabaseToken(ctx);
   if (!token) return res("needs_login", LOGIN_MESSAGE, {}, null);
@@ -66,7 +70,7 @@ export async function deploy(ctx: Ctx): Promise<Result> {
     const r = await ctx.run(cmd, args, { cwd: ctx.root, env });
     if (r.code === 0) return null;
     // Free-plan limits (cron triggers, Worker size) surface as plain command failures.
-    if (PLAN_LIMIT.test(`${r.stdout}\n${r.stderr}`)) return res("plan_limit", `${label}: Cloudflare says this plan does not allow it (${brief(ctx, r)}). The jobs Worker needs 7 scheduled triggers and the front Worker carries the whole web app, which the Workers Free plan does not allow; use the Workers Paid plan.`, { stage: label }, null);
+    if (PLAN_LIMIT.test(`${r.stdout}\n${r.stderr}`)) return res("plan_limit", `${label}: Cloudflare says this plan does not allow it (${brief(ctx, r)}). The front Worker carries the whole web app, and the account's limits on Workers (size, scheduled triggers) may be exceeded; the Workers Paid plan lifts them.`, { stage: label }, null);
     return res("error", `${label} failed: ${brief(ctx, r)}`, { stage: label }, "deploy");
   };
   const keys = await new Supabase(ctx, token).keys(state.supabase.ref);
@@ -76,6 +80,8 @@ export async function deploy(ctx: Ctx): Promise<Result> {
   const stages: [string, string, string[], Record<string, string>?][] = [
     ["Compiling the API description", "pnpm", ["spec:compile"]],
     ["Building the OpenAPI document", "pnpm", ["--filter", "@gms/api", "build:openapi"]],
+    // No static assets: the API Worker serves /openapi.json from the exports bucket (OPENAPI_OBJECT_KEY in apps/api/src/index.ts).
+    ["Uploading the OpenAPI document", "pnpm", ["--filter", "@gms/api", "exec", "wrangler", "r2", "object", "put", `${n.buckets[2]}/${OPENAPI_OBJECT_KEY}`, "--file", join(ctx.root, "apps", "api", "public", "openapi.json"), "--content-type", "application/json", "--remote"]],
     ["Deploying the API Worker", "pnpm", wrangler("@gms/api", join(gen, "api.toml"))],
     ["Deploying the jobs Worker", "pnpm", wrangler("@gms/jobs", join(gen, "jobs.toml"))],
     [
