@@ -14,7 +14,8 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { ReasonDialog } from "../../components/payments.tsx";
 import { RequirementsCalendar, type CalendarItem } from "../../components/RequirementsCalendar.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { StatusBadge } from "../../components/status.tsx";
+import type { Verification } from "../../api/types.ts";
+import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabPanel } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
@@ -54,7 +55,8 @@ function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Re
           <div>
             <h2 id="plan-title">Reminder plan</h2>
             <p className="small muted">
-              {requirement.title} · {nameOf(requirement)}
+              {requirement.title} · {nameOf(requirement)}{" "}
+              {((v) => (v ? <VerificationBadge verification={v} /> : null))((requirement.recipient as { verification?: Verification } | null | undefined)?.verification)}
             </p>
           </div>
         </div>

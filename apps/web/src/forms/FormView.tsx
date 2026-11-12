@@ -71,6 +71,11 @@ export interface FormViewProps {
   passportUrl?: string;
   /** Where an organization changes the details it entered itself (Settings). */
   profileUrl?: string;
+  /**
+   * Whether the organization has a Passport record for `passportField`s to follow (default true).
+   * Without one they are ordinary inputs the applicant fills in, and no Passport link is shown.
+   */
+  passportLinked?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -129,8 +134,12 @@ const PROVENANCE: Record<string, { cls: string; label: string; icon: typeof Badg
   self_declared: { cls: "prov-entered", label: "You entered", icon: Pencil },
 };
 
-export function ProvenanceChip({ source }: { source: string }) {
-  const known = PROVENANCE[source] ?? (source.startsWith("agent:") ? { cls: "prov-agent", label: "Agent draft", icon: Bot } : null);
+/** What the applicant's own details are called for anyone else reading the form (review NP-15). */
+const FOR_OTHERS: Record<string, string> = { self_declared: "Self-reported" };
+
+export function ProvenanceChip({ source, forApplicant = true }: { source: string; forApplicant?: boolean }) {
+  const base = PROVENANCE[source] ?? (source.startsWith("agent:") ? { cls: "prov-agent", label: "Agent draft", icon: Bot } : null);
+  const known = base && !forApplicant && FOR_OTHERS[source] ? { ...base, label: FOR_OTHERS[source]! } : base;
   if (!known) return null;
   const Icon = known.icon;
   return (
@@ -178,6 +187,7 @@ interface Ctx {
   uploadFile?: (file: File) => Promise<UploadedFile>;
   passportUrl: string;
   profileUrl: string | null;
+  passportLinked: boolean;
 }
 
 export function FormView(props: FormViewProps) {
@@ -234,6 +244,7 @@ export function FormView(props: FormViewProps) {
     uploadFile: props.uploadFile,
     passportUrl: props.passportUrl ?? "https://app.passport.opengrants.io",
     profileUrl: props.profileUrl ?? null,
+    passportLinked: props.passportLinked ?? true,
   };
 
   const body = <Element el={form.uiSchema} ctx={ctx} />;
@@ -360,7 +371,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
       <div className="fld">
         <div className="lbl">
           {label}
-          {ctx.mode === "funder" && source && <ProvenanceChip source={source} />}
+          {ctx.mode === "funder" && source && <ProvenanceChip source={source} forApplicant={false} />}
         </div>
         {ctx.masked.has(path) ? (
           <span className="masked" style={{ alignSelf: "flex-start" }}>
@@ -404,13 +415,13 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
         <div className="lbl" id={`${id}-label`}>
           {label}
           {required && <Required />}
-          {source && <ProvenanceChip source={source} />}
+          {source && <ProvenanceChip source={source} forApplicant={ctx.mode === "edit"} />}
         </div>
       ) : (
         <label className="lbl" htmlFor={id}>
           {label}
           {required && <Required />}
-          {source && <ProvenanceChip source={source} />}
+          {source && <ProvenanceChip source={source} forApplicant={ctx.mode === "edit"} />}
         </label>
       )}
       <Input {...common} widget={widget} required={required} />
@@ -419,7 +430,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
           {ctx.profileUrl ? <a href={ctx.profileUrl}>Change it in Settings</a> : "Change it in Settings"} · these details are entered by you, not verified
         </span>
       )}
-      {widget === "passportField" && source !== "self_declared" && (
+      {widget === "passportField" && source !== "self_declared" && ctx.passportLinked && (
         <span className="help">
           <a href={ctx.passportUrl} target="_blank" rel="noreferrer">
             Edit in Passport
@@ -622,6 +633,9 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
 
   switch (widget) {
     case "passportField":
+      // No Passport record to follow: the applicant types the value like any other field.
+      if (!ctx.passportLinked && ctx.mode === "edit")
+        return <input {...base} className={cls("inp", invalid)} value={text} onChange={(e) => ctx.set(path, e.target.value === "" ? undefined : e.target.value)} />;
       return (
         <input
           {...base}

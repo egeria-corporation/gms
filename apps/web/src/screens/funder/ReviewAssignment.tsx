@@ -12,6 +12,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { usePeople, type Person } from "./shared.tsx";
+import { VerificationBadge } from "../../components/status.tsx";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
 const STATUS_TEXT: Record<Assignment["status"], string> = { assigned: "Assigned", coi_declared: "No conflict declared", in_progress: "Scoring", submitted: "Submitted", recused: "Recused" };
@@ -209,6 +210,7 @@ export default function ReviewAssignment() {
                       <th key={a.id}>
                         <div className="col" style={{ gap: "2px", alignItems: "center" }}>
                           <Link to={`${base}/applications/${a.id}`}>{a.applicant.name ?? a.title}</Link>
+                          <VerificationBadge verification={a.applicant.verification} level={a.applicant.level} />
                           <span className="xs muted" style={{ textTransform: "none", letterSpacing: 0 }}>
                             {active(a.id)} assigned
                           </span>

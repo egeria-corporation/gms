@@ -9,6 +9,8 @@ import { mockLaunchStore } from "../src/api/launchHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
 import { VerificationBadge } from "../src/components/status.tsx";
+import { FormView } from "../src/forms/FormView.tsx";
+import type { FormDefinition } from "@gms/forms";
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
 import { IDS } from "../src/mocks/store.ts";
@@ -247,5 +249,39 @@ describe("applicant readiness without Passport", () => {
     expect(screen.getByText("Profile complete")).toBeInTheDocument();
     expect(screen.getByText("Connect Passport for verification")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Needs attention" })).not.toBeInTheDocument();
+  });
+});
+
+describe("forms for an applicant without Passport (NP-15)", () => {
+  const form = {
+    id: "frm_x",
+    version: 1,
+    title: "Letter of intent",
+    jsonSchema: { type: "object", properties: { ein: { type: "string" } } },
+    uiSchema: { type: "VerticalLayout", elements: [{ type: "Control", scope: "#/properties/ein", label: "EIN", options: { widget: "passportField" } }] },
+  } as unknown as FormDefinition;
+
+  it("a field that follows Passport is an ordinary input when there is no Passport record, with no Passport link", async () => {
+    render(<FormView form={form} response={{}} mode="edit" provenance={{}} passportLinked={false} />);
+    const input = screen.getByLabelText(/EIN/);
+    expect(input).not.toHaveAttribute("readonly");
+    await userEvent.type(input, "123456789");
+    expect(input).toHaveValue("123456789");
+    expect(screen.queryByText("Edit in Passport")).not.toBeInTheDocument();
+  });
+
+  it("stays read-only and links to Passport for a Passport applicant", () => {
+    render(<FormView form={form} response={{ ein: "001234567" }} mode="edit" provenance={{ "/ein": "passport" }} />);
+    expect(screen.getByLabelText(/EIN/)).toHaveAttribute("readonly");
+    expect(screen.getByText("Edit in Passport")).toBeInTheDocument();
+  });
+
+  it("calls the applicant's own details Self-reported to a funder, You entered to the applicant", () => {
+    const { unmount } = render(<FormView form={form} response={{ ein: "123456789" }} mode="funder" provenance={{ "/ein": "self_declared" }} />);
+    expect(screen.getByText("Self-reported")).toBeInTheDocument();
+    expect(screen.queryByText("You entered")).not.toBeInTheDocument();
+    unmount();
+    render(<FormView form={form} response={{ ein: "123456789" }} mode="edit" provenance={{ "/ein": "self_declared" }} passportLinked={false} />);
+    expect(screen.getByText("You entered")).toBeInTheDocument();
   });
 });
