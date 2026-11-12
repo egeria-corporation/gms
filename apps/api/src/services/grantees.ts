@@ -13,6 +13,7 @@ import { audit, authorize, emit, required, type ServiceContext, type ServiceWork
 import { passportClientFor } from "./passport-link.ts";
 import { payeeFactsOf } from "./payments.ts";
 import type { PageRequest } from "./programs.ts";
+import { profileSourceOf, selfDeclaredOf, verificationOf } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -28,7 +29,7 @@ const consented = async (ctx: ServiceContext, applicantId: string, funderId: str
 
 function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }) {
   const facts = payeeFactsOf(w);
-  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, name: w.display_name, legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
+  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, name: w.display_name, legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
 }
 
 export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { q?: string | undefined; tag?: string | undefined } = {}) {
@@ -72,7 +73,9 @@ export async function getGrantee(ctx: ServiceContext, applicantId: string) {
     notes: record?.notes ?? null,
     lastSyncedAt: record?.last_synced_at ?? w.org_projection_at,
     // The organization record is read by consent; without it the funder sees the name and level only.
-    organization: canRead ? w.org_projection : null,
+    // A self-declared profile is the organization's own word, never a verified record: it comes separately.
+    organization: canRead && profileSourceOf(w) === "passport" ? w.org_projection : null,
+    selfDeclared: canRead ? selfDeclaredOf(w) : null,
     consent: canRead,
     payeeStatus: { pendingDestinationChange: facts.pendingDestinationChange ? { bankName: facts.pendingDestinationChange.bankName, last4: facts.pendingDestinationChange.last4, requestedAt: facts.pendingDestinationChange.requestedAt } : null, active: facts.active !== false },
     applicationList: apps.filter((a) => a.submitted_at).map((a) => ({ id: apiId("application", a.id), title: a.title, status: a.status, stage: a.stage, submittedAt: a.submitted_at })),

@@ -204,3 +204,29 @@ describe("GET /gms/config", () => {
     expect(await read()).toEqual({ signIn: false, linking: false, payments: false });
   });
 });
+
+describe("what funders and the public are told", () => {
+  it("marks a funder's public page with how its organization is verified", async () => {
+    const h = await harness();
+    const page = async (handle: string) => data<{ funder?: { verification: unknown }; verification?: unknown }>(await h.request(`/gms/public/funders/${handle}`));
+    const of = (p: { funder?: { verification: unknown }; verification?: unknown }) => p.funder?.verification ?? p.verification;
+    expect(of(await page("riverbend"))).toMatchObject({ source: "passport" });
+    await h.repos.table("workspaces").update({ id: "22222222-2222-4222-8222-222222222222" }, { profile_source: "self_declared", self_declared_profile: { legalName: "Cascade County", mission: "Public health.", contactEmail: "private@cascade.example" } });
+    const other = await page("cascade-county");
+    expect(of(other)).toEqual({ source: "self_declared", level: null });
+    expect(JSON.stringify(other)).not.toContain("private@cascade.example");
+  });
+
+  it("shows a grantee's verification in the list and keeps the self-declared profile apart from the Passport record", async () => {
+    const h = await harness();
+    const s = await scenario(h);
+    await s.call(s.applicant, "POST", "/common-grants/applications/start", { competitionId: s.uuid.comp });
+    await h.repos.table("applications").update({ applicant_workspace_id: WS_APPLICANT }, { submitted_at: h.clock.now.toISOString(), status: "submitted" });
+    await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: null, org_projection: null, profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside Pantry Inc." } });
+    const list = await s.call<{ items: { verification: unknown }[] }>(s.funder, "GET", "/gms/grantees");
+    expect(list.body.items[0]!.verification).toEqual({ source: "self_declared", level: null });
+    const detail = await s.call<{ data: { organization: unknown; selfDeclared: unknown } }>(s.funder, "GET", `/gms/grantees/${WS_APPLICANT}`);
+    expect(detail.body.data).toMatchObject({ organization: null, selfDeclared: { legalName: "Lakeside Pantry Inc." } });
+  });
+});

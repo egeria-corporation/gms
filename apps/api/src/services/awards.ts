@@ -16,6 +16,7 @@ import { audit, authorize, required, type ServiceContext, type ServiceWorkspace 
 import { checkSigner, payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
+import { verificationShared } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type Award = Row<"awards">;
@@ -132,7 +133,7 @@ function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipien
     programId: a.program_id,
     parentAwardId: a.parent_award_id ? apiId("award", a.parent_award_id) : null,
     funder: { workspaceId: a.workspace_id, name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? null },
-    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient?.display_name ?? null, handle: recipient?.handle ?? null, level: consented ? (recipient?.verification_level ?? null) : null } : null,
+    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient?.display_name ?? null, handle: recipient?.handle ?? null, level: consented ? (recipient?.verification_level ?? null) : null, verification: verificationShared(recipient, consented) } : null,
     recipientIndividual: a.recipient_individual,
     passport: { awardId: a.passport_award_id, syncedAt: a.passport_synced_at, mirror: mirrorState(ctx, a) },
     createdAt: a.created_at,
