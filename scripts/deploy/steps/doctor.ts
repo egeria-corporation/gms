@@ -65,6 +65,7 @@ export async function doctor(ctx: Ctx): Promise<Result> {
     const crons = (block.match(/"[^"]+"/g) ?? []).length;
     data.cronTriggers = crons;
     if (crons > 5) warnings.push(`The jobs Worker uses ${crons} scheduled triggers. The Workers Free plan allows 5 per account, so deploying needs the Workers Paid plan.`);
+    else if (crons > 1) warnings.push(`The jobs Worker declares ${crons} scheduled triggers; keep it to one so the Workers Free plan (5 per account) is enough.`);
   } catch {
     /* no jobs config to read */
   }
