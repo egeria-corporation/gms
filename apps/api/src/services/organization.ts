@@ -92,7 +92,7 @@ export async function startConsent(ctx: ServiceContext, input: z.output<typeof c
   return { authorizeUrl: buildAuthorizeUrl({ baseUrl: cfg.baseUrl, clientId: cfg.client.id, redirectUri: cfg.redirectUri, state, codeChallenge: challenge, scopes }), scopes, expiresInSeconds: STATE_TTL_MS / 1000 };
 }
 
-const einOf = (org: CgOrganization): string | null => {
+export const einOf = (org: CgOrganization): string | null => {
   const id = (org.identifiers as Record<string, { id?: string } | undefined> | undefined)?.["org:us:ein"]?.id;
   return typeof id === "string" ? id : null;
 };
