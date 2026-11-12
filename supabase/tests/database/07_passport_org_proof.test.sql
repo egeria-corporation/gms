@@ -6,18 +6,19 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(4);
 
-insert into public.workspaces (id, kind, handle, display_name, passport_org_id) values
-  ('7a000000-0000-4000-8000-000000000001', 'applicant', 'pp-typed', 'Typed at sign-up', '7a900000-0000-4000-8000-000000000001'),
-  ('7a000000-0000-4000-8000-000000000002', 'funder', 'pp-proven', 'Proven by a client', '7a900000-0000-4000-8000-000000000002'),
-  ('7a000000-0000-4000-8000-000000000003', 'applicant', 'pp-once', 'Consent since withdrawn', '7a900000-0000-4000-8000-000000000003');
+insert into public.workspaces (id, kind, handle, display_name, passport_org_id, profile_source) values
+  ('7a000000-0000-4000-8000-000000000001', 'applicant', 'pp-typed', 'Typed at sign-up', '7a900000-0000-4000-8000-000000000001', 'passport'),
+  ('7a000000-0000-4000-8000-000000000002', 'funder', 'pp-proven', 'Proven by a client', '7a900000-0000-4000-8000-000000000002', 'passport'),
+  ('7a000000-0000-4000-8000-000000000003', 'applicant', 'pp-once', 'Consent since withdrawn', '7a900000-0000-4000-8000-000000000003', 'passport');
 insert into public.passport_links (workspace_id, mode, client_id, client_secret_enc, linked_at) values
   ('7a000000-0000-4000-8000-000000000002', 'funder_client', 'pc_x', 'ciphertext', now());
 insert into public.passport_links (workspace_id, mode, client_id, refresh_token_enc, linked_at, revoked_at) values
   ('7a000000-0000-4000-8000-000000000003', 'applicant_consent', 'gms', 'ciphertext', now(), now());
 
--- The statement of migration 0024, run again on these rows.
+-- The statement of migration 0024, run again on these rows (with the profile source that 0026
+-- added, which the API now releases with the id).
 with released as (
-  update public.workspaces w set passport_org_id = null
+  update public.workspaces w set passport_org_id = null, profile_source = 'none'
    where w.passport_org_id is not null and not exists (select 1 from public.passport_links l where l.workspace_id = w.id)
   returning w.id, w.kind
 )

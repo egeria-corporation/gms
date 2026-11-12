@@ -110,7 +110,8 @@ export const workspaceView = (w: Row<"workspaces">) => ({
   displayName: w.display_name,
   legalName: w.legal_name,
   passportOrgId: w.passport_org_id,
-  verificationLevel: w.verification_level,
+  /** Passport's level, only with a Passport organization (same as `verification.level`). */
+  verificationLevel: verificationOf(w).level,
   /** Where the organization's profile comes from; a self-declared one is never verified. */
   profileSource: profileSourceOf(w),
   verification: verificationOf(w),

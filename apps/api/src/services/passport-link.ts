@@ -85,7 +85,7 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
     const holder = await ctx.repos.table("workspaces").one({ passport_org_id: orgId, kind: "funder" });
     if (holder && holder.id !== workspaceId) {
       if (await ctx.repos.table("passport_links").count({ workspace_id: holder.id, mode: "funder_client" })) throw new ApiError(409, "passport_org_linked_elsewhere", "This Passport organization is already linked to another workspace. Nothing was saved");
-      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null, profile_source: "none" });
+      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null, profile_source: "none", verification_level: null, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null });
       await audit(ctx, "workspace.passport_claim_released", "workspace", holder.id, { passportOrgId: orgId, reason: "no_passport_proof" }, holder.id);
     }
     // A self-declared profile gives way to Passport. The funder client reads no organization record

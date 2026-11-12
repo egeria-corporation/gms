@@ -14,7 +14,7 @@ import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { namesOf, orgFacts, selfDeclaredOf, verificationShared } from "./profile.ts";
+import { namesOf, orgFacts, selfDeclaredOf, verificationOf, verificationShared } from "./profile.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -48,7 +48,7 @@ function summary(a: App, applicant: Ws | undefined, consented: boolean) {
       workspaceName: applicant ? namesOf(applicant).workspaceName : null,
       handle: applicant?.handle ?? null,
       // The current level is the applicant's to share; it shows only while their consent stands.
-      level: consented ? (applicant?.verification_level ?? null) : null,
+      level: verificationShared(applicant, consented).level,
       /** Passport-verified, self-declared (not verified) or no profile at all. */
       verification: verificationShared(applicant, consented),
     },
@@ -213,7 +213,7 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     decisionId: app.decision_id,
     // What the applicant shared by applying: the cached record, while their consent stands. An
     // external reviewer never sees who the applicant's contacts are.
-    organization: consented && !external ? { source: facts.source, projection: facts.source === "passport" ? facts.org : null, selfDeclared: facts.source === "self_declared" ? selfDeclaredOf(applicant) : null, level: facts.source === "passport" ? applicant.verification_level : null, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
+    organization: consented && !external ? { source: facts.source, projection: facts.source === "passport" ? facts.org : null, selfDeclared: facts.source === "self_declared" ? selfDeclaredOf(applicant) : null, level: verificationOf(applicant).level, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
     formResponses: responses,
     timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, payload: reviewer ? {} : eventPayload(e), revision: reviewer ? null : revisionOf(e), actor: e.actor, at: e.created_at })),
   };

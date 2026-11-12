@@ -83,6 +83,19 @@ describe("the self-declared profile", () => {
     expect(events).toEqual([{ fields: ["legalName", "mission"], source: "self_declared" }, { fields: ["contactEmail", "mission"], source: "self_declared" }]);
   });
 
+  it("takes an EIN only for an organization, with a prefix the IRS issues (NP-11)", async () => {
+    const refused = async (body: Record<string, unknown>) => {
+      const res = await patch(USER_APPLICANT, { legalName: "Lakeside Pantry Inc.", ...body });
+      expect(res.status).toBe(422);
+      return ((await res.json()) as { errors: { field?: string; detail?: string }[] }).errors.find((e) => e.field === "ein")!;
+    };
+    expect(await refused({ orgType: "individual", ein: "123456789" })).toMatchObject({ field: "ein", detail: expect.stringContaining("Social Security number") });
+    expect(await refused({ ein: "071234567" })).toMatchObject({ field: "ein", detail: expect.stringContaining("Social Security number") });
+    expect((await patch(USER_APPLICANT, { legalName: "Lakeside Pantry Inc.", orgType: "non_profit_with_501c3", ein: "12-3456789" })).status).toBe(200);
+    // Becoming an individual afterwards cannot keep the number.
+    expect((await patch(USER_APPLICANT, { orgType: "individual" })).status).toBe(422);
+  });
+
   it("is for admins only", async () => {
     expect((await patch(USER_OFFICER, { legalName: "Mine now" })).status).toBe(403);
   });
@@ -113,6 +126,10 @@ describe("facts, verification and letters", () => {
     const f = orgFacts(row({ profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside", ein: "123456789", address: { region: "OR" } } }));
     expect(f).toMatchObject({ source: "self_declared", level: null, profile: null, attestationUrl: null });
     expect(f.org).toEqual({ name: "Lakeside", identifiers: { "org:us:ein": { id: "123456789" } }, addresses: { primary: { stateOrProvince: "OR" } } });
+  });
+
+  it("shows no local profile beside a Passport organization (NP-13)", () => {
+    expect(orgFacts(row({ passport_org_id: "0193a1c0-0000-7000-8000-0000000000a1", profile_source: "self_declared", self_declared_profile: { legalName: "Borrowed" }, org_projection: { name: "Real" } })).org).toEqual({ name: "Real" });
   });
 
   it("never reports a level for anything not from Passport", () => {
@@ -308,5 +325,23 @@ describe("names and levels beside the badge (NP-02, NP-08, NP-09)", () => {
     expect(list.body.items[0]!.recipient).toMatchObject({ name: "Alder Creek Family Services", workspaceName: null, verificationLevel: null, verification: { source: "self_declared", level: null } });
     const alerts = await s.call<{ data: { kind: string }[] } | { items: { kind: string }[] }>(s.funder, "GET", "/gms/payments/alerts");
     expect(JSON.stringify(alerts.body)).not.toContain("level_below_l3");
+  });
+});
+
+describe("a level left on a workspace without Passport is never shown (NP-08)", () => {
+  it("workspace view, grantee list and inbox all read the level through verification", async () => {
+    const h = await harness();
+    const s = await scenario(h);
+    await s.call(s.applicant, "POST", "/common-grants/applications/start", { competitionId: s.uuid.comp });
+    await h.repos.table("applications").update({ applicant_workspace_id: WS_APPLICANT }, { submitted_at: h.clock.now.toISOString(), status: "submitted" });
+    await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });
+    // The raw column says L3, but there is no Passport organization behind it.
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: null, profile_source: "none", verification_level: "L3" });
+    const ws = await s.call<{ data: { verificationLevel: string | null } }>(s.applicant, "GET", `/gms/workspaces/${WS_APPLICANT}`);
+    expect(ws.body.data.verificationLevel).toBeNull();
+    const grantees = await s.call<{ items: { verificationLevel: string | null }[] }>(s.funder, "GET", "/gms/grantees");
+    expect(grantees.body.items[0]!.verificationLevel).toBeNull();
+    const inbox = await s.call<{ items: { applicant: { level: string | null } }[] }>(s.funder, "GET", "/gms/applications");
+    expect(inbox.body.items[0]!.applicant.level).toBeNull();
   });
 });

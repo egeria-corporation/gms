@@ -269,7 +269,7 @@ function view(ws: Ws, linked: boolean) {
     /** Where the profile comes from. A self-declared one is in `selfDeclared` and is never verified. */
     source: profileSourceOf(ws),
     selfDeclared: selfDeclaredOf(ws),
-    level: ws.verification_level ?? (org ? fields.verificationLevel : null),
+    level: profileSourceOf(ws) === "passport" ? (ws.verification_level ?? (org ? fields.verificationLevel : null)) : null,
     verifiedAt: fields.verifiedAt,
     attestationUrl: fields.attestation,
     /** CommonGrants `OrganizationBase`, exactly as Passport served it. */

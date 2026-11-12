@@ -22,6 +22,13 @@ export type VerificationLevel = "L0" | "L1" | "L2" | "L3";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
+/**
+ * Two-digit prefixes the IRS never assigns to an EIN (its published list of valid prefixes leaves
+ * these out). Kept in step with migration 0026, which refuses them too (review NP-11).
+ */
+export const INVALID_EIN_PREFIXES: readonly string[] = ["00", "07", "08", "09", "17", "18", "19", "28", "29", "49", "69", "70", "78", "79", "89", "96", "97"];
+export const validEinPrefix = (ein: string): boolean => !INVALID_EIN_PREFIXES.includes(ein.slice(0, 2));
+
 const addressInput = z
   .object({
     street: text(200).optional(),
@@ -63,10 +70,12 @@ export const selfDeclaredProfileInput = z
       .string()
       .trim()
       .transform((s) => s.replace(/-/g, ""))
-      .pipe(z.string().regex(/^\d{9}$/, "An EIN is nine digits"))
+      .pipe(z.string().regex(/^\d{9}$/, "An EIN is nine digits").refine(validEinPrefix, "This is not an EIN the IRS issues. Enter the organization's EIN, never a Social Security number"))
       .optional(),
   })
-  .strict();
+  .strict()
+  // An individual has no organization tax number to give; nine digits from one would be an SSN.
+  .refine((p) => !(p.ein && p.orgType === "individual"), { path: ["ein"], message: "An EIN is for organizations. Leave it empty for an individual: never enter a Social Security number" });
 export type SelfDeclaredProfile = z.output<typeof selfDeclaredProfileInput>;
 
 /** `PATCH /gms/workspaces/{id}/profile`: a merge patch. `null` removes an optional field. */
@@ -84,8 +93,9 @@ export const profilePatchInput = z
   .strict();
 
 /** The stored profile, or null when there is none or it no longer reads as one. */
-export function selfDeclaredOf(ws: Pick<Ws, "profile_source" | "self_declared_profile">): SelfDeclaredProfile | null {
-  if (ws.profile_source !== "self_declared" || !ws.self_declared_profile) return null;
+export function selfDeclaredOf(ws: Pick<Ws, "profile_source" | "self_declared_profile"> & Partial<Pick<Ws, "passport_org_id">>): SelfDeclaredProfile | null {
+  // A Passport organization always wins: no local profile is shown beside it (review NP-13).
+  if (ws.passport_org_id || ws.profile_source !== "self_declared" || !ws.self_declared_profile) return null;
   const r = selfDeclaredProfileInput.safeParse(ws.self_declared_profile);
   return r.success ? r.data : null;
 }

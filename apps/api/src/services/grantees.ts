@@ -29,7 +29,7 @@ const consented = async (ctx: ServiceContext, applicantId: string, funderId: str
 
 function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }) {
   const facts = payeeFactsOf(w);
-  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, ...namesOf(w), legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
+  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, ...namesOf(w), legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: verificationOf(w).level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
 }
 
 export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { q?: string | undefined; tag?: string | undefined } = {}) {

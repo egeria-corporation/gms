@@ -245,7 +245,7 @@ async function exportApplicantBundle(ctx: ServiceContext, opts: { inline?: boole
     applications: cgApplications,
     awards: awards.map((a) => a.cg ?? { id: a.id, title: a.title, status: { value: a.cg_status } }),
     // The organization is a reference into Passport; the cached projection is a convenience copy.
-    orgs: [{ passportOrgId: me.passport_org_id, name: me.display_name, verificationLevel: me.verification_level, verification: verificationOf(me), projection: me.org_projection, projectionAt: me.org_projection_at, selfDeclared: selfDeclaredOf(me) }],
+    orgs: [{ passportOrgId: me.passport_org_id, name: me.display_name, verificationLevel: verificationOf(me).level, verification: verificationOf(me), projection: me.org_projection, projectionAt: me.org_projection_at, selfDeclared: selfDeclaredOf(me) }],
   };
   const gms = {
     exportedAt: ctx.now().toISOString(),
