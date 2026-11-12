@@ -193,3 +193,46 @@ describe("parseRules", () => {
     expect(parseRules(node).ok).toBe(false);
   });
 });
+
+describe("self-reported and Passport-only facts", () => {
+  const ctx: RuleContext = { org: { orgType: "nonprofit", state: "MN" }, form: { f1: { budget: 10 } } };
+  const sd = { selfReported: ["org", "profile"], passportFacts: false } as const;
+  const isNonprofit: Rule = { path: "org.orgType", op: "eq", value: "nonprofit", label: "Nonprofit" };
+  const inTexas: Rule = { path: "org.state", op: "eq", value: "TX" };
+  const level: Rule = { path: "org.customFields.verificationLevel.value", op: "gte", value: "L2", order: ["L0", "L1", "L2", "L3"] };
+
+  it("marks a rule that read a self-reported fact", () => {
+    const r = evaluate(isNonprofit, ctx, { ...sd, acceptSelfReported: true });
+    expect(r.eligible).toBe(true);
+    expect(r.results[0]!.selfReported).toBe(true);
+  });
+  it("turns a pass on self-reported facts into needs-review unless the funder accepts them", () => {
+    const r = evaluate(isNonprofit, ctx, sd);
+    expect(r.eligible).toBe("unknown");
+    expect(r.results[0]!.explain).toMatch(/entered itself/);
+  });
+  it("keeps a fail on self-reported facts a fail", () => {
+    expect(evaluate(inTexas, ctx, sd).eligible).toBe(false);
+  });
+  it("does not mark form answers or Passport facts as self-reported", () => {
+    const r = evaluate({ path: "form.f1.budget", op: "lte", value: 20 }, ctx, sd);
+    expect(r.eligible).toBe(true);
+    expect(r.results[0]!.selfReported).toBeUndefined();
+    expect(evaluate(isNonprofit, ctx).results[0]!.selfReported).toBeUndefined();
+  });
+  it("an any-group still passes on a verified branch", () => {
+    expect(evaluate({ any: [isNonprofit, { path: "form.f1.budget", op: "lte", value: 20 }] }, ctx, sd).eligible).toBe(true);
+  });
+  it("makes Passport-only rules unknown for an applicant without Passport, even with missing: fail or pass", () => {
+    for (const missing of ["fail", "pass"] as const) {
+      const r = evaluate({ ...level, missing } as LeafRule, ctx, sd);
+      expect(r.eligible).toBe("unknown");
+      expect(r.results[0]!.explain).toMatch(/Passport/);
+    }
+    expect(evaluate({ path: "profile.irs.subsection", op: "eq", value: "03", missing: "pass" }, ctx, sd).eligible).toBe("unknown");
+  });
+  it("leaves Passport-only rules alone for a Passport applicant", () => {
+    const org = { customFields: { verificationLevel: { value: "L3" } } };
+    expect(evaluate(level, { org }, { passportFacts: true }).eligible).toBe(true);
+  });
+});
