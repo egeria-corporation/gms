@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(18);
 
 insert into auth.users (id, email, aud, role, email_confirmed_at) values
   ('9a000000-0000-4000-8000-0000000000a1', 'ana@second-step.example', 'authenticated', 'authenticated', now()),
@@ -12,6 +12,10 @@ insert into auth.sessions (id, user_id, created_at) values
   ('9a500000-0000-4000-8000-0000000000a1', '9a000000-0000-4000-8000-0000000000a1', now()),
   ('9a500000-0000-4000-8000-0000000000a2', '9a000000-0000-4000-8000-0000000000a1', now()),
   ('9a500000-0000-4000-8000-0000000000b1', '9a000000-0000-4000-8000-0000000000b1', now());
+-- Both are linked to a Passport user (0023): Passport's second step is recorded only for those.
+insert into public.passport_account_links (user_id, passport_user_id, basis) values
+  ('9a000000-0000-4000-8000-0000000000a1', 'pp-ana', 'account_created'),
+  ('9a000000-0000-4000-8000-0000000000b1', 'pp-ben', 'account_created');
 
 -- Nobody but the service role.
 set local role authenticated;
@@ -46,6 +50,13 @@ select is(public.gms_passport_second_step_claim('9a000000-0000-4000-8000-0000000
 update public.passport_second_steps set valid_until = now() - interval '1 second' where token_digest = repeat('a', 64);
 select is(public.gms_passport_second_step_ok('9a000000-0000-4000-8000-0000000000a1', '9a500000-0000-4000-8000-0000000000a1'), false, 'and the trust ends at valid_until');
 reset role;
+
+-- An account with no link to a Passport user gets no record at all (0023; the cases are in 06).
+delete from public.passport_account_links where user_id = '9a000000-0000-4000-8000-0000000000b1';
+set local role service_role;
+select public.gms_passport_second_step_record('9a000000-0000-4000-8000-0000000000b1', repeat('c', 64), 'aal2', now(), now() + interval '10 minutes', now() + interval '12 hours');
+reset role;
+select is((select count(*)::int from public.passport_second_steps where token_digest = repeat('c', 64)), 0, 'nothing is recorded for an account that is not linked to a Passport user');
 
 -- Signing out removes it.
 delete from auth.sessions where id = '9a500000-0000-4000-8000-0000000000a1';

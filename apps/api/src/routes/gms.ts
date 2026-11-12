@@ -8,6 +8,7 @@ import { secondStepVerified } from "../auth/second-step.ts";
 import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
 import { bareUuid } from "../lib/ids.ts";
+import { confirmPassportLink } from "../services/passport-signin.ts";
 import * as sessions from "../services/sessions.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
@@ -55,6 +56,9 @@ gms.get("/config", (c) => c.json(ok(features(c))));
 gms.get("/me", requireUser(), async (c) => {
   const user = c.get("user");
   const mfaVerified = await secondStepVerified(c, user);
+  // A session that has passed this account's own second step may have a first Passport sign-in
+  // waiting on it: the link is recorded here, once. Never for a session verified by Passport.
+  if (user.aal === "aal2") await confirmPassportLink(userSvc(c), user.sessionId ?? null, user.email).catch(() => false);
   const mine = await listMyWorkspaces(userSvc(c));
   return c.json(
     ok({
