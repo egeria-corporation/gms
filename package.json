@@ -18,9 +18,11 @@
     "spec:compile": "pnpm --filter @gms/api-spec compile",
     "spec:check": "pnpm --filter @gms/api-spec check",
     "gate:sensitive": "node scripts/sensitive-data-gate.mjs",
+    "gms": "node scripts/deploy/cli.ts",
+    "typecheck:deploy": "tsc -p scripts/deploy/tsconfig.json",
     "dev:web": "pnpm --filter @gms/web dev",
     "dev:api": "pnpm --filter @gms/api dev",
-    "ci": "pnpm typecheck && pnpm lint && pnpm gate:sensitive && pnpm test && pnpm spec:compile && pnpm spec:check"
+    "ci": "pnpm typecheck && pnpm typecheck:deploy && pnpm lint && pnpm gate:sensitive && pnpm test && pnpm spec:compile && pnpm spec:check"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
