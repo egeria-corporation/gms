@@ -82,7 +82,6 @@ export interface CreateWorkspaceInput {
   handle: string;
   displayName: string;
   legalName?: string;
-  passportOrgId?: string;
   brand?: Brand;
 }
 

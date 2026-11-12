@@ -2,7 +2,7 @@
 // Applying (build spec §11.4): start with Passport prefill, edit form responses with merge
 // semantics, submit. These functions back the CommonGrants `/applications` routes and the applicant
 // MCP tools alike. Status changes go through the application machine in `@gms/workflow`.
-import { computeResponseStatus, extractSubmissionFields, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
+import { computeResponseStatus, extractSubmissionFields, maskForReviewer, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
 import { DEFAULT_TEMPLATES, renderEmail } from "@gms/notify";
 import { profileToObject, type ProfileField } from "@gms/passport-client";
 import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPassportFields, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
@@ -52,8 +52,61 @@ export async function responsesOf(ctx: ServiceContext, appId: string): Promise<R
   return ctx.repos.table("form_responses").find({ application_id: appId }, { orderBy: "created_at" });
 }
 
-export async function project(ctx: ServiceContext, app: App): Promise<ApplicationBase> {
-  return projectApplication({ application: appRow(app), formResponses: (await responsesOf(ctx, app.id)).map(respRow) });
+// ------------------------------------------------------------------------------------ reviewers
+//
+// One rule for every read of an application (red team 2026-11): a reviewer sees the applications
+// assigned to them, masked, and nothing else. It used to live only in the inbox, so the CommonGrants
+// routes, the MCP resource and the side reads served every submitted application in full.
+
+export const REVIEWER_ROLES: readonly string[] = ["reviewer", "external_reviewer"];
+
+/** How a reviewer sees an application. `external` reviewers also lose personal data. */
+export interface ReviewerView {
+  external: boolean;
+}
+
+/** The caller's reviewer view in a funder workspace, or null for staff and for applicants. */
+export const reviewerView = (ws: ServiceWorkspace): ReviewerView | null => (ws.kind === "funder" && !!ws.role && REVIEWER_ROLES.includes(ws.role) ? { external: ws.role === "external_reviewer" } : null);
+
+/**
+ * The applications a reviewer may see: those assigned to them and not recused; for an external
+ * reviewer invited to named competitions, only within those. Null for everyone who is not a reviewer.
+ */
+export async function reviewerApplicationIds(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Set<string> | null> {
+  if (!reviewerView(ws)) return null;
+  if (!ctx.actor.userId) return new Set();
+  const mine = (await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, reviewer_user_id: ctx.actor.userId })).filter((a) => a.status !== "recused");
+  const scoped = (ws.memberScope as { competitionIds?: unknown } | null | undefined)?.competitionIds;
+  if (!Array.isArray(scoped) || !mine.length) return new Set(mine.map((a) => a.application_id));
+  const apps = await ctx.repos.table("applications").find({ id: [...new Set(mine.map((a) => a.application_id))], workspace_id: ws.id });
+  return new Set(apps.filter((a) => (scoped as unknown[]).includes(a.competition_id)).map((a) => a.id));
+}
+
+/** A response as a reviewer may read it: hidden fields removed, personal data masked for external reviewers, no provenance. */
+export async function reviewerResponse(ctx: ServiceContext, r: Resp, reviewer: ReviewerView): Promise<{ row: Resp; masked: string[] }> {
+  const form = await ctx.repos.table("forms").one({ id: r.form_id, version: r.form_version });
+  // Without the form there are no field flags to apply: show nothing rather than everything.
+  const m = form ? maskForReviewer(toDefinition(form), r.response as JsonObject, reviewer) : { response: {}, masked: [], removed: Object.keys((r.response as JsonObject) ?? {}).map((k) => `/${k}`) };
+  return { row: { ...r, response: m.response as Resp["response"], provenance: {} as Resp["provenance"], validation_errors: [] as unknown as Resp["validation_errors"], section_assignments: {} as Resp["section_assignments"] }, masked: [...m.masked, ...m.removed] };
+}
+
+/** What the rules decided, without the values they found in the applicant's record. */
+const outcomesOnly = (e: App["eligibility"]): App["eligibility"] => {
+  const v = e as { results?: unknown[] } | null;
+  if (!v || !Array.isArray(v.results)) return e;
+  return { ...v, results: v.results.map((r) => (r && typeof r === "object" ? Object.fromEntries(Object.entries(r as Record<string, unknown>).filter(([k]) => k !== "actual" && k !== "explain")) : r)) } as App["eligibility"];
+};
+
+/** The CommonGrants record of an application; for a reviewer, masked and without who the applicant is. */
+export async function project(ctx: ServiceContext, app: App, reviewer: ReviewerView | null = null): Promise<ApplicationBase> {
+  const rows = await responsesOf(ctx, app.id);
+  if (!reviewer) return projectApplication({ application: appRow(app), formResponses: rows.map(respRow) });
+  const masked: Resp[] = [];
+  for (const r of rows) masked.push((await reviewerResponse(ctx, r, reviewer)).row);
+  const out = projectApplication({ application: appRow({ ...app, eligibility: outcomesOnly(app.eligibility) }), formResponses: masked.map(respRow) });
+  const gms = (out.customFields as Record<string, { value?: Record<string, unknown> }> | undefined)?.gms?.value;
+  if (gms) delete gms.applicantWorkspaceId;
+  return out;
 }
 
 /** The cached Passport record of an applicant workspace, shaped for prefill and rules. */
@@ -65,18 +118,35 @@ export function passportFacts(ws: Ws): { org: JsonObject; profile: JsonObject | 
   return { org, profile, level: ws.verification_level ?? fields.verificationLevel ?? null, attestationUrl: fields.attestation ?? null };
 }
 
-/** Who may see an application, and from which side. 404 for everyone else. */
-export async function access(ctx: ServiceContext, appId: string, scope: "applications:read" | "applications:write" | "applications:submit"): Promise<{ app: App; side: "applicant" | "funder"; ws: ServiceWorkspace }> {
+/**
+ * Who may see an application, and from which side. 404 for everyone else.
+ *
+ * Reviewers are refused unless the caller says it serves them (`reviewers: true`), and then only
+ * for an application assigned to them. A caller that passes `reviewers: true` must show the
+ * reviewer's view: `project(ctx, app, reviewer)` or `reviewerResponse`. Everything else (budget,
+ * follow-ups, threads, attachments, agent tools) is staff's and the applicant's, so a new read of
+ * an application is closed to reviewers until someone decides what a reviewer should see of it.
+ */
+export async function access(
+  ctx: ServiceContext,
+  appId: string,
+  scope: "applications:read" | "applications:write" | "applications:submit",
+  opts: { reviewers?: boolean } = {},
+): Promise<{ app: App; side: "applicant" | "funder"; ws: ServiceWorkspace; reviewer: ReviewerView | null }> {
   const ws = await authorize(ctx, { scope });
   const app = await ctx.repos.table("applications").one({ id: appId });
   if (app && app.applicant_workspace_id === ws.id && ws.kind === "applicant") {
     // A consultant sees only the applications named in their membership scope.
     const allowed = ws.role === "consultant" ? (ws.memberScope?.applicationIds as string[] | undefined) : undefined;
     if (ws.role === "consultant" && !(allowed ?? []).includes(app.id)) throw notFound("Application");
-    return { app, side: "applicant", ws };
+    return { app, side: "applicant", ws, reviewer: null };
   }
   // The funder sees an application once it has been submitted; drafts belong to the applicant.
-  if (app && app.workspace_id === ws.id && ws.kind === "funder" && app.submitted_at) return { app, side: "funder", ws };
+  if (app && app.workspace_id === ws.id && ws.kind === "funder" && app.submitted_at) {
+    const reviewer = reviewerView(ws);
+    if (reviewer && !(opts.reviewers && (await reviewerApplicationIds(ctx, ws))?.has(app.id))) throw notFound("Application");
+    return { app, side: "funder", ws, reviewer };
+  }
   throw notFound("Application");
 }
 
@@ -236,7 +306,8 @@ export async function startApplication(ctx: ServiceContext, input: z.output<type
 }
 
 export async function getApplication(ctx: ServiceContext, appId: string): Promise<ApplicationBase> {
-  return project(ctx, (await access(ctx, appId, "applications:read")).app);
+  const { app, reviewer } = await access(ctx, appId, "applications:read", { reviewers: true });
+  return project(ctx, app, reviewer);
 }
 
 // ------------------------------------------------------------------------------------ form responses
@@ -246,8 +317,9 @@ async function responseFor(ctx: ServiceContext, app: App, formId: string): Promi
 }
 
 export async function getFormResponse(ctx: ServiceContext, appId: string, formId: string) {
-  const { app } = await access(ctx, appId, "applications:read");
-  return projectFormResponse(respRow(await responseFor(ctx, app, formId)));
+  const { app, reviewer } = await access(ctx, appId, "applications:read", { reviewers: true });
+  const row = await responseFor(ctx, app, formId);
+  return projectFormResponse(respRow(reviewer ? (await reviewerResponse(ctx, row, reviewer)).row : row));
 }
 
 export const formResponseInput = z.object({ response: z.record(z.string(), z.unknown()) }).loose();
@@ -406,8 +478,17 @@ const SEARCH_WINDOW = 2000;
 export async function searchApplications(ctx: ServiceContext, body: unknown) {
   const ws = await authorize(ctx, { scope: "applications:read" });
   const req = parseSearchRequest("applications", body);
-  const rows = ws.kind === "applicant" ? await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { limit: SEARCH_WINDOW }) : await ctx.repos.table("applications").find({ workspace_id: ws.id }, { limit: SEARCH_WINDOW, notNull: ["submitted_at"] });
-  const all = await Promise.all(rows.map((r) => project(ctx, r)));
+  let rows = ws.kind === "applicant" ? await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { limit: SEARCH_WINDOW }) : await ctx.repos.table("applications").find({ workspace_id: ws.id }, { limit: SEARCH_WINDOW, notNull: ["submitted_at"] });
+  // The same people see the same applications here as one at a time: a consultant only those in
+  // their scope, a reviewer only those assigned to them, and masked.
+  if (ws.kind === "applicant" && ws.role === "consultant") {
+    const allowed = (ws.memberScope?.applicationIds as string[] | undefined) ?? [];
+    rows = rows.filter((r) => allowed.includes(r.id));
+  }
+  const reviewer = reviewerView(ws);
+  const assigned = await reviewerApplicationIds(ctx, ws);
+  if (assigned) rows = rows.filter((r) => assigned.has(r.id));
+  const all = await Promise.all(rows.map((r) => project(ctx, r, reviewer)));
   const needle = req.search?.toLowerCase();
   let hits = all.filter((a) => (!needle || a.title.toLowerCase().includes(needle)) && req.parsedFilters.every((f) => matchesFilter(readPath(a, f.custom ? `customFields.${f.name}.value` : (FILTER_PATHS[f.name] ?? f.name)), f.operator, f.value)));
   hits = sortByPath(hits, req.sortInfo.sortBy === "custom" ? `customFields.${req.sortInfo.customSortBy}.value` : req.sortInfo.sortBy, req.sortInfo.sortOrder);

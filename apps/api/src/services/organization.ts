@@ -125,13 +125,17 @@ async function uniqueHandle(ctx: ServiceContext, name: string): Promise<string> 
   return `${base}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-export type ConsentOutcome = { ok: true; redirect: string; workspaceId: string } | { ok: false; redirect: string; reason: string };
+export type ConsentOutcome = { ok: true; redirect: string } | { ok: false; redirect: string; reason: string };
 
 /**
- * Step 2: Passport sends the browser back. There is no bearer on this request; the sealed `state`
- * says who started the flow. Always answers with a redirect into the web app.
+ * Step 2: Passport sends the browser back. There is no bearer on this request, and so nothing here
+ * proves the browser belongs to the person who started the flow: someone can start it and send the
+ * Passport link to a representative of another organization, whose approval then arrives here with
+ * the starter's `state`. The callback therefore links nothing and redeems nothing. It hands the
+ * code back to the web app in the URL fragment (never sent to a server, never in a Referer), and
+ * the web app finishes with the signed-in person's own session (`finishConsent`).
  */
-export async function completeConsent(ctx: Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">, query: { code?: string; state?: string; error?: string }): Promise<ConsentOutcome> {
+export async function completeConsent(ctx: Pick<ServiceContext, "now" | "config">, query: { code?: string; state?: string; error?: string }): Promise<ConsentOutcome> {
   const web = ctx.config.webBaseUrl;
   const fail = (reason: string, returnTo?: string | null): ConsentOutcome => ({ ok: false, reason, redirect: `${web}${returnTo ?? "/onboarding/applicant"}?passport=error&reason=${encodeURIComponent(reason)}` });
   const { passportBaseUrl: baseUrl, credentialsKey: key, passportClient: client } = ctx.config;
@@ -144,21 +148,40 @@ export async function completeConsent(ctx: Pick<ServiceContext, "repos" | "ledge
   }
   if (!sealed.u || !sealed.v || sealed.exp < ctx.now().getTime()) return fail("expired", sealed.r);
   if (query.error || !query.code) return fail(query.error === "access_denied" ? "declined" : "passport_error", sealed.r);
+  if (!/^[A-Za-z0-9._~-]{1,512}$/.test(query.code)) return fail("passport_error", sealed.r);
+  return { ok: true, redirect: `${web}${sealed.r ?? "/onboarding/applicant"}?passport=finish#code=${encodeURIComponent(query.code)}&state=${encodeURIComponent(query.state!)}` };
+}
 
-  const svc: ServiceContext = { ...ctx, actor: { kind: "user", userId: sealed.u, clientId: null, ledger: { kind: "user", userId: sealed.u }, id: `user:${sealed.u}` }, workspace: null, scopes: [] };
+export const consentFinishInput = z.object({ code: z.string().regex(/^[A-Za-z0-9._~-]{1,512}$/), state: z.string().min(1).max(4000) }).strict();
+
+/**
+ * Step 3: the web app, with the person's own session, finishes what that same person started.
+ * `state` names who started the flow; anyone else is refused before the code is redeemed, so an
+ * approval given at Passport by one person can never link an organization to another's account.
+ */
+export async function finishConsent(ctx: ServiceContext, input: z.output<typeof consentFinishInput>) {
+  await authorize(ctx, { person: true });
+  const cfg = configured(ctx);
+  let sealed: SealedState;
+  try {
+    sealed = JSON.parse(await decryptSecret(input.state, cfg.key)) as SealedState;
+  } catch {
+    throw new ApiError(400, "invalid_state", "This Passport approval could not be read. Start again");
+  }
+  if (!sealed.u || !sealed.v || sealed.exp < ctx.now().getTime()) throw new ApiError(400, "expired", "This Passport approval took too long. Start again");
+  if (sealed.u !== ctx.actor.userId) throw new ApiError(403, "consent_not_yours", "This Passport approval was started from another account. Start again from the account you are signed in with");
   let tokens;
   let read;
   try {
-    tokens = await exchangeAuthorizationCode({ baseUrl, clientId: client.id, clientSecret: client.secret, code: query.code, codeVerifier: sealed.v, redirectUri: `${ctx.config.baseUrl}/gms/passport/consent/callback`, fetch: ctx.config.passportFetch });
-    read = await readPassport(new PassportClient({ baseUrl, tokens: staticToken(tokens.accessToken), fetch: ctx.config.passportFetch }), tokens.orgId);
+    tokens = await exchangeAuthorizationCode({ baseUrl: cfg.baseUrl, clientId: cfg.client.id, clientSecret: cfg.client.secret, code: input.code, codeVerifier: sealed.v, redirectUri: cfg.redirectUri, fetch: ctx.config.passportFetch });
+    read = await readPassport(new PassportClient({ baseUrl: cfg.baseUrl, tokens: staticToken(tokens.accessToken), fetch: ctx.config.passportFetch }), tokens.orgId);
   } catch (e) {
-    if (e instanceof PassportUnavailableError) return fail("passport_unavailable", sealed.r);
-    if (e instanceof PassportAuthError || e instanceof PassportApiError) return fail("passport_refused", sealed.r);
+    if (e instanceof PassportUnavailableError) throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now. Try again in a few minutes");
+    if (e instanceof PassportAuthError || e instanceof PassportApiError) throw new ApiError(422, "passport_refused", "Passport refused the request for this organization");
     throw e;
   }
-
-  const ws = await linkApplicantOrganization(svc, { userId: sealed.u, tokens, read, workspaceHint: sealed.w, via: "passport_consent" });
-  return { ok: true, workspaceId: ws.id, redirect: `${web}${sealed.r ?? "/onboarding/applicant"}?passport=linked&ws=${encodeURIComponent(ws.handle)}` };
+  const ws = await linkApplicantOrganization(ctx, { userId: sealed.u, tokens, read, workspaceHint: sealed.w, via: "passport_consent" });
+  return { workspaceId: ws.id, handle: ws.handle, redirect: `${ctx.config.webBaseUrl}${sealed.r ?? "/onboarding/applicant"}?passport=linked&ws=${encodeURIComponent(ws.handle)}` };
 }
 
 /** What Passport said about the organization a person just consented for. */
@@ -184,6 +207,16 @@ export async function linkApplicantOrganization(
   const at = svc.now().toISOString();
   const columns = projectionColumns(read.org, read.profile, at);
   let workspace = await svc.repos.table("workspaces").one({ passport_org_id: tokens.orgId, kind: "applicant" });
+  if (workspace && !(await svc.repos.table("passport_links").count({ workspace_id: workspace.id, mode: "applicant_consent" }))) {
+    // A workspace that carries this organization's id with no Passport consent ever behind it did
+    // not get the id from Passport (workspaces could once be created with any id). It is not the
+    // organization's workspace: its claim is released, and it keeps nothing of the organization's.
+    // The person consenting now is the proof of standing, so they get a workspace of their own
+    // (or the one they named below), never a seat under whoever parked on the id.
+    await svc.repos.table("workspaces").update({ id: workspace.id }, { passport_org_id: null, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, verification_level: null });
+    await audit(svc, "workspace.passport_claim_released", "workspace", workspace.id, { passportOrgId: tokens.orgId, reason: "no_passport_proof" }, workspace.id);
+    workspace = null;
+  }
   if (!workspace && input.workspaceHint) {
     // Link the workspace the person named, if they still administer it and it is still unlinked.
     const m = await svc.repos.table("workspace_members").one({ workspace_id: input.workspaceHint, user_id: userId, role: "admin" });

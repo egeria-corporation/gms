@@ -3,7 +3,7 @@
 // detail with provenance and eligibility, advance, request a revision, decline, tag, assign, and
 // the same in bulk. Status changes go through the application machine; letters go through the
 // mail port and are ledgered.
-import { maskForReviewer, type JsonObject } from "@gms/forms";
+import type { JsonObject } from "@gms/forms";
 import { readPassportFields } from "@gms/protocol";
 import { advanceStage, type StageDef } from "@gms/workflow";
 import { fanOut } from "@gms/webhooks";
@@ -12,15 +12,13 @@ import { z } from "zod";
 import { toRubric } from "./reviews.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, renderLetter, responsesOf, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
+import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { toDefinition } from "./forms.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
 const WINDOW = 5000;
-const REVIEWER_ROLES = ["reviewer", "external_reviewer"];
 
 const eligibleOf = (a: App): boolean | "unknown" | null => {
   const e = a.eligibility as { eligible?: boolean | "unknown" } | null;
@@ -53,12 +51,8 @@ function summary(a: App, applicant: Ws | undefined, consented: boolean) {
   };
 }
 
-/** Reviewers see the applications assigned to them, nothing else. */
-async function visibleIds(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Set<string> | null> {
-  if (!ws.role || !REVIEWER_ROLES.includes(ws.role)) return null;
-  const mine = await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, reviewer_user_id: ctx.actor.userId! });
-  return new Set(mine.map((m) => m.application_id));
-}
+/** Reviewers see the applications assigned to them, nothing else. The rule itself is `reviewerApplicationIds`, shared with every other read. */
+const visibleIds = (ctx: ServiceContext, ws: ServiceWorkspace): Promise<Set<string> | null> => reviewerApplicationIds(ctx, ws);
 
 export interface InboxFilter {
   competitionId?: string;
@@ -178,10 +172,9 @@ async function reviewFacts(ctx: ServiceContext, workspaceId: string, apps: App[]
 }
 
 async function funderApp(ctx: ServiceContext, appId: string, scope: "applications:read" | "applications:write") {
-  const found = await access(ctx, appId, scope);
+  // `access` admits a reviewer only for an application assigned to them; the detail below masks it.
+  const found = await access(ctx, appId, scope, { reviewers: true });
   if (found.side !== "funder") throw new ApiError(403, "wrong_workspace_kind", "This action belongs to funder workspaces");
-  const only = await visibleIds(ctx, found.ws);
-  if (only && !only.has(found.app.id)) required(null, "Application");
   return found;
 }
 
@@ -196,11 +189,12 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     const form = await ctx.repos.table("forms").one({ id: r.form_id, version: r.form_version });
     let response = r.response as JsonObject;
     let masked: string[] = [];
-    if (reviewer && form) {
-      // Reviewers get only reviewer-visible fields; external reviewers also lose PII (§10.5).
-      const m = maskForReviewer(toDefinition(form), response, { external });
-      response = m.response;
-      masked = [...m.masked, ...m.removed];
+    if (reviewer) {
+      // Reviewers get only reviewer-visible fields; external reviewers also lose PII (§10.5). The
+      // same function masks the CommonGrants record, so the two views cannot drift apart.
+      const m = await reviewerResponse(ctx, r, { external });
+      response = m.row.response as JsonObject;
+      masked = m.masked;
     }
     responses.push({ formId: apiId("form", r.form_id), formVersion: r.form_version, formTitle: form?.title ?? null, stage: r.stage, status: r.status, response, provenance: reviewer ? {} : r.provenance, sectionAssignments: reviewer ? {} : r.section_assignments, validationErrors: r.validation_errors, lockedAt: r.locked_at, masked });
   }

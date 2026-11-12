@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(40);
 
 -- ---------------------------------------------------------------- fixtures (as postgres)
 insert into auth.users (id, email, aud, role) values
@@ -144,10 +144,16 @@ select isnt_empty($$ select 1 from public.bank_transactions where external_txn_i
 select is_empty($$ select 1 from public.ledger_events where workspace_id = '0a000000-0000-7000-8000-000000000001' $$, 'finance does not read the ledger (admin and auditor only)');
 
 select set_config('request.jwt.claims', '{"sub":"a0000000-0000-4000-8000-0000000000a2","role":"authenticated"}', true);
-select results_eq(
-  $$ select title from public.applications where title like '% to %' order by 1 $$,
-  array['Y to A'], 'an internal reviewer sees only the application assigned to them'
+select is_empty(
+  $$ select 1 from public.applications where title like '% to %' $$,
+  'a reviewer gets no direct read of applications, not even assigned ones (masked through the API)'
 );
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-4000-8000-0000000000a3","role":"authenticated"}', true);
+select is_empty(
+  $$ select 1 from public.applications $$,
+  'nor does an external reviewer, whatever their assignments'
+);
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-4000-8000-0000000000a2","role":"authenticated"}', true);
 select is((select count(*)::int from public.reviews where workspace_id = '0a000000-0000-7000-8000-000000000001'), 1, 'a reviewer sees only their own review (blind until the panel)');
 select is_empty($$ select 1 from public.form_responses where workspace_id = '0a000000-0000-7000-8000-000000000001' $$, 'reviewers get no direct read of form responses (masked through the API)');
 select is_empty($$ select 1 from public.bank_transactions $$, 'reviewers cannot see bank transactions');

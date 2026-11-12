@@ -51,9 +51,9 @@ export async function evaluateTranchesDue(base: BaseContext): Promise<{ awards: 
   const awards = awardIds.length ? await base.repos.table("awards").find({ id: awardIds, status: "active" }) : [];
   let due = 0;
   const failed = await each(awards, async (award) => {
-    const agreement = await latestAgreement(sys(base, "tranche-due", award.workspace_id), award.id);
-    const accepted = (await base.repos.table("requirements").find({ award_id: award.id, status: "accepted" })).map((r) => r.id);
-    const updates = evaluateDue(scheduled.filter((t) => t.award_id === award.id).map(toPaymentsTranche), { agreementExecuted: agreement?.status === "executed", noAgreementRequired: award.conditions.includes(NO_AGREEMENT_REQUIRED), awardActive: true, acceptedRequirementIds: accepted, now: base.now() });
+    const agreement = await latestAgreement(sys(base, "tranche-due", award.workspace_id), award);
+    const accepted = (await base.repos.table("requirements").find({ award_id: award.id, workspace_id: award.workspace_id, status: "accepted" })).map((r) => r.id);
+    const updates = evaluateDue(scheduled.filter((t) => t.award_id === award.id && t.workspace_id === award.workspace_id).map(toPaymentsTranche), { agreementExecuted: agreement?.status === "executed", noAgreementRequired: award.conditions.includes(NO_AGREEMENT_REQUIRED), awardActive: true, acceptedRequirementIds: accepted, now: base.now() });
     for (const u of updates) {
       await applyTrancheUpdate(sys(base, "tranche-due", award.workspace_id), u, "system");
       due++;
@@ -75,7 +75,8 @@ export async function reconcileStuckReleases(base: BaseContext, olderThanMs: num
   let resolved = 0;
   let unconfirmed = 0;
   const failed = await each(stuck, async (t) => {
-    const award = await base.repos.table("awards").one({ id: t.award_id });
+    // The award of the tranche's own workspace, or nothing: a tranche that names another funder's award is never retried.
+    const award = await base.repos.table("awards").one({ id: t.award_id, workspace_id: t.workspace_id });
     if (!award) return;
     const out = await reconcileReleasing(sys(base, "tranche-reconcile", t.workspace_id), t, award);
     if (out.result === "unconfirmed") unconfirmed++;

@@ -34,8 +34,14 @@ async function consent(user: string, fixtures: Fixture[], body: Record<string, u
   expect(start.status).toBe(200);
   const { authorizeUrl } = ((await start.json()) as { data: { authorizeUrl: string } }).data;
   const state = new URL(authorizeUrl).searchParams.get("state")!;
+  // Passport sends the browser back: the callback links nothing and hands the code to the web app,
+  // which finishes with the same person's session.
   const cb = await h.request(`/gms/passport/consent/callback?code=the-code&state=${encodeURIComponent(state)}`);
-  return { fx, authorizeUrl, state, cb, location: new URL(cb.headers.get("Location")!) };
+  const back = new URL(cb.headers.get("Location")!);
+  expect(back.searchParams.get("passport")).toBe("finish");
+  const finish = await h.request("/gms/passport/consent/finish", { method: "POST", headers: await session(user), body: JSON.stringify({ code: new URLSearchParams(back.hash.slice(1)).get("code"), state }) });
+  const done = (await finish.json()) as { data?: { redirect: string }; errors?: { code: string }[] };
+  return { fx, authorizeUrl, state, cb, finish, code: done.errors?.[0]?.code ?? null, location: new URL(done.data?.redirect ?? cb.headers.get("Location")!) };
 }
 
 describe("Passport consent", () => {
@@ -50,8 +56,9 @@ describe("Passport consent", () => {
 
   it("creates the applicant workspace, caches the record and profile, and stores the refresh token encrypted", async () => {
     // The harness's own applicant workspace is unlinked, so this organization is new here.
-    const { fx, cb, location } = await consent(NEW_USER, [token(1), ORG, PROFILE]);
+    const { fx, cb, finish, location } = await consent(NEW_USER, [token(1), ORG, PROFILE]);
     expect(cb.status).toBe(302);
+    expect(finish.status).toBe(200);
     expect(location.origin + location.pathname).toBe(`${WEB}/onboarding/applicant`);
     expect(location.searchParams.get("passport")).toBe("linked");
     const ws = (await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER }))!;
@@ -92,7 +99,7 @@ describe("Passport consent", () => {
     expect((await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER }))!.profile_projection).toBeNull();
   });
 
-  it("redirects with a reason and changes nothing for a forged state, a refusal or a Passport outage", async () => {
+  it("redirects with a reason and changes nothing for a forged state, a refusal or a late return", async () => {
     const forged = await h.request("/gms/passport/consent/callback?code=x&state=not-a-sealed-state");
     expect(new URL(forged.headers.get("Location")!).searchParams.get("reason")).toBe("invalid_state");
 
@@ -101,14 +108,19 @@ describe("Passport consent", () => {
     const declined = await h.request(`/gms/passport/consent/callback?error=access_denied&state=${encodeURIComponent(state)}`);
     expect(new URL(declined.headers.get("Location")!).searchParams.get("reason")).toBe("declined");
 
+    // Passport down, or refusing the code, is reported when the person finishes; nothing is linked.
+    const finish = async (code = "c") => h.request("/gms/passport/consent/finish", { method: "POST", headers: await session(NEW_USER), body: JSON.stringify({ code, state }) });
     h.passport.fetch = () => Promise.reject(new Error("down"));
-    const down = await h.request(`/gms/passport/consent/callback?code=c&state=${encodeURIComponent(state)}`);
-    expect(new URL(down.headers.get("Location")!).searchParams.get("reason")).toBe("passport_unavailable");
+    expect((await finish()).status).toBe(503);
+    h.passport.fetch = fixtureFetch([{ method: "POST", path: "/oauth/token", status: 400, body: { error: "invalid_grant" } }]).fetch;
+    expect((await finish()).status).toBe(422);
+    expect((await h.request("/gms/passport/consent/finish", { method: "POST", headers: await session(NEW_USER), body: JSON.stringify({ code: "c", state: "not-a-sealed-state" }) })).status).toBe(400);
 
     h.clock.now = new Date(h.clock.now.getTime() + 11 * 60 * 1000);
     h.passport.fetch = fixtureFetch([token(1), ORG, PROFILE]).fetch;
     const late = await h.request(`/gms/passport/consent/callback?code=c&state=${encodeURIComponent(state)}`);
     expect(new URL(late.headers.get("Location")!).searchParams.get("reason")).toBe("expired");
+    expect((await finish()).status).toBe(400);
     expect(await h.repos.table("workspaces").count({ passport_org_id: ORG_ALDER })).toBe(0);
   });
 

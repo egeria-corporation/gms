@@ -150,7 +150,6 @@ export default function FunderOnboarding() {
   const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
   const [handleTouched, setHandleTouched] = useState(false);
-  const [passportOrgId, setPassportOrgId] = useState("");
   // brand
   const [accent, setAccent] = useState<string>(SYSTEM_BRAND.accent);
   const [onAccent, setOnAccent] = useState<string>(SYSTEM_BRAND.onAccent);
@@ -165,7 +164,7 @@ export default function FunderOnboarding() {
   const [budget, setBudget] = useState("");
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
-  const create = useApiMutation((a) => a.createWorkspace({ kind: "funder", handle, displayName: name.trim(), ...(passportOrgId.trim() ? { passportOrgId: passportOrgId.trim() } : {}) }));
+  const create = useApiMutation((a) => a.createWorkspace({ kind: "funder", handle, displayName: name.trim() }));
   const saveBrand = useApiMutation((a, id: string) => a.updateWorkspace(id, { brand: { accent, onAccent, ...(logoUrl.trim() ? { logoUrl: logoUrl.trim() } : {}) } }));
   const invite = useApiMutation((a, id: string) => a.createInvitation(id, { email: inviteEmail.trim(), role: inviteRole }));
   const createProgram = useApiMutation(async (a, ws: WorkspaceRecord, budgetMinor: number | null) => {
@@ -328,9 +327,6 @@ export default function FunderOnboarding() {
                       required
                     />
                   </div>
-                </Field>
-                <Field id="org-passport" label="Passport organization id" help="From your organization's page in OpenGrants Passport. You can add it later; publishing and payments wait for it.">
-                  <input className="inp mono" id="org-passport" value={passportOrgId} onChange={(e) => setPassportOrgId(e.target.value)} disabled={!!workspace} placeholder="00000000-0000-0000-0000-000000000000" />
                 </Field>
               </StepCard>
             </form>

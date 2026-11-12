@@ -2,7 +2,7 @@
 // Applicant onboarding: consent in Passport, confirm what came across, see readiness, go.
 // The GMS never asks for organization details here; they are read from Passport with consent.
 import { useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { wantedFrom, wantedQuery } from "../../lib/wantedOpportunity.ts";
 import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX } from "lucide-react";
 import type { ApplicantReadiness, MyOrganization } from "../../api/applicant.ts";
@@ -49,7 +49,32 @@ export default function ApplicantOnboarding() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const [confirmed, setConfirmed] = useState(false);
 
-  // Coming back from Passport: the new workspace is not in the cached memberships yet.
+  // Coming back from Passport with a code to finish: the server linked nothing yet. This account
+  // finishes what it started; the code leaves the address bar before anything else happens.
+  const navigate = useNavigate();
+  const finishing = useRef(false);
+  const [finishError, setFinishError] = useState<unknown>(null);
+  useEffect(() => {
+    if (outcome !== "finish" || finishing.current) return;
+    finishing.current = true;
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const code = fragment.get("code");
+    const state = fragment.get("state");
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (!code || !state) {
+      navigate("/onboarding/applicant?passport=error&reason=invalid_state", { replace: true });
+      return;
+    }
+    api.finishConsent({ code, state }).then(
+      (done) => {
+        const next = new URL(done.redirect, window.location.origin);
+        navigate(next.pathname + next.search, { replace: true });
+      },
+      (e: unknown) => setFinishError(e),
+    );
+  }, [outcome, api, navigate]);
+
+  // Linked: the new workspace is not in the cached memberships yet.
   const reloaded = useRef(false);
   useEffect(() => {
     if (outcome === "linked" && !reloaded.current) {
@@ -139,6 +164,8 @@ export default function ApplicantOnboarding() {
             </ol>
           </div>
 
+          {outcome === "finish" && finishError === null && <Loading label="Linking your organization" />}
+          {finishError !== null && <ErrorBanner error={finishError} title="Your organization was not linked" />}
           {outcome === "error" && (
             <div className="bnr bnr-dng" role="alert">
               <CircleX className="ic" aria-hidden="true" />

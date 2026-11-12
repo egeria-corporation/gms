@@ -97,6 +97,8 @@ async function access(ctx: ServiceContext, agreementId: string, scope: "awards:r
   if (!agreement) throw notFound("Agreement");
   try {
     const found = await accessAward(ctx, agreement.award_id, scope);
+    // The agreement is the award's own funder's; a row elsewhere that names this award is not its agreement.
+    if (agreement.workspace_id !== found.award.workspace_id) throw notFound("Agreement");
     return { agreement, ...found };
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) throw notFound("Agreement");
@@ -112,7 +114,7 @@ async function transition(ctx: ServiceContext, g: Agreement, action: AgreementAc
 
 /** Create the draft agreement of an award. Used by decisions.commit and by `POST /awards/{id}/agreements`. */
 export async function draftAgreement(ctx: ServiceContext, award: Award, templateId?: string | null): Promise<Agreement> {
-  const current = await latestAgreement(ctx, award.id);
+  const current = await latestAgreement(ctx, award);
   if (current && current.status !== "voided") throw new ApiError(409, "agreement_exists", `This award already has an agreement that is ${current.status.replace(/_/g, " ")}. Void it before drafting another`);
   let pinned = templateId ?? null;
   if (!pinned && award.program_id) pinned = readDefaults(await ctx.repos.table("programs").one({ id: award.program_id })).agreementTemplateId ?? null;
@@ -202,7 +204,7 @@ export async function countersignAgreement(ctx: ServiceContext, agreementId: str
   if (side !== "funder") throw notFound("Agreement");
   const countersigned = await transition(ctx, agreement, "countersign", "funder", { documentSha256: agreement.document_sha256, signature: signatureOf(ctx, agreement, input, ip) });
 
-  const tranches = await ctx.repos.table("tranches").find({ award_id: award.id }, { orderBy: "seq" });
+  const tranches = await ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "seq" });
   const result = await executeAgreement(
     { agreement: { id: countersigned.id, status: "countersigned" }, award: { id: award.id, status: award.status as AwardStatus, conditions: award.conditions }, tranches: tranches.map((t) => ({ id: t.id, status: t.status as TrancheStatus, condition: t.condition as unknown as TrancheCondition })) },
     { id: ctx.actor.id, kind: "funder" },

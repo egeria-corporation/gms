@@ -89,7 +89,8 @@ export async function accessAward(ctx: ServiceContext, awardId: string, scope: "
   throw notFound("Award");
 }
 
-export const latestAgreement = async (ctx: ServiceContext, awardId: string): Promise<Agreement | null> => (await ctx.repos.table("agreements").find({ award_id: awardId }, { orderBy: "version", ascending: false, limit: 1 }))[0] ?? null;
+/** The award's newest agreement. Only the award's own workspace can hold one: a row elsewhere that names this award is not its agreement. */
+export const latestAgreement = async (ctx: ServiceContext, award: Pick<Award, "id" | "workspace_id">): Promise<Agreement | null> => (await ctx.repos.table("agreements").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "version", ascending: false, limit: 1 }))[0] ?? null;
 
 export const agreementSummary = (g: Agreement) => ({
   id: apiId("agreement", g.id),
@@ -149,10 +150,10 @@ async function parties(ctx: ServiceContext, awards: Award[]) {
 export async function awardDetail(ctx: ServiceContext, a: Award) {
   const p = await parties(ctx, [a]);
   const [agreement, tranches, requirements, amendments] = await Promise.all([
-    latestAgreement(ctx, a.id),
-    ctx.repos.table("tranches").find({ award_id: a.id }, { orderBy: "seq" }),
-    ctx.repos.table("requirements").find({ award_id: a.id }, { orderBy: "due_at" }),
-    ctx.repos.table("amendments").find({ award_id: a.id }, { orderBy: "created_at" }),
+    latestAgreement(ctx, a),
+    ctx.repos.table("tranches").find({ award_id: a.id, workspace_id: a.workspace_id }, { orderBy: "seq" }),
+    ctx.repos.table("requirements").find({ award_id: a.id, workspace_id: a.workspace_id }, { orderBy: "due_at" }),
+    ctx.repos.table("amendments").find({ award_id: a.id, workspace_id: a.workspace_id }, { orderBy: "created_at" }),
   ]);
   return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map(trancheView), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
 }
@@ -398,15 +399,15 @@ async function funderAward(ctx: ServiceContext, awardId: string): Promise<Award>
   return award;
 }
 
-const tranchesOf = (ctx: ServiceContext, awardId: string) => ctx.repos.table("tranches").find({ award_id: awardId }, { orderBy: "seq" });
+const tranchesOf = (ctx: ServiceContext, award: Pick<Award, "id" | "workspace_id">) => ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "seq" });
 
 export async function activateAward(ctx: ServiceContext, awardId: string) {
   const award = await funderAward(ctx, awardId);
-  const agreement = await latestAgreement(ctx, award.id);
+  const agreement = await latestAgreement(ctx, award);
   const active = await transitionAward(ctx, award, "activate", "funder", { agreementStatus: (agreement?.status as AgreementStatus | undefined) ?? null, conditions: award.conditions });
   // No agreement to execute: the onExecution tranches become due with activation.
   if (award.conditions.includes(NO_AGREEMENT_REQUIRED)) {
-    for (const t of await tranchesOf(ctx, award.id)) {
+    for (const t of await tranchesOf(ctx, award)) {
       if (t.status === "scheduled" && (t.condition as { type?: string }).type === "onExecution") await trancheMachine.transition({ id: t.id, status: "scheduled" }, "mark_due", { id: "system:workflow", kind: "system" }, { conditionSatisfied: true, now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
     }
   }
@@ -418,7 +419,7 @@ export const reasonInput = z.object({ reason: z.string().trim().min(1).max(5000)
 export async function suspendAward(ctx: ServiceContext, awardId: string, input: z.output<typeof reasonInput>) {
   const award = await funderAward(ctx, awardId);
   const suspended = await transitionAward(ctx, award, "suspend", "funder", { reason: input.reason });
-  for (const t of await tranchesOf(ctx, award.id)) {
+  for (const t of await tranchesOf(ctx, award)) {
     if (t.status === "due" || t.status === "ready") await trancheMachine.transition({ id: t.id, status: t.status as TrancheStatus }, "hold", { id: ctx.actor.id, kind: "funder" }, { holdReason: `Award suspended: ${input.reason}`, now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
   }
   return awardDetail(ctx, suspended);
@@ -427,7 +428,7 @@ export async function suspendAward(ctx: ServiceContext, awardId: string, input: 
 export async function resumeAward(ctx: ServiceContext, awardId: string) {
   const award = await funderAward(ctx, awardId);
   const active = await transitionAward(ctx, award, "resume", "funder");
-  for (const t of await tranchesOf(ctx, award.id)) {
+  for (const t of await tranchesOf(ctx, award)) {
     if (t.status === "held" && t.hold_reason?.startsWith("Award suspended")) await trancheMachine.transition({ id: t.id, status: "held" }, "release_hold", { id: ctx.actor.id, kind: "funder" }, { now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
   }
   return awardDetail(ctx, active);
@@ -435,7 +436,7 @@ export async function resumeAward(ctx: ServiceContext, awardId: string) {
 
 export async function completeAward(ctx: ServiceContext, awardId: string) {
   const award = await funderAward(ctx, awardId);
-  const open = (await tranchesOf(ctx, award.id)).filter((t) => OPEN_TRANCHES.includes(t.status)).length;
+  const open = (await tranchesOf(ctx, award)).filter((t) => OPEN_TRANCHES.includes(t.status)).length;
   const done = await transitionAward(ctx, award, "complete", "funder", { openTranches: open });
   if (done.passport_award_id) await mirrorAward(ctx, done);
   return awardDetail(ctx, done);
@@ -444,7 +445,7 @@ export async function completeAward(ctx: ServiceContext, awardId: string) {
 export async function cancelAward(ctx: ServiceContext, awardId: string, input: z.output<typeof reasonInput>) {
   const award = await funderAward(ctx, awardId);
   const cancelled = await transitionAward(ctx, award, "cancel", "funder", { reason: input.reason });
-  for (const t of await tranchesOf(ctx, award.id)) {
+  for (const t of await tranchesOf(ctx, award)) {
     if (["scheduled", "due", "ready", "held", "failed"].includes(t.status)) await trancheMachine.transition({ id: t.id, status: t.status as TrancheStatus }, "cancel", { id: ctx.actor.id, kind: "funder" }, { now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
   }
   if (cancelled.passport_award_id) await mirrorAward(ctx, cancelled);
@@ -479,7 +480,9 @@ export async function decideAmendment(ctx: ServiceContext, amendmentId: string, 
   const ws = await authorize(ctx, { scope: "awards:write", kind: "funder", roles: STAFF_ROLES });
   const m = required(await ctx.repos.table("amendments").one({ id: amendmentId, workspace_id: ws.id }), "Amendment");
   if (m.status !== "requested") throw new ApiError(409, "invalid_transition", `This amendment is already ${m.status}`);
-  const award = required(await ctx.repos.table("awards").one({ id: m.award_id }), "Award");
+  // The amended award is this workspace's own: an amendment row that names another funder's award changes nothing.
+  const award = await ctx.repos.table("awards").one({ id: m.award_id, workspace_id: ws.id });
+  if (!award) throw notFound("Amendment");
   const req = m.request as { newEndDate?: string; amountMinor?: number; title?: string };
   let childId: string | null = null;
   let mirror: MirrorResult | null = null;
@@ -503,7 +506,7 @@ export async function decideAmendment(ctx: ServiceContext, amendmentId: string, 
 
 export async function listAmendments(ctx: ServiceContext, awardId: string) {
   const { award } = await accessAward(ctx, awardId, "awards:read");
-  return (await ctx.repos.table("amendments").find({ award_id: award.id }, { orderBy: "created_at" })).map(amendmentView);
+  return (await ctx.repos.table("amendments").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "created_at" })).map(amendmentView);
 }
 
 // ------------------------------------------------------------------------------------ CommonGrants

@@ -5,8 +5,9 @@
 //   node --experimental-transform-types scripts/gms.ts import <dir> --workspace <id|handle>
 //
 // Runs with the service-role key (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in the environment), so
-// it is for whoever operates the instance. It calls the same service code as
-// `POST /gms/exports/bundle` and `POST /gms/imports/bundle`, and each run is ledgered as `system:cli`.
+// it is for whoever operates the instance. Export calls the same service code as
+// `POST /gms/exports/bundle`; import has no route (a workspace can never call it) and writes only
+// inside the workspace named here. Each run is ledgered as `system:cli`.
 //
 // A bundle is three files:
 //   commongrants.json          opportunities, competitions, forms, applications, awards, org references

@@ -11,7 +11,14 @@ import type { Row } from "./repos/types.ts";
 /** What a funder's Passport client must be able to do for the GMS (build spec §2 item 1). */
 export const FUNDER_LINK_SCOPES = ["org:read", "payee:read", "award:write", "disbursement:read", "disbursement:write"] as const;
 
-export const linkInput = z.object({ clientId: z.string().trim().min(1).max(200), clientSecret: z.string().min(8).max(500) }).strict();
+export const linkInput = z
+  .object({
+    clientId: z.string().trim().min(1).max(200),
+    clientSecret: z.string().min(8).max(500),
+    /** The funder's organization in Passport. Needed the first time; the client is verified against it before it is stored. */
+    passportOrgId: z.uuid().optional(),
+  })
+  .strict();
 
 type CheckState = "pass" | "fail" | "unknown";
 
@@ -53,13 +60,29 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
   await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true, owner: workspaceId, what: "Workspace" });
   const { baseUrl, key } = configured(ctx);
   const workspace = required(await ctx.repos.table("workspaces").one({ id: workspaceId }), "Workspace");
-  if (!workspace.passport_org_id) throw new ApiError(409, "passport_org_missing", "Claim or link your organization in Passport first; this workspace has no Passport organization yet");
+  // The organization is proven here, not typed at sign-up: Passport answers for an organization's
+  // funding sources only to a client that organization created, so a client that passes the check
+  // below belongs to it. Until then the workspace carries no Passport organization at all.
+  const orgId = input.passportOrgId ?? workspace.passport_org_id;
+  if (!orgId) throw new ApiError(409, "passport_org_missing", "Enter your organization's Passport ID (shown in Passport's funder console) with the client id and secret");
 
-  const check = await verify(client(ctx, baseUrl, input.clientId, input.clientSecret), workspace.passport_org_id);
+  const check = await verify(client(ctx, baseUrl, input.clientId, input.clientSecret), orgId);
   if (check.state === "unknown") throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now, so the client could not be verified. Nothing was saved");
   if (check.state === "fail") throw new ApiError(422, "passport_client_rejected", `${check.reason}. Nothing was saved`);
 
   const at = ctx.now().toISOString();
+  if (workspace.passport_org_id !== orgId) {
+    // One funder workspace per Passport organization. A holder whose own client was verified for
+    // it keeps it; a holder with no verified client never proved anything, and gives it up.
+    const holder = await ctx.repos.table("workspaces").one({ passport_org_id: orgId, kind: "funder" });
+    if (holder && holder.id !== workspaceId) {
+      if (await ctx.repos.table("passport_links").count({ workspace_id: holder.id, mode: "funder_client" })) throw new ApiError(409, "passport_org_linked_elsewhere", "This Passport organization is already linked to another workspace. Nothing was saved");
+      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null });
+      await audit(ctx, "workspace.passport_claim_released", "workspace", holder.id, { passportOrgId: orgId, reason: "no_passport_proof" }, holder.id);
+    }
+    const [moved] = await ctx.repos.table("workspaces").update({ id: workspaceId }, { passport_org_id: orgId });
+    if (!moved) throw new ApiError(409, "conflict", "This workspace changed while you were working. Reload and try again");
+  }
   // One live link per workspace and mode: the previous one is revoked, never overwritten.
   await ctx.repos.table("passport_links").update({ workspace_id: workspaceId, mode: "funder_client", revoked_at: null }, { revoked_at: at });
   const link = await ctx.repos.table("passport_links").insert({
@@ -72,8 +95,8 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
     linked_at: at,
     last_ok_at: at,
   });
-  await audit(ctx, "passport.linked", "workspace", workspaceId, { mode: "funder_client", clientId: input.clientId });
-  return { linked: true, ...linkView(link), check: { state: check.state, reason: check.reason }, canDebit: check.canDebit };
+  await audit(ctx, "passport.linked", "workspace", workspaceId, { mode: "funder_client", clientId: input.clientId, passportOrgId: orgId });
+  return { linked: true, passportOrgId: orgId, ...linkView(link), check: { state: check.state, reason: check.reason }, canDebit: check.canDebit };
 }
 
 /** Link state plus a live check. `unknown` means Passport could not be reached; it is never folded into pass or fail. */

@@ -116,6 +116,31 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
 };
 
+/**
+ * A child row belongs to the workspace of the row it hangs off (migration 0020,
+ * `gms.same_workspace_as_parent`): column → parent table. A row that names a parent in another
+ * workspace is refused, here as in the database, whoever writes it.
+ */
+export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>>> = {
+  opportunities: { program_id: "programs" },
+  competitions: { opportunity_id: "opportunities" },
+  applications: { competition_id: "competitions", opportunity_id: "opportunities" },
+  form_responses: { application_id: "applications", submission_id: "submissions" },
+  application_events: { application_id: "applications" },
+  review_assignments: { application_id: "applications" },
+  reviews: { assignment_id: "review_assignments" },
+  decisions: { application_id: "applications", competition_id: "competitions" },
+  awards: { application_id: "applications", opportunity_id: "opportunities", program_id: "programs", parent_award_id: "awards" },
+  agreements: { award_id: "awards" },
+  payment_schedules: { award_id: "awards" },
+  tranches: { award_id: "awards", schedule_id: "payment_schedules" },
+  requirements: { award_id: "awards", releases_tranche_id: "tranches" },
+  submissions: { requirement_id: "requirements", award_id: "awards" },
+  budgets: { award_id: "awards", application_id: "applications" },
+  amendments: { award_id: "awards", child_award_id: "awards" },
+  bank_transactions: { matched_tranche_id: "tranches" },
+};
+
 /** Tables whose primary key is not a generated `id` alone. */
 const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens"]);
 
@@ -135,7 +160,18 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
   constructor(
     private readonly name: T,
     private readonly now: () => Date,
+    /** The workspace of a row of another table, or undefined when there is no such row. */
+    private readonly workspaceOf: (table: TableName, id: unknown) => unknown = () => undefined,
   ) {}
+
+  private assertSameWorkspace(candidate: AnyRow) {
+    for (const [column, parent] of Object.entries(SAME_WORKSPACE[this.name] ?? {}) as [string, TableName][]) {
+      const id = candidate[column] ?? null;
+      if (id === null) continue;
+      const owner = this.workspaceOf(parent, id);
+      if (owner !== undefined && owner !== candidate.workspace_id) throw new RepoError("invalid", `${this.name}: ${column} names a row of another workspace`);
+    }
+  }
 
   private assertUnique(candidate: AnyRow, self?: AnyRow) {
     for (const u of UNIQUE[this.name] ?? []) {
@@ -166,6 +202,7 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
     const full: AnyRow = { ...(NO_GENERATED_ID.has(this.name) ? {} : { id: crypto.randomUUID() }), ...(DEFAULTS[this.name]?.() ?? {}), created_at: at, updated_at: at };
     for (const [k, v] of Object.entries(row as AnyRow)) if (v !== undefined) full[k] = v;
     this.assertUnique(full);
+    this.assertSameWorkspace(full);
     this.rows.push(structuredClone(full));
     return structuredClone(full) as Row<T>;
   }
@@ -177,6 +214,7 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
       for (const [k, v] of Object.entries(patch as AnyRow)) if (v !== undefined) next[k] = v;
       next.updated_at = at;
       this.assertUnique(next, r);
+      this.assertSameWorkspace(next);
       Object.assign(r, structuredClone(next));
     }
     return structuredClone(hit) as Row<T>[];
@@ -197,7 +235,8 @@ export class MemoryRepos implements Repos {
   table<T extends TableName>(name: T): TableRepo<T> {
     let t = this.tables.get(name);
     if (!t) {
-      t = new MemoryTable(name, this.now) as unknown as MemoryTable<TableName>;
+      const workspaceOf = (table: TableName, id: unknown) => (this.tables.get(table)?.rows.find((r) => r.id === id) as { workspace_id?: unknown } | undefined)?.workspace_id;
+      t = new MemoryTable(name, this.now, workspaceOf) as unknown as MemoryTable<TableName>;
       this.tables.set(name, t);
     }
     return t as unknown as TableRepo<T>;
