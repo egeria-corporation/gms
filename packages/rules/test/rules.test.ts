@@ -231,6 +231,12 @@ describe("self-reported and Passport-only facts", () => {
     }
     expect(evaluate({ path: "profile.irs.subsection", op: "eq", value: "03", missing: "pass" }, ctx, sd).eligible).toBe("unknown");
   });
+  it("marks the applicant type when the caller says it is self-reported", () => {
+    const rule: Rule = { path: "applicant.type", op: "eq", value: "non_profit_with_501c3" };
+    const r = evaluate(rule, { applicant: { type: "non_profit_with_501c3" } }, { selfReported: ["org", "profile", "applicant"], passportFacts: false });
+    expect(r.eligible).toBe("unknown");
+    expect(r.results[0]!.selfReported).toBe(true);
+  });
   it("leaves Passport-only rules alone for a Passport applicant", () => {
     const org = { customFields: { verificationLevel: { value: "L3" } } };
     expect(evaluate(level, { org }, { passportFacts: true }).eligible).toBe(true);

@@ -189,6 +189,17 @@ describe("applying without Passport", () => {
     expect(to).toContain("maria@lakeside.example");
   });
 
+  it("holds a rule on the applicant type taken from the self-declared profile, like any self-reported fact (NP-05)", async () => {
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { self_declared_profile: { legalName: "Lakeside Pantry Inc.", orgType: "non_profit_with_501c3" } });
+    await setOptions({}, { path: "applicant.type", op: "in", value: ["non_profit_with_501c3"] });
+    const e = (await start()).body.data.customFields.gms.value.eligibility;
+    expect(e.eligible).toBe("unknown");
+    expect(e.results[0]).toMatchObject({ outcome: "unknown", selfReported: true });
+    await h.repos.table("applications").remove({ applicant_workspace_id: WS_APPLICANT });
+    await setOptions({ acceptSelfReported: true });
+    expect((await start()).body.data.customFields.gms.value.eligibility.eligible).toBe(true);
+  });
+
   it("refuses to submit when Passport became required after the start, on the CommonGrants route (NP-04)", async () => {
     const app = (await start()).body.data as unknown as { id: string };
     await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Pantry shelves", requestedAmount: { amount: "1000.00", currency: "USD" } } });

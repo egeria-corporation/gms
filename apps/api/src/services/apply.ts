@@ -157,8 +157,11 @@ export async function runRules(ctx: ServiceContext, opportunityId: string, appli
   const form = Object.fromEntries(responses.map((r) => [r.form_id, r.response as Record<string, unknown>]));
   // What the organization entered itself counts only as far as the funder accepts it; facts only
   // Passport holds cannot be checked without Passport (packages/rules).
-  const opts = { selfReported: facts.source === "passport" ? [] : ["org", "profile"], acceptSelfReported: applicantOptionsOf(opp).acceptSelfReported, passportFacts: facts.source === "passport" };
-  const type = applicantType ?? (facts.source === "self_declared" ? ((facts.org.orgType as { term?: string } | undefined)?.term ?? undefined) : undefined);
+  // A type taken from the self-declared profile is the organization's own word too (review NP-05).
+  const declaredType = facts.source === "self_declared" ? ((facts.org.orgType as { term?: string } | undefined)?.term ?? undefined) : undefined;
+  const type = applicantType ?? declaredType;
+  const typeFromProfile = applicantType === undefined && declaredType !== undefined;
+  const opts = { selfReported: facts.source === "passport" ? [] : ["org", "profile", ...(typeFromProfile ? ["applicant"] : [])], acceptSelfReported: applicantOptionsOf(opp).acceptSelfReported, passportFacts: facts.source === "passport" };
   // Rules that do not parse cannot decide anything: the result is `unknown`, for a person to look at.
   const result: Evaluation = parsed.ok ? evaluate(parsed.rules, { org: facts.org, profile: facts.profile ?? undefined, form, applicant: { type } }, opts) : { eligible: "unknown", results: [] };
   return { ...result, evaluatedAt: ctx.now().toISOString(), factsSource: facts.source };
