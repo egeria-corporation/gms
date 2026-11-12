@@ -6,7 +6,8 @@ an AI coding agent or a person: the agent supplies judgement, the tool does the 
 way every time. The result codes are in [CODES.md](CODES.md).
 
 Each step looks at what really exists, does only what is missing, and says what it did in one JSON
-line. If a step is interrupted, run it again.
+line: the last line on stdout that starts with `{` (when a step does not succeed, `pnpm` adds its
+own `[ELIFECYCLE]` line after it). If a step is interrupted, run it again.
 
 ## What you need
 

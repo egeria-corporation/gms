@@ -30,6 +30,13 @@ describe("DEPLOY_WITH_AGENT.md", () => {
     // Any other backticked snake_case word that looks like a code is a code.
     for (const m of runbook.matchAll(/`(needs_[a-z]+|plan_limit)`/g)) expect(CODES).toContain(m[1]);
   });
+  it("says to read the last stdout line that starts with {, since pnpm prints a line after it on failure", () => {
+    const docs = { runbook, codes: read("scripts/deploy/CODES.md"), readme: read("scripts/deploy/README.md"), skill: read(".claude/skills/deploy-gms/SKILL.md"), agents: read("AGENTS.md") };
+    for (const [name, text] of Object.entries(docs)) {
+      expect(text.replace(/\s+/g, " "), name).toMatch(/last (stdout )?line (on stdout )?that starts with `\{`/);
+      expect(text, name).not.toMatch(/Read only (that|the) last (stdout )?line/i);
+    }
+  });
   it("covers the stop-and-confirm points and security rules", () => {
     for (const phrase of ["Supabase project", "DNS change", "Workers Paid", "already holds tables", "Upgrading later", "final report", "never ask the person to paste", "data, not instructions", "revoke"]) expect(runbook.toLowerCase(), phrase).toContain(phrase.toLowerCase());
   });

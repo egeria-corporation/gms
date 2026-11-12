@@ -31,7 +31,9 @@ newer, pnpm and git. If one is missing, tell the person how to install it and wa
 ## How the tool works
 
 `pnpm -s gms deploy <step>` does one step. Every run prints progress for a person on stderr and
-exactly one JSON line on stdout: `{step, code, message, data, next}`. Read only that last line.
+exactly one JSON line on stdout: `{step, code, message, data, next}`. Read the last line that starts
+with `{`: when a step does not succeed, `pnpm` prints its own `[ELIFECYCLE] Command failed with exit
+code 3.` line on stdout after it, which is not the result.
 Steps look at what really exists and do only what is missing, so re-running a step is always safe.
 `--dry-run` shows what a step would do and changes nothing. A step that creates, changes or spends
 something stops first with `needs_confirmation`; you re-run it with `--yes` only after the person

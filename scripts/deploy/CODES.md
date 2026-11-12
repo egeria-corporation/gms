@@ -6,8 +6,10 @@ Every `pnpm gms deploy <step>` run ends with exactly one JSON line on stdout:
 {"step":"migrate","code":"needs_confirmation","message":"…","data":{…},"next":"migrate"}
 ```
 
-Progress for a person goes to stderr. Read only the last stdout line. (`pnpm` itself may print a
-`$ node …` banner above it; use `pnpm -s gms …` to silence that.) `data` never holds a secret.
+Progress for a person goes to stderr. Read the last stdout line that starts with `{`. (`pnpm` itself
+may print a `$ node …` banner above it, which `pnpm -s gms …` silences, and when the exit code is not
+0 it prints `[ELIFECYCLE] Command failed with exit code N.` on stdout after it, even with `-s`.)
+`data` never holds a secret.
 
 | Code | Exit | Meaning | What the agent does |
 |---|---|---|---|
