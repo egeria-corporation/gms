@@ -415,6 +415,7 @@ model GranteeSummary {
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;
+  verification?: Verification;
   payee: {
     pendingDestinationChange: boolean;
     active: boolean;
@@ -443,8 +444,11 @@ model GranteeDetail {
   notes: string | null;
   lastSyncedAt: utcDateTime | null;
 
-  /** The cached OrganizationBase, when the organization consented; null otherwise */
+  /** The cached OrganizationBase from Passport, when the organization consented; null otherwise and for an organization without Passport */
   organization: Record<unknown> | null;
+
+  /** What an organization without Passport entered itself, when it consented. Not verified. */
+  selfDeclared?: SelfDeclaredProfile | null;
 
   consent: boolean;
 

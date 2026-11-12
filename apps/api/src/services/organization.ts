@@ -266,6 +266,9 @@ function view(ws: Ws, linked: boolean) {
     displayName: ws.display_name,
     passportOrgId: ws.passport_org_id,
     linked,
+    /** Where the profile comes from. A self-declared one is in `selfDeclared` and is never verified. */
+    source: profileSourceOf(ws),
+    selfDeclared: selfDeclaredOf(ws),
     level: ws.verification_level ?? (org ? fields.verificationLevel : null),
     verifiedAt: fields.verifiedAt,
     attestationUrl: fields.attestation,
