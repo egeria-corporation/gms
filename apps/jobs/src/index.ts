@@ -64,18 +64,34 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
   };
 }
 
-/** Which jobs a cron expression runs. Keep in step with `[triggers]` in wrangler.toml. */
-export const SCHEDULES = {
-  "*/5 * * * *": ["webhooks"],
-  "*/15 * * * *": ["tranches", "tranche-reconcile", "requirements"],
-  "0 * * * *": ["passport"],
-  "0 */6 * * *": ["mercury"],
-  "30 2 * * *": ["org-changes", "ledger-archive"],
-  // 15:00 UTC is 8 AM Pacific in winter, 7 AM in summer.
-  "0 15 * * *": ["digest-daily"],
-  "5 15 * * 1": ["digest-weekly"],
-} as const;
-export type JobName = (typeof SCHEDULES)[keyof typeof SCHEDULES][number];
+/** The one Cron Trigger. Cloudflare's free plan allows 5 per account, so every schedule is derived from this tick. */
+export const CRON = "*/5 * * * *";
+
+export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly";
+
+/**
+ * The jobs that are due at a tick, by its scheduled time in UTC. Each job appears at most once, so a
+ * moment that several schedules share (00:00 is also a quarter hour and an hour) runs it once:
+ *   every 5 min            webhooks
+ *   :00 :15 :30 :45        tranches, tranche-reconcile, requirements
+ *   top of every hour      passport
+ *   00:00 06:00 12:00 18:00 mercury
+ *   02:30 daily            org-changes, ledger-archive
+ *   15:00 daily            digest-daily (8 AM Pacific in winter, 7 AM in summer)
+ *   15:05 Mondays          digest-weekly
+ */
+export function jobsDue(at: Date): JobName[] {
+  const m = at.getUTCMinutes();
+  const h = at.getUTCHours();
+  const due: JobName[] = ["webhooks"];
+  if (m % 15 === 0) due.push("tranches", "tranche-reconcile", "requirements");
+  if (m === 0) due.push("passport");
+  if (m === 0 && h % 6 === 0) due.push("mercury");
+  if (h === 2 && m === 30) due.push("org-changes", "ledger-archive");
+  if (h === 15 && m === 0) due.push("digest-daily");
+  if (h === 15 && m === 5 && at.getUTCDay() === 1) due.push("digest-weekly");
+  return due;
+}
 
 export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "LEDGER_ARCHIVE">): Promise<Record<string, unknown>> {
   switch (name) {
@@ -111,7 +127,7 @@ export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     const base = baseFor(env);
     if (!base) return log("error", "jobs.skipped", { reason: "database_not_configured" });
-    for (const name of SCHEDULES[controller.cron as keyof typeof SCHEDULES] ?? []) {
+    for (const name of jobsDue(new Date(controller.scheduledTime))) {
       try {
         log("info", "job.done", { job: name, ...(await runJob(name, base, env)) });
       } catch (e) {

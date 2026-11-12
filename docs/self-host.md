@@ -98,17 +98,18 @@ Then edit `[env.production]` in `apps/api/wrangler.toml` and `apps/jobs/wrangler
 | `RATE_LIMIT` | KV | api | Per-token MCP rate limits |
 | `ASSETS` | Static assets | api | The compiled OpenAPI document |
 
-Cron Triggers (jobs Worker, UTC):
+The jobs Worker has one Cron Trigger, `*/5 * * * *` (Cloudflare's free plan allows 5 per account). It decides
+what is due at each tick from the scheduled time, so the work still runs when it used to (UTC):
 
-| Schedule | Job |
+| When | Job |
 |---|---|
-| `*/5 * * * *` | Outbound webhook deliveries that are due |
-| `*/15 * * * *` | Tranche due evaluator; requirement due/overdue evaluator and reminders |
-| `0 * * * *` | Passport sync: award mirror retry, disbursed amounts, payee level and status |
-| `0 */6 * * *` | Mercury poll (read-only) |
-| `30 2 * * *` | Organization-change poll; ledger archive |
-| `0 15 * * *` | Daily notification digest |
-| `5 15 * * 1` | Weekly notification digest (Mondays) |
+| Every 5 minutes | Outbound webhook deliveries that are due |
+| :00, :15, :30, :45 | Tranche due evaluator; requirement due/overdue evaluator and reminders |
+| Top of every hour | Passport sync: award mirror retry, disbursed amounts, payee level and status |
+| 00:00, 06:00, 12:00, 18:00 | Mercury poll (read-only) |
+| 02:30 daily | Organization-change poll; ledger archive |
+| 15:00 daily | Daily notification digest |
+| 15:05 Mondays | Weekly notification digest |
 
 ## 3. Secrets
 
