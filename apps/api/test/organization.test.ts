@@ -258,3 +258,18 @@ describe("GET /gms/me", () => {
     expect(d.workspaces).toEqual([expect.objectContaining({ handle: "riverbend", kind: "funder", role: "admin", displayName: "Riverbend Community Foundation", requiresMfa: true, brand: { accent: "#1F6F8B", onAccent: "#FFFFFF" } })]);
   });
 });
+
+describe("a self-declared workspace links Passport", () => {
+  it("takes the Passport record in place of the profile and ledgers which fields differed", async () => {
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { profile_source: "self_declared", self_declared_profile: { legalName: "Alder Creek Family Services", contactEmail: "someone-else@example.org", mission: "Our own words." } });
+    const { finish } = await consent(USER_ADMIN, [token(1), ORG, PROFILE], { workspaceId: WS_APPLICANT });
+    expect(finish.status).toBe(200);
+    const ws = (await h.repos.table("workspaces").one({ id: WS_APPLICANT }))!;
+    expect(ws).toMatchObject({ passport_org_id: ORG_ALDER, profile_source: "passport", self_declared_profile: null });
+    const ev = (await h.ledger.list({ workspaceId: WS_APPLICANT })).find((e) => e.eventType === "workspace.profile_replaced_by_passport")!;
+    expect((ev.data as { fieldsDiffered: string[] }).fieldsDiffered).toEqual(expect.arrayContaining(["contactEmail", "mission"]));
+    expect((ev.data as { fieldsDiffered: string[] }).fieldsDiffered).not.toContain("legalName");
+    expect(JSON.stringify(ev.data)).not.toContain("someone-else");
+  });
+});
