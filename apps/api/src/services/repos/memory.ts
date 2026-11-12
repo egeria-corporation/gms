@@ -8,7 +8,7 @@ type AnyRow = Record<string, unknown>;
 
 /** Column defaults from supabase/migrations, for the tables the services write. */
 const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
-  workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, verification_level: null, status: "active" }),
+  workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, profile_source: "none", self_declared_profile: null, verification_level: null, status: "active" }),
   workspace_members: () => ({ scope: {}, expires_at: null, mfa_enrolled_at: null, invited_by: null, notification_preferences: {}, notifications_read_at: null, notifications_read_ids: [] }),
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, access_token_enc: null, access_token_expires_at: null, token_version: 0, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),

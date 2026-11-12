@@ -2385,6 +2385,8 @@ export type Database = {
           passport_org_id: string | null;
           profile_projection: Json | null;
           profile_projection_at: string | null;
+          profile_source: string;
+          self_declared_profile: Json | null;
           settings: Json;
           status: string;
           updated_at: string;
@@ -2404,6 +2406,8 @@ export type Database = {
           passport_org_id?: string | null;
           profile_projection?: Json | null;
           profile_projection_at?: string | null;
+          profile_source?: string;
+          self_declared_profile?: Json | null;
           settings?: Json;
           status?: string;
           updated_at?: string;
@@ -2423,6 +2427,8 @@ export type Database = {
           passport_org_id?: string | null;
           profile_projection?: Json | null;
           profile_projection_at?: string | null;
+          profile_source?: string;
+          self_declared_profile?: Json | null;
           settings?: Json;
           status?: string;
           updated_at?: string;
