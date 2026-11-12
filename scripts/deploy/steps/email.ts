@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { cfAccount, cfRest, cfToken } from "../cloudflare.ts";
 import type { Ctx, Result } from "../core.ts";
 import { brief, confirmOrDry, flagStr, isResult, loadState, patchState, requireConfig, res, reveal, wranglerRun } from "../core.ts";
-import { apiMessage, Supabase, supabaseToken } from "../supabase-api.ts";
+import { apiMessage, LOGIN_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
 
 const RESEND = "https://api.resend.com";
 
@@ -72,7 +72,7 @@ export async function email(ctx: Ctx): Promise<Result> {
   const gen = join(ctx.deployDir, "generated");
   if (!ref || !existsSync(join(gen, "api.toml"))) return res("needs_input", "Run the supabase and cloudflare steps first.", {}, "cloudflare");
   const sbToken = supabaseToken(ctx);
-  if (!sbToken) return res("needs_login", "Supabase is not signed in. Run `npx supabase login` (or set SUPABASE_ACCESS_TOKEN), then re-run.", {}, null);
+  if (!sbToken) return res("needs_login", LOGIN_MESSAGE, {}, null);
   const account = await cfAccount(ctx);
   if (isResult(account)) return account;
 

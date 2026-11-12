@@ -4,7 +4,7 @@
 import { cfAccount, cfLogin } from "../cloudflare.ts";
 import type { Ctx, Result } from "../core.ts";
 import { flagStr, loadConfig, res } from "../core.ts";
-import { isActiveProject, Supabase, supabaseToken } from "../supabase-api.ts";
+import { isActiveProject, LOGIN_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
 
 export async function doctor(ctx: Ctx): Promise<Result> {
   const problems: string[] = [];
@@ -34,7 +34,7 @@ export async function doctor(ctx: Ctx): Promise<Result> {
 
   // Supabase
   const token = supabaseToken(ctx);
-  data.supabase = { loggedIn: !!token };
+  data.supabase = { loggedIn: !!token, source: token ? (ctx.env.SUPABASE_ACCESS_TOKEN ? "SUPABASE_ACCESS_TOKEN" : "access-token file") : null };
   let supabaseNeedsLogin = !token;
   if (token) {
     const api = new Supabase(ctx, token);
@@ -43,11 +43,12 @@ export async function doctor(ctx: Ctx): Promise<Result> {
     if (orgs.status === 401) supabaseNeedsLogin = true;
     else if (orgs.status === 200 && Array.isArray(orgs.body)) {
       data.organizations = orgs.body.map((o) => ({ id: o.id, name: o.name }));
-    } else if (!orgFlag) warnings.push("The Supabase token cannot list organizations. Pass --org <organization id> to init.");
+    } else if (!orgFlag) warnings.push("The Supabase token cannot list organizations. Pass --org <organization slug> to init.");
     if (!supabaseNeedsLogin) {
       const list = await api.projects();
       if (list.status === 200 && Array.isArray(list.body)) {
-        const orgIds = new Set(orgFlag ? [orgFlag] : []);
+        const hit = Array.isArray(orgs.body) ? orgs.body.find((o) => o.slug === orgFlag || o.id === orgFlag) : undefined;
+        const orgIds = new Set([orgFlag, hit?.id, hit?.slug].filter(Boolean) as string[]);
         const mine = list.body.filter((p) => isActiveProject(p) && (!orgFlag || orgIds.has(p.organization_id ?? "") || orgIds.has(p.organization_slug ?? "")));
         data.supabaseActiveProjects = mine.length;
         if (mine.length >= 2) warnings.push(`The Supabase organization already has ${mine.length} active projects. The free plan allows 2; a third may need a paid plan.`);
@@ -69,7 +70,7 @@ export async function doctor(ctx: Ctx): Promise<Result> {
   if (missing.length) {
     const how = [
       !cf.loggedIn && "Cloudflare: run `pnpm exec wrangler login` or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID",
-      supabaseNeedsLogin && "Supabase: run `npx supabase login` or set SUPABASE_ACCESS_TOKEN",
+      supabaseNeedsLogin && `Supabase: ${LOGIN_MESSAGE}`,
     ].filter(Boolean);
     return res("needs_login", `Not signed in to ${missing.join(" and ")}. ${how.join(". ")}.`, data, null);
   }

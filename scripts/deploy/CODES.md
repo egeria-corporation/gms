@@ -31,7 +31,7 @@ Progress for a person goes to stderr. Read only the last stdout line. (`pnpm` it
 | Step | Flags |
 |---|---|
 | `init` | `--name`, `--host` (or leave out for workers.dev), `--region`, `--org`, `--email`, `--passport on/off`, `--passport-url`, `--resend on/off`, `--workers-subdomain` |
-| `supabase` | `--adopt <ref>`, `--org <id>` |
+| `supabase` | `--adopt <ref>`, `--org <slug>` |
 | `secrets` | `--recovery-file <absolute path outside the repo>` (required), `--rotate` |
 | `email` | `--domain <sending domain>` (required the first time), `--from <address>` |
 | `deploy` | `--force` redeploys the version already recorded |

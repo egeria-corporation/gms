@@ -71,7 +71,7 @@ describe("supabase", () => {
     const made = await f.step("supabase", "--yes");
     expect(made.r.code).toBe("ok");
     const post = f.requests.find((r) => r.method === "POST" && r.url.endsWith("/projects"))!;
-    expect(post.body).toMatchObject({ name: "demo", organization_id: "org1", region_selection: { type: "specific", code: "us-east-1" } });
+    expect(post.body).toMatchObject({ name: "demo", organization_slug: "org1", region_selection: { type: "specific", code: "us-east-1" } });
     const dbPass = (post.body as { db_pass: string }).db_pass;
     expect(dbPass.length).toBeGreaterThan(20);
     const state = JSON.parse(readFileSync(join(f.deployDir, "state.json"), "utf8"));
@@ -96,12 +96,12 @@ describe("supabase", () => {
     const f = makeFake();
     await initted(f);
     f.sb.projects = [
-      { id: "aaaaaaaaaaaaaaaaaaaa", name: "x", organization_id: "org1", status: "ACTIVE_HEALTHY" },
-      { id: "bbbbbbbbbbbbbbbbbbbb", name: "y", organization_id: "org1", status: "ACTIVE_HEALTHY" },
+      { ref: "aaaaaaaaaaaaaaaaaaaa", name: "x", organization_slug: "org1", status: "ACTIVE_HEALTHY" },
+      { ref: "bbbbbbbbbbbbbbbbbbbb", name: "y", organization_slug: "org1", status: "ACTIVE_HEALTHY" },
     ];
     const ask = await f.step("supabase");
     expect(ask.r.message).toContain("free plan allows 2");
-    f.sb.projects.push({ id: "cccccccccccccccccccc", name: "demo", organization_id: "org1", status: "ACTIVE_HEALTHY" });
+    f.sb.projects.push({ ref: "cccccccccccccccccccc", name: "demo", organization_slug: "org1", status: "ACTIVE_HEALTHY" });
     const dup = await f.step("supabase", "--yes");
     expect(dup.r.code).toBe("needs_input");
     expect(dup.r.message).toContain("--adopt cccccccccccccccccccc");
@@ -109,7 +109,7 @@ describe("supabase", () => {
   it("adopts an existing project", async () => {
     const f = makeFake();
     await initted(f);
-    f.sb.projects = [{ id: "cccccccccccccccccccc", name: "mine", organization_id: "org1", status: "ACTIVE_HEALTHY" }];
+    f.sb.projects = [{ ref: "cccccccccccccccccccc", name: "mine", organization_slug: "org1", status: "ACTIVE_HEALTHY" }];
     expect((await f.step("supabase", "--adopt", "cccccccccccccccccccc")).r.code).toBe("ok");
     expect(JSON.parse(readFileSync(join(f.deployDir, "state.json"), "utf8")).supabase.ref).toBe("cccccccccccccccccccc");
   });
@@ -478,9 +478,9 @@ describe("email, passport and no-leak", () => {
   it("doctor reports logins, warns on project count and release state, and changes nothing", async () => {
     const f = makeFake();
     f.sb.projects = [
-      { id: "aaaaaaaaaaaaaaaaaaaa", name: "x", organization_id: "org1", status: "ACTIVE_HEALTHY" },
-      { id: "bbbbbbbbbbbbbbbbbbbb", name: "y", organization_id: "org1", status: "ACTIVE_HEALTHY" },
-      { id: "cccccccccccccccccccc", name: "z", organization_id: "org1", status: "INACTIVE" },
+      { ref: "aaaaaaaaaaaaaaaaaaaa", name: "x", organization_slug: "org1", status: "ACTIVE_HEALTHY" },
+      { ref: "bbbbbbbbbbbbbbbbbbbb", name: "y", organization_slug: "org1", status: "ACTIVE_HEALTHY" },
+      { ref: "cccccccccccccccccccc", name: "z", organization_slug: "org1", status: "INACTIVE" },
     ];
     f.git.tag = null;
     const r = await f.step("doctor", "--org", "org1");

@@ -39,8 +39,8 @@ export interface Fake {
 }
 
 export interface SbState {
-  orgs: { id: string; name: string }[] | "forbidden";
-  projects: { id: string; name: string; organization_id: string; status: string }[];
+  orgs: { id: string; slug: string; name: string }[] | "forbidden";
+  projects: { ref: string; name: string; organization_slug: string; status: string }[];
   createStatus: number;
   createMessage: string;
   healthyAfter: number;
@@ -92,7 +92,7 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
   const printed: string[] = [];
 
   const sb: SbState = {
-    orgs: [{ id: "org1", name: "Org One" }],
+    orgs: [{ id: "orgid-1", slug: "org1", name: "Org One" }],
     projects: [],
     createStatus: 201,
     createMessage: "",
@@ -132,16 +132,17 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
       if (path === "/projects" && method === "GET") return json(200, sb.projects);
       if (path === "/projects" && method === "POST") {
         if (sb.createStatus >= 300) return json(sb.createStatus, { message: sb.createMessage });
-        const p = { id: sb.nextRef, name: body.name, organization_id: body.organization_id, status: "COMING_UP" };
+        if (!body.organization_slug || body.organization_id) return json(400, { message: "organization_slug is required" });
+        const p = { ref: sb.nextRef, name: body.name, organization_slug: body.organization_slug, status: "COMING_UP" };
         sb.projects.push(p);
-        return json(201, { id: p.id, name: p.name, status: p.status });
+        return json(201, { ref: p.ref, name: p.name, status: p.status });
       }
       let m = /^\/projects\/([a-z]+)$/.exec(path);
       if (m) {
-        const p = sb.projects.find((x) => x.id === m![1]);
+        const p = sb.projects.find((x) => x.ref === m![1]);
         if (!p) return json(404, { message: "not found" });
         if (p.status === "COMING_UP" && ++sb.polls >= sb.healthyAfter) p.status = "ACTIVE_HEALTHY";
-        return json(200, { id: p.id, name: p.name, status: p.status });
+        return json(200, { ref: p.ref, id: p.ref, name: p.name, status: p.status });
       }
       m = /^\/projects\/([a-z]+)\/api-keys\?reveal=true$/.exec(path);
       if (m) return json(200, [{ name: "anon", api_key: SECRET.anon }, { name: "service_role", api_key: SECRET.service }]);
