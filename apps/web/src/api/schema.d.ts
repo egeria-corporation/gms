@@ -9926,7 +9926,7 @@ export interface components {
                 /** Format: int32 */
                 missing: number;
             }[];
-            /** @description Every reviewer/application pair excluded for a conflict of interest */
+            /** @description Every reviewer/application pair excluded for a conflict of interest. Email domains come from Passport records only. */
             coiFlags: {
                 applicationId: components["schemas"]["Models.PrefixedId"];
                 reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
@@ -9934,6 +9934,8 @@ export interface components {
                 reason: "declared_org" | "declared_program" | "same_email_domain";
                 detail: string;
             }[];
+            /** @description Planned pairs where the applicant's own, unverified profile gives the reviewer's email domain. A hint for staff: never used to exclude or include */
+            coiHints: components["schemas"]["Models.CoiHint"][];
         };
         "Models.AwardCloseout": {
             awardId: components["schemas"]["Models.PrefixedId"];
@@ -10282,6 +10284,14 @@ export interface components {
             /** @enum {string} */
             state: "pass" | "fail" | "unknown";
             reason: string;
+        };
+        /** @description A possible conflict seen only in an applicant's self-declared (unverified) profile. */
+        "Models.CoiHint": {
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @enum {string} */
+            reason: "self_declared_domain";
+            detail: string;
         };
         /** @description A field comment inside the applicant team. */
         "Models.Comment": {
@@ -12877,6 +12887,8 @@ export interface components {
             } | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
+            coiHint?: components["schemas"]["Models.CoiHint"] | null;
         };
         /**
          * @description The reviewer's working view: the rubric, their own review, and the application as a reviewer may
@@ -12912,6 +12924,8 @@ export interface components {
             } | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
+            coiHint?: components["schemas"]["Models.CoiHint"] | null;
             rubric: {
                 id: components["schemas"]["CommonGrants.Types.uuid"];
                 /** Format: int32 */
