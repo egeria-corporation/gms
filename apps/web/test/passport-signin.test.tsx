@@ -152,7 +152,7 @@ describe("coming back from Passport", () => {
     expect(await screen.findByText("That sign-in ran out of time")).toBeInTheDocument();
     expect(where()).toBe("/signin?passport_error=expired");
     expect(await services.auth.getSession()).toBeNull();
-    expect(screen.getByRole("button", { name: "Continue with Passport" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Continue with Passport" })).toBeEnabled();
   });
 
   it("refuses a sign-in this tab did not ask for: a link carrying someone else's token signs nobody in", async () => {

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { Page } from "@playwright/test";
 // Flow 7 — Using the GMS without Passport. A newcomer sets up an applicant organization from a
 // short profile; an install without Passport offers no Passport step anywhere; a funder sees
 // "Not verified" beside an applicant that has no Passport record and sets the two opportunity toggles.
 import { expect, start, test } from "./helpers.ts";
 
 /** The mock starts signed in as the demo funder: sign out, then sign in as a person with no workspaces. */
-async function signIn(page: import("@playwright/test").Page) {
+async function signIn(page: Page) {
   await start(page, "/workspaces");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
@@ -16,7 +17,7 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Verify and continue" }).click();
 }
 
-async function signInAsNewcomer(page: import("@playwright/test").Page) {
+async function signInAsNewcomer(page: Page) {
   await signIn(page);
   await expect(page.getByRole("heading", { name: "How Will You Use OpenGrants GMS?" })).toBeVisible();
   await page.getByRole("radio", { name: /Set up my applicant organization/ }).click();
