@@ -11,6 +11,8 @@ import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
 import { MOCK_PASSPORT_TOKEN, RETURN_TO, beginPassportHop, endPassportHop, passportBrowser, passportProblem, passportSignInUrl, safeNext } from "../src/lib/passportSignIn.ts";
 import { MOCK_CODE } from "../src/mocks/auth.ts";
+import { provideLaunchApi } from "../src/api/launchHooks.ts";
+import { createMockLaunchApi } from "../src/mocks/launch.ts";
 
 function Where() {
   const l = useLocation();
@@ -26,7 +28,12 @@ function open(path: string, services: Services) {
   );
 }
 /** Services as a deployed app has them: the button must leave for the API. */
-const live = (): Services => ({ ...createMockServices({ session: null }), mock: false });
+const live = (): Services => {
+  const services = { ...createMockServices({ session: null }), mock: false };
+  // The server's config says Passport sign-in is on.
+  provideLaunchApi(services, createMockLaunchApi({ session: () => services.auth.getSession() }));
+  return services;
+};
 
 /** The value this tab stored when the trip to Passport started. */
 const HOP_KEY = "gms.passport.hop";

@@ -83,7 +83,11 @@ const EMPTY_FORM: Pick<FormRecord, "jsonSchema" | "uiSchema" | "mappingFromCommo
 
 /** In-browser implementation of the API port, backed by fixtures. */
 export function createMockApi(opts: MockApiOptions): GmsApi {
-  const memberships = opts.memberships ?? MOCK_MEMBERSHIPS;
+  const fixtureMemberships = opts.memberships ?? MOCK_MEMBERSHIPS;
+  // A person signing in with an address at newcomer.example has no workspaces yet: the first-run
+  // screen, onboarding, and what they create are all theirs alone.
+  const newcomerMemberships: MeWorkspace[] = [];
+  let memberships = fixtureMemberships;
   const shells = opts.workspaces ?? FIXTURE_WORKSPACES;
   const store = opts.store ?? seedStore();
   const now = () => (opts.now ?? (() => new Date()))().toISOString();
@@ -94,6 +98,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   const me = async (): Promise<Me> => {
     const session = await opts.session();
     if (!session) throw new ApiError(401, "Sign in to continue");
+    memberships = /@newcomer\.example$/i.test(session.email) ? newcomerMemberships : fixtureMemberships;
     return { userId: session.userId, email: session.email, mfaVerified: session.aal === "aal2" || passportVerified === session.accessToken, workspaces: memberships };
   };
 
