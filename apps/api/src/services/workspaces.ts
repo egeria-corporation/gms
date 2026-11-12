@@ -34,6 +34,42 @@ export const createWorkspaceInput = z
 
 export const updateWorkspaceInput = z.object({ displayName: z.string().trim().min(1).max(200).optional(), brand: brandInput.optional(), settings: z.record(z.string(), z.unknown()).optional() }).strict();
 
+/**
+ * The settings a workspace admin may set, and their shapes. Everything else under `settings` is
+ * the server's (`passportPayee` from Passport, `assistMonthlyQuota`) or has its own route
+ * (`contacts`), and is dropped from a patch, so a client that sends the whole object back changes
+ * nothing it does not own (review NP-03). `null` removes a key.
+ */
+export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
+  funder: {
+    contactEmail: z.email().max(320),
+    transparency: z.boolean(),
+    gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+    defaultRail: z.enum(["auto", "standard", "instant"]),
+  },
+  applicant: {
+    gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+  },
+};
+
+/** Keep only the keys an admin may set; a value of the wrong shape is a 422 naming the key. */
+export function userSettingsPatch(kind: WorkspaceKind, patch: Record<string, unknown>): Record<string, unknown> {
+  const allowed = USER_SETTINGS[kind];
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const schema = Object.hasOwn(allowed, key) ? allowed[key] : undefined;
+    if (!schema) continue;
+    if (value === null) {
+      out[key] = null;
+      continue;
+    }
+    const r = schema.safeParse(value);
+    if (!r.success) throw new ApiError(422, "invalid_setting", `The ${key} setting is not valid`, [{ code: "invalid", field: `settings.${key}` }]);
+    out[key] = r.data;
+  }
+  return out;
+}
+
 const luminance = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => {
     const v = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -156,7 +192,7 @@ export async function getWorkspace(ctx: ServiceContext, id: string) {
 }
 
 export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.output<typeof updateWorkspaceInput>) {
-  await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: id, what: "Workspace" });
+  const caller = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: id, what: "Workspace" });
   // `brand` and `settings` are merge patches: a key that is not sent keeps its value and `null`
   // removes it, so two admins changing different settings do not overwrite each other.
   const current = required(await ctx.repos.table("workspaces").one({ id }), "Workspace");
@@ -167,7 +203,7 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
     {
       ...(input.displayName ? { display_name: input.displayName } : {}),
       ...(resolved ? { brand: resolved.brand } : {}),
-      ...(input.settings ? { settings: merge(current.settings, input.settings) as Row<"workspaces">["settings"] } : {}),
+      ...(input.settings ? { settings: merge(current.settings, userSettingsPatch(caller.kind, input.settings)) as Row<"workspaces">["settings"] } : {}),
     },
   );
   await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input) });
