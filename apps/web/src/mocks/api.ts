@@ -116,6 +116,12 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     if (!data) throw new ApiError(403, "This workspace cannot do that");
     return data;
   }
+  /** The fixture applicant workspaces are not in the funder store; they stand for organizations linked to Passport. */
+  function fixtureApplicantRecord(workspaceId: string): WorkspaceRecord | null {
+    const m = memberships.find((x) => x.id === workspaceId && x.kind === "applicant");
+    if (!m || store.workspaces.some((w) => w.record.id === workspaceId)) return null;
+    return { id: m.id, kind: "applicant", handle: m.handle, displayName: m.name, legalName: m.name, passportOrgId: "30000000-0000-4000-8000-000000000011", verificationLevel: "L3", profileSource: "passport", selfDeclaredProfile: null, brand: {}, settings: {}, status: "active" };
+  }
   async function member(workspaceId: string): Promise<WorkspaceData> {
     await me();
     const data = store.workspaces.find((w) => w.record.id === workspaceId);
@@ -224,7 +230,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       if (!shell) {
         // A workspace created in this session (onboarding): build the shell view from its record.
         const r = data!.record;
-        return { id: r.id, handle: r.handle, kind: r.kind, name: r.displayName, sub: r.kind === "funder" ? "Funder workspace" : "Applicant workspace", brand: { accent: r.brand.accent ?? "#1F6F8B", onAccent: r.brand.onAccent ?? "#FFFFFF" }, member: { name: profile.email, initials: profile.email.slice(0, 2).toUpperCase(), title: "Admin" }, unreadNotifications: 0, pendingApprovals: 0 };
+        return { id: r.id, handle: r.handle, kind: r.kind, name: r.displayName, sub: r.kind === "funder" ? "Funder workspace" : "Applicant workspace", brand: { accent: r.brand.accent ?? "#1F6F8B", onAccent: r.brand.onAccent ?? "#FFFFFF" }, member: { name: profile.email, initials: profile.email.slice(0, 2).toUpperCase(), title: "Admin", role: profile.workspaces.find((m) => m.handle === handle)?.role ?? "admin" }, unreadNotifications: 0, pendingApprovals: 0 };
       }
       // The membership's role key travels with the workspace, as it does from the real API.
       const role = profile.workspaces.find((m) => m.handle === handle)?.role;
@@ -281,6 +287,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return clone({ workspace: record, warnings });
     },
     async updateProfile(id, profile) {
+      if (fixtureApplicantRecord(id)) throw new ApiError(409, "This organization’s details come from Passport. Edit them there.", [{ code: "profile_from_passport" }]);
       const w = await member(id);
       if (w.record.profileSource === "passport" || w.record.passportOrgId) throw new ApiError(409, "This organization’s details come from Passport. Edit them there.", [{ code: "profile_from_passport" }]);
       checkProfile(profile);
@@ -290,6 +297,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return clone({ workspace: w.record, warnings: [] });
     },
     async workspaceRecord(id) {
+      const fixture = fixtureApplicantRecord(id);
+      if (fixture) return clone(fixture);
       return clone((await member(id)).record);
     },
     async updateWorkspace(id, patch) {
