@@ -216,6 +216,9 @@ describe("applicant agent", () => {
 
   it("refuses an agent's submit once the opportunity requires Passport, even after a person approves (NP-04)", async () => {
     const token = await applicantAgent("applications:read applications:write applications:submit");
+    // The application submitted in beforeEach would be returned by start: begin from no application.
+    await h.repos.table("form_responses").remove({ application_id: appUuid });
+    await h.repos.table("applications").remove({ id: appUuid });
     const started = (await tool(token, "start_application", { competitionId: s.compId })).structuredContent as { id: string };
     const id = `app_${started.id}`;
     await tool(token, "fill_form_response", { applicationId: id, formId: s.loiFormId, response: { projectTitle: COMPLETE.projectTitle, requestedAmount: COMPLETE.requestedAmount } });
