@@ -77,7 +77,7 @@ export async function migrate(ctx: Ctx): Promise<Result> {
   const pending = files.filter((m) => !isApplied(m, applied));
   if (pending.length === 0) {
     if (!ctx.dryRun) patchState(ctx, { migrations: { total: files.length, latest: files.at(-1)?.file ?? null } });
-    return res("skipped", `The database is up to date (${files.length} migrations).`, { total: files.length }, "auth");
+    return res("skipped", `The database is up to date (${files.length} migrations).`, { total: files.length }, "cloudflare");
   }
 
   // Not the GMS's database: tables but no history, or a history that names migrations this repository does not have.
@@ -106,5 +106,5 @@ export async function migrate(ctx: Ctx): Promise<Result> {
     done.push(m.file);
   }
   patchState(ctx, { migrations: { total: files.length, latest: files.at(-1)?.file ?? null } });
-  return res("ok", `Applied ${done.length} migration(s).`, { applied: done, total: files.length }, "auth");
+  return res("ok", `Applied ${done.length} migration(s).`, { applied: done, total: files.length }, "cloudflare");
 }

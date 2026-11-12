@@ -53,7 +53,7 @@ export async function auth(ctx: Ctx): Promise<Result> {
   const smtp = config.resend ? (current.body.smtp_host === "smtp.resend.com" ? "set" : "pending: the email step sets it") : "not used";
   if (diff.length === 0) {
     if (!ctx.dryRun) patchState(ctx, { auth: { configured: true, url } });
-    return res("skipped", "Supabase Auth is already set as needed.", { smtp }, "cloudflare");
+    return res("skipped", "Supabase Auth is already set as needed.", { smtp }, state.cloudflare?.kvId ? "secrets" : "cloudflare");
   }
   const gate = confirmOrDry(ctx, "auth", [`change Supabase Auth settings (${diff.join(", ")}): email sign-in on, email confirmation required, TOTP on, site address ${url}, return addresses ${callbackPaths.map((p) => url + p).join(" and ")}`], { changes: diff });
   if (gate) return gate;
@@ -66,5 +66,5 @@ export async function auth(ctx: Ctx): Promise<Result> {
   const still = back.status === 200 ? differs(want, back.body) : ["read-back failed"];
   if (still.length) return res("error", `Supabase accepted the change but these settings did not take: ${still.join(", ")}.`, { notApplied: still }, "auth");
   patchState(ctx, { auth: { configured: true, url } });
-  return res("ok", `Set ${diff.length} Auth setting(s) and confirmed them by reading them back.`, { changed: diff, smtp }, "cloudflare");
+  return res("ok", `Set ${diff.length} Auth setting(s) and confirmed them by reading them back.`, { changed: diff, smtp }, state.cloudflare?.kvId ? "secrets" : "cloudflare");
 }

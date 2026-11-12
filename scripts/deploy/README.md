@@ -22,6 +22,8 @@ Logins, read in this order and never printed:
 
 ## The steps, in order
 
+The order matters: `cloudflare` comes before `auth` because, without a custom domain, the instance's `workers.dev` address (which Auth needs as its site address) is only known once `cloudflare` has run. Each step's `next` field follows this order.
+
 Add `--dry-run` to any step to see what it would do. Steps that change something stop and ask first;
 re-run with `--yes` once the person agrees.
 
@@ -30,8 +32,8 @@ pnpm -s gms deploy doctor
 pnpm -s gms deploy init --name acme --host grants.example.org --email you@example.org
 pnpm -s gms deploy supabase
 pnpm -s gms deploy migrate
-pnpm -s gms deploy auth
 pnpm -s gms deploy cloudflare
+pnpm -s gms deploy auth
 pnpm -s gms deploy secrets --recovery-file ~/keys/acme-gms-recovery.env
 pnpm -s gms deploy deploy
 pnpm -s gms deploy verify
@@ -43,10 +45,10 @@ pnpm -s gms deploy verify
 | `init` | Records your choices in `deploy/config.json`: name (prefixes every resource), domain or workers.dev, Supabase region, organization, operator email, Passport and Resend on or off. |
 | `supabase` | Creates the project and waits until it is healthy, or adopts one with `--adopt <ref>`. The database password is used once and not kept. |
 | `migrate` | Applies `supabase/migrations/*.sql` in order, each in its own transaction, recorded in `supabase_migrations.schema_migrations`. A migration already recorded there or in the older `gms_meta.schema_migrations` is not run again. Warns first if the database already holds tables the GMS did not create. |
-| `auth` | Email sign-in on, email confirmation required, TOTP on, site address and return addresses (`/auth/callback`, `/signin`) set, then read back. |
 | `cloudflare` | Creates the R2 buckets, queues (with the dead-letter queue) and KV namespace, named `<name>-…`, and writes `deploy/generated/api.toml` and `jobs.toml` from the checked-in `wrangler.toml` files. |
+| `auth` | Email sign-in on, email confirmation required, TOTP on, site address and return addresses (`/auth/callback`, `/signin`) set, then read back. |
 | `secrets` | Generates the signing key and the two encryption keys, sets every Worker secret over stdin, and writes the recovery file. Never overwrites a secret that is already set. To replace one, name it: `--rotate SUPABASE_SERVICE_ROLE_KEY` (the two encryption keys also need `--rotate-keys`). Rotation is staged in `<recovery-file>.new` and resumes if interrupted. |
-| `deploy` | Builds and deploys the API and jobs Workers, builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. |
+| `deploy` | Builds and deploys the API and jobs Workers (the OpenAPI document goes to the exports bucket, so no static-asset upload is needed), builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. |
 | `email` | Optional. Adds a sending domain at Resend, its DNS records (in Cloudflare when the zone is in your account, otherwise it lists them), a send-only key, and the Worker and Supabase mail settings. |
 | `passport` | Optional. Registers the deployed instance with Passport: serves a one-time check code at `/.well-known/opengrants-passport-challenge`, shows a short code and a link, waits (up to 15 minutes) while the person signs in to Passport, types the code and approves, then stores the client id, client secret and webhook secret as Worker secrets (never shown) and removes the check code. Run it where its output stays visible, or in the background and read its stderr. `skipped` when the Workers already hold the credentials; `--rotate` registers again. |
 | `verify` | Checks `/health`, the signing key, the sign-in server, the app settings and the sign-in page, then sends a sign-in code to the operator email. |

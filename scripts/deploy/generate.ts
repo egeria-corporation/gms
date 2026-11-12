@@ -33,6 +33,8 @@ export interface Substitutions {
   /** Absolute directory of the app, so main and assets paths work from the generated file's location. */
   appDir: string;
   passport: { on: boolean; url?: string };
+  /** Leave out the static-assets block (a token that cannot upload assets); the document is served from R2 instead. */
+  dropAssets?: boolean;
 }
 
 /** Keys at column 0 and the lines of their (possibly multi-line) value. */
@@ -81,6 +83,7 @@ export function generateConfig(baseText: string, sub: Substitutions): string {
   for (const s of sections) {
     if (!s.header || isEnv(s.header)) continue;
     const key = bare(s.header);
+    if (key === "assets" && sub.dropAssets) continue;
     const replacement = prod.get(key);
     if (replacement) {
       if (emitted.has(key)) continue;

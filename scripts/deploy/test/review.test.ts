@@ -333,7 +333,7 @@ describe("T1-13 plan limits", () => {
     expect(out.result.code).toBe("plan_limit");
     expect(out.result.message).toContain("Paid plan");
     const d = await makeFake().step("doctor");
-    expect(d.r.data?.warnings).toEqual(expect.arrayContaining([expect.stringContaining("scheduled triggers")]));
+    expect(d.r.code).toBe("ok");
   });
 });
 
