@@ -385,7 +385,11 @@ export default function AwardPayments() {
             crumbs={[{ label: "Awards", to: `${base}/awards` }, { label: title, to: `${base}/awards/${awardId}/agreement` }, { label: "Payments" }]}
             title={title}
             badge={first?.recipient ? <VerificationBadge verification={first.recipient.verification} level={first.recipient.verificationLevel} /> : undefined}
-            meta={<span>{recipientName}</span>}
+            meta={
+              <span>
+                {recipientName} <WorkspaceName name={first?.recipient?.workspaceName} />
+              </span>
+            }
             actions={
               <>
                 <Link to={`${base}/awards/${awardId}/agreement`} className="btn btn-secondary">
