@@ -256,14 +256,27 @@ async function reminderRecipients(ctx: ServiceContext, workspaceId: string | nul
 }
 
 /**
+ * Whether the GMS may email this award's recipient for the funder: only while the organization
+ * shares its record with the funder (a live consent, given by applying or by sharing a report).
+ * The same rule `sendCommunication` applies (review F-01). An award to a named recipient without a
+ * workspace has nobody to email, which the caller reports on its own.
+ */
+async function recipientShares(ctx: Pick<ServiceContext, "repos">, award: Award): Promise<boolean> {
+  if (!award.recipient_workspace_id) return true;
+  return !!(await ctx.repos.table("consents").one({ applicant_workspace_id: award.recipient_workspace_id, funder_workspace_id: award.workspace_id, revoked_at: null }));
+}
+
+/**
  * Send whatever reminder is due for one requirement. Idempotent per (requirement, due date,
  * offset): the row in `reminder_sends` is claimed before the email goes out, and the same key is
- * the mail provider's idempotency key, so a retried job never sends twice.
+ * the mail provider's idempotency key, so a retried job never sends twice. Nothing goes to an
+ * organization that does not share its record with the funder.
  */
 export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ sent: number | null; skipped: number[] }> {
   if (!r.due_at) return { sent: null, skipped: [] };
   const award = await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: r.workspace_id });
   if (!award || !["active", "accepted", "suspended"].includes(award.status)) return { sent: null, skipped: [] };
+  if (!(await recipientShares(ctx, award))) return { sent: null, skipped: [] };
   const mailer = ctx.ports.mailer;
   const from = ctx.config.mailFrom;
   if (!mailer || !from) return { sent: null, skipped: [] };
@@ -298,17 +311,69 @@ export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ s
   return { sent: out.sent?.offsetDays ?? null, skipped: out.skipped };
 }
 
-/** A person sends a reminder now, outside the plan. Ledgered; not deduplicated against the plan. */
+/**
+ * The least time between two reminders people send by hand for one requirement (review F-01).
+ * Planned reminders do not count against it. One place to relax.
+ */
+export const MANUAL_REMINDER_INTERVAL_HOURS = 24;
+
+/**
+ * Reminders sent by hand are kept in `reminder_sends` beside the planned ones, under offsets no
+ * plan can use (a plan stays within ±365 days of the due date): this base plus the number of the
+ * interval the send fell in. The table's unique key then lets one manual send per interval through,
+ * however many requests arrive at once.
+ */
+const MANUAL_REMINDER_OFFSET = 1_000_000;
+
+/** Count a manual reminder against its requirement, or refuse with 429 if one went out too recently. */
+async function claimManualReminder(ctx: ServiceContext, r: Req) {
+  const now = ctx.now().getTime();
+  const windowMs = MANUAL_REMINDER_INTERVAL_HOURS * 3_600_000;
+  const tooSoon = (since: number) => {
+    const next = new Date(since + windowMs).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
+    return new ApiError(429, "reminder_sent_recently", `A reminder for this requirement was already sent in the last ${MANUAL_REMINDER_INTERVAL_HOURS} hours. You can send another after ${next}`);
+  };
+  const manual = (await ctx.repos.table("reminder_sends").find({ requirement_id: r.id })).filter((x) => x.offset_days >= MANUAL_REMINDER_OFFSET);
+  const last = Math.max(0, ...manual.map((x) => Date.parse(x.sent_at)));
+  if (last && now - last < windowMs) throw tooSoon(last);
+  const key = { requirement_id: r.id, due_at: r.due_at!, offset_days: MANUAL_REMINDER_OFFSET + Math.floor(now / windowMs) };
+  try {
+    await ctx.repos.table("reminder_sends").insert({ workspace_id: r.workspace_id, ...key, sent_at: new Date(now).toISOString() });
+  } catch (e) {
+    if (e instanceof RepoError && e.kind === "conflict") throw tooSoon(now);
+    throw e;
+  }
+  return {
+    sent: (messageId: string) => ctx.repos.table("reminder_sends").update(key, { email_message_id: messageId }),
+    release: () => ctx.repos.table("reminder_sends").remove(key),
+  };
+}
+
+/**
+ * A person sends a reminder now, outside the plan. Ledgered; not deduplicated against the plan, but
+ * limited to one per requirement per MANUAL_REMINDER_INTERVAL_HOURS, and only to an organization
+ * that shares its record with this funder (as for any other email the funder sends).
+ */
 export async function remindNow(ctx: ServiceContext, requirementId: string) {
   const { r } = await ownRequirement(ctx, requirementId, true);
   if (!["scheduled", "due", "overdue", "returned"].includes(r.status)) throw new ApiError(409, "nothing_to_remind", `A ${r.status.replace(/_/g, " ")} requirement needs no reminder`);
   if (!r.due_at) throw new ApiError(422, "no_due_date", "Set a due date before sending a reminder");
   if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_unavailable", "Outbound mail is not configured on this server");
   const award = required(await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: r.workspace_id }), "Award");
+  if (!(await recipientShares(ctx, award))) throw new ApiError(409, "not_shared", "This organization has not shared its record with your workspace, so the GMS does not email it for you. Nothing was sent");
   const offset = Math.round((ctx.now().getTime() - Date.parse(r.due_at)) / 86_400_000);
   const { to, rendered } = await reminderEmail(ctx, r, award, offset);
   if (!to.length) throw new ApiError(422, "no_recipient_email", "No email address is known for this grantee");
-  const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to, subject: rendered.subject, html: rendered.html, text: rendered.text });
+  const claim = await claimManualReminder(ctx, r);
+  let id: string;
+  try {
+    ({ id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to, subject: rendered.subject, html: rendered.html, text: rendered.text }));
+  } catch (e) {
+    // Not sent: the claim is given back, so the person can try again.
+    await claim.release().catch(() => undefined);
+    throw e;
+  }
+  await claim.sent(id);
   await audit(ctx, "requirement.reminder_sent", "requirement", r.id, { manual: true, messageId: id, awardId: r.award_id });
   return { sent: true, messageId: id };
 }

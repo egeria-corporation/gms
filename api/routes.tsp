@@ -736,9 +736,13 @@ namespace GMS.Routes.Custom {
     @get @route("/requirements/due") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
     op due(...PageParams, @query status?: RequirementStatus): PaginatedT<RequirementView> | AuthErrors;
 
-    /** Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset). */
+    /**
+     * Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset).
+     * Only to an organization that shares its record with this funder (409 `not_shared`), and at most one per
+     * requirement per 24 hours (429 `reminder_sent_recently`).
+     */
     @post @route("/requirements/{id}/remind") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
-    op remind(@path id: GmsId): OkT<ReminderSent> | AuthErrors | NotFound | Conflict | Unprocessable;
+    op remind(@path id: GmsId): OkT<ReminderSent> | AuthErrors | NotFound | Conflict | Unprocessable | TooManyRequests;
 
     /** Reports received, including those a grantee shared from another funder (`shared=true`). */
     @get @route("/submissions") @useAuth(GmsOAuth<["requirements:read"]> | UserSession)
@@ -846,7 +850,11 @@ namespace GMS.Routes.Custom {
     @post @route("/exports/bundle") @useAuth(UserSession)
     op exportBundle(@query inline?: boolean): OkT<BundleExport> | AuthErrors;
 
-    /** Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. */
+    /**
+     * Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. A recipient is
+     * linked only to an organization already connected to this funder (an application, a consent, or an award made
+     * in the GMS); any other row keeps the recipient's name without a workspace and reports `matchedRecipient: false`.
+     */
     @post @route("/imports/csv") @useAuth(UserSession)
     op importCsv(@body body: CsvImportInput): OkT<CsvImportResult> | BadRequest | AuthErrors | Unprocessable;
   }

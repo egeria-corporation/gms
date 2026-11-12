@@ -122,10 +122,10 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `review_submission` | `requirements:read` | — | Get a submission for review, with its form responses and provenance. |
 | `accept_submission` | `requirements:write` | — | Accept a submission. A linked onReportAccepted tranche becomes due. |
 | `return_submission` | `requirements:write` | — | Return a submission to the grantee with a note. |
-| `send_reminders` | `requirements:write` | — | Send the reminder for requirements now. Idempotent per requirement and offset. |
+| `send_reminders` | `requirements:write` | — | Send the reminder for requirements now, to grantees that share their record with this funder. At most one by hand per requirement per 24 hours. |
 | `list_grantees` | `grantees:read` | — | List the funder's grantee directory. |
 | `get_grantee` | `grantees:read` | — | Get one grantee: cached Passport projection, level, relationship notes, awards. |
-| `get_passport_status` | `grantees:read` | — | Get a grantee's Passport status: level, payee status (bank name and last4 only), pending destination change, freeze. |
+| `get_passport_status` | `grantees:read` | — | Get a grantee's Passport status: level, payee status (bank name and last4 only), pending destination change, freeze. Shown only while the grantee shares its record with this funder. |
 | `list_pending_org_changes` | `grantees:read` | — | List organization changes received from Passport that await a decision. |
 | `accept_org_change` | `grantees:write` | — | Accept a pending organization change into the grantee record. Eligibility re-runs on open applications. |
 | `portfolio_summary` | `analytics:read` | — | Portfolio totals: awarded, disbursed, active awards, by program. |

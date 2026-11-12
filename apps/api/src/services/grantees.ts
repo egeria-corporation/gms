@@ -13,7 +13,7 @@ import { audit, authorize, emit, required, type ServiceContext, type ServiceWork
 import { passportClientFor } from "./passport-link.ts";
 import { payeeFactsOf } from "./payments.ts";
 import type { PageRequest } from "./programs.ts";
-import { namesOf, profileSourceOf, selfDeclaredOf, verificationOf } from "./profile.ts";
+import { namesOf, profileSourceOf, selfDeclaredOf, verificationShared } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -25,27 +25,75 @@ async function relatedApplicants(ctx: ServiceContext, funderId: string): Promise
   return [...new Set([...apps.filter((a) => a.submitted_at).map((a) => a.applicant_workspace_id), ...awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x)])];
 }
 
+/**
+ * Whether an award that a CSV import attached to an organization counts, on its own, as that
+ * organization being connected to the funder. Off: the organization took no part in an import, so
+ * the link it made proves nothing (review F-01). One place to relax.
+ */
+export const IMPORTED_AWARD_CONNECTS = false;
+
+/**
+ * Applicant workspaces connected to this funder by something the organization did: a submitted
+ * application to one of its opportunities, a live consent to it (given by applying or by sharing a
+ * report), or an award the funder made through its own process. Only these can be named as the
+ * recipient of an imported award (review F-01): a funder cannot make an organization its grantee
+ * by typing its name or EIN.
+ */
+export async function connectedApplicants(ctx: ServiceContext, funderId: string): Promise<Set<string>> {
+  const [apps, awards, consents] = await Promise.all([
+    ctx.repos.table("applications").find({ workspace_id: funderId }, { limit: 10000 }),
+    ctx.repos.table("awards").find({ workspace_id: funderId }, { limit: 10000 }),
+    ctx.repos.table("consents").find({ funder_workspace_id: funderId, revoked_at: null }),
+  ]);
+  const madeHere = (a: Row<"awards">) => IMPORTED_AWARD_CONNECTS || !(a.conditions ?? []).includes("imported");
+  return new Set([
+    ...apps.filter((a) => a.submitted_at).map((a) => a.applicant_workspace_id),
+    ...consents.map((c) => c.applicant_workspace_id),
+    ...awards.filter(madeHere).flatMap((a) => (a.recipient_workspace_id ? [a.recipient_workspace_id] : [])),
+  ]);
+}
+
 const consented = async (ctx: ServiceContext, applicantId: string, funderId: string) => !!(await ctx.repos.table("consents").one({ applicant_workspace_id: applicantId, funder_workspace_id: funderId, revoked_at: null }));
 
-function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }) {
+/**
+ * One row of the directory. What Passport holds about the organization (its id, legal name, level
+ * and payee status) is the organization's to share: it shows only while it has a live consent to
+ * this funder, the same rule that lets the funder email it (review F-01). Without one the funder
+ * sees the workspace's own name and the record it keeps itself.
+ */
+function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }, shared: boolean) {
   const facts = payeeFactsOf(w);
-  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, ...namesOf(w), legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: verificationOf(w).level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
+  return {
+    workspaceId: w.id,
+    totalAwardedMinor: counts.totalAwardedMinor ?? 0,
+    handle: w.handle,
+    ...(shared ? namesOf(w) : { name: w.display_name, workspaceName: null }),
+    legalName: shared ? w.legal_name : null,
+    passportOrgId: shared ? w.passport_org_id : null,
+    verificationLevel: verificationShared(w, shared).level,
+    verification: verificationShared(w, shared),
+    payee: shared ? { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false } : null,
+    tags: record?.tags ?? [],
+    ownerUserId: record?.owner_user_id ?? null,
+    ...counts,
+  };
 }
 
 export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { q?: string | undefined; tag?: string | undefined } = {}) {
   const ws = await authorize(ctx, { scope: "grantees:read", kind: "funder" });
   const ids = await relatedApplicants(ctx, ws.id);
   if (!ids.length) return { items: [], total: 0 };
-  const [workspaces, records, apps, awards, inbox] = await Promise.all([
+  const [workspaces, records, apps, awards, inbox, consents] = await Promise.all([
     ctx.repos.table("workspaces").find({ id: ids }),
     ctx.repos.table("grantee_records").find({ workspace_id: ws.id }),
     ctx.repos.table("applications").find({ workspace_id: ws.id }, { limit: 5000 }),
     ctx.repos.table("awards").find({ workspace_id: ws.id }, { limit: 5000 }),
     ctx.repos.table("org_change_inbox").find({ workspace_id: ws.id, status: "pending" }),
+    ctx.repos.table("consents").find({ funder_workspace_id: ws.id, applicant_workspace_id: ids, revoked_at: null }),
   ]);
   const q = f.q?.trim().toLowerCase();
   const all = workspaces
-    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, totalAwardedMinor: awards.filter((a) => a.recipient_workspace_id === w.id && !["cancelled", "offered"].includes(a.status)).reduce((sum, a) => sum + (minorOf(fundingOf(a).awardedAmount) ?? 0), 0), pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }))
+    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, totalAwardedMinor: awards.filter((a) => a.recipient_workspace_id === w.id && !["cancelled", "offered"].includes(a.status)).reduce((sum, a) => sum + (minorOf(fundingOf(a).awardedAmount) ?? 0), 0), pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }, consents.some((c) => c.applicant_workspace_id === w.id)))
     .filter((g) => (!q || `${g.name} ${g.legalName ?? ""} ${g.handle}`.toLowerCase().includes(q)) && (!f.tag || g.tags.includes(f.tag)))
     .sort((a, b) => a.name.localeCompare(b.name));
   return { items: all.slice(page.offset, page.offset + page.pageSize), total: all.length };
@@ -69,15 +117,16 @@ export async function getGrantee(ctx: ServiceContext, applicantId: string) {
   ]);
   const facts = payeeFactsOf(w);
   return {
-    ...summary(w, record ?? undefined, { applications: apps.filter((a) => a.submitted_at).length, awards: awards.length, pendingChanges: inbox.filter((c) => c.status === "pending").length }),
+    ...summary(w, record ?? undefined, { applications: apps.filter((a) => a.submitted_at).length, awards: awards.length, pendingChanges: inbox.filter((c) => c.status === "pending").length }, canRead),
     notes: record?.notes ?? null,
-    lastSyncedAt: record?.last_synced_at ?? w.org_projection_at,
+    lastSyncedAt: record?.last_synced_at ?? (canRead ? w.org_projection_at : null),
     // The organization record is read by consent; without it the funder sees the name and level only.
     // A self-declared profile is the organization's own word, never a verified record: it comes separately.
     organization: canRead && profileSourceOf(w) === "passport" ? w.org_projection : null,
     selfDeclared: canRead ? selfDeclaredOf(w) : null,
     consent: canRead,
-    payeeStatus: { pendingDestinationChange: facts.pendingDestinationChange ? { bankName: facts.pendingDestinationChange.bankName, last4: facts.pendingDestinationChange.last4, requestedAt: facts.pendingDestinationChange.requestedAt } : null, active: facts.active !== false },
+    // Bank name and last four only, and only while the organization shares its record with this funder.
+    payeeStatus: canRead ? { pendingDestinationChange: facts.pendingDestinationChange ? { bankName: facts.pendingDestinationChange.bankName, last4: facts.pendingDestinationChange.last4, requestedAt: facts.pendingDestinationChange.requestedAt } : null, active: facts.active !== false } : null,
     applicationList: apps.filter((a) => a.submitted_at).map((a) => ({ id: apiId("application", a.id), title: a.title, status: a.status, stage: a.stage, submittedAt: a.submitted_at })),
     awardList: awards.map((a) => ({ id: apiId("award", a.id), title: a.title, status: a.status })),
     orgChanges: inbox.map(changeView),

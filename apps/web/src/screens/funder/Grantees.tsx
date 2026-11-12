@@ -5,7 +5,7 @@
 // fields are never edited in the GMS; a funder can only propose a change to the organization.
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { CircleCheck, Clock, Lock, Search, Users } from "lucide-react";
+import { CircleCheck, Clock, EyeOff, Lock, Search, Users } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { GranteeDetail, GranteeSummary, OrgChange } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -17,7 +17,16 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
 
 /** Payee status in words and shape, never color alone. Bank name and last four digits only. */
-function PayeeChip({ pending, active }: { pending: boolean; active: boolean }) {
+function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
+  // Passport's payee facts show only while the organization shares its record with this funder.
+  if (!payee)
+    return (
+      <span className="pay pay-none">
+        <EyeOff className="ic" aria-hidden="true" />
+        Not shared
+      </span>
+    );
+  const { pendingDestinationChange: pending, active } = payee;
   if (!active)
     return (
       <span className="pay pay-held">
@@ -161,7 +170,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
   if (detail.status === "error") return <ErrorBanner error={detail.error} onRetry={detail.reload} />;
   const g = detail.data;
   const org = g.organization;
-  const payee = g.payeeStatus as { bankName?: string | null; last4?: string | null };
+  const payee = (g.payeeStatus ?? {}) as { bankName?: string | null; last4?: string | null };
   const pending = g.orgChanges.filter((c) => c.status === "pending");
   const done = (text: string) => {
     setMessage(text);
@@ -184,7 +193,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               </h2>
               <VerificationBadge verification={g.verification} level={g.verificationLevel} />
               <WorkspaceName name={g.workspaceName} />
-              <PayeeChip pending={g.payee.pendingDestinationChange} active={g.payee.active} />
+              <PayeeChip payee={g.payee} />
             </div>
             <p className="small muted">
               {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : "Payee details not available"} · record synced {g.lastSyncedAt ? dateTime(g.lastSyncedAt) : "never"}
@@ -474,7 +483,7 @@ export default function Grantees() {
                           <WorkspaceName name={r.workspaceName} />
                         </td>
                         <td>
-                          <PayeeChip pending={r.payee.pendingDestinationChange} active={r.payee.active} />
+                          <PayeeChip payee={r.payee} />
                         </td>
                         <td className="num">{r.awards}</td>
                         <td className="num">{awards.status === "ready" ? formatMinor(awardedTo(r.workspaceId)) : "—"}</td>

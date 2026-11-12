@@ -2318,7 +2318,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. */
+        /**
+         * @description Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. A recipient is
+         *     linked only to an organization already connected to this funder (an application, a consent, or an award made
+         *     in the GMS); any other row keeps the recipient's name without a workspace and reports `matchedRecipient: false`.
+         */
         post: operations["Analytics_importCsv"];
         delete?: never;
         options?: never;
@@ -3638,7 +3642,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset). */
+        /**
+         * @description Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset).
+         *     Only to an organization that shares its record with this funder (409 `not_shared`), and at most one per
+         *     requirement per 24 hours (429 `reminder_sent_recently`).
+         */
         post: operations["Requirements_remind"];
         delete?: never;
         options?: never;
@@ -11288,6 +11296,7 @@ export interface components {
             name: string;
             /** @description The workspace's own display name, when it differs from `name`. */
             workspaceName?: string | null;
+            /** @description Passport's facts (legal name, Passport id, level, payee status) show only while the organization shares its record with this funder; null otherwise */
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11295,7 +11304,7 @@ export interface components {
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
-            };
+            } | null;
             tags: string[];
             ownerUserId: string | null;
             /** Format: int32 */
@@ -11314,10 +11323,10 @@ export interface components {
             /** @description What an organization without Passport entered itself, when it consented. Not verified. */
             selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             consent: boolean;
-            /** @description Bank name and last four digits only */
+            /** @description Bank name and last four digits only; null when the organization does not share its record with this funder */
             payeeStatus: {
                 [key: string]: unknown;
-            };
+            } | null;
             applicationList: {
                 [key: string]: unknown;
             }[];
@@ -11351,6 +11360,7 @@ export interface components {
             name: string;
             /** @description The workspace's own display name, when it differs from `name`. */
             workspaceName?: string | null;
+            /** @description Passport's facts (legal name, Passport id, level, payee status) show only while the organization shares its record with this funder; null otherwise */
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11358,7 +11368,7 @@ export interface components {
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
-            };
+            } | null;
             tags: string[];
             ownerUserId: string | null;
             /** Format: int32 */
@@ -27277,6 +27287,15 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

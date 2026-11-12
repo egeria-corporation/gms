@@ -115,11 +115,11 @@ export const FUNDER_TOOLS = {
   review_submission: tool("reviewSubmission", "requirements:read", "Get a submission for review, with its form responses and provenance.", z.object({ submissionId })),
   accept_submission: tool("acceptSubmission", "requirements:write", "Accept a submission. A linked onReportAccepted tranche becomes due.", z.object({ submissionId, note: z.string().max(5000).optional() })),
   return_submission: tool("returnSubmission", "requirements:write", "Return a submission to the grantee with a note.", z.object({ submissionId, note: z.string().min(1).max(5000) })),
-  send_reminders: tool("sendReminders", "requirements:write", "Send the reminder for requirements now. Idempotent per requirement and offset.", z.object({ requirementIds: z.array(requirementId).min(1).max(100) })),
+  send_reminders: tool("sendReminders", "requirements:write", "Send the reminder for requirements now, to grantees that share their record with this funder. At most one by hand per requirement per 24 hours.", z.object({ requirementIds: z.array(requirementId).min(1).max(100) })),
 
   list_grantees: tool("listGrantees", "grantees:read", "List the funder's grantee directory.", z.object({ search: z.string().max(200).optional(), tag: z.string().max(60).optional(), hasPendingChange: z.boolean().optional(), ...paging })),
   get_grantee: tool("getGrantee", "grantees:read", "Get one grantee: cached Passport projection, level, relationship notes, awards.", z.object({ applicantWorkspaceId })),
-  get_passport_status: tool("getPassportStatus", "grantees:read", "Get a grantee's Passport status: level, payee status (bank name and last4 only), pending destination change, freeze.", z.object({ applicantWorkspaceId })),
+  get_passport_status: tool("getPassportStatus", "grantees:read", "Get a grantee's Passport status: level, payee status (bank name and last4 only), pending destination change, freeze. Shown only while the grantee shares its record with this funder.", z.object({ applicantWorkspaceId })),
   list_pending_org_changes: tool("listPendingOrgChanges", "grantees:read", "List organization changes received from Passport that await a decision.", z.object({ applicantWorkspaceId: applicantWorkspaceId.optional(), ...paging })),
   accept_org_change: tool("acceptOrgChange", "grantees:write", "Accept a pending organization change into the grantee record. Eligibility re-runs on open applications.", z.object({ changeId: uuid("Org change id") })),
 
