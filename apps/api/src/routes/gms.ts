@@ -58,7 +58,7 @@ gms.get("/me", requireUser(), async (c) => {
   const mfaVerified = await secondStepVerified(c, user);
   // A session that has passed this account's own second step may have a first Passport sign-in
   // waiting on it: the link is recorded here, once. Never for a session verified by Passport.
-  if (user.aal === "aal2" && !user.passportLinked) await confirmPassportLink(userSvc(c), user.sessionId ?? null, user.email).catch(() => false);
+  if (user.aal === "aal2") await confirmPassportLink(userSvc(c), user.sessionId ?? null, user.email).catch(() => false);
   const mine = await listMyWorkspaces(userSvc(c));
   return c.json(
     ok({

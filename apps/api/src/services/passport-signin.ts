@@ -239,6 +239,9 @@ async function requestLink(ctx: BaseContext, userId: string, who: PassportIdenti
  * Called for a session that has passed THIS account's own second step (Supabase `aal2`): if that
  * same session redeemed a first Passport sign-in, the Passport identity is now linked to the
  * account, once, and ledgered. Answers whether a link was recorded by this call.
+ *
+ * Link, then ledger, then forget the request: if the ledger write fails the request is still
+ * there, and the next call writes the entry for the link that already exists.
  */
 export async function confirmPassportLink(ctx: ServiceContext, sessionId: string | null, accountEmail?: string | null): Promise<boolean> {
   const store = ctx.ports.secondSteps;
@@ -247,14 +250,16 @@ export async function confirmPassportLink(ctx: ServiceContext, sessionId: string
   if (!store || !identity || !userId || !sessionId) return false;
   const passportUserId = await store.pendingLink(userId, sessionId, ctx.now());
   if (!passportUserId) return false;
-  const linked = await identity.linkPassportUser(userId, passportUserId, ctx.now());
-  // Recorded or refused (the account or the Passport user is linked elsewhere), the requests are spent.
+  const outcome = await identity.linkPassportUser(userId, passportUserId, sessionId);
+  // Refused (the account or the Passport user is linked elsewhere): the request runs out by itself.
+  if (outcome === "refused") return false;
+  const ledgered = outcome === "already" && (await ctx.ledger.count({ subjectType: "user", subjectId: userId, eventType: "auth.passport_linked" })) > 0;
+  if (!ledgered) await audit(ctx, "auth.passport_linked", "user", userId, { passportUserId, confirmedBy: "own_second_step" });
   await store.settleLinks(userId);
-  if (!linked) return false;
-  await audit(ctx, "auth.passport_linked", "user", userId, { passportUserId, confirmedBy: "own_second_step" });
+  if (outcome !== "recorded") return false;
   // Tell the account's own address: a link the person did not make is something to act on.
   if (accountEmail && ctx.ports.mailer && ctx.config.mailFrom) {
-    const text = `Your OpenGrants GMS account can now be signed in to with OpenGrants Passport.\n\nThis was set up just now, after a Passport sign-in for this email address was confirmed with this account's own two-step verification.\n\nIf this was not you, sign in at ${ctx.config.webBaseUrl} and end your other sessions, then tell your workspace administrator.`;
+    const text = `Your OpenGrants GMS account can now be signed in to with OpenGrants Passport.\n\nThis was set up just now, after someone signed in with Passport using this email address and then confirmed it with this account's own two-step verification. From now on, signing in with Passport is enough.\n\nIf this was not you, sign in at ${ctx.config.webBaseUrl}, end your other sessions in Account settings, and contact support so the link can be removed.`;
     await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [accountEmail], subject: "Passport sign-in was linked to your account", text, html: `<p>${text.replace(/\n\n/g, "</p><p>")}</p>`, idempotencyKey: `passport-linked:${userId}` }).catch(() => undefined);
   }
   return true;
@@ -383,11 +388,14 @@ export async function completeSignIn(ctx: BaseContext, query: { code?: string; s
   const svc: ServiceContext = { ...ctx, actor: makeActor("user", userId, null), workspace: null, scopes: [] };
   const ws = org && read ? await linkApplicantOrganization(svc, { userId, tokens: org, read, workspaceHint: null, via: "passport_signin" }) : null;
   await audit(svc, "auth.passport_signin", "user", userId, { created, linkedOrganization: !!ws, acr: who.acr, passportLink: link }, ws?.id);
+  // Every link has its own ledger entry, however it was made.
+  if (created && link === "recorded") await audit(svc, "auth.passport_linked", "user", userId, { passportUserId: who.passportUserId, confirmedBy: "account_created" });
 
   const signIn = await identity.signInToken(who.email);
-  // Passport's authenticator stands in for this app's second step only for an account already
-  // linked to this Passport user (or made by this sign-in). An account that merely shares the
-  // email must pass its own second step first; see `confirmPassportLink`.
+  // Passport's authenticator stands in for this app's second step only for an account with a
+  // recorded link to this Passport user (made before, or by this sign-in creating the account).
+  // An account that merely shares the email must pass its own second step first, in the session
+  // this sign-in starts; see `confirmPassportLink`.
   if (link === "recorded") await rememberSecondStep(ctx, userId, who, signIn.tokenHash);
   else await requestLink(ctx, userId, who, signIn.tokenHash);
   const next = sealed.r ?? (ws ? `/w/${ws.handle}` : null);

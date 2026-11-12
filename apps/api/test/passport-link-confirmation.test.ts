@@ -8,7 +8,8 @@
 //
 // Now: that first sign-in records no link. The session is single-step until it passes this
 // account's own second step; only then is the link recorded (and ledgered), and only for a
-// recorded link does Passport's authenticator count.
+// recorded link does Passport's authenticator count. An account a Passport sign-in creates is
+// linked from the start. A link is never re-pointed, whatever happens to an email on either side.
 import { fixtureFetch, type Fixture } from "@gms/passport-client";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -97,10 +98,12 @@ describe("the first Passport sign-in for an account that already exists", () => 
     const events = await ledgerOf("auth.passport_linked");
     expect(events).toHaveLength(1);
     expect(events[0]!.data).toMatchObject({ confirmedBy: "own_second_step" });
-    // The account's address is told, in fixed words.
+    expect(events[0]!.actor).toBe(`user:${USER_ADMIN}`);
+    // The account's address (the one on its session) is told, in fixed words.
     const notice = h.mailer.sent.filter((m) => m.subject === "Passport sign-in was linked to your account");
     expect(notice).toHaveLength(1);
-    expect(notice[0]!.to).toEqual([EMAIL]);
+    expect(notice[0]!.to).toEqual(["person@riverbendcf.example"]);
+    expect(h.secondSteps.links).toHaveLength(0);
     // Asking again changes nothing.
     await me("aal2", SESSION);
     expect(await ledgerOf("auth.passport_linked")).toHaveLength(1);
@@ -136,6 +139,38 @@ describe("the first Passport sign-in for an account that already exists", () => 
     await passportSignIn();
     await me("aal2", OWN_SESSION);
     expect(linked()).toBeNull();
+  });
+
+  it("a session verified by Passport for one account confirms nothing: only this app's own second step does", async () => {
+    const { tokenHash } = await passportSignIn();
+    await claim(tokenHash!, SESSION);
+    // Still single-step in Supabase's terms, however often it asks.
+    await me("aal1", SESSION);
+    await me("aal1", SESSION);
+    expect(linked()).toBeNull();
+    expect(await ledgerOf("auth.passport_linked")).toHaveLength(0);
+  });
+
+  it("writes the ledger entry on the next request when the first attempt could not, and never twice", async () => {
+    const { tokenHash } = await passportSignIn();
+    await claim(tokenHash!, SESSION);
+    const append = h.ledger.append.bind(h.ledger);
+    let fail = true;
+    h.ledger.append = async (event) => {
+      if (fail && event.eventType === "auth.passport_linked") throw new Error("ledger unavailable");
+      return append(event);
+    };
+    // The link is made, the entry is not, and the request is kept so the entry can still be written.
+    expect((await me("aal2", SESSION)).mfaVerified).toBe(true);
+    expect(linked()).toBe(SOMEONES_PASSPORT_USER);
+    expect(await ledgerOf("auth.passport_linked")).toHaveLength(0);
+    expect(h.secondSteps.links).toHaveLength(1);
+    fail = false;
+    await me("aal2", SESSION);
+    expect(await ledgerOf("auth.passport_linked")).toHaveLength(1);
+    expect(h.secondSteps.links).toHaveLength(0);
+    await me("aal2", SESSION);
+    expect(await ledgerOf("auth.passport_linked")).toHaveLength(1);
   });
 });
 
@@ -193,11 +228,39 @@ describe("accounts Passport sign-in creates, and accounts already linked", () =>
     expect(h.identity.users.get("new.person@example.org")!.passportUserId).toBe(OTHER_PASSPORT_USER);
   });
 
-  it("an account linked before this rule keeps working exactly as it did", async () => {
+  it("an account with a recorded link keeps working exactly as it did", async () => {
     h.identity.users.set(EMAIL, { userId: USER_ADMIN, passportUserId: SOMEONES_PASSPORT_USER, confirmed: true });
     const { tokenHash } = await passportSignIn();
     expect(await claim(tokenHash!, SESSION)).toMatchObject({ verified: true });
     expect(await adminRoute("aal1", SESSION)).toBe(200);
     expect((await me("aal1", SESSION)).signInMethod).toBe("passport");
+    // Nothing waits to be confirmed, and no second link entry is written.
+    expect(h.secondSteps.links).toHaveLength(0);
+    expect(await ledgerOf("auth.passport_linked")).toHaveLength(0);
+  });
+});
+
+describe("an account tied to a Passport user before links were recorded, and never confirmed", () => {
+  // Its app metadata names the Passport user (the old first sign-in wrote it), but there is no
+  // link record: migration 0023 did not find a reason to make one.
+  beforeEach(() => {
+    h.identity.users.set(EMAIL, { userId: USER_ADMIN, passportUserId: null, tiedTo: SOMEONES_PASSPORT_USER, confirmed: true });
+  });
+
+  it("is still signed in to by that Passport user, single-step, until its own second step records the link", async () => {
+    const { tokenHash } = await passportSignIn();
+    expect(await claim(tokenHash!, SESSION)).toEqual({ verified: false, validUntil: null });
+    expect(await adminRoute("aal1", SESSION)).toBe(403);
+    expect((await me("aal2", SESSION)).mfaVerified).toBe(true);
+    expect(linked()).toBe(SOMEONES_PASSPORT_USER);
+    const again = await passportSignIn();
+    expect(await claim(again.tokenHash!, LATER_SESSION)).toMatchObject({ verified: true });
+  });
+
+  it("is never linked to anyone else", async () => {
+    const other = await passportSignIn({ passportUser: OTHER_PASSPORT_USER });
+    expect(other.error).toBe("account_mismatch");
+    expect(other.tokenHash).toBeNull();
+    expect(linked()).toBeNull();
   });
 });

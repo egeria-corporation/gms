@@ -169,6 +169,10 @@ describe("finishing a Passport sign-in", () => {
     const events = await h.ledger.list({ workspaceId: ws.id });
     expect(events.map((e) => e.eventType)).toEqual(expect.arrayContaining(["workspace.created", "member.added", "passport.linked", "auth.passport_signin"]));
     expect(events.find((e) => e.eventType === "auth.passport_signin")!.data).toEqual({ created: true, linkedOrganization: true, acr: "aal2", passportLink: "recorded" });
+    // The account is this Passport user's from its first moment: the link is recorded, with its own
+    // entry (the person's, not the workspace's), and Passport's second step counts at once.
+    expect((await h.ledger.list({ eventType: "auth.passport_linked" })).map((e) => ({ workspaceId: e.workspaceId, subjectId: e.subjectId, data: e.data }))).toEqual([{ workspaceId: null, subjectId: account.userId, data: { passportUserId: PASSPORT_USER, confirmedBy: "account_created" } }]);
+    expect(h.secondSteps.links).toHaveLength(0);
 
     // The binding cookie is cleared and nothing about the sign-in is cacheable or sent as a referrer.
     expect(r.res.headers.get("Set-Cookie")).toMatch(new RegExp(`^${SIGNIN_COOKIE}=; Path=/; Max-Age=0;`));
@@ -197,6 +201,7 @@ describe("finishing a Passport sign-in", () => {
     expect(await h.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: USER_OFFICER })).toBeTruthy();
     const events = await h.ledger.list({ workspaceId: ws.id });
     expect(events.find((e) => e.eventType === "auth.passport_signin")!.data).toMatchObject({ created: false, passportLink: "pending" });
+    expect(await h.ledger.list({ eventType: "auth.passport_linked" })).toHaveLength(0);
   });
 
   it("replaces an account nobody ever confirmed instead of adopting it: a stranger's sign-up for this email gets nothing", async () => {
