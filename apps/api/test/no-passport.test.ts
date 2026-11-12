@@ -3,7 +3,7 @@
 // never shown as verified, eligibility that does not rest on it unless the funder accepts it, the
 // two opportunity options, readiness, letters, linking later, and the workspace-creation caps.
 import { beforeEach, describe, expect, it } from "vitest";
-import { WORKSPACE_CREATION_LIMITS } from "../src/lib/rate-limit.ts";
+import { WORKSPACE_CREATION_LIMITS, addressKey } from "../src/lib/rate-limit.ts";
 import { orgFacts, recipientEmails, replaceProfileWithPassport, verificationOf } from "../src/services/profile.ts";
 import { USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
@@ -60,6 +60,43 @@ describe("creating a workspace without Passport", () => {
     // The next day counts afresh.
     h.clock.now = new Date(h.clock.now.getTime() + 86_400_000);
     expect((await create(person(1), { handle: "next-day" })).status).toBe(201);
+  });
+});
+
+describe("workspace caps hold under pressure (NP-07)", () => {
+  const person = (n: number) => `f0f0f0f0-f0f0-4f0f-8f0f-${String(n).padStart(12, "0")}`;
+
+  it("lets only the cap through when one account sends many requests at once", async () => {
+    const h = await harness();
+    const who = { ...bearer(await h.session(person(1))).headers, "CF-Connecting-IP": "203.0.113.9" };
+    const results = await Promise.all(Array.from({ length: 12 }, (_, i) => h.request("/gms/workspaces", json(who, { kind: "applicant", handle: `burst-${i}`, displayName: "Burst" }))));
+    expect(results.filter((r) => r.status === 201)).toHaveLength(WORKSPACE_CREATION_LIMITS.perUserPerDay);
+    expect(results.filter((r) => r.status === 429)).toHaveLength(12 - WORKSPACE_CREATION_LIMITS.perUserPerDay);
+  });
+
+  it("counts IPv6 addresses by their /64", async () => {
+    const h = await harness();
+    let made = 0;
+    for (let n = 1; made < WORKSPACE_CREATION_LIMITS.perAddressPerDay; n++) {
+      const who = { ...bearer(await h.session(person(n))).headers, "CF-Connecting-IP": `2001:db8:1:2:${n.toString(16)}::1` };
+      const res = await h.request("/gms/workspaces", json(who, { kind: "applicant", handle: `v6-${n}`, displayName: "V6" }));
+      expect(res.status).toBe(201);
+      made++;
+    }
+    const next = { ...bearer(await h.session(person(99))).headers, "CF-Connecting-IP": "2001:db8:1:2:ffff:ffff:ffff:ffff" };
+    expect((await h.request("/gms/workspaces", json(next, { kind: "applicant", handle: "v6-over", displayName: "V6" }))).status).toBe(429);
+    const other = { ...bearer(await h.session(person(98))).headers, "CF-Connecting-IP": "2001:db8:1:3::1" };
+    expect((await h.request("/gms/workspaces", json(other, { kind: "applicant", handle: "v6-other", displayName: "V6" }))).status).toBe(201);
+  });
+
+  it("reads the address from Cloudflare only, unless a trusted proxy is configured", () => {
+    const hdr = (h: Record<string, string>) => (name: string) => h[name];
+    expect(addressKey(hdr({ "CF-Connecting-IP": "2001:DB8:0:0:1::5" }))).toBe("2001:db8:0:0::/64");
+    expect(addressKey(hdr({ "CF-Connecting-IP": "::1" }))).toBe("0:0:0:0::/64");
+    expect(addressKey(hdr({ "CF-Connecting-IP": "198.51.100.4" }))).toBe("198.51.100.4");
+    expect(addressKey(hdr({ "X-Forwarded-For": "198.51.100.4" }))).toBeNull();
+    expect(addressKey(hdr({ "X-Forwarded-For": "198.51.100.4, 10.0.0.1" }), true)).toBe("198.51.100.4");
+    expect(addressKey(hdr({ "CF-Connecting-IP": "not-an-address" }))).toBeNull();
   });
 });
 

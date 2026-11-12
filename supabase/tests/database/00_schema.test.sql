@@ -19,7 +19,8 @@ select tables_are(
     'api_clients', 'oauth_clients_dynamic', 'oauth_grants', 'oauth_codes', 'oauth_refresh_tokens',
     'mcp_connections', 'approvals', 'custom_mcp_servers', 'connector_accounts',
     'webhook_subscriptions', 'webhook_deliveries', 'inbound_events', 'assist_calls',
-    'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests'
+    'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
+    'workspace_creation_counts'
   ],
   'public schema has exactly the GMS tables'
 );

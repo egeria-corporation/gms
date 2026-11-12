@@ -8,6 +8,7 @@ import { MemoryMailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
 import { MemoryWebhookStore } from "@gms/webhooks";
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
+import { MemoryCreationLimiter } from "../src/lib/rate-limit.ts";
 import { createApp, type Deps } from "../src/app.ts";
 import { hashSecret, sha256b64url } from "../src/auth/crypto.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
@@ -140,6 +141,7 @@ export async function harness(): Promise<Harness> {
   const storage = new MemoryFileStorage();
   const openGrants = new FixtureOpenGrantsClient(OPENGRANTS_LISTINGS);
   const kv = new MemoryKv();
+  const creationLimiter = new MemoryCreationLimiter();
   const bank = new FixtureBankFeed();
   const workspaceApps = new FixtureWorkspaceApps();
   const mcpDirectory = new FixtureMcpDirectory();
@@ -164,7 +166,7 @@ export async function harness(): Promise<Harness> {
       return passport.fetch;
     },
     ports: () => {
-      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
       for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
       return all;
     },

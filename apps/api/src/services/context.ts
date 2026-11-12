@@ -2,6 +2,7 @@
 // The service layer's contract. Every REST route and every MCP tool builds a ServiceContext and
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
+import type { CreationLimiter } from "../lib/rate-limit.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
 import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
@@ -100,6 +101,8 @@ export interface ServicePorts {
   identity?: IdentityPort;
   /** Passport's authenticator accepted as the second step for one session; absent, the app asks for its own. */
   secondSteps?: SecondStepPort;
+  /** Daily workspace-creation counts (Postgres); an in-memory limiter for one isolate otherwise. */
+  creationLimiter?: CreationLimiter;
 }
 
 export interface ServiceContext {

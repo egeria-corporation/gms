@@ -5,9 +5,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../../app.ts";
 import { authenticate, requireUser } from "../../auth/middleware.ts";
-import { MemoryKv } from "@gms/mcp";
 import { ApiError, created, ok, pageInfo, paginated } from "../../lib/errors.ts";
-import { clientAddress, WORKSPACE_CREATION_LIMITS, windowCounters } from "../../lib/rate-limit.ts";
+import { MemoryCreationLimiter, WORKSPACE_CREATION_LIMITS, addressKey } from "../../lib/rate-limit.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as passport from "../../services/passport-link.ts";
@@ -19,25 +18,28 @@ export const workspaceRoutes = new Hono<AppEnv>();
 const ws = (c: { req: { param(name: string): string | undefined } }) => bareUuid(c.req.param("workspaceId"), "Workspace");
 
 workspaceRoutes.get("/workspaces", requireUser(), async (c) => c.json(ok(await workspaces.listMyWorkspaces(userSvc(c)))));
-const fallbackKv = new MemoryKv();
+const fallbackLimiter = new MemoryCreationLimiter();
 /**
- * Creating a workspace is capped per person and per network address per day
- * (WORKSPACE_CREATION_LIMITS). Only creations that succeed are counted, so a taken handle
- * does not use up the day.
+ * Creating a workspace is capped per account and per network address (an IPv6 /64) per day
+ * (WORKSPACE_CREATION_LIMITS), counted in the database so the cap holds across sessions, Workers
+ * and parallel requests (review NP-07). A creation that fails gives its count back, so a taken
+ * handle does not use up the day.
  */
 workspaceRoutes.post("/workspaces", requireUser(), async (c) => {
   const input = parse(workspaces.createWorkspaceInput, await jsonBody(c));
   const deps = c.get("deps");
-  const address = clientAddress((name) => c.req.header(name));
+  const limiter = deps.ports?.(c.env).creationLimiter ?? fallbackLimiter;
+  const address = addressKey((name) => c.req.header(name), c.env.TRUSTED_PROXY === "true");
   const L = WORKSPACE_CREATION_LIMITS;
-  const counter = windowCounters(deps.kv?.(c.env) ?? fallbackKv, deps.now().getTime(), L.windowSeconds, [
-    { key: `workspace-create:user:${c.get("user").userId}`, limit: L.perUserPerDay },
-    ...(address ? [{ key: `workspace-create:addr:${address}`, limit: L.perAddressPerDay }] : []),
-  ]);
-  if (!(await counter.allowed())) throw new ApiError(429, "too_many_workspaces", "You have created as many workspaces as we allow in one day. Try again tomorrow, or ask an admin of an existing workspace to invite you");
-  const out = await workspaces.createWorkspace(userSvc(c), input);
-  await counter.hit();
-  return c.json(created(out), 201);
+  const keys = [{ key: `user:${c.get("user").userId}`, limit: L.perUserPerDay }, ...(address ? [{ key: `addr:${address}`, limit: L.perAddressPerDay }] : [])].sort((a, b) => a.key.localeCompare(b.key));
+  const now = deps.now();
+  if (!(await limiter.claim(keys, now))) throw new ApiError(429, "too_many_workspaces", "You have created as many workspaces as we allow in one day. Try again tomorrow, or ask an admin of an existing workspace to invite you");
+  try {
+    return c.json(created(await workspaces.createWorkspace(userSvc(c), input)), 201);
+  } catch (e) {
+    await limiter.release(keys.map((k) => k.key), now).catch(() => undefined);
+    throw e;
+  }
 });
 workspaceRoutes.post("/invitations/accept", requireUser(), async (c) => {
   const { token } = parse(z.object({ token: z.string().min(10).max(200) }).strict(), await jsonBody(c));
