@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Applicant onboarding: consent in Passport, confirm what came across, see readiness, go.
-// The GMS never asks for organization details here; they are read from Passport with consent.
+// Applicant onboarding: either link the organization in Passport (consent, confirm what came across,
+// see readiness, go), or set up without Passport from a short profile. Passport is recommended, never required.
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { wantedFrom, wantedQuery } from "../../lib/wantedOpportunity.ts";
-import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX } from "lucide-react";
+import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, ShieldOff, Star } from "lucide-react";
 import type { ApplicantReadiness, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
-import { initialsOf } from "../../api/client.ts";
+import { ApiError, initialsOf } from "../../api/client.ts";
+import type { SelfDeclaredProfile } from "../../api/types.ts";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import { useServices } from "../../app/services.tsx";
+import { ProfileForm } from "../../components/ProfileForm.tsx";
 import { LevelBadge } from "../../components/status.tsx";
+import { slugify } from "../../lib/format.ts";
 import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
 import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
 
@@ -25,7 +29,14 @@ const REASONS: Record<string, string> = {
 
 const SCOPES = ["Read your organization profile", "Read your Common App profile (budget, staff, tax status) where you have confirmed it", "Propose changes to your profile (you approve each one in Passport)"];
 
-const STEPS = ["Continue with Passport", "Confirm imported profile", "Ready"] as const;
+const STEPS = ["Choose how to set up", "Confirm imported profile", "Ready"] as const;
+
+/** A public handle for a workspace, from the legal name; applicants never see or choose it. */
+function handleFor(name: string, attempt: number): string {
+  let base = slugify(name).slice(0, 40).replace(/-+$/, "");
+  if (base.length < 3) base = `${base}-org`.replace(/^-/, "org");
+  return attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 type Json = Record<string, unknown>;
 const at = (obj: unknown, path: string): unknown => path.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Json)[k] : undefined), obj);
@@ -44,6 +55,10 @@ export default function ApplicantOnboarding() {
   const workspace = memberships.find((w) => w.handle === linkedHandle) ?? memberships[0] ?? null;
   const api = useApplicantApi(workspace?.id);
 
+  const flags = usePassportFlags();
+  const [withoutPassport, setWithoutPassport] = useState(false);
+  const [creating, setCreating] = useState<{ state: "idle" | "saving"; error?: unknown }>({ state: "idle" });
+  const { api: gms } = useServices();
   const [start, setStart] = useState<{ state: "idle" | "going"; error?: unknown }>({ state: "idle" });
   const [record, setRecord] = useState<{ org: MyOrganization; readiness: ApplicantReadiness } | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -109,6 +124,24 @@ export default function ApplicantOnboarding() {
     }
   };
 
+  // No Passport: the workspace is made from the profile and the person goes straight in.
+  const createWithoutPassport = async (profile: SelfDeclaredProfile) => {
+    setCreating({ state: "saving" });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const made = await gms.createWorkspace({ kind: "applicant", handle: handleFor(profile.legalName, attempt), displayName: profile.displayName ?? profile.legalName, profile });
+        reloadMe();
+        navigate(wanted ? `/w/${made.workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${made.workspace.handle}`, { replace: true });
+        return;
+      } catch (error) {
+        // A taken handle is not the person's problem: try another.
+        if (error instanceof ApiError && error.status === 409 && attempt < 2) continue;
+        setCreating({ state: "idle", error });
+        return;
+      }
+    }
+  };
+
   const o = record?.org.organization as unknown as Json | null | undefined;
   const address = [at(o, "addresses.primary.street1"), at(o, "addresses.primary.city"), at(o, "addresses.primary.stateOrProvince")].map(text).filter(Boolean).join(", ");
   const imported = [
@@ -143,9 +176,9 @@ export default function ApplicantOnboarding() {
         <main className="main" style={{ maxWidth: "960px", width: "100%", margin: "0 auto" }}>
           <div className="ph">
             <div>
-              <h1>{record?.org.displayName ? `Welcome, ${record.org.displayName}` : "Link your organization"}</h1>
+              <h1>{record?.org.displayName ? `Welcome, ${record.org.displayName}` : "Set up your organization"}</h1>
               <div className="meta">
-                <span>Your Passport record does the typing. Confirm what came across and you are ready to apply.</span>
+                <span>{flags.linking ? "Link your Passport record, or set up with a few details of your own. Either way you can apply." : "Tell us about your organization and you are ready to apply."}</span>
               </div>
             </div>
           </div>
@@ -179,40 +212,74 @@ export default function ApplicantOnboarding() {
           {loadError && workspace ? <ErrorBanner error={loadError} title="Your Passport record could not be read" /> : null}
           {meState.status === "loading" && <Loading />}
 
-          {step === 0 && meState.status !== "loading" && (
-            <section className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", maxWidth: "560px" }} aria-labelledby="consent-h">
-              <div className="row" style={{ gap: "12px" }}>
-                <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "32px", height: "32px" }} />
-                <div>
-                  <div className="b" style={{ fontSize: "15px" }}>
-                    OpenGrants Passport
-                  </div>
-                  <div className="small muted">You will be asked there what to share with OpenGrants GMS</div>
-                </div>
-              </div>
-              <h2 id="consent-h" style={{ fontSize: "18px" }}>
-                Continue with Passport to link your organization
-              </h2>
-              <ul style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px" }}>
-                {SCOPES.map((s) => (
-                  <li className="cb" key={s}>
-                    <span className="c on" aria-hidden="true">
-                      <Check className="ic ic-sm" />
+          {step === 0 && meState.status !== "loading" && !flags.ready && <Loading />}
+          {step === 0 && meState.status !== "loading" && flags.ready && (
+            <div style={{ display: "grid", gridTemplateColumns: flags.linking ? "repeat(auto-fit, minmax(min(100%, 360px), 1fr))" : "minmax(0, 560px)", gap: "20px", alignItems: "start" }}>
+              {flags.linking && (
+                <section className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }} aria-labelledby="consent-h">
+                  <div className="row" style={{ gap: "12px" }}>
+                    <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "32px", height: "32px" }} />
+                    <div>
+                      <div className="b" style={{ fontSize: "15px" }}>
+                        OpenGrants Passport
+                      </div>
+                      <div className="small muted">You will be asked there what to share with OpenGrants GMS</div>
+                    </div>
+                    <span className="bdg bdg-ok" style={{ marginLeft: "auto" }}>
+                      <Star className="ic" aria-hidden="true" />
+                      Recommended
                     </span>
-                    <span>{s}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="small muted">The GMS never sees account details and cannot change your bank destination. You can withdraw this consent in Passport at any time.</p>
-              <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-                <button className="btn btn-primary btn-lg" type="button" onClick={onContinue} disabled={start.state === "going"}>
-                  {start.state === "going" ? "Opening Passport…" : "Continue with Passport"}
-                </button>
-                <Link to="/" className="btn btn-secondary btn-lg">
-                  Not now
-                </Link>
-              </div>
-            </section>
+                  </div>
+                  <h2 id="consent-h" style={{ fontSize: "18px" }}>
+                    Continue with Passport
+                  </h2>
+                  <p className="small">Verified, forms fill themselves in, and you can receive payments through Passport.</p>
+                  <ul style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px" }}>
+                    {SCOPES.map((s) => (
+                      <li className="cb" key={s}>
+                        <span className="c on" aria-hidden="true">
+                          <Check className="ic ic-sm" />
+                        </span>
+                        <span>{s}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="small muted">The GMS never sees account details and cannot change your bank destination. You can withdraw this consent in Passport at any time.</p>
+                  <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+                    <button className="btn btn-primary btn-lg" type="button" onClick={onContinue} disabled={start.state === "going"}>
+                      {start.state === "going" ? "Opening Passport…" : "Continue with Passport"}
+                    </button>
+                    <Link to="/" className="btn btn-secondary btn-lg">
+                      Not now
+                    </Link>
+                  </div>
+                </section>
+              )}
+
+              <section className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }} aria-labelledby="own-h">
+                <div className="row" style={{ gap: "12px" }}>
+                  <ShieldOff className="ic" aria-hidden="true" />
+                  <h2 id="own-h" style={{ fontSize: "18px" }}>
+                    Set up without Passport
+                  </h2>
+                </div>
+                <p className="small">
+                  Enter a few details yourself. Funders see your organization as <b>not verified</b>, forms are not filled in for you, and payments through Passport are not available until you link it.
+                  {flags.linking && " You can link Passport later."}
+                </p>
+                {workspace ? (
+                  <Link to={wanted ? `/w/${workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${workspace.handle}`} className="btn btn-secondary btn-lg" style={{ alignSelf: "flex-start" }}>
+                    Continue without Passport
+                  </Link>
+                ) : !withoutPassport ? (
+                  <button type="button" className="btn btn-secondary btn-lg" style={{ alignSelf: "flex-start" }} onClick={() => setWithoutPassport(true)}>
+                    Set up without Passport
+                  </button>
+                ) : (
+                  <ProfileForm idPrefix="onb" initial={{ contactEmail: email }} submitLabel="Create my workspace" busy={creating.state === "saving"} error={creating.error ?? null} onSubmit={createWithoutPassport} />
+                )}
+              </section>
+            </div>
           )}
 
           {step >= 1 && record && (
