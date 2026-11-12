@@ -17,7 +17,7 @@ import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { DeadlineBadge } from "./FunderPage.tsx";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { openBlob } from "../../lib/browser.ts";
-import { OpportunityDocuments, PublishedFaq } from "./publicExtras.tsx";
+import { OpportunityDocuments, PublishedFaq, UnverifiedFunderBanner } from "./publicExtras.tsx";
 import { useServices } from "../../app/services.tsx";
 
 /** schema.org description of the opportunity for search engines and the OpenGrants importer. */
@@ -29,7 +29,8 @@ export function jsonLd(data: OpportunityPageData, pageUrl: string) {
     name: o.title,
     description: o.description,
     url: pageUrl,
-    funder: { "@type": "Organization", name: funder.name, ...(funder.website ? { url: funder.website } : {}) },
+    // An unverified funder's website is not published as its address.
+    funder: { "@type": "Organization", name: funder.name, ...(funder.website && funder.verification?.source === "passport" ? { url: funder.website } : {}) },
     ...(o.funding.maxAwardAmount ? { amount: { "@type": "MonetaryAmount", currency: o.funding.maxAwardAmount.currency, minValue: o.funding.minAwardAmount?.amount, maxValue: o.funding.maxAwardAmount.amount } } : {}),
     ...(o.keyDates.closeDate?.date ? { applicationDeadline: o.keyDates.closeDate.date } : {}),
   };
@@ -122,6 +123,7 @@ export default function OpportunityPage() {
   const data = page.data;
   const { funder, opportunity: o, competitions } = data;
   const home = `/f/${funder.handle}`;
+  const funderVerified = funder.verification ? funder.verification.source === "passport" : !!funder.verificationLevel;
   // Signed-out visitors are sent through sign-in by the route guard and come back to the apply entry.
   const applyPath = `/apply/${funder.handle}/${o.slug}`;
   const competition = competitions[0];
@@ -173,6 +175,11 @@ export default function OpportunityPage() {
 
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column" }}>
           <section style={{ paddingTop: "32px" }}>
+            {!funderVerified && (
+              <div style={{ marginBottom: "20px" }}>
+                <UnverifiedFunderBanner name={funder.name} />
+              </div>
+            )}
             {o.status === "forecasted" && (
               <div className="bnr bnr-neu" role="status" style={{ marginBottom: "20px" }}>
                 <Calendar className="ic" aria-hidden="true" />

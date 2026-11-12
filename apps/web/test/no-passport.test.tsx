@@ -145,10 +145,26 @@ describe("funder screens", () => {
     const real = services.api.publicFunder;
     services.api.publicFunder = async (h) => {
       const data = await real(h);
-      return { ...data, funder: { ...data.funder, verificationLevel: null, verification: { source: "self_declared", level: null } } };
+      return { ...data, funder: { ...data.funder, website: "https://evil.example", verificationLevel: null, verification: { source: "self_declared", level: null } } };
     };
     open("/f/riverbend", services);
     expect(await screen.findByText("This funder’s organization is not verified with OpenGrants Passport")).toBeInTheDocument();
+    // NP-16: a banner, not a quiet note, and the website it gives is not a link.
+    expect(screen.getByRole("note")).toHaveTextContent("Not verified with OpenGrants Passport");
+    expect(screen.getByText(/evil\.example \(not checked\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /evil\.example/ })).not.toBeInTheDocument();
+  });
+
+  it("names a Passport funder by its Passport name and shows its own workspace name second (NP-02)", async () => {
+    const services = createMockServices({ session: null });
+    const real = services.api.publicFunder;
+    services.api.publicFunder = async (h) => {
+      const data = await real(h);
+      return { ...data, funder: { ...data.funder, workspaceName: "Big Famous Foundation" } };
+    };
+    open("/f/riverbend", services);
+    await screen.findByRole("heading", { level: 1, name: "Riverbend Community Foundation" });
+    expect(screen.getByText("Workspace name: Big Famous Foundation")).toBeInTheDocument();
   });
 
   it("the public funder page of a Passport funder does not", async () => {
