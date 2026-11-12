@@ -4,8 +4,7 @@
 // MCP tools alike. Status changes go through the application machine in `@gms/workflow`.
 import { computeResponseStatus, extractSubmissionFields, maskForReviewer, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
 import { DEFAULT_TEMPLATES, renderEmail } from "@gms/notify";
-import { profileToObject, type ProfileField } from "@gms/passport-client";
-import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPassportFields, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
+import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
 import { evaluate, parseRules, type Evaluation } from "@gms/rules";
 import { applicationCgStatus, applicationMachine, type ApplicationAction, type ApplicationContext, type ApplicationStatus } from "@gms/workflow";
 import { fanOut, isWebhookEventType } from "@gms/webhooks";
@@ -14,6 +13,8 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
+import { applicantOptionsOf } from "./opportunities.ts";
+import { orgFacts, recipientEmails } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type App = Row<"applications">;
@@ -109,15 +110,6 @@ export async function project(ctx: ServiceContext, app: App, reviewer: ReviewerV
   return out;
 }
 
-/** The cached Passport record of an applicant workspace, shaped for prefill and rules. */
-export function passportFacts(ws: Ws): { org: JsonObject; profile: JsonObject | null; level: string | null; attestationUrl: string | null } {
-  const org = (ws.org_projection as JsonObject | null) ?? {};
-  const cached = ws.profile_projection as { fields?: ProfileField[] } | null;
-  const profile = cached?.fields?.length ? (profileToObject(cached.fields) as JsonObject) : null;
-  const fields = readPassportFields(org);
-  return { org, profile, level: ws.verification_level ?? fields.verificationLevel ?? null, attestationUrl: fields.attestation ?? null };
-}
-
 /**
  * Who may see an application, and from which side. 404 for everyone else.
  *
@@ -158,24 +150,28 @@ function checked(def: FormDefinition, response: JsonObject, provenance: Provenan
   return { status: computeResponseStatus(def, response, provenance), validation_errors: validateResponse(def, response).validationErrors as unknown as Resp["validation_errors"] };
 }
 
-export async function runRules(ctx: ServiceContext, opportunityId: string, applicant: Ws, responses: Resp[], applicantType?: string): Promise<Evaluation & { evaluatedAt: string }> {
+export async function runRules(ctx: ServiceContext, opportunityId: string, applicant: Ws, responses: Resp[], applicantType?: string): Promise<Evaluation & { evaluatedAt: string; factsSource: string }> {
   const opp = required(await ctx.repos.table("opportunities").one({ id: opportunityId }), "Opportunity");
   const parsed = parseRules(opp.eligibility_rules);
-  const facts = passportFacts(applicant);
+  const facts = orgFacts(applicant);
   const form = Object.fromEntries(responses.map((r) => [r.form_id, r.response as Record<string, unknown>]));
+  // What the organization entered itself counts only as far as the funder accepts it; facts only
+  // Passport holds cannot be checked without Passport (packages/rules).
+  const opts = { selfReported: facts.source === "passport" ? [] : ["org", "profile"], acceptSelfReported: applicantOptionsOf(opp).acceptSelfReported, passportFacts: facts.source === "passport" };
+  const type = applicantType ?? (facts.source === "self_declared" ? ((facts.org.orgType as { term?: string } | undefined)?.term ?? undefined) : undefined);
   // Rules that do not parse cannot decide anything: the result is `unknown`, for a person to look at.
-  const result: Evaluation = parsed.ok ? evaluate(parsed.rules, { org: facts.org, profile: facts.profile ?? undefined, form, applicant: { type: applicantType } }) : { eligible: "unknown", results: [] };
-  return { ...result, evaluatedAt: ctx.now().toISOString() };
+  const result: Evaluation = parsed.ok ? evaluate(parsed.rules, { org: facts.org, profile: facts.profile ?? undefined, form, applicant: { type } }, opts) : { eligible: "unknown", results: [] };
+  return { ...result, evaluatedAt: ctx.now().toISOString(), factsSource: facts.source };
 }
 
-/** Create the `notStarted` responses of a stage, prefilled from the applicant's Passport record. */
+/** Create the `notStarted` responses of a stage, prefilled from the applicant's Passport record or self-declared profile. */
 export async function createStageResponses(ctx: ServiceContext, app: App, competition: Comp, stageKey: string, applicant: Ws): Promise<void> {
-  const facts = passportFacts(applicant);
+  const facts = orgFacts(applicant);
   const source = buildPrefillSource(facts.org, facts.profile);
   for (const [formId, version] of Object.entries(stageForms(competition, stageKey))) {
     if (await ctx.repos.table("form_responses").one({ application_id: app.id, form_id: formId })) continue;
     const def = await formDef(ctx, formId, version);
-    const filled = prefill(def, source);
+    const filled = prefill(def, source, {}, { as: facts.source === "self_declared" ? "self_declared" : "passport" });
     await ctx.repos.table("form_responses").insert({
       workspace_id: app.workspace_id,
       application_id: app.id,
@@ -241,12 +237,13 @@ export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: key
   return renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
 }
 
-export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }): Promise<{ sent: boolean; reason?: string }> {
+export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | readonly string[] | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }): Promise<{ sent: boolean; reason?: string }> {
   if (!ctx.ports.mailer || !ctx.config.mailFrom) return { sent: false, reason: "Outbound mail is not configured" };
-  if (!to) return { sent: false, reason: "The organization has no primary email in Passport" };
+  const recipients = (typeof to === "string" ? [to] : [...(to ?? [])]).filter(Boolean);
+  if (!recipients.length) return { sent: false, reason: "No email address is known for this organization" };
   try {
     const rendered = await renderLetter(ctx, kind, fields, subject.workspaceId);
-    const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
+    const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: recipients, subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
     await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: id }, subject.workspaceId);
     return { sent: true };
   } catch (e) {
@@ -255,10 +252,7 @@ export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT
   }
 }
 
-export const primaryEmail = (org: JsonObject): string | null => {
-  const emails = org.emails as { primary?: unknown } | undefined;
-  return typeof emails?.primary === "string" ? emails.primary : null;
-};
+export { primaryEmail, recipientEmails } from "./profile.ts";
 
 // ------------------------------------------------------------------------------------ start
 
@@ -272,6 +266,11 @@ export const startInput = z
   })
   .loose();
 
+/** A Passport organization with a consent the applicant has not withdrawn. */
+export async function hasLivePassportLink(ctx: ServiceContext, ws: Ws): Promise<boolean> {
+  return !!ws.passport_org_id && !!(await ctx.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }));
+}
+
 export async function startApplication(ctx: ServiceContext, input: z.output<typeof startInput>): Promise<{ application: ApplicationBase; created: boolean }> {
   const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant" });
   const applicant = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
@@ -281,6 +280,9 @@ export async function startApplication(ctx: ServiceContext, input: z.output<type
   const competition = await ctx.repos.table("competitions").one({ id: input.competitionId });
   const opp = competition ? await ctx.repos.table("opportunities").one({ id: competition.opportunity_id }) : null;
   if (!competition || !opp || competition.status === "draft" || !opp.published_at) throw notFound("Competition");
+  if (applicantOptionsOf(opp).requirePassport && !(await hasLivePassportLink(ctx, applicant))) {
+    throw new ApiError(403, "passport_required", "This funder asks applicants to connect OpenGrants Passport before applying. Connect Passport in Settings, then start the application again");
+  }
 
   // Starting twice returns the application already in progress.
   const existing = (await ctx.repos.table("applications").find({ competition_id: competition.id, applicant_workspace_id: ws.id })).find((a) => a.status !== "withdrawn" && a.status !== "declined");
@@ -330,7 +332,10 @@ export async function writeFormResponse(ctx: ServiceContext, app: App, formId: s
   const row = await responseFor(ctx, app, formId);
   if (row.locked_at) throw new ApiError(409, "response_locked", "This form belongs to an earlier stage and is read-only");
   const def = await formDef(ctx, formId, row.form_version);
-  const merged = mergeResponse(row.response as JsonObject, patch, { provenance: row.provenance as Provenance, actor, lockedPaths: passportFieldPaths(def) });
+  // Fields that follow Passport are read-only only where there is a Passport record to follow.
+  const applicant = await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id });
+  const lockedPaths = applicant && orgFacts(applicant).source === "passport" ? passportFieldPaths(def) : [];
+  const merged = mergeResponse(row.response as JsonObject, patch, { provenance: row.provenance as Provenance, actor, lockedPaths });
   const [saved] = (await ctx.repos.table("form_responses").update({ id: row.id }, { response: merged.response as Resp["response"], provenance: merged.provenance as Resp["provenance"], ...checked(def, merged.response, merged.provenance) })) as [Resp];
   return { formResponse: projectFormResponse(respRow(saved)), changed: merged.changed, rejected: merged.rejected };
 }
@@ -422,7 +427,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
   const closes = stage?.closes ? Date.parse(stage.closes) : NaN;
   const stageOpen = competition.status === "open" && !(closes <= ctx.now().getTime());
   const eligibility = await runRules(ctx, opp.id, applicant, all, fields.applicantType);
-  const facts = passportFacts(applicant);
+  const facts = orgFacts(applicant);
   const at = ctx.now().toISOString();
 
   // Everything the submission stamps is written before the status moves, so a refused
@@ -456,7 +461,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
   await sendLetter(
     ctx,
     "acknowledgment",
-    primaryEmail(facts.org),
+    await recipientEmails(ctx, applicant),
     {
       recipient: { name: applicant.display_name },
       funder: { name: funder.display_name },

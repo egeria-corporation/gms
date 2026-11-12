@@ -6,6 +6,7 @@ import { PassportApiError, PassportAuthError, PassportClient, PassportUnavailabl
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
+import { replaceProfileWithPassport } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 /** What a funder's Passport client must be able to do for the GMS (build spec §2 item 1). */
@@ -77,10 +78,13 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
     const holder = await ctx.repos.table("workspaces").one({ passport_org_id: orgId, kind: "funder" });
     if (holder && holder.id !== workspaceId) {
       if (await ctx.repos.table("passport_links").count({ workspace_id: holder.id, mode: "funder_client" })) throw new ApiError(409, "passport_org_linked_elsewhere", "This Passport organization is already linked to another workspace. Nothing was saved");
-      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null });
+      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null, profile_source: "none" });
       await audit(ctx, "workspace.passport_claim_released", "workspace", holder.id, { passportOrgId: orgId, reason: "no_passport_proof" }, holder.id);
     }
-    const [moved] = await ctx.repos.table("workspaces").update({ id: workspaceId }, { passport_org_id: orgId });
+    // A self-declared profile gives way to Passport. The funder client reads no organization record
+    // here, so every field it held is reported as replaced.
+    const replaced = await replaceProfileWithPassport(ctx, workspace, {});
+    const [moved] = await ctx.repos.table("workspaces").update({ id: workspaceId }, { passport_org_id: orgId, ...replaced });
     if (!moved) throw new ApiError(409, "conflict", "This workspace changed while you were working. Reload and try again");
   }
   // One live link per workspace and mode: the previous one is revoked, never overwritten.

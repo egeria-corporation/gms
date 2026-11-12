@@ -11,6 +11,7 @@ import { audit, authorize, type ServiceContext } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import { projectOrThrow } from "./opportunities.ts";
 import type { TableName } from "@gms/db";
+import { orgFacts, profileSourceOf, selfDeclaredOf, verificationOf, verificationShared } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 const COMMITTED = ["accepted", "active", "suspended", "completed"];
@@ -123,7 +124,8 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
   const items = awards.map((a) => {
     const w = recipients.find((r) => r.id === a.recipient_workspace_id);
     const canRead = !!w && consents.some((c) => c.applicant_workspace_id === w.id);
-    const addr = canRead ? ((w!.org_projection as { addresses?: { primary?: Record<string, string> } } | null)?.addresses?.primary ?? null) : null;
+    // The Passport record's address, or the one a self-declared profile gives (marked by `recipientVerification`).
+    const addr = canRead ? (((orgFacts(w!).org as { addresses?: { primary?: Record<string, string> } }).addresses?.primary) ?? null) : null;
     const individual = a.recipient_individual as { name?: string } | null;
     const awardedMinor = awarded(a);
     const paidMinor = paid(a);
@@ -131,6 +133,7 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
       awardId: apiId("award", a.id),
       recipientName: w?.legal_name ?? w?.display_name ?? individual?.name ?? "Unknown recipient",
       recipientAddress: addr ? [addr.street1, addr.city, addr.stateOrProvince, addr.postalCode].filter(Boolean).join(", ") : null,
+      recipientVerification: verificationShared(w, canRead),
       relationship: "None",
       foundationStatus: w ? "PC" : "I",
       purpose: a.title,
@@ -184,7 +187,10 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     applications: cgApplications,
     awards: cgAwards,
     // Organizations are references into Passport, plus the cached projection where the organization consented.
-    orgs: applicants.map((w) => ({ passportOrgId: w.passport_org_id, name: w.display_name, projection: consents.some((c) => c.applicant_workspace_id === w.id) ? w.org_projection : null })),
+    orgs: applicants.map((w) => {
+      const shared = consents.some((c) => c.applicant_workspace_id === w.id);
+      return { passportOrgId: w.passport_org_id, name: w.display_name, verification: verificationShared(w, shared), projection: shared && profileSourceOf(w) === "passport" ? w.org_projection : null, selfDeclared: shared ? selfDeclaredOf(w) : null };
+    }),
   };
   const strip = <R extends { workspace_id?: string }>(rows: R[]) => rows;
   const gms = { exportedAt: ctx.now().toISOString(), workspace: { id: funder.id, handle: funder.handle, displayName: funder.display_name, brand: funder.brand }, programs, rubrics, formResponses: responses, reviewAssignments: assignments, reviews, decisions, agreements: strip(agreements), paymentSchedules, tranches, requirements, submissions, budgets, amendments, templates,
@@ -239,7 +245,7 @@ async function exportApplicantBundle(ctx: ServiceContext, opts: { inline?: boole
     applications: cgApplications,
     awards: awards.map((a) => a.cg ?? { id: a.id, title: a.title, status: { value: a.cg_status } }),
     // The organization is a reference into Passport; the cached projection is a convenience copy.
-    orgs: [{ passportOrgId: me.passport_org_id, name: me.display_name, verificationLevel: me.verification_level, projection: me.org_projection, projectionAt: me.org_projection_at }],
+    orgs: [{ passportOrgId: me.passport_org_id, name: me.display_name, verificationLevel: me.verification_level, verification: verificationOf(me), projection: me.org_projection, projectionAt: me.org_projection_at, selfDeclared: selfDeclaredOf(me) }],
   };
   const gms = {
     exportedAt: ctx.now().toISOString(),

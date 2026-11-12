@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { isAll, isAny, type Evaluation, type LeafRule, type Outcome, type Rule, type RuleContext, type RuleResult } from "./types.ts";
+import { isAll, isAny, isPassportOnlyPath, type EvaluateOptions, type Evaluation, type LeafRule, type Outcome, type Rule, type RuleContext, type RuleResult } from "./types.ts";
 
 const MISSING = Symbol("missing");
 
@@ -108,22 +108,34 @@ export function anyOf(outcomes: readonly Outcome[]): Outcome {
   return outcomes.includes("unknown") ? "unknown" : "fail";
 }
 
-function walk(rule: Rule, ctx: RuleContext, results: RuleResult[]): Outcome {
-  if (isAll(rule)) return allOf(rule.all.map((r) => walk(r, ctx, results)));
-  if (isAny(rule)) return anyOf(rule.any.map((r) => walk(r, ctx, results)));
+function walk(rule: Rule, ctx: RuleContext, results: RuleResult[], opts: EvaluateOptions): Outcome {
+  if (isAll(rule)) return allOf(rule.all.map((r) => walk(r, ctx, results, opts)));
+  if (isAny(rule)) return anyOf(rule.any.map((r) => walk(r, ctx, results, opts)));
+  const label = rule.label ?? rule.path;
+  // A fact only Passport supplies cannot be checked for an applicant without Passport: a person decides.
+  if (opts.passportFacts === false && isPassportOnlyPath(rule.path)) {
+    results.push({ rule, label, outcome: "unknown", actual: undefined, explain: `${label}: needs review. This is checked against the organization's OpenGrants Passport record, and the organization has not connected Passport.` });
+    return "unknown";
+  }
   const resolved = resolvePath(ctx, rule.path);
   const actual = resolved === MISSING ? undefined : resolved;
-  const outcome = leafOutcome(rule, resolved);
-  const label = rule.label ?? rule.path;
-  results.push({ rule, label, outcome, actual, explain: explain(rule, label, outcome, actual) });
+  let outcome = leafOutcome(rule, resolved);
+  const selfReported = (opts.selfReported ?? []).includes(rule.path.split(".")[0] ?? "");
+  let text = explain(rule, label, outcome, actual);
+  // Met on what the organization said about itself: counts only when the funder accepts that.
+  if (selfReported && outcome === "pass" && opts.acceptSelfReported !== true) {
+    outcome = "unknown";
+    text = `${label}: needs review. Met on information the organization entered itself, which is not verified; found ${show(actual)}.`;
+  }
+  results.push({ rule, label, outcome, actual, explain: text, ...(selfReported ? { selfReported: true as const } : {}) });
   return outcome;
 }
 
 /** Evaluate rules. `unknown` is a real result: it never auto-declines, it flags for a human. */
-export function evaluate(rules: Rule | null | undefined, ctx: RuleContext): Evaluation {
+export function evaluate(rules: Rule | null | undefined, ctx: RuleContext, opts: EvaluateOptions = {}): Evaluation {
   if (!rules) return { eligible: true, results: [] };
   const results: RuleResult[] = [];
-  const outcome = walk(rules, ctx, results);
+  const outcome = walk(rules, ctx, results, opts);
   return { eligible: outcome === "pass" ? true : outcome === "fail" ? false : "unknown", results };
 }
 

@@ -8,7 +8,8 @@ import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { passportFacts, stagesOf, transitionApp, type App } from "./apply.ts";
+import { stagesOf, transitionApp, type App } from "./apply.ts";
+import { orgFacts } from "./profile.ts";
 import { STAFF_ROLES, emitFor } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { getApplicationDetail } from "./inbox.ts";
@@ -39,7 +40,7 @@ export const toRubric = (r: Row<"rubrics">): Rubric => ({ id: r.id, version: r.v
 
 function domainsOf(applicant: Row<"workspaces"> | null | undefined): string[] {
   if (!applicant) return [];
-  const org = passportFacts(applicant).org as { emails?: Record<string, unknown>; socials?: { website?: unknown } };
+  const org = orgFacts(applicant).org as { emails?: Record<string, unknown>; socials?: { website?: unknown } };
   const out = new Set<string>();
   for (const v of Object.values(org.emails ?? {})) if (typeof v === "string" && v.includes("@")) out.add(emailDomain(v));
   if (typeof org.socials?.website === "string") {

@@ -7,9 +7,10 @@ import { readPath } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, access, passportFacts, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
+import { type App, access, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { listMyDocuments } from "./organization.ts";
+import { orgFacts } from "./profile.ts";
 import { OpenGrantsProfileError, OpenGrantsUnavailableError, OpenGrantsUnsupportedError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -272,7 +273,7 @@ export async function insertAnswer(ctx: ServiceContext, appId: string, formUuid:
 // ------------------------------------------------------------------------------------ discovery
 
 function orgContext(ws: Ws): OrgSearchContext {
-  const { org, profile } = passportFacts(ws);
+  const { org, profile } = orgFacts(ws);
   const revenue = Number(readPath(profile, "commonApp.financials.totalRevenue") ?? readPath(profile, "commonApp.financials.budget"));
   const band = !Number.isFinite(revenue) || revenue <= 0 ? undefined : revenue < 250_000 ? "under_250k" : revenue < 1_000_000 ? "250k_1m" : revenue < 5_000_000 ? "1m_5m" : "over_5m";
   const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);

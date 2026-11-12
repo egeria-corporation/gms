@@ -213,18 +213,94 @@ model Workspace {
   brand?: Brand;
   settings?: Record<unknown>;
   verificationLevel?: VerificationLevel;
+  profileSource?: ProfileSource;
+  verification?: Verification;
+
+  /** The self-declared profile; null for a Passport workspace and for one with no profile. */
+  profile?: SelfDeclaredProfile | null;
+
   status: string;
   ...Timestamps;
 }
 
 /** A workspace gets its Passport organization only from Passport: a consent or sign-in for that
  * organization (applicants), or a client verified against it (funders). It cannot be named here.
+ * Without Passport, send `profile`: the workspace is created with a self-declared profile.
  */
 model WorkspaceInput {
   kind: WorkspaceKind;
   handle: string;
   displayName: string;
+  legalName?: string;
   brand?: Brand;
+  profile?: SelfDeclaredProfile;
+}
+
+/** Where an organization's profile comes from. `self_declared` is the organization's own word and is never verified. */
+union ProfileSource {
+  none: "none",
+  selfDeclared: "self_declared",
+  passport: "passport",
+}
+
+/** How far an organization is verified, as anyone who sees it is told. `level` is Passport's; null for anything not from Passport. */
+model Verification {
+  source: ProfileSource;
+  level: VerificationLevel | null;
+}
+
+model SelfDeclaredAddress {
+  @maxLength(200) street?: string;
+  @maxLength(100) city?: string;
+  @maxLength(100) region?: string;
+  @maxLength(20) postalCode?: string;
+
+  /** ISO 3166-1 alpha-2 */
+  @pattern("^[A-Za-z]{2}$")
+  country?: string;
+}
+
+/** What an organization without Passport says about itself. Organization facts only: never a
+ * person's identity numbers. Shown as not verified, never served as a CommonGrants organization,
+ * and replaced by the Passport record when the workspace links Passport.
+ */
+model SelfDeclaredProfile {
+  @minLength(1) @maxLength(200) legalName: string;
+  @maxLength(200) displayName?: string;
+
+  /** An https link */
+  @maxLength(300) website?: url;
+
+  @maxLength(2000) mission?: string;
+  address?: SelfDeclaredAddress;
+  @maxLength(254) contactEmail?: string;
+
+  /** One of the CommonGrants applicant types, e.g. `non_profit_with_501c3` */
+  orgType?: string;
+
+  /** The organization's employer identification number: nine digits (a hyphen is accepted and removed) */
+  @pattern("^[0-9]{2}-?[0-9]{7}$")
+  ein?: string;
+}
+
+/** A merge patch of the self-declared profile: a field left out keeps its value, `null` removes it. `legalName` cannot be removed. */
+model SelfDeclaredProfilePatch {
+  @minLength(1) @maxLength(200) legalName?: string;
+  displayName?: string | null;
+  website?: url | null;
+  mission?: string | null;
+  address?: SelfDeclaredAddress | null;
+  contactEmail?: string | null;
+  orgType?: string | null;
+  ein?: string | null;
+}
+
+/** `PATCH /gms/workspaces/{id}/profile` */
+model WorkspaceProfile {
+  workspaceId: CommonGrants.Types.uuid;
+  source: ProfileSource;
+  selfDeclared: SelfDeclaredProfile | null;
+  verification: Verification;
 }
 
 /** A member of a workspace. `email` and `name` come from the person's account; an invited member
@@ -378,6 +454,20 @@ model PublishSettings {
   publicPage?: boolean;
   openGrantsIndex?: boolean;
   sitemap?: boolean;
+  faq?: Record<unknown>[];
+  documents?: Record<unknown>[];
+
+  /** Applicants must connect OpenGrants Passport before starting an application (403 `passport_required`). Default false. */
+  requirePassport?: boolean;
+
+  /** Eligibility may pass on facts an applicant without Passport entered itself; otherwise such a pass needs review. Default false. */
+  acceptSelfReported?: boolean;
+}
+
+/** The two applicant options, resolved (absent = false). Set them in `publish`. */
+model ApplicantOptions {
+  requirePassport: boolean;
+  acceptSelfReported: boolean;
 }
 
 /** An opportunity as the `/gms` routes return it. The CommonGrants projection is served at
@@ -403,6 +493,7 @@ model GmsOpportunity {
   eligibilityRules: EligibilityRule;
 
   publish: PublishSettings;
+  applicantOptions?: ApplicantOptions;
   customFields: Record<unknown>;
   published: boolean;
   publishedAt: utcDateTime | null;
@@ -614,6 +705,9 @@ model EligibilityRuleResult {
   outcome: TriState;
   actual?: unknown;
   explain: string;
+
+  /** The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
+  selfReported?: boolean;
 }
 
 model EligibilityResult {
@@ -652,6 +746,9 @@ model GmsApplication {
 
     /** The applicant's current Passport level; null once their consent is revoked. */
     level: VerificationLevel | null;
+
+    /** Passport-verified, self-declared (not verified) or no profile. The level only while consent stands. */
+    verification?: Verification;
   };
   updatedAt: utcDateTime;
 
@@ -665,7 +762,14 @@ model GmsApplication {
 
   /** Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
   organization?: {
-    `projection`: OrganizationBase;
+    source?: ProfileSource;
+
+    /** The Passport record; null for an organization without Passport. */
+    `projection`: OrganizationBase | null;
+
+    /** What an organization without Passport entered itself. Not verified. */
+    selfDeclared?: SelfDeclaredProfile | null;
+
     level: VerificationLevel | null;
     verifiedAt: utcDateTime | null;
     syncedAt: utcDateTime | null;
@@ -1391,6 +1495,8 @@ model GmsAward {
 
     /** The recipient's current Passport level, while their consent stands */
     level: string | null;
+
+    verification?: Verification;
   } | null;
   recipientIndividual: Record<unknown> | null;
   passport: {
@@ -1785,6 +1891,9 @@ model ReadinessCheck {
 
   /** Where to fix it (a path in the web app or a Passport URL); null when nothing needs fixing. */
   fixHref: string | null;
+
+  /** An optional step (connecting Passport, for an organization without it): never counted in `summary`. */
+  optional?: boolean;
 }
 
 /** Passport readiness shown to an applicant: the level and what each next step needs. */
@@ -1793,6 +1902,9 @@ model ApplicantReadiness {
 
   /** Whether the workspace holds a live Passport consent. */
   linked: boolean;
+
+  /** Without Passport the checks are "Profile complete" and an optional "Connect Passport for verification". */
+  source?: ProfileSource;
 
   syncedAt: utcDateTime | null;
   checks: ReadinessCheck[];
@@ -1814,6 +1926,11 @@ model MyOrganization {
   displayName: string;
   passportOrgId: CommonGrants.Types.uuid | null;
   linked: boolean;
+  source?: ProfileSource;
+
+  /** The profile an organization without Passport entered itself; edit it at `PATCH /gms/workspaces/{id}/profile`. */
+  selfDeclared?: SelfDeclaredProfile | null;
+
   level: VerificationLevel | null;
   verifiedAt: utcDateTime | null;
 
@@ -1883,6 +2000,8 @@ model MyWorkspace {
 
   passportOrgId: CommonGrants.Types.uuid | null;
   verificationLevel: VerificationLevel | null;
+  profileSource?: ProfileSource;
+  verification?: Verification;
 }
 
 /** The signed-in person and the workspaces they can open. */
@@ -1931,7 +2050,11 @@ model PublicFunder {
   };
   mission: string | null;
   website: string | null;
+
+  /** Passport's level; null when the funder's organization is not verified with Passport. */
   verificationLevel: string | null;
+
+  verification?: Verification;
 }
 
 model PublicOpportunityCard {

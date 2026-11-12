@@ -66,6 +66,9 @@ update public.workspaces set profile_projection_at = now(), profile_projection =
   ]}'
   where id = '20000000-0000-7000-8000-000000000012';
 
+-- The fixture workspaces carry Passport organizations, so their profile is Passport's (0026).
+update public.workspaces set profile_source = 'passport' where passport_org_id is not null;
+
 insert into public.workspace_members (workspace_id, user_id, role, scope, mfa_enrolled_at) values
   ('20000000-0000-7000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'admin', '{}', now()),
   ('20000000-0000-7000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'finance', '{}', now()),

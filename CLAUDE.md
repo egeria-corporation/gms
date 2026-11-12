@@ -28,8 +28,10 @@ its stylesheet lives in `apps/web/src/theme/` (tokens.css = OpenGrants Design Sy
 - **CommonGrants v0.5.0 exactly.** Protocol routes under `/common-grants/`, GMS routes under `/gms/`.
   Never add fields to a CG model outside `customFields`; validate every projection with
   `@common-grants/sdk` before persisting.
-- **Passport is the identity source.** Workspaces link to a Passport `orgId`; profile edits are
-  proposed as org changes, never made locally.
+- **Passport is the source of verified identity.** A workspace may link a Passport `orgId`; one that
+  doesn't keeps a self-declared profile, always shown as not verified, never presented as a verified
+  CommonGrants organization, and replaced by the Passport record when it links. Facilitated payments,
+  verification levels and organization change requests stay Passport-only.
 - **Agents get the UI's capabilities, no more.** MCP tools and REST routes share one service layer and
   one authorization check. Human-gated tools cannot be bypassed by any client.
 - **State changes go through `packages/workflow`.** No route writes a status column directly:

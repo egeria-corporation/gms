@@ -5,10 +5,13 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../../app.ts";
 import { authenticate, requireUser } from "../../auth/middleware.ts";
-import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
+import { MemoryKv } from "@gms/mcp";
+import { ApiError, created, ok, pageInfo, paginated } from "../../lib/errors.ts";
+import { clientAddress, WORKSPACE_CREATION_LIMITS, windowCounters } from "../../lib/rate-limit.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as passport from "../../services/passport-link.ts";
+import * as profile from "../../services/profile.ts";
 import * as workspaces from "../../services/workspaces.ts";
 import { jsonBody, svc, userSvc } from "../http.ts";
 
@@ -16,7 +19,26 @@ export const workspaceRoutes = new Hono<AppEnv>();
 const ws = (c: { req: { param(name: string): string | undefined } }) => bareUuid(c.req.param("workspaceId"), "Workspace");
 
 workspaceRoutes.get("/workspaces", requireUser(), async (c) => c.json(ok(await workspaces.listMyWorkspaces(userSvc(c)))));
-workspaceRoutes.post("/workspaces", requireUser(), async (c) => c.json(created(await workspaces.createWorkspace(userSvc(c), parse(workspaces.createWorkspaceInput, await jsonBody(c)))), 201));
+const fallbackKv = new MemoryKv();
+/**
+ * Creating a workspace is capped per person and per network address per day
+ * (WORKSPACE_CREATION_LIMITS). Only creations that succeed are counted, so a taken handle
+ * does not use up the day.
+ */
+workspaceRoutes.post("/workspaces", requireUser(), async (c) => {
+  const input = parse(workspaces.createWorkspaceInput, await jsonBody(c));
+  const deps = c.get("deps");
+  const address = clientAddress((name) => c.req.header(name));
+  const L = WORKSPACE_CREATION_LIMITS;
+  const counter = windowCounters(deps.kv?.(c.env) ?? fallbackKv, deps.now().getTime(), L.windowSeconds, [
+    { key: `workspace-create:user:${c.get("user").userId}`, limit: L.perUserPerDay },
+    ...(address ? [{ key: `workspace-create:addr:${address}`, limit: L.perAddressPerDay }] : []),
+  ]);
+  if (!(await counter.allowed())) throw new ApiError(429, "too_many_workspaces", "You have created as many workspaces as we allow in one day. Try again tomorrow, or ask an admin of an existing workspace to invite you");
+  const out = await workspaces.createWorkspace(userSvc(c), input);
+  await counter.hit();
+  return c.json(created(out), 201);
+});
 workspaceRoutes.post("/invitations/accept", requireUser(), async (c) => {
   const { token } = parse(z.object({ token: z.string().min(10).max(200) }).strict(), await jsonBody(c));
   return c.json(ok(await workspaces.acceptInvitation(userSvc(c), token)));
@@ -26,6 +48,7 @@ workspaceRoutes.use("/workspaces/:workspaceId/*", authenticate());
 workspaceRoutes.use("/workspaces/:workspaceId", authenticate());
 
 workspaceRoutes.get("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.getWorkspace(await svc(c), ws(c)))));
+workspaceRoutes.patch("/workspaces/:workspaceId/profile", async (c) => c.json(ok(await profile.updateProfile(await svc(c), ws(c), parse(profile.profilePatchInput, await jsonBody(c))))));
 workspaceRoutes.patch("/workspaces/:workspaceId", async (c) => c.json(ok(await workspaces.updateWorkspace(await svc(c), ws(c), parse(workspaces.updateWorkspaceInput, await jsonBody(c))))));
 
 // A list envelope like every other list: `items` + `paginationInfo` (one page; a workspace's team is small).

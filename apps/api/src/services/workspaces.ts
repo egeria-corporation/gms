@@ -7,6 +7,7 @@ import { APPLICANT_ROLES, FUNDER_ROLES, roleRequiresMfa, type WorkspaceKind } fr
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { profileSourceOf, selfDeclaredColumns, selfDeclaredOf, selfDeclaredProfileInput, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -26,6 +27,8 @@ export const createWorkspaceInput = z
     // No `passportOrgId`: a workspace gets its Passport organization only from Passport, through a
     // consent or sign-in for that organization (applicants) or a client verified against it (funders).
     brand: brandInput.optional(),
+    /** Set up without Passport: what the organization says about itself. Shown as not verified. */
+    profile: selfDeclaredProfileInput.optional(),
   })
   .strict();
 
@@ -72,6 +75,11 @@ export const workspaceView = (w: Row<"workspaces">) => ({
   legalName: w.legal_name,
   passportOrgId: w.passport_org_id,
   verificationLevel: w.verification_level,
+  /** Where the organization's profile comes from; a self-declared one is never verified. */
+  profileSource: profileSourceOf(w),
+  verification: verificationOf(w),
+  /** The self-declared profile (admins edit it at /profile); null for Passport and empty workspaces. */
+  profile: selfDeclaredOf(w),
   brand: w.brand,
   settings: w.settings,
   status: w.status,
@@ -128,14 +136,16 @@ export async function createWorkspace(ctx: ServiceContext, input: z.output<typeo
       kind: input.kind,
       handle: input.handle,
       display_name: input.displayName,
-      legal_name: input.legalName ?? null,
+      legal_name: input.legalName ?? input.profile?.legalName ?? null,
       passport_org_id: null,
       brand,
       status: "active",
+      ...(input.profile ? selfDeclaredColumns(input.profile) : {}),
     }),
   );
   await ctx.repos.table("workspace_members").insert({ workspace_id: workspace.id, user_id: ctx.actor.userId!, role: "admin" });
-  await audit(ctx, "workspace.created", "workspace", workspace.id, { kind: workspace.kind, handle: workspace.handle }, workspace.id);
+  await audit(ctx, "workspace.created", "workspace", workspace.id, { kind: workspace.kind, handle: workspace.handle, profileSource: profileSourceOf(workspace) }, workspace.id);
+  if (input.profile) await audit(ctx, "workspace.profile_updated", "workspace", workspace.id, { fields: Object.keys(selfDeclaredOf(workspace) ?? {}).sort(), source: "self_declared" }, workspace.id);
   await audit(ctx, "member.added", "workspace", workspace.id, { userId: ctx.actor.userId, role: "admin" }, workspace.id);
   return { workspace: workspaceView(workspace), warnings };
 }

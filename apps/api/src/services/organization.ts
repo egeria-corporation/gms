@@ -23,10 +23,12 @@ import {
   type VerifiedRepresentative,
 } from "@gms/passport-client";
 import { readOrganizationKind, readPassportFields } from "@gms/protocol";
+import type { JsonObject } from "@gms/forms";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
 import { slugify } from "./opportunities.ts";
+import { profileSourceOf, replaceProfileWithPassport, selfDeclaredOf } from "./profile.ts";
 import { consentTokens } from "./passport-tokens.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -38,6 +40,8 @@ export interface ReadinessCheck {
   label: string;
   reason: string;
   fixHref: string | null;
+  /** An optional step: shown, never counted for or against being ready. */
+  optional?: boolean;
 }
 
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -213,7 +217,7 @@ export async function linkApplicantOrganization(
     // organization's workspace: its claim is released, and it keeps nothing of the organization's.
     // The person consenting now is the proof of standing, so they get a workspace of their own
     // (or the one they named below), never a seat under whoever parked on the id.
-    await svc.repos.table("workspaces").update({ id: workspace.id }, { passport_org_id: null, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, verification_level: null });
+    await svc.repos.table("workspaces").update({ id: workspace.id }, { passport_org_id: null, profile_source: "none", org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, verification_level: null });
     await audit(svc, "workspace.passport_claim_released", "workspace", workspace.id, { passportOrgId: tokens.orgId, reason: "no_passport_proof" }, workspace.id);
     workspace = null;
   }
@@ -221,14 +225,18 @@ export async function linkApplicantOrganization(
     // Link the workspace the person named, if they still administer it and it is still unlinked.
     const m = await svc.repos.table("workspace_members").one({ workspace_id: input.workspaceHint, user_id: userId, role: "admin" });
     const named = m ? await svc.repos.table("workspaces").one({ id: input.workspaceHint, kind: "applicant" }) : null;
-    if (named && !named.passport_org_id) workspace = (await svc.repos.table("workspaces").update({ id: named.id }, { passport_org_id: tokens.orgId, ...columns }))[0] ?? null;
+    // A self-declared profile gives way to the Passport record (fields that differed are ledgered).
+    if (named && !named.passport_org_id) {
+      const replaced = await replaceProfileWithPassport(svc, named, read.org as unknown as JsonObject);
+      workspace = (await svc.repos.table("workspaces").update({ id: named.id, passport_org_id: null }, { passport_org_id: tokens.orgId, ...columns, ...replaced }))[0] ?? null;
+    }
   }
   if (workspace) {
-    workspace = (await svc.repos.table("workspaces").update({ id: workspace.id }, columns))[0] ?? workspace;
+    workspace = (await svc.repos.table("workspaces").update({ id: workspace.id }, { ...columns, profile_source: "passport", self_declared_profile: null }))[0] ?? workspace;
   } else {
     const name = columns.legal_name ?? "Organization";
     const handle = await uniqueHandle(svc, name);
-    workspace = await guardWrite("A workspace for this organization", () => svc.repos.table("workspaces").insert({ kind: "applicant", handle, display_name: name, passport_org_id: tokens.orgId, status: "active", ...columns }));
+    workspace = await guardWrite("A workspace for this organization", () => svc.repos.table("workspaces").insert({ kind: "applicant", handle, display_name: name, passport_org_id: tokens.orgId, profile_source: "passport", status: "active", ...columns }));
     await audit(svc, "workspace.created", "workspace", workspace.id, { kind: "applicant", handle, via: input.via }, workspace.id);
   }
   const ws = workspace!;
@@ -258,6 +266,9 @@ function view(ws: Ws, linked: boolean) {
     displayName: ws.display_name,
     passportOrgId: ws.passport_org_id,
     linked,
+    /** Where the profile comes from. A self-declared one is in `selfDeclared` and is never verified. */
+    source: profileSourceOf(ws),
+    selfDeclared: selfDeclaredOf(ws),
     level: ws.verification_level ?? (org ? fields.verificationLevel : null),
     verifiedAt: fields.verifiedAt,
     attestationUrl: fields.attestation,
@@ -378,6 +389,7 @@ export async function getMyReadiness(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "org:read", kind: "applicant" });
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const linked = !!(await liveLink(ctx, ws.id));
+  if (profileSourceOf(row) !== "passport" && !linked) return readinessWithoutPassport(ctx, row);
   const org = row.org_projection as { status?: { value?: string } } | null;
   const passport = passportOrgUrl(ctx, row);
   const level = row.verification_level;
@@ -391,9 +403,34 @@ export async function getMyReadiness(ctx: ServiceContext) {
     need(2, "identity_verified", "Identity verified", "Representatives confirmed (L2)", "Verify your representatives in Passport"),
     need(3, "payee_verified", "Payee verified", "A payout destination is verified (L3)", "Verify a payout destination in Passport to receive facilitated payments"),
   ];
-  const failing = checks.filter((c) => c.state === "fail").length;
-  const unknown = checks.filter((c) => c.state === "unknown").length;
-  return { level, linked, syncedAt: row.org_projection_at, checks, summary: { pass: checks.length - failing - unknown, fail: failing, unknown, ready: failing === 0 && unknown === 0 } };
+  return { level, linked, source: "passport" as const, syncedAt: row.org_projection_at, checks, summary: summarize(checks) };
+}
+
+function summarize(checks: ReadinessCheck[]) {
+  const counted = checks.filter((c) => !c.optional);
+  const fail = counted.filter((c) => c.state === "fail").length;
+  const unknown = counted.filter((c) => c.state === "unknown").length;
+  return { pass: counted.length - fail - unknown, fail, unknown, ready: fail === 0 && unknown === 0 };
+}
+
+/**
+ * Readiness for an organization without Passport: its own profile, plus an optional step to
+ * connect Passport (offered only where this server can link). Passport's checks are not shown,
+ * because they are not failures for an organization that chose not to use it.
+ */
+function readinessWithoutPassport(ctx: ServiceContext, row: Ws) {
+  const p = selfDeclaredOf(row);
+  const missing = [...(p?.legalName ? [] : ["legal name"]), ...(p?.contactEmail ? [] : ["contact email"])];
+  const checks: ReadinessCheck[] = [
+    missing.length
+      ? { key: "profile_complete", state: "fail", label: "Profile complete", reason: `Add your organization's ${missing.join(" and ")} in Settings`, fixHref: "/settings" }
+      : { key: "profile_complete", state: "pass", label: "Profile complete", reason: "Legal name and contact email entered (not verified)", fixHref: null },
+  ];
+  const { passportBaseUrl, credentialsKey, passportClient } = ctx.config;
+  if (passportBaseUrl && credentialsKey && passportClient) {
+    checks.push({ key: "passport_optional", state: "unknown", optional: true, label: "Connect Passport for verification", reason: "Optional. Verifies your organization, fills forms for you and lets you receive payments through Passport", fixHref: "/onboarding/applicant" });
+  }
+  return { level: null, linked: false, source: profileSourceOf(row), syncedAt: null, checks, summary: summarize(checks) };
 }
 
 // ------------------------------------------------------------------------------------ payout destination
