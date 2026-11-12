@@ -2,55 +2,46 @@
 
 Free, open-source (AGPL-3.0) grants management for funders and awardees, built on
 [CommonGrants](https://commongrants.org) v0.5.0 and [OpenGrants Passport](https://github.com/egeria-corporation/passport).
-Hosted at `gms.opengrants.io`; self-hosting is a first-class target.
+Hosted at `gms.opengrants.io`, and you can run your own copy.
+
+## Deploy with Claude Code
+
+You need a Supabase account, a Cloudflare account (the Workers Paid plan) and Claude Code. In an
+empty folder, run:
+
+```bash
+git clone --branch v1.0.0 https://github.com/egeria-corporation/gms.git && cd gms && pnpm install && claude "/deploy-gms"
+```
+
+Claude asks a few questions, stops before anything that costs money or changes DNS, and finishes
+with a report of what it set up. It never asks you to paste a secret. Any other coding agent can
+follow [DEPLOY_WITH_AGENT.md](DEPLOY_WITH_AGENT.md) the same way.
+
+## Deploy by hand
+
+The deploy tool is an ordinary command-line program: `pnpm -s gms deploy <step>`. Its steps, flags
+and result codes are in [scripts/deploy/README.md](scripts/deploy/README.md). The long-form manual
+reference is [docs/self-host.md](docs/self-host.md).
+
+## What it does
 
 Funders design opportunities and forms, run multi-stage reviews, decide, issue awards, pay through
 Passport and track reporting. Applicants apply from their Passport record, collaborate, report once
 and get paid to a verified destination. Everything is exposed over CommonGrants and an MCP server.
 
-## Status
-
-Phase 0 (foundation) is in place, along with the pure-logic cores of later phases and the full design
-ported into the web app. See `docs/phase-report.md` for what is verified and what is not.
-
-## Run it
+## Local development
 
 ```bash
 pnpm install
-```
-
-```bash
-pnpm dev:web
-```
-
-Open http://localhost:5173. The web app currently renders the fixture workspaces from the design:
-
-| URL | What |
-|---|---|
-| `/` | Landing |
-| `/f/riverbend`, `/f/riverbend/o/community-health-2027` | Funder public page, opportunity |
-| `/w/riverbend` | Funder workspace (Riverbend Community Foundation) |
-| `/w/alder-creek` | Applicant workspace (Alder Creek Family Services) |
-| `/review/assignments` | Reviewer portal |
-| `/styleguide/status` | Status vocabulary and component reference |
-
-The API Worker:
-
-```bash
+pnpm dev:web      # http://localhost:5173, fixture workspaces
 cp apps/api/.dev.vars.example apps/api/.dev.vars
+pnpm dev:api      # the API Worker on :8787
 ```
 
-```bash
-pnpm dev:api
-```
-
-## Check it
+Check your work:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm gate:sensitive && pnpm test
-```
-
-```bash
+pnpm typecheck && pnpm typecheck:deploy && pnpm lint && pnpm gate:sensitive && pnpm test
 pnpm spec:compile && pnpm spec:check
 ```
 
@@ -61,14 +52,19 @@ Database tests (pgTAP) need a local Supabase stack: `supabase start`, then `supa
 | Path | What |
 |---|---|
 | `api/` | TypeSpec: CommonGrants v0.5.0 base plus `/gms` routes |
-| `apps/api` | Cloudflare Worker (Hono): OAuth 2.1 server, well-known documents, route seams |
+| `apps/api` | Cloudflare Worker (Hono): OAuth 2.1 server, well-known documents, API |
 | `apps/jobs` | Cron Triggers and Queue consumers |
 | `apps/web` | Vite + React: public pages, funder and applicant workspaces, reviewer portal |
-| `packages/*` | db, protocol, forms, rules, workflow, review, passport-client, payments, notify, ledger, webhooks, mcp, and stubs for documents, assist, connectors, importers |
+| `packages/*` | db, protocol, forms, rules, workflow, review, passport-client, payments, notify, ledger, webhooks, mcp and more |
+| `scripts/deploy/` | The deploy tool |
 | `supabase/` | Migrations, seed, pgTAP tests |
-| `docs/` | Decisions, data model, API surface, forms, rules, workflow, payments, MCP |
+| `docs/` | Decisions, data model, API surface, forms, rules, workflow, payments, MCP, self-hosting |
 
-Working rules for contributors and coding agents are in `CLAUDE.md`.
+## Links
+
+- [CHANGELOG.md](CHANGELOG.md): releases and upgrade notes
+- [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md): working rules for contributors and coding agents
+- [docs/decisions.md](docs/decisions.md): decisions and why
 
 ## License
 

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm gms deploy doctor:*)",
+      "Bash(pnpm gms deploy status:*)",
+      "Bash(pnpm gms deploy verify --dry-run:*)",
+      "Bash(pnpm -s gms deploy doctor:*)",
+      "Bash(pnpm -s gms deploy status:*)",
+      "Bash(pnpm -s gms deploy verify --dry-run:*)",
+      "Bash(pnpm exec wrangler whoami:*)"
+    ]
+  }
+}

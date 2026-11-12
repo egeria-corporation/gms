@@ -1,0 +1,83 @@
+name: Release
+
+# Tags and publishes a release when the version in the root package.json changes on main. The
+# release notes are that version's section of CHANGELOG.md. Run it by hand (version and sha) to
+# backfill a release for an older commit.
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the v (for example 0.9.0)
+        required: true
+        type: string
+      sha:
+        description: Commit to tag (full SHA)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Work out the version and commit
+        id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SHA: ${{ inputs.sha }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            version="$INPUT_VERSION"; sha="$INPUT_SHA"
+          else
+            version="$(node -p "require('./package.json').version")"; sha="$HEAD_SHA"
+            old=""
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              old="$(git show "$BEFORE:package.json" 2>/dev/null | node -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).version||''}catch{''}" || true)"
+            fi
+            if [ "$version" = "$old" ]; then echo "Version unchanged ($version); nothing to release."; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "Not a version: $version" >&2; exit 1; fi
+          if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then echo "Not a full commit SHA" >&2; exit 1; fi
+          git cat-file -e "$sha^{commit}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - name: Notes from CHANGELOG.md
+        if: steps.v.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          # CHANGELOG.md comes from the checked-out ref (main), even when backfilling an older commit.
+          awk -v v="$VERSION" '
+            /^## / { if (on) exit; if (index($0, v)) { on = 1; next } }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "No section for $VERSION in CHANGELOG.md" >&2; exit 1; fi
+      - name: Tag and publish
+        if: steps.v.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+          SHA: ${{ steps.v.outputs.sha }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "$tag already released."; exit 0; fi
+          gh release create "$tag" --target "$SHA" --title "$tag" --notes-file notes.md

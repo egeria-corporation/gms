@@ -1,6 +1,7 @@
 {
   "name": "gms",
   "private": true,
+  "version": "1.0.0",
   "description": "OpenGrants GMS: free, open-source grants management for funders and awardees on the CommonGrants protocol",
   "license": "AGPL-3.0-only",
   "repository": "github:egeria-corporation/gms",
