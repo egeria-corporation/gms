@@ -6,7 +6,7 @@
 //    project-back at submit.
 import { clone, deepEqual, formatPointer, getAt, getPath, isAtOrUnder, isPlainObject, parsePointer, pointerToScope, setAt } from "./pointer.ts";
 import { resolveRef } from "./schema-subset.ts";
-import type { DefinitionError, FormDefinition, FormSchema, Json, JsonObject, MappingFunction, MappingSchema, Provenance } from "./types.ts";
+import { isPrefillSource, type DefinitionError, type FormDefinition, type FormSchema, type Json, type JsonObject, type MappingFunction, type MappingSchema, type Provenance } from "./types.ts";
 import { schemaAtScope } from "./ui-schema.ts";
 import { effectiveSchema } from "./validate.ts";
 import { isMoney, type Money } from "./widgets.ts";
@@ -102,25 +102,28 @@ export function prefill(
   form: Pick<FormDefinition, "jsonSchema" | "uiSchema" | "mappingFromCommonGrants">,
   source: unknown,
   current: { response?: JsonObject | null; provenance?: Provenance | null } = {},
+  /** `self_declared`: the source is a profile the organization entered itself; nothing is locked to it. */
+  opts: { as?: "passport" | "self_declared" } = {},
 ): PrefillResult {
+  const tag = opts.as ?? "passport";
   const response = clone(current.response ?? {});
   const provenance: Provenance = { ...(current.provenance ?? {}) };
-  const locked = passportFieldPaths(form);
+  const locked = tag === "passport" ? passportFieldPaths(form) : [];
   const applied: string[] = [];
   const skipped: string[] = [];
   for (const leaf of applyMapping(form.mappingFromCommonGrants, source).leaves) {
     const segs = parsePointer(leaf.path);
     const existing = getAt(response, segs);
-    const fromPassport = provenance[leaf.path] === "passport";
+    const fromPassport = isPrefillSource(provenance[leaf.path]);
     const isLocked = locked.some((l) => isAtOrUnder(leaf.path, l));
-    const touchedBelow = Object.entries(provenance).some(([p, src]) => p !== leaf.path && isAtOrUnder(p, leaf.path) && src !== "passport");
+    const touchedBelow = Object.entries(provenance).some(([p, src]) => p !== leaf.path && isAtOrUnder(p, leaf.path) && !isPrefillSource(src));
     if (!isLocked && ((!isBlank(existing) && !fromPassport) || touchedBelow)) {
       skipped.push(leaf.path);
       continue;
     }
     if (!deepEqual(existing, leaf.value) || !fromPassport) applied.push(leaf.path);
     setAt(response, segs, leaf.value);
-    provenance[leaf.path] = "passport";
+    provenance[leaf.path] = tag;
   }
   return { response, provenance, applied, skipped };
 }
