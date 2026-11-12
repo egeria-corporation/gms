@@ -20,6 +20,7 @@ import type {
 } from "../api/types.ts";
 import type { Session } from "../auth/types.ts";
 import { checkBrand } from "../lib/contrast.ts";
+import { profileProblems } from "../lib/profile.ts";
 import { MOCK_PASSPORT_SESSION, MOCK_PASSPORT_TOKEN } from "../lib/passportSignIn.ts";
 import { slugify } from "../lib/format.ts";
 import { FIXTURE_WORKSPACES, MOCK_MEMBERSHIPS } from "./fixtures.ts";
@@ -45,6 +46,10 @@ const clone = <T>(v: T): T => structuredClone(v);
 const uuid = () => crypto.randomUUID();
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
 const invalid = (message: string, errors: unknown[] = []) => new ApiError(422, message, errors);
+const checkProfile = (p: Parameters<GmsApi["updateProfile"]>[1]) => {
+  const problems = profileProblems(p);
+  if (problems.length) throw invalid("Check the organization details", problems);
+};
 
 function summaryOf(f: FormRecord): FormSummary {
   const { jsonSchema: _s, uiSchema: _u, mappingFromCommonGrants: _f, mappingToCommonGrants: _t, fieldMeta: _m, ...rest } = f;
@@ -260,12 +265,22 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       const profile = await me();
       if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(input.handle)) throw invalid("Check the handle", [{ path: "handle", message: "Use 3 to 64 lowercase letters, digits and hyphens" }]);
       if (store.workspaces.some((w) => w.record.handle === input.handle)) throw new ApiError(409, "A workspace with this handle already exists", [{ path: "handle", message: "This handle is taken" }]);
-      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.legalName ?? null, passportOrgId: null, verificationLevel: null, brand: {}, settings: {}, status: "active" };
+      if (input.profile) checkProfile(input.profile);
+      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.profile?.legalName ?? input.legalName ?? null, passportOrgId: null, verificationLevel: null, profileSource: input.profile ? "self_declared" : "none", selfDeclaredProfile: input.profile ? clone(input.profile) : null, brand: {}, settings: {}, status: "active" };
       const warnings = brandWrite(record, input.brand);
       store.workspaces.push({ record, profile: { mission: null, website: null }, members: [{ userId: profile.userId, role: "admin", email: profile.email }], invitations: [], passport: { linked: false, passportOrgId: record.passportOrgId, check: { state: "fail", reason: "Connect Passport to pay. Awards still work without it" }, canDebit: null }, programs: [], rubrics: [], opportunities: [], competitions: [], forms: [] });
       memberships.push({ id: record.id, handle: record.handle, name: record.displayName, kind: record.kind, role: "admin", requiresMfa: true });
       currentId = record.id;
       return clone({ workspace: record, warnings });
+    },
+    async updateProfile(id, profile) {
+      const w = await member(id);
+      if (w.record.profileSource === "passport" || w.record.passportOrgId) throw new ApiError(409, "This organization’s details come from Passport. Edit them there.", [{ code: "profile_from_passport" }]);
+      checkProfile(profile);
+      w.record.profileSource = "self_declared";
+      w.record.selfDeclaredProfile = clone(profile);
+      w.record.legalName = profile.legalName;
+      return clone({ workspace: w.record, warnings: [] });
     },
     async workspaceRecord(id) {
       return clone((await member(id)).record);

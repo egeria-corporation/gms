@@ -26,10 +26,12 @@ import {
   Send,
   Shield,
   ShieldCheck,
+  ShieldOff,
   Star,
   TriangleExclamationPoint,
   type LucideIcon,
 } from "lucide-react";
+import type { Verification } from "../api/types.ts";
 import type { AgreementStatus, ApplicationStatus, AwardStatus, RequirementStatus, SubmissionStatus, TrancheStatus } from "@gms/workflow";
 
 export type Tone = "neutral" | "info" | "prog" | "ok" | "warn" | "dng" | "done" | "agent";
@@ -147,6 +149,22 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
   return (
     <span className={`lvl lvl-${n}`} title={`Passport verification level ${n}`}>
       <Shield className="ic" aria-hidden="true" />L{n}
+    </span>
+  );
+}
+
+/**
+ * What a funder sees next to an organization's name: the Passport level when its details come from
+ * Passport, otherwise "Not verified". `verification` is absent only from an older server; the level
+ * then stands on its own.
+ */
+export function VerificationBadge({ verification, level }: { verification?: Verification | null | undefined; level?: string | null | undefined }) {
+  if (!verification) return <LevelBadge level={level} />;
+  if (verification.source === "passport") return <LevelBadge level={verification.level ?? level} />;
+  return (
+    <span className="lvl lvl-na" title="This organization has not been verified with OpenGrants Passport">
+      <ShieldOff className="ic" aria-hidden="true" />
+      Not verified
     </span>
   );
 }
