@@ -16,15 +16,16 @@ PAYMENTS_FACILITATED = "false"
 GMS_BASE_URL = "http://localhost:8787"
 WEB_BASE_URL = "http://localhost:5173"
 
-# Keep in step with SCHEDULES in src/index.ts.
-#   */5   outbound webhook deliveries that are due
-#   */15  tranche due evaluator, requirement due/overdue evaluator and reminders
+# One trigger: Cloudflare's free plan allows 5 Cron Triggers per account. src/index.ts `jobsDue` decides
+# which jobs run at each tick from its scheduled time (UTC):
+#   every 5 min  outbound webhook deliveries
+#   :00 :15 :30 :45  tranche due evaluator, requirement due/overdue evaluator and reminders
 #   hourly  Passport sync: award mirror retry, disbursed amounts, payee level and status
 #   every 6 h  Mercury poll (read-only)
 #   02:30 UTC  organization-change poll and the ledger archive
 #   15:00 UTC daily, 15:05 UTC Mondays  notification digests (daily, weekly)
 [triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+crons = ["*/5 * * * *"]
 
 [[queues.consumers]]
 queue = "gms-events-dev"
@@ -56,7 +57,7 @@ PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_WEB_URL = "https://app.passport.opengrants.io"
 
 [env.staging.triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+crons = ["*/5 * * * *"]
 
 [[env.staging.queues.consumers]]
 queue = "gms-events-staging"
@@ -85,7 +86,7 @@ PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_WEB_URL = "https://app.passport.opengrants.io"
 
 [env.production.triggers]
-crons = ["*/5 * * * *", "*/15 * * * *", "0 * * * *", "0 */6 * * *", "30 2 * * *", "0 15 * * *", "5 15 * * 1"]
+crons = ["*/5 * * * *"]
 
 [[env.production.queues.consumers]]
 queue = "gms-events"

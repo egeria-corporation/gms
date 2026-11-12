@@ -27,3 +27,6 @@ wrangler.session.toml
 
 # the built app the end-to-end flows run against
 .e2e-dist/
+
+# deploy tool (scripts/deploy): choices, non-secret ids and generated Wrangler configs for one instance
+/deploy/
