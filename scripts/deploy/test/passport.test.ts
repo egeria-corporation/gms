@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Fake } from "./harness.ts";
 import { makeFake } from "./harness.ts";
@@ -115,11 +117,81 @@ describe("passport step", () => {
     expect(r.r.code).toBe("needs_input");
     expect(r.r.message).toContain("address not allowed");
   });
-  it("updates the generated Passport addresses and asks for a redeploy when they differ", async () => {
+  it("never takes Passport's addresses from the answer: a different origin is refused and nothing is stored", async () => {
     const f = setup({ issuer: "https://passport.example.net" });
     await ready(f);
+    const before = await Promise.resolve(f.cf.secrets.get("api.toml")?.size);
     const r = await f.step("passport", "--yes");
-    expect(r.r.code).toBe("ok");
-    expect(r.r.next).toBe("deploy");
+    expect(r.r.code).toBe("needs_input");
+    expect(r.r.message).toContain("passport.example.net");
+    const api = f.cf.secrets.get("api.toml")!;
+    expect(api.has("PASSPORT_GMS_CLIENT_ID")).toBe(false);
+    expect(api.has("PASSPORT_REGISTRATION_CHALLENGE")).toBe(false);
+    expect(api.size).toBe(before);
+    expect(readFileSync(join(f.deployDir, "generated", "api.toml"), "utf8")).toContain('PASSPORT_BASE_URL = "https://passport.opengrants.io"');
+    expect(JSON.parse(readFileSync(join(f.deployDir, "config.json"), "utf8")).passportUrl).toBe("https://passport.opengrants.io");
+  });
+  it("--rotate asks first and says links must reconnect and the old registration should be removed", async () => {
+    const f = setup();
+    await ready(f);
+    await f.step("passport", "--yes");
+    const r = await f.step("passport", "--rotate");
+    expect(r.r.code).toBe("needs_confirmation");
+    expect(r.r.message).toMatch(/reconnect/);
+    expect(r.r.message).toMatch(/funder console/);
+    const done = await f.step("passport", "--rotate", "--yes");
+    expect(done.r.code).toBe("ok");
+    expect(done.r.message).toMatch(/reconnect/);
+  });
+  it("removes a challenge left by an interrupted run, at the start of a run and with --cleanup, and status warns", async () => {
+    const f = setup();
+    await ready(f);
+    await f.step("passport", "--yes");
+    f.cf.secrets.get("api.toml")!.add("PASSPORT_REGISTRATION_CHALLENGE");
+    patch(f, { passport: { challenge: true } });
+    expect(JSON.parse((await f.step("status")).line).data.warnings[0]).toContain("--cleanup");
+    expect((await f.step("passport", "--yes")).r.code).toBe("skipped");
+    expect(f.cf.secrets.get("api.toml")!.has("PASSPORT_REGISTRATION_CHALLENGE")).toBe(false);
+    f.cf.secrets.get("api.toml")!.add("PASSPORT_REGISTRATION_CHALLENGE");
+    const c = await f.step("passport", "--cleanup");
+    expect(c.r.code).toBe("ok");
+    expect(f.cf.secrets.get("api.toml")!.has("PASSPORT_REGISTRATION_CHALLENGE")).toBe(false);
+    expect(JSON.parse((await f.step("status")).line).data.warnings).toEqual([]);
+  });
+  it("does not start while an earlier registration may still be waiting", async () => {
+    const f = setup();
+    await ready(f);
+    patch(f, { passport: { pending: { userCode: "BCDF-GHJK", link: "x", expiresAt: "2026-11-12T00:10:00.000Z" } } });
+    const r = await f.step("passport", "--yes");
+    expect(r.r.code).toBe("needs_input");
+    expect(f.requests.some((q) => q.url === PP)).toBe(false);
+  });
+  it("cleans up when an unexpected error is thrown mid-exchange", async () => {
+    const f = setup({ polls: [] });
+    await ready(f);
+    f.cf.failPut = "PASSPORT_GMS_CLIENT_SECRET";
+    f.ctx.sleep = async () => {
+      throw new Error("interrupted");
+    };
+    const r = await f.step("passport", "--yes");
+    expect(r.r.code).toBe("error");
+    expect(f.cf.secrets.get("api.toml")!.has("PASSPORT_REGISTRATION_CHALLENGE")).toBe(false);
+  });
+  it("refuses a link off Passport's host, a malformed code and a redirecting challenge", async () => {
+    const a = setup({ start: json(201, { ...START, verificationUri: "https://evil.example/approve" }) });
+    await ready(a);
+    expect((await a.step("passport", "--yes")).r.message).toContain("did not look right");
+    const b = setup({ start: json(201, { ...START, userCode: "\u001b[31mHI" }) });
+    await ready(b);
+    expect((await b.step("passport", "--yes")).r.code).toBe("error");
+    const c = setup({ serveChallenge: false });
+    await ready(c);
+    expect((await c.step("passport", "--yes")).r.message).toContain("redirect does not count");
   });
 });
+
+function patch(f: Fake, p: Record<string, unknown>) {
+  const path = join(f.deployDir, "state.json");
+  const st = JSON.parse(readFileSync(path, "utf8"));
+  writeFileSync(path, JSON.stringify({ ...st, ...p }));
+}

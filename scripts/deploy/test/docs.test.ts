@@ -47,9 +47,21 @@ describe("release files", () => {
     expect(existsSync(join(REPO, ".claude/skills/deploy-gms/SKILL.md"))).toBe(true);
     expect(read(".claude/skills/deploy-gms/SKILL.md")).toContain("DEPLOY_WITH_AGENT.md");
   });
-  it("pre-approves read-only commands only", () => {
+  it("pre-approves read-only commands only, and the Wrangler form works from the repo root", () => {
     const allow = JSON.parse(read(".claude/settings.json")).permissions.allow as string[];
-    for (const a of allow) expect(a).toMatch(/gms deploy (doctor|status|verify --dry-run)|wrangler whoami/);
-    expect(allow.join(" ")).not.toMatch(/--yes|secrets|deploy deploy/);
+    for (const a of allow) expect(a).toMatch(/gms deploy (doctor|status):\*|exec wrangler whoami/);
+    expect(allow.join(" ")).not.toMatch(/--yes|verify|secrets|--dry-run/);
+    const all = [runbook, read("scripts/deploy/README.md"), read(".claude/skills/deploy-gms/SKILL.md"), read(".claude/settings.json")].join("\n");
+    expect(all).not.toMatch(/pnpm exec wrangler/);
+    for (const f of ["scripts/deploy/cloudflare.ts", "scripts/deploy/steps/doctor.ts", "scripts/deploy/steps/secrets.ts", "scripts/deploy/steps/passport.ts"]) expect(read(f), f).not.toMatch(/pnpm exec wrangler/);
+    expect(runbook).toContain("pnpm --filter @gms/api exec wrangler login");
+  });
+  it("names the current release tag everywhere it pins one", () => {
+    const tag = `v${JSON.parse(read("package.json")).version}`;
+    for (const f of ["README.md", "DEPLOY_WITH_AGENT.md", ".claude/skills/deploy-gms/SKILL.md"]) {
+      const tags = [...read(f).matchAll(/--branch (v\d+\.\d+\.\d+)/g)].map((m) => m[1]);
+      expect(tags.length, f).toBeGreaterThan(0);
+      for (const t of tags) expect(t, f).toBe(tag);
+    }
   });
 });

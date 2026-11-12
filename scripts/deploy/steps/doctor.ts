@@ -82,7 +82,7 @@ export async function doctor(ctx: Ctx): Promise<Result> {
   const missing = [!cf.loggedIn && "Cloudflare", supabaseNeedsLogin && "Supabase"].filter(Boolean);
   if (missing.length) {
     const how = [
-      !cf.loggedIn && "Cloudflare: run `pnpm exec wrangler login` or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID",
+      !cf.loggedIn && "Cloudflare: run `pnpm --filter @gms/api exec wrangler login` or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID",
       supabaseNeedsLogin && `Supabase: ${LOGIN_MESSAGE}`,
     ].filter(Boolean);
     return res("needs_login", `Not signed in to ${missing.join(" and ")}. ${how.join(". ")}.`, data, null);

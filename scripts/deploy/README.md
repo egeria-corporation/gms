@@ -16,7 +16,7 @@ instance lives on `workers.dev`). Optional: Resend, and a Passport deployment.
 
 Logins, read in this order and never printed:
 
-- Cloudflare: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, otherwise `pnpm exec wrangler login`.
+- Cloudflare: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, otherwise `pnpm --filter @gms/api exec wrangler login`.
 - Supabase: `SUPABASE_ACCESS_TOKEN` (a personal access token from the dashboard, Account, Access Tokens). `supabase login` usually keeps its token in the system keyring, which this tool cannot read; it only reads the `access-token` file the CLI writes when there is no keyring (`$SUPABASE_HOME` or `~/.supabase`).
 - Resend (optional): `RESEND_API_KEY`.
 

@@ -18,8 +18,8 @@ maintainers.
 
 ### Upgrade notes
 
-- From v0.9.0: no database migrations are added by this release and no settings change. Pull the tag, then `pnpm -s gms deploy upgrade --to v1.0.0` (or redeploy by hand as in `docs/self-host.md`). The new secret `PASSPORT_REGISTRATION_CHALLENGE` is optional and normally absent.
-- An instance set up by hand can be brought under the tool: run `init` with the same name, then `supabase --adopt <ref>`, and `cloudflare --adopt-existing` so the tool recognises what exists.
+- An instance set up by hand (v0.9.0) is first brought under the tool: check out `v1.0.0`, run `init` with the same name and addresses, then `supabase --adopt <ref>` and `cloudflare --adopt-existing` so the tool recognises what exists, then `secrets` (it never overwrites a secret already set; it needs `--recovery-file`).
+- Then `pnpm -s gms deploy upgrade --to v1.0.0` (or redeploy by hand as in `docs/self-host.md`). No database migrations are added by this release and no settings change. The new secret `PASSPORT_REGISTRATION_CHALLENGE` is optional and normally absent.
 
 ## v0.9.0
 
