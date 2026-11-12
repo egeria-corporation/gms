@@ -17,6 +17,9 @@ async function existingBuckets(ctx: Ctx): Promise<Set<string> | null> {
 async function queueExists(ctx: Ctx, name: string): Promise<boolean> {
   return (await wranglerRun(ctx, ["queues", "info", name])).code === 0;
 }
+async function workerExists(ctx: Ctx, name: string): Promise<boolean> {
+  return (await wranglerRun(ctx, ["deployments", "list", "--name", name])).code === 0;
+}
 async function kvNamespaces(ctx: Ctx): Promise<{ id: string; title: string }[] | null> {
   const r = await wranglerRun(ctx, ["kv", "namespace", "list"]);
   if (r.code !== 0) return null;
@@ -66,7 +69,21 @@ export async function cloudflare(ctx: Ctx): Promise<Result> {
   if (!kvList) return res("error", "Could not list KV namespaces.", {}, null);
   let kvId: string | undefined = kvList.find((k) => k.title === n.kv)?.id;
 
+  // Things that already exist under this instance's names but were not created by this tool: adopting
+  // them would mean overwriting another app's Worker or using its bucket.
+  const owned = new Set<string>(state.cloudflare?.owned ?? []);
+  const foreign: string[] = [];
+  for (const b of n.buckets) if (buckets.has(b) && !owned.has(`r2:${b}`)) foreign.push(`R2 bucket ${b}`);
+  for (const q of n.queues) if (!missingQueues.includes(q) && !owned.has(`queue:${q}`)) foreign.push(`queue ${q}`);
+  if (kvId && !owned.has(`kv:${n.kv}`)) foreign.push(`KV namespace ${n.kv}`);
+  for (const w of [n.api, n.jobs, n.web]) if (!owned.has(`worker:${w}`) && (await workerExists(ctx, w))) foreign.push(`Worker ${w}`);
+  if (foreign.length && !ctx.dryRun && ctx.flags["adopt-existing"] !== true) {
+    return res("needs_confirmation", `These already exist in the Cloudflare account and were not created by this tool: ${foreign.join(", ")}. Using them would reuse their data and overwrite those Workers on deploy. If they really belong to this instance (for example you are resuming after losing deploy/state.json), re-run with --adopt-existing. Otherwise choose another name with init --name.`, { existing: foreign }, "cloudflare");
+  }
+  const ownedNow = [...new Set([...owned, ...n.buckets.map((b) => `r2:${b}`), ...n.queues.map((q) => `queue:${q}`), `kv:${n.kv}`, ...[n.api, n.jobs, n.web].map((w) => `worker:${w}`)])];
+
   const plan: string[] = [];
+  if (foreign.length) plan.push(`use existing ${foreign.join(", ")}`);
   if (missingBuckets.length) plan.push(`create R2 bucket(s) ${missingBuckets.join(", ")}`);
   if (missingQueues.length) plan.push(`create queue(s) ${missingQueues.join(", ")}`);
   if (!kvId) plan.push(`create the KV namespace ${n.kv}`);
@@ -90,11 +107,12 @@ export async function cloudflare(ctx: Ctx): Promise<Result> {
     return changed;
   };
 
+  const next = state.auth?.configured ? "secrets" : "auth";
   if (plan.length === 0) {
-    if (ctx.dryRun) return res("ok", "Dry run. All resources exist; would refresh the generated Worker configs.", { dryRun: true }, "secrets");
+    if (ctx.dryRun) return res("ok", "Dry run. All resources exist; would refresh the generated Worker configs.", { dryRun: true }, next);
     const changed = writeConfigs(kvId!);
-    patchState(ctx, { cloudflare: { accountId: account.id, kvId, buckets: n.buckets, queues: n.queues, workersSubdomain: subdomain }, workers: { api: n.api, jobs: n.jobs, web: n.web }, urls: { instance: url } });
-    return changed ? res("ok", "All resources already exist; refreshed the generated Worker configs.", { url }, "secrets") : res("skipped", "All resources and generated configs are already in place.", { url }, "secrets");
+    patchState(ctx, { cloudflare: { accountId: account.id, kvId, buckets: n.buckets, queues: n.queues, owned: ownedNow, workersSubdomain: subdomain }, workers: { api: n.api, jobs: n.jobs, web: n.web }, urls: { instance: url } });
+    return changed ? res("ok", "All resources already exist; refreshed the generated Worker configs.", { url }, next) : res("skipped", "All resources and generated configs are already in place.", { url }, next);
   }
 
   const gate = confirmOrDry(ctx, "cloudflare", plan, { url });
@@ -118,6 +136,6 @@ export async function cloudflare(ctx: Ctx): Promise<Result> {
     if (!kvId) return res("error", "The KV namespace was created but its id could not be read back. Re-run this step.", {}, "cloudflare");
   }
   writeConfigs(kvId);
-  patchState(ctx, { cloudflare: { accountId: account.id, kvId, buckets: n.buckets, queues: n.queues, workersSubdomain: subdomain }, workers: { api: n.api, jobs: n.jobs, web: n.web }, urls: { instance: url } });
-  return res("ok", `Created ${plan.length} resource group(s) and wrote the Worker configs under deploy/generated/.`, { created: plan, url }, "secrets");
+  patchState(ctx, { cloudflare: { accountId: account.id, kvId, buckets: n.buckets, queues: n.queues, owned: ownedNow, workersSubdomain: subdomain }, workers: { api: n.api, jobs: n.jobs, web: n.web }, urls: { instance: url } });
+  return res("ok", `Created ${plan.length} resource group(s) and wrote the Worker configs under deploy/generated/.`, { created: plan, url }, next);
 }

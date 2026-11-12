@@ -59,3 +59,39 @@ export async function cfRest(ctx: Ctx, method: string, path: string, body?: unkn
     return { status: r.status, body: text };
   }
 }
+
+/** The DNS zone (name and id) that contains `domain`, among this account's zones. Needs a token. */
+export async function findZone(ctx: Ctx, accountId: string, domain: string): Promise<{ id: string; name: string } | null> {
+  if (!cfToken(ctx)) return null;
+  const labels = domain.split(".");
+  for (let i = 0; i <= labels.length - 2; i++) {
+    const candidate = labels.slice(i).join(".");
+    const z = await cfRest(ctx, "GET", `/zones?name=${encodeURIComponent(candidate)}&account.id=${accountId}`);
+    if (z.status === 200 && Array.isArray(z.body?.result) && z.body.result[0]?.id) return { id: z.body.result[0].id, name: candidate };
+  }
+  return null;
+}
+
+/**
+ * What already uses `host`: DNS records on it, or a custom domain of a Worker other than `ownWorker`.
+ * `checked` is false when it could not be looked up (no API token), which callers treat as "unknown".
+ */
+export async function hostUsage(ctx: Ctx, accountId: string, host: string, ownWorker: string): Promise<{ checked: boolean; items: string[] }> {
+  if (!cfToken(ctx)) return { checked: false, items: [] };
+  const items: string[] = [];
+  const doms = await cfRest(ctx, "GET", `/accounts/${accountId}/workers/domains?hostname=${encodeURIComponent(host)}`);
+  if (doms.status !== 200) return { checked: false, items: [] };
+  let ownsDomain = false;
+  for (const d of (doms.body?.result ?? []) as { hostname?: string; service?: string }[]) {
+    if (d.hostname && d.hostname !== host) continue;
+    if (d.service === ownWorker) ownsDomain = true;
+    else items.push(`the custom domain ${host} is attached to the Worker "${d.service ?? "unknown"}"`);
+  }
+  const zone = await findZone(ctx, accountId, host);
+  if (!zone) return { checked: false, items };
+  const recs = await cfRest(ctx, "GET", `/zones/${zone.id}/dns_records?name=${encodeURIComponent(host)}`);
+  if (recs.status !== 200) return { checked: false, items };
+  // A custom domain managed by Workers shows up as a DNS record too; it is ours when the domain is ours.
+  if (!ownsDomain) for (const r of (recs.body?.result ?? []) as { type?: string; content?: string }[]) items.push(`a ${r.type ?? "DNS"} record for ${host} (${String(r.content ?? "").slice(0, 60)})`);
+  return { checked: true, items };
+}

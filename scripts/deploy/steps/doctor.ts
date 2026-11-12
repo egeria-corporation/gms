@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // doctor: what is installed, which logins work, how many Supabase projects exist, and whether the
 // checkout is a clean tagged release. Changes nothing.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cfAccount, cfLogin } from "../cloudflare.ts";
 import type { Ctx, Result } from "../core.ts";
 import { flagStr, loadConfig, res } from "../core.ts";
@@ -54,6 +56,17 @@ export async function doctor(ctx: Ctx): Promise<Result> {
         if (mine.length >= 2) warnings.push(`The Supabase organization already has ${mine.length} active projects. The free plan allows 2; a third may need a paid plan.`);
       } else warnings.push("Could not list Supabase projects.");
     }
+  }
+
+  // The jobs Worker's schedule: the Workers Free plan allows 5 cron triggers per account.
+  try {
+    const jobs = readFileSync(join(ctx.root, "apps", "jobs", "wrangler.toml"), "utf8");
+    const block = /\[env\.production\.triggers\]\s*\ncrons\s*=\s*\[([^\]]*)\]/.exec(jobs)?.[1] ?? "";
+    const crons = (block.match(/"[^"]+"/g) ?? []).length;
+    data.cronTriggers = crons;
+    if (crons > 5) warnings.push(`The jobs Worker uses ${crons} scheduled triggers. The Workers Free plan allows 5 per account, so deploying needs the Workers Paid plan.`);
+  } catch {
+    /* no jobs config to read */
   }
 
   // Checkout

@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Ctx, Result, RunOptions, RunOut } from "./core.ts";
-import { exitCodeFor, parseArgs, redact, res } from "./core.ts";
+import { exitCodeFor, parseArgs, redact, res, reveal } from "./core.ts";
 import { auth } from "./steps/auth.ts";
 import { cloudflare } from "./steps/cloudflare.ts";
 import { deploy } from "./steps/deploy.ts";
@@ -50,7 +50,7 @@ export function defaultCtx(argv: string[]): { ctx: Ctx; positional: string[] } {
     nodeVersion: process.version,
     fetch: globalThis.fetch,
     run,
-    log: (m) => process.stderr.write(`${m}\n`),
+    log: (m) => process.stderr.write(`${redact(ctx, m)}\n`),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     random: (n) => randomBytes(n),
     now: () => new Date(),
@@ -59,6 +59,8 @@ export function defaultCtx(argv: string[]): { ctx: Ctx; positional: string[] } {
     dryRun: flags["dry-run"] === true,
     secrets: new Set(),
   };
+  // Credentials from the environment are secret from the start, whatever step runs.
+  for (const name of ["CLOUDFLARE_API_TOKEN", "SUPABASE_ACCESS_TOKEN", "RESEND_API_KEY"]) reveal(ctx, process.env[name]?.trim());
   return { ctx, positional };
 }
 

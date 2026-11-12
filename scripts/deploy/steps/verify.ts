@@ -44,7 +44,7 @@ export async function runChecks(ctx: Ctx, url: string): Promise<Check[]> {
   const cfg = await get(ctx, `${url}/gms/config`);
   add("settings", cfg?.status === 200 && !!cfg.json, cfg?.status === 200 ? "the app settings are served" : `status ${cfg?.status ?? "no answer"}`);
 
-  const page = await get(ctx, `${url}/`);
+  const page = await get(ctx, `${url}/signin`);
   add("sign-in page", page?.status === 200 && /<html|<!doctype/i.test(page.text), page?.status === 200 ? "the web app loads" : `status ${page?.status ?? "no answer"}`);
   return checks;
 }
@@ -57,6 +57,7 @@ export async function verify(ctx: Ctx): Promise<Result> {
   if (!url) return res("needs_input", "The instance address is not recorded yet. Run the cloudflare and deploy steps first.", {}, "cloudflare");
   const ref = state.supabase?.ref as string | undefined;
   if (!ref) return res("needs_input", "There is no Supabase project yet.", {}, "supabase");
+  if (!state.auth?.configured) return res("needs_input", "Supabase Auth has not been set up yet. Run the auth step first.", {}, "auth");
   if (!config.email) return res("needs_input", "No operator email is recorded. Run init --email <address>.", {}, "init");
 
   if (ctx.dryRun) return res("ok", `Dry run. Would check ${url} and send a sign-in code to ${config.email}.`, { dryRun: true }, null);

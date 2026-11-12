@@ -221,3 +221,240 @@ describe("T1-09 verify and legacy signing", () => {
     expect(r.r.message).toContain("session signing");
   });
 });
+
+async function upToSecrets(f: Fake, env = false) {
+  void env;
+  await secretsReady(f);
+  expect((await f.step("secrets", "--yes", "--recovery-file", recovery())).r.code).toBe("ok");
+}
+const CF_ENV = { CLOUDFLARE_API_TOKEN: SECRET.cfToken };
+
+describe("T1-02 custom domain conflicts", () => {
+  it("names what would be replaced and needs --replace-dns even with --yes", async () => {
+    const f = makeFake({ env: CF_ENV });
+    f.cf.dns = [{ type: "A", content: "203.0.113.7", name: "grants.example.org" }];
+    f.cf.domains = [];
+    await initted(f, "--host", "grants.example.org");
+    for (const s of ["supabase", "migrate", "auth", "cloudflare"]) await f.step(s, "--yes");
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    // the fake zone lookup only knows example.org; grants.example.org is inside it
+    const r = await f.step("deploy", "--yes");
+    expect(r.r.code).toBe("needs_confirmation");
+    expect(r.r.message).toContain("A record for grants.example.org (203.0.113.7)");
+    expect(r.r.message).toContain("--replace-dns");
+    expect(f.calls.some((c) => c.args.join(" ").includes("wrangler deploy --config"))).toBe(false);
+    const dry = await f.step("deploy", "--dry-run");
+    expect(dry.r.code).toBe("ok");
+    expect(String(dry.r.message)).toContain("REPLACE");
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    // once attached, a redeploy does not ask again
+    f.git.tag = "v1.0.1";
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+  });
+  it("names another Worker's custom domain, and treats 'cannot look' as a conflict", async () => {
+    const f = makeFake({ env: CF_ENV });
+    f.cf.domains = [{ hostname: "grants.example.org", service: "live-site" }];
+    await initted(f, "--host", "grants.example.org");
+    for (const s of ["supabase", "migrate", "auth", "cloudflare"]) await f.step(s, "--yes");
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    expect((await f.step("deploy", "--yes")).r.message).toContain('Worker "live-site"');
+    const g = makeFake(); // no API token: the tool cannot see
+    await upToSecrets(g);
+    const r = await g.step("deploy", "--yes");
+    expect(r.r.code).toBe("needs_confirmation");
+    expect(r.r.message).toContain("CLOUDFLARE_API_TOKEN");
+  });
+  it("a clean host goes straight through", async () => {
+    const f = makeFake({ env: CF_ENV });
+    await initted(f, "--host", "grants.example.org");
+    for (const s of ["supabase", "migrate", "auth", "cloudflare"]) await f.step(s, "--yes");
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+  });
+});
+
+describe("T1-10 existing resources", () => {
+  it("does not adopt Workers or buckets it did not create without --adopt-existing", async () => {
+    const f = makeFake();
+    await initted(f, "--host", "grants.example.org");
+    for (const s of ["supabase", "migrate", "auth"]) await f.step(s, "--yes");
+    f.cf.workers.add("demo-api");
+    f.cf.buckets.add("demo-exports");
+    const r = await f.step("cloudflare", "--yes");
+    expect(r.r.code).toBe("needs_confirmation");
+    expect(r.r.message).toContain("Worker demo-api");
+    expect(r.r.message).toContain("R2 bucket demo-exports");
+    expect(f.cf.queues.size).toBe(0);
+    expect((await f.step("cloudflare", "--yes", "--adopt-existing")).r.code).toBe("ok");
+    expect((await f.step("cloudflare", "--yes")).r.code).toBe("skipped"); // now recorded as this instance's
+  });
+});
+
+describe("T1-11 next chain on workers.dev", () => {
+  it("cloudflare points back to auth, and deploy and verify refuse until auth is done", async () => {
+    const f = makeFake();
+    await initted(f, "--workers-subdomain", "tester");
+    await f.step("supabase", "--yes");
+    await f.step("migrate", "--yes");
+    const c = await f.step("cloudflare", "--yes");
+    expect(c.r.next).toBe("auth");
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    const d = await f.step("deploy", "--yes");
+    expect(d.r.code).toBe("needs_input");
+    expect(d.r.next).toBe("auth");
+    expect((await f.step("verify", "--yes")).r.next).toBe("auth");
+    expect((await f.step("auth", "--yes")).r.code).toBe("ok");
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+  });
+});
+
+describe("T1-12 Resend DNS names", () => {
+  it("builds full names for records Resend names relative to the domain or to its zone", async () => {
+    const { recordFqdn } = await import("../steps/email.ts");
+    expect(recordFqdn("send", "mail.example.org", "example.org")).toBe("send.mail.example.org");
+    expect(recordFqdn("resend._domainkey", "mail.example.org", "example.org")).toBe("resend._domainkey.mail.example.org");
+    expect(recordFqdn("send.mail", "mail.example.org", "example.org")).toBe("send.mail.example.org");
+    expect(recordFqdn("send.mail.example.org", "mail.example.org", "example.org")).toBe("send.mail.example.org");
+    expect(recordFqdn("send", "example.org", "example.org")).toBe("send.example.org");
+    expect(recordFqdn("@", "example.org", "example.org")).toBe("example.org");
+  });
+});
+
+describe("T1-13 plan limits", () => {
+  it("maps a cron-trigger limit failure to plan_limit and doctor warns about the Free plan", async () => {
+    const f = makeFake();
+    await secretsReady(f);
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    const orig = f.ctx.run;
+    f.ctx.run = async (cmd, a, o) => (a.includes("@gms/jobs") && a.includes("deploy") ? { code: 1, stdout: "", stderr: "You have exceeded the limit of 5 cron triggers for your account [code: 10027]" } : orig(cmd, a, o));
+    const { execute } = await import("../cli.ts");
+    const { parseArgs } = await import("../core.ts");
+    const out = await execute({ ...f.ctx, flags: parseArgs(["--yes", "--replace-dns"]).flags, yes: true }, "deploy");
+    expect(out.result.code).toBe("plan_limit");
+    expect(out.result.message).toContain("Paid plan");
+    const d = await makeFake().step("doctor");
+    expect(d.r.data?.warnings).toEqual(expect.arrayContaining([expect.stringContaining("scheduled triggers")]));
+  });
+});
+
+describe("T1-06 migrate on someone else's database", () => {
+  it("needs --allow-existing-tables even with --yes, for a foreign history or foreign tables", async () => {
+    const f = makeFake();
+    await initted(f);
+    await f.step("supabase", "--yes");
+    f.sb.sbVersions = ["20240101000000"]; // another app managed by the Supabase CLI
+    const r = await f.step("migrate", "--yes");
+    expect(r.r.code).toBe("needs_confirmation");
+    expect(r.r.message).toContain("--allow-existing-tables");
+    expect(f.sb.queries.some((q) => q.startsWith("begin;"))).toBe(false);
+    expect((await f.step("migrate", "--yes", "--allow-existing-tables")).r.code).toBe("ok");
+    const g = makeFake();
+    await initted(g);
+    await g.step("supabase", "--yes");
+    g.sb.publicTables = 3;
+    expect((await g.step("migrate", "--yes")).r.code).toBe("needs_confirmation");
+  });
+});
+
+describe("T1-14 rollback after a failed migration", () => {
+  it("sends rollback so the connection is not left aborted", async () => {
+    const f = makeFake();
+    await initted(f);
+    await f.step("supabase", "--yes");
+    f.sb.failMigration = "0002_workspaces.sql";
+    await f.step("migrate", "--yes");
+    expect(f.sb.queries.at(-1)).toBe("rollback;");
+  });
+});
+
+describe("T1-15 redaction up front", () => {
+  it("registers credentials from the environment before any step runs and redacts the log", async () => {
+    const { defaultCtx } = await import("../cli.ts");
+    process.env.CLOUDFLARE_API_TOKEN = SECRET.cfToken;
+    try {
+      const { ctx } = defaultCtx(["deploy", "status"]);
+      expect(ctx.secrets.has(SECRET.cfToken)).toBe(true);
+      const writes: string[] = [];
+      const orig = process.stderr.write.bind(process.stderr);
+      process.stderr.write = ((c: string) => (writes.push(String(c)), true)) as typeof process.stderr.write;
+      try {
+        ctx.log(`oops ${SECRET.cfToken}`);
+      } finally {
+        process.stderr.write = orig;
+      }
+      expect(writes.join("")).not.toContain(SECRET.cfToken);
+    } finally {
+      delete process.env.CLOUDFLARE_API_TOKEN;
+    }
+  });
+});
+
+describe("T1-16 dry-run writes nothing", () => {
+  it("leaves state.json alone on every step's dry run, including the skipped paths", async () => {
+    const f = makeFake({ env: { RESEND_API_KEY: SECRET.resend } });
+    await secretsReady(f);
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    await f.step("deploy", "--yes", "--replace-dns");
+    const snap = readFileSync(join(f.deployDir, "state.json"), "utf8");
+    const nReq = f.requests.length;
+    const nCalls = f.calls.length;
+    const files = readFileSync(join(f.deployDir, "generated", "api.toml"), "utf8");
+    for (const s of ["supabase", "migrate", "auth", "cloudflare", "deploy", "verify", "email", "upgrade", "status"]) {
+      const extra = s === "upgrade" ? ["--to", "v1.0.0"] : s === "email" ? ["--domain", "mail.example.org"] : [];
+      await f.step(s, "--dry-run", ...extra);
+    }
+    await f.step("secrets", "--dry-run", "--recovery-file", recovery());
+    expect(readFileSync(join(f.deployDir, "state.json"), "utf8")).toBe(snap);
+    expect(readFileSync(join(f.deployDir, "generated", "api.toml"), "utf8")).toBe(files);
+    const writes = f.requests.slice(nReq).filter((r) => r.method !== "GET" && !(r.url.endsWith("/database/query") && String((r.body as { query: string }).query).startsWith("select")));
+    expect(writes).toEqual([]);
+    const mutating = f.calls.slice(nCalls).filter((c) => c.cmd !== "git" && !c.args.some((a) => ["list", "info", "whoami", "--version"].includes(a)));
+    expect(mutating).toEqual([]);
+  });
+});
+
+describe("T1-19 sign-in page", () => {
+  it("verify loads /signin", async () => {
+    const f = makeFake();
+    await secretsReady(f);
+    await f.step("secrets", "--yes", "--recovery-file", recovery());
+    await f.step("deploy", "--yes", "--replace-dns");
+    await f.step("verify");
+    expect(f.requests.some((r) => r.url === "https://grants.example.org/signin")).toBe(true);
+  });
+});
+
+describe("T1-20 Resend key swap", () => {
+  it("keeps the old key until the new one is everywhere", async () => {
+    let verified = true;
+    const deleted: string[] = [];
+    let n = 0;
+    const f = makeFake({
+      env: { RESEND_API_KEY: SECRET.resend },
+      routes: (method, url) => {
+        if (url === "https://api.resend.com/domains" && method === "GET") return new Response(JSON.stringify({ data: [{ name: "mail.example.org", id: "dom1" }] }), { status: 200 });
+        if (url === "https://api.resend.com/domains/dom1") return new Response(JSON.stringify({ status: verified ? "verified" : "pending", records: [] }), { status: 200 });
+        if (url === "https://api.resend.com/api-keys" && method === "POST") return new Response(JSON.stringify({ id: `key${++n}`, token: `re_send_only_key_${n}_XXXXXXXXXXXX` }), { status: 201 });
+        if (url.startsWith("https://api.resend.com/api-keys/") && method === "DELETE") {
+          deleted.push(url.split("/").pop()!);
+          return new Response("{}", { status: 200 });
+        }
+        return undefined;
+      },
+    });
+    await secretsReady(f, "--resend", "on");
+    expect((await f.step("email", "--yes", "--domain", "mail.example.org")).r.code).toBe("ok");
+    expect(deleted).toEqual([]);
+    // re-run for another sender: the new key is created and set before the old one goes
+    const orig = f.ctx.run;
+    f.ctx.run = async (c, a, o) => (a.includes("put") && a.includes("RESEND_API_KEY") ? { code: 1, stdout: "", stderr: "down" } : orig(c, a, o));
+    const { execute } = await import("../cli.ts");
+    const { parseArgs } = await import("../core.ts");
+    const bad = await execute({ ...f.ctx, flags: parseArgs(["--yes", "--domain", "mail.example.org", "--from", "hello@mail.example.org"]).flags, yes: true }, "email");
+    expect(bad.result.code).toBe("error");
+    expect(deleted).toEqual([]); // key1 (in use) is still valid
+    f.ctx.run = orig;
+    expect((await f.step("email", "--yes", "--domain", "mail.example.org", "--from", "hello@mail.example.org")).r.code).toBe("ok");
+    expect(deleted.sort()).toEqual(["key1", "key2"]); // the failed attempt's key and the old one
+  });
+});

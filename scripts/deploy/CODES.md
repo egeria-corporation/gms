@@ -31,9 +31,11 @@ Progress for a person goes to stderr. Read only the last stdout line. (`pnpm` it
 | Step | Flags |
 |---|---|
 | `init` | `--name`, `--host` (or leave out for workers.dev), `--region`, `--org`, `--email`, `--passport on/off`, `--passport-url`, `--resend on/off`, `--workers-subdomain` |
-| `supabase` | `--adopt <ref>`, `--org <slug>` |
-| `secrets` | `--recovery-file <absolute path outside the repo>` (required), `--rotate` |
+| `supabase` | `--adopt <ref>`, `--org <slug or id>` |
+| `migrate` | `--allow-existing-tables` (needed, with `--yes`, for a database that is not a fresh GMS one) |
+| `cloudflare` | `--adopt-existing` (use Workers, buckets, queues or KV that this tool did not create) |
+| `secrets` | `--recovery-file <absolute path outside the repo>` (required), `--rotate NAME[,NAME]` (replace named secrets; Supabase values refresh without touching the encryption keys), `--rotate-keys` (also required to replace `CREDENTIALS_ENCRYPTION_KEY` or `WEBHOOK_SECRET_KEY`) |
 | `email` | `--domain <sending domain>` (required the first time), `--from <address>` |
-| `deploy` | `--force` redeploys the version already recorded |
+| `deploy` | `--force` redeploys the version already recorded; `--replace-dns` (needed, with `--yes`, when the custom domain is already in use or cannot be checked) |
 | `upgrade` | `--to vX.Y.Z` (required) |
 | any | `--yes`, `--dry-run` |

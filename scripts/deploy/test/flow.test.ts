@@ -20,7 +20,7 @@ async function through(f: Fake, upto: string, extra: Record<string, string[]> = 
   await initted(f, ...(extra.init ?? []));
   const order = ["supabase", "migrate", "auth", "cloudflare", "secrets", "deploy"];
   for (const s of order) {
-    const r = await f.step(s, "--yes", ...(extra[s] ?? []));
+    const r = await f.step(s, "--yes", ...(s === "deploy" ? ["--replace-dns"] : []), ...(extra[s] ?? []));
     expect(["ok", "skipped"], `${s}: ${r.r.message}`).toContain(r.r.code);
     if (s === upto) return;
   }
@@ -323,12 +323,12 @@ describe("deploy", () => {
   it("builds and deploys in order with the instance's origins, then skips the same version", async () => {
     const f = makeFake();
     await ready(f, "--host", "grants.example.org");
-    expect((await f.step("deploy")).r.code).toBe("needs_confirmation");
+    expect((await f.step("deploy", "--replace-dns")).r.code).toBe("needs_confirmation");
     const n = f.calls.length;
     expect((await f.step("deploy", "--dry-run")).r.code).toBe("ok");
     expect(f.calls.slice(n).filter((c) => c.cmd !== "git")).toEqual([]);
     const m = f.calls.length;
-    const r = await f.step("deploy", "--yes");
+    const r = await f.step("deploy", "--yes", "--replace-dns");
     expect(r.r.code).toBe("ok");
     const cmds = f.calls.slice(m).map((c) => `${c.cmd} ${c.args.join(" ")}`);
     const idx = (needle: string) => cmds.findIndex((c) => c.includes(needle));
@@ -345,19 +345,19 @@ describe("deploy", () => {
     const state = JSON.parse(readFileSync(join(f.deployDir, "state.json"), "utf8"));
     expect(state.deploy).toMatchObject({ version: "v1.0.0", urls: { instance: "https://grants.example.org" } });
     expect(f.everythingVisible()).not.toContain(SECRET.anon);
-    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("skipped");
   });
   it("needs the earlier steps", async () => {
     const f = makeFake();
     await initted(f);
-    expect((await f.step("deploy", "--yes")).r.code).toBe("needs_input");
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("needs_input");
   });
   it("stops and says where when a build fails", async () => {
     const f = makeFake();
     await ready(f, "--host", "grants.example.org");
     const orig = f.ctx.run;
     f.ctx.run = async (cmd, args, o) => (args.includes("build:openapi") ? { code: 1, stdout: "", stderr: "tsc failed" } : orig(cmd, args, o));
-    const { flags } = parseArgs(["--yes"]);
+    const { flags } = parseArgs(["--yes", "--replace-dns"]);
     const { execute } = await import("../cli.ts");
     const out = await execute({ ...f.ctx, flags, yes: true }, "deploy");
     expect(out.result.code).toBe("error");
@@ -394,7 +394,7 @@ describe("upgrade", () => {
     const f = makeFake();
     await through(f, "cloudflare", { init: ["--host", "grants.example.org"] });
     await f.step("secrets", "--yes", "--recovery-file", recoveryPath());
-    await f.step("deploy", "--yes");
+    await f.step("deploy", "--yes", "--replace-dns");
     f.git.tag = "v1.0.0";
     expect((await f.step("upgrade")).r.code).toBe("needs_input");
     expect((await f.step("upgrade", "--to", "v1.1.0")).r.message).toContain("git checkout v1.1.0");
@@ -499,7 +499,7 @@ describe("email, passport and no-leak", () => {
     const rec = recoveryPath();
     await through(f, "cloudflare", { init: ["--host", "grants.example.org"] });
     await f.step("secrets", "--yes", "--recovery-file", rec);
-    await f.step("deploy", "--yes");
+    await f.step("deploy", "--yes", "--replace-dns");
     await f.step("verify", "--yes");
     await f.step("status");
     const recText = readFileSync(rec, "utf8");

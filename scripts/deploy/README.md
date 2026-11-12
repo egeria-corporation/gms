@@ -17,7 +17,7 @@ instance lives on `workers.dev`). Optional: Resend, and a Passport deployment.
 Logins, read in this order and never printed:
 
 - Cloudflare: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, otherwise `pnpm exec wrangler login`.
-- Supabase: `SUPABASE_ACCESS_TOKEN`, otherwise the file `npx supabase login` writes (`~/.supabase/access-token`).
+- Supabase: `SUPABASE_ACCESS_TOKEN` (a personal access token from the dashboard, Account, Access Tokens). `supabase login` usually keeps its token in the system keyring, which this tool cannot read; it only reads the `access-token` file the CLI writes when there is no keyring (`$SUPABASE_HOME` or `~/.supabase`).
 - Resend (optional): `RESEND_API_KEY`.
 
 ## The steps, in order
@@ -45,7 +45,7 @@ pnpm -s gms deploy verify
 | `migrate` | Applies `supabase/migrations/*.sql` in order, each in its own transaction, recorded in `supabase_migrations.schema_migrations`. A migration already recorded there or in the older `gms_meta.schema_migrations` is not run again. Warns first if the database already holds tables the GMS did not create. |
 | `auth` | Email sign-in on, email confirmation required, TOTP on, site address and return addresses (`/auth/callback`, `/signin`) set, then read back. |
 | `cloudflare` | Creates the R2 buckets, queues (with the dead-letter queue) and KV namespace, named `<name>-…`, and writes `deploy/generated/api.toml` and `jobs.toml` from the checked-in `wrangler.toml` files. |
-| `secrets` | Generates the signing key and the two encryption keys, sets every Worker secret over stdin, and writes the recovery file. Never overwrites a secret that is already set unless you pass `--rotate`. |
+| `secrets` | Generates the signing key and the two encryption keys, sets every Worker secret over stdin, and writes the recovery file. Never overwrites a secret that is already set. To replace one, name it: `--rotate SUPABASE_SERVICE_ROLE_KEY` (the two encryption keys also need `--rotate-keys`). Rotation is staged in `<recovery-file>.new` and resumes if interrupted. |
 | `deploy` | Builds and deploys the API and jobs Workers, builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. |
 | `email` | Optional. Adds a sending domain at Resend, its DNS records (in Cloudflare when the zone is in your account, otherwise it lists them), a send-only key, and the Worker and Supabase mail settings. |
 | `passport` | Not available yet; follow `docs/self-host.md` section 5 by hand. |
@@ -56,7 +56,7 @@ pnpm -s gms deploy verify
 ## The recovery file
 
 `secrets` needs `--recovery-file <path>`, an absolute path outside this repository (it refuses
-paths inside it). It holds `CREDENTIALS_ENCRYPTION_KEY`, `WEBHOOK_SECRET_KEY`, `OAUTH_KID` and
+paths inside it, symbolic links, and files this tool did not write). It holds `CREDENTIALS_ENCRYPTION_KEY`, `WEBHOOK_SECRET_KEY`, `OAUTH_KID` and
 `OAUTH_SIGNING_KEY_JWK`, mode 0600. Keep it in a password manager. If the two encryption keys are
 lost, every stored Passport link, connected-app token and webhook secret becomes unreadable and has
 to be set up again.
@@ -86,4 +86,7 @@ Each step is a small, ordinary set of commands; `docs/self-host.md` describes th
 
 - Node 22.18 or newer runs the `.ts` files directly; on an older 22.x use `node --experimental-strip-types scripts/deploy/cli.ts deploy <step>`.
 - `workers.dev` addresses need the account's workers.dev subdomain: the tool reads it with `CLOUDFLARE_API_TOKEN`, or pass `init --workers-subdomain <name>`.
-- A custom domain must be a zone in the same Cloudflare account.
+- A custom domain must be a zone in the same Cloudflare account. Set `CLOUDFLARE_API_TOKEN` so `deploy` can check what already uses the domain; without it, or if something does, `deploy` needs `--replace-dns`.
+- Project and organization names: `--org` takes the organization's slug (an id is translated).
+- The Workers Free plan allows 5 cron triggers and a small script size; this instance needs the Workers Paid plan.
+- The web build points at `passport.opengrants.io` even with Passport off (the app has no setting to turn that off).

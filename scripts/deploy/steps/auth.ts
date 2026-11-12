@@ -52,7 +52,7 @@ export async function auth(ctx: Ctx): Promise<Result> {
   const diff = differs(want, current.body);
   const smtp = config.resend ? (current.body.smtp_host === "smtp.resend.com" ? "set" : "pending: the email step sets it") : "not used";
   if (diff.length === 0) {
-    patchState(ctx, { auth: { configured: true, url } });
+    if (!ctx.dryRun) patchState(ctx, { auth: { configured: true, url } });
     return res("skipped", "Supabase Auth is already set as needed.", { smtp }, "cloudflare");
   }
   const gate = confirmOrDry(ctx, "auth", [`change Supabase Auth settings (${diff.join(", ")}): email sign-in on, email confirmation required, TOTP on, site address ${url}, return addresses ${callbackPaths.map((p) => url + p).join(" and ")}`], { changes: diff });

@@ -68,6 +68,10 @@ export interface CfState {
   subdomain: string | null;
   failPut: string | null;
   listOutput: string | null;
+  workers: Set<string>;
+  /** custom domains of other Workers and DNS records, for host-conflict checks */
+  domains: { hostname: string; service: string }[];
+  dns: { type: string; content: string; name: string }[];
 }
 
 const json = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -112,7 +116,7 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
     signing: [{ algorithm: "ES256", status: "in_use" }],
     jwtSecret: "legacy-jwt-secret-GGGGGGGGGGGG",
   };
-  const cf: CfState = { buckets: new Set(), queues: new Set(), kv: [], secrets: new Map(), loggedIn: true, accounts: [{ id: "acct1", name: "Acct" }], subdomain: "tester", failPut: null, listOutput: null };
+  const cf: CfState = { buckets: new Set(), queues: new Set(), kv: [], secrets: new Map(), loggedIn: true, accounts: [{ id: "acct1", name: "Acct" }], subdomain: "tester", failPut: null, listOutput: null, workers: new Set(), domains: [], dns: [] };
 
   const fetchFake = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = String(input);
@@ -167,7 +171,10 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
     if (url.endsWith("/.well-known/jwks.json")) return json(200, { keys: [{ kid: "k" }] });
     if (url.endsWith("/.well-known/oauth-authorization-server")) return json(200, { issuer: url.replace("/.well-known/oauth-authorization-server", "") });
     if (url.endsWith("/gms/config")) return json(200, { data: { facilitatedPayments: false } });
-    if (/^https:\/\/[^/]+\/$/.test(url)) return new Response("<!doctype html><html><body><div id=root></div></body></html>", { status: 200 });
+    if (/^https:\/\/[^/]+\/(signin)?$/.test(url)) return new Response("<!doctype html><html><body><div id=root></div></body></html>", { status: 200 });
+    if (url.startsWith("https://api.cloudflare.com/client/v4/accounts/acct1/workers/domains")) return json(200, { result: cf.domains });
+    if (url.startsWith("https://api.cloudflare.com/client/v4/zones?name=")) return json(200, { result: /name=example\.org/.test(url) ? [{ id: "zone1" }] : [] });
+    if (/\/zones\/zone1\/dns_records\?name=/.test(url)) return json(200, { result: cf.dns });
     if (url.startsWith("https://api.cloudflare.com/client/v4/accounts/acct1/workers/subdomain")) return json(200, { result: { subdomain: cf.subdomain } });
     return json(404, { message: `no fake for ${method} ${url}` });
   };
@@ -216,6 +223,7 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
           return ok("Success");
         }
       }
+      if (w[0] === "deployments") return cf.workers.has(w[w.indexOf("--name") + 1]!) ? ok("deployments") : fail("This Worker does not exist on your account");
       if (w[0] === "deploy") return ok("Deployed");
     }
     if (cmd === "pnpm" || cmd === "node") return ok("done");

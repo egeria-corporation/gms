@@ -3,7 +3,7 @@
 // Supabase's mail settings. The restricted key is held in memory and goes only to Cloudflare and Supabase.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cfAccount, cfRest, cfToken } from "../cloudflare.ts";
+import { cfAccount, cfRest, cfToken, findZone } from "../cloudflare.ts";
 import type { Ctx, Result } from "../core.ts";
 import { brief, confirmOrDry, flagStr, isResult, loadState, patchState, requireConfig, res, reveal, wranglerRun } from "../core.ts";
 import { apiMessage, LOGIN_MESSAGE, Supabase, supabaseToken } from "../supabase-api.ts";
@@ -26,29 +26,37 @@ async function resend(ctx: Ctx, key: string, method: string, path: string, body?
   }
 }
 
-/** Add the records to the Cloudflare zone for this domain, when the zone is in the account. Returns the zone id or null. */
+/** The full name Cloudflare needs for a record Resend names relative to the sending domain (or to its zone). */
+export function recordFqdn(name: string, domain: string, zone: string): string {
+  const n = name.replace(/\.$/, "");
+  if (n === "@" || n === "") return domain;
+  if (n === domain || n.endsWith(`.${domain}`)) return n;
+  if (`${n}.${zone}`.endsWith(`.${domain}`) || `${n}.${zone}` === domain) return `${n}.${zone}`;
+  if (n === zone || n.endsWith(`.${zone}`)) return n;
+  return `${n}.${domain}`;
+}
+
+/** Add the records to the Cloudflare zone for this domain, when the zone is in the account. */
 async function addDns(ctx: Ctx, accountId: string, domain: string, records: DnsRecord[]): Promise<{ added: number } | { reason: string }> {
   if (!cfToken(ctx)) return { reason: "no CLOUDFLARE_API_TOKEN, so DNS records cannot be added automatically" };
-  const labels = domain.split(".");
-  let zoneId: string | null = null;
-  for (let i = 0; i <= labels.length - 2 && !zoneId; i++) {
-    const candidate = labels.slice(i).join(".");
-    const z = await cfRest(ctx, "GET", `/zones?name=${encodeURIComponent(candidate)}&account.id=${accountId}`);
-    if (z.status === 200 && Array.isArray(z.body?.result) && z.body.result[0]?.id) zoneId = z.body.result[0].id;
-  }
-  if (!zoneId) return { reason: `the DNS zone for ${domain} is not in this Cloudflare account` };
+  const zone = await findZone(ctx, accountId, domain);
+  if (!zone) return { reason: `the DNS zone for ${domain} is not in this Cloudflare account` };
   let added = 0;
   for (const rec of records) {
-    const r = await cfRest(ctx, "POST", `/zones/${zoneId}/dns_records`, {
+    const fqdn = recordFqdn(rec.name, domain, zone.name);
+    if (fqdn !== zone.name && !fqdn.endsWith(`.${zone.name}`)) return { reason: `the record ${rec.name} does not belong in the zone ${zone.name}` };
+    const have = await cfRest(ctx, "GET", `/zones/${zone.id}/dns_records?name=${encodeURIComponent(fqdn)}&type=${rec.type}`);
+    if (have.status === 200 && (have.body?.result ?? []).some((x: { content?: string }) => String(x.content ?? "").replace(/^"|"$/g, "") === rec.value)) continue;
+    const r = await cfRest(ctx, "POST", `/zones/${zone.id}/dns_records`, {
       type: rec.type,
-      name: rec.name,
+      name: fqdn,
       content: rec.value,
       ttl: 1,
       ...(rec.type === "MX" ? { priority: rec.priority ?? 10 } : {}),
       ...(rec.type === "CNAME" ? { proxied: false } : {}),
     });
     const already = r.status === 400 && JSON.stringify(r.body).match(/already exists|81057|81058/);
-    if (r.status >= 300 && !already) return { reason: `Cloudflare refused the ${rec.type} record ${rec.name} (${apiMessage(r.body?.errors?.[0] ?? r.body)})` };
+    if (r.status >= 300 && !already) return { reason: `Cloudflare refused the ${rec.type} record ${fqdn} (${apiMessage(r.body?.errors?.[0] ?? r.body)})` };
     added++;
   }
   return { added };
@@ -120,12 +128,12 @@ export async function email(ctx: Ctx): Promise<Result> {
     if (status !== "verified") return res("needs_input", `The DNS records are in place but Resend has not verified ${domain} yet (status: ${status}). DNS can take a while; re-run this step later.`, {}, "email");
   }
 
-  // 3. A key that can only send from this domain. A key left over from an interrupted run is replaced.
-  if (state.email?.keyId) await resend(ctx, key, "DELETE", `/api-keys/${state.email.keyId}`);
+  // 3. A key that can only send from this domain. The key in use stays valid until the new one is everywhere.
+  if (state.email?.pendingKeyId) await resend(ctx, key, "DELETE", `/api-keys/${state.email.pendingKeyId}`);
   const made = await resend(ctx, key, "POST", "/api-keys", { name: `${config.name}-sending`, permission: "sending_access", domain_id: domainId });
   if (made.status >= 300 || !made.body?.token) return res("error", `Resend could not create the sending key: ${apiMessage(made.body)}.`, {}, "email");
   const sendKey = reveal(ctx, made.body.token as string);
-  patchState(ctx, { email: { keyId: made.body.id } });
+  patchState(ctx, { email: { pendingKeyId: made.body.id } });
 
   // 4. Workers.
   for (const w of ["api", "jobs"] as const) {
@@ -143,6 +151,7 @@ export async function email(ctx: Ctx): Promise<Result> {
   const back = await sb.call<Record<string, unknown>>("GET", `/projects/${ref}/config/auth`);
   if (back.status !== 200 || back.body.smtp_host !== "smtp.resend.com" || back.body.smtp_admin_email !== from) return res("error", "Supabase accepted the mail settings but they did not take. Re-run this step.", {}, "email");
 
-  patchState(ctx, { email: { done: true, domain, domainId, from, at: ctx.now().toISOString() } });
+  if (state.email?.keyId) await resend(ctx, key, "DELETE", `/api-keys/${state.email.keyId}`);
+  patchState(ctx, { email: { done: true, domain, domainId, from, keyId: made.body.id, pendingKeyId: null, at: ctx.now().toISOString() } });
   return res("ok", `Email is set up: ${from} sends through Resend, and Supabase sign-in codes use it.`, { domain, from }, "verify");
 }

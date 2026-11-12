@@ -76,13 +76,20 @@ export async function migrate(ctx: Ctx): Promise<Result> {
   if (typeof applied === "string") return res("error", `Cannot check which migrations are applied: ${applied}.`, {}, null);
   const pending = files.filter((m) => !isApplied(m, applied));
   if (pending.length === 0) {
-    patchState(ctx, { migrations: { total: files.length, latest: files.at(-1)?.file ?? null } });
+    if (!ctx.dryRun) patchState(ctx, { migrations: { total: files.length, latest: files.at(-1)?.file ?? null } });
     return res("skipped", `The database is up to date (${files.length} migrations).`, { total: files.length }, "auth");
   }
 
-  const foreign = !applied.hasTracking && applied.publicTables > 0;
+  // Not the GMS's database: tables but no history, or a history that names migrations this repository does not have.
+  const knownVersions = new Set(files.map((m) => m.version));
+  const knownFiles = new Set(files.map((m) => m.file));
+  const strangers = [...applied.versions].filter((v) => !knownVersions.has(v)).length + [...applied.names].filter((x) => !knownFiles.has(x)).length;
+  const foreign = (!applied.hasTracking && applied.publicTables > 0) || strangers > 0;
+  if (foreign && !ctx.dryRun && ctx.flags["allow-existing-tables"] !== true) {
+    return res("needs_confirmation", `This database does not look like a fresh GMS database: ${strangers > 0 ? `its migration history holds ${strangers} entr${strangers === 1 ? "y" : "ies"} this repository does not have` : `it already holds ${applied.publicTables} table(s) the GMS did not create and has no migration history`}. Applying the GMS migrations on top of another app's schema can break both. If that is what you want, re-run with --allow-existing-tables --yes. Otherwise use a new Supabase project.`, { pending: pending.map((m) => m.file) }, "migrate");
+  }
   const plan = [`apply ${pending.length} migration(s) (${pending[0]!.file}${pending.length > 1 ? ` to ${pending.at(-1)!.file}` : ""}), each in its own transaction`];
-  if (foreign) plan.unshift(`WARNING: this database already holds ${applied.publicTables} table(s) that the GMS did not create, and no migration history`);
+  if (foreign) plan.unshift(`WARNING: this database is not a fresh GMS database (${strangers} unknown history entries, ${applied.publicTables} tables in public)`);
   const gate = confirmOrDry(ctx, "migrate", plan, { pending: pending.map((m) => m.file), existingTables: foreign ? applied.publicTables : 0 });
   if (gate) return gate;
 
@@ -93,6 +100,7 @@ export async function migrate(ctx: Ctx): Promise<Result> {
     ctx.log(`Applying ${m.file}`);
     const r = await api.query(ref, wrapMigration(m, readFileSync(join(ctx.root, "supabase", "migrations", m.file), "utf8")));
     if (r.status >= 300) {
+      await api.query(ref, "rollback;"); // leave no aborted transaction behind on a pooled connection
       return res("error", `${m.file} failed and was rolled back: ${apiMessage(r.body)}. ${done.length} earlier migration(s) in this run were kept. Fix the cause and re-run; it resumes here.`, { failed: m.file, applied: done }, "migrate");
     }
     done.push(m.file);
