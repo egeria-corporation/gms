@@ -16,6 +16,7 @@ import type {
   PublicFunder,
   PublicOpportunityCard,
   Stage,
+  Verification,
   WorkspaceRecord,
 } from "../api/types.ts";
 import type { Session } from "../auth/types.ts";
@@ -46,6 +47,11 @@ const clone = <T>(v: T): T => structuredClone(v);
 const uuid = () => crypto.randomUUID();
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
 const invalid = (message: string, errors: unknown[] = []) => new ApiError(422, message, errors);
+export const verificationOfRecord = (r: WorkspaceRecord): Verification => {
+  const source = r.profileSource ?? (r.passportOrgId || r.verificationLevel ? "passport" : "none");
+  const level = source === "passport" && r.verificationLevel && /^L[0-3]$/.test(r.verificationLevel) ? (r.verificationLevel as Verification["level"]) : null;
+  return { source, level };
+};
 const checkProfile = (p: Parameters<GmsApi["updateProfile"]>[1]) => {
   const problems = profileProblems(p);
   if (problems.length) throw invalid("Check the organization details", problems);
@@ -124,6 +130,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     mission: w.profile.mission,
     website: w.profile.website,
     verificationLevel: w.record.verificationLevel,
+    verification: verificationOfRecord(w.record),
   });
   const cardOf = (o: Opportunity): PublicOpportunityCard => ({
     id: o.id.replace(/^opp_/, ""),

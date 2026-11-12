@@ -2,7 +2,7 @@
 // `/f/:handle` — a funder's public front door: brand, mission and published opportunities.
 // Everything here comes from `GET /gms/public/funders/{handle}` (published fields only).
 import { Link, useParams } from "react-router";
-import { ArrowRight, Calendar, CircleMinus, Clock, Globe, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Calendar, CircleMinus, Clock, Globe, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { ApiError } from "../../api/client.ts";
 import { useApiQuery } from "../../api/hooks.ts";
 import type { PublicOpportunityCard } from "../../api/types.ts";
@@ -107,6 +107,8 @@ export default function FunderPage() {
   const forecasted = opportunities.filter((o) => o.status === "forecasted");
   const nextForecast = forecasted[0];
   const site = funder.website?.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  // An older server sends only the level; a level means a Passport record stands behind it.
+  const fromPassport = funder.verification ? funder.verification.source === "passport" : !!funder.verificationLevel;
 
   return (
     <>
@@ -134,10 +136,15 @@ export default function FunderPage() {
                   {site}
                 </a>
               )}
-              {funder.verificationLevel && (
+              {fromPassport ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9" }}>
                   <ShieldCheck className="ic" aria-hidden="true" />
                   Claimed in OpenGrants Passport
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9", fontSize: "13px" }}>
+                  <ShieldOff className="ic" aria-hidden="true" />
+                  This funder’s organization is not verified with OpenGrants Passport
                 </span>
               )}
             </div>
