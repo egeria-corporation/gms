@@ -426,7 +426,7 @@ describe("T1-19 sign-in page", () => {
 
 describe("T1-20 Resend key swap", () => {
   it("keeps the old key until the new one is everywhere", async () => {
-    let verified = true;
+    const verified = true;
     const deleted: string[] = [];
     let n = 0;
     const f = makeFake({
