@@ -15,11 +15,13 @@ insert into public.passport_links (workspace_id, mode, client_id, client_secret_
 insert into public.passport_links (workspace_id, mode, client_id, refresh_token_enc, linked_at, revoked_at) values
   ('7a000000-0000-4000-8000-000000000003', 'applicant_consent', 'gms', 'ciphertext', now(), now());
 
--- The statement of migration 0024, run again on these rows (with the profile source that 0026
--- added, which the API now releases with the id).
+-- The statement of migration 0024, run again on these rows only (the seed's fixture workspaces carry
+-- an id and a level without a link), with what the API now releases alongside the id: the profile
+-- source (0026) and the level, which 0026 allows only with a Passport organization.
 with released as (
-  update public.workspaces w set passport_org_id = null, profile_source = 'none'
-   where w.passport_org_id is not null and not exists (select 1 from public.passport_links l where l.workspace_id = w.id)
+  update public.workspaces w set passport_org_id = null, profile_source = 'none', verification_level = null
+   where w.id::text like '7a000000-%'
+     and w.passport_org_id is not null and not exists (select 1 from public.passport_links l where l.workspace_id = w.id)
   returning w.id, w.kind
 )
 insert into public.ledger_events (workspace_id, actor, event_type, subject_type, subject_id, data)
