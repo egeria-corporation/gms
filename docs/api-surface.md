@@ -367,6 +367,8 @@ matched, and `admin_role` (the earlier rule: an admin of the recipient workspace
 A workspace that has not linked Passport keeps a self-declared profile (see `docs/decisions.md`,
 2026-11-12). What changes for callers:
 
+- **Names beside the badge**: for a Passport workspace `name` is the Passport legal name and the
+  workspace's own display name comes second as `workspaceName` (null when the same).
 - **`verification: { source: "passport" | "self_declared" | "none", level }`** on every applicant a
   funder sees (inbox list and detail `applicant`, grantee list and detail, award `recipient`,
   exports, the 990-PF list as `recipientVerification`, MCP `get_passport_status`) and on the funder
@@ -385,8 +387,8 @@ A workspace that has not linked Passport keeps a self-declared profile (see `doc
 - **Readiness** (`GET /gms/me/readiness`) for a workspace without Passport: `profile_complete`
   (legal name and contact email) and, where this server can link, an `optional` check
   `passport_optional` that is never counted in `summary`.
-- **Letters** go to the Passport record's email, else the self-declared `contactEmail`, else the
-  workspace's admins (at most five).
+- **Letters** go to the Passport record's email, else the workspace's admins at the address they
+  sign in with (at most five). A self-declared `contactEmail` is shown, never emailed.
 - **Linking later** through the consent flow sets `profileSource: "passport"`, clears the profile
   and ledgers `workspace.profile_replaced_by_passport` with the names of the fields that differed.
 - In the OpenAPI document the new response fields are optional so existing clients keep
