@@ -29,9 +29,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Work out the version and commit
         id: v
         env:
@@ -55,6 +56,18 @@ jobs:
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "Not a version: $version" >&2; exit 1; fi
           if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then echo "Not a full commit SHA" >&2; exit 1; fi
           git cat-file -e "$sha^{commit}"
+          # Only commits that are on main can be released.
+          git merge-base --is-ancestor "$sha" origin/main || { echo "$sha is not on main; refusing." >&2; exit 1; }
+          # The commit must carry the version being released. The one allowed exception is the
+          # v0.9.0 backfill: the code before the version field existed.
+          at="$(git show "$sha:package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version||''")"
+          if [ "$at" != "$version" ] && ! { [ "$version" = "0.9.0" ] && [ "$sha" = "2560450febd22c4e4c6ae03f6434374ade315f27" ]; }; then
+            echo "package.json at $sha says version '$at', not $version; refusing." >&2; exit 1
+          fi
+          # An existing tag must already point at this commit.
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null && [ "$(git rev-list -n1 "v$version")" != "$sha" ]; then
+            echo "Tag v$version already exists at a different commit; refusing." >&2; exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
@@ -65,8 +78,8 @@ jobs:
         run: |
           set -euo pipefail
           # CHANGELOG.md comes from the checked-out ref (main), even when backfilling an older commit.
-          awk -v v="$VERSION" '
-            /^## / { if (on) exit; if (index($0, v)) { on = 1; next } }
+          awk -v h="## v$VERSION" '
+            /^## / { if (on) exit; if ($0 == h) { on = 1; next } }
             on { print }
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "No section for $VERSION in CHANGELOG.md" >&2; exit 1; fi
