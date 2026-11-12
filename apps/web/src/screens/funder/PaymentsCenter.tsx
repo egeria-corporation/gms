@@ -15,7 +15,7 @@ import { checklistOf, destinationLabel, HoldBanner, RecordExternalDialog, Releas
 import { FunderShell } from "../../components/shells.tsx";
 import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist } from "../../components/ui.tsx";
-import { useAppConfig } from "../../api/launchHooks.ts";
+import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
 import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate, formatMinor } from "../../lib/format.ts";
@@ -490,6 +490,7 @@ function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personN
 
 export function PaymentsCenter({ view }: { view: PaymentsView }) {
   const { facilitatedPayments } = useAppConfig();
+  const passportFlags = usePassportFlags();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [note, setNote] = useState<string | null>(null);
@@ -554,9 +555,11 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                 <HoldBanner
                   banner={{ cause: "passport_not_linked", tone: "neutral", title: "Connect Passport to pay", detail: "Awards, agreements and reporting work without it, but no payment can be released or recorded until this workspace is linked to Passport.", clears: "Clears when an admin connects Passport." }}
                   action={
-                    <Link to={`${base}/settings/passport`} className="btn btn-secondary">
-                      Connect Passport
-                    </Link>
+                    passportFlags.linking ? (
+                      <Link to={`${base}/settings/passport`} className="btn btn-secondary">
+                        Connect Passport
+                      </Link>
+                    ) : undefined
                   }
                 />
               )}

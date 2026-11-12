@@ -9,7 +9,8 @@ import { useApplicantQuery } from "../../../api/applicantHooks.ts";
 import { useWorkspace } from "../../../app/workspace.tsx";
 import { accentOf, closesPhrase, firstName, FunderChip, greeting, Loaded } from "../../../components/applicant.tsx";
 import { PhoneShell } from "../../../components/PhoneShell.tsx";
-import { LevelBadge, StatusBadge } from "../../../components/status.tsx";
+import { usePassportFlags } from "../../../api/launchHooks.ts";
+import { LevelBadge, VerificationBadge, StatusBadge } from "../../../components/status.tsx";
 import { EmptyState } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { loadDashboard, Messages, Payments, ReportsDue, Tasks } from "../Dashboard.tsx";
@@ -21,13 +22,14 @@ const CHECK = {
 } as const;
 
 function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: string }) {
+  const passportFlags = usePassportFlags();
   return (
     <section className="card" aria-labelledby="ready-h">
       <div className="card-h" style={{ padding: "14px 16px" }}>
         <h3 id="ready-h" style={{ fontSize: "16px" }}>
-          Passport readiness
+          {readiness.linked ? "Passport readiness" : "Readiness"}
         </h3>
-        <LevelBadge level={readiness.level} />
+        {readiness.linked ? <LevelBadge level={readiness.level} /> : <VerificationBadge verification={{ source: "self_declared", level: null }} />}
       </div>
       <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
         <ul className="rc" style={{ fontSize: "15px" }}>
@@ -49,11 +51,11 @@ function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: s
           <Link to={`${base}/organization`} className="btn btn-secondary btn-lg btn-block">
             Manage in Passport
           </Link>
-        ) : (
+        ) : passportFlags.linking ? (
           <Link to="/onboarding/applicant" className="btn btn-primary btn-lg btn-block">
             Connect Passport
           </Link>
-        )}
+        ) : null}
       </div>
     </section>
   );

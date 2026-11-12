@@ -559,6 +559,19 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
         : rank >= min
           ? { key, state: "pass" as const, label, reason: pass, fixHref: null }
           : { key, state: "fail" as const, label, reason: fail, fixHref: org.editUrl };
+    if (!org.linked) {
+      // Without Passport: the profile the organization entered, and an optional, non-failing nudge.
+      const o = org.organization as unknown as { name?: string; emails?: { primary?: string } } | null;
+      const complete = !!(o?.name || org.displayName) && !!o?.emails?.primary;
+      const own = [
+        complete
+          ? { key: "profile_complete", state: "pass" as const, label: "Profile complete", reason: "Legal name and contact email are set", fixHref: null }
+          : { key: "profile_complete", state: "fail" as const, label: "Profile complete", reason: "Add your legal name and a contact email in Settings", fixHref: null },
+        { key: "passport_optional", state: "unknown" as const, label: "Connect Passport for verification", reason: "Optional. Verified organizations are shown to funders as verified", fixHref: null },
+      ];
+      const failed = own.filter((c) => c.state === "fail").length;
+      return { level: null, linked: false, syncedAt: null, checks: own, summary: { pass: own.length - failed - 1, fail: failed, unknown: 1, ready: failed === 0 } };
+    }
     const checks = [
       org.linked
         ? { key: "passport_linked", state: "pass" as const, label: "Passport connected", reason: `Record last read ${org.syncedAt?.slice(0, 10) ?? "never"}`, fixHref: null }

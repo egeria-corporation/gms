@@ -233,9 +233,10 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       },
       {
         key: "passport",
-        state: data.readiness.linked ? "pass" : "fail",
-        label: "Passport connected",
-        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Connect Passport so your verification level travels with the submission",
+        // Passport is optional: without it the organization goes in as not verified, which is no obstacle.
+        state: data.readiness.linked ? "pass" : "unknown",
+        label: data.readiness.linked ? "Passport connected" : "Passport not connected (optional)",
+        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Your organization is submitted as not verified. Connect Passport to attach a verification level",
         fixHref: data.readiness.linked ? null : "/onboarding/applicant",
       },
     ];

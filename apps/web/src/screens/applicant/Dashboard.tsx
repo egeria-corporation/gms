@@ -5,12 +5,12 @@ import { Link } from "react-router";
 import { CircleCheck, CircleDashed, CircleX, Info, Search } from "lucide-react";
 import type { ApplicantApi, ApplicantReadiness, AwardDetail, MyApplication, Task, Thread } from "../../api/applicant.ts";
 import { useApplicantQuery } from "../../api/applicantHooks.ts";
-import { useAppConfig } from "../../api/launchHooks.ts";
+import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
 import { useIsPhone } from "../../app/usePhone.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, closesPhrase, firstName, FunderChip, greeting, Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { LevelBadge, StatusBadge, VerificationBadge } from "../../components/status.tsx";
 import { EmptyState, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 
@@ -54,14 +54,15 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
   // Whether funders on this site can pay through Passport at all. Where they cannot, a missing
   // payee holds nothing up, and the card must not say it does.
   const { facilitatedPayments } = useAppConfig();
+  const passportFlags = usePassportFlags();
   return (
     <section className="card" aria-labelledby="ready-h">
       <div className="card-h">
         <div className="row" style={{ gap: "10px" }}>
           <h2 id="ready-h" style={{ fontSize: "18px" }}>
-            Passport readiness
+            {readiness.linked ? "Passport readiness" : "Readiness"}
           </h2>
-          <LevelBadge level={readiness.level} />
+          {readiness.linked ? <LevelBadge level={readiness.level} /> : <VerificationBadge verification={{ source: "self_declared", level: null }} />}
         </div>
         <Link to={`${base}/organization`} className="small b">
           View organization
@@ -83,10 +84,16 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
       </div>
       {!readiness.linked && (
         <div className="card-f">
-          <Link to="/onboarding/applicant" className="btn btn-primary">
-            Connect Passport
-          </Link>
-          <span className="help">Your organization record, documents and payee status come from Passport.</span>
+          {passportFlags.linking ? (
+            <>
+              <Link to="/onboarding/applicant" className="btn btn-primary">
+                Connect Passport
+              </Link>
+              <span className="help">Optional. Your organization record, documents and payee status come from Passport, and funders see you as verified.</span>
+            </>
+          ) : (
+            <span className="help">Funders see the details you entered in Settings, marked as not verified.</span>
+          )}
         </div>
       )}
       {readiness.linked && failing && (
@@ -416,7 +423,7 @@ export default function Dashboard() {
                       >
                         {d.readiness.linked
                           ? "Your Passport record is ready. Find an opportunity you are eligible for and start an application with your profile already filled in."
-                          : "Connect Passport, then find an opportunity and start an application with your profile already filled in."}
+                          : "Find an opportunity you are eligible for and start an application. Connect Passport any time to have your profile filled in and verified."}
                       </EmptyState>
                     </div>
                   ) : (
