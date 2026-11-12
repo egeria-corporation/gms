@@ -37,7 +37,10 @@ export function profileProblems(p: SelfDeclaredProfile): ProfileProblem[] {
   }
   if ((p.mission?.length ?? 0) > 2000) add("mission", "Use 2,000 characters or fewer");
   if (p.address?.country && !/^[A-Za-z]{2}$/.test(p.address.country)) add("address.country", "Use a two-letter country code, such as US");
-  if (p.ein && !/^\d{9}$/.test(p.ein.replace(/-/g, ""))) add("ein", "An EIN has nine digits");
+  const ein = p.ein?.replace(/-/g, "").trim();
+  if (ein && !/^\d{9}$/.test(ein)) add("ein", "An EIN has nine digits");
+  else if (ein && INVALID_EIN_PREFIXES.includes(ein.slice(0, 2))) add("ein", "This is not an EIN the IRS issues. Enter the organization's EIN, never a Social Security number");
+  else if (ein && p.orgType === "individual") add("ein", "An EIN is for organizations. Leave it empty for an individual");
   return out;
 }
 
@@ -67,3 +70,6 @@ export function toPatch(p: SelfDeclaredProfile): SelfDeclaredProfilePatch {
   for (const k of OPTIONAL) patch[k] = p[k] ?? null;
   return patch as SelfDeclaredProfilePatch;
 }
+
+/** Prefixes the IRS never assigns to an EIN; the API refuses them too (review NP-11). */
+export const INVALID_EIN_PREFIXES: readonly string[] = ["00", "07", "08", "09", "17", "18", "19", "28", "29", "49", "69", "70", "78", "79", "89", "96", "97"];
