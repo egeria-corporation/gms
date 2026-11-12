@@ -433,6 +433,40 @@ describe("verify", () => {
     expect(r.r.code).toBe("error");
     expect(r.r.message).toContain("health");
   });
+  it("reports an unreachable host as a failed check naming it, instead of stopping", async () => {
+    const down = (prefix: string) => (_m: string, url: string) => {
+      if (url.startsWith(prefix)) throw new TypeError("fetch failed");
+      return undefined;
+    };
+    // The Supabase project's own host (where the sign-in code is sent).
+    const f = makeFake({ routes: down("https://abcdefghijklmnopqrst.supabase.co") });
+    await through(f, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const r = await f.step("verify", "--yes");
+    expect(r.r.code).toBe("error");
+    expect(r.r.next).toBe("verify");
+    expect(r.r.message).not.toContain("stopped unexpectedly");
+    expect(r.r.message).toContain("sign-in code (could not reach abcdefghijklmnopqrst.supabase.co");
+    const checks = r.r.data?.checks as { name: string; ok: boolean }[];
+    expect(checks.filter((c) => !c.ok).map((c) => c.name)).toEqual(["sign-in code"]);
+    expect(JSON.parse(readFileSync(join(f.deployDir, "state.json"), "utf8")).verify.ok).toBe(false);
+
+    // The instance itself, for one path: that check fails, the others still run.
+    const g = makeFake({ routes: down("https://grants.example.org/signin") });
+    await through(g, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const page = await g.step("verify", "--yes");
+    expect(page.r.code).toBe("error");
+    expect(page.r.message).toContain("sign-in page (could not reach grants.example.org)");
+    expect((page.r.data?.checks as unknown[]).length).toBe(5);
+
+    // The Management API, when reading the key the code is sent with.
+    const k = makeFake();
+    await through(k, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const orig = k.ctx.fetch;
+    k.ctx.fetch = (async (input: string | URL | Request, init?: RequestInit) => (String(input).includes("/api-keys") ? Promise.reject(new TypeError("fetch failed")) : orig(input, init))) as typeof fetch;
+    const keys = await k.step("verify", "--yes");
+    expect(keys.r.code).toBe("error");
+    expect(keys.r.message).toContain("could not reach api.supabase.com");
+  });
 });
 
 describe("upgrade", () => {
