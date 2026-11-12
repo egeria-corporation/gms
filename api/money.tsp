@@ -554,7 +554,13 @@ model GrantList990 {
     awardId: PrefixedId;
     recipientName: string;
     recipientAddress: string | null;
+
+    /** Whether the name and address come from Passport; the level only while the recipient shares its record. */
+    recipientVerification?: Verification;
+
     relationship: string;
+
+    /** `PC` only when the Passport record shows a 501(c)(3); `Unknown, verify` otherwise; `I` for an individual. */
     foundationStatus: string;
     purpose: string;
     currency: string;
@@ -570,6 +576,9 @@ model GrantList990 {
     paidMinor: int64;
     approvedForFuturePaymentMinor: int64;
   };
+
+  /** Plain-language checks before filing: recipients not verified with Passport, statuses to confirm. */
+  warnings?: string[];
 }
 
 model BundleExport {

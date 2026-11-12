@@ -5,6 +5,7 @@
 import { downloadBlob } from "../../lib/browser.ts";
 import { useState } from "react";
 import { ChartColumn, Download, TriangleExclamationPoint, Upload } from "lucide-react";
+import { VerificationBadge } from "../../components/status.tsx";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CsvImportResult, CycleReport, Portfolio } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -305,6 +306,21 @@ function ExportsPanel() {
             <ErrorBanner error={list.error ?? csv.error} />
           </div>
         )}
+        {list.data?.warnings?.length ? (
+          <div className="card-b">
+            <div className="bnr bnr-warn" role="note">
+              <TriangleExclamationPoint className="ic" aria-hidden="true" />
+              <div>
+                <div className="t">Check before filing</div>
+                {list.data.warnings.map((w) => (
+                  <div key={w} className="d">
+                    {w}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {list.data && (
           <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="990-PF grant list, scrollable">
             <table className="tbl" aria-label="990-PF grant list">
@@ -319,7 +335,12 @@ function ExportsPanel() {
               <tbody>
                 {list.data.items.map((i) => (
                   <tr key={i.awardId}>
-                    <td className="b">{i.recipientName}</td>
+                    <td>
+                      <div className="row wrap" style={{ gap: "6px" }}>
+                        <span className="b">{i.recipientName}</span>
+                        <VerificationBadge verification={i.recipientVerification} />
+                      </div>
+                    </td>
                     <td>{i.purpose}</td>
                     <td className="num">{formatMinor(i.paidMinor, i.currency)}</td>
                     <td className="num">{formatMinor(i.approvedForFuturePaymentMinor, i.currency)}</td>

@@ -135,7 +135,9 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
       recipientAddress: addr ? [addr.street1, addr.city, addr.stateOrProvince, addr.postalCode].filter(Boolean).join(", ") : null,
       recipientVerification: verificationShared(w, canRead),
       relationship: "None",
-      foundationStatus: w ? "PC" : "I",
+      // A public charity only when the Passport record's IRS subsection says 501(c)(3); anything
+      // else (no Passport record, not shared, another subsection) is for the funder to confirm.
+      foundationStatus: w ? (canRead && orgFacts(w!).source === "passport" && (orgFacts(w!).profile as { commonApp?: { irs?: { subsection?: unknown } } } | null)?.commonApp?.irs?.subsection === "03" ? "PC" : "Unknown, verify") : "I",
       purpose: a.title,
       currency: currencyOf(a),
       awardedMinor,
@@ -145,8 +147,15 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
     };
   });
   await audit(ctx, "export.grant_list_990pf", "workspace", ws.id, { year, awards: items.length });
-  const csv = toCsv(["Recipient", "Address", "Relationship", "Foundation status", "Purpose of grant", "Paid (per Passport)", "Approved for future payment", "Paid figure read from Passport at"], items.map((i) => [i.recipientName, i.recipientAddress ?? "", i.relationship, i.foundationStatus, i.purpose, dollars(i.paidMinor), dollars(i.approvedForFuturePaymentMinor), i.paidAsOf ?? "not read back yet"]));
-  return { year, items, totals: { paidMinor: sum(items.map((i) => i.paidMinor)), approvedForFuturePaymentMinor: sum(items.map((i) => i.approvedForFuturePaymentMinor)) }, csv };
+  // Whether each recipient's name and address come from Passport or from what it entered itself (review NP-10).
+  const verified = (v: { source: string }) => (v.source === "passport" ? "Yes" : v.source === "self_declared" ? "No, self-reported" : "No");
+  const csv = toCsv(["Recipient", "Address", "Verified with Passport", "Relationship", "Foundation status", "Purpose of grant", "Paid (per Passport)", "Approved for future payment", "Paid figure read from Passport at"], items.map((i) => [i.recipientName, i.recipientAddress ?? "", verified(i.recipientVerification), i.relationship, i.foundationStatus, i.purpose, dollars(i.paidMinor), dollars(i.approvedForFuturePaymentMinor), i.paidAsOf ?? "not read back yet"]));
+  const unverified = items.filter((i) => i.recipientVerification.source !== "passport" && i.foundationStatus !== "I").length;
+  const warnings = [
+    ...(unverified ? [`${unverified} recipient${unverified === 1 ? " is" : "s are"} not verified with OpenGrants Passport: check the name and address before filing.`] : []),
+    ...(items.some((i) => i.foundationStatus === "Unknown, verify") ? ["Foundation status is filled in only from a Passport record that shows a 501(c)(3); confirm the others before filing."] : []),
+  ];
+  return { year, items, totals: { paidMinor: sum(items.map((i) => i.paidMinor)), approvedForFuturePaymentMinor: sum(items.map((i) => i.approvedForFuturePaymentMinor)) }, warnings, csv };
 }
 
 // ------------------------------------------------------------------------------------ bundle export

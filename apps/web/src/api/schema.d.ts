@@ -11227,7 +11227,10 @@ export interface components {
                 awardId: components["schemas"]["Models.PrefixedId"];
                 recipientName: string;
                 recipientAddress: string | null;
+                /** @description Whether the name and address come from Passport; the level only while the recipient shares its record. */
+                recipientVerification?: components["schemas"]["Models.Verification"];
                 relationship: string;
+                /** @description `PC` only when the Passport record shows a 501(c)(3); `Unknown, verify` otherwise; `I` for an individual. */
                 foundationStatus: string;
                 purpose: string;
                 currency: string;
@@ -11249,6 +11252,8 @@ export interface components {
                 /** Format: int64 */
                 approvedForFuturePaymentMinor: number;
             };
+            /** @description Plain-language checks before filing: recipients not verified with Passport, statuses to confirm. */
+            warnings?: string[];
         };
         /** @description One row of the 990-PF Part XV grant list. */
         "Models.GrantListRow": {
@@ -13148,7 +13153,10 @@ export interface components {
             contactEmail?: string;
             /** @description One of the CommonGrants applicant types, e.g. `non_profit_with_501c3` */
             orgType?: string;
-            /** @description The organization's employer identification number: nine digits (a hyphen is accepted and removed) */
+            /**
+             * @description The organization's employer identification number: nine digits (a hyphen is accepted and removed),
+             *     with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a Social Security number.
+             */
             ein?: string;
         };
         /** @description A merge patch of the self-declared profile: a field left out keeps its value, `null` removes it. `legalName` cannot be removed. */

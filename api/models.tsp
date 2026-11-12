@@ -278,7 +278,9 @@ model SelfDeclaredProfile {
   /** One of the CommonGrants applicant types, e.g. `non_profit_with_501c3` */
   orgType?: string;
 
-  /** The organization's employer identification number: nine digits (a hyphen is accepted and removed) */
+  /** The organization's employer identification number: nine digits (a hyphen is accepted and removed),
+   * with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a Social Security number.
+   */
   @pattern("^[0-9]{2}-?[0-9]{7}$")
   ein?: string;
 }

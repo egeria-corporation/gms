@@ -345,3 +345,20 @@ describe("a level left on a workspace without Passport is never shown (NP-08)", 
     expect(inbox.body.items[0]!.applicant.level).toBeNull();
   });
 });
+
+describe("990-PF grant list (NP-10)", () => {
+  it("marks a recipient without Passport as not verified and does not call it a public charity", async () => {
+    const h = await harness();
+    const s = await scenario(h);
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: null, org_projection: null, profile_projection: null, verification_level: null, profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside Pantry Inc.", orgType: "non_profit_with_501c3", address: { street: "1 Lake Rd", city: "Duluth" } } });
+    await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });
+    await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, title: "Pantry grant", recipient_workspace_id: WS_APPLICANT, status: "active", funding: { awardedAmount: { amount: "1000.00", currency: "USD" } }, key_dates: { awardDate: { date: "2027-03-01" } } });
+    const pf = await s.call<{ data: { items: { foundationStatus: string }[]; warnings: string[] } }>(s.funder, "GET", "/gms/exports/990pf?year=2027");
+    expect(pf.body.data.items[0]!.foundationStatus).toBe("Unknown, verify");
+    expect(pf.body.data.warnings.join(" ")).toContain("not verified with OpenGrants Passport");
+    const csv = await (await h.request("/gms/exports/990pf?year=2027&format=csv", { headers: s.funder })).text();
+    expect(csv.split("\r\n")[0]).toContain("Verified with Passport");
+    expect(csv).toContain("No, self-reported");
+    expect(csv).not.toMatch(/,PC,/);
+  });
+});
