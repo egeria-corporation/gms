@@ -179,3 +179,12 @@ export function VerificationBadge({ verification, level }: { verification?: Veri
     </span>
   );
 }
+
+/**
+ * A workspace's own display name, shown second to the Passport legal name beside the badge
+ * (review NP-02). Nothing when the names are the same.
+ */
+export function WorkspaceName({ name }: { name?: string | null | undefined }) {
+  if (!name) return null;
+  return <span className="small muted">Workspace name: {name}</span>;
+}

@@ -298,6 +298,8 @@ export interface EvaluateInput {
 export interface PublicFunder {
   handle: string;
   name: string;
+  /** The workspace's own name when it differs from the Passport legal name in `name`. */
+  workspaceName?: string | null;
   brand: { logoUrl: string | null; accent: string | null; onAccent: string | null };
   mission: string | null;
   website: string | null;

@@ -14,7 +14,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { SelfReportedTag, StatusBadge, VerificationBadge } from "../../components/status.tsx";
+import { SelfReportedTag, StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
 import { AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
@@ -372,6 +372,7 @@ export default function ApplicationDetail() {
                     {a.applicant.name}
                   </span>
                   <VerificationBadge verification={a.applicant.verification} level={a.applicant.level ?? a.verificationLevelAtSubmit} />
+                  <WorkspaceName name={a.applicant.workspaceName} />
                   {org?.levelChangedSinceSubmit && (
                     <span className="pill-warn">
                       <RefreshCw className="ic ic-sm" aria-hidden="true" />

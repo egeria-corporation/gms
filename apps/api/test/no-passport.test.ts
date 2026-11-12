@@ -244,3 +244,34 @@ describe("what funders and the public are told", () => {
     expect(detail.body.data).toMatchObject({ organization: null, selfDeclared: { legalName: "Lakeside Pantry Inc." } });
   });
 });
+
+describe("names and levels beside the badge (NP-02, NP-08, NP-09)", () => {
+  it("names a Passport workspace by its Passport record, however the workspace renamed itself", async () => {
+    const h = await harness();
+    const s = await scenario(h);
+    // The scenario's applicant is Passport-linked (L3); an admin renames the workspace.
+    expect((await s.call(s.applicant, "PATCH", `/gms/workspaces/${WS_APPLICANT}`, { displayName: "American Red Cross" })).status).toBe(200);
+    await s.call(s.applicant, "POST", "/common-grants/applications/start", { competitionId: s.uuid.comp });
+    await h.repos.table("applications").update({ applicant_workspace_id: WS_APPLICANT }, { submitted_at: h.clock.now.toISOString(), status: "submitted" });
+    await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });
+    const inbox = await s.call<{ items: { applicant: { name: string; workspaceName: string | null; verification: unknown } }[] }>(s.funder, "GET", "/gms/applications");
+    expect(inbox.body.items[0]!.applicant).toMatchObject({ name: "Alder Creek Family Services", workspaceName: "American Red Cross", verification: { source: "passport", level: "L3" } });
+    const grantees = await s.call<{ items: { name: string; workspaceName: string | null }[] }>(s.funder, "GET", "/gms/grantees");
+    expect(grantees.body.items[0]).toMatchObject({ name: "Alder Creek Family Services", workspaceName: "American Red Cross" });
+  });
+
+  it("gives tranche recipients a verification, the level only while shared, and no stale level", async () => {
+    const h = await harness();
+    const s = await scenario(h);
+    // A recipient without Passport that still carries an old level in the raw column.
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: null, org_projection: null, verification_level: "L3", profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside Pantry Inc." } });
+    const award = await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, title: "Pantry grant", recipient_workspace_id: WS_APPLICANT, status: "active" });
+    const schedule = await h.repos.table("payment_schedules").insert({ workspace_id: WS_FUNDER, award_id: award.id });
+    await h.repos.table("tranches").insert({ workspace_id: WS_FUNDER, award_id: award.id, schedule_id: schedule.id, seq: 1, amount_minor: 100_000, status: "due" });
+    const list = await s.call<{ items: { recipient: { name: string; verificationLevel: string | null; verification: unknown } }[] }>(s.funder, "GET", "/gms/tranches");
+    expect(list.status).toBe(200);
+    expect(list.body.items[0]!.recipient).toMatchObject({ name: "Alder Creek Family Services", workspaceName: null, verificationLevel: null, verification: { source: "self_declared", level: null } });
+    const alerts = await s.call<{ data: { kind: string }[] } | { items: { kind: string }[] }>(s.funder, "GET", "/gms/payments/alerts");
+    expect(JSON.stringify(alerts.body)).not.toContain("level_below_l3");
+  });
+});

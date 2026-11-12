@@ -741,7 +741,13 @@ model GmsApplication {
   verificationLevelAtSubmit: VerificationLevel | null;
   applicant: {
     workspaceId: CommonGrants.Types.uuid;
+
+    /** The Passport legal name for a Passport workspace, else the workspace's name. */
     name: string | null;
+
+    /** The workspace's own display name, when it differs from the Passport legal name in `name`. */
+    workspaceName?: string | null;
+
     handle: string | null;
 
     /** The applicant's current Passport level; null once their consent is revoked. */
@@ -1490,7 +1496,13 @@ model GmsAward {
   };
   recipient: {
     workspaceId: CommonGrants.Types.uuid;
+
+    /** The Passport legal name for a Passport workspace, else the workspace's name. */
     name: string | null;
+
+    /** The workspace's own display name, when it differs from the Passport legal name in `name`. */
+    workspaceName?: string | null;
+
     handle: string | null;
 
     /** The recipient's current Passport level, while their consent stands */
@@ -2042,7 +2054,13 @@ model PublicFunder {
   contacts?: FunderContact[];
 
   handle: string;
+
+  /** The Passport legal name for a Passport-linked funder, else the workspace's name. */
   name: string;
+
+  /** The workspace's own display name, when it differs from `name`. */
+  workspaceName?: string | null;
+
   brand: {
     logoUrl: string | null;
     accent: string | null;

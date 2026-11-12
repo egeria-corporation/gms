@@ -14,7 +14,7 @@ import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { orgFacts, selfDeclaredOf, verificationShared } from "./profile.ts";
+import { namesOf, orgFacts, selfDeclaredOf, verificationShared } from "./profile.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -43,7 +43,9 @@ function summary(a: App, applicant: Ws | undefined, consented: boolean) {
     verificationLevelAtSubmit: a.verification_level_at_submit,
     applicant: {
       workspaceId: a.applicant_workspace_id,
-      name: applicant?.display_name ?? null,
+      /** The Passport legal name for a Passport workspace; its own display name is `workspaceName`. */
+      name: applicant ? namesOf(applicant).name : null,
+      workspaceName: applicant ? namesOf(applicant).workspaceName : null,
       handle: applicant?.handle ?? null,
       // The current level is the applicant's to share; it shows only while their consent stands.
       level: consented ? (applicant?.verification_level ?? null) : null,

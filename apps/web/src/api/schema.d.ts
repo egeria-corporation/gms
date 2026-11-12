@@ -9285,7 +9285,10 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
@@ -10886,7 +10889,10 @@ export interface components {
             verificationLevelAtSubmit: components["schemas"]["Models.VerificationLevel"] | null;
             applicant: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The applicant's current Passport level; null once their consent is revoked. */
                 level: components["schemas"]["Models.VerificationLevel"] | null;
@@ -10961,7 +10967,10 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
@@ -11022,7 +11031,10 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
@@ -11267,7 +11279,10 @@ export interface components {
         "Models.GranteeDetail": {
             workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
             handle: string;
+            /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11327,7 +11342,10 @@ export interface components {
         "Models.GranteeSummary": {
             workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
             handle: string;
+            /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11798,7 +11816,10 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
@@ -12485,7 +12506,10 @@ export interface components {
             /** @description Named contacts the funder marked public */
             contacts?: components["schemas"]["Models.FunderContact"][];
             handle: string;
+            /** @description The Passport legal name for a Passport-linked funder, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             brand: {
                 logoUrl: string | null;
                 accent: string | null;
@@ -13598,9 +13622,14 @@ export interface components {
             } | null;
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string;
+                /** @description The workspace's own display name, when it differs from the Passport name. */
+                workspaceName?: string | null;
                 handle: string;
+                /** @description Passport's level, while the organization shares its record; null otherwise and without Passport. */
                 verificationLevel: string | null;
+                verification?: components["schemas"]["Models.Verification"];
                 pendingDestinationChange: boolean;
             } | null;
         };

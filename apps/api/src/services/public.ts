@@ -8,7 +8,7 @@ import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
-import { orgFacts, verificationOf } from "./profile.ts";
+import { namesOf, orgFacts, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type PublicContext = Pick<ServiceContext, "repos" | "config" | "now">;
@@ -161,7 +161,7 @@ function publicFunder(w: Row<"workspaces">) {
   const contactEmail = typeof settings.contactEmail === "string" ? settings.contactEmail : typeof org.emails?.primary === "string" ? org.emails.primary : null;
   // Only contacts the funder marked public; the rest are for organizations it already works with.
   const contacts = contactsOf(w).filter((c) => c.public);
-  return { contactEmail, contacts, handle: w.handle, name: w.display_name, brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification };
+  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification };
 }
 
 const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
@@ -200,7 +200,7 @@ async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
   return awards.map((a) => {
     const f = (a.funding ?? {}) as { awardedAmount?: { amount: string; currency: string } };
     const start = ((a.key_dates ?? {}) as { awardDate?: { date?: string } }).awardDate?.date ?? a.created_at;
-    return { recipient: names.get(a.recipient_workspace_id as string)?.display_name ?? null, title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
+    return { recipient: ((r) => (r ? namesOf(r).name : null))(names.get(a.recipient_workspace_id as string)), title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
   });
 }
 

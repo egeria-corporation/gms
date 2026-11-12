@@ -146,6 +146,18 @@ export function selfDeclaredOrg(p: SelfDeclaredProfile): JsonObject {
   return org;
 }
 
+/**
+ * The name shown beside an organization's verification badge (review NP-02). A Passport workspace
+ * is named by its Passport record; the workspace's own display name, which any admin can change,
+ * comes second as `workspaceName` (null when it is the same). Without Passport there is no other name.
+ */
+export function namesOf(ws: Pick<Ws, "display_name" | "legal_name" | "org_projection" | "passport_org_id" | "profile_source" | "self_declared_profile">): { name: string; workspaceName: string | null } {
+  if (profileSourceOf(ws) !== "passport") return { name: ws.display_name, workspaceName: null };
+  const projected = (ws.org_projection as { name?: unknown } | null)?.name;
+  const name = (typeof projected === "string" && projected.trim() ? projected : null) ?? ws.legal_name ?? ws.display_name;
+  return { name, workspaceName: ws.display_name !== name ? ws.display_name : null };
+}
+
 /** What prefill and eligibility read about an applicant, and where it came from. */
 export interface OrgFacts {
   org: JsonObject;

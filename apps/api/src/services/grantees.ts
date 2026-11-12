@@ -13,7 +13,7 @@ import { audit, authorize, emit, required, type ServiceContext, type ServiceWork
 import { passportClientFor } from "./passport-link.ts";
 import { payeeFactsOf } from "./payments.ts";
 import type { PageRequest } from "./programs.ts";
-import { profileSourceOf, selfDeclaredOf, verificationOf } from "./profile.ts";
+import { namesOf, profileSourceOf, selfDeclaredOf, verificationOf } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -29,7 +29,7 @@ const consented = async (ctx: ServiceContext, applicantId: string, funderId: str
 
 function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { applications: number; awards: number; pendingChanges: number; totalAwardedMinor?: number }) {
   const facts = payeeFactsOf(w);
-  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, name: w.display_name, legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
+  return { workspaceId: w.id, totalAwardedMinor: counts.totalAwardedMinor ?? 0, handle: w.handle, ...namesOf(w), legalName: w.legal_name, passportOrgId: w.passport_org_id, verificationLevel: w.verification_level, verification: verificationOf(w), payee: { pendingDestinationChange: !!facts.pendingDestinationChange, active: facts.active !== false }, tags: record?.tags ?? [], ownerUserId: record?.owner_user_id ?? null, ...counts };
 }
 
 export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { q?: string | undefined; tag?: string | undefined } = {}) {
@@ -107,7 +107,7 @@ export async function listOrgChanges(ctx: ServiceContext, page: PageRequest, f: 
   const where = { workspace_id: ws.id, ...(f.status ? { status: f.status } : {}) };
   const [rows, total] = await Promise.all([ctx.repos.table("org_change_inbox").find(where, { orderBy: "created_at", ascending: false, limit: page.pageSize, offset: page.offset }), ctx.repos.table("org_change_inbox").count(where)]);
   const orgs = rows.length ? (await ctx.repos.table("workspaces").find({ passport_org_id: [...new Set(rows.map((r) => r.passport_org_id))] })).filter((w) => w.kind === "applicant") : [];
-  return { items: rows.map((c) => ({ ...changeView(c), grantee: (({ w }) => (w ? { workspaceId: w.id, name: w.display_name, handle: w.handle } : null))({ w: orgs.find((o) => o.passport_org_id === c.passport_org_id) }) })), total };
+  return { items: rows.map((c) => ({ ...changeView(c), grantee: (({ w }) => (w ? { workspaceId: w.id, ...namesOf(w), handle: w.handle } : null))({ w: orgs.find((o) => o.passport_org_id === c.passport_org_id) }) })), total };
 }
 
 async function decide(ctx: ServiceContext, changeId: string, status: "accepted" | "dismissed") {

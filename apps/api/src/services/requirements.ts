@@ -12,7 +12,7 @@ import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { awardFields } from "./agreements.ts";
 import { primaryEmail } from "./apply.ts";
-import { orgFacts } from "./profile.ts";
+import { namesOf, orgFacts, verificationOf } from "./profile.ts";
 import { STAFF_ROLES, emitFor, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
@@ -189,7 +189,7 @@ export async function listDueRequirements(ctx: ServiceContext, page: PageRequest
     rows.map(async (r) => {
       const a = awards.find((x) => x.id === r.award_id);
       const w = recipients.find((x) => x.id === a?.recipient_workspace_id);
-      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, name: w.display_name, handle: w.handle } : null };
+      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, ...namesOf(w), handle: w.handle, verification: verificationOf(w) } : null };
     }),
   );
   return { items, total };

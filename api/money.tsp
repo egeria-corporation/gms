@@ -71,9 +71,19 @@ model TrancheListItem {
   } | null;
   recipient: {
     workspaceId: CommonGrants.Types.uuid;
+
+    /** The Passport legal name for a Passport workspace, else the workspace's name. */
     name: string;
+
+    /** The workspace's own display name, when it differs from the Passport name. */
+    workspaceName?: string | null;
+
     handle: string;
+
+    /** Passport's level, while the organization shares its record; null otherwise and without Passport. */
     verificationLevel: string | null;
+
+    verification?: Verification;
     pendingDestinationChange: boolean;
   } | null;
 }
@@ -411,7 +421,13 @@ model BudgetVariance {
 model GranteeSummary {
   workspaceId: CommonGrants.Types.uuid;
   handle: string;
+
+  /** The Passport legal name for a Passport workspace, else the workspace's name. */
   name: string;
+
+  /** The workspace's own display name, when it differs from `name`. */
+  workspaceName?: string | null;
+
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;

@@ -11,7 +11,7 @@ import type { Agreement, AwardDetail, AwardSummary } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
+import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
@@ -298,6 +298,7 @@ export default function AwardAgreement() {
                           </Link>
                           <div className="sub">
                             <VerificationBadge verification={a.recipient?.verification} level={a.recipient?.level} />
+                            <WorkspaceName name={a.recipient?.workspaceName} />
                           </div>
                         </div>
                       </td>
@@ -328,6 +329,7 @@ export default function AwardAgreement() {
                         {award.data.recipient?.name}
                       </span>
                       <VerificationBadge verification={award.data.recipient?.verification} level={award.data.recipient?.level} />
+                      <WorkspaceName name={award.data.recipient?.workspaceName} />
                       <StatusBadge kind="award" status={award.data.status} />
                     </div>
                     <h2>{award.data.title}</h2>
