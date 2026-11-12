@@ -15,7 +15,6 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { SelfReportedTag, StatusBadge, VerificationBadge } from "../../components/status.tsx";
-import { verificationOf } from "../../lib/profile.ts";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
 import { AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
@@ -372,7 +371,7 @@ export default function ApplicationDetail() {
                   <span className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
                     {a.applicant.name}
                   </span>
-                  <VerificationBadge verification={verificationOf(a.applicant)} level={a.applicant.level ?? a.verificationLevelAtSubmit} />
+                  <VerificationBadge verification={a.applicant.verification} level={a.applicant.level ?? a.verificationLevelAtSubmit} />
                   {org?.levelChangedSinceSubmit && (
                     <span className="pill-warn">
                       <RefreshCw className="ic ic-sm" aria-hidden="true" />
@@ -495,7 +494,7 @@ export default function ApplicationDetail() {
                 <div className="card">
                   <div className="card-h">
                     <h3>Applicant</h3>
-                    <VerificationBadge verification={verificationOf(a.applicant)} level={org?.level ?? a.applicant.level} />
+                    <VerificationBadge verification={a.applicant.verification} level={org?.level ?? a.applicant.level} />
                   </div>
                   <div className="card-b">
                     {org ? (

@@ -15,6 +15,7 @@ import type {
   Opportunity,
   PublicFunder,
   PublicOpportunityCard,
+  SelfDeclaredProfile,
   Stage,
   Verification,
   WorkspaceRecord,
@@ -47,12 +48,8 @@ const clone = <T>(v: T): T => structuredClone(v);
 const uuid = () => crypto.randomUUID();
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
 const invalid = (message: string, errors: unknown[] = []) => new ApiError(422, message, errors);
-export const verificationOfRecord = (r: WorkspaceRecord): Verification => {
-  const source = r.profileSource ?? (r.passportOrgId || r.verificationLevel ? "passport" : "none");
-  const level = source === "passport" && r.verificationLevel && /^L[0-3]$/.test(r.verificationLevel) ? (r.verificationLevel as Verification["level"]) : null;
-  return { source, level };
-};
-const checkProfile = (p: Parameters<GmsApi["updateProfile"]>[1]) => {
+export const verificationOfRecord = (r: WorkspaceRecord): Verification => r.verification;
+const checkProfile = (p: SelfDeclaredProfile) => {
   const problems = profileProblems(p);
   if (problems.length) throw invalid("Check the organization details", problems);
 };
@@ -125,7 +122,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   function fixtureApplicantRecord(workspaceId: string): WorkspaceRecord | null {
     const m = memberships.find((x) => x.id === workspaceId && x.kind === "applicant");
     if (!m || store.workspaces.some((w) => w.record.id === workspaceId)) return null;
-    return { id: m.id, kind: "applicant", handle: m.handle, displayName: m.name, legalName: m.name, passportOrgId: "30000000-0000-4000-8000-000000000011", verificationLevel: "L3", profileSource: "passport", selfDeclaredProfile: null, brand: {}, settings: {}, status: "active" };
+    return { id: m.id, kind: "applicant", handle: m.handle, displayName: m.name, legalName: m.name, passportOrgId: "30000000-0000-4000-8000-000000000011", verificationLevel: "L3", profileSource: "passport", verification: { source: "passport", level: "L3" }, profile: null, brand: {}, settings: {}, status: "active" };
   }
   async function member(workspaceId: string): Promise<WorkspaceData> {
     await me();
@@ -284,22 +281,30 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(input.handle)) throw invalid("Check the handle", [{ path: "handle", message: "Use 3 to 64 lowercase letters, digits and hyphens" }]);
       if (store.workspaces.some((w) => w.record.handle === input.handle)) throw new ApiError(409, "A workspace with this handle already exists", [{ path: "handle", message: "This handle is taken" }]);
       if (input.profile) checkProfile(input.profile);
-      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.profile?.legalName ?? input.legalName ?? null, passportOrgId: null, verificationLevel: null, profileSource: input.profile ? "self_declared" : "none", selfDeclaredProfile: input.profile ? clone(input.profile) : null, brand: {}, settings: {}, status: "active" };
+      const record: WorkspaceRecord = { id: uuid(), kind: input.kind, handle: input.handle, displayName: input.displayName, legalName: input.profile?.legalName ?? input.legalName ?? null, passportOrgId: null, verificationLevel: null, profileSource: input.profile ? "self_declared" : "none", verification: { source: input.profile ? "self_declared" : "none", level: null }, profile: input.profile ? clone(input.profile) : null, brand: {}, settings: {}, status: "active" };
       const warnings = brandWrite(record, input.brand);
       store.workspaces.push({ record, profile: { mission: null, website: null }, members: [{ userId: profile.userId, role: "admin", email: profile.email }], invitations: [], passport: { linked: false, passportOrgId: record.passportOrgId, check: { state: "fail", reason: "Connect Passport to pay. Awards still work without it" }, canDebit: null }, programs: [], rubrics: [], opportunities: [], competitions: [], forms: [] });
       memberships.push({ id: record.id, handle: record.handle, name: record.displayName, kind: record.kind, role: "admin", requiresMfa: true });
       currentId = record.id;
       return clone({ workspace: record, warnings });
     },
-    async updateProfile(id, profile) {
+    async updateProfile(id, patch) {
       if (fixtureApplicantRecord(id)) throw new ApiError(409, "This organization’s details come from Passport. Edit them there.", [{ code: "profile_from_passport" }]);
       const w = await member(id);
       if (w.record.profileSource === "passport" || w.record.passportOrgId) throw new ApiError(409, "This organization’s details come from Passport. Edit them there.", [{ code: "profile_from_passport" }]);
-      checkProfile(profile);
+      // A merge patch: a field left out keeps its value, null removes it.
+      const merged: Record<string, unknown> = { ...(w.record.profile ?? {}) };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) delete merged[k];
+        else if (v !== undefined) merged[k] = v;
+      }
+      const next = merged as unknown as SelfDeclaredProfile;
+      checkProfile(next);
       w.record.profileSource = "self_declared";
-      w.record.selfDeclaredProfile = clone(profile);
-      w.record.legalName = profile.legalName;
-      return clone({ workspace: w.record, warnings: [] });
+      w.record.verification = { source: "self_declared", level: null };
+      w.record.profile = clone(next);
+      w.record.legalName = next.legalName;
+      return clone({ workspaceId: w.record.id, source: "self_declared" as const, selfDeclared: next, verification: w.record.verification });
     },
     async workspaceRecord(id) {
       const fixture = fixtureApplicantRecord(id);

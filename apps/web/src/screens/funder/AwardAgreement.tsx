@@ -12,7 +12,6 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
-import { verificationOf } from "../../lib/profile.ts";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
@@ -298,7 +297,7 @@ export default function AwardAgreement() {
                             {a.recipient?.name ?? "Recipient"}
                           </Link>
                           <div className="sub">
-                            <VerificationBadge verification={verificationOf(a.recipient)} level={a.recipient?.level} />
+                            <VerificationBadge verification={a.recipient?.verification} level={a.recipient?.level} />
                           </div>
                         </div>
                       </td>
@@ -328,7 +327,7 @@ export default function AwardAgreement() {
                       <span className="b" style={{ color: "#0D2A43" }}>
                         {award.data.recipient?.name}
                       </span>
-                      <VerificationBadge verification={verificationOf(award.data.recipient)} level={award.data.recipient?.level} />
+                      <VerificationBadge verification={award.data.recipient?.verification} level={award.data.recipient?.level} />
                       <StatusBadge kind="award" status={award.data.status} />
                     </div>
                     <h2>{award.data.title}</h2>

@@ -8,6 +8,8 @@ import { useApiMutation, useApiQuery } from "../api/hooks.ts";
 import { usePassportFlags } from "../api/launchHooks.ts";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
+import type { SelfDeclaredProfile } from "../api/types.ts";
+import { toPatch } from "../lib/profile.ts";
 import { ProfileForm } from "./ProfileForm.tsx";
 import { ErrorBanner, Loading, Notice, SaveNote } from "./ui.tsx";
 
@@ -15,7 +17,7 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
   const ws = useCurrentWorkspace();
   const flags = usePassportFlags();
   const record = useApiQuery((api) => api.workspaceRecord(workspaceId), [workspaceId]);
-  const save = useApiMutation((api, profile: Parameters<typeof api.updateProfile>[1]) => api.updateProfile(workspaceId, profile));
+  const save = useApiMutation((api, profile: SelfDeclaredProfile) => api.updateProfile(workspaceId, toPatch(profile)));
   const canEdit = ws?.member.role === "admin";
 
   let body;
@@ -23,7 +25,7 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
   else if (record.status === "error") body = <ErrorBanner error={record.error} onRetry={record.reload} title="Your organization details could not be loaded" />;
   else {
     const r = record.data;
-    const fromPassport = r.profileSource ? r.profileSource === "passport" : !!r.passportOrgId;
+    const fromPassport = r.profileSource === "passport";
     if (fromPassport) {
       body = (
         <>
@@ -52,15 +54,15 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
           </Notice>
           {canEdit ? (
             <ProfileForm
-              key={JSON.stringify(r.selfDeclaredProfile ?? null)}
+              key={JSON.stringify(r.profile ?? null)}
               idPrefix="settings-profile"
-              initial={r.selfDeclaredProfile ?? { legalName: r.legalName ?? r.displayName }}
+              initial={r.profile ?? { legalName: r.legalName ?? r.displayName }}
               submitLabel="Save details"
               busy={save.state === "saving"}
               error={save.error}
               onSubmit={async (profile) => {
                 const result = await save.run(profile);
-                if (result) record.set(result.workspace);
+                if (result && record.status === "ready") record.set({ ...record.data, profile: result.selfDeclared, profileSource: result.source, verification: result.verification });
               }}
               secondary={<SaveNote state={save.state} />}
             />
@@ -83,7 +85,7 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
     <section className="card" id="organization-details" aria-labelledby="org-details-h">
       <div className="card-h">
         <div className="row" style={{ gap: "8px" }}>
-          {record.status === "ready" && !(record.data.profileSource ? record.data.profileSource === "passport" : !!record.data.passportOrgId) && <ShieldOff className="ic" aria-hidden="true" />}
+          {record.status === "ready" && record.data.profileSource !== "passport" && <ShieldOff className="ic" aria-hidden="true" />}
           <h2 id="org-details-h" style={{ fontSize: "18px" }}>
             Organization details
           </h2>

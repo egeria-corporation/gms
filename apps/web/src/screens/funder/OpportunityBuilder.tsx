@@ -78,8 +78,8 @@ function draftOf(o: Opportunity | undefined, programId: string): Draft {
     publicPage: o?.publish.publicPage !== false,
     openGrantsIndex: o?.publish.openGrantsIndex !== false,
     sitemap: o?.publish.sitemap !== false,
-    requirePassport: o?.requirePassport === true,
-    acceptSelfReported: o?.acceptSelfReported === true,
+    requirePassport: o?.publish.requirePassport === true,
+    acceptSelfReported: o?.publish.acceptSelfReported === true,
   };
 }
 
@@ -134,9 +134,7 @@ function toInput(d: Draft): OpportunityInput {
     keyDates: { ...(d.opens ? { postDate: day("Opens", d.opens) } : {}), ...(d.closes ? { closeDate: day(d.closesName.trim() || "Closes", d.closes) } : {}), ...(Object.keys(otherDates).length ? { otherDates } : {}) },
     acceptedApplicantTypes: d.types,
     eligibilityRules: rowsToRules(d.rows),
-    publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap },
-    requirePassport: d.requirePassport,
-    acceptSelfReported: d.acceptSelfReported,
+    publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap, requirePassport: d.requirePassport, acceptSelfReported: d.acceptSelfReported },
   };
 }
 

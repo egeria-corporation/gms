@@ -213,11 +213,11 @@ model Workspace {
   brand?: Brand;
   settings?: Record<unknown>;
   verificationLevel?: VerificationLevel;
-  profileSource?: ProfileSource;
-  verification?: Verification;
+  profileSource: ProfileSource;
+  verification: Verification;
 
   /** The self-declared profile; null for a Passport workspace and for one with no profile. */
-  profile?: SelfDeclaredProfile | null;
+  profile: SelfDeclaredProfile | null;
 
   status: string;
   ...Timestamps;
@@ -493,7 +493,7 @@ model GmsOpportunity {
   eligibilityRules: EligibilityRule;
 
   publish: PublishSettings;
-  applicantOptions?: ApplicantOptions;
+  applicantOptions: ApplicantOptions;
   customFields: Record<unknown>;
   published: boolean;
   publishedAt: utcDateTime | null;
@@ -748,7 +748,7 @@ model GmsApplication {
     level: VerificationLevel | null;
 
     /** Passport-verified, self-declared (not verified) or no profile. The level only while consent stands. */
-    verification?: Verification;
+    verification: Verification;
   };
   updatedAt: utcDateTime;
 
@@ -762,13 +762,13 @@ model GmsApplication {
 
   /** Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
   organization?: {
-    source?: ProfileSource;
+    source: ProfileSource;
 
     /** The Passport record; null for an organization without Passport. */
     `projection`: OrganizationBase | null;
 
     /** What an organization without Passport entered itself. Not verified. */
-    selfDeclared?: SelfDeclaredProfile | null;
+    selfDeclared: SelfDeclaredProfile | null;
 
     level: VerificationLevel | null;
     verifiedAt: utcDateTime | null;
@@ -1496,7 +1496,7 @@ model GmsAward {
     /** The recipient's current Passport level, while their consent stands */
     level: string | null;
 
-    verification?: Verification;
+    verification: Verification;
   } | null;
   recipientIndividual: Record<unknown> | null;
   passport: {
@@ -1904,7 +1904,7 @@ model ApplicantReadiness {
   linked: boolean;
 
   /** Without Passport the checks are "Profile complete" and an optional "Connect Passport for verification". */
-  source?: ProfileSource;
+  source: ProfileSource;
 
   syncedAt: utcDateTime | null;
   checks: ReadinessCheck[];
@@ -1926,10 +1926,10 @@ model MyOrganization {
   displayName: string;
   passportOrgId: CommonGrants.Types.uuid | null;
   linked: boolean;
-  source?: ProfileSource;
+  source: ProfileSource;
 
   /** The profile an organization without Passport entered itself; edit it at `PATCH /gms/workspaces/{id}/profile`. */
-  selfDeclared?: SelfDeclaredProfile | null;
+  selfDeclared: SelfDeclaredProfile | null;
 
   level: VerificationLevel | null;
   verifiedAt: utcDateTime | null;
@@ -2000,8 +2000,8 @@ model MyWorkspace {
 
   passportOrgId: CommonGrants.Types.uuid | null;
   verificationLevel: VerificationLevel | null;
-  profileSource?: ProfileSource;
-  verification?: Verification;
+  profileSource: ProfileSource;
+  verification: Verification;
 }
 
 /** The signed-in person and the workspaces they can open. */
@@ -2054,7 +2054,7 @@ model PublicFunder {
   /** Passport's level; null when the funder's organization is not verified with Passport. */
   verificationLevel: string | null;
 
-  verification?: Verification;
+  verification: Verification;
 }
 
 model PublicOpportunityCard {

@@ -12,7 +12,7 @@ import { VerificationBadge } from "../src/components/status.tsx";
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
 import { IDS } from "../src/mocks/store.ts";
-import { cleanProfile, profileProblems, verificationOf } from "../src/lib/profile.ts";
+import { cleanProfile, profileProblems } from "../src/lib/profile.ts";
 
 function Where() {
   const l = useLocation();
@@ -52,11 +52,6 @@ describe("profile rules", () => {
       address: { city: "Reno", country: "US" },
     });
   });
-  it("reads verification from an API answer, and ignores anything else", () => {
-    expect(verificationOf({ verification: { source: "passport", level: "L2" } })).toEqual({ source: "passport", level: "L2" });
-    expect(verificationOf({ verification: { source: "bogus" } })).toBeUndefined();
-    expect(verificationOf(undefined)).toBeUndefined();
-  });
 });
 
 describe("VerificationBadge", () => {
@@ -95,7 +90,7 @@ describe("applicant onboarding", () => {
     const made = me.workspaces.find((w) => w.handle === "pine-ridge-youth-alliance")!;
     const record = await services.api.workspaceRecord(made.id);
     expect(record.profileSource).toBe("self_declared");
-    expect(record.selfDeclaredProfile).toEqual({ legalName: "Pine Ridge Youth Alliance", contactEmail: "hello@pineridge.example" });
+    expect(record.profile).toEqual({ legalName: "Pine Ridge Youth Alliance", contactEmail: "hello@pineridge.example" });
     expect(record.passportOrgId).toBeNull();
   });
 
@@ -175,7 +170,7 @@ describe("settings", () => {
     await userEvent.clear(mission);
     await userEvent.type(mission, "Oak Hollow Community Trust");
     await userEvent.click(screen.getByRole("button", { name: "Save details" }));
-    await waitFor(async () => expect((await services.api.workspaceRecord(made.workspace.id)).selfDeclaredProfile?.legalName).toBe("Oak Hollow Community Trust"));
+    await waitFor(async () => expect((await services.api.workspaceRecord(made.workspace.id)).profile?.legalName).toBe("Oak Hollow Community Trust"));
     expect(screen.getByRole("link", { name: "Connect Passport" })).toHaveAttribute("href", "/onboarding/applicant");
   });
 
@@ -202,8 +197,8 @@ describe("settings", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]!);
     await waitFor(async () => {
       const saved = await services.api.getOpportunity(IDS.oppHealth27);
-      expect(saved.requirePassport).toBe(true);
-      expect(saved.acceptSelfReported).toBe(true);
+      expect(saved.publish.requirePassport).toBe(true);
+      expect(saved.publish.acceptSelfReported).toBe(true);
     });
   });
 

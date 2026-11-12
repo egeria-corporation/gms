@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The self-declared profile: its limits (the same the API enforces) and the check the form and the
 // mock share. The API remains the authority; this only saves a round trip.
-import type { SelfDeclaredProfile, Verification } from "../api/types.ts";
+import type { SelfDeclaredProfile, SelfDeclaredProfilePatch } from "../api/types.ts";
 
 export const ORG_TYPES: { value: string; label: string }[] = [
   { value: "nonprofit", label: "Nonprofit" },
@@ -59,17 +59,11 @@ export function cleanProfile(p: SelfDeclaredProfile): SelfDeclaredProfile {
   return out;
 }
 
-/** True when an organization's details come from Passport. Anything else is shown as not verified. */
-export const isPassportVerified = (v: Verification | null | undefined): boolean => v?.source === "passport";
+const OPTIONAL: (keyof SelfDeclaredProfile)[] = ["displayName", "website", "mission", "address", "contactEmail", "orgType", "ein"];
 
-/** Reads the `verification` an API answer carries, if it does. */
-export function verificationOf(x: unknown): Verification | undefined {
-  const v = x && typeof x === "object" ? (x as { verification?: unknown }).verification : undefined;
-  if (!v || typeof v !== "object") return undefined;
-  const { source, level } = v as { source?: unknown; level?: unknown };
-  if (source !== "passport" && source !== "self_declared" && source !== "none") return undefined;
-  return { source, level: typeof level === "string" && /^L[0-3]$/.test(level) ? (level as Verification["level"]) : null };
+/** A merge patch that makes the stored profile equal to `p`: optional fields left empty are removed (null). */
+export function toPatch(p: SelfDeclaredProfile): SelfDeclaredProfilePatch {
+  const patch: Record<string, unknown> = { legalName: p.legalName };
+  for (const k of OPTIONAL) patch[k] = p[k] ?? null;
+  return patch as SelfDeclaredProfilePatch;
 }
-
-/** Adds `verification` to an object whose generated type does not carry it yet (mocks only). */
-export const withVerification = <T extends object>(o: T, v: Verification): T => ({ ...o, verification: v }) as T;

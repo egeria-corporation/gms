@@ -30,7 +30,6 @@ import type { Rubric } from "../api/types.ts";
 import { MOCK_USER } from "./fixtures.ts";
 import { LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
 import { IDS, type WorkspaceData } from "./store.ts";
-import { verificationOf, withVerification } from "../lib/profile.ts";
 
 export const USERS = {
   dana: MOCK_USER.userId,
@@ -105,7 +104,7 @@ function application(n: number, name: string, handle: string, title: string, sta
     submittedAt: at(stage === "loi" ? "2027-02-21T17:10" : "2027-04-16T16:42"),
     verificationLevelAtSubmit: level,
     // One fixture applicant has no Passport record: its details are its own, and funders see "Not verified".
-    applicant: withVerification({ workspaceId: uid("2", 10 + n), name, handle, level }, handle === "meadowbrook" ? { source: "self_declared", level: null } : { source: "passport", level }),
+    applicant: { workspaceId: uid("2", 10 + n), name, handle, level, verification: handle === "meadowbrook" ? { source: "self_declared", level: null } : { source: "passport", level } },
     updatedAt: at("2027-04-18T09:00"),
     ...more,
   };
@@ -197,7 +196,7 @@ function seed(): State {
       programId: IDS.programHealth27,
       parentAwardId: null,
       funder: { workspaceId: IDS.riverbend, name: "Riverbend Community Foundation", handle: "riverbend", brand: null },
-      recipient: withVerification({ workspaceId: uid("2", 11), name: "Alder Creek Family Services", handle: "alder-creek", level: "L3" }, { source: "passport", level: "L3" }),
+      recipient: { workspaceId: uid("2", 11), name: "Alder Creek Family Services", handle: "alder-creek", level: "L3", verification: { source: "passport", level: "L3" } },
       recipientIndividual: null,
       passport: { awardId: null, syncedAt: null, mirror: "pending" },
       createdAt: at("2027-05-18T17:00"),
@@ -346,7 +345,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
         ],
       },
       decisionId: s.decisions.find((d) => d.applicationId === a.id)?.id ?? null,
-      organization: { projection: { id: a.applicant.workspaceId, name: a.applicant.name ?? "", orgType: { term: "Nonprofit", class: "Organization types", code: "EA000000" }, addresses: { primary: { street1: "418 Mill Road", city: "Alder Creek", stateOrProvince: "OR", country: "US", postalCode: "97000" } }, identifiers: { "org:us:ein": { id: "001234567" } }, mission: "Health navigation and family support for rural households." } as never, level: a.applicant.level, verifiedAt: at("2027-01-12T17:20"), syncedAt: at("2027-04-20T08:58"), levelChangedSinceSubmit: false },
+      organization: { source: a.applicant.verification.source, selfDeclared: null, projection: { id: a.applicant.workspaceId, name: a.applicant.name ?? "", orgType: { term: "Nonprofit", class: "Organization types", code: "EA000000" }, addresses: { primary: { street1: "418 Mill Road", city: "Alder Creek", stateOrProvince: "OR", country: "US", postalCode: "97000" } }, identifiers: { "org:us:ein": { id: "001234567" } }, mission: "Health navigation and family support for rural households." } as never, level: a.applicant.level, verifiedAt: at("2027-01-12T17:20"), syncedAt: at("2027-04-20T08:58"), levelChangedSinceSubmit: false },
       formResponses,
       timeline: events(a),
     };
@@ -714,7 +713,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
           const awardId = newId("awd_");
           const agreementId = newId("agr_");
           app.status = "accepted";
-          s.awards.push({ ...clone(seed().awards[0]!), id: awardId, title: app.title, status: "offered", requestedAmountMinor: app.requestedAmountMinor, awardedAmountMinor: d.amountMinor, applicationId: app.id, programId: meter.programId, recipient: withVerification({ workspaceId: app.applicant.workspaceId, name: app.applicant.name, handle: app.applicant.handle, level: app.applicant.level }, verificationOf(app.applicant) ?? { source: "none", level: null }), createdAt: ctx.now(), updatedAt: ctx.now(), tranches: [], requirements: [], amendments: [] });
+          s.awards.push({ ...clone(seed().awards[0]!), id: awardId, title: app.title, status: "offered", requestedAmountMinor: app.requestedAmountMinor, awardedAmountMinor: d.amountMinor, applicationId: app.id, programId: meter.programId, recipient: { workspaceId: app.applicant.workspaceId, name: app.applicant.name, handle: app.applicant.handle, level: app.applicant.level, verification: app.applicant.verification }, createdAt: ctx.now(), updatedAt: ctx.now(), tranches: [], requirements: [], amendments: [] });
           s.agreements.push({ id: agreementId, version: 1, status: "draft", documentSha256: null, granteeSignedAt: null, funderSignedAt: null, executedAt: null, awardId, templateId: null, granteeSignature: null, funderSignature: null, hasStoredPdf: false, createdAt: ctx.now() });
           results.push({ decisionId: d.id, applicationId: app.id, outcome: d.outcome, ok: true, awardId, agreementId, letterSent: true });
         } else {

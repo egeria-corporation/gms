@@ -72,9 +72,10 @@ export interface WorkspaceRecord {
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;
-  /** Absent on an older server: read as "passport" when `passportOrgId` is set, else "none". */
-  profileSource?: Verification["source"];
-  selfDeclaredProfile?: SelfDeclaredProfile | null;
+  profileSource: Verification["source"];
+  verification: Verification;
+  /** The self-declared profile; null for a Passport workspace and for one with no profile. */
+  profile: SelfDeclaredProfile | null;
   brand: Brand;
   settings: Record<string, unknown>;
   status: string;
@@ -91,23 +92,11 @@ export interface CreateWorkspaceInput {
 }
 
 /** Where an organization's details come from, and how far they are verified. */
-export interface Verification {
-  source: "passport" | "self_declared" | "none";
-  level: "L0" | "L1" | "L2" | "L3" | null;
-}
-
+export type Verification = components["schemas"]["Models.Verification"];
 /** An organization's description of itself, entered in the GMS. Never shown as verified. */
-export interface SelfDeclaredProfile {
-  legalName: string;
-  displayName?: string;
-  website?: string;
-  mission?: string;
-  address?: { street?: string; city?: string; region?: string; postalCode?: string; country?: string };
-  contactEmail?: string;
-  orgType?: string;
-  /** Nine digits. */
-  ein?: string;
-}
+export type SelfDeclaredProfile = components["schemas"]["Models.SelfDeclaredProfile"];
+export type SelfDeclaredProfilePatch = components["schemas"]["Models.SelfDeclaredProfilePatch"];
+export type WorkspaceProfile = components["schemas"]["Models.WorkspaceProfile"];
 
 export interface WorkspaceWrite {
   workspace: WorkspaceRecord;
@@ -196,17 +185,13 @@ export interface Opportunity {
   eligibilityRules: Rule;
   publish: PublishFlags;
   customFields: Record<string, unknown>;
-  /** Applicants must have a live Passport link to start an application. */
-  requirePassport?: boolean;
-  /** Eligibility that rests on an applicant's own, unverified details counts as passing. */
-  acceptSelfReported?: boolean;
   published: boolean;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 export type OpportunityInput = Partial<
-  Pick<Opportunity, "slug" | "description" | "programId" | "funding" | "keyDates" | "acceptedApplicantTypes" | "eligibilityRules" | "publish" | "customFields" | "requirePassport" | "acceptSelfReported">
+  Pick<Opportunity, "slug" | "description" | "programId" | "funding" | "keyDates" | "acceptedApplicantTypes" | "eligibilityRules" | "publish" | "customFields">
 > & { title: string };
 
 export interface OpportunityPreview {
@@ -317,8 +302,7 @@ export interface PublicFunder {
   mission: string | null;
   website: string | null;
   verificationLevel: string | null;
-  /** Absent on an older server. */
-  verification?: Verification;
+  verification: Verification;
 }
 export interface PublicOpportunityCard {
   id: string;

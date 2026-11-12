@@ -13,8 +13,7 @@ import { ActivityTimeline, actorOf, describeEvent } from "../../components/Activ
 import { Dialog } from "../../components/Dialog.tsx";
 import { checklistOf, destinationLabel, HoldBanner, RecordExternalDialog, ReleaseDialog, releaseBlockedReason } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
-import { verificationOf } from "../../lib/profile.ts";
+import { LevelBadge, StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist } from "../../components/ui.tsx";
 import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
 import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
@@ -167,7 +166,7 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
         <div className="col" style={{ gap: "4px" }}>
           <div className="row wrap">
             <h3 id={`due-${t.id}`}>{name}</h3>
-            <VerificationBadge verification={verificationOf(row?.recipient)} level={row?.recipient?.verificationLevel} />
+            <LevelBadge level={row?.recipient?.verificationLevel} />
             <StatusBadge kind="tranche" status={t.status} />
           </div>
           <p className="small muted">

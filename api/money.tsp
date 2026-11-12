@@ -415,7 +415,7 @@ model GranteeSummary {
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;
-  verification?: Verification;
+  verification: Verification;
   payee: {
     pendingDestinationChange: boolean;
     active: boolean;
@@ -448,7 +448,7 @@ model GranteeDetail {
   organization: Record<unknown> | null;
 
   /** What an organization without Passport entered itself, when it consented. Not verified. */
-  selfDeclared?: SelfDeclaredProfile | null;
+  selfDeclared: SelfDeclaredProfile | null;
 
   consent: boolean;
 

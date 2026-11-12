@@ -12,7 +12,6 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
-import { verificationOf } from "../../lib/profile.ts";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
@@ -183,7 +182,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               <h2 id="grantee-h" style={{ fontSize: "18px" }}>
                 {g.name}
               </h2>
-              <VerificationBadge verification={verificationOf(g)} level={g.verificationLevel} />
+              <VerificationBadge verification={g.verification} level={g.verificationLevel} />
               <PayeeChip pending={g.payee.pendingDestinationChange} active={g.payee.active} />
             </div>
             <p className="small muted">
@@ -470,7 +469,7 @@ export default function Grantees() {
                           </div>
                         </td>
                         <td>
-                          <VerificationBadge verification={verificationOf(r)} level={r.verificationLevel} />
+                          <VerificationBadge verification={r.verification} level={r.verificationLevel} />
                         </td>
                         <td>
                           <PayeeChip pending={r.payee.pendingDestinationChange} active={r.payee.active} />

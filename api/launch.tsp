@@ -12,7 +12,7 @@ namespace GMS.Models;
 /** What this server has switched on. Read before sign-in so the web app can hide controls. */
 model InstallConfig {
   /** Which Passport features this server can offer; every Passport control is hidden when its entry is false. */
-  passport?: PassportFeatures;
+  passport: PassportFeatures;
 
   /** False: `POST /gms/tranches/{id}/release` answers 409 `facilitated_payments_disabled` and payments are recorded after being paid outside the GMS. */
   facilitatedPayments: boolean;

@@ -9289,7 +9289,7 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification?: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -9616,7 +9616,7 @@ export interface components {
             /** @description Whether the workspace holds a live Passport consent. */
             linked: boolean;
             /** @description Without Passport the checks are "Profile complete" and an optional "Connect Passport for verification". */
-            source?: components["schemas"]["Models.ProfileSource"];
+            source: components["schemas"]["Models.ProfileSource"];
             /** Format: date-time */
             syncedAt: string | null;
             checks: components["schemas"]["Models.ReadinessCheck"][];
@@ -10891,7 +10891,7 @@ export interface components {
                 /** @description The applicant's current Passport level; null once their consent is revoked. */
                 level: components["schemas"]["Models.VerificationLevel"] | null;
                 /** @description Passport-verified, self-declared (not verified) or no profile. The level only while consent stands. */
-                verification?: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"];
             };
             /** Format: date-time */
             updatedAt: string;
@@ -10905,11 +10905,11 @@ export interface components {
             decisionId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** @description Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
             organization?: {
-                source?: components["schemas"]["Models.ProfileSource"];
+                source: components["schemas"]["Models.ProfileSource"];
                 /** @description The Passport record; null for an organization without Passport. */
                 projection: components["schemas"]["CommonGrants.Models.OrganizationBase"] | null;
                 /** @description What an organization without Passport entered itself. Not verified. */
-                selfDeclared?: components["schemas"]["Models.SelfDeclaredProfile"] | null;
+                selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
                 level: components["schemas"]["Models.VerificationLevel"] | null;
                 /** Format: date-time */
                 verifiedAt: string | null;
@@ -10965,7 +10965,7 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification?: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11026,7 +11026,7 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification?: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11178,7 +11178,7 @@ export interface components {
             /** @description `{ all: [] }` when the opportunity has no rules */
             eligibilityRules: components["schemas"]["Models.EligibilityRule"];
             publish: components["schemas"]["Models.PublishSettings"];
-            applicantOptions?: components["schemas"]["Models.ApplicantOptions"];
+            applicantOptions: components["schemas"]["Models.ApplicantOptions"];
             customFields: {
                 [key: string]: unknown;
             };
@@ -11271,7 +11271,7 @@ export interface components {
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
-            verification?: components["schemas"]["Models.Verification"];
+            verification: components["schemas"]["Models.Verification"];
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
@@ -11292,7 +11292,7 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** @description What an organization without Passport entered itself, when it consented. Not verified. */
-            selfDeclared?: components["schemas"]["Models.SelfDeclaredProfile"] | null;
+            selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             consent: boolean;
             /** @description Bank name and last four digits only */
             payeeStatus: {
@@ -11331,7 +11331,7 @@ export interface components {
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
-            verification?: components["schemas"]["Models.Verification"];
+            verification: components["schemas"]["Models.Verification"];
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
@@ -11412,7 +11412,7 @@ export interface components {
         /** @description What this server has switched on. Read before sign-in so the web app can hide controls. */
         "Models.InstallConfig": {
             /** @description Which Passport features this server can offer; every Passport control is hidden when its entry is false. */
-            passport?: components["schemas"]["Models.PassportFeatures"];
+            passport: components["schemas"]["Models.PassportFeatures"];
             /** @description False: `POST /gms/tranches/{id}/release` answers 409 `facilitated_payments_disabled` and payments are recorded after being paid outside the GMS. */
             facilitatedPayments: boolean;
             /** @description False: every drafting route under `/gms/assist/` answers 404. */
@@ -11802,7 +11802,7 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification?: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11847,9 +11847,9 @@ export interface components {
             displayName: string;
             passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             linked: boolean;
-            source?: components["schemas"]["Models.ProfileSource"];
+            source: components["schemas"]["Models.ProfileSource"];
             /** @description The profile an organization without Passport entered itself; edit it at `PATCH /gms/workspaces/{id}/profile`. */
-            selfDeclared?: components["schemas"]["Models.SelfDeclaredProfile"] | null;
+            selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             level: components["schemas"]["Models.VerificationLevel"] | null;
             /** Format: date-time */
             verifiedAt: string | null;
@@ -11890,8 +11890,8 @@ export interface components {
             requiresMfa: boolean;
             passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             verificationLevel: components["schemas"]["Models.VerificationLevel"] | null;
-            profileSource?: components["schemas"]["Models.ProfileSource"];
-            verification?: components["schemas"]["Models.Verification"];
+            profileSource: components["schemas"]["Models.ProfileSource"];
+            verification: components["schemas"]["Models.Verification"];
         };
         "Models.Note": {
             id: string;
@@ -12495,7 +12495,7 @@ export interface components {
             website: string | null;
             /** @description Passport's level; null when the funder's organization is not verified with Passport. */
             verificationLevel: string | null;
-            verification?: components["schemas"]["Models.Verification"];
+            verification: components["schemas"]["Models.Verification"];
         };
         "Models.PublicOpportunityCard": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -13780,10 +13780,10 @@ export interface components {
                 [key: string]: unknown;
             };
             verificationLevel?: components["schemas"]["Models.VerificationLevel"];
-            profileSource?: components["schemas"]["Models.ProfileSource"];
-            verification?: components["schemas"]["Models.Verification"];
+            profileSource: components["schemas"]["Models.ProfileSource"];
+            verification: components["schemas"]["Models.Verification"];
             /** @description The self-declared profile; null for a Passport workspace and for one with no profile. */
-            profile?: components["schemas"]["Models.SelfDeclaredProfile"] | null;
+            profile: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             status: string;
             /** Format: date-time */
             createdAt: string;
