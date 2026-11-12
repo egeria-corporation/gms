@@ -88,7 +88,7 @@ export async function secrets(ctx: Ctx): Promise<Result> {
 
   const recoveryFlag = flagStr(ctx, "recovery-file");
   if (!recoveryFlag) return res("needs_input", "Pass --recovery-file <absolute path outside this repository>. The encryption keys and signing key are written there (mode 0600); losing them strands stored links.", {}, "secrets");
-  const recoveryPath = resolve(recoveryFlag);
+  const recoveryPath = isAbsolute(recoveryFlag) ? resolve(recoveryFlag) : recoveryFlag;
   const problem = recoveryPathProblem(ctx.root, recoveryPath);
   if (problem) return res("needs_input", problem, {}, "secrets");
 

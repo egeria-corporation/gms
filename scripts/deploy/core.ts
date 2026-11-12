@@ -182,7 +182,7 @@ export const wranglerRun = (ctx: Ctx, args: string[], opts: RunOptions = {}) =>
 
 /** A short plain description of a failed command, secrets removed. */
 export function brief(ctx: Ctx, out: RunOut): string {
-  const text = redact(ctx, `${out.stderr}\n${out.stdout}`).replace(/\u001b\[[0-9;]*m/g, "").trim();
+  const text = redact(ctx, `${out.stderr}\n${out.stdout}`).replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "").trim();
   return text.split("\n").filter(Boolean).slice(-3).join(" ").slice(0, 300) || `exit code ${out.code}`;
 }
 
