@@ -46,6 +46,7 @@ async function postJson(ctx: Ctx, url: string, body: unknown): Promise<{ status:
 }
 
 /** Text from Passport, safe to show: control characters removed, shortened, and quoted by the caller as data. */
+// eslint-disable-next-line no-control-regex
 const clean = (v: unknown): string => String(v ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 200);
 const messageOf = (b: any): string => clean(b?.message ?? b?.errors?.[0]?.message ?? b?.error); // eslint-disable-line @typescript-eslint/no-explicit-any
 const USER_CODE = /^[B-Z]{4}-[B-Z]{4}$/;
