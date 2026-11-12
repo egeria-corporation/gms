@@ -12,8 +12,9 @@ import { z } from "zod";
 import { toRubric } from "./reviews.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, passportFacts, primaryEmail, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
+import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { orgFacts, selfDeclaredOf, verificationShared } from "./profile.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -46,6 +47,8 @@ function summary(a: App, applicant: Ws | undefined, consented: boolean) {
       handle: applicant?.handle ?? null,
       // The current level is the applicant's to share; it shows only while their consent stands.
       level: consented ? (applicant?.verification_level ?? null) : null,
+      /** Passport-verified, self-declared (not verified) or no profile at all. */
+      verification: verificationShared(applicant, consented),
     },
     updatedAt: a.updated_at,
   };
@@ -199,8 +202,8 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     responses.push({ formId: apiId("form", r.form_id), formVersion: r.form_version, formTitle: form?.title ?? null, stage: r.stage, status: r.status, response, provenance: reviewer ? {} : r.provenance, sectionAssignments: reviewer ? {} : r.section_assignments, validationErrors: r.validation_errors, lockedAt: r.locked_at, masked });
   }
   const events = await ctx.repos.table("application_events").find({ application_id: app.id }, { orderBy: "created_at" });
-  const facts = passportFacts(applicant);
-  const fields = readPassportFields(facts.org);
+  const facts = orgFacts(applicant);
+  const fields = readPassportFields(facts.source === "passport" ? facts.org : null);
   return {
     ...summary(app, applicant, consented),
     attestationUrl: app.attestation_url,
@@ -208,7 +211,7 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     decisionId: app.decision_id,
     // What the applicant shared by applying: the cached record, while their consent stands. An
     // external reviewer never sees who the applicant's contacts are.
-    organization: consented && !external ? { projection: facts.org, level: applicant.verification_level, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
+    organization: consented && !external ? { source: facts.source, projection: facts.source === "passport" ? facts.org : null, selfDeclared: facts.source === "self_declared" ? selfDeclaredOf(applicant) : null, level: facts.source === "passport" ? applicant.verification_level : null, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
     formResponses: responses,
     timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, payload: reviewer ? {} : eventPayload(e), revision: reviewer ? null : revisionOf(e), actor: e.actor, at: e.created_at })),
   };
@@ -277,7 +280,7 @@ export async function requestRevision(ctx: ServiceContext, appId: string, input:
   const applicant = await applicantOf(ctx, app);
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
-  const letter = await sendLetter(ctx, "revision_request", primaryEmail(passportFacts(applicant).org), { ...letterFields(ctx, app, applicant, funder, opp.title), revision: { message: input.message, dueDate: input.dueAt?.slice(0, 10) ?? "the date agreed with your program officer" } }, { type: "application", id: app.id, workspaceId: ws.id });
+  const letter = await sendLetter(ctx, "revision_request", await recipientEmails(ctx, applicant), { ...letterFields(ctx, app, applicant, funder, opp.title), revision: { message: input.message, dueDate: input.dueAt?.slice(0, 10) ?? "the date agreed with your program officer" } }, { type: "application", id: app.id, workspaceId: ws.id });
   return { id: apiId("application", app.id), status: updated.status, letter };
 }
 
@@ -308,7 +311,7 @@ export async function declineApplication(ctx: ServiceContext, appId: string, inp
     const applicant = await applicantOf(ctx, app);
     const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
     const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
-    letter = await sendLetter(ctx, "decline", primaryEmail(passportFacts(applicant).org), { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: input.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id });
+    letter = await sendLetter(ctx, "decline", await recipientEmails(ctx, applicant), { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: input.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id });
   }
   return { id: apiId("application", app.id), status: updated.status, decisionId: decision.id, letter };
 }
@@ -321,7 +324,7 @@ export async function declineLetterPreview(ctx: ServiceContext, appId: string, r
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
   const consented = !!(await ctx.repos.table("consents").one({ funder_workspace_id: ws.id, applicant_workspace_id: applicant.id, revoked_at: null }));
   const rendered = await renderLetter(ctx, "decline", { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: rationale ?? "" } }, ws.id);
-  return { applicationId: apiId("application", app.id), title: app.title, applicant: applicant.display_name, hasRecipientEmail: consented && !!primaryEmail(passportFacts(applicant).org), subject: rendered.subject, html: rendered.html, text: rendered.text };
+  return { applicationId: apiId("application", app.id), title: app.title, applicant: applicant.display_name, hasRecipientEmail: consented && (await recipientEmails(ctx, applicant)).length > 0, subject: rendered.subject, html: rendered.html, text: rendered.text };
 }
 
 const TAG = z.string().trim().min(1).max(40).regex(/^[\w .:/-]+$/u, "Use letters, digits, spaces and . : / - _");

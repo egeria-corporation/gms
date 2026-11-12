@@ -55,6 +55,10 @@ export const opportunityInput = z
         /** Shown on the public opportunity page only; never part of the CommonGrants record. */
         faq: z.array(z.object({ question: z.string().trim().min(1).max(300), answer: z.string().trim().min(1).max(5000) }).strict()).max(50).optional(),
         documents: z.array(z.object({ name: z.string().trim().min(1).max(200), url: z.url().refine((u) => u.startsWith("https://"), "Use an https link") }).strict()).max(20).optional(),
+        /** Applicants must connect OpenGrants Passport before they can start an application. */
+        requirePassport: z.boolean().optional(),
+        /** Eligibility may pass on what an applicant without Passport entered itself (otherwise it needs review). */
+        acceptSelfReported: z.boolean().optional(),
       })
       .strict()
       .optional(),
@@ -76,6 +80,15 @@ export const slugify = (title: string): string =>
     .slice(0, 100)
     .replace(/-+$/, "") || "opportunity";
 
+/**
+ * The two applicant options, stored in the opportunity's options object (`publish`) and false when
+ * absent. Both default to false: Passport is not required, and self-reported facts need review.
+ */
+export const applicantOptionsOf = (o: Pick<Opp, "publish">): { requirePassport: boolean; acceptSelfReported: boolean } => {
+  const p = (o.publish as Record<string, unknown> | null) ?? {};
+  return { requirePassport: p.requirePassport === true, acceptSelfReported: p.acceptSelfReported === true };
+};
+
 export const opportunityView = (o: Opp) => ({
   id: apiId("opportunity", o.id),
   programId: o.program_id,
@@ -88,6 +101,7 @@ export const opportunityView = (o: Opp) => ({
   acceptedApplicantTypes: o.accepted_applicant_types,
   eligibilityRules: o.eligibility_rules,
   publish: o.publish,
+  applicantOptions: applicantOptionsOf(o),
   customFields: o.custom_fields,
   published: o.published_at !== null,
   publishedAt: o.published_at,

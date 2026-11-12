@@ -8,7 +8,7 @@ import { agreementMachine, executeAgreement, voidRefusal, type AgreementAction, 
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { passportFacts, primaryEmail, sendLetter } from "./apply.ts";
+import { recipientEmails, sendLetter } from "./apply.ts";
 import { STAFF_ROLES, accessAward, agreementSummary, awardDetail, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, latestAgreement, minorOf, printMoney, readDefaults, type Agreement, type Award } from "./awards.ts";
 import { checkSigner } from "./organization.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -19,7 +19,7 @@ async function parties(ctx: ServiceContext, award: Award) {
   return { funder, recipient };
 }
 
-export async function awardFields(ctx: ServiceContext, award: Award): Promise<{ fields: MergeFields; funderName: string; accent: string | undefined; recipientEmail: string | null; recipientHandle: string | null }> {
+export async function awardFields(ctx: ServiceContext, award: Award): Promise<{ fields: MergeFields; funderName: string; accent: string | undefined; recipientEmail: string[]; recipientHandle: string | null }> {
   const { funder, recipient } = await parties(ctx, award);
   const period = keyDatesOf(award).periodOfPerformance ?? {};
   const minor = minorOf(fundingOf(award).awardedAmount) ?? 0;
@@ -34,7 +34,7 @@ export async function awardFields(ctx: ServiceContext, award: Award): Promise<{ 
     },
     funderName: funder.display_name,
     accent: (funder.brand as { accent?: string } | null)?.accent,
-    recipientEmail: recipient ? primaryEmail(passportFacts(recipient).org) : null,
+    recipientEmail: await recipientEmails(ctx, recipient),
     recipientHandle: recipient?.handle ?? null,
   };
 }

@@ -157,11 +157,17 @@ describe("the cached organization", () => {
     expect(partial.checks.filter((c) => c.state === "fail").map((c) => c.key)).toEqual(["identity_verified", "payee_verified"]);
     expect(partial.checks.find((c) => c.key === "payee_verified")!.fixHref).toBe(`${PASSPORT_WEB}/orgs/${ORG_ALDER}`);
 
-    // An unlinked workspace knows nothing about the organization: unknown, never a guess.
+    // A workspace without Passport is asked for its own profile; Passport is offered, never failed.
     const bare = { ...(await session(USER_ADMIN)), "X-GMS-Workspace": WS_APPLICANT };
     await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
-    const none = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: { checks: { key: string; state: string }[] } }).data;
-    expect(none.checks.map((c) => c.state)).toEqual(["fail", "unknown", "unknown", "unknown", "unknown"]);
+    type R = { checks: { key: string; state: string; optional?: boolean }[]; summary: { ready: boolean; fail: number; unknown: number } };
+    const none = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: R }).data;
+    expect(none.checks.map((c) => [c.key, c.state])).toEqual([["profile_complete", "fail"], ["passport_optional", "unknown"]]);
+    expect(none.checks[1]!.optional).toBe(true);
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside Pantry", contactEmail: "office@lakeside.example" } });
+    const declared = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: R }).data;
+    expect(declared.checks[0]).toMatchObject({ key: "profile_complete", state: "pass" });
+    expect(declared.summary).toMatchObject({ ready: true, fail: 0, unknown: 0 });
   });
 
   it("links a funder organization to Passport's funder workspace, a nonprofit to its own", async () => {

@@ -3,12 +3,11 @@
 // A template row is immutable: saving a template with the same kind and name adds a version, so an
 // agreement or a sent letter always points at the exact text that was used.
 import { DEFAULT_AGREEMENT_TEMPLATE, DEFAULT_AWARD_LETTER_TEMPLATE, mergeDocument } from "@gms/documents";
-import type { JsonObject } from "@gms/forms";
 import { DEFAULT_TEMPLATES, MissingFieldError, renderTemplate as renderEmailTemplate, templateFields, type MergeFields } from "@gms/notify";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { passportFacts, primaryEmail } from "./apply.ts";
+import { recipientEmails } from "./profile.ts";
 import { STAFF_ROLES, currencyOf, fundingOf, humanOnly, minorOf, printMoney } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { PageRequest } from "./programs.ts";
@@ -106,7 +105,7 @@ function deepMerge(a: MergeFields, b: MergeFields): MergeFields {
 }
 
 /** Who a send goes to, and the merge fields the GMS knows for them. Email comes from the cached Passport record, by consent. */
-async function recipientFields(ctx: ServiceContext, ws: ServiceWorkspace, r: { applicationUuid?: string; awardUuid?: string; applicantWorkspaceId?: string }): Promise<{ email: string | null; fields: MergeFields; subject: { type: string; id: string }; reason?: string }> {
+async function recipientFields(ctx: ServiceContext, ws: ServiceWorkspace, r: { applicationUuid?: string; awardUuid?: string; applicantWorkspaceId?: string }): Promise<{ emails: string[]; fields: MergeFields; subject: { type: string; id: string }; reason?: string }> {
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const fields: MergeFields = { funder: { name: funder.display_name } };
   let applicantId = r.applicantWorkspaceId ?? null;
@@ -128,7 +127,7 @@ async function recipientFields(ctx: ServiceContext, ws: ServiceWorkspace, r: { a
     fields.award = { title: award.title, amount: minor === null ? "" : printMoney(minor, currencyOf(award)) };
   }
   const applicant = applicantId ? await ctx.repos.table("workspaces").one({ id: applicantId }) : null;
-  if (!applicant) return { email: null, fields, subject, reason: "No recipient organization" };
+  if (!applicant) return { emails: [], fields, subject, reason: "No recipient organization" };
   const consent = await ctx.repos.table("consents").one({ applicant_workspace_id: applicant.id, funder_workspace_id: ws.id, revoked_at: null });
   fields.recipient = { name: applicant.display_name };
   const award = fields.award as MergeFields | undefined;
@@ -136,8 +135,8 @@ async function recipientFields(ctx: ServiceContext, ws: ServiceWorkspace, r: { a
     ...(r.applicationUuid ? { application: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/${apiId("application", r.applicationUuid)}/edit`, status: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/${apiId("application", r.applicationUuid)}` } : {}),
     ...(r.awardUuid && award ? { award: `${ctx.config.webBaseUrl}/w/${applicant.handle}/grants/${apiId("award", r.awardUuid)}` } : {}),
   };
-  if (!consent) return { email: null, fields, subject, reason: "The organization has not shared its record with this funder" };
-  return { email: primaryEmail(passportFacts(applicant).org as JsonObject), fields, subject };
+  if (!consent) return { emails: [], fields, subject, reason: "The organization has not shared its record with this funder" };
+  return { emails: await recipientEmails(ctx, applicant), fields, subject };
 }
 
 export const sendInput = z
@@ -176,12 +175,12 @@ export async function sendCommunication(ctx: ServiceContext, input: z.output<typ
   const batch = crypto.randomUUID();
   const results: { subject: { type: string; id: string }; sent: boolean; reason?: string }[] = [];
   for (const [i, { who, rendered }] of prepared.entries()) {
-    if (!who.email) {
-      results.push({ subject: who.subject, sent: false, reason: who.reason ?? "The organization has no primary email in Passport" });
+    if (!who.emails.length) {
+      results.push({ subject: who.subject, sent: false, reason: who.reason ?? "No email address is known for this organization" });
       continue;
     }
     try {
-      const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [who.email], subject: rendered.subject ?? "", html: rendered.html ?? "", text: rendered.text, idempotencyKey: `comm:${batch}:${i}` });
+      const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: who.emails, subject: rendered.subject ?? "", html: rendered.html ?? "", text: rendered.text, idempotencyKey: `comm:${batch}:${i}` });
       await audit(ctx, "communication.sent", who.subject.type, who.subject.id, { template: t.id, templateName: t.name, batch, messageId: id });
       results.push({ subject: who.subject, sent: true });
     } catch (e) {

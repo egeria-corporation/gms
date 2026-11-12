@@ -8,7 +8,8 @@ import { scoreReview, type Scores } from "@gms/review";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { access, passportFacts, recordEvent, stagesOf } from "./apply.ts";
+import { access, recordEvent, stagesOf } from "./apply.ts";
+import { orgFacts } from "./profile.ts";
 import { fundingOf, minorOf } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import type { InboxFilter } from "./inbox.ts";
@@ -403,7 +404,7 @@ export async function breakdowns(ctx: ServiceContext) {
   };
   for (const a of live) {
     const org = orgs.find((o) => o.id === a.recipient_workspace_id);
-    const facts = org && shared.has(org.id) ? passportFacts(org) : null;
+    const facts = org && shared.has(org.id) ? orgFacts(org) : null;
     const o = (facts?.org ?? {}) as { addresses?: { primary?: { stateOrProvince?: string } } };
     const p = (facts?.profile ?? {}) as { commonApp?: { irs?: { subsection?: string }; financials?: { budget?: number } } };
     add(region, o.addresses?.primary?.stateOrProvince ?? "Not shared", a);
