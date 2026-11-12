@@ -189,6 +189,30 @@ describe("applying without Passport", () => {
     expect(to).toContain("maria@lakeside.example");
   });
 
+  it("refuses to submit when Passport became required after the start, on the CommonGrants route (NP-04)", async () => {
+    const app = (await start()).body.data as unknown as { id: string };
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Pantry shelves", requestedAmount: { amount: "1000.00", currency: "USD" } } });
+    await setOptions({ requirePassport: true });
+    const sub = await s.call<{ errors: { code: string }[] }>(s.applicant, "PUT", `/common-grants/applications/${app.id}/submit`);
+    expect(sub.status).toBe(403);
+    expect(sub.body.errors[0]!.code).toBe("passport_required");
+    expect((await h.repos.table("applications").one({ id: app.id }))!.status).toBe("draft");
+  });
+
+  it("refuses to submit when the applicant's Passport consent was withdrawn after the start (NP-04)", async () => {
+    // A Passport applicant with a live consent starts; the consent is then withdrawn.
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: "0193a1c0-0000-7000-8000-0000000000a1", profile_source: "passport", self_declared_profile: null, org_projection: { name: "Alder Creek Family Services" } });
+    const link = await h.repos.table("passport_links").insert({ workspace_id: WS_APPLICANT, mode: "applicant_consent", client_id: "gms-test-client", refresh_token_enc: "x", linked_at: h.clock.now.toISOString() });
+    await setOptions({ requirePassport: true });
+    const app = (await start()).body.data as unknown as { id: string };
+    expect(app.id).toBeTruthy();
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Pantry shelves", requestedAmount: { amount: "1000.00", currency: "USD" } } });
+    await h.repos.table("passport_links").update({ id: link.id }, { revoked_at: h.clock.now.toISOString() });
+    const sub = await s.call<{ errors: { code: string }[] }>(s.applicant, "PUT", `/common-grants/applications/${app.id}/submit`);
+    expect(sub.status).toBe(403);
+    expect(sub.body.errors[0]!.code).toBe("passport_required");
+  });
+
   it("refuses to start when the opportunity requires Passport, with a plain message", async () => {
     const opts = await s.call<{ data: { applicantOptions: unknown } }>(s.funder, "PATCH", `/gms/opportunities/${s.oppId}`, { publish: { requirePassport: true } });
     expect(opts.body.data.applicantOptions).toEqual({ requirePassport: true, acceptSelfReported: false });

@@ -266,6 +266,16 @@ export const startInput = z
   })
   .loose();
 
+/**
+ * The opportunity's `requirePassport`, checked wherever an application moves forward (start and
+ * every submit, on REST, CommonGrants and MCP alike, since all three call these services). A
+ * consent withdrawn after starting, or the option turned on later, stops the submit (review NP-04).
+ */
+export async function assertPassportIfRequired(ctx: ServiceContext, opp: Pick<Row<"opportunities">, "publish">, applicant: Ws, step: "start" | "submit"): Promise<void> {
+  if (!applicantOptionsOf(opp).requirePassport || (await hasLivePassportLink(ctx, applicant))) return;
+  throw new ApiError(403, "passport_required", `This funder asks applicants to connect OpenGrants Passport before applying. Connect Passport in Settings, then ${step === "start" ? "start the application" : "submit"} again`);
+}
+
 /** A Passport organization with a consent the applicant has not withdrawn. */
 export async function hasLivePassportLink(ctx: ServiceContext, ws: Ws): Promise<boolean> {
   return !!ws.passport_org_id && !!(await ctx.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }));
@@ -280,9 +290,7 @@ export async function startApplication(ctx: ServiceContext, input: z.output<type
   const competition = await ctx.repos.table("competitions").one({ id: input.competitionId });
   const opp = competition ? await ctx.repos.table("opportunities").one({ id: competition.opportunity_id }) : null;
   if (!competition || !opp || competition.status === "draft" || !opp.published_at) throw notFound("Competition");
-  if (applicantOptionsOf(opp).requirePassport && !(await hasLivePassportLink(ctx, applicant))) {
-    throw new ApiError(403, "passport_required", "This funder asks applicants to connect OpenGrants Passport before applying. Connect Passport in Settings, then start the application again");
-  }
+  await assertPassportIfRequired(ctx, opp, applicant, "start");
 
   // Starting twice returns the application already in progress.
   const existing = (await ctx.repos.table("applications").find({ competition_id: competition.id, applicant_workspace_id: ws.id })).find((a) => a.status !== "withdrawn" && a.status !== "declined");
@@ -402,6 +410,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
   const applicant = required(await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id }), "Workspace");
   const funder = required(await ctx.repos.table("workspaces").one({ id: app.workspace_id }), "Workspace");
+  await assertPassportIfRequired(ctx, opp, applicant, "submit");
 
   const required_ = Object.keys(stageForms(competition, app.stage));
   const all = await responsesOf(ctx, app.id);
