@@ -68,7 +68,7 @@ alter table public.workspaces
         and jsonb_typeof(self_declared_profile -> 'legalName') = 'string'
         and length(btrim(self_declared_profile ->> 'legalName')) between 1 and 200
         -- An organization's EIN: nine digits with an IRS-assigned prefix, never for an individual,
-        -- whose nine digits would be a Social Security number (review NP-11).
+        -- whose nine digits would be a person's own identity number (review NP-11).
         and (self_declared_profile -> 'ein' is null or (
               (self_declared_profile ->> 'ein') ~ '^[0-9]{9}$'
               and left(self_declared_profile ->> 'ein', 2) <> all (array['00','07','08','09','17','18','19','28','29','49','69','70','78','79','89','96','97'])

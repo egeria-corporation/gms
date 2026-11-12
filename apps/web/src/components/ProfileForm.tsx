@@ -95,7 +95,7 @@ export function ProfileForm({
             <Field id={id("website")} label="Website" error={err("website")}>
               <input className={err("website") ? "inp err" : "inp"} id={id("website")} type="url" placeholder="https://" value={v.website} onChange={set("website")} />
             </Field>
-            <Field id={id("ein")} label="Organization's EIN (federal tax number)" error={err("ein")} help="The organization's nine-digit employer identification number. Never a Social Security number; leave it empty for an individual. Shown to funders as entered by you, not checked.">
+            <Field id={id("ein")} label="Organization's EIN (federal tax number)" error={err("ein")} help="The organization's nine-digit employer identification number. Never a person's own identity number; leave it empty for an individual. Shown to funders as entered by you, not checked.">
               <input className={err("ein") ? "inp err" : "inp"} id={id("ein")} inputMode="numeric" value={v.ein} onChange={set("ein")} />
             </Field>
           </div>

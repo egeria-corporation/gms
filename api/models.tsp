@@ -279,7 +279,7 @@ model SelfDeclaredProfile {
   orgType?: string;
 
   /** The organization's employer identification number: nine digits (a hyphen is accepted and removed),
-   * with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a Social Security number.
+   * with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a person's own identity number.
    */
   @pattern("^[0-9]{2}-?[0-9]{7}$")
   ein?: string;

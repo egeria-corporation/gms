@@ -70,12 +70,12 @@ export const selfDeclaredProfileInput = z
       .string()
       .trim()
       .transform((s) => s.replace(/-/g, ""))
-      .pipe(z.string().regex(/^\d{9}$/, "An EIN is nine digits").refine(validEinPrefix, "This is not an EIN the IRS issues. Enter the organization's EIN, never a Social Security number"))
+      .pipe(z.string().regex(/^\d{9}$/, "An EIN is nine digits").refine(validEinPrefix, "This is not an EIN the IRS issues. Enter the organization's EIN, never a person's own identity number"))
       .optional(),
   })
   .strict()
-  // An individual has no organization tax number to give; nine digits from one would be an SSN.
-  .refine((p) => !(p.ein && p.orgType === "individual"), { path: ["ein"], message: "An EIN is for organizations. Leave it empty for an individual: never enter a Social Security number" });
+  // An individual has no organization tax number to give; nine digits from one would be a person's own number.
+  .refine((p) => !(p.ein && p.orgType === "individual"), { path: ["ein"], message: "An EIN is for organizations. Leave it empty for an individual: never enter a person's own identity number" });
 export type SelfDeclaredProfile = z.output<typeof selfDeclaredProfileInput>;
 
 /** `PATCH /gms/workspaces/{id}/profile`: a merge patch. `null` removes an optional field. */

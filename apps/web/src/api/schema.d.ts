@@ -13155,7 +13155,7 @@ export interface components {
             orgType?: string;
             /**
              * @description The organization's employer identification number: nine digits (a hyphen is accepted and removed),
-             *     with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a Social Security number.
+             *     with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a person's own identity number.
              */
             ein?: string;
         };

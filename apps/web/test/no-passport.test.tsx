@@ -49,7 +49,7 @@ describe("profile rules", () => {
   it("takes an EIN only for an organization, with a prefix the IRS issues (NP-11)", () => {
     const base = { legalName: "Oak", contactEmail: "a@b.example" };
     expect(profileProblems({ ...base, orgType: "individual", ein: "123456789" })[0]).toMatchObject({ path: "ein", message: expect.stringContaining("individual") });
-    expect(profileProblems({ ...base, ein: "07-1234567" })[0]).toMatchObject({ path: "ein", message: expect.stringContaining("Social Security number") });
+    expect(profileProblems({ ...base, ein: "07-1234567" })[0]).toMatchObject({ path: "ein", message: expect.stringContaining("person's own identity number") });
     expect(profileProblems({ ...base, orgType: "non_profit_with_501c3", ein: "12-3456789" })).toEqual([]);
   });
   it("drops empty optional fields and tidies the rest", () => {

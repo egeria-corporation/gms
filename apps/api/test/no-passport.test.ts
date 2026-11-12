@@ -126,8 +126,8 @@ describe("the self-declared profile", () => {
       expect(res.status).toBe(422);
       return ((await res.json()) as { errors: { field?: string; detail?: string }[] }).errors.find((e) => e.field === "ein")!;
     };
-    expect(await refused({ orgType: "individual", ein: "123456789" })).toMatchObject({ field: "ein", detail: expect.stringContaining("Social Security number") });
-    expect(await refused({ ein: "071234567" })).toMatchObject({ field: "ein", detail: expect.stringContaining("Social Security number") });
+    expect(await refused({ orgType: "individual", ein: "123456789" })).toMatchObject({ field: "ein", detail: expect.stringContaining("person's own identity number") });
+    expect(await refused({ ein: "071234567" })).toMatchObject({ field: "ein", detail: expect.stringContaining("person's own identity number") });
     expect((await patch(USER_APPLICANT, { legalName: "Lakeside Pantry Inc.", orgType: "non_profit_with_501c3", ein: "12-3456789" })).status).toBe(200);
     // Becoming an individual afterwards cannot keep the number.
     expect((await patch(USER_APPLICANT, { orgType: "individual" })).status).toBe(422);

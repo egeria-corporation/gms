@@ -39,7 +39,7 @@ export function profileProblems(p: SelfDeclaredProfile): ProfileProblem[] {
   if (p.address?.country && !/^[A-Za-z]{2}$/.test(p.address.country)) add("address.country", "Use a two-letter country code, such as US");
   const ein = p.ein?.replace(/-/g, "").trim();
   if (ein && !/^\d{9}$/.test(ein)) add("ein", "An EIN has nine digits");
-  else if (ein && INVALID_EIN_PREFIXES.includes(ein.slice(0, 2))) add("ein", "This is not an EIN the IRS issues. Enter the organization's EIN, never a Social Security number");
+  else if (ein && INVALID_EIN_PREFIXES.includes(ein.slice(0, 2))) add("ein", "This is not an EIN the IRS issues. Enter the organization's EIN, never a person's own identity number");
   else if (ein && p.orgType === "individual") add("ein", "An EIN is for organizations. Leave it empty for an individual");
   return out;
 }

@@ -43,7 +43,7 @@ select throws_ok($$ insert into public.workspaces (kind, handle, display_name, p
 select throws_ok($$ insert into public.workspaces (kind, handle, display_name, profile_source, self_declared_profile) values ('applicant', 'sd-ein-prefix', 'X', 'self_declared', '{"legalName":"X","ein":"071234567"}') $$,
   '23514', null, 'an EIN with a prefix the IRS never assigns is refused');
 select throws_ok($$ insert into public.workspaces (kind, handle, display_name, profile_source, self_declared_profile) values ('applicant', 'sd-ein-person', 'X', 'self_declared', '{"legalName":"X","orgType":"individual","ein":"123456789"}') $$,
-  '23514', null, 'an individual cannot give an EIN (it would be a Social Security number)');
+  '23514', null, 'an individual cannot give an EIN (it would be a personal identity number)');
 select throws_ok($$ insert into public.workspaces (kind, handle, display_name, profile_source, self_declared_profile) values ('applicant', 'sd-email', 'X', 'self_declared', '{"legalName":"X","contactEmail":{"to":"a@b.example"}}') $$,
   '23514', null, 'a contact address that is not a string is refused');
 select throws_ok($$ insert into public.workspaces (kind, handle, display_name, profile_source, self_declared_profile) values ('applicant', 'sd-mission', 'X', 'self_declared', '{"legalName":"X","mission":["a"]}') $$,
