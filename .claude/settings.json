@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm gms deploy doctor:*)",
+      "Bash(pnpm gms deploy status:*)",
+      "Bash(pnpm -s gms deploy doctor:*)",
+      "Bash(pnpm -s gms deploy status:*)",
+      "Bash(pnpm --filter @gms/api exec wrangler whoami:*)"
+    ]
+  }
+}

@@ -16,7 +16,7 @@ instance lives on `workers.dev`). Optional: Resend, and a Passport deployment.
 
 Logins, read in this order and never printed:
 
-- Cloudflare: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, otherwise `pnpm exec wrangler login`.
+- Cloudflare: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, otherwise `pnpm --filter @gms/api exec wrangler login`.
 - Supabase: `SUPABASE_ACCESS_TOKEN` (a personal access token from the dashboard, Account, Access Tokens). `supabase login` usually keeps its token in the system keyring, which this tool cannot read; it only reads the `access-token` file the CLI writes when there is no keyring (`$SUPABASE_HOME` or `~/.supabase`).
 - Resend (optional): `RESEND_API_KEY`.
 
@@ -50,7 +50,7 @@ pnpm -s gms deploy verify
 | `secrets` | Generates the signing key and the two encryption keys, sets every Worker secret over stdin, and writes the recovery file. Never overwrites a secret that is already set. To replace one, name it: `--rotate SUPABASE_SERVICE_ROLE_KEY` (the two encryption keys also need `--rotate-keys`). Rotation is staged in `<recovery-file>.new` and resumes if interrupted. |
 | `deploy` | Builds and deploys the API and jobs Workers (the OpenAPI document goes to the exports bucket, so no static-asset upload is needed), builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. |
 | `email` | Optional. Adds a sending domain at Resend, its DNS records (in Cloudflare when the zone is in your account, otherwise it lists them), a send-only key, and the Worker and Supabase mail settings. |
-| `passport` | Not available yet; follow `docs/self-host.md` section 5 by hand. |
+| `passport` | Optional. Registers the deployed instance with Passport: serves a one-time check code at `/.well-known/opengrants-passport-challenge`, shows a short code and a link, waits (up to 15 minutes) while the person signs in to Passport, types the code and approves, then stores the client id, client secret and webhook secret as Worker secrets (never shown) and removes the check code. Run it where its output stays visible, or in the background and read its stderr. `skipped` when the Workers already hold the credentials; `--rotate` registers again. |
 | `verify` | Checks `/health`, the signing key, the sign-in server, the app settings and the sign-in page, then sends a sign-in code to the operator email. |
 | `upgrade --to vX.Y.Z` | From a clean checkout at that tag: shows the release notes from `CHANGELOG.md`, asks, then runs `migrate`, `deploy` and `verify`. |
 | `status` | Version, addresses, resources, optional parts, the last verify. Changes nothing. |

@@ -24,6 +24,7 @@ export async function status(ctx: Ctx): Promise<Result> {
     },
     optional: { passport: config.passport, passportUrl: config.passport ? config.passportUrl : null, resend: config.resend, emailDomain: state.email?.done ? state.email.domain : null },
     lastVerify: state.verify ?? null,
+    warnings: state.passport?.challenge ? ["A temporary Passport check code may still be set on the API Worker. Run `pnpm -s gms deploy passport --cleanup`."] : [],
   };
   return res("ok", state.deploy ? `Instance "${config.name}" is on ${data.version} at ${data.urls.instance}.` : `Instance "${config.name}" is set up but not deployed yet.`, data, null);
 }

@@ -142,7 +142,7 @@ export async function secrets(ctx: Ctx): Promise<Result> {
   if (!existsSync(configs.api) || !existsSync(configs.jobs)) return res("needs_input", "The generated Worker configs are missing. Run the cloudflare step first.", {}, "cloudflare");
 
   const have: Record<WorkerKey, Set<string> | null> = { api: await existingNames(ctx, configs.api), jobs: await existingNames(ctx, configs.jobs) };
-  if (!have.api || !have.jobs) return res("error", "Could not read the list of secrets on the Workers (unexpected output from Wrangler, or the Cloudflare login failed). Nothing was changed. Check `pnpm exec wrangler whoami` and re-run.", {}, "secrets");
+  if (!have.api || !have.jobs) return res("error", "Could not read the list of secrets on the Workers (unexpected output from Wrangler, or the Cloudflare login failed). Nothing was changed. Check `pnpm --filter @gms/api exec wrangler whoami` and re-run.", {}, "secrets");
 
   const sb = new Supabase(ctx, token);
   const wanted: Record<WorkerKey, string[]> = { api: [...API_SECRETS], jobs: [...JOBS_SECRETS] };

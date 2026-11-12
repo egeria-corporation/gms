@@ -1,5 +1,10 @@
 # Self-hosting OpenGrants GMS
 
+**The quickest way is the deploy tool**: `pnpm -s gms deploy <step>` does everything below from a
+tagged release (see `scripts/deploy/README.md`), and `DEPLOY_WITH_AGENT.md` lets an AI coding agent
+drive it. This page is the manual reference: what each step does by hand, for people who prefer
+to run the commands themselves or need to understand or repair a part.
+
 One Supabase project and one Cloudflare account run a full instance. Hosted and self-hosted run
 the same code.
 
@@ -157,6 +162,10 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
    `thread+<id>@<that domain>` and land back in the thread.
 
 ## 5. Passport
+
+With the deploy tool, `pnpm -s gms deploy passport` does items 1 and 2 for you: it registers the
+instance, you approve it in Passport, and the credentials go straight into the Worker secrets. The
+manual way:
 
 1. Register the GMS as an OAuth client at your Passport deployment, named "OpenGrants GMS", with
    the authorization-code + PKCE grant, scopes `org:read org.changes:read org.changes:write payee:read`, and

@@ -217,6 +217,10 @@ export function makeFake(opts: { env?: Record<string, string | undefined>; root?
         cf.secrets.set(cfg, set);
         if (w[1] === "list" && cf.listOutput !== null) return ok(cf.listOutput);
         if (w[1] === "list") return ok(JSON.stringify([...set].map((name) => ({ name, type: "secret_text" }))));
+        if (w[1] === "delete") {
+          set.delete(w[2]!);
+          return ok("Success");
+        }
         if (w[1] === "put") {
           if (cf.failPut === w[2]) return fail("boom");
           set.add(w[2]!);

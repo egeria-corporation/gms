@@ -26,6 +26,8 @@ export interface Env {
   PASSPORT_GMS_CLIENT_ID?: string;
   PASSPORT_GMS_CLIENT_SECRET?: string;
   PASSPORT_WEBHOOK_SECRET?: string;
+  /** Set only while the deploy tool registers this instance with Passport: the text served at /.well-known/opengrants-passport-challenge. */
+  PASSPORT_REGISTRATION_CHALLENGE?: string;
   /** "true" adds `payee:read` to the applicant consent (see docs/payments.md). Default off. */
   PASSPORT_APPLICANT_PAYEE_READ?: string;
   /** "true" once Passport serves the funder award routes (award:write); awards are mirrored on acceptance. */

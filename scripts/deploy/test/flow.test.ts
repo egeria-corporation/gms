@@ -471,12 +471,6 @@ describe("email, passport and no-leak", () => {
     for (const s of [SECRET.resend, SECRET.resendSend, SECRET.cfToken]) expect(visible).not.toContain(s);
     expect((await f.step("email", "--yes", "--domain", "mail.example.org", "--from", "grants@mail.example.org")).r.code).toBe("skipped");
   });
-  it("passport is a stub", async () => {
-    const f = makeFake();
-    const r = await f.step("passport");
-    expect(r.r.code).toBe("needs_input");
-    expect(r.r.message).toContain("not available yet");
-  });
   it("doctor reports logins, warns on project count and release state, and changes nothing", async () => {
     const f = makeFake();
     f.sb.projects = [

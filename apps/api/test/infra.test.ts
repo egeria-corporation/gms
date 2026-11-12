@@ -7,6 +7,18 @@ import { BASE, WEB, clientCredentialsToken, harness } from "./helpers.ts";
 afterEach(() => setLogSink(null));
 
 describe("discovery", () => {
+  it("serves the Passport registration challenge only while the secret is set, uncached", async () => {
+    const h = await harness();
+    const none = await h.request("/.well-known/opengrants-passport-challenge");
+    expect(none.status).toBe(404);
+    expect(none.headers.get("cache-control")).toBe("no-store");
+    h.env.PASSPORT_REGISTRATION_CHALLENGE = "chal-0123456789abcdef";
+    const res = await h.request("/.well-known/opengrants-passport-challenge");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toBe("chal-0123456789abcdef");
+  });
+
   it("publishes public keys only, with kid, use and alg", async () => {
     const h = await harness();
     const res = await h.request("/.well-known/jwks.json");

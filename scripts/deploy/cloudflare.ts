@@ -33,7 +33,7 @@ export async function cfLogin(ctx: Ctx): Promise<CfLogin> {
   return { loggedIn: true, via: ctx.env.CLOUDFLARE_API_TOKEN ? "token" : "wrangler", accounts };
 }
 
-export const CF_LOGIN_MESSAGE = "Cloudflare is not signed in. Run `pnpm exec wrangler login` (or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID), then re-run.";
+export const CF_LOGIN_MESSAGE = "Cloudflare is not signed in. Run `pnpm --filter @gms/api exec wrangler login` (or set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID), then re-run.";
 
 /** The account to use: CLOUDFLARE_ACCOUNT_ID, else the only account the login reaches. */
 export async function cfAccount(ctx: Ctx): Promise<{ id: string } | Result> {
