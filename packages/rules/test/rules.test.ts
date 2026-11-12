@@ -231,6 +231,13 @@ describe("self-reported and Passport-only facts", () => {
     }
     expect(evaluate({ path: "profile.irs.subsection", op: "eq", value: "03", missing: "pass" }, ctx, sd).eligible).toBe("unknown");
   });
+  it("holds every Passport custom field and the organization status, even when self-reported facts are accepted (NP-12)", () => {
+    const opts = { selfReported: ["org", "profile"], acceptSelfReported: true, passportFacts: false } as const;
+    expect(evaluate({ path: "org.customFields.exclusionFlag.value", op: "eq", value: false, missing: "pass" }, { org: {} }, opts).eligible).toBe("unknown");
+    expect(evaluate({ path: "org.status.value", op: "eq", value: "active", missing: "pass" }, { org: {} }, opts).eligible).toBe("unknown");
+    expect(evaluate({ path: "org.customFieldsNote", op: "exists", value: false }, { org: {} }, opts).eligible).toBe(true);
+  });
+
   it("marks the applicant type when the caller says it is self-reported", () => {
     const rule: Rule = { path: "applicant.type", op: "eq", value: "non_profit_with_501c3" };
     const r = evaluate(rule, { applicant: { type: "non_profit_with_501c3" } }, { selfReported: ["org", "profile", "applicant"], passportFacts: false });

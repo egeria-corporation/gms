@@ -66,10 +66,11 @@ export interface EvaluateOptions {
 }
 
 /**
- * Facts only Passport can supply: the verification level and attestation it stamps on the
- * organization, and the registry-backed Common App profile. Matched on whole path segments.
+ * Facts only Passport can supply: every custom field on the organization (the level, attestation
+ * and anything else Passport stamps there; a self-declared profile has none), the organization's
+ * status, and the registry-backed Common App profile (review NP-12). Matched on whole path segments.
  */
-export const PASSPORT_ONLY_PATHS: readonly string[] = ["org.customFields.verificationLevel", "org.customFields.verifiedAt", "org.customFields.attestation", "profile"];
+export const PASSPORT_ONLY_PATHS: readonly string[] = ["org.customFields", "org.status", "profile"];
 
 export const isPassportOnlyPath = (path: string): boolean => PASSPORT_ONLY_PATHS.some((p) => path === p || path.startsWith(`${p}.`));
 

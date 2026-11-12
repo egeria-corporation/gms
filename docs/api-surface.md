@@ -378,7 +378,7 @@ A workspace that has not linked Passport keeps a self-declared profile (see `doc
   without a live Passport link) and `acceptSelfReported` (otherwise a rule met on self-reported
   facts is `unknown`, needs review). Both default to false; `applicantOptions` gives them resolved.
 - **Eligibility** results carry `selfReported: true` on rules that read the organization's own
-  word; rules on Passport-only facts (`org.customFields.verificationLevel|verifiedAt|attestation`,
+  word; rules on Passport-only facts (all of `org.customFields`, `org.status`,
   `profile.*`) are `unknown` for an applicant without Passport. A failing rule stays failing.
 - **Prefill** from a self-declared profile marks provenance `self_declared` ("you entered"), and
   `passportField` fields stay editable for an applicant without Passport.
