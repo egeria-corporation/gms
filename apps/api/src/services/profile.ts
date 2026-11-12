@@ -173,19 +173,24 @@ export const primaryEmail = (org: JsonObject): string | null => {
   return typeof emails?.primary === "string" ? emails.primary : null;
 };
 
-/** At most this many admins receive a letter for a workspace that has no contact address of its own. */
+/** At most this many admins receive a letter for a workspace that has no Passport address. */
 export const MAX_ADMIN_RECIPIENTS = 5;
 
 /**
- * Where letters to an organization go: the Passport record's email, else the self-declared
- * contact address, else the workspace's admins (their account addresses). Empty when none is known.
+ * Where letters to an organization go: the Passport record's email, else the workspace's admins at
+ * the addresses they sign in with (proved by signing in). A self-declared `contactEmail` is shown,
+ * never emailed: nothing proves the organization controls it, and letters carry the funder's name
+ * and text the applicant chose (review NP-01). Empty when no address is known.
  */
-export async function recipientEmails(ctx: Pick<ServiceContext, "repos" | "ports">, ws: Ws | null | undefined): Promise<string[]> {
+export async function recipientEmails(ctx: Pick<ServiceContext, "repos" | "ports" | "now">, ws: Ws | null | undefined): Promise<string[]> {
   if (!ws) return [];
   const facts = orgFacts(ws);
-  const own = primaryEmail(facts.org);
+  const own = facts.source === "passport" ? primaryEmail(facts.org) : null;
   if (own) return [own];
-  const admins = (await ctx.repos.table("workspace_members").find({ workspace_id: ws.id, role: "admin" }, { orderBy: "created_at" })).slice(0, MAX_ADMIN_RECIPIENTS);
+  const nowMs = ctx.now().getTime();
+  const admins = (await ctx.repos.table("workspace_members").find({ workspace_id: ws.id, role: "admin" }, { orderBy: "created_at" }))
+    .filter((m) => !m.expires_at || Date.parse(m.expires_at) > nowMs)
+    .slice(0, MAX_ADMIN_RECIPIENTS);
   if (!admins.length || !ctx.ports.directory) return [];
   const people = await ctx.ports.directory.lookup(admins.map((a) => a.user_id));
   return [...new Set(admins.flatMap((a) => (people.get(a.user_id)?.email ? [people.get(a.user_id)!.email!.toLowerCase()] : [])))];

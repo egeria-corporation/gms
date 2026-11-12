@@ -120,13 +120,15 @@ describe("facts, verification and letters", () => {
     expect(verificationOf(row({ passport_org_id: "0193a1c0-0000-7000-8000-0000000000a1", profile_source: "passport", verification_level: "L2" }))).toEqual({ source: "passport", level: "L2" });
   });
 
-  it("writes to the Passport email, else the contact address, else the workspace's admins", async () => {
+  it("writes to the Passport email, else the workspace's admins; never to a self-declared contact address (NP-01)", async () => {
     const h = await harness();
     await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
-    const ctx = { repos: h.repos, ports: { directory: h.directory } };
+    const ctx = { repos: h.repos, ports: { directory: h.directory }, now: () => h.clock.now };
     expect(await recipientEmails(ctx, row({ passport_org_id: "0193a1c0-0000-7000-8000-0000000000a1", profile_source: "passport", org_projection: { emails: { primary: "grants@alder.example" } } }))).toEqual(["grants@alder.example"]);
-    expect(await recipientEmails(ctx, row({ profile_source: "self_declared", self_declared_profile: { legalName: "L", contactEmail: "office@lakeside.example" } }))).toEqual(["office@lakeside.example"]);
+    expect(await recipientEmails(ctx, row({ profile_source: "self_declared", self_declared_profile: { legalName: "L", contactEmail: "office@lakeside.example" } }))).toEqual(["helen.ortiz@riverbendcf.example"]);
     expect(await recipientEmails(ctx, row({}))).toEqual(["helen.ortiz@riverbendcf.example"]);
+    // A stale projection on a workspace without a Passport organization is not a Passport address.
+    expect(await recipientEmails(ctx, row({ org_projection: { emails: { primary: "stale@alder.example" } } }))).toEqual(["helen.ortiz@riverbendcf.example"]);
   });
 });
 
@@ -173,6 +175,18 @@ describe("applying without Passport", () => {
     await h.repos.table("applications").remove({ applicant_workspace_id: WS_APPLICANT });
     await setOptions({}, { path: "org.customFields.verificationLevel.value", op: "gte", value: "L2", order: ["L0", "L1", "L2", "L3"], missing: "pass" });
     expect((await start()).body.data.customFields.gms.value.eligibility.eligible).toBe("unknown");
+  });
+
+  it("sends the acknowledgment to the admins, never to the self-declared contact address (NP-01)", async () => {
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { self_declared_profile: { legalName: "Lakeside Pantry Inc.", contactEmail: "victim@thirdparty.example", address: { region: "OR" } } });
+    h.directory.users.set(USER_APPLICANT, { email: "maria@lakeside.example", name: "Maria" });
+    const app = (await start()).body.data as unknown as { id: string };
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "CLICK http://evil.example to claim", requestedAmount: { amount: "1000.00", currency: "USD" } } });
+    const sub = await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/submit`);
+    expect(sub.status).toBe(200);
+    const to = h.mailer.sent.flatMap((m) => m.to);
+    expect(to).not.toContain("victim@thirdparty.example");
+    expect(to).toContain("maria@lakeside.example");
   });
 
   it("refuses to start when the opportunity requires Passport, with a plain message", async () => {

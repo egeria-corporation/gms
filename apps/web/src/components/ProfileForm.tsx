@@ -68,7 +68,7 @@ export function ProfileForm({
       <Field id={id("legal-name")} label="Legal name" required error={err("legalName")}>
         <input className={err("legalName") ? "inp err" : "inp"} id={id("legal-name")} value={v.legalName} onChange={set("legalName")} autoComplete="organization" />
       </Field>
-      <Field id={id("contact-email")} label="Contact email" required error={err("contactEmail")} help="Funders and award notices are sent here.">
+      <Field id={id("contact-email")} label="Contact email" required error={err("contactEmail")} help="Shown to funders you apply to. Letters and award notices go to your workspace admins at the address they sign in with.">
         <input className={err("contactEmail") ? "inp err" : "inp"} id={id("contact-email")} type="email" value={v.contactEmail} onChange={set("contactEmail")} autoComplete="email" />
       </Field>
       <details open={problems.some((p) => p.path !== "legalName" && p.path !== "contactEmail") || undefined}>
