@@ -14,7 +14,8 @@
 -- rows that already break the rule. No row is changed. Existing rows are not re-checked by a
 -- trigger until one of the named columns is written, so a row that breaks the rule today stays
 -- readable (the services answer 404 for it) and is reported by the WARNING at the end of this
--- migration; see docs/security/red-team-tenancy-and-money.md for what to do with one.
+-- migration. None should exist; for one that does, read the ledger of both workspaces around its
+-- created_at, decide with the affected funder, and remove the child row as the database owner.
 
 -- column → parent table, per child table. Kept in one place so the trigger, the listing function
 -- and the in-memory repository used by the tests (apps/api/src/services/repos/memory.ts) agree.
