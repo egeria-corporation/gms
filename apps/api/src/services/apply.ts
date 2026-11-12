@@ -14,7 +14,7 @@ import { apiId } from "../lib/ids.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import { applicantOptionsOf } from "./opportunities.ts";
-import { orgFacts, recipientEmails } from "./profile.ts";
+import { orgFacts, recipientEmails, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type App = Row<"applications">;
@@ -101,7 +101,14 @@ const outcomesOnly = (e: App["eligibility"]): App["eligibility"] => {
 /** The CommonGrants record of an application; for a reviewer, masked and without who the applicant is. */
 export async function project(ctx: ServiceContext, app: App, reviewer: ReviewerView | null = null): Promise<ApplicationBase> {
   const rows = await responsesOf(ctx, app.id);
-  if (!reviewer) return projectApplication({ application: appRow(app), formResponses: rows.map(respRow) });
+  if (!reviewer) {
+    const out = projectApplication({ application: appRow(app), formResponses: rows.map(respRow) });
+    // Inside customFields, as CommonGrants requires: whether the applicant is verified with Passport,
+    // so "not verified" and "Passport with no level" read differently (review NP-17).
+    const gms = (out.customFields as Record<string, { value?: Record<string, unknown> }> | undefined)?.gms?.value;
+    if (gms) gms.verification = verificationOf(await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id }));
+    return out;
+  }
   const masked: Resp[] = [];
   for (const r of rows) masked.push((await reviewerResponse(ctx, r, reviewer)).row);
   const out = projectApplication({ application: appRow({ ...app, eligibility: outcomesOnly(app.eligibility) }), formResponses: masked.map(respRow) });
@@ -206,7 +213,7 @@ export async function recordEvent(ctx: ServiceContext, app: App, type: string, c
  * Run an application-machine action. The ledger entry and webhooks belong to the funder's
  * workspace (that is whose application inbox changed), whichever side acted.
  */
-export async function transitionApp(ctx: ServiceContext, app: App, action: ApplicationAction, side: "applicant" | "funder", machineCtx: ApplicationContext, eventPayload: Record<string, unknown> = {}): Promise<App> {
+export async function transitionApp(ctx: ServiceContext, app: App, action: ApplicationAction, side: "applicant" | "funder", machineCtx: ApplicationContext, eventPayload: Record<string, unknown> = {}, webhookExtra: Record<string, unknown> = {}): Promise<App> {
   let updated = app;
   const result = await applicationMachine.transition({ id: app.id, status: app.status as ApplicationStatus }, action, { id: ctx.actor.id, kind: side }, { ...machineCtx, now: ctx.now().toISOString() }, {
     write: async (change) => {
@@ -219,7 +226,7 @@ export async function transitionApp(ctx: ServiceContext, app: App, action: Appli
     ledger: (e) => audit(ctx, e.eventType, e.subjectType, e.subjectId, e.data, app.workspace_id),
     emit: async (e) => {
       if (!isWebhookEventType(e.type)) return;
-      await fanOut({ id: crypto.randomUUID(), type: e.type, workspaceId: app.workspace_id, occurredAt: ctx.now().toISOString(), data: { subjectType: e.subjectType, subjectId: e.subjectId, ...e.data } }, { store: ctx.webhooks, now: ctx.now });
+      await fanOut({ id: crypto.randomUUID(), type: e.type, workspaceId: app.workspace_id, occurredAt: ctx.now().toISOString(), data: { subjectType: e.subjectType, subjectId: e.subjectId, ...e.data, ...webhookExtra } }, { store: ctx.webhooks, now: ctx.now });
     },
   });
   if (!result.ok) throw new ApiError(result.code === "actor_not_allowed" ? 403 : 409, result.code, result.reason);
@@ -461,7 +468,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
     const snapshot = (asked?.payload as { snapshot?: Record<string, JsonObject> } | undefined)?.snapshot;
     if (asked && snapshot) revision = { requestedAt: asked.created_at, message: (asked.payload as { message?: string }).message ?? null, changes: diffRevision(snapshot, await revisionSnapshot(ctx, app)) };
   }
-  const submitted = await transitionApp(ctx, stamped, "submit", "applicant", { requiredFormsComplete: true, stageOpen }, { stage: app.stage, eligible: eligibility.eligible, verificationLevel: facts.level, ...(revision ? { revision } : {}) });
+  const submitted = await transitionApp(ctx, stamped, "submit", "applicant", { requiredFormsComplete: true, stageOpen }, { stage: app.stage, eligible: eligibility.eligible, verificationLevel: facts.level, ...(revision ? { revision } : {}) }, { verification: verificationOf(applicant) });
   await ctx.repos.table("form_responses").update({ application_id: app.id, stage: app.stage, locked_at: null }, { locked_at: at });
 
   // Applying is the consent that lets this funder read the cached record for this application.

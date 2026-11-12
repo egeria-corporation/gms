@@ -254,6 +254,18 @@ describe("applying without Passport", () => {
     expect((await start()).body.data.customFields.gms.value.eligibility.eligible).toBe(true);
   });
 
+  it("says in the CommonGrants record and the submitted webhook that the applicant is not verified (NP-17)", async () => {
+    const admin = { ...bearer(await h.session(USER_ADMIN)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
+    expect((await s.call(admin, "POST", "/gms/webhooks", { url: "https://hooks.example/gms", events: ["application.submitted"] })).status).toBe(201);
+    const started = await start();
+    const app = started.body.data as unknown as { id: string; customFields: { gms: { value: { verification: unknown } } } };
+    expect(app.customFields.gms.value.verification).toEqual({ source: "self_declared", level: null });
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Pantry shelves", requestedAmount: { amount: "1000.00", currency: "USD" } } });
+    expect((await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/submit`)).status).toBe(200);
+    const sent = h.webhooks.deliveries.find((d) => d.eventType === "application.submitted")!;
+    expect((JSON.parse(sent.payload) as { data: { verification: unknown } }).data.verification).toEqual({ source: "self_declared", level: null });
+  });
+
   it("refuses to submit when Passport became required after the start, on the CommonGrants route (NP-04)", async () => {
     const app = (await start()).body.data as unknown as { id: string };
     await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Pantry shelves", requestedAmount: { amount: "1000.00", currency: "USD" } } });
