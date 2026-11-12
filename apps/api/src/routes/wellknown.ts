@@ -14,6 +14,14 @@ wellknown.get("/jwks.json", async (c) => {
   return c.json((await keyRing(c.env)).jwks);
 });
 
+// Proof of control for Passport's instance registration (docs/self-host.md section 5): the deploy
+// tool sets the secret for the few minutes the approval takes and deletes it afterwards.
+wellknown.get("/opengrants-passport-challenge", (c) => {
+  const challenge = c.env.PASSPORT_REGISTRATION_CHALLENGE;
+  if (!challenge) return c.text("Not found", 404, { "Cache-Control": "no-store" });
+  return c.text(challenge, 200, { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" });
+});
+
 wellknown.get("/oauth-authorization-server", (c) => {
   const base = trimSlash(c.env.GMS_BASE_URL);
   c.header("Cache-Control", "public, max-age=300");
