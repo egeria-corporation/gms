@@ -4,13 +4,20 @@
 // "Not verified" beside an applicant that has no Passport record and sets the two opportunity toggles.
 import { expect, start, test } from "./helpers.ts";
 
-async function signInAsNewcomer(page: import("@playwright/test").Page) {
-  await start(page, "/signin");
+/** The mock starts signed in as the demo funder: sign out, then sign in as a person with no workspaces. */
+async function signIn(page: import("@playwright/test").Page) {
+  await start(page, "/workspaces");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
   await page.getByLabel("Work email").fill("sam@newcomer.example");
   await page.getByRole("button", { name: "Send code" }).click();
   const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
   for (let i = 0; i < 6; i++) await digits.nth(i).fill(String(i + 1));
   await page.getByRole("button", { name: "Verify and continue" }).click();
+}
+
+async function signInAsNewcomer(page: import("@playwright/test").Page) {
+  await signIn(page);
   await expect(page.getByRole("heading", { name: "How Will You Use OpenGrants GMS?" })).toBeVisible();
   await page.getByRole("radio", { name: /Set up my applicant organization/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -59,9 +66,8 @@ test.describe("an install without Passport", () => {
   });
 
   test("no Passport button or step anywhere", async ({ app: page }) => {
-    await start(page, "/");
-    await expect(page.getByRole("button", { name: /Continue with Passport/ })).toHaveCount(0);
-    await page.getByRole("link", { name: "Sign in", exact: true }).first().click();
+    await start(page, "/workspaces");
+    await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Passport/ })).toHaveCount(0);
 
