@@ -7,7 +7,7 @@ import { DEFAULT_TEMPLATES, MissingFieldError, renderTemplate as renderEmailTemp
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { recipientEmails } from "./profile.ts";
+import { recipientEmails, sharesWith } from "./profile.ts";
 import { STAFF_ROLES, currencyOf, fundingOf, humanOnly, minorOf, printMoney } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { PageRequest } from "./programs.ts";
@@ -128,7 +128,7 @@ async function recipientFields(ctx: ServiceContext, ws: ServiceWorkspace, r: { a
   }
   const applicant = applicantId ? await ctx.repos.table("workspaces").one({ id: applicantId }) : null;
   if (!applicant) return { emails: [], fields, subject, reason: "No recipient organization" };
-  const consent = await ctx.repos.table("consents").one({ applicant_workspace_id: applicant.id, funder_workspace_id: ws.id, revoked_at: null });
+  const consent = await sharesWith(ctx, ws.id, applicant.id);
   fields.recipient = { name: applicant.display_name };
   const award = fields.award as MergeFields | undefined;
   fields.links = {

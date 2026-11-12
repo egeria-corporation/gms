@@ -84,7 +84,9 @@ model TrancheListItem {
     verificationLevel: string | null;
 
     verification?: Verification;
-    pendingDestinationChange: boolean;
+
+    /** Null while the organization does not share its record with this funder */
+    pendingDestinationChange: boolean | null;
   } | null;
 }
 

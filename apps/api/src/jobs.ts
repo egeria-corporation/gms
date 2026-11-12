@@ -17,6 +17,7 @@ import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
 import { STUCK_RELEASE_MS, payeeFactsOf, reconcileReleasing, refreshDisbursed, type PayeeFacts } from "./services/payments.ts";
+import { sharingWith } from "./services/profile.ts";
 import { evaluateRequirement, sendDueReminders } from "./services/requirements.ts";
 import type { Row } from "./services/repos/types.ts";
 import { applyTrancheUpdate, toPaymentsTranche } from "./services/tranches.ts";
@@ -129,8 +130,10 @@ export async function syncPassport(base: BaseContext, opts: { orgChanges?: boole
     const passport = await passportClientFor(ctx, workspaceId);
     const recipientIds = [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))];
     const recipients = recipientIds.length ? await base.repos.table("workspaces").find({ id: recipientIds }) : [];
+    // Passport is asked about a grantee, and its level change ledgered for this funder, only while it shares its record with this funder (review F-01).
+    const shared = await sharingWith(base, workspaceId, recipients.map((w) => w.id));
     for (const w of recipients) {
-      if (!passport || !w.passport_org_id) continue;
+      if (!passport || !w.passport_org_id || !shared.has(w.id)) continue;
       try {
         const c = await passport.getPayeeCredential(w.passport_org_id);
         const p = c.changeControl.pendingChange;

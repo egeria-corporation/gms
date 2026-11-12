@@ -4,11 +4,16 @@
 // from the GMS. These tests pin the fix: an import links only organizations already connected to
 // the funder, the dry run reveals nothing about others, and reminders and the grantee view need the
 // organization's consent, as sending a communication always did.
+import { encryptSecret, fixtureFetch } from "@gms/passport-client";
 import { beforeEach, describe, expect, it } from "vitest";
-import { evaluateRequirements } from "../src/jobs.ts";
-import type { BaseContext } from "../src/services/context.ts";
+import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
+import { evaluateRequirements, syncPassport } from "../src/jobs.ts";
+import { mirrorAward } from "../src/services/awards.ts";
+import { systemContext, type BaseContext } from "../src/services/context.ts";
+import { processPassportEvent } from "../src/services/inbound.ts";
+import { PAYEE_NOT_SHARED } from "../src/services/payments.ts";
 import { MANUAL_REMINDER_INTERVAL_HOURS } from "../src/services/requirements.ts";
-import { BASE, PASSPORT, TEST_CREDENTIALS_KEY, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
+import { BASE, CLIENT_AGENT, PASSPORT, TEST_CREDENTIALS_KEY, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
 import { ORG_ALDER, scenario, type Scenario } from "./scenario.ts";
 
 let h: Harness;
@@ -170,5 +175,109 @@ describe("report reminders go only to organizations that share their record, at 
     const burst = await Promise.all([1, 2, 3, 4].map(() => s.call(s.funder, "POST", `/gms/requirements/${req.id}/remind`)));
     expect(burst.map((r) => r.status).sort()).toEqual([200, 429, 429, 429]);
     expect(h.mailer.sent).toHaveLength(before + 1);
+  });
+});
+
+describe("payment views apply the same rule: Passport facts only by consent", () => {
+  /** A tranche on an award, held because of a payee fact (as a Passport event would have held it). */
+  async function heldTranche(funder: string, awardId: string) {
+    const schedule = await h.repos.table("payment_schedules").insert({ workspace_id: funder, award_id: awardId, currency: "USD" });
+    const id = crypto.randomUUID();
+    await h.repos.table("tranches").insert({ id, workspace_id: funder, award_id: awardId, schedule_id: schedule.id, seq: 1, amount_minor: 100_000, currency: "USD", condition: { type: "manual" } as never, status: "held", hold_reason: "pending_destination_change", idempotency_key: `trn_${id}` });
+    return id;
+  }
+  const agentFor = (ws: string) => h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "payments:read grantees:read awards:read", [WORKSPACE_CLAIM]: ws, jti: `tok-${ws}` });
+  const mcp = async (token: string, name: string, args: Record<string, unknown>) => {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) });
+    return JSON.stringify(await res.json());
+  };
+  const hidden = (text: string) => {
+    expect(text).not.toContain("Harbor Bank");
+    expect(text).not.toContain("0001");
+    expect(text).not.toContain("pending_destination_change");
+    expect(text).not.toContain(ORG_ALDER);
+  };
+
+  it("an organization that has not shared its record shows as not shared in the tranche list, readiness, alerts and award views, over REST and MCP", async () => {
+    const award = await plantImportedAward(WS_OTHER);
+    const trancheId = await heldTranche(WS_OTHER, award.id);
+
+    const list = await s.call<{ items: { holdReason: string; recipient: Record<string, unknown> }[] }>(stranger, "GET", "/gms/tranches");
+    expect(list.body.items[0]).toMatchObject({ holdReason: "held_at_passport", recipient: { workspaceId: WS_APPLICANT, verificationLevel: null, pendingDestinationChange: null } });
+    hidden(JSON.stringify(list.body));
+
+    const ready = await data<{ releasable: boolean; checks: { key: string; state: string; reason: string }[]; tranche: { holdReason: string }; banner: { detail: string } | null; destination: unknown }>(stranger, "GET", `/gms/tranches/trn_${trancheId}/readiness`);
+    expect(ready.releasable).toBe(false);
+    expect(ready.checks.find((c) => c.key === "payee_credential")).toMatchObject({ state: "fail", reason: `${PAYEE_NOT_SHARED}.` });
+    expect(ready).toMatchObject({ tranche: { holdReason: "held_at_passport" }, destination: null });
+    hidden(JSON.stringify(ready));
+
+    const alerts = await data<{ kind: string; detail: string }[]>(stranger, "GET", "/gms/payments/alerts");
+    expect(alerts.map((a) => a.kind).sort()).toEqual(["held", "record_not_shared"]);
+    hidden(JSON.stringify(alerts));
+
+    const detail = await data<{ recipient: { level: string | null }; tranches: { holdReason: string }[] }>(stranger, "GET", `/gms/awards/awd_${award.id}`);
+    expect(detail.recipient.level).toBeNull();
+    expect(detail.tranches[0]!.holdReason).toBe("held_at_passport");
+    hidden(JSON.stringify(detail));
+    hidden(JSON.stringify(await data(stranger, "GET", `/gms/awards/awd_${award.id}/schedule`)));
+    await h.repos.table("tranches").update({ id: trancheId }, { due_at: new Date(h.clock.now.getTime() + 86_400_000).toISOString() });
+    const upcoming = await data<{ items: { holdReason: string }[] }>(stranger, "GET", "/gms/payments/upcoming");
+    expect(upcoming.items[0]!.holdReason).toBe("held_at_passport");
+    hidden(JSON.stringify(await s.call(stranger, "GET", `/common-grants/awards/${award.id}`)));
+    await h.repos.table("requirements").insert({ workspace_id: WS_OTHER, award_id: award.id, type: "report", title: "Report", due_at: "2027-06-01T00:00:00Z", status: "due" });
+    const due = await s.call<{ items: { recipient: { verification: { level: string | null } } }[] }>(stranger, "GET", "/gms/requirements/due");
+    expect(due.body.items[0]!.recipient.verification.level).toBeNull();
+    hidden(JSON.stringify(due.body));
+
+    // The MCP tools read the same services.
+    const token = await agentFor(WS_OTHER);
+    hidden(await mcp(token, "list_tranches", {}));
+    hidden(await mcp(token, "check_payment_readiness", { trancheId: `trn_${trancheId}` }));
+    hidden(await mcp(token, "get_award", { awardId: `awd_${award.id}` }));
+    hidden(await mcp(token, "get_passport_status", { applicantWorkspaceId: WS_APPLICANT }));
+  });
+
+  it("a funder the organization applied to still sees them", async () => {
+    await applyToFunder();
+    const award = await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, recipient_workspace_id: WS_APPLICANT, title: "Mobile Health Navigation", status: "active", funding: { awardedAmount: { amount: "50000.00", currency: "USD" } } as never });
+    const trancheId = await heldTranche(WS_FUNDER, award.id);
+    const list = await s.call<{ items: { holdReason: string; recipient: Record<string, unknown> }[] }>(s.funder, "GET", "/gms/tranches");
+    expect(list.body.items[0]).toMatchObject({ holdReason: "pending_destination_change", recipient: { verificationLevel: "L3", pendingDestinationChange: true } });
+    const alerts = await data<{ kind: string; detail: string }[]>(s.funder, "GET", "/gms/payments/alerts");
+    expect(alerts.find((a) => a.kind === "destination_change_pending")!.detail).toContain("Harbor Bank •••• 0001");
+    const ready = await data<{ checks: { key: string; reason: string }[] }>(s.funder, "GET", `/gms/tranches/trn_${trancheId}/readiness`);
+    expect(ready.checks.find((c) => c.key === "payee_credential")!.reason).not.toBe(`${PAYEE_NOT_SHARED}.`);
+  });
+
+  it("Passport's events and the sync job reach only funders the organization shares with, and no award is recorded at Passport for the others", async () => {
+    await applyToFunder();
+    const mine = await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, recipient_workspace_id: WS_APPLICANT, title: "Mobile Health Navigation", status: "active", funding: { awardedAmount: { amount: "50000.00", currency: "USD" } } as never });
+    const theirs = await plantImportedAward(WS_OTHER);
+    const ready = async (funder: string, awardId: string) => {
+      const schedule = await h.repos.table("payment_schedules").insert({ workspace_id: funder, award_id: awardId, currency: "USD" });
+      const id = crypto.randomUUID();
+      await h.repos.table("tranches").insert({ id, workspace_id: funder, award_id: awardId, schedule_id: schedule.id, seq: 1, amount_minor: 100_000, currency: "USD", condition: { type: "manual" } as never, status: "ready", idempotency_key: `trn_${id}` });
+      return id;
+    };
+    const [t1, t2] = [await ready(WS_FUNDER, mine.id), await ready(WS_OTHER, theirs.id)];
+    await processPassportEvent(base(), { id: "evt_1", type: "payee.destination.change_pending", orgId: ORG_ALDER, occurredAt: h.clock.now.toISOString(), data: { orgId: ORG_ALDER, handle: null, destinationId: "dst_1", state: "pending", bankName: "Harbor Bank", last4: "0001", requestedAt: h.clock.now.toISOString() } } as never);
+    expect((await h.repos.table("tranches").one({ id: t1 }))!.status).toBe("held");
+    expect((await h.repos.table("tranches").one({ id: t2 }))!.status).toBe("ready");
+    const alerted = h.ledger.events.filter((e) => e.eventType === "payments.alert.destination_change_pending").map((e) => e.workspaceId);
+    expect(alerted).toEqual([WS_FUNDER]);
+
+    // The sync job asks Passport only about grantees that share with the funder asking.
+    await h.repos.table("workspaces").update({ id: WS_OTHER }, { passport_org_id: "0190a000-0000-7000-8000-0000000000ff" });
+    await h.repos.table("passport_links").insert({ workspace_id: WS_OTHER, mode: "funder_client", client_id: "pc_cascade", client_secret_enc: await encryptSecret("passport-client-secret-for-tests", TEST_CREDENTIALS_KEY), scopes: ["org:read"], linked_at: h.clock.now.toISOString(), last_ok_at: h.clock.now.toISOString() });
+    const fx = fixtureFetch([{ method: "POST", path: "/oauth/token", status: 200, body: { access_token: "passport-access-token-for-tests", token_type: "Bearer", expires_in: 3600, scope: "org:read payee:read" } }]);
+    h.passport.fetch = fx.fetch;
+    await syncPassport({ ...base(), config: { ...base().config, passportFetch: fx.fetch } });
+    expect(fx.calls.some((c) => c.path.startsWith(`/passport/payees/`))).toBe(false);
+
+    // Mirroring: a new award is not recorded at Passport for an organization that does not share with the funder.
+    const out = await mirrorAward(systemContext({ ...base(), config: { ...base().config, passportAwardWrite: true, passportFetch: fx.fetch } }, { job: "test" }, { id: WS_OTHER, kind: "funder" }), theirs);
+    expect(out).toMatchObject({ state: "skipped", reason: expect.stringMatching(/does not share its record/) });
+    expect(fx.calls.some((c) => c.path.includes("/awards"))).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ import { audit, authorize, emit, required, type ServiceContext, type ServiceWork
 import { passportClientFor } from "./passport-link.ts";
 import { payeeFactsOf } from "./payments.ts";
 import type { PageRequest } from "./programs.ts";
-import { namesOf, profileSourceOf, selfDeclaredOf, verificationShared } from "./profile.ts";
+import { namesShared, profileSourceOf, selfDeclaredOf, sharesWith, sharingWith, verificationShared } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 type Ws = Row<"workspaces">;
@@ -53,7 +53,6 @@ export async function connectedApplicants(ctx: ServiceContext, funderId: string)
   ]);
 }
 
-const consented = async (ctx: ServiceContext, applicantId: string, funderId: string) => !!(await ctx.repos.table("consents").one({ applicant_workspace_id: applicantId, funder_workspace_id: funderId, revoked_at: null }));
 
 /**
  * One row of the directory. What Passport holds about the organization (its id, legal name, level
@@ -67,7 +66,7 @@ function summary(w: Ws, record: Row<"grantee_records"> | undefined, counts: { ap
     workspaceId: w.id,
     totalAwardedMinor: counts.totalAwardedMinor ?? 0,
     handle: w.handle,
-    ...(shared ? namesOf(w) : { name: w.display_name, workspaceName: null }),
+    ...namesShared(w, shared),
     legalName: shared ? w.legal_name : null,
     passportOrgId: shared ? w.passport_org_id : null,
     verificationLevel: verificationShared(w, shared).level,
@@ -89,11 +88,11 @@ export async function listGrantees(ctx: ServiceContext, page: PageRequest, f: { 
     ctx.repos.table("applications").find({ workspace_id: ws.id }, { limit: 5000 }),
     ctx.repos.table("awards").find({ workspace_id: ws.id }, { limit: 5000 }),
     ctx.repos.table("org_change_inbox").find({ workspace_id: ws.id, status: "pending" }),
-    ctx.repos.table("consents").find({ funder_workspace_id: ws.id, applicant_workspace_id: ids, revoked_at: null }),
+    sharingWith(ctx, ws.id, ids),
   ]);
   const q = f.q?.trim().toLowerCase();
   const all = workspaces
-    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, totalAwardedMinor: awards.filter((a) => a.recipient_workspace_id === w.id && !["cancelled", "offered"].includes(a.status)).reduce((sum, a) => sum + (minorOf(fundingOf(a).awardedAmount) ?? 0), 0), pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }, consents.some((c) => c.applicant_workspace_id === w.id)))
+    .map((w) => summary(w, records.find((r) => r.applicant_workspace_id === w.id), { applications: apps.filter((a) => a.applicant_workspace_id === w.id && a.submitted_at).length, awards: awards.filter((a) => a.recipient_workspace_id === w.id).length, totalAwardedMinor: awards.filter((a) => a.recipient_workspace_id === w.id && !["cancelled", "offered"].includes(a.status)).reduce((sum, a) => sum + (minorOf(fundingOf(a).awardedAmount) ?? 0), 0), pendingChanges: inbox.filter((c) => c.passport_org_id === w.passport_org_id).length }, consents.has(w.id)))
     .filter((g) => (!q || `${g.name} ${g.legalName ?? ""} ${g.handle}`.toLowerCase().includes(q)) && (!f.tag || g.tags.includes(f.tag)))
     .sort((a, b) => a.name.localeCompare(b.name));
   return { items: all.slice(page.offset, page.offset + page.pageSize), total: all.length };
@@ -113,7 +112,7 @@ export async function getGrantee(ctx: ServiceContext, applicantId: string) {
     ctx.repos.table("applications").find({ workspace_id: ws.id, applicant_workspace_id: w.id }),
     ctx.repos.table("awards").find({ workspace_id: ws.id, recipient_workspace_id: w.id }),
     w.passport_org_id ? ctx.repos.table("org_change_inbox").find({ workspace_id: ws.id, passport_org_id: w.passport_org_id }, { orderBy: "created_at", ascending: false }) : Promise.resolve([]),
-    consented(ctx, w.id, ws.id),
+    sharesWith(ctx, ws.id, w.id),
   ]);
   const facts = payeeFactsOf(w);
   return {
@@ -156,7 +155,8 @@ export async function listOrgChanges(ctx: ServiceContext, page: PageRequest, f: 
   const where = { workspace_id: ws.id, ...(f.status ? { status: f.status } : {}) };
   const [rows, total] = await Promise.all([ctx.repos.table("org_change_inbox").find(where, { orderBy: "created_at", ascending: false, limit: page.pageSize, offset: page.offset }), ctx.repos.table("org_change_inbox").count(where)]);
   const orgs = rows.length ? (await ctx.repos.table("workspaces").find({ passport_org_id: [...new Set(rows.map((r) => r.passport_org_id))] })).filter((w) => w.kind === "applicant") : [];
-  return { items: rows.map((c) => ({ ...changeView(c), grantee: (({ w }) => (w ? { workspaceId: w.id, ...namesOf(w), handle: w.handle } : null))({ w: orgs.find((o) => o.passport_org_id === c.passport_org_id) }) })), total };
+  const shared = await sharingWith(ctx, ws.id, orgs.map((o) => o.id));
+  return { items: rows.map((c) => ({ ...changeView(c), grantee: (({ w }) => (w ? { workspaceId: w.id, ...namesShared(w, shared.has(w.id)), handle: w.handle } : null))({ w: orgs.find((o) => o.passport_org_id === c.passport_org_id) }) })), total };
 }
 
 async function decide(ctx: ServiceContext, changeId: string, status: "accepted" | "dismissed") {

@@ -13662,7 +13662,8 @@ export interface components {
                 /** @description Passport's level, while the organization shares its record; null otherwise and without Passport. */
                 verificationLevel: string | null;
                 verification?: components["schemas"]["Models.Verification"];
-                pendingDestinationChange: boolean;
+                /** @description Null while the organization does not share its record with this funder */
+                pendingDestinationChange: boolean | null;
             } | null;
         };
         /** @description The seven readiness checks for one tranche, evaluated live. */

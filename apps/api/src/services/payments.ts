@@ -15,6 +15,7 @@ import {
   proposeMatches,
   recordExternal,
   releaseFacilitated,
+  summarize,
   unavailable,
   type AwardForPayments,
   type HoldBanner,
@@ -31,7 +32,7 @@ import { STAFF_ROLES, accessAward, currencyOf, fundingOf, humanOnly, latestAgree
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
-import { namesOf, verificationOf, verificationShared } from "./profile.ts";
+import { namesShared, sharesWith, sharingWith, shownHoldReason, verificationOf, verificationShared } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 import { applyTrancheUpdate, toPaymentsTranche } from "./tranches.ts";
 
@@ -46,6 +47,9 @@ export interface PayeeFacts {
   active?: boolean;
 }
 export const payeeFactsOf = (ws: Ws | null | undefined): PayeeFacts => ((ws?.settings as { passportPayee?: PayeeFacts } | null)?.passportPayee ?? {});
+
+/** Why a payment cannot be read or released for an organization that does not share its record with this funder. One message for REST, MCP and the screens. */
+export const PAYEE_NOT_SHARED = "This organization does not share its record with your workspace, so its payee details are not shown and it cannot be paid through Passport from here. It shares its record by applying to one of your opportunities or sharing a report with you";
 
 export const trancheView = (t: TrancheRow) => ({
   id: apiId("tranche", t.id),
@@ -113,6 +117,8 @@ export interface Readiness {
   credential: PayeeCredential | null;
   award: AwardForPayments | null;
   passport: PassportClient | null;
+  /** Whether the recipient shares its record with this funder; false hides every Passport fact about it. */
+  shared: boolean;
 }
 
 /** The seven readiness checks, evaluated live (§10.7). `unknown` is its own state: Passport unreachable is neither pass nor fail. */
@@ -125,6 +131,9 @@ export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, 
     ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }),
     ctx.repos.table("passport_links").one({ workspace_id: award.workspace_id, mode: "funder_client", revoked_at: null }),
   ]);
+  // An organization that does not share its record with this funder: Passport is not asked about
+  // it, nothing cached about it is used or shown, and the payee check fails (review F-01).
+  const shared = !recipient || (await sharesWith(ctx, award.workspace_id, recipient.id));
   let passport: PassportClient | null = null;
   try {
     passport = await passportClientFor(ctx, award.workspace_id);
@@ -134,14 +143,14 @@ export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, 
   const funderOrg = funder?.passport_org_id ?? null;
   const [funderSources, credential, passportAward] = await Promise.all([
     lookup<FunderSource[]>(passport && funderOrg ? () => passport.listFunderSources(funderOrg) : null),
-    lookup<PayeeCredential>(passport && a ? () => passport.getPayeeCredential(a.recipientOrgId) : null),
+    lookup<PayeeCredential>(passport && a && shared ? () => passport.getPayeeCredential(a.recipientOrgId) : null),
     lookup<CgAward>(passport && a?.passportAwardId ? () => passport.getAward(a.passportAwardId!) : null),
   ]);
-  const facts = payeeFactsOf(recipient);
-  const orgStatus = (recipient?.org_projection as { status?: { value?: string } } | null)?.status?.value;
+  const facts = shared ? payeeFactsOf(recipient) : {};
+  const orgStatus = shared ? (recipient?.org_projection as { status?: { value?: string } } | null)?.status?.value : undefined;
   const recipientActive = facts.active === false ? false : orgStatus ? orgStatus === "active" : null;
   const stub: AwardForPayments = a ?? { id: award.id, title: award.title, recipientOrgId: "", passportAwardId: null, conditions: award.conditions, verificationLevelAtSubmit: null };
-  const summary = evaluateReadiness({
+  const evaluated = evaluateReadiness({
     tranche: toPaymentsTranche(tranche),
     award: stub,
     agreementExecuted: agreement?.status === "executed",
@@ -156,6 +165,7 @@ export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, 
     now: ctx.now(),
     links: { agreement: (id) => `/awards/${apiId("award", id)}/agreement`, award: (id) => `/awards/${apiId("award", id)}/payments`, passportSettings: "/settings/passport", grantee: () => (recipient ? `/grantees/${recipient.id}` : "/grantees") },
   });
+  const summary = shared ? evaluated : summarize(evaluated.checks.map((c) => (c.key === "payee_credential" ? { ...c, state: "fail" as const, reason: `${PAYEE_NOT_SHARED}.`, fixHref: null } : c)));
   const cred = credential.state === "ok" ? credential.value : null;
   // A change Passport told us about blocks the release even when the credential cannot be re-read right now.
   const pending = facts.pendingDestinationChange;
@@ -163,11 +173,12 @@ export async function evaluateTranche(ctx: ServiceContext, tranche: TrancheRow, 
   const d = cred?.payoutDestination ?? null;
   return {
     summary: pending && summary.releasable ? { ...summary, releasable: false, text: `${summary.text} · destination change pending` } : summary,
-    banner: cause ? holdBanner(cause, `Tranche ${tranche.seq}`) : tranche.status === "held" ? { cause: "passport_unavailable", tone: "warn", title: `Tranche ${tranche.seq} is on hold`, detail: `Held: ${(tranche.hold_reason ?? "manual").replace(/_/g, " ")}.`, clears: "Clears when the hold is released." } : null,
+    banner: cause ? holdBanner(cause, `Tranche ${tranche.seq}`) : tranche.status === "held" ? { cause: "passport_unavailable", tone: "warn", title: `Tranche ${tranche.seq} is on hold`, detail: `Held: ${(shownHoldReason(tranche.hold_reason, shared) ?? "manual").replace(/_/g, " ")}.`, clears: "Clears when the hold is released." } : null,
     destination: d ? { bankName: (d as { bankName?: string | null }).bankName ?? null, last4: (d as { last4?: string | null }).last4 ?? null, status: (d as { status?: string }).status ?? "unknown" } : null,
     credential: cred,
     award: a,
     passport,
+    shared,
   };
 }
 
@@ -186,16 +197,18 @@ const readinessView = (ctx: ServiceContext, r: Readiness) =>
 
 export async function getTrancheReadiness(ctx: ServiceContext, trancheId: string) {
   const { tranche, award } = await loadTranche(ctx, trancheId, "payments:read", PAYMENT_READERS);
-  return { tranche: trancheView(tranche), ...readinessView(ctx, await evaluateTranche(ctx, tranche, award)) };
+  const r = await evaluateTranche(ctx, tranche, award);
+  return { tranche: { ...trancheView(tranche), holdReason: shownHoldReason(tranche.hold_reason, r.shared) }, ...readinessView(ctx, r) };
 }
 
 // ------------------------------------------------------------------------------------ schedule
 
 export async function getSchedule(ctx: ServiceContext, awardId: string) {
-  const { award } = await accessAward(ctx, awardId, "awards:read");
+  const { award, side } = await accessAward(ctx, awardId, "awards:read");
   const tranches = await ctx.repos.table("tranches").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "seq" });
   const f = fundingOf(award);
-  return { awardId: apiId("award", award.id), currency: currencyOf(award), awardedAmountMinor: minorOf(f.awardedAmount), disbursedAmountMinor: minorOf(f.disbursedAmount), disbursedAsOf: award.disbursed_at, tranches: tranches.map(trancheView) };
+  const shared = side === "recipient" || !award.recipient_workspace_id || (await sharesWith(ctx, award.workspace_id, award.recipient_workspace_id));
+  return { awardId: apiId("award", award.id), currency: currencyOf(award), awardedAmountMinor: minorOf(f.awardedAmount), disbursedAmountMinor: minorOf(f.disbursedAmount), disbursedAsOf: award.disbursed_at, tranches: tranches.map((t) => ({ ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, shared) })) };
 }
 
 const conditionInput = z.discriminatedUnion("type", [
@@ -267,13 +280,14 @@ export async function listTranches(ctx: ServiceContext, page: PageRequest, f: Tr
   const [rows, total] = await Promise.all([ctx.repos.table("tranches").find(where, { orderBy: "due_at", limit: page.pageSize, offset: page.offset }), ctx.repos.table("tranches").count(where)]);
   const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
-  const consents = recipients.length ? await ctx.repos.table("consents").find({ applicant_workspace_id: recipients.map((r) => r.id), funder_workspace_id: ws.id, revoked_at: null }) : [];
+  const shared = await sharingWith(ctx, ws.id, recipients.map((r) => r.id));
   const items = rows.map((t) => {
     const a = awards.find((x) => x.id === t.award_id);
     const r = recipients.find((x) => x.id === a?.recipient_workspace_id);
-    // As on every other funder view: the source always, the level only while the record is shared.
-    const v = r ? verificationShared(r, consents.some((c) => c.applicant_workspace_id === r.id)) : null;
-    return { ...trancheView(t), award: a ? { id: apiId("award", a.id), title: a.title, status: a.status } : null, recipient: r ? { workspaceId: r.id, ...namesOf(r), handle: r.handle, verificationLevel: v!.level, verification: v!, pendingDestinationChange: !!payeeFactsOf(r).pendingDestinationChange } : null };
+    // As on every other funder view: the source always; Passport's name, level and payee status only while the record is shared.
+    const on = r ? shared.has(r.id) : true;
+    const v = r ? verificationShared(r, on) : null;
+    return { ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, on), award: a ? { id: apiId("award", a.id), title: a.title, status: a.status } : null, recipient: r ? { workspaceId: r.id, ...namesShared(r, on), handle: r.handle, verificationLevel: v!.level, verification: v!, pendingDestinationChange: on ? !!payeeFactsOf(r).pendingDestinationChange : null } : null };
   });
   return { items, total };
 }
@@ -436,7 +450,7 @@ export async function paymentsReadiness(ctx: ServiceContext) {
     const award = awards.find((a) => a.id === t.award_id);
     if (!award) continue;
     const r = await evaluateTranche(ctx, t, award);
-    items.push({ tranche: trancheView(t), award: { id: apiId("award", award.id), title: award.title }, ...readinessView(ctx, r) });
+    items.push({ tranche: { ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, r.shared) }, award: { id: apiId("award", award.id), title: award.title }, ...readinessView(ctx, r) });
   }
   return { facilitatedPayments: !!ctx.config.facilitatedPayments, items, totals: { dueMinor: rows.reduce((s, t) => s + t.amount_minor, 0), releasable: items.filter((i) => i.releasable).length, blocked: items.filter((i) => !i.releasable).length } };
 }
@@ -447,11 +461,18 @@ export async function paymentAlerts(ctx: ServiceContext) {
   const rows = await ctx.repos.table("tranches").find({ workspace_id: ws.id }, { limit: 1000 });
   const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
-  const nameOf = (awardId: string) => ((w) => (w ? namesOf(w).name : "The grantee"))(recipients.find((r) => r.id === awards.find((a) => a.id === awardId)?.recipient_workspace_id));
+  const shared = await sharingWith(ctx, ws.id, recipients.map((r) => r.id));
+  const recipientOf = (awardId: string) => recipients.find((r) => r.id === awards.find((a) => a.id === awardId)?.recipient_workspace_id);
+  const nameOf = (awardId: string) => ((w) => (w ? namesShared(w, shared.has(w.id)).name : "The grantee"))(recipientOf(awardId));
   const alerts: { kind: string; tone: "warn" | "danger" | "neutral"; title: string; detail: string; trancheId?: string; awardId?: string; recipientWorkspaceId?: string }[] = [];
   for (const r of recipients) {
+    // Passport's facts about an organization that does not share its record with this funder are not shown, whoever synced them.
+    if (!shared.has(r.id)) {
+      alerts.push({ kind: "record_not_shared", tone: "neutral", title: `${r.display_name} · record not shared`, detail: `${PAYEE_NOT_SHARED}.`, recipientWorkspaceId: r.id });
+      continue;
+    }
     const f = payeeFactsOf(r);
-    const name = namesOf(r).name;
+    const name = namesShared(r, true).name;
     const level = verificationOf(r).level;
     if (f.pendingDestinationChange) {
       const b = holdBanner({ cause: "pending_destination_change", bankName: f.pendingDestinationChange.bankName, last4: f.pendingDestinationChange.last4, coolingOffUntil: null }, `Payments to ${name}`);
@@ -462,7 +483,8 @@ export async function paymentAlerts(ctx: ServiceContext) {
   }
   for (const t of rows) {
     const base = { trancheId: apiId("tranche", t.id), awardId: apiId("award", t.award_id) };
-    if (t.status === "held") alerts.push({ kind: "held", tone: "warn", title: `${nameOf(t.award_id)} · tranche ${t.seq} held`, detail: `Reason: ${(t.hold_reason ?? "manual").replace(/_/g, " ")}.`, ...base });
+    const r = recipientOf(t.award_id);
+    if (t.status === "held") alerts.push({ kind: "held", tone: "warn", title: `${nameOf(t.award_id)} · tranche ${t.seq} held`, detail: `Reason: ${(shownHoldReason(t.hold_reason, !r || shared.has(r.id)) ?? "manual").replace(/_/g, " ")}.`, ...base });
     if (t.status === "failed") alerts.push({ kind: "payment_failed", tone: "danger", title: `${nameOf(t.award_id)} · tranche ${t.seq} failed`, detail: "Passport does not retry on its own. Review and release again.", ...base });
     if (t.status === "returned") alerts.push({ kind: "payment_returned", tone: "danger", title: `${nameOf(t.award_id)} · tranche ${t.seq} returned`, detail: "The bank returned this payment.", ...base });
     if (t.passport_status === "unverified") alerts.push({ kind: "unverified", tone: "neutral", title: `${nameOf(t.award_id)} · tranche ${t.seq} unverified`, detail: "Recorded as paid outside Passport; Passport could not verify it against the grantee's destination.", ...base });

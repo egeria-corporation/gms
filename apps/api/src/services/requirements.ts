@@ -12,7 +12,7 @@ import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { awardFields } from "./agreements.ts";
 import { primaryEmail } from "./apply.ts";
-import { namesOf, orgFacts, verificationOf } from "./profile.ts";
+import { namesShared, orgFacts, sharesWith, sharingWith, verificationShared } from "./profile.ts";
 import { STAFF_ROLES, emitFor, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
@@ -185,11 +185,12 @@ export async function listDueRequirements(ctx: ServiceContext, page: PageRequest
   const [rows, total] = await Promise.all([ctx.repos.table("requirements").find(where, { orderBy: "due_at", limit: page.pageSize, offset: page.offset }), ctx.repos.table("requirements").count(where)]);
   const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((r) => r.award_id))] }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
+  const shared = await sharingWith(ctx, ws.id, recipients.map((w) => w.id));
   const items = await Promise.all(
     rows.map(async (r) => {
       const a = awards.find((x) => x.id === r.award_id);
       const w = recipients.find((x) => x.id === a?.recipient_workspace_id);
-      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, ...namesOf(w), handle: w.handle, verification: verificationOf(w) } : null };
+      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, ...namesShared(w, shared.has(w.id)), handle: w.handle, verification: verificationShared(w, shared.has(w.id)) } : null };
     }),
   );
   return { items, total };
@@ -262,8 +263,7 @@ async function reminderRecipients(ctx: ServiceContext, workspaceId: string | nul
  * workspace has nobody to email, which the caller reports on its own.
  */
 async function recipientShares(ctx: Pick<ServiceContext, "repos">, award: Award): Promise<boolean> {
-  if (!award.recipient_workspace_id) return true;
-  return !!(await ctx.repos.table("consents").one({ applicant_workspace_id: award.recipient_workspace_id, funder_workspace_id: award.workspace_id, revoked_at: null }));
+  return !award.recipient_workspace_id || (await sharesWith(ctx, award.workspace_id, award.recipient_workspace_id));
 }
 
 /**

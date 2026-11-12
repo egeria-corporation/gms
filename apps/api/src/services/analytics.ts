@@ -132,7 +132,7 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
     const paidMinor = paid(a);
     return {
       awardId: apiId("award", a.id),
-      recipientName: w?.legal_name ?? w?.display_name ?? individual?.name ?? "Unknown recipient",
+      recipientName: (w ? (canRead ? (w.legal_name ?? w.display_name) : w.display_name) : null) ?? individual?.name ?? "Unknown recipient",
       recipientAddress: addr ? [addr.street1, addr.city, addr.stateOrProvince, addr.postalCode].filter(Boolean).join(", ") : null,
       recipientVerification: verificationShared(w, canRead),
       relationship: "None",
@@ -199,7 +199,7 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     // Organizations are references into Passport, plus the cached projection where the organization consented.
     orgs: applicants.map((w) => {
       const shared = consents.some((c) => c.applicant_workspace_id === w.id);
-      return { passportOrgId: w.passport_org_id, name: w.display_name, verification: verificationShared(w, shared), projection: shared && profileSourceOf(w) === "passport" ? w.org_projection : null, selfDeclared: shared ? selfDeclaredOf(w) : null };
+      return { passportOrgId: shared ? w.passport_org_id : null, name: w.display_name, verification: verificationShared(w, shared), projection: shared && profileSourceOf(w) === "passport" ? w.org_projection : null, selfDeclared: shared ? selfDeclaredOf(w) : null };
     }),
   };
   const strip = <R extends { workspace_id?: string }>(rows: R[]) => rows;

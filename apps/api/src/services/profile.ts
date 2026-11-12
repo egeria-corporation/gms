@@ -125,6 +125,31 @@ export function verificationOf(ws: Pick<Ws, "passport_org_id" | "profile_source"
   return { source, level };
 }
 
+/**
+ * Which of these applicant workspaces share their record with this funder: a live consent, given by
+ * applying or by sharing a report. The one rule for everything a funder reads or is sent about an
+ * organization from Passport (its Passport id and legal name, level, payee status, bank name and
+ * last four, alerts and holds), for emailing it, and for telling Passport about it (review F-01).
+ */
+export async function sharingWith(ctx: Pick<ServiceContext, "repos">, funderId: string, applicantIds: readonly (string | null | undefined)[]): Promise<Set<string>> {
+  const ids = [...new Set(applicantIds.filter((x): x is string => !!x))];
+  if (!ids.length) return new Set();
+  const rows = await ctx.repos.table("consents").find({ funder_workspace_id: funderId, applicant_workspace_id: ids, revoked_at: null });
+  return new Set(rows.map((c) => c.applicant_workspace_id));
+}
+export const sharesWith = async (ctx: Pick<ServiceContext, "repos">, funderId: string, applicantId: string): Promise<boolean> => (await sharingWith(ctx, funderId, [applicantId])).has(applicantId);
+
+/** How a funder names an organization: by its Passport legal name only while it shares its record, otherwise by the workspace's own name. */
+export const namesShared = (ws: Parameters<typeof namesOf>[0], shared: boolean): { name: string; workspaceName: string | null } => (shared ? namesOf(ws) : { name: ws.display_name, workspaceName: null });
+
+/**
+ * Hold reasons that come from Passport's facts about the payee. A funder the organization does not
+ * share its record with sees only that the tranche is held at Passport: which fact holds it is the
+ * organization's to share.
+ */
+const PAYEE_HOLD_REASONS: readonly string[] = ["pending_destination_change", "freeze_window", "level_below_l3", "organization_inactive", "credential_version_stale"];
+export const shownHoldReason = (reason: string | null, shared: boolean): string | null => (shared || !reason || !PAYEE_HOLD_REASONS.includes(reason) ? reason : "held_at_passport");
+
 /** What a funder sees: the source always, the Passport level only while the organization shares its record. */
 export const verificationShared = (ws: Parameters<typeof verificationOf>[0], shared: boolean): Verification => {
   const v = verificationOf(ws);
