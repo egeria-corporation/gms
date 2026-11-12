@@ -10,6 +10,7 @@ import { useApiMutation } from "../../api/hooks.ts";
 import type { Invitation, WorkspaceRecord } from "../../api/types.ts";
 import { useServices } from "../../app/services.tsx";
 import { Busy } from "../../auth/RequireAuth.tsx";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { ErrorBanner, Field, problemFor } from "../../components/ui.tsx";
 import { checkBrand, isHexColor, suggestOnAccent, SYSTEM_BRAND } from "../../lib/contrast.ts";
@@ -17,10 +18,10 @@ import { parseDollars, slugify } from "../../lib/format.ts";
 import { markOf } from "./PublicFrame.tsx";
 
 const STEPS = [
-  { key: "organization", title: "Organization", hint: "Name, public handle and your Passport record" },
+  { key: "organization", title: "Organization", hint: "Name and public handle" },
   { key: "brand", title: "Brand", hint: "Accent color and logo for your public page" },
   { key: "team", title: "Team", hint: "Invite program officers, finance, reviewers" },
-  { key: "payments", title: "Payments", hint: "Connect OpenGrants Passport, or skip for now" },
+  { key: "payments", title: "Payments", hint: "Optional: connect OpenGrants Passport to pay through it" },
   { key: "program", title: "First program", hint: "Name, fiscal year, budget" },
 ] as const;
 type StepKey = (typeof STEPS)[number]["key"];
@@ -76,7 +77,7 @@ function BrandPreview({ name, handle, accent, onAccent, logoUrl }: { name: strin
             <div className="mission" style={{ padding: "12px 0 22px", gap: "6px" }}>
               <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "22px", color: "var(--on-tenant)" }}>{name || "Your organization"}</div>
               <p className="sub" style={{ fontSize: "13px", color: "var(--on-tenant)" }}>
-                Your mission line comes from your Passport record.
+                Your mission line appears here.
               </p>
             </div>
           </div>
@@ -89,7 +90,7 @@ function BrandPreview({ name, handle, accent, onAccent, logoUrl }: { name: strin
               $25,000 – $100,000
             </div>
             <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }}>
-              Apply with Passport
+              Apply
             </span>
           </div>
         </div>
@@ -164,6 +165,7 @@ export default function FunderOnboarding() {
   const [budget, setBudget] = useState("");
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
+  const passportFlags = usePassportFlags();
   const create = useApiMutation((a) => a.createWorkspace({ kind: "funder", handle, displayName: name.trim() }));
   const saveBrand = useApiMutation((a, id: string) => a.updateWorkspace(id, { brand: { accent, onAccent, ...(logoUrl.trim() ? { logoUrl: logoUrl.trim() } : {}) } }));
   const invite = useApiMutation((a, id: string) => a.createInvitation(id, { email: inviteEmail.trim(), role: inviteRole }));
@@ -461,10 +463,10 @@ export default function FunderOnboarding() {
               }
             >
               <p>
-                Payments are released through OpenGrants Passport to a destination the grantee has verified there. The GMS never collects or stores bank details.
-                Until Passport is connected, awards and schedules still work and Payments shows “connect Passport to pay”.
+                You do not need Passport to use the GMS. Awards, agreements and payment schedules all work without it, and you can record payments you make yourself.
+                {passportFlags.linking && " Connect OpenGrants Passport only if you want to send payments through it to a destination the grantee has verified there. The GMS never collects or stores bank details."}
               </p>
-              <PassportLinkPanel workspaceId={workspace.id} />
+              {passportFlags.linking && <PassportLinkPanel workspaceId={workspace.id} />}
             </StepCard>
           )}
 

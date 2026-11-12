@@ -11,7 +11,8 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { awardFields } from "./agreements.ts";
-import { passportFacts, primaryEmail } from "./apply.ts";
+import { primaryEmail } from "./apply.ts";
+import { namesOf, orgFacts, verificationOf } from "./profile.ts";
 import { STAFF_ROLES, emitFor, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { toDefinition } from "./forms.ts";
@@ -188,7 +189,7 @@ export async function listDueRequirements(ctx: ServiceContext, page: PageRequest
     rows.map(async (r) => {
       const a = awards.find((x) => x.id === r.award_id);
       const w = recipients.find((x) => x.id === a?.recipient_workspace_id);
-      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, name: w.display_name, handle: w.handle } : null };
+      return { ...requirementView(r, await latestSubmission(ctx, r.id)), award: a ? { id: apiId("award", a.id), title: a.title } : null, recipient: w ? { workspaceId: w.id, ...namesOf(w), handle: w.handle, verification: verificationOf(w) } : null };
     }),
   );
   return { items, total };
@@ -278,7 +279,7 @@ export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ s
         // Each member who wants report mail at once gets their own copy. Members on a digest read it
         // there (the grantee's ledger event below feeds it). The organization's address is used only
         // when no member has opted in, so a reminder is never silently dropped.
-        const list = who.immediate.length ? who.immediate : who.deferred > 0 ? [] : to ? [{ key: "org", email: to }] : [];
+        const list = who.immediate.length ? who.immediate : who.deferred > 0 ? [] : to.map((email, i) => ({ key: i ? `org${i}` : "org", email }));
         if (!list.length && who.deferred === 0) throw new Error("no_recipient_email");
         let first: string | null = null;
         for (const x of list) {
@@ -306,8 +307,8 @@ export async function remindNow(ctx: ServiceContext, requirementId: string) {
   const award = required(await ctx.repos.table("awards").one({ id: r.award_id, workspace_id: r.workspace_id }), "Award");
   const offset = Math.round((ctx.now().getTime() - Date.parse(r.due_at)) / 86_400_000);
   const { to, rendered } = await reminderEmail(ctx, r, award, offset);
-  if (!to) throw new ApiError(422, "no_recipient_email", "The grantee has no primary email in Passport");
-  const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: rendered.subject, html: rendered.html, text: rendered.text });
+  if (!to.length) throw new ApiError(422, "no_recipient_email", "No email address is known for this grantee");
+  const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to, subject: rendered.subject, html: rendered.html, text: rendered.text });
   await audit(ctx, "requirement.reminder_sent", "requirement", r.id, { manual: true, messageId: id, awardId: r.award_id });
   return { sent: true, messageId: id };
 }
@@ -425,8 +426,8 @@ export async function listMyRequirements(ctx: ServiceContext) {
 
 /** Fill what can be filled: Passport first, then the last accepted report on this award, each marked with where it came from. */
 async function prefillReport(ctx: ServiceContext, def: FormDefinition, r: Req, recipient: Row<"workspaces">): Promise<{ response: JsonObject; provenance: Provenance }> {
-  const facts = passportFacts(recipient);
-  const filled = prefill(def, buildPrefillSource(facts.org, facts.profile));
+  const facts = orgFacts(recipient);
+  const filled = prefill(def, buildPrefillSource(facts.org, facts.profile), {}, { as: facts.source === "self_declared" ? "self_declared" : "passport" });
   const response = { ...filled.response };
   const provenance: Provenance = { ...filled.provenance };
   const earlier = (await ctx.repos.table("submissions").find({ award_id: r.award_id, status: "accepted" }, { orderBy: "submitted_at", ascending: false, limit: 20 })).filter((s) => !s.shared_from_submission_id);

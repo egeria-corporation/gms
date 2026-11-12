@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Form response helpers: merge semantics for `PUT …/forms/{formId}` and status computation.
 import { clone, deepEqual, formatPointer, getAt, isAtOrUnder, isPlainObject, parsePointer, setAt, deleteAt } from "./pointer.ts";
-import type { FormDefinition, Json, JsonObject, Provenance, ProvenanceSource, ResponseStatus } from "./types.ts";
+import { isPrefillSource, type FormDefinition, type Json, type JsonObject, type Provenance, type ProvenanceSource, type ResponseStatus } from "./types.ts";
 import { validateResponse } from "./validate.ts";
 
 /** Deep merge: objects merge key by key, arrays and scalars replace, `null` removes the key. */
@@ -95,7 +95,7 @@ export function computeResponseStatus(
   if (isEmptyValue(data)) return "notStarted";
   if (provenance) {
     const sources = Object.values(provenance);
-    if (sources.length > 0 && sources.every((s) => s === "passport")) {
+    if (sources.length > 0 && sources.every(isPrefillSource)) {
       const scratch = clone(data);
       for (const p of Object.keys(provenance)) deleteAt(scratch, parsePointer(p));
       if (isEmptyValue(scratch)) return "notStarted";

@@ -4,7 +4,8 @@
 // CommonGrants competition record. The page links its CommonGrants JSON as an alternate.
 import { useMemo } from "react";
 import { Link, useParams } from "react-router";
-import { BadgeCheck, Calendar, Check, ChevronDown, CircleCheck, CodeXml, Info, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, Calendar, Check, ChevronDown, CircleCheck, CodeXml, Info, ShieldCheck } from "lucide-react";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import { collectControls, type FormDefinition } from "@gms/forms";
 import { ApiError } from "../../api/client.ts";
 import { useApiQuery } from "../../api/hooks.ts";
@@ -16,7 +17,7 @@ import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { DeadlineBadge } from "./FunderPage.tsx";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { openBlob } from "../../lib/browser.ts";
-import { OpportunityDocuments, PublishedFaq } from "./publicExtras.tsx";
+import { OpportunityDocuments, PublishedFaq, UnverifiedFunderBanner } from "./publicExtras.tsx";
 import { useServices } from "../../app/services.tsx";
 
 /** schema.org description of the opportunity for search engines and the OpenGrants importer. */
@@ -28,7 +29,8 @@ export function jsonLd(data: OpportunityPageData, pageUrl: string) {
     name: o.title,
     description: o.description,
     url: pageUrl,
-    funder: { "@type": "Organization", name: funder.name, ...(funder.website ? { url: funder.website } : {}) },
+    // An unverified funder's website is not published as its address.
+    funder: { "@type": "Organization", name: funder.name, ...(funder.website && funder.verification?.source === "passport" ? { url: funder.website } : {}) },
     ...(o.funding.maxAwardAmount ? { amount: { "@type": "MonetaryAmount", currency: o.funding.maxAwardAmount.currency, minValue: o.funding.minAwardAmount?.amount, maxValue: o.funding.maxAwardAmount.amount } } : {}),
     ...(o.keyDates.closeDate?.date ? { applicationDeadline: o.keyDates.closeDate.date } : {}),
   };
@@ -101,6 +103,7 @@ function FormPreview({ form }: { form: CgForm }) {
 }
 
 export default function OpportunityPage() {
+  const passportFlags = usePassportFlags();
   const { handle = "", slug = "" } = useParams();
   const { mock } = useServices();
   const page = useApiQuery((api) => api.publicOpportunity(handle, slug), [handle, slug]);
@@ -120,6 +123,7 @@ export default function OpportunityPage() {
   const data = page.data;
   const { funder, opportunity: o, competitions } = data;
   const home = `/f/${funder.handle}`;
+  const funderVerified = funder.verification ? funder.verification.source === "passport" : !!funder.verificationLevel;
   // Signed-out visitors are sent through sign-in by the route guard and come back to the apply entry.
   const applyPath = `/apply/${funder.handle}/${o.slug}`;
   const competition = competitions[0];
@@ -161,8 +165,8 @@ export default function OpportunityPage() {
               </a>
               {o.status === "open" && (
                 <Link to={applyPath} className="btn btn-tenant btn-lg">
-                  <ShieldCheck className="ic" aria-hidden="true" />
-                  Apply with Passport
+                  <ArrowRight className="ic" aria-hidden="true" />
+                  Apply
                 </Link>
               )}
             </div>
@@ -171,6 +175,11 @@ export default function OpportunityPage() {
 
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column" }}>
           <section style={{ paddingTop: "32px" }}>
+            {!funderVerified && (
+              <div style={{ marginBottom: "20px" }}>
+                <UnverifiedFunderBanner name={funder.name} />
+              </div>
+            )}
             {o.status === "forecasted" && (
               <div className="bnr bnr-neu" role="status" style={{ marginBottom: "20px" }}>
                 <Calendar className="ic" aria-hidden="true" />
@@ -239,7 +248,7 @@ export default function OpportunityPage() {
               )}
               <li style={{ background: "#F7FAFA" }}>
                 <Info className="ic" aria-hidden="true" />
-                <div>When you apply with Passport, each rule is checked against your record and shown as Pass, Fail, or Unknown before you start writing.</div>
+                <div>When you apply, each rule is checked against your organization’s details and shown as Pass, Fail, or Unknown before you start writing. Details you entered yourself are marked as self-reported.</div>
               </li>
             </ul>
           </section>
@@ -284,12 +293,13 @@ export default function OpportunityPage() {
             <PublishedFaq handle={funder.handle} />
             <details open>
               <summary>
-                What does "Apply with Passport" mean?
+                Do I need Passport to apply?
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
               <p>
-                Your organization's record in OpenGrants Passport pre-fills the application and attaches your verification level. You grant {funder.name} read
-                access to your profile; you can revoke it at any time from your workspace.
+                No. You can set up a workspace with details you enter yourself; it is shown to {funder.name} as not verified.
+                {passportFlags.linking &&
+                  ` Linking OpenGrants Passport is recommended: your organization is verified, forms fill themselves in from its record${passportFlags.payments ? ", and you can receive payments through Passport" : ""}. You grant ${funder.name} read access to your profile and can revoke it at any time from your workspace. An opportunity can require a linked Passport; the Apply step tells you if it does.`}
               </p>
             </details>
             <details>
@@ -305,8 +315,9 @@ export default function OpportunityPage() {
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
               <p>
-                Awards are paid in scheduled tranches to the destination your organization has verified in Passport. {funder.name} never collects bank details
-                directly; payment readiness is checked before each release.
+                {passportFlags.payments
+                  ? `Awards are paid in scheduled tranches. ${funder.name} can pay through OpenGrants Passport to the destination your organization has verified there, and never collects bank details directly; payment readiness is checked before each release.`
+                  : `Awards are paid in scheduled tranches. You see each payment in your workspace, and ${funder.name} records when it has been paid.`}
               </p>
             </details>
           </section>

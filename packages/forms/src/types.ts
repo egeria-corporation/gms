@@ -149,6 +149,9 @@ export interface FormDefinition {
   supersedesFormVersion?: number | null;
 }
 
-export type ProvenanceSource = "passport" | "library" | "prior_submission" | "qbo" | "user" | `agent:${string}`;
+/** `self_declared`: prefilled from the profile an organization without Passport entered itself (shown as "you entered"). */
+export type ProvenanceSource = "passport" | "self_declared" | "library" | "prior_submission" | "qbo" | "user" | `agent:${string}`;
 export type Provenance = Record<string, ProvenanceSource>;
+/** Provenance a later prefill may overwrite: values that came from the organization record, not from a person. */
+export const isPrefillSource = (s: ProvenanceSource | undefined): boolean => s === "passport" || s === "self_declared";
 export type ResponseStatus = "notStarted" | "inProgress" | "complete";

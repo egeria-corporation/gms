@@ -73,8 +73,10 @@ Implemented:
 | `GET /gms/me` | session | The person and the workspaces they can open, each with `id`, `handle`, `kind`, `role`, `displayName`, `brand`, `requiresMfa`, `passportOrgId`, `verificationLevel` |
 | `GET /gms/whoami` | any caller | The resolved principal: kind, workspace, role, effective scopes |
 | `GET /gms/ledger` | role `admin` or `auditor`; tokens need `workspace:admin` | Filters `subjectType`, `subjectId`, `eventType`, `from`, `to`; the workspace always comes from the principal |
-| `GET /gms/workspaces`, `POST /gms/workspaces` | session | List the person's workspaces; create one and become its admin. Brand accent is contrast-checked (WCAG AA) and falls back to the system accent with a warning |
+| `GET /gms/workspaces`, `POST /gms/workspaces` | session | List the person's workspaces; create one and become its admin. Brand accent is contrast-checked (WCAG AA) and falls back to the system accent with a warning. Optional `profile` creates it without Passport, with a self-declared profile (`profileSource: "self_declared"`). `passportOrgId` is refused. Capped at 5 per account and 20 per network address (IPv6 by /64; only `CF-Connecting-IP`, forwarded headers only with `TRUSTED_PROXY="true"`) per day, counted in Postgres (migration 0027) so the cap holds across sessions, Workers and parallel requests: `429 too_many_workspaces` |
+| `PATCH /gms/workspaces/{id}/profile` | `workspace:admin`, role `admin` | Merge patch of the self-declared profile (`null` removes a field; `legalName` stays). Ledgered as `workspace.profile_updated` with field names. `409 profile_from_passport` for a Passport workspace |
 | `GET /gms/workspaces/{id}` | any member; tokens need `workspace:admin` | |
+| `PATCH /gms/workspaces/{id}` settings | `workspace:admin`, role `admin` | `settings` is a merge patch of the keys an admin may set only (`USER_SETTINGS` in `services/workspaces.ts`: funders `contactEmail`, `transparency`, `gatedTools`, `defaultRail`; applicants `gatedTools`). Server-owned keys (`passportPayee`, `assistMonthlyQuota`) and `contacts` (own route) are dropped; a bad value is `422 invalid_setting` |
 | `PATCH /gms/workspaces/{id}`, `GET/POST …/members`, `PATCH/DELETE …/members/{userId}`, `POST …/invitations` | `workspace:admin`, role `admin` to change | A workspace always keeps one admin. The invitation token is returned once; only its hash is stored. Sending the invitation email arrives with `@gms/notify` wiring |
 | `DELETE /gms/workspaces/{id}/members/me` | person, any role | Leave the workspace. Refused for the last admin and for any agent or token |
 | `POST /gms/invitations/accept` | session | `{ token }`; one use, expires |
@@ -306,7 +308,7 @@ Switches, the signer rule and the data behind the screens that were partial. Tes
 
 | Route | Status | Notes |
 |---|---|---|
-| `GET /gms/config` | Implemented | No token. `{ facilitatedPayments, assistantEnabled }`. The same object is `features` on `GET /gms/me` |
+| `GET /gms/config` | Implemented | No token. `{ passport: { signIn, linking, payments }, facilitatedPayments, assistantEnabled, available }`. Each `passport` flag is true only when the server has the Passport base URL, the GMS client id and secret and the credentials key (sign-in also the account port, payments also `PAYMENTS_FACILITATED="true"`). The same object is `features` on `GET /gms/me` |
 | `POST /gms/tranches/{id}/release` | Implemented | With `PAYMENTS_FACILITATED` unset or not `true` (the default): `409 facilitated_payments_disabled`, checked before anything else. The MCP `release_tranche` tool answers `conflict` with the same message, and the reconcile job does nothing |
 | `GET /gms/tranches/{id}/readiness`, `GET /gms/payments/readiness` | Implemented | Each tranche carries `mode` (`facilitated` or `resolve`) and `modeNote`; in `resolve` mode `releasable` is false. The center also returns `facilitatedPayments` |
 | `POST /gms/tranches/{id}/record-external` | Implemented | Unchanged and available in both modes. It still needs the award's Passport mirror (`409 not_mirrored` without one) |
@@ -359,3 +361,35 @@ matched, and `admin_role` (the earlier rule: an admin of the recipient workspace
 | `POST /gms/connectors/google_workspace/export` | Implemented | Funder `admin` or `program_officer`, people only. `{ documentKind: "letter" \| "agreement" \| "snapshot", subjectId, folderId }` → `201 { documentKind, subjectId, fileId, fileName, url }`. The PDF comes from the same service as the download. Ledger `connector.drive_export`. `409 drive_folder_unavailable`, `422 connector_scope_rejected`, `422 connector_scope_unverified` |
 | `GET /gms/connectors/google_workspace/directory?q=` | Implemented | Funder admin. Up to 20 `{ email, name }`. `409 connector_not_connected`; scope refusals as above. `GET /gms/directory/suggest` stays as the quiet variant that returns `[]` on any failure |
 | `POST /gms/connectors/google_workspace` | Implemented | The Composio link now returns to `/w/{handle}/settings/connectors?connected=google_workspace`. A connection whose scopes Composio does not report is refused: `422 connector_scope_unverified` |
+
+## Without Passport
+
+A workspace that has not linked Passport keeps a self-declared profile (see `docs/decisions.md`,
+2026-11-12). What changes for callers:
+
+- **Names beside the badge**: for a Passport workspace `name` is the Passport legal name and the
+  workspace's own display name comes second as `workspaceName` (null when the same).
+- **`verification: { source: "passport" | "self_declared" | "none", level }`** on every applicant a
+  funder sees (inbox list and detail `applicant`, grantee list and detail, award `recipient`,
+  exports, the 990-PF list as `recipientVerification`, MCP `get_passport_status`) and on the funder
+  public page. `level` is Passport's, and only while the organization shares its record.
+- **Inbox and grantee detail** give a self-declared profile as `selfDeclared`, apart from the Passport
+  record (`organization` / `organization.projection`), which is null without Passport. A
+  self-declared profile is never served as a CommonGrants organization.
+- **Opportunity options** in `publish`: `requirePassport` (start answers `403 passport_required`
+  without a live Passport link) and `acceptSelfReported` (otherwise a rule met on self-reported
+  facts is `unknown`, needs review). Both default to false; `applicantOptions` gives them resolved.
+- **Eligibility** results carry `selfReported: true` on rules that read the organization's own
+  word; rules on Passport-only facts (all of `org.customFields`, `org.status`,
+  `profile.*`) are `unknown` for an applicant without Passport. A failing rule stays failing.
+- **Prefill** from a self-declared profile marks provenance `self_declared` ("you entered"), and
+  `passportField` fields stay editable for an applicant without Passport.
+- **Readiness** (`GET /gms/me/readiness`) for a workspace without Passport: `profile_complete`
+  (legal name and contact email) and, where this server can link, an `optional` check
+  `passport_optional` that is never counted in `summary`.
+- **Letters** go to the Passport record's email, else the workspace's admins at the address they
+  sign in with (at most five). A self-declared `contactEmail` is shown, never emailed.
+- **Linking later** through the consent flow sets `profileSource: "passport"`, clears the profile
+  and ledgers `workspace.profile_replaced_by_passport` with the names of the fields that differed.
+- In the OpenAPI document the new response fields are optional so existing clients keep
+  compiling; this server always sends them.

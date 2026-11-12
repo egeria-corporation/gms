@@ -214,6 +214,23 @@ describe("applicant agent", () => {
     expect((await h.repos.table("approvals").one({ workspace_id: WS_APPLICANT }))).toMatchObject({ side: "applicant", status: "executed" });
   });
 
+  it("refuses an agent's submit once the opportunity requires Passport, even after a person approves (NP-04)", async () => {
+    const token = await applicantAgent("applications:read applications:write applications:submit");
+    // The application submitted in beforeEach would be returned by start: begin from no application.
+    await h.repos.table("form_responses").remove({ application_id: appUuid });
+    await h.repos.table("applications").remove({ id: appUuid });
+    const started = (await tool(token, "start_application", { competitionId: s.compId })).structuredContent as { id: string };
+    const id = `app_${started.id}`;
+    await tool(token, "fill_form_response", { applicationId: id, formId: s.loiFormId, response: { projectTitle: COMPLETE.projectTitle, requestedAmount: COMPLETE.requestedAmount } });
+    // The funder turns the option on after the application was started; the scenario's applicant has no live consent.
+    await s.call(s.funder, "PATCH", `/gms/opportunities/${s.oppId}`, { publish: { requirePassport: true } });
+    const submit = (await tool(token, "submit_application", { applicationId: id })).structuredContent as { status: string; approvalId: string };
+    expect(submit.status).toBe("pending_approval");
+    const decided = await s.call<{ data: { status: string; error: string } }>(s.applicant, "POST", `/gms/approvals/${submit.approvalId}/decision`, { approve: true });
+    expect(decided.body.data).toMatchObject({ status: "failed", error: expect.stringContaining("connect OpenGrants Passport") });
+    expect((await h.repos.table("applications").one({ id: started.id }))!.status).toBe("draft");
+  });
+
   it("keeps funder tools away from an applicant token", async () => {
     const token = await applicantAgent("applications:read applications:write");
     expect((await tool(token, "decline_application", { applicationId: `app_${appUuid}`, rationale: "x" })).structuredContent).toMatchObject({ error: { code: "wrong_side" } });

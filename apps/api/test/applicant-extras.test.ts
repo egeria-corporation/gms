@@ -144,13 +144,14 @@ describe("letters and settings", () => {
   it("merge-patches workspace settings: unsent keys stay, null removes", async () => {
     const admin = { ...bearer(await h.session(USER_ADMIN)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
     const patch = (settings: Record<string, unknown>) => h.request(`/gms/workspaces/${WS_FUNDER}`, { method: "PATCH", headers: admin, body: JSON.stringify({ settings }) });
-    expect((await patch({ fiscalYearStart: "07-01" })).status).toBe(200);
-    expect((await patch({ defaultCurrency: "USD" })).status).toBe(200);
-    expect((await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings).toMatchObject({ fiscalYearStart: "07-01", defaultCurrency: "USD" });
-    await patch({ fiscalYearStart: null });
+    // Keys an admin may set (USER_SETTINGS); anything else is dropped (see workspaces.test.ts).
+    expect((await patch({ contactEmail: "grants@riverbendcf.example" })).status).toBe(200);
+    expect((await patch({ transparency: true })).status).toBe(200);
+    expect((await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings).toMatchObject({ contactEmail: "grants@riverbendcf.example", transparency: true });
+    await patch({ contactEmail: null });
     const settings = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings as Record<string, unknown>;
-    expect(settings).not.toHaveProperty("fiscalYearStart");
-    expect(settings.defaultCurrency).toBe("USD");
+    expect(settings).not.toHaveProperty("contactEmail");
+    expect(settings.transparency).toBe(true);
   });
 });
 

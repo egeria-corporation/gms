@@ -84,7 +84,7 @@ describe("public opportunity page", () => {
 
   it("sends Apply to sign-in with the page as the return address", async () => {
     open("/f/riverbend/o/community-health-2027", createMockServices({ session: null }));
-    const apply = await screen.findByRole("link", { name: /Apply with Passport/ });
+    const apply = await screen.findByRole("link", { name: /^Apply$/ });
     expect(apply).toHaveAttribute("href", "/apply/riverbend/community-health-2027");
   });
 
@@ -107,7 +107,7 @@ describe("public opportunity page", () => {
   it("does not offer Apply on a forecasted opportunity", async () => {
     open("/f/riverbend/o/youth-opportunity-2028", createMockServices({ session: null }));
     expect(await screen.findByText("This opportunity is forecasted")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Apply with Passport/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Apply$/ })).not.toBeInTheDocument();
   });
 });
 

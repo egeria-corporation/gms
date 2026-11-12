@@ -2,7 +2,7 @@
 // `/f/:handle` — a funder's public front door: brand, mission and published opportunities.
 // Everything here comes from `GET /gms/public/funders/{handle}` (published fields only).
 import { Link, useParams } from "react-router";
-import { ArrowRight, Calendar, CircleMinus, Clock, Globe, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Calendar, CircleMinus, Clock, Globe, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { ApiError } from "../../api/client.ts";
 import { useApiQuery } from "../../api/hooks.ts";
 import type { PublicOpportunityCard } from "../../api/types.ts";
@@ -10,7 +10,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { applicantTypeLabel, daysUntil, formatAwardCount, formatAwardRange, formatDate } from "../../lib/format.ts";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
-import { FunderExtras } from "./publicExtras.tsx";
+import { FunderExtras, UnverifiedFunderBanner } from "./publicExtras.tsx";
 
 /** The badge on an opportunity card: how long it stays open, in words. */
 export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOpportunityCard, "status" | "keyDates">; now?: Date }) {
@@ -107,6 +107,8 @@ export default function FunderPage() {
   const forecasted = opportunities.filter((o) => o.status === "forecasted");
   const nextForecast = forecasted[0];
   const site = funder.website?.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  // An older server sends only the level; a level means a Passport record stands behind it.
+  const fromPassport = funder.verification ? funder.verification.source === "passport" : !!funder.verificationLevel;
 
   return (
     <>
@@ -122,22 +124,35 @@ export default function FunderPage() {
         hero={
           <div className="mission">
             <h1>{funder.name}</h1>
+            {funder.workspaceName && <p className="small" style={{ color: "var(--on-tenant)" }}>Workspace name: {funder.workspaceName}</p>}
             {funder.mission && (
               <p className="sub" style={{ color: "var(--on-tenant)" }}>
                 {funder.mission}
               </p>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: "18px", fontSize: "14px", flexWrap: "wrap", marginTop: "4px" }}>
-              {funder.website && (
-                <a href={funder.website} rel="noopener" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <Globe className="ic" aria-hidden="true" />
-                  {site}
-                </a>
-              )}
-              {funder.verificationLevel && (
+              {funder.website &&
+                (fromPassport ? (
+                  <a href={funder.website} rel="noopener" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <Globe className="ic" aria-hidden="true" />
+                    {site}
+                  </a>
+                ) : (
+                  // An unverified funder's website is shown, not linked: it may not be the funder's.
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <Globe className="ic" aria-hidden="true" />
+                    {site} (not checked)
+                  </span>
+                ))}
+              {fromPassport ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9" }}>
                   <ShieldCheck className="ic" aria-hidden="true" />
                   Claimed in OpenGrants Passport
+                </span>
+              ) : (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9", fontSize: "13px" }}>
+                  <ShieldOff className="ic" aria-hidden="true" />
+                  This funder’s organization is not verified with OpenGrants Passport
                 </span>
               )}
             </div>
@@ -145,6 +160,7 @@ export default function FunderPage() {
         }
       >
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column" }}>
+          {!fromPassport && <UnverifiedFunderBanner name={funder.name} />}
           <section id="open">
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
               <div>

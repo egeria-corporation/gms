@@ -4201,7 +4201,11 @@ export interface paths {
         /** @description Workspaces the caller is a member of. */
         get: operations["Workspaces_list"];
         put?: never;
-        /** @description Create a funder or applicant workspace. */
+        /**
+         * @description Create a funder or applicant workspace. With `profile` it is created without Passport, with a
+         *     self-declared profile (shown as not verified). `passportOrgId` is refused: only Passport sets
+         *     it. Capped per person (5) and per network address (20) per day: 429 `too_many_workspaces`.
+         */
         post: operations["Workspaces_create"];
         delete?: never;
         options?: never;
@@ -4323,6 +4327,27 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/gms/workspaces/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description Workspace admins edit the self-declared profile (a merge patch). Every change is on the ledger
+         *     as `workspace.profile_updated` with the field names. 409 `profile_from_passport` for a
+         *     workspace linked to Passport: its record is edited in Passport.
+         */
+        patch: operations["Workspaces_updateProfile"];
         trace?: never;
     };
     "/llms-full.txt": {
@@ -9260,10 +9285,14 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -9579,11 +9608,18 @@ export interface components {
             /** Format: date-time */
             revokedAt: string | null;
         };
+        /** @description The two applicant options, resolved (absent = false). Set them in `publish`. */
+        "Models.ApplicantOptions": {
+            requirePassport: boolean;
+            acceptSelfReported: boolean;
+        };
         /** @description Passport readiness shown to an applicant: the level and what each next step needs. */
         "Models.ApplicantReadiness": {
             level: components["schemas"]["Models.VerificationLevel"] | null;
             /** @description Whether the workspace holds a live Passport consent. */
             linked: boolean;
+            /** @description Without Passport the checks are "Profile complete" and an optional "Connect Passport for verification". */
+            source: components["schemas"]["Models.ProfileSource"];
             /** Format: date-time */
             syncedAt: string | null;
             checks: components["schemas"]["Models.ReadinessCheck"][];
@@ -10692,6 +10728,8 @@ export interface components {
             outcome: components["schemas"]["Models.TriState"];
             actual?: unknown;
             explain: string;
+            /** @description The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
+            selfReported?: boolean;
         };
         "Models.EndedSession": {
             /** @enum {boolean} */
@@ -10851,10 +10889,15 @@ export interface components {
             verificationLevelAtSubmit: components["schemas"]["Models.VerificationLevel"] | null;
             applicant: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The applicant's current Passport level; null once their consent is revoked. */
                 level: components["schemas"]["Models.VerificationLevel"] | null;
+                /** @description Passport-verified, self-declared (not verified) or no profile. The level only while consent stands. */
+                verification: components["schemas"]["Models.Verification"];
             };
             /** Format: date-time */
             updatedAt: string;
@@ -10868,7 +10911,11 @@ export interface components {
             decisionId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** @description Detail only: the cached Passport record, while the applicant's consent stands. Null for external reviewers. */
             organization?: {
-                projection: components["schemas"]["CommonGrants.Models.OrganizationBase"];
+                source: components["schemas"]["Models.ProfileSource"];
+                /** @description The Passport record; null for an organization without Passport. */
+                projection: components["schemas"]["CommonGrants.Models.OrganizationBase"] | null;
+                /** @description What an organization without Passport entered itself. Not verified. */
+                selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
                 level: components["schemas"]["Models.VerificationLevel"] | null;
                 /** Format: date-time */
                 verifiedAt: string | null;
@@ -10920,10 +10967,14 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -10980,10 +11031,14 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11135,6 +11190,7 @@ export interface components {
             /** @description `{ all: [] }` when the opportunity has no rules */
             eligibilityRules: components["schemas"]["Models.EligibilityRule"];
             publish: components["schemas"]["Models.PublishSettings"];
+            applicantOptions: components["schemas"]["Models.ApplicantOptions"];
             customFields: {
                 [key: string]: unknown;
             };
@@ -11171,7 +11227,10 @@ export interface components {
                 awardId: components["schemas"]["Models.PrefixedId"];
                 recipientName: string;
                 recipientAddress: string | null;
+                /** @description Whether the name and address come from Passport; the level only while the recipient shares its record. */
+                recipientVerification?: components["schemas"]["Models.Verification"];
                 relationship: string;
+                /** @description `PC` only when the Passport record shows a 501(c)(3); `Unknown, verify` otherwise; `I` for an individual. */
                 foundationStatus: string;
                 purpose: string;
                 currency: string;
@@ -11193,6 +11252,8 @@ export interface components {
                 /** Format: int64 */
                 approvedForFuturePaymentMinor: number;
             };
+            /** @description Plain-language checks before filing: recipients not verified with Passport, statuses to confirm. */
+            warnings?: string[];
         };
         /** @description One row of the 990-PF Part XV grant list. */
         "Models.GrantListRow": {
@@ -11223,10 +11284,14 @@ export interface components {
         "Models.GranteeDetail": {
             workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
             handle: string;
+            /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
+            verification: components["schemas"]["Models.Verification"];
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
@@ -11242,10 +11307,12 @@ export interface components {
             notes: string | null;
             /** Format: date-time */
             lastSyncedAt: string | null;
-            /** @description The cached OrganizationBase, when the organization consented; null otherwise */
+            /** @description The cached OrganizationBase from Passport, when the organization consented; null otherwise and for an organization without Passport */
             organization: {
                 [key: string]: unknown;
             } | null;
+            /** @description What an organization without Passport entered itself, when it consented. Not verified. */
+            selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             consent: boolean;
             /** @description Bank name and last four digits only */
             payeeStatus: {
@@ -11280,10 +11347,14 @@ export interface components {
         "Models.GranteeSummary": {
             workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
             handle: string;
+            /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
+            verification: components["schemas"]["Models.Verification"];
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
@@ -11363,6 +11434,8 @@ export interface components {
         };
         /** @description What this server has switched on. Read before sign-in so the web app can hide controls. */
         "Models.InstallConfig": {
+            /** @description Which Passport features this server can offer; every Passport control is hidden when its entry is false. */
+            passport: components["schemas"]["Models.PassportFeatures"];
             /** @description False: `POST /gms/tranches/{id}/release` answers 409 `facilitated_payments_disabled` and payments are recorded after being paid outside the GMS. */
             facilitatedPayments: boolean;
             /** @description False: every drafting route under `/gms/assist/` answers 404. */
@@ -11748,10 +11821,14 @@ export interface components {
             };
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
+                verification: components["schemas"]["Models.Verification"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11796,6 +11873,9 @@ export interface components {
             displayName: string;
             passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             linked: boolean;
+            source: components["schemas"]["Models.ProfileSource"];
+            /** @description The profile an organization without Passport entered itself; edit it at `PATCH /gms/workspaces/{id}/profile`. */
+            selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             level: components["schemas"]["Models.VerificationLevel"] | null;
             /** Format: date-time */
             verifiedAt: string | null;
@@ -11836,6 +11916,8 @@ export interface components {
             requiresMfa: boolean;
             passportOrgId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             verificationLevel: components["schemas"]["Models.VerificationLevel"] | null;
+            profileSource: components["schemas"]["Models.ProfileSource"];
+            verification: components["schemas"]["Models.Verification"];
         };
         "Models.Note": {
             id: string;
@@ -11997,6 +12079,15 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Each true only when the server has the Passport settings it needs (base URL, the GMS client id and secret, the credentials key). */
+        "Models.PassportFeatures": {
+            /** @description Sign in with Passport. */
+            signIn: boolean;
+            /** @description Connect a workspace to Passport (consent). */
+            linking: boolean;
+            /** @description Facilitated payments through Passport; also needs `PAYMENTS_FACILITATED="true"`. */
+            payments: boolean;
+        };
         /**
          * @description A Passport OAuth client created in Passport's funder console. The secret is stored encrypted
          *     and never returned.
@@ -12088,6 +12179,8 @@ export interface components {
             reason: string;
             /** @description Where to fix it (a path in the web app or a Passport URL); null when nothing needs fixing. */
             fixHref: string | null;
+            /** @description An optional step (connecting Passport, for an organization without it): never counted in `summary`. */
+            optional?: boolean;
             /** @description A pass that still deserves attention */
             warning?: boolean;
         };
@@ -12272,6 +12365,11 @@ export interface components {
          * @example awd_0192f0c1-7a3e-7b2c-9a41-5d2f6c1e8b90
          */
         "Models.PrefixedId": string;
+        /**
+         * @description Where an organization's profile comes from. `self_declared` is the organization's own word and is never verified.
+         * @enum {string}
+         */
+        "Models.ProfileSource": "none" | "self_declared" | "passport";
         "Models.Program": {
             /** @description The staff member who owns the program */
             ownerUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
@@ -12413,7 +12511,10 @@ export interface components {
             /** @description Named contacts the funder marked public */
             contacts?: components["schemas"]["Models.FunderContact"][];
             handle: string;
+            /** @description The Passport legal name for a Passport-linked funder, else the workspace's name. */
             name: string;
+            /** @description The workspace's own display name, when it differs from `name`. */
+            workspaceName?: string | null;
             brand: {
                 logoUrl: string | null;
                 accent: string | null;
@@ -12421,7 +12522,9 @@ export interface components {
             };
             mission: string | null;
             website: string | null;
+            /** @description Passport's level; null when the funder's organization is not verified with Passport. */
             verificationLevel: string | null;
+            verification: components["schemas"]["Models.Verification"];
         };
         "Models.PublicOpportunityCard": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -12444,6 +12547,16 @@ export interface components {
             publicPage?: boolean;
             openGrantsIndex?: boolean;
             sitemap?: boolean;
+            faq?: {
+                [key: string]: unknown;
+            }[];
+            documents?: {
+                [key: string]: unknown;
+            }[];
+            /** @description Applicants must connect OpenGrants Passport before starting an application (403 `passport_required`). Default false. */
+            requirePassport?: boolean;
+            /** @description Eligibility may pass on facts an applicant without Passport entered itself; otherwise such a pass needs review. Default false. */
+            acceptSelfReported?: boolean;
         };
         "Models.Ranking": {
             competitionId: components["schemas"]["Models.PrefixedId"];
@@ -12525,6 +12638,8 @@ export interface components {
             reason: string;
             /** @description Where to fix it (a path in the web app or a Passport URL); null when nothing needs fixing. */
             fixHref: string | null;
+            /** @description An optional step (connecting Passport, for an organization without it): never counted in `summary`. */
+            optional?: boolean;
         };
         /** @description One line of a readiness checklist: state, label, reason and a link to the screen that fixes it. */
         "Models.ReadinessLine": {
@@ -13012,6 +13127,50 @@ export interface components {
                 [key: string]: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             };
         };
+        "Models.SelfDeclaredAddress": {
+            street?: string;
+            city?: string;
+            region?: string;
+            postalCode?: string;
+            /** @description ISO 3166-1 alpha-2 */
+            country?: string;
+        };
+        /**
+         * @description What an organization without Passport says about itself. Organization facts only: never a
+         *     person's identity numbers. Shown as not verified, never served as a CommonGrants organization,
+         *     and replaced by the Passport record when the workspace links Passport.
+         */
+        "Models.SelfDeclaredProfile": {
+            legalName: string;
+            displayName?: string;
+            /**
+             * Format: uri
+             * @description An https link
+             */
+            website?: string;
+            mission?: string;
+            address?: components["schemas"]["Models.SelfDeclaredAddress"];
+            contactEmail?: string;
+            /** @description One of the CommonGrants applicant types, e.g. `non_profit_with_501c3` */
+            orgType?: string;
+            /**
+             * @description The organization's employer identification number: nine digits (a hyphen is accepted and removed),
+             *     with a prefix the IRS assigns. Refused when `orgType` is `individual`: never a person's own identity number.
+             */
+            ein?: string;
+        };
+        /** @description A merge patch of the self-declared profile: a field left out keeps its value, `null` removes it. `legalName` cannot be removed. */
+        "Models.SelfDeclaredProfilePatch": {
+            legalName?: string;
+            displayName?: string | null;
+            /** Format: uri */
+            website?: string | null;
+            mission?: string | null;
+            address?: components["schemas"]["Models.SelfDeclaredAddress"] | null;
+            contactEmail?: string | null;
+            orgType?: string | null;
+            ein?: string | null;
+        };
         "Models.SendRequest": {
             templateId: string;
             recipients: {
@@ -13471,9 +13630,14 @@ export interface components {
             } | null;
             recipient: {
                 workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string;
+                /** @description The workspace's own display name, when it differs from the Passport name. */
+                workspaceName?: string | null;
                 handle: string;
+                /** @description Passport's level, while the organization shares its record; null otherwise and without Passport. */
                 verificationLevel: string | null;
+                verification?: components["schemas"]["Models.Verification"];
                 pendingDestinationChange: boolean;
             } | null;
         };
@@ -13546,6 +13710,11 @@ export interface components {
             variance: components["schemas"]["CommonGrants.Fields.Money"];
             /** Format: double */
             variancePercent: number;
+        };
+        /** @description How far an organization is verified, as anyone who sees it is told. `level` is Passport's; null for anything not from Passport. */
+        "Models.Verification": {
+            source: components["schemas"]["Models.ProfileSource"];
+            level: components["schemas"]["Models.VerificationLevel"] | null;
         };
         /**
          * @description Passport assurance level.
@@ -13648,6 +13817,10 @@ export interface components {
                 [key: string]: unknown;
             };
             verificationLevel?: components["schemas"]["Models.VerificationLevel"];
+            profileSource: components["schemas"]["Models.ProfileSource"];
+            verification: components["schemas"]["Models.Verification"];
+            /** @description The self-declared profile; null for a Passport workspace and for one with no profile. */
+            profile: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             status: string;
             /** Format: date-time */
             createdAt: string;
@@ -13657,15 +13830,25 @@ export interface components {
         /**
          * @description A workspace gets its Passport organization only from Passport: a consent or sign-in for that
          *     organization (applicants), or a client verified against it (funders). It cannot be named here.
+         *     Without Passport, send `profile`: the workspace is created with a self-declared profile.
          */
         "Models.WorkspaceInput": {
             kind: components["schemas"]["Models.WorkspaceKind"];
             handle: string;
             displayName: string;
+            legalName?: string;
             brand?: components["schemas"]["Models.Brand"];
+            profile?: components["schemas"]["Models.SelfDeclaredProfile"];
         };
         /** @enum {string} */
         "Models.WorkspaceKind": "funder" | "applicant";
+        /** @description `PATCH /gms/workspaces/{id}/profile` */
+        "Models.WorkspaceProfile": {
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            source: components["schemas"]["Models.ProfileSource"];
+            selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
+            verification: components["schemas"]["Models.Verification"];
+        };
     };
     responses: never;
     parameters: {
@@ -29547,6 +29730,15 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
         };
     };
     Workspaces_read: {
@@ -30207,6 +30399,89 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Workspaces_updateProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SelfDeclaredProfilePatch"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.WorkspaceProfile"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

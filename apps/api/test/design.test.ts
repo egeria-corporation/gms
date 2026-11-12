@@ -250,7 +250,7 @@ describe("opportunities and competitions", () => {
     const h = await harness();
     const officer = await as(h, USER_OFFICER);
     const { opp } = await launch(h, officer);
-    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { org_projection: { name: "Alder Creek Family Services" }, profile_projection: { fields: [{ path: "/commonApp/irs/subsection", value: "03" }] } });
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: "30000000-0000-7000-8000-0000000000aa", profile_source: "passport", org_projection: { name: "Alder Creek Family Services" }, profile_projection: { fields: [{ path: "/commonApp/irs/subsection", value: "03" }] } });
     const body = { opportunityId: opp.id, applicantWorkspaceId: WS_APPLICANT };
     expect((await h.request("/gms/eligibility/evaluate", json(officer, body))).status).toBe(404);
     await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", granted_at: h.clock.now.toISOString() });

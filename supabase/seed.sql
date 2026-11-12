@@ -20,32 +20,32 @@ insert into auth.users (id, email, aud, role) values
   ('10000000-0000-4000-8000-000000000017', 'hello@tidewaterarts.example',          'authenticated', 'authenticated');
 
 -- ------------------------------------------------------------------------------- workspaces
-insert into public.workspaces (id, kind, passport_org_id, handle, display_name, legal_name, ein, brand, settings, verification_level, org_projection, org_projection_at) values
+insert into public.workspaces (id, kind, passport_org_id, handle, display_name, legal_name, ein, brand, settings, verification_level, org_projection, org_projection_at, profile_source) values
   ('20000000-0000-7000-8000-000000000001', 'funder', '30000000-0000-7000-8000-000000000001', 'riverbend',
    'Riverbend Community Foundation', 'Riverbend Community Foundation', '001000001',
    '{"accent":"#1F6F8B","onAccent":"#FFFFFF","fontPreference":"system"}',
    '{"defaultRail":"auto","transparency":true,"gatedTools":["commit_decisions","release_tranche","submit_application","sign_agreement","accept_award","send_communication"]}',
-   'L3', null, null),
+   'L3', null, null, 'passport'),
   ('20000000-0000-7000-8000-000000000002', 'funder', '30000000-0000-7000-8000-000000000002', 'cascade-county',
    'Cascade County Health Department', 'County of Cascade, Health Department', '001000002',
-   '{"accent":"#7A4F01","onAccent":"#FFFFFF","fontPreference":"system"}', '{"defaultRail":"auto","transparency":true}', 'L3', null, null),
+   '{"accent":"#7A4F01","onAccent":"#FFFFFF","fontPreference":"system"}', '{"defaultRail":"auto","transparency":true}', 'L3', null, null, 'passport'),
   ('20000000-0000-7000-8000-000000000003', 'funder', '30000000-0000-7000-8000-000000000003', 'summitline-giving',
    'Summitline Corporate Giving', 'Summitline Outfitters, Inc.', '001000003',
-   '{"accent":"#3D4A8F","onAccent":"#FFFFFF","fontPreference":"system"}', '{"defaultRail":"auto","transparency":false}', 'L2', null, null),
+   '{"accent":"#3D4A8F","onAccent":"#FFFFFF","fontPreference":"system"}', '{"defaultRail":"auto","transparency":false}', 'L2', null, null, 'passport'),
   ('20000000-0000-7000-8000-000000000011', 'applicant', '30000000-0000-7000-8000-000000000011', 'alder-creek',
    'Alder Creek Family Services', 'Alder Creek Family Services', '001000011', '{}', '{}', 'L3',
    '{"id":"30000000-0000-7000-8000-000000000011","name":"Alder Creek Family Services","status":{"value":"active"},"identifiers":{"org:us:ein":{"id":"001000011"}},"mission":"Health navigation and family support for rural households.","yearFounded":"2009","addresses":{"primary":{"street1":"410 Alder Creek Road","city":"Fallbrook","stateOrProvince":"OR","postalCode":"97000","country":"US"}},"emails":{"primary":"info@aldercreek.example"},"phones":{"primary":{"countryCode":"+1","number":"5035550142"}},"socials":{"website":"https://aldercreek.example"},"customFields":{"verificationLevel":{"name":"verificationLevel","fieldType":"string","value":"L3"}}}',
-   now()),
+   now(), 'passport'),
   ('20000000-0000-7000-8000-000000000012', 'applicant', '30000000-0000-7000-8000-000000000012', 'harbor-light',
    'Harbor Light Shelter', 'Harbor Light Shelter Association', '001000012', '{}', '{}', 'L3',
    '{"id":"30000000-0000-7000-8000-000000000012","name":"Harbor Light Shelter","status":{"value":"active"},"identifiers":{"org:us:ein":{"id":"001000012"}},"mission":"Emergency shelter and housing navigation.","yearFounded":"1998","addresses":{"primary":{"street1":"88 Quay Street","city":"Port Marlow","stateOrProvince":"OR","postalCode":"97001","country":"US"}},"emails":{"primary":"office@harborlight.example"},"customFields":{"verificationLevel":{"name":"verificationLevel","fieldType":"string","value":"L3"}}}',
-   now()),
+   now(), 'passport'),
   ('20000000-0000-7000-8000-000000000013', 'applicant', '30000000-0000-7000-8000-000000000013', 'northside-youth',
-   'Northside Youth Collective', 'Northside Youth Collective', '001000013', '{}', '{}', 'L2', null, null),
+   'Northside Youth Collective', 'Northside Youth Collective', '001000013', '{}', '{}', 'L2', null, null, 'passport'),
   ('20000000-0000-7000-8000-000000000014', 'applicant', '30000000-0000-7000-8000-000000000014', 'cedar-valley-food-bank',
-   'Cedar Valley Food Bank', 'Cedar Valley Food Bank', '001000014', '{}', '{}', 'L1', null, null),
+   'Cedar Valley Food Bank', 'Cedar Valley Food Bank', '001000014', '{}', '{}', 'L1', null, null, 'passport'),
   ('20000000-0000-7000-8000-000000000015', 'applicant', '30000000-0000-7000-8000-000000000015', 'tidewater-arts',
-   'Tidewater Arts Alliance', 'Tidewater Arts Alliance', '001000015', '{}', '{}', 'L0', null, null);
+   'Tidewater Arts Alliance', 'Tidewater Arts Alliance', '001000015', '{}', '{}', 'L0', null, null, 'passport');
 
 -- The Common App profile as Passport serves it to a consented client: confirmed fields, each a JSON
 -- pointer with provenance. Eligibility rules and prefill read these as `profile.commonApp.*`.

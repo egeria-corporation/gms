@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Flow 4 — Applicant: apply. Opportunity page → Apply with Passport → sign in → onboarding →
+// Flow 4 — Applicant: apply. Opportunity page → Apply → sign in → onboarding →
 // find funding → start → editor (prefilled fields, assign the budget to a consultant, insert from
 // the library, validation) → submit → confirmation → status.
 import { expect, start, test } from "./helpers.ts";
@@ -13,7 +13,7 @@ test("applicant applies", async ({ app: page }) => {
     await page.getByRole("banner").getByRole("link", { name: "OpenGrants GMS", exact: true }).click();
     await page.getByRole("link", { name: "View a live opportunity" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Community Health Grants 2027" })).toBeVisible();
-    await page.getByRole("link", { name: "Apply with Passport" }).first().click();
+    await page.getByRole("link", { name: "Apply", exact: true }).first().click();
     await expect(page).toHaveURL(/\/signin\?next=%2Fapply%2Friverbend%2Fcommunity-health-2027/);
   });
 

@@ -79,6 +79,17 @@ describe("prefill (mappingFromCommonGrants)", () => {
     expect(out.skipped).toEqual([]);
   });
 
+  it("marks values from a self-declared profile as such, and lets the applicant edit them", () => {
+    const out = prefill(form, buildPrefillSource(org, null), {}, { as: "self_declared" });
+    expect(out.provenance["/legalName"]).toBe("self_declared");
+    expect(Object.values(out.provenance).every((v) => v === "self_declared")).toBe(true);
+    // A later prefill from the same profile may refresh what it wrote, never what a person typed.
+    const edited = mergeResponse(out.response, { website: "https://typed.example" }, { provenance: out.provenance });
+    const again = prefill(form, buildPrefillSource(org, null), edited, { as: "self_declared" });
+    expect(again.response.website).toBe("https://typed.example");
+    expect(again.provenance["/legalName"]).toBe("self_declared");
+  });
+
   it("without profile consent, profile fields stay empty", () => {
     const out = prefill(form, buildPrefillSource(org, null));
     expect(out.response.staffCount).toBeUndefined();

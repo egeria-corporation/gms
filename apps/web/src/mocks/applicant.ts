@@ -135,6 +135,8 @@ function seedOrganization(): MyOrganization {
     displayName: "Alder Creek Family Services",
     passportOrgId: I.org,
     linked: true,
+    source: "passport",
+    selfDeclared: null,
     level: "L3",
     verifiedAt: "2027-01-12T00:00:00Z",
     attestationUrl: "https://passport.opengrants.io/attestations/alder-creek",
@@ -420,7 +422,7 @@ export function seedApplicantStore(): ApplicantStore {
         programId: null,
         parentAwardId: null,
         funder: { workspaceId: I.riverbend, name: "Riverbend Community Foundation", handle: "riverbend", brand: { accent: "#1F6F8B" } },
-        recipient: { workspaceId: I.workspace, name: "Alder Creek Family Services", handle: "alder-creek", level: "L3" },
+        recipient: { workspaceId: I.workspace, name: "Alder Creek Family Services", handle: "alder-creek", level: "L3", verification: { source: "passport", level: "L3" } },
         recipientIndividual: null,
         passport: { awardId: null, syncedAt: null, mirror: "pending" },
         createdAt: "2027-05-18T00:00:00Z",
@@ -451,7 +453,7 @@ export function seedApplicantStore(): ApplicantStore {
         programId: null,
         parentAwardId: null,
         funder: { workspaceId: I.cascade, name: "Cascade County Health Department", handle: "cascade-county", brand: { accent: "#7A4F01" } },
-        recipient: { workspaceId: I.workspace, name: "Alder Creek Family Services", handle: "alder-creek", level: "L3" },
+        recipient: { workspaceId: I.workspace, name: "Alder Creek Family Services", handle: "alder-creek", level: "L3", verification: { source: "passport", level: "L3" } },
         recipientIndividual: null,
         passport: { awardId: null, syncedAt: null, mirror: "synced" },
         createdAt: "2026-06-20T00:00:00Z",
@@ -559,6 +561,19 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
         : rank >= min
           ? { key, state: "pass" as const, label, reason: pass, fixHref: null }
           : { key, state: "fail" as const, label, reason: fail, fixHref: org.editUrl };
+    if (!org.linked) {
+      // Without Passport: the profile the organization entered, and an optional, non-failing nudge.
+      const o = org.organization as unknown as { name?: string; emails?: { primary?: string } } | null;
+      const complete = !!(o?.name || org.displayName) && !!o?.emails?.primary;
+      const own = [
+        complete
+          ? { key: "profile_complete", state: "pass" as const, label: "Profile complete", reason: "Legal name and contact email are set", fixHref: null }
+          : { key: "profile_complete", state: "fail" as const, label: "Profile complete", reason: "Add your legal name and a contact email in Settings", fixHref: null },
+        { key: "passport_optional", state: "unknown" as const, optional: true, label: "Connect Passport for verification", reason: "Optional. Verified organizations are shown to funders as verified", fixHref: null },
+      ];
+      const failed = own.filter((c) => c.state === "fail").length;
+      return { level: null, linked: false, source: "self_declared" as const, syncedAt: null, checks: own, summary: { pass: own.length - failed - 1, fail: failed, unknown: 1, ready: failed === 0 } };
+    }
     const checks = [
       org.linked
         ? { key: "passport_linked", state: "pass" as const, label: "Passport connected", reason: `Record last read ${org.syncedAt?.slice(0, 10) ?? "never"}`, fixHref: null }
@@ -569,7 +584,7 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
     ];
     const fail = checks.filter((c) => c.state === "fail").length;
     const unknown = checks.filter((c) => c.state === "unknown").length;
-    return { level: org.level, linked: org.linked, syncedAt: org.syncedAt, checks, summary: { pass: checks.length - fail - unknown, fail, unknown, ready: fail === 0 && unknown === 0 } };
+    return { level: org.level, linked: org.linked, source: "passport" as const, syncedAt: org.syncedAt, checks, summary: { pass: checks.length - fail - unknown, fail, unknown, ready: fail === 0 && unknown === 0 } };
   };
 
   return {

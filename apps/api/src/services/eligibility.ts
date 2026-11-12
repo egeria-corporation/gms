@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Dry-run eligibility rules against an organization or supplied facts (build spec §10.3).
 // `unknown` is a result in its own right: it flags for a person and never declines.
-import { passportFacts, reviewerView } from "./apply.ts";
-import { evaluate, parseRules } from "@gms/rules";
+import { reviewerView } from "./apply.ts";
+import { orgFacts } from "./profile.ts";
+import { evaluate, parseRules, type EvaluateOptions } from "@gms/rules";
+import { applicantOptionsOf } from "./opportunities.ts";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { unprocessable } from "../lib/input.ts";
@@ -43,6 +45,7 @@ export async function evaluateEligibility(ctx: ServiceContext, input: z.output<t
   let org: unknown = input.org;
   let profile: unknown = input.profile;
   let foreign = false;
+  let options: EvaluateOptions = {};
   if (input.applicantWorkspaceId && (org === undefined || profile === undefined)) {
     const id = input.applicantWorkspaceId;
     if (id !== ws.id) {
@@ -50,14 +53,19 @@ export async function evaluateEligibility(ctx: ServiceContext, input: z.output<t
       foreign = true;
     }
     // The cached Passport record: the organization, and the Common App profile the `profile.*` rules read.
-    const facts = passportFacts(required(await ctx.repos.table("workspaces").one({ id, kind: "applicant" }), "Applicant"));
+    const facts = orgFacts(required(await ctx.repos.table("workspaces").one({ id, kind: "applicant" }), "Applicant"));
     org ??= Object.keys(facts.org).length ? facts.org : undefined;
     profile ??= facts.profile ?? undefined;
+    // An organization without Passport: its own word counts as far as the opportunity accepts it.
+    if (facts.source !== "passport") {
+      const opp = opportunityUuid ? await ctx.repos.table("opportunities").one({ id: opportunityUuid }) : null;
+      options = { selfReported: ["org", "profile"], acceptSelfReported: opp ? applicantOptionsOf(opp).acceptSelfReported : false, passportFacts: false };
+    }
   }
-  const result = evaluate(parsed.rules, { org, profile, form: input.form, applicant: input.applicant });
+  const result = evaluate(parsed.rules, { org, profile, form: input.form, applicant: input.applicant }, options);
   // Rules run against another organization's cached record answer with outcomes only. The caller
   // chooses the rules, so sending back what each one found (`actual`, and the sentence that quotes
   // it) would let any rule read any part of that record: `org.emails exists` returned the contacts.
   const verdict = { pass: "Met", fail: "Not met", unknown: "Could not be checked" } as const;
-  return foreign ? { ...result, results: result.results.map((r) => ({ rule: r.rule, label: r.label, outcome: r.outcome, explain: `${r.label}: ${verdict[r.outcome]}.` })) } : result;
+  return foreign ? { ...result, results: result.results.map((r) => ({ rule: r.rule, label: r.label, outcome: r.outcome, ...(r.selfReported ? { selfReported: true } : {}), explain: `${r.label}: ${verdict[r.outcome]}.` })) } : result;
 }

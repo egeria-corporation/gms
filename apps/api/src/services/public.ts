@@ -8,6 +8,7 @@ import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
+import { namesOf, orgFacts, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type PublicContext = Pick<ServiceContext, "repos" | "config" | "now">;
@@ -150,13 +151,17 @@ const brandOf = (w: Row<"workspaces">) => {
 };
 
 function publicFunder(w: Row<"workspaces">) {
-  const org = (w.org_projection ?? {}) as { mission?: unknown; socials?: { website?: unknown }; emails?: { primary?: unknown } };
+  const verification = verificationOf(w);
+  // A self-declared profile gives the mission and website it states; its contact address is not
+  // published, and nothing about it is presented as a verified record (`verification` says so).
+  const facts = orgFacts(w);
+  const org = (verification.source === "passport" ? facts.org : { mission: facts.org.mission, socials: facts.org.socials }) as { mission?: unknown; socials?: { website?: unknown }; emails?: { primary?: unknown } };
   const settings = (w.settings ?? {}) as { contactEmail?: unknown };
   // The funder's general address: the one it set, else the one on its published organization record.
   const contactEmail = typeof settings.contactEmail === "string" ? settings.contactEmail : typeof org.emails?.primary === "string" ? org.emails.primary : null;
   // Only contacts the funder marked public; the rest are for organizations it already works with.
   const contacts = contactsOf(w).filter((c) => c.public);
-  return { contactEmail, contacts, handle: w.handle, name: w.display_name, brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: w.verification_level };
+  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification };
 }
 
 const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
@@ -195,7 +200,7 @@ async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
   return awards.map((a) => {
     const f = (a.funding ?? {}) as { awardedAmount?: { amount: string; currency: string } };
     const start = ((a.key_dates ?? {}) as { awardDate?: { date?: string } }).awardDate?.date ?? a.created_at;
-    return { recipient: names.get(a.recipient_workspace_id as string)?.display_name ?? null, title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
+    return { recipient: ((r) => (r ? namesOf(r).name : null))(names.get(a.recipient_workspace_id as string)), title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
   });
 }
 

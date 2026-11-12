@@ -9,6 +9,7 @@ import { useApiQuery } from "../../api/hooks.ts";
 import { ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { approvalTargets } from "./shared.tsx";
+import { VerificationBadge } from "../../components/status.tsx";
 
 const TEMPLATE_FOR: Record<string, string> = { decline_application: "builtin:decline" };
 
@@ -68,7 +69,8 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
                             <td>
                               <Link to={`${base}/applications/${a.id}`} className="b">
                                 {a.applicant.name ?? "Applicant"}
-                              </Link>
+                              </Link>{" "}
+                              <VerificationBadge verification={a.applicant.verification} level={a.applicant.level} />
                             </td>
                             <td>{failed.length ? failed.map((r) => r.label).join("; ") : unknown.length ? `Unknown: ${unknown.map((r) => r.label).join("; ")}` : "None — every rule passes"}</td>
                             <td className="num">{formatMinor(a.requestedAmountMinor, a.currency)}</td>

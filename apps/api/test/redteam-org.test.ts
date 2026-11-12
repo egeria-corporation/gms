@@ -7,7 +7,7 @@
 //      organization before it arrived; the real organization then joined it as an editor.
 import { decryptSecret, fixtureFetch, type Fixture } from "@gms/passport-client";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ORG_RIVERBEND, TEST_CREDENTIALS_KEY, WEB, bearer, harness, type Harness } from "./helpers.ts";
+import { ORG_RIVERBEND, TEST_CREDENTIALS_KEY, WEB, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
 import { ALDER_ORG, ALDER_PROFILE, ORG_ALDER } from "./scenario.ts";
 
 const ATTACKER = "abababab-abab-4bab-8bab-abababababab";
@@ -146,5 +146,34 @@ describe("a workspace gets its Passport organization only from Passport", () => 
     const second = await h.request(`/gms/workspaces/${otherId}/passport/link`, { method: "POST", headers: { ...(await session(ATTACKER)), "X-GMS-Workspace": otherId }, body: JSON.stringify({ clientId: "pc_y", clientSecret: "another-client-secret", passportOrgId: ORG_RIVERBEND }) });
     expect(second.status).toBe(409);
     expect((await h.repos.table("workspaces").one({ id: wsId }))!.passport_org_id).toBe(ORG_RIVERBEND);
+  });
+});
+
+describe("a self-declared funder that links Passport (NP-06)", () => {
+  const TOKEN: Fixture = { method: "POST", path: "/oauth/token", status: 200, body: { access_token: "t", token_type: "Bearer", expires_in: 3600, scope: "org:read payee:read" } };
+  const SOURCES: Fixture = { method: "GET", path: `/passport/funders/${ORG_RIVERBEND}/sources`, status: 200, body: { status: 200, message: "Success", items: [], paginationInfo: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } } };
+  const setup = async () => {
+    // The harness's Riverbend workspace holds the id with no proof; free it.
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { passport_org_id: null, profile_source: "none" });
+    const made = await h.request("/gms/workspaces", { method: "POST", headers: await session(VICTIM), body: JSON.stringify({ kind: "funder", handle: "big-famous", displayName: "Big Famous Foundation", profile: { legalName: "Big Famous Foundation", ein: "131234567" } }) });
+    const wsId = ((await made.json()) as { data: { workspace: { id: string } } }).data.workspace.id;
+    const who = { ...(await session(VICTIM)), "X-GMS-Workspace": wsId };
+    const link = () => h.request(`/gms/workspaces/${wsId}/passport/link`, { method: "POST", headers: who, body: JSON.stringify({ clientId: "pc_x", clientSecret: "a-client-secret", passportOrgId: ORG_RIVERBEND }) });
+    return { wsId, link };
+  };
+
+  it("takes its legal name and EIN from the Passport record", async () => {
+    const { wsId, link } = await setup();
+    const ORG: Fixture = { method: "GET", path: `/common-grants/orgs/${ORG_RIVERBEND}`, status: 200, body: { status: 200, message: "Success", data: { id: ORG_RIVERBEND, name: "Riverbend Community Foundation", identifiers: { "org:us:ein": { id: "001000001" } } } } };
+    h.passport.fetch = fixtureFetch([TOKEN, SOURCES, ORG]).fetch;
+    expect((await link()).status).toBe(201);
+    expect(await h.repos.table("workspaces").one({ id: wsId })).toMatchObject({ passport_org_id: ORG_RIVERBEND, legal_name: "Riverbend Community Foundation", ein: "001000001", profile_source: "passport", self_declared_profile: null });
+  });
+
+  it("clears the typed ones when Passport does not answer for the record", async () => {
+    const { wsId, link } = await setup();
+    h.passport.fetch = fixtureFetch([TOKEN, SOURCES]).fetch;
+    expect((await link()).status).toBe(201);
+    expect(await h.repos.table("workspaces").one({ id: wsId })).toMatchObject({ passport_org_id: ORG_RIVERBEND, legal_name: null, ein: null });
   });
 });

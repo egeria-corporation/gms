@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import type { NotificationPreferences } from "../../api/applicantMore.ts";
 import { useMoreMutation, useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
+import { OrganizationProfileCard } from "../../components/OrganizationProfileCard.tsx";
 import { Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
@@ -131,9 +132,12 @@ export default function Settings() {
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <Loaded query={query} label="Loading your preferences">
-              {(prefs) => <Preferences initial={prefs} />}
-            </Loaded>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <OrganizationProfileCard workspaceId={ws.id} connectTo="/onboarding/applicant" />
+              <Loaded query={query} label="Loading your preferences">
+                {(prefs) => <Preferences initial={prefs} />}
+              </Loaded>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <TokensCard base={base} />
               <ExportsCard handle={ws.handle} />

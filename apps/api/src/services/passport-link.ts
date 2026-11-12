@@ -6,6 +6,8 @@ import { PassportApiError, PassportAuthError, PassportClient, PassportUnavailabl
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
+import { einOf } from "./organization.ts";
+import { replaceProfileWithPassport } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 /** What a funder's Passport client must be able to do for the GMS (build spec §2 item 1). */
@@ -66,9 +68,15 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
   const orgId = input.passportOrgId ?? workspace.passport_org_id;
   if (!orgId) throw new ApiError(409, "passport_org_missing", "Enter your organization's Passport ID (shown in Passport's funder console) with the client id and secret");
 
-  const check = await verify(client(ctx, baseUrl, input.clientId, input.clientSecret), orgId);
+  const passport = client(ctx, baseUrl, input.clientId, input.clientSecret);
+  const check = await verify(passport, orgId);
   if (check.state === "unknown") throw new ApiError(503, "passport_unavailable", "Passport can't be reached right now, so the client could not be verified. Nothing was saved");
   if (check.state === "fail") throw new ApiError(422, "passport_client_rejected", `${check.reason}. Nothing was saved`);
+  // The organization's name and EIN come from Passport, never from what the workspace typed: they
+  // are published with the Passport id in every CommonGrants record (review NP-06). When Passport
+  // does not answer for the record, a new link clears the typed ones rather than vouch for them.
+  const org = await passport.getOrg(orgId).catch(() => null);
+  const identity = org ? { legal_name: typeof org.name === "string" ? org.name : null, ein: einOf(org) } : workspace.passport_org_id !== orgId || workspace.profile_source !== "passport" ? { legal_name: null, ein: null } : {};
 
   const at = ctx.now().toISOString();
   if (workspace.passport_org_id !== orgId) {
@@ -77,11 +85,16 @@ export async function linkPassport(ctx: ServiceContext, workspaceId: string, inp
     const holder = await ctx.repos.table("workspaces").one({ passport_org_id: orgId, kind: "funder" });
     if (holder && holder.id !== workspaceId) {
       if (await ctx.repos.table("passport_links").count({ workspace_id: holder.id, mode: "funder_client" })) throw new ApiError(409, "passport_org_linked_elsewhere", "This Passport organization is already linked to another workspace. Nothing was saved");
-      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null });
+      await ctx.repos.table("workspaces").update({ id: holder.id }, { passport_org_id: null, profile_source: "none", verification_level: null, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null });
       await audit(ctx, "workspace.passport_claim_released", "workspace", holder.id, { passportOrgId: orgId, reason: "no_passport_proof" }, holder.id);
     }
-    const [moved] = await ctx.repos.table("workspaces").update({ id: workspaceId }, { passport_org_id: orgId });
+    // A self-declared profile gives way to Passport. The funder client reads no organization record
+    // here, so every field it held is reported as replaced.
+    const replaced = await replaceProfileWithPassport(ctx, workspace, {});
+    const [moved] = await ctx.repos.table("workspaces").update({ id: workspaceId }, { passport_org_id: orgId, ...replaced, ...identity });
     if (!moved) throw new ApiError(409, "conflict", "This workspace changed while you were working. Reload and try again");
+  } else if (Object.keys(identity).length) {
+    await ctx.repos.table("workspaces").update({ id: workspaceId }, identity);
   }
   // One live link per workspace and mode: the previous one is revoked, never overwritten.
   await ctx.repos.table("passport_links").update({ workspace_id: workspaceId, mode: "funder_client", revoked_at: null }, { revoked_at: at });

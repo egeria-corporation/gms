@@ -247,7 +247,7 @@ const IMPLEMENTED: Impl = {
   getGrantee: (ctx, i) => grantees.getGrantee(ctx, i.applicantWorkspaceId),
   getPassportStatus: async (ctx, i) => {
     const g = await grantees.getGrantee(ctx, i.applicantWorkspaceId);
-    return { workspaceId: g.workspaceId, name: g.name, passportOrgId: g.passportOrgId, verificationLevel: g.verificationLevel, payeeStatus: g.payeeStatus, lastSyncedAt: g.lastSyncedAt };
+    return { workspaceId: g.workspaceId, name: g.name, passportOrgId: g.passportOrgId, verificationLevel: g.verificationLevel, verification: g.verification, payeeStatus: g.payeeStatus, lastSyncedAt: g.lastSyncedAt };
   },
   listPendingOrgChanges: async (ctx, i) => {
     const all = (await grantees.listOrgChanges(ctx, paged(i), { status: "pending" })).items;

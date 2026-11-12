@@ -98,7 +98,7 @@ describe("sign-in flow", () => {
   it("shows first run to someone with no workspaces", async () => {
     open("/signin", createMockServices({ session: demoSession("aal1"), memberships: [] }));
     expect(await screen.findByRole("heading", { name: "How Will You Use OpenGrants GMS?" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: /Link my applicant organization/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Set up my applicant organization/ }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(where()).toBe("/onboarding/applicant"));
   });

@@ -199,7 +199,7 @@ describe("analytics, exports and imports", () => {
     expect(pf.items).toMatchObject([{ recipientName: "Alder Creek Family Services", paidMinor: 7_500_000, approvedForFuturePaymentMinor: 7_500_000 }]);
     const csv = await h.request("/gms/exports/990pf?year=2027&format=csv", { headers: s.funder });
     expect(csv.headers.get("Content-Type")).toContain("text/csv");
-    expect(await csv.text()).toContain('Alder Creek Family Services,"418 Mill Road, Alder Creek, OR, 97000",None,PC,Mobile Health Navigation for Rural Families,75000.00,75000.00');
+    expect(await csv.text()).toContain('Alder Creek Family Services,"418 Mill Road, Alder Creek, OR, 97000",Yes,None,PC,Mobile Health Navigation for Rural Families,75000.00,75000.00');
   });
 
   it("exports a CommonGrants bundle with the GMS records and an attachments manifest", async () => {

@@ -59,6 +59,8 @@ export interface Env {
   EXPORTS?: R2Bucket;
   GMS_EVENTS?: Queue;
   RATE_LIMIT?: KVNamespace;
+  /** "true" only behind a proxy you run that sets X-Forwarded-For; otherwise only CF-Connecting-IP is trusted. */
+  TRUSTED_PROXY?: string;
 }
 
 export const trimSlash = (s: string) => s.replace(/\/+$/, "");
