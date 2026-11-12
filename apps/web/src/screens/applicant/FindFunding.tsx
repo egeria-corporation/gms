@@ -92,7 +92,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: DiscoverCompetitio
               {failed[0].label}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              {failed[0].explain} If your record is out of date, <Link to={`${base}/organization`}>update it in Passport</Link> and the result re-evaluates.
+              {failed[0].explain} If your organization details are out of date, <Link to={`${base}/organization`}>update them</Link> and the result re-evaluates.
             </div>
           </div>
         </div>

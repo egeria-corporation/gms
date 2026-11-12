@@ -37,6 +37,7 @@ import type {
 } from "../api/funderMoney.ts";
 import { MOCK_IDS, USERS, type MockFunderCtx } from "./funder.ts";
 import { IDS } from "./store.ts";
+import { withVerification } from "../lib/profile.ts";
 
 const id = (prefix: string, block: string, n: number) => `${prefix}_${block}0000000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const bare = (block: string, n: number) => `${block}0000000-0000-7000-8000-${String(n).padStart(12, "0")}`;
@@ -304,7 +305,7 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
   const rowOf = (s: State, t: Tranche): TrancheRow => {
     const a = awardOf(s, t.awardId);
     const r = recipientOf(s, a);
-    return { ...clone(t), award: { id: a.id, title: a.title, status: "active" }, recipient: { workspaceId: r.workspaceId, name: r.name, handle: r.handle, verificationLevel: r.level, pendingDestinationChange: r.pendingChangeUntil !== null } };
+    return { ...clone(t), award: { id: a.id, title: a.title, status: "active" }, recipient: withVerification({ workspaceId: r.workspaceId, name: r.name, handle: r.handle, verificationLevel: r.level, pendingDestinationChange: r.pendingChangeUntil !== null }, { source: "passport", level: r.level }) };
   };
   const VIEWS: Record<string, string[]> = { due: ["due", "ready", "held"], "in-flight": ["releasing", "initiated"], done: ["settled", "returned", "failed", "cancelled"], upcoming: ["scheduled"] };
   const scheduleOf = (s: State, a: MockAward) => ({ awardId: a.id, currency: "USD", awardedAmountMinor: a.awardedMinor, disbursedAmountMinor: a.disbursedMinor, disbursedAsOf: s.disbursedAsOf, tranches: clone(s.tranches.filter((t) => same(t.awardId, a.id)).sort((x, y) => x.seq - y.seq)) });
@@ -313,7 +314,7 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
     const rec = recipientOf(s, a);
     return { ...clone(r), award: { id: a.id, title: a.title }, recipient: { workspaceId: rec.workspaceId, name: rec.name, handle: rec.handle } };
   };
-  const summaryOf = (s: State, r: Recipient): GranteeSummary => ({ workspaceId: r.workspaceId, handle: r.handle, name: r.name, legalName: r.name, passportOrgId: bare("9", Number(r.workspaceId.slice(-2))), verificationLevel: r.level, payee: { pendingDestinationChange: r.pendingChangeUntil !== null, active: r.active }, tags: [...r.tags], ownerUserId: USERS.dana, applications: 1, awards: s.awards.filter((a) => a.recipient === r.workspaceId).length, pendingChanges: s.orgChanges.filter((c) => c.status === "pending" && (c.grantee as { workspaceId?: string } | null)?.workspaceId === r.workspaceId).length });
+  const summaryOf = (s: State, r: Recipient): GranteeSummary => withVerification({ workspaceId: r.workspaceId, handle: r.handle, name: r.name, legalName: r.name, passportOrgId: bare("9", Number(r.workspaceId.slice(-2))), verificationLevel: r.level, payee: { pendingDestinationChange: r.pendingChangeUntil !== null, active: r.active }, tags: [...r.tags], ownerUserId: USERS.dana, applications: 1, awards: s.awards.filter((a) => a.recipient === r.workspaceId).length, pendingChanges: s.orgChanges.filter((c) => c.status === "pending" && (c.grantee as { workspaceId?: string } | null)?.workspaceId === r.workspaceId).length }, { source: "passport", level: r.level });
   const detailOf = (s: State, r: Recipient): GranteeDetail => ({
     ...summaryOf(s, r),
     notes: r.notes,

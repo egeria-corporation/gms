@@ -70,3 +70,6 @@ export function verificationOf(x: unknown): Verification | undefined {
   if (source !== "passport" && source !== "self_declared" && source !== "none") return undefined;
   return { source, level: typeof level === "string" && /^L[0-3]$/.test(level) ? (level as Verification["level"]) : null };
 }
+
+/** Adds `verification` to an object whose generated type does not carry it yet (mocks only). */
+export const withVerification = <T extends object>(o: T, v: Verification): T => ({ ...o, verification: v }) as T;

@@ -14,7 +14,8 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { SelfReportedTag, StatusBadge, VerificationBadge } from "../../components/status.tsx";
+import { verificationOf } from "../../lib/profile.ts";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
 import { AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
@@ -371,7 +372,7 @@ export default function ApplicationDetail() {
                   <span className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
                     {a.applicant.name}
                   </span>
-                  <LevelBadge level={a.applicant.level ?? a.verificationLevelAtSubmit} />
+                  <VerificationBadge verification={verificationOf(a.applicant)} level={a.applicant.level ?? a.verificationLevelAtSubmit} />
                   {org?.levelChangedSinceSubmit && (
                     <span className="pill-warn">
                       <RefreshCw className="ic ic-sm" aria-hidden="true" />
@@ -494,7 +495,7 @@ export default function ApplicationDetail() {
                 <div className="card">
                   <div className="card-h">
                     <h3>Applicant</h3>
-                    <LevelBadge level={org?.level ?? a.applicant.level} />
+                    <VerificationBadge verification={verificationOf(a.applicant)} level={org?.level ?? a.applicant.level} />
                   </div>
                   <div className="card-b">
                     {org ? (
@@ -532,7 +533,9 @@ export default function ApplicationDetail() {
                         <li key={i} className={`rc-row ${r.outcome === "pass" ? "rc-pass" : r.outcome === "fail" ? "rc-fail" : "rc-unk"}`}>
                           <EligibilityIcon outcome={r.outcome} />
                           <div>
-                            <div className="l">{r.label}</div>
+                            <div className="l">
+                              {r.label} <SelfReportedTag result={r} />
+                            </div>
                             <div className="r">{r.explain}</div>
                           </div>
                           <span className="small b">{r.outcome === "pass" ? "Pass" : r.outcome === "fail" ? "Fail" : "Unknown"}</span>

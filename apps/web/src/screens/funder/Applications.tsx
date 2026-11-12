@@ -10,7 +10,8 @@ import type { Approval, InboxApplication, Rendered } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge, STATUS } from "../../components/status.tsx";
+import { StatusBadge, STATUS, VerificationBadge } from "../../components/status.tsx";
+import { verificationOf } from "../../lib/profile.ts";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import ApplicationsEmpty from "./ApplicationsEmpty.tsx";
@@ -334,7 +335,7 @@ export default function Applications() {
                                 {r.applicant.name ?? "Applicant"}
                               </Link>
                               <div className="sub">
-                                <LevelBadge level={r.applicant.level ?? r.verificationLevelAtSubmit} />
+                                <VerificationBadge verification={verificationOf(r.applicant)} level={r.applicant.level ?? r.verificationLevelAtSubmit} />
                                 {r.tags.map((t) => (
                                   <span key={t} className="tag">
                                     {t}

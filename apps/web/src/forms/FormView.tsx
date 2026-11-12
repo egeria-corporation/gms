@@ -69,6 +69,8 @@ export interface FormViewProps {
   uploadFile?: (file: File) => Promise<UploadedFile>;
   /** Where "Edit in Passport" goes. */
   passportUrl?: string;
+  /** Where an organization changes the details it entered itself (Settings). */
+  profileUrl?: string;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -123,6 +125,8 @@ const PROVENANCE: Record<string, { cls: string; label: string; icon: typeof Badg
   prior_submission: { cls: "prov-report", label: "From prior report", icon: FileText },
   qbo: { cls: "prov-qb", label: "From QuickBooks", icon: FileText },
   user: { cls: "prov-entered", label: "Entered", icon: Pencil },
+  // Filled from the details the organization entered itself (no Passport record behind them).
+  self_declared: { cls: "prov-entered", label: "You entered", icon: Pencil },
 };
 
 export function ProvenanceChip({ source }: { source: string }) {
@@ -173,6 +177,7 @@ interface Ctx {
   uid: string;
   uploadFile?: (file: File) => Promise<UploadedFile>;
   passportUrl: string;
+  profileUrl: string | null;
 }
 
 export function FormView(props: FormViewProps) {
@@ -228,6 +233,7 @@ export function FormView(props: FormViewProps) {
     uid,
     uploadFile: props.uploadFile,
     passportUrl: props.passportUrl ?? "https://app.passport.opengrants.io",
+    profileUrl: props.profileUrl ?? null,
   };
 
   const body = <Element el={form.uiSchema} ctx={ctx} />;
@@ -408,7 +414,12 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
         </label>
       )}
       <Input {...common} widget={widget} required={required} />
-      {widget === "passportField" && (
+      {widget === "passportField" && source === "self_declared" && (
+        <span className="help">
+          {ctx.profileUrl ? <a href={ctx.profileUrl}>Change it in Settings</a> : "Change it in Settings"} · these details are entered by you, not verified
+        </span>
+      )}
+      {widget === "passportField" && source !== "self_declared" && (
         <span className="help">
           <a href={ctx.passportUrl} target="_blank" rel="noreferrer">
             Edit in Passport

@@ -15,7 +15,8 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { conditionLabel, HoldBanner, ReasonDialog, RecordExternalDialog, ReleaseDialog, checklistOf, releaseBlockedReason } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { StatusBadge, VerificationBadge } from "../../components/status.tsx";
+import { verificationOf } from "../../lib/profile.ts";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
@@ -384,7 +385,7 @@ export default function AwardPayments() {
           <PageHeader
             crumbs={[{ label: "Awards", to: `${base}/awards` }, { label: title, to: `${base}/awards/${awardId}/agreement` }, { label: "Payments" }]}
             title={title}
-            badge={first?.recipient ? <LevelBadge level={first.recipient.verificationLevel} /> : undefined}
+            badge={first?.recipient ? <VerificationBadge verification={verificationOf(first.recipient)} level={first.recipient.verificationLevel} /> : undefined}
             meta={<span>{recipientName}</span>}
             actions={
               <>

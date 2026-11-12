@@ -153,6 +153,17 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
   );
 }
 
+/** Marks a rule result that rested on details the organization entered itself. */
+export function SelfReportedTag({ result }: { result: unknown }) {
+  if (!result || typeof result !== "object" || (result as { selfReported?: unknown }).selfReported !== true) return null;
+  return (
+    <span className="prov prov-entered" title="This rule was checked against details the organization entered itself">
+      <Pencil className="ic" aria-hidden="true" />
+      Self-reported
+    </span>
+  );
+}
+
 /**
  * What a funder sees next to an organization's name: the Passport level when its details come from
  * Passport, otherwise "Not verified". `verification` is absent only from an older server; the level

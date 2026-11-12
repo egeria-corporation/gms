@@ -21,7 +21,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { PhoneShell, usePhoneSheetSlot } from "../../components/PhoneShell.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { LevelBadge, SelfReportedTag, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
 import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
@@ -429,9 +429,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
           {rejected.length > 0 && (
-            <Notice tone="info" title="Some fields follow your Passport record">
-              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in Passport.{" "}
-              {data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a>}
+            <Notice tone="info" title={data.readiness.linked ? "Some fields follow your Passport record" : "Some fields follow your organization details"}>
+              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in {data.readiness.linked ? "Passport" : "Settings"}.{" "}
+              {data.readiness.linked ? data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a> : <Link to={`${base}/settings#organization-details`}>Open Settings</Link>}
             </Notice>
           )}
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -458,6 +458,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               onAutosave={() => void push(activeFormId)}
               uploadFile={uploadFile}
               {...(data.org.editUrl ? { passportUrl: data.org.editUrl } : {})}
+              profileUrl={`${base}/settings#organization-details`}
             />
           </div>
 
@@ -619,7 +620,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       return (
                         <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={r.explain}>
                           <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? "Passes" : r.outcome === "fail" ? "Does not pass" : "Could not be checked"} style={{ marginTop: "3px" }} />
-                          {r.label}
+                          {r.label} <SelfReportedTag result={r} />
                         </li>
                       );
                     })}
