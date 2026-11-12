@@ -220,7 +220,7 @@ describe("cloudflare", () => {
     expect(api).toContain('OAUTH_ISSUER = "https://grants.example.org"');
     expect(api).toContain('PASSPORT_BASE_URL = "https://passport.opengrants.io"');
     expect(api).toContain(`main = "${join(f.root, "apps", "api", "src", "index.ts")}"`);
-    expect(api).toContain(`directory = "${join(f.root, "apps", "api", "public")}"`);
+    expect(api).not.toContain("[assets]"); // served from R2 instead (see the deploy step)
     expect(jobs).toContain('queue = "demo-events"');
     expect(jobs).toContain('dead_letter_queue = "demo-events-dlq"');
     expect(jobs).toContain("crons =");
