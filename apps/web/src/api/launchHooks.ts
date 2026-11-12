@@ -7,7 +7,7 @@ import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
 import { createMockLaunchApi, seedLaunchStore, type LaunchStore } from "../mocks/launch.ts";
 import type { Mutation, Query, QueryState } from "./hooks.ts";
-import { createHttpLaunchApi, type AppConfig, type LaunchApi } from "./launch.ts";
+import { createHttpLaunchApi, PASSPORT_OFF, type AppConfig, type LaunchApi, type PassportFlags } from "./launch.ts";
 
 interface Port {
   api: LaunchApi;
@@ -122,4 +122,11 @@ export function useLaunchMutation<A extends unknown[], R>(write: (api: LaunchApi
 export function useAppConfig(): AppConfig {
   const q = useLaunchQuery((api) => api.config(), []);
   return q.status === "ready" ? q.data : { facilitatedPayments: false };
+}
+
+/** Passport switches. All off until the server has answered, so nothing flashes up and vanishes. */
+export function usePassportFlags(): PassportFlags & { ready: boolean } {
+  const q = useLaunchQuery((api) => api.config(), []);
+  if (q.status !== "ready") return { ...PASSPORT_OFF, ready: q.status === "error" };
+  return { ...(q.data.passport ?? PASSPORT_OFF), ready: true };
 }

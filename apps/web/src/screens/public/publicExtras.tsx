@@ -2,7 +2,7 @@
 // Sections of the public funder and opportunity pages that a funder chooses to publish: past
 // awards (only with transparency on), questions about applying, and guideline documents.
 import { Fragment, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, ShieldOff } from "lucide-react";
 import type { PastAward, PublicDocument, PublicExtras } from "../../api/applicantFull.ts";
 import { useFullQuery } from "../../api/applicantFullHooks.ts";
 import { useLaunchQuery } from "../../api/launchHooks.ts";
@@ -171,5 +171,21 @@ export function PublishedFaq({ handle }: { handle: string }) {
         </details>
       ))}
     </>
+  );
+}
+
+/**
+ * A funder whose organization is not verified with Passport, said plainly before anyone applies
+ * (review NP-16). Applicants decide whether to share their details with it.
+ */
+export function UnverifiedFunderBanner({ name }: { name: string }) {
+  return (
+    <div className="bnr bnr-warn" role="note">
+      <ShieldOff className="ic" aria-hidden="true" />
+      <div>
+        <div className="t">Not verified with OpenGrants Passport</div>
+        <div className="d">OpenGrants has not checked that this page belongs to {name}. Its name, mission and website are what the funder entered itself. Check with the funder directly before sharing your organization's details.</div>
+      </div>
+    </div>
   );
 }

@@ -45,7 +45,34 @@ export interface RuleResult {
   outcome: Outcome;
   actual: unknown;
   explain: string;
+  /** The rule read a fact the applicant reported about itself, not one Passport verified. */
+  selfReported?: true;
 }
+
+/**
+ * Where the facts came from. Without options every source is taken as it stands (the behaviour
+ * before self-declared profiles). The API passes these for every applicant.
+ */
+export interface EvaluateOptions {
+  /** Sources (`org`, `profile`) whose facts the applicant entered itself rather than Passport. */
+  selfReported?: readonly string[];
+  /**
+   * Whether a rule met on a self-reported fact counts as met. When false (the default) it is
+   * `unknown`, for a person to review; a rule not met stays not met.
+   */
+  acceptSelfReported?: boolean;
+  /** False when the applicant has no Passport record: rules on Passport-only facts are `unknown`. */
+  passportFacts?: boolean;
+}
+
+/**
+ * Facts only Passport can supply: every custom field on the organization (the level, attestation
+ * and anything else Passport stamps there; a self-declared profile has none), the organization's
+ * status, and the registry-backed Common App profile (review NP-12). Matched on whole path segments.
+ */
+export const PASSPORT_ONLY_PATHS: readonly string[] = ["org.customFields", "org.status", "profile"];
+
+export const isPassportOnlyPath = (path: string): boolean => PASSPORT_ONLY_PATHS.some((p) => path === p || path.startsWith(`${p}.`));
 
 export interface Evaluation {
   eligible: true | false | "unknown";

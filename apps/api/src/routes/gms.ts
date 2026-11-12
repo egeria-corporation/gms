@@ -29,7 +29,12 @@ export const gms = new Hono<AppEnv>();
 const features = (c: Parameters<typeof config>[0]) => {
   const cfg = config(c);
   const ports = c.get("deps").ports?.(c.env) ?? {};
+  // Each Passport control is offered only where it can work: a base URL, the GMS's own Passport
+  // client and the key that seals its tokens; sign-in also needs the account port, payments the
+  // PAYMENTS_FACILITATED switch. Without them the app is used with self-declared profiles.
+  const passportReady = !!cfg.passportBaseUrl && !!cfg.passportClient && !!cfg.credentialsKey;
   return {
+    passport: { signIn: passportReady && !!ports.identity, linking: passportReady, payments: passportReady && !!cfg.facilitatedPayments },
     facilitatedPayments: !!cfg.facilitatedPayments,
     assistantEnabled: !!cfg.assistantEnabled,
     // Which optional connections this server can actually make, so the app offers a control only
@@ -69,7 +74,7 @@ gms.get("/me", requireUser(), async (c) => {
       signInMethod: user.passportStep ? "passport" : "email",
       mfaVerified,
       features: features(c),
-      workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel })),
+      workspaces: mine.map((w) => ({ id: w.id, handle: w.handle, name: w.displayName, displayName: w.displayName, kind: w.kind, role: w.role, brand: w.brand, requiresMfa: w.requiresMfa, passportOrgId: w.passportOrgId, verificationLevel: w.verificationLevel, profileSource: w.profileSource, verification: w.verification })),
     }),
   );
 });

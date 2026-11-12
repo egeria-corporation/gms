@@ -57,6 +57,11 @@ namespace GMS.Errors {
     @statusCode statusCode: 422;
   };
 
+  /** A daily cap was reached (e.g. 429 `too_many_workspaces`). */
+  alias TooManyRequests = CommonGrants.Responses.Error & {
+    @statusCode statusCode: 429;
+  };
+
   /** Errors every authenticated GMS route can return. */
   alias AuthErrors = Unauthorized | Forbidden;
 }
@@ -275,9 +280,21 @@ namespace GMS.Routes.Custom {
     @get @route("/workspaces") @useAuth(UserSession)
     op list(...PageParams): PaginatedT<Workspace> | AuthErrors;
 
-    /** Create a funder or applicant workspace. */
+    /**
+     * Create a funder or applicant workspace. With `profile` it is created without Passport, with a
+     * self-declared profile (shown as not verified). `passportOrgId` is refused: only Passport sets
+     * it. Capped per person (5) and per network address (20) per day: 429 `too_many_workspaces`.
+     */
     @post @route("/workspaces") @useAuth(UserSession)
-    op create(@body body: WorkspaceInput): CreatedT<Workspace> | BadRequest | AuthErrors | Conflict;
+    op create(@body body: WorkspaceInput): CreatedT<Workspace> | BadRequest | AuthErrors | Conflict | TooManyRequests;
+
+    /**
+     * Workspace admins edit the self-declared profile (a merge patch). Every change is on the ledger
+     * as `workspace.profile_updated` with the field names. 409 `profile_from_passport` for a
+     * workspace linked to Passport: its record is edited in Passport.
+     */
+    @patch @route("/workspaces/{id}/profile") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
+    op updateProfile(@path id: CommonGrants.Types.uuid, @body body: SelfDeclaredProfilePatch): OkT<WorkspaceProfile> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;
 
     @get @route("/workspaces/{id}") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
     op read(@path id: CommonGrants.Types.uuid): OkT<Workspace> | AuthErrors | NotFound;

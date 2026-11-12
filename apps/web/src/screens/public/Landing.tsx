@@ -1,8 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
 import { useServices } from "../../app/services.tsx";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, Download, ExternalLink, FileText, Landmark, ShieldCheck } from "lucide-react";
+
+/** The applicant call to action: Passport when this install offers it, plain sign-in when not. */
+function ApplyStart() {
+  const flags = usePassportFlags();
+  if (flags.signIn) return <PassportButton className="btn btn-primary" />;
+  return (
+    <Link to="/signin" className="btn btn-primary">
+      Get started
+    </Link>
+  );
+}
 
 export default function Landing() {
   // The example funder, applicant and opportunity exist only in the demo data (mock mode).
@@ -149,11 +161,11 @@ export default function Landing() {
                 </div>
                 <h2 style={{ fontSize: "22px" }}>I apply</h2>
                 <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  Start from your Passport record: organization details, documents and payee status arrive pre-filled. Work on applications
-                  with your team, track every status, and report once.
+                  Link your Passport record and organization details, documents and payee status arrive pre-filled, or set up with a few details of
+                  your own. Work on applications with your team, track every status, and report once.
                 </p>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
-                  <PassportButton className="btn btn-primary" />
+                  <ApplyStart />
                   <Link to={demo ? "/w/alder-creek/find" : "/signin"} style={{ fontSize: "14px", fontWeight: 700 }}>
                     {demo ? "Find funding" : "Sign in with email"}
                   </Link>

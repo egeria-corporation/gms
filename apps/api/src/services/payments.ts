@@ -31,6 +31,7 @@ import { STAFF_ROLES, accessAward, currencyOf, fundingOf, humanOnly, latestAgree
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
+import { namesOf, verificationOf, verificationShared } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 import { applyTrancheUpdate, toPaymentsTranche } from "./tranches.ts";
 
@@ -266,10 +267,13 @@ export async function listTranches(ctx: ServiceContext, page: PageRequest, f: Tr
   const [rows, total] = await Promise.all([ctx.repos.table("tranches").find(where, { orderBy: "due_at", limit: page.pageSize, offset: page.offset }), ctx.repos.table("tranches").count(where)]);
   const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
+  const consents = recipients.length ? await ctx.repos.table("consents").find({ applicant_workspace_id: recipients.map((r) => r.id), funder_workspace_id: ws.id, revoked_at: null }) : [];
   const items = rows.map((t) => {
     const a = awards.find((x) => x.id === t.award_id);
     const r = recipients.find((x) => x.id === a?.recipient_workspace_id);
-    return { ...trancheView(t), award: a ? { id: apiId("award", a.id), title: a.title, status: a.status } : null, recipient: r ? { workspaceId: r.id, name: r.display_name, handle: r.handle, verificationLevel: r.verification_level, pendingDestinationChange: !!payeeFactsOf(r).pendingDestinationChange } : null };
+    // As on every other funder view: the source always, the level only while the record is shared.
+    const v = r ? verificationShared(r, consents.some((c) => c.applicant_workspace_id === r.id)) : null;
+    return { ...trancheView(t), award: a ? { id: apiId("award", a.id), title: a.title, status: a.status } : null, recipient: r ? { workspaceId: r.id, ...namesOf(r), handle: r.handle, verificationLevel: v!.level, verification: v!, pendingDestinationChange: !!payeeFactsOf(r).pendingDestinationChange } : null };
   });
   return { items, total };
 }
@@ -443,16 +447,18 @@ export async function paymentAlerts(ctx: ServiceContext) {
   const rows = await ctx.repos.table("tranches").find({ workspace_id: ws.id }, { limit: 1000 });
   const awards = rows.length ? await ctx.repos.table("awards").find({ id: [...new Set(rows.map((t) => t.award_id))], workspace_id: ws.id }) : [];
   const recipients = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
-  const nameOf = (awardId: string) => recipients.find((r) => r.id === awards.find((a) => a.id === awardId)?.recipient_workspace_id)?.display_name ?? "The grantee";
+  const nameOf = (awardId: string) => ((w) => (w ? namesOf(w).name : "The grantee"))(recipients.find((r) => r.id === awards.find((a) => a.id === awardId)?.recipient_workspace_id));
   const alerts: { kind: string; tone: "warn" | "danger" | "neutral"; title: string; detail: string; trancheId?: string; awardId?: string; recipientWorkspaceId?: string }[] = [];
   for (const r of recipients) {
     const f = payeeFactsOf(r);
+    const name = namesOf(r).name;
+    const level = verificationOf(r).level;
     if (f.pendingDestinationChange) {
-      const b = holdBanner({ cause: "pending_destination_change", bankName: f.pendingDestinationChange.bankName, last4: f.pendingDestinationChange.last4, coolingOffUntil: null }, `Payments to ${r.display_name}`);
-      alerts.push({ kind: "destination_change_pending", tone: "warn", title: `${r.display_name} · destination change pending`, detail: `${b.detail} ${b.clears}`, recipientWorkspaceId: r.id });
+      const b = holdBanner({ cause: "pending_destination_change", bankName: f.pendingDestinationChange.bankName, last4: f.pendingDestinationChange.last4, coolingOffUntil: null }, `Payments to ${name}`);
+      alerts.push({ kind: "destination_change_pending", tone: "warn", title: `${name} · destination change pending`, detail: `${b.detail} ${b.clears}`, recipientWorkspaceId: r.id });
     }
-    if (f.active === false) alerts.push({ kind: "organization_inactive", tone: "danger", title: `${r.display_name} · inactive at Passport`, detail: "Passport reports this organization as inactive. All payments to it are on hold.", recipientWorkspaceId: r.id });
-    if (r.verification_level && r.verification_level !== "L3") alerts.push({ kind: "level_below_l3", tone: "danger", title: `${r.display_name} · level ${r.verification_level}`, detail: "Payments need Passport level L3. Clears when the organization completes payee verification in Passport.", recipientWorkspaceId: r.id });
+    if (f.active === false) alerts.push({ kind: "organization_inactive", tone: "danger", title: `${name} · inactive at Passport`, detail: "Passport reports this organization as inactive. All payments to it are on hold.", recipientWorkspaceId: r.id });
+    if (level && level !== "L3") alerts.push({ kind: "level_below_l3", tone: "danger", title: `${name} · level ${level}`, detail: "Payments need Passport level L3. Clears when the organization completes payee verification in Passport.", recipientWorkspaceId: r.id });
   }
   for (const t of rows) {
     const base = { trancheId: apiId("tranche", t.id), awardId: apiId("award", t.award_id) };

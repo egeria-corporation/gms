@@ -313,9 +313,10 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
     const rec = recipientOf(s, a);
     return { ...clone(r), award: { id: a.id, title: a.title }, recipient: { workspaceId: rec.workspaceId, name: rec.name, handle: rec.handle } };
   };
-  const summaryOf = (s: State, r: Recipient): GranteeSummary => ({ workspaceId: r.workspaceId, handle: r.handle, name: r.name, legalName: r.name, passportOrgId: bare("9", Number(r.workspaceId.slice(-2))), verificationLevel: r.level, payee: { pendingDestinationChange: r.pendingChangeUntil !== null, active: r.active }, tags: [...r.tags], ownerUserId: USERS.dana, applications: 1, awards: s.awards.filter((a) => a.recipient === r.workspaceId).length, pendingChanges: s.orgChanges.filter((c) => c.status === "pending" && (c.grantee as { workspaceId?: string } | null)?.workspaceId === r.workspaceId).length });
+  const summaryOf = (s: State, r: Recipient): GranteeSummary => ({ verification: { source: "passport", level: r.level }, workspaceId: r.workspaceId, handle: r.handle, name: r.name, legalName: r.name, passportOrgId: bare("9", Number(r.workspaceId.slice(-2))), verificationLevel: r.level, payee: { pendingDestinationChange: r.pendingChangeUntil !== null, active: r.active }, tags: [...r.tags], ownerUserId: USERS.dana, applications: 1, awards: s.awards.filter((a) => a.recipient === r.workspaceId).length, pendingChanges: s.orgChanges.filter((c) => c.status === "pending" && (c.grantee as { workspaceId?: string } | null)?.workspaceId === r.workspaceId).length });
   const detailOf = (s: State, r: Recipient): GranteeDetail => ({
     ...summaryOf(s, r),
+    selfDeclared: null,
     notes: r.notes,
     lastSyncedAt: s.disbursedAsOf,
     organization: r.consent ? { name: r.name, identifiers: { "org:us:ein": { id: r.ein } }, addresses: { primary: { street1: "418 Mill Road", city: r.city.split(",")[0], stateOrProvince: "OR" } }, emails: { primary: `office@${r.handle}.example` }, mission: "Fictional organization for the demonstration workspace." } : null,

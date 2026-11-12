@@ -58,7 +58,7 @@ describe.skipIf(!URL_ || !KEY || !JWT_SECRET)("applying over Supabase", () => {
     }
     ws.funder = (await repos.table("workspaces").insert({ kind: "funder", handle: `int-fund-${run}`, display_name: "Integration Foundation" })).id;
     ws.applicant = (
-      await repos.table("workspaces").insert({ kind: "applicant", handle: `int-app-${run}`, display_name: "Alder Creek Family Services", passport_org_id: crypto.randomUUID(), org_projection: ALDER_ORG, org_projection_at: new Date().toISOString(), profile_projection: { level: "L3", fields: ALDER_PROFILE.fields }, verification_level: "L3" })
+      await repos.table("workspaces").insert({ kind: "applicant", handle: `int-app-${run}`, display_name: "Alder Creek Family Services", passport_org_id: crypto.randomUUID(), profile_source: "passport", org_projection: ALDER_ORG, org_projection_at: new Date().toISOString(), profile_projection: { level: "L3", fields: ALDER_PROFILE.fields }, verification_level: "L3" })
     ).id;
     await repos.table("workspace_members").insert({ workspace_id: ws.funder, user_id: users.funder, role: "program_officer" });
     await repos.table("workspace_members").insert({ workspace_id: ws.applicant, user_id: users.applicant, role: "admin" });

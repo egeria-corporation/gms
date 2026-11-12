@@ -67,7 +67,11 @@ export function ServicesProvider({ services, children }: { services: Services; c
   const sessionKey =
     sessionState.status === "signedIn" ? `${sessionState.session.userId}:${sessionState.session.aal}` : sessionState.status;
   useEffect(() => {
-    if (sessionState.status !== "signedIn") return;
+    // Signed out: forget the last person's workspaces so the next sign-in never reads them.
+    if (sessionState.status !== "signedIn") {
+      setMeState({ status: "loading" });
+      return;
+    }
     let live = true;
     setMeState({ status: "loading" });
     services.api.me().then(

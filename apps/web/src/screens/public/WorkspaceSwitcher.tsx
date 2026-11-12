@@ -98,7 +98,7 @@ export default function WorkspaceSwitcher() {
               </Link>
               <Link to="/onboarding/applicant" className="btn btn-secondary">
                 <Plus className="ic" aria-hidden="true" />
-                Connect an organization from Passport
+                Set up an applicant organization
               </Link>
             </div>
           </div>

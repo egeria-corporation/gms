@@ -180,3 +180,42 @@ describe("Passport link", () => {
     expect(links.every((l) => l.revoked_at !== null)).toBe(true);
   });
 });
+
+describe("workspace settings an admin may set (NP-03)", () => {
+  const server = { passportPayee: { active: false, pendingDestinationChange: { bankName: "Real Bank", last4: "0001", requestedAt: "2027-01-01T00:00:00Z" } }, assistMonthlyQuota: 50, contacts: [{ name: "A", email: "a@riverbendcf.example" }] };
+  const setup = async () => {
+    const h = await harness();
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: server });
+    const admin = { ...(await auth(h, USER_ADMIN)), "X-GMS-Workspace": WS_FUNDER };
+    const patch = (settings: Record<string, unknown>) => h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings }, "PATCH"));
+    const stored = async () => (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings as Record<string, unknown>;
+    return { h, patch, stored };
+  };
+
+  it.each([
+    ["passportPayee", { active: true, pendingDestinationChange: null }],
+    ["assistMonthlyQuota", 1_000_000],
+    ["contacts", []],
+  ])("cannot set or clear %s", async (key, value) => {
+    const { patch, stored } = await setup();
+    expect((await patch({ [key]: value })).status).toBe(200);
+    expect((await stored())[key]).toEqual(server[key as keyof typeof server]);
+    expect((await patch({ [key]: null })).status).toBe(200);
+    expect((await stored())[key]).toEqual(server[key as keyof typeof server]);
+  });
+
+  it("drops keys it does not know, keeps what the server set when a client sends the whole object back", async () => {
+    const { patch, stored } = await setup();
+    expect((await patch({ ...server, passportPayee: null, invented: "x", gatedTools: ["release_tranche"], transparency: true })).status).toBe(200);
+    const s = await stored();
+    expect(s).toMatchObject({ ...server, gatedTools: ["release_tranche"], transparency: true });
+    expect(s.invented).toBeUndefined();
+  });
+
+  it("checks the shape of the keys it allows", async () => {
+    const { patch } = await setup();
+    expect((await patch({ contactEmail: "not an address" })).status).toBe(422);
+    expect((await patch({ defaultRail: "wire" })).status).toBe(422);
+    expect((await patch({ contactEmail: "grants@riverbendcf.example", defaultRail: "standard" })).status).toBe(200);
+  });
+});

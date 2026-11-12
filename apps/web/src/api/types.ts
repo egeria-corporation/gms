@@ -72,6 +72,10 @@ export interface WorkspaceRecord {
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;
+  profileSource: Verification["source"];
+  verification: Verification;
+  /** The self-declared profile; null for a Passport workspace and for one with no profile. */
+  profile: SelfDeclaredProfile | null;
   brand: Brand;
   settings: Record<string, unknown>;
   status: string;
@@ -83,7 +87,16 @@ export interface CreateWorkspaceInput {
   displayName: string;
   legalName?: string;
   brand?: Brand;
+  /** A workspace set up without Passport: the organization's own, unverified description of itself. */
+  profile?: SelfDeclaredProfile;
 }
+
+/** Where an organization's details come from, and how far they are verified. */
+export type Verification = components["schemas"]["Models.Verification"];
+/** An organization's description of itself, entered in the GMS. Never shown as verified. */
+export type SelfDeclaredProfile = components["schemas"]["Models.SelfDeclaredProfile"];
+export type SelfDeclaredProfilePatch = components["schemas"]["Models.SelfDeclaredProfilePatch"];
+export type WorkspaceProfile = components["schemas"]["Models.WorkspaceProfile"];
 
 export interface WorkspaceWrite {
   workspace: WorkspaceRecord;
@@ -285,10 +298,13 @@ export interface EvaluateInput {
 export interface PublicFunder {
   handle: string;
   name: string;
+  /** The workspace's own name when it differs from the Passport legal name in `name`. */
+  workspaceName?: string | null;
   brand: { logoUrl: string | null; accent: string | null; onAccent: string | null };
   mission: string | null;
   website: string | null;
   verificationLevel: string | null;
+  verification: Verification;
 }
 export interface PublicOpportunityCard {
   id: string;

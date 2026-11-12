@@ -21,6 +21,12 @@ Schema source of truth: `supabase/migrations/` (forward-only, numbered). Types i
 - **Immutability triggers:** a published form version, a committed decision, an executed
   agreement and a resolved approval cannot be changed.
 
+- **Profile source.** `workspaces.profile_source = 'passport'` needs a `passport_org_id`; a
+  `self_declared_profile` exists exactly when the source is `self_declared`. The self-declared
+  profile holds organization facts only (`legalName`, `displayName`, `website`, `mission`,
+  `address`, `contactEmail`, `orgType`, `ein`), never a person's identity numbers, and is never
+  shown as verified.
+
 Row-level security cannot hide columns. Funder-internal columns on `applications` (`tags`,
 `assigned_to_user_id`, `eligibility`), PII masking and `reviewerVisible` fields for reviewers are
 enforced by the service layer; reviewers have no direct policy on `form_responses`.
@@ -116,6 +122,8 @@ webhooks from Passport, Resend and Mercury) and `ledger_archives` (hash-chained 
 | `0008_ledger` | `ledger_events`, `ledger_archives`, append-only triggers |
 | `0009_rls` | RLS helper functions, RLS + grants + `updated_at` triggers on every table, policies |
 | `0013_tranche_release_request` | `tranches.release_request`: the rail and payee credential id/version sent with a facilitated release, so a retry repeats the identical request. No bank data |
+| `0026_self_declared_profile` | `workspaces.profile_source` (`none`, `self_declared`, `passport`; backfilled to `passport` where `passport_org_id` is set) and `workspaces.self_declared_profile` (jsonb, only with `self_declared`; allowed keys, nine-digit EIN, 16 KB cap). No new grants; written by the API only |
+| `0027_workspace_creation_counts` | `workspace_creation_counts` (one row per key and day) and `gms_claim_workspace_creation` / `gms_release_workspace_creation`: the daily workspace-creation caps, checked and counted in one statement per key. Service role only |
 
 A migration that adds a table must enable RLS, set its grants and add the `updated_at` trigger
 itself; `supabase/tests/database/00_schema.test.sql` fails otherwise.
@@ -146,6 +154,7 @@ Rows are keyed by UUIDv7. Outside the database an id is `<prefix>_<uuid without 
 ## Tests
 
 - `supabase test db` runs the pgTAP files in `supabase/tests/database/`: schema invariants,
-  RLS isolation across two funders and two applicants, ledger immutability.
+  RLS isolation across two funders and two applicants, ledger immutability, and (08) the bounds on
+  the self-declared profile.
 - `pnpm exec vitest run --project db` runs without a database: id helpers, the workspace scope,
   and the checks that keep SQL vocabularies and generated types in step with the migrations.

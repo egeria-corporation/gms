@@ -71,9 +71,19 @@ model TrancheListItem {
   } | null;
   recipient: {
     workspaceId: CommonGrants.Types.uuid;
+
+    /** The Passport legal name for a Passport workspace, else the workspace's name. */
     name: string;
+
+    /** The workspace's own display name, when it differs from the Passport name. */
+    workspaceName?: string | null;
+
     handle: string;
+
+    /** Passport's level, while the organization shares its record; null otherwise and without Passport. */
     verificationLevel: string | null;
+
+    verification?: Verification;
     pendingDestinationChange: boolean;
   } | null;
 }
@@ -411,10 +421,17 @@ model BudgetVariance {
 model GranteeSummary {
   workspaceId: CommonGrants.Types.uuid;
   handle: string;
+
+  /** The Passport legal name for a Passport workspace, else the workspace's name. */
   name: string;
+
+  /** The workspace's own display name, when it differs from `name`. */
+  workspaceName?: string | null;
+
   legalName: string | null;
   passportOrgId: string | null;
   verificationLevel: string | null;
+  verification: Verification;
   payee: {
     pendingDestinationChange: boolean;
     active: boolean;
@@ -443,8 +460,11 @@ model GranteeDetail {
   notes: string | null;
   lastSyncedAt: utcDateTime | null;
 
-  /** The cached OrganizationBase, when the organization consented; null otherwise */
+  /** The cached OrganizationBase from Passport, when the organization consented; null otherwise and for an organization without Passport */
   organization: Record<unknown> | null;
+
+  /** What an organization without Passport entered itself, when it consented. Not verified. */
+  selfDeclared: SelfDeclaredProfile | null;
 
   consent: boolean;
 
@@ -534,7 +554,13 @@ model GrantList990 {
     awardId: PrefixedId;
     recipientName: string;
     recipientAddress: string | null;
+
+    /** Whether the name and address come from Passport; the level only while the recipient shares its record. */
+    recipientVerification?: Verification;
+
     relationship: string;
+
+    /** `PC` only when the Passport record shows a 501(c)(3); `Unknown, verify` otherwise; `I` for an individual. */
     foundationStatus: string;
     purpose: string;
     currency: string;
@@ -550,6 +576,9 @@ model GrantList990 {
     paidMinor: int64;
     approvedForFuturePaymentMinor: int64;
   };
+
+  /** Plain-language checks before filing: recipients not verified with Passport, statuses to confirm. */
+  warnings?: string[];
 }
 
 model BundleExport {

@@ -11,6 +11,9 @@ namespace GMS.Models;
 
 /** What this server has switched on. Read before sign-in so the web app can hide controls. */
 model InstallConfig {
+  /** Which Passport features this server can offer; every Passport control is hidden when its entry is false. */
+  passport: PassportFeatures;
+
   /** False: `POST /gms/tranches/{id}/release` answers 409 `facilitated_payments_disabled` and payments are recorded after being paid outside the GMS. */
   facilitatedPayments: boolean;
 
@@ -19,6 +22,18 @@ model InstallConfig {
 
   /** Which optional connections this server can make. The web app offers a control only where its entry is true. */
   available?: InstallAvailability;
+}
+
+/** Each true only when the server has the Passport settings it needs (base URL, the GMS client id and secret, the credentials key). */
+model PassportFeatures {
+  /** Sign in with Passport. */
+  signIn: boolean;
+
+  /** Connect a workspace to Passport (consent). */
+  linking: boolean;
+
+  /** Facilitated payments through Passport; also needs `PAYMENTS_FACILITATED="true"`. */
+  payments: boolean;
 }
 
 /** Optional connections, each true only when the server has what it needs (a key, a binding). */

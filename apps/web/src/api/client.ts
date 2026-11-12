@@ -30,7 +30,9 @@ import type {
   ProgramInput,
   Rubric,
   RubricInput,
+  SelfDeclaredProfilePatch,
   Stage,
+  WorkspaceProfile,
   WorkspaceRecord,
   WorkspaceWrite,
   Brand,
@@ -101,6 +103,8 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi {
   createWorkspace(input: CreateWorkspaceInput): Promise<WorkspaceWrite>;
   workspaceRecord(id: string): Promise<WorkspaceRecord>;
   updateWorkspace(id: string, patch: { displayName?: string; brand?: Brand; settings?: Record<string, unknown> }): Promise<WorkspaceWrite>;
+  /** Workspace admins edit the self-declared profile. Rejects with a 409 `profile_from_passport` once the workspace is linked. */
+  updateProfile(id: string, patch: SelfDeclaredProfilePatch): Promise<WorkspaceProfile>;
   listMembers(workspaceId: string): Promise<Member[]>;
   createInvitation(workspaceId: string, input: InvitationInput): Promise<Invitation>;
   /** Join the workspace an invitation names. Rejects with a 404 ApiError when the invitation is used, expired or unknown. */
@@ -288,6 +292,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     createWorkspace: (input) => call("POST", "/gms/workspaces", input),
     workspaceRecord: (id) => get(`/gms/workspaces/${e(id)}`),
     updateWorkspace: (id, patch) => call("PATCH", `/gms/workspaces/${e(id)}`, patch),
+    updateProfile: (id, patch) => call("PATCH", `/gms/workspaces/${e(id)}/profile`, patch),
     // The Worker answers the member list under `data`; the spec describes a paginated `items`. Read either.
     listMembers: async (id) => {
       const token = await opts.token();

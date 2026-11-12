@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clock, Eye } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import type { CgEvent, Opportunity, OpportunityInput, OppFunding, Program } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
@@ -48,6 +49,8 @@ interface Draft {
   publicPage: boolean;
   openGrantsIndex: boolean;
   sitemap: boolean;
+  requirePassport: boolean;
+  acceptSelfReported: boolean;
 }
 
 const dollars = (m: { amount: string } | undefined) => (m ? String(Number(m.amount)) : "");
@@ -75,6 +78,8 @@ function draftOf(o: Opportunity | undefined, programId: string): Draft {
     publicPage: o?.publish.publicPage !== false,
     openGrantsIndex: o?.publish.openGrantsIndex !== false,
     sitemap: o?.publish.sitemap !== false,
+    requirePassport: o?.publish.requirePassport === true,
+    acceptSelfReported: o?.publish.acceptSelfReported === true,
   };
 }
 
@@ -129,7 +134,7 @@ function toInput(d: Draft): OpportunityInput {
     keyDates: { ...(d.opens ? { postDate: day("Opens", d.opens) } : {}), ...(d.closes ? { closeDate: day(d.closesName.trim() || "Closes", d.closes) } : {}), ...(Object.keys(otherDates).length ? { otherDates } : {}) },
     acceptedApplicantTypes: d.types,
     eligibilityRules: rowsToRules(d.rows),
-    publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap },
+    publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap, requirePassport: d.requirePassport, acceptSelfReported: d.acceptSelfReported },
   };
 }
 
@@ -156,7 +161,7 @@ function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; 
               <span>{draft.types.map(applicantTypeLabel).join(", ") || "No applicant types chosen"}</span>
             </div>
             <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }} aria-hidden="true">
-              Apply with Passport
+              Apply
             </span>
           </div>
         </div>
@@ -167,6 +172,7 @@ function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; 
 
 function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity | undefined; programs: Program[]; onSaved: (o: Opportunity) => void }) {
   const ws = useWorkspace("funder");
+  const passportFlags = usePassportFlags();
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
   const location = useLocation();
@@ -397,6 +403,27 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
               <>
                 <ApplicantTypes value={draft.types} onChange={(v) => set("types", v)} />
                 <RuleRows rows={draft.rows} onChange={(rows) => set("rows", rows)} />
+                <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <legend className="lbl" style={{ marginBottom: "8px" }}>
+                    Verification
+                  </legend>
+                  {(
+                    [
+                      ...(passportFlags.linking ? [["requirePassport", "Require a linked Passport", "Applicants must link their organization in OpenGrants Passport before they can start an application."] as const] : []),
+                      ["acceptSelfReported", "Accept details applicants enter themselves", "A rule that passes on unverified details counts as passing. Otherwise it shows as needing review. A rule that fails always fails."] as const,
+                    ] as const
+                  ).map(([key, label, help]) => (
+                    <label key={key} className="cb" htmlFor={`verify-${key}`}>
+                      <input type="checkbox" id={`verify-${key}`} checked={draft[key]} onChange={(e) => set(key, e.target.checked)} style={{ marginTop: "3px" }} />
+                      <span>
+                        <span className="b">{label}</span>
+                        <span className="help" style={{ display: "block" }}>
+                          {help}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
               </>
             )}
             {step === "publish" && (

@@ -194,6 +194,18 @@ describe("apply: start, prefill, edit, validate, submit", () => {
     expect(store.applications[0]!.forms[0]!.lockedAt).not.toBeNull();
   });
 
+  it("promises nothing from Passport to an applicant without it, and confirms it as not verified (NP-15)", async () => {
+    const store = seedApplicantStore();
+    Object.assign(store.organization, { linked: false, level: null });
+    const form = store.applications[0]!.forms[0]!;
+    Object.assign(form, { response: structuredClone(LOI_RESPONSE), validationErrors: [], status: "complete" });
+    open(`/w/alder-creek/applications/${APP}/edit/submit`, { store });
+    const dialog = await screen.findByRole("dialog", { name: "Ready to submit?" });
+    expect(within(dialog).queryByText(/Passport level/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Your organization is not verified with OpenGrants Passport")).toBeInTheDocument();
+    expect(within(dialog).getByText(/read the organization details you entered/)).toBeInTheDocument();
+  });
+
   it("shows the fields the server refuses at submit", async () => {
     const store = seedApplicantStore();
     const form = store.applications[0]!.forms[0]!;

@@ -8,6 +8,7 @@ import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, Clock, Landmark 
 import type { ApplicantApi } from "../../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../../api/applicantHooks.ts";
 import { initialsOf } from "../../../api/client.ts";
+import { usePassportFlags } from "../../../api/launchHooks.ts";
 import { useWorkspace } from "../../../app/workspace.tsx";
 import { Loaded, sourceLabel } from "../../../components/applicant.tsx";
 import { PhoneShell } from "../../../components/PhoneShell.tsx";
@@ -51,6 +52,7 @@ function Row({ label, value, source, last = false }: { label: string; value: str
 
 export default function OrganizationPhone() {
   const ws = useWorkspace("applicant");
+  const passportFlags = usePassportFlags();
   const base = `/w/${ws.handle}`;
   const query = useApplicantQuery(load, [ws.id]);
   const refresh = useApplicantMutation((api) => api.refreshOrganization());
@@ -119,8 +121,14 @@ export default function OrganizationPhone() {
                   </div>
                   {refresh.error ? <ErrorBanner error={refresh.error} title="Passport could not be read" /> : null}
                   {!org.linked && (
-                    <Notice tone="warn" title="This workspace is not connected to Passport">
-                      <Link to="/onboarding/applicant">Continue with Passport</Link> to bring in your record.
+                    <Notice tone="info" title="Not verified: this workspace is not linked to Passport">
+                      Funders see the details you entered in <Link to={`/w/${ws.handle}/settings#organization-details`}>Settings</Link>, marked as not verified.
+                      {passportFlags.linking && (
+                        <>
+                          {" "}
+                          <Link to="/onboarding/applicant">Continue with Passport</Link> to verify your organization and bring in your record.
+                        </>
+                      )}
                     </Notice>
                   )}
 

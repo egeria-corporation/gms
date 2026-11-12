@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router";
-import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, TriangleExclamationPoint, Upload, X } from "lucide-react";
+import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, ShieldOff, TriangleExclamationPoint, Upload, X } from "lucide-react";
 import { passportFieldPaths, type FormDefinition, type JsonObject } from "@gms/forms";
 import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantQuery, useRealtime } from "../../api/applicantHooks.ts";
@@ -21,7 +21,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { PhoneShell, usePhoneSheetSlot } from "../../components/PhoneShell.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { LevelBadge, SelfReportedTag, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
 import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
@@ -233,9 +233,10 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       },
       {
         key: "passport",
-        state: data.readiness.linked ? "pass" : "fail",
-        label: "Passport connected",
-        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Connect Passport so your verification level travels with the submission",
+        // Passport is optional: without it the organization goes in as not verified, which is no obstacle.
+        state: data.readiness.linked ? "pass" : "unknown",
+        label: data.readiness.linked ? "Passport connected" : "Passport not connected (optional)",
+        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Your organization is submitted as not verified. Connect Passport to attach a verification level",
         fixHref: data.readiness.linked ? null : "/onboarding/applicant",
       },
     ];
@@ -428,9 +429,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
           {rejected.length > 0 && (
-            <Notice tone="info" title="Some fields follow your Passport record">
-              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in Passport.{" "}
-              {data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a>}
+            <Notice tone="info" title={data.readiness.linked ? "Some fields follow your Passport record" : "Some fields follow your organization details"}>
+              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in {data.readiness.linked ? "Passport" : "Settings"}.{" "}
+              {data.readiness.linked ? data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a> : <Link to={`${base}/settings#organization-details`}>Open Settings</Link>}
             </Notice>
           )}
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -457,6 +458,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               onAutosave={() => void push(activeFormId)}
               uploadFile={uploadFile}
               {...(data.org.editUrl ? { passportUrl: data.org.editUrl } : {})}
+              profileUrl={`${base}/settings#organization-details`}
+              passportLinked={data.readiness.linked}
             />
           </div>
 
@@ -618,7 +621,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       return (
                         <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={r.explain}>
                           <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? "Passes" : r.outcome === "fail" ? "Does not pass" : "Could not be checked"} style={{ marginTop: "3px" }} />
-                          {r.label}
+                          {r.label} <SelfReportedTag result={r} />
                         </li>
                       );
                     })}
@@ -727,17 +730,28 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </div>
             </div>
           )}
-          <div className="bnr bnr-info">
-            <ShieldCheck className="ic" aria-hidden="true" />
-            <div>
-              <div className="t">
-                Your Passport level <LevelBadge level={data.readiness.level} /> and attestation will be attached to this submission
+          {data.readiness.linked ? (
+            <div className="bnr bnr-info">
+              <ShieldCheck className="ic" aria-hidden="true" />
+              <div>
+                <div className="t">
+                  Your Passport level <LevelBadge level={data.readiness.level} /> and attestation will be attached to this submission
+                </div>
+                <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application, your attestation and your payee status (bank name and last four digits only). Nothing else from Passport is shared.</div>
               </div>
-              <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application, your attestation and your payee status (bank name and last four digits only). Nothing else from Passport is shared.</div>
             </div>
-          </div>
+          ) : (
+            <div className="bnr bnr-neu">
+              <ShieldOff className="ic" aria-hidden="true" />
+              <div>
+                <div className="t">Your organization is not verified with OpenGrants Passport</div>
+                <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application and sees the organization details you entered, marked as not verified.</div>
+              </div>
+            </div>
+          )}
           <p className="small muted">
-            {summary?.stage.closes ? `You can withdraw until the stage closes. ` : ""}Submitting gives this funder permission to read your Passport record for this application.
+            {summary?.stage.closes ? `You can withdraw until the stage closes. ` : ""}
+            {data.readiness.linked ? "Submitting gives this funder permission to read your Passport record for this application." : "Submitting gives this funder permission to read the organization details you entered for this application."}
           </p>
         </div>
         <div className="ft">

@@ -19,7 +19,25 @@ export interface AppConfig {
    * older server does not say: a screen then behaves as if the connection may work.
    */
   available?: Availability;
+  /**
+   * Which Passport features this server can offer. Each is true only when the server has the
+   * Passport settings it needs. Absent (an older server, or the read failed): all off.
+   */
+  passport?: PassportFlags;
 }
+
+/** What this install can do with Passport. Every Passport button and step follows these. */
+export interface PassportFlags {
+  /** "Continue with Passport" at sign-in. */
+  signIn: boolean;
+  /** Linking a workspace to a Passport organization. */
+  linking: boolean;
+  /** Payments sent through Passport. */
+  payments: boolean;
+}
+
+/** The flags used until the server has answered, and when it does not say. One place to relax. */
+export const PASSPORT_OFF: PassportFlags = { signIn: false, linking: false, payments: false };
 
 /** Optional connections; each is true only when the server has what it needs. */
 export interface Availability {
@@ -243,6 +261,7 @@ export function createHttpLaunchApi(opts: HttpLaunchOptions): LaunchApi {
         const a = c.available && typeof c.available === "object" ? rec(c.available) : null;
         return {
           facilitatedPayments: c.facilitatedPayments === true,
+          ...(c.passport && typeof c.passport === "object" ? { passport: { signIn: rec(c.passport).signIn === true, linking: rec(c.passport).linking === true, payments: rec(c.passport).payments === true } } : {}),
           ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true } } : {}),
         };
       }, { facilitatedPayments: false }),

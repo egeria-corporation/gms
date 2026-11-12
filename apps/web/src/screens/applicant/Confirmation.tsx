@@ -8,7 +8,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, isNotFound, Loaded } from "../../components/applicant.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
-import { LevelBadge } from "../../components/status.tsx";
+import { LevelBadge, VerificationBadge } from "../../components/status.tsx";
 import { Notice } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 
@@ -61,11 +61,23 @@ export default function Confirmation() {
                         {app.id}
                       </span>
                     </dd>
-                    <dt>Attached from Passport</dt>
-                    <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-                      <LevelBadge level={app.verificationLevel} />
-                      <span>attestation · payee status (bank name and last four digits only)</span>
-                    </dd>
+                    {app.verificationLevel ? (
+                      <>
+                        <dt>Attached from Passport</dt>
+                        <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
+                          <LevelBadge level={app.verificationLevel} />
+                          <span>attestation · payee status (bank name and last four digits only)</span>
+                        </dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>Verification</dt>
+                        <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
+                          <VerificationBadge verification={{ source: "self_declared", level: null }} />
+                          <span>The funder sees the details you entered</span>
+                        </dd>
+                      </>
+                    )}
                     {app.eligibility && (
                       <>
                         <dt>Eligibility</dt>

@@ -157,11 +157,17 @@ describe("the cached organization", () => {
     expect(partial.checks.filter((c) => c.state === "fail").map((c) => c.key)).toEqual(["identity_verified", "payee_verified"]);
     expect(partial.checks.find((c) => c.key === "payee_verified")!.fixHref).toBe(`${PASSPORT_WEB}/orgs/${ORG_ALDER}`);
 
-    // An unlinked workspace knows nothing about the organization: unknown, never a guess.
+    // A workspace without Passport is asked for its own profile; Passport is offered, never failed.
     const bare = { ...(await session(USER_ADMIN)), "X-GMS-Workspace": WS_APPLICANT };
     await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
-    const none = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: { checks: { key: string; state: string }[] } }).data;
-    expect(none.checks.map((c) => c.state)).toEqual(["fail", "unknown", "unknown", "unknown", "unknown"]);
+    type R = { checks: { key: string; state: string; optional?: boolean }[]; summary: { ready: boolean; fail: number; unknown: number } };
+    const none = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: R }).data;
+    expect(none.checks.map((c) => [c.key, c.state])).toEqual([["profile_complete", "fail"], ["passport_optional", "unknown"]]);
+    expect(none.checks[1]!.optional).toBe(true);
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { profile_source: "self_declared", self_declared_profile: { legalName: "Lakeside Pantry", contactEmail: "office@lakeside.example" } });
+    const declared = ((await (await h.request("/gms/me/readiness", { headers: bare })).json()) as { data: R }).data;
+    expect(declared.checks[0]).toMatchObject({ key: "profile_complete", state: "pass" });
+    expect(declared.summary).toMatchObject({ ready: true, fail: 0, unknown: 0 });
   });
 
   it("links a funder organization to Passport's funder workspace, a nonprofit to its own", async () => {
@@ -250,5 +256,20 @@ describe("GET /gms/me", () => {
     const r = await h.request("/gms/me", { headers: await session(USER_ADMIN) });
     const d = ((await r.json()) as { data: { workspaces: Record<string, unknown>[] } }).data;
     expect(d.workspaces).toEqual([expect.objectContaining({ handle: "riverbend", kind: "funder", role: "admin", displayName: "Riverbend Community Foundation", requiresMfa: true, brand: { accent: "#1F6F8B", onAccent: "#FFFFFF" } })]);
+  });
+});
+
+describe("a self-declared workspace links Passport", () => {
+  it("takes the Passport record in place of the profile and ledgers which fields differed", async () => {
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_ADMIN, role: "admin" });
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { profile_source: "self_declared", self_declared_profile: { legalName: "Alder Creek Family Services", contactEmail: "someone-else@example.org", mission: "Our own words." } });
+    const { finish } = await consent(USER_ADMIN, [token(1), ORG, PROFILE], { workspaceId: WS_APPLICANT });
+    expect(finish.status).toBe(200);
+    const ws = (await h.repos.table("workspaces").one({ id: WS_APPLICANT }))!;
+    expect(ws).toMatchObject({ passport_org_id: ORG_ALDER, profile_source: "passport", self_declared_profile: null });
+    const ev = (await h.ledger.list({ workspaceId: WS_APPLICANT })).find((e) => e.eventType === "workspace.profile_replaced_by_passport")!;
+    expect((ev.data as { fieldsDiffered: string[] }).fieldsDiffered).toEqual(expect.arrayContaining(["contactEmail", "mission"]));
+    expect((ev.data as { fieldsDiffered: string[] }).fieldsDiffered).not.toContain("legalName");
+    expect(JSON.stringify(ev.data)).not.toContain("someone-else");
   });
 });

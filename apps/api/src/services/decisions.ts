@@ -9,7 +9,7 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { draftAgreement, awardFields } from "./agreements.ts";
-import { passportFacts, primaryEmail, sendLetter, transitionApp, type App } from "./apply.ts";
+import { recipientEmails, sendLetter, transitionApp, type App } from "./apply.ts";
 import { STAFF_ROLES, createOfferedAward, emitFor, fundingOf, humanOnly, minorOf, readDefaults, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { Row } from "./repos/types.ts";
@@ -185,7 +185,7 @@ export async function commitDecisions(ctx: ServiceContext, competitionId: string
     try {
       let app = required(await ctx.repos.table("applications").one({ id: d.application_id }), "Application");
       const applicant = required(await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id }), "Applicant");
-      const email = primaryEmail(passportFacts(applicant).org);
+      const email = await recipientEmails(ctx, applicant);
       const letterBase = { recipient: { name: applicant.display_name }, funder: { name: funder.display_name }, application: { title: app.title }, opportunity: { title: opportunity.title }, links: { application: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/${apiId("application", app.id)}/edit`, status: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/${apiId("application", app.id)}` } };
       let award: Award | null = null;
       let agreementId: string | undefined;

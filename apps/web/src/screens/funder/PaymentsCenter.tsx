@@ -13,9 +13,9 @@ import { ActivityTimeline, actorOf, describeEvent } from "../../components/Activ
 import { Dialog } from "../../components/Dialog.tsx";
 import { checklistOf, destinationLabel, HoldBanner, RecordExternalDialog, ReleaseDialog, releaseBlockedReason } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { LevelBadge, StatusBadge } from "../../components/status.tsx";
+import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist } from "../../components/ui.tsx";
-import { useAppConfig } from "../../api/launchHooks.ts";
+import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
 import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate, formatMinor } from "../../lib/format.ts";
@@ -166,7 +166,8 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
         <div className="col" style={{ gap: "4px" }}>
           <div className="row wrap">
             <h3 id={`due-${t.id}`}>{name}</h3>
-            <LevelBadge level={row?.recipient?.verificationLevel} />
+            <VerificationBadge verification={row?.recipient?.verification} level={row?.recipient?.verificationLevel} />
+            <WorkspaceName name={row?.recipient?.workspaceName} />
             <StatusBadge kind="tranche" status={t.status} />
           </div>
           <p className="small muted">
@@ -490,6 +491,7 @@ function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personN
 
 export function PaymentsCenter({ view }: { view: PaymentsView }) {
   const { facilitatedPayments } = useAppConfig();
+  const passportFlags = usePassportFlags();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [note, setNote] = useState<string | null>(null);
@@ -554,9 +556,11 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                 <HoldBanner
                   banner={{ cause: "passport_not_linked", tone: "neutral", title: "Connect Passport to pay", detail: "Awards, agreements and reporting work without it, but no payment can be released or recorded until this workspace is linked to Passport.", clears: "Clears when an admin connects Passport." }}
                   action={
-                    <Link to={`${base}/settings/passport`} className="btn btn-secondary">
-                      Connect Passport
-                    </Link>
+                    passportFlags.linking ? (
+                      <Link to={`${base}/settings/passport`} className="btn btn-secondary">
+                        Connect Passport
+                      </Link>
+                    ) : undefined
                   }
                 />
               )}

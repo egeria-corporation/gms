@@ -7,6 +7,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { ArrowRight, CircleX, ExternalLink, Info, Lock, TriangleExclamationPoint } from "lucide-react";
 import { useServices } from "../../app/services.tsx";
 import type { TotpEnrollment } from "../../auth/types.ts";
+import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
 import { isReviewOnly } from "../../lib/roles.ts";
@@ -82,6 +83,7 @@ export function invitationToken(pasted: string): string | null {
 
 export default function SignIn() {
   const { auth, sessionState, meState, reloadMe, mock } = useServices();
+  const passportFlags = usePassportFlags();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
@@ -224,7 +226,7 @@ export default function SignIn() {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "center", alignItems: "center" }}>
             <h1 style={{ fontSize: "32px" }}>Sign In to OpenGrants GMS</h1>
             <p style={{ fontSize: "16px", color: "#4A5C5A", maxWidth: "560px" }}>
-              One account for every workspace you belong to. Funders sign in with email; applicants can continue with their Passport.
+              One account for every workspace you belong to. Sign in with email{passportFlags.signIn ? ", or continue with Passport" : ""}.
             </p>
           </div>
           <div
@@ -287,14 +289,18 @@ export default function SignIn() {
                     <ArrowRight className="ic" aria-hidden="true" />
                   </button>
                 </form>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#4A5C5A", fontSize: "13px" }}>
-                  <span className="divider" style={{ flex: 1 }}></span>Applying for funding?
-                  <span className="divider" style={{ flex: 1 }}></span>
-                </div>
-                <PassportButton returnTo={next} />
-                <p className="help" style={{ textAlign: "center" }}>
-                  Sign in at Passport and choose your organization. You come back signed in, with applications pre-filled from its record.
-                </p>
+                {passportFlags.signIn && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#4A5C5A", fontSize: "13px" }}>
+                      <span className="divider" style={{ flex: 1 }}></span>Applying for funding?
+                      <span className="divider" style={{ flex: 1 }}></span>
+                    </div>
+                    <PassportButton returnTo={next} />
+                    <p className="help" style={{ textAlign: "center" }}>
+                      Sign in at Passport and choose your organization. You come back signed in, with applications pre-filled from its record.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
@@ -483,12 +489,12 @@ export default function SignIn() {
                       [
                         "funder",
                         "Create a funder workspace",
-                        "For foundations, agencies and corporate giving programs. Claim your organization in Passport, set your brand, invite your team.",
+                        "For foundations, agencies and corporate giving programs. Name your organization, set your brand, invite your team.",
                       ],
                       [
                         "applicant",
-                        "Link my applicant organization with Passport",
-                        "For nonprofits and other grant seekers. Your Passport record becomes your applicant workspace.",
+                        "Set up my applicant organization",
+                        passportFlags.linking ? "For nonprofits and other grant seekers. Link your Passport record, or enter a few details yourself." : "For nonprofits and other grant seekers. Enter a few details about your organization.",
                       ],
                       ["invite", "Join by invitation", "Someone invited you as a teammate, reviewer or consultant."],
                     ] as const

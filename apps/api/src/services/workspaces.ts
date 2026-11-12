@@ -7,6 +7,7 @@ import { APPLICANT_ROLES, FUNDER_ROLES, roleRequiresMfa, type WorkspaceKind } fr
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { profileSourceOf, selfDeclaredColumns, selfDeclaredOf, selfDeclaredProfileInput, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -26,10 +27,48 @@ export const createWorkspaceInput = z
     // No `passportOrgId`: a workspace gets its Passport organization only from Passport, through a
     // consent or sign-in for that organization (applicants) or a client verified against it (funders).
     brand: brandInput.optional(),
+    /** Set up without Passport: what the organization says about itself. Shown as not verified. */
+    profile: selfDeclaredProfileInput.optional(),
   })
   .strict();
 
 export const updateWorkspaceInput = z.object({ displayName: z.string().trim().min(1).max(200).optional(), brand: brandInput.optional(), settings: z.record(z.string(), z.unknown()).optional() }).strict();
+
+/**
+ * The settings a workspace admin may set, and their shapes. Everything else under `settings` is
+ * the server's (`passportPayee` from Passport, `assistMonthlyQuota`) or has its own route
+ * (`contacts`), and is dropped from a patch, so a client that sends the whole object back changes
+ * nothing it does not own (review NP-03). `null` removes a key.
+ */
+export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
+  funder: {
+    contactEmail: z.email().max(320),
+    transparency: z.boolean(),
+    gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+    defaultRail: z.enum(["auto", "standard", "instant"]),
+  },
+  applicant: {
+    gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+  },
+};
+
+/** Keep only the keys an admin may set; a value of the wrong shape is a 422 naming the key. */
+export function userSettingsPatch(kind: WorkspaceKind, patch: Record<string, unknown>): Record<string, unknown> {
+  const allowed = USER_SETTINGS[kind];
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const schema = Object.hasOwn(allowed, key) ? allowed[key] : undefined;
+    if (!schema) continue;
+    if (value === null) {
+      out[key] = null;
+      continue;
+    }
+    const r = schema.safeParse(value);
+    if (!r.success) throw new ApiError(422, "invalid_setting", `The ${key} setting is not valid`, [{ code: "invalid", field: `settings.${key}` }]);
+    out[key] = r.data;
+  }
+  return out;
+}
 
 const luminance = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((i) => {
@@ -71,7 +110,13 @@ export const workspaceView = (w: Row<"workspaces">) => ({
   displayName: w.display_name,
   legalName: w.legal_name,
   passportOrgId: w.passport_org_id,
-  verificationLevel: w.verification_level,
+  /** Passport's level, only with a Passport organization (same as `verification.level`). */
+  verificationLevel: verificationOf(w).level,
+  /** Where the organization's profile comes from; a self-declared one is never verified. */
+  profileSource: profileSourceOf(w),
+  verification: verificationOf(w),
+  /** The self-declared profile (admins edit it at /profile); null for Passport and empty workspaces. */
+  profile: selfDeclaredOf(w),
   brand: w.brand,
   settings: w.settings,
   status: w.status,
@@ -128,14 +173,16 @@ export async function createWorkspace(ctx: ServiceContext, input: z.output<typeo
       kind: input.kind,
       handle: input.handle,
       display_name: input.displayName,
-      legal_name: input.legalName ?? null,
+      legal_name: input.legalName ?? input.profile?.legalName ?? null,
       passport_org_id: null,
       brand,
       status: "active",
+      ...(input.profile ? selfDeclaredColumns(input.profile) : {}),
     }),
   );
   await ctx.repos.table("workspace_members").insert({ workspace_id: workspace.id, user_id: ctx.actor.userId!, role: "admin" });
-  await audit(ctx, "workspace.created", "workspace", workspace.id, { kind: workspace.kind, handle: workspace.handle }, workspace.id);
+  await audit(ctx, "workspace.created", "workspace", workspace.id, { kind: workspace.kind, handle: workspace.handle, profileSource: profileSourceOf(workspace) }, workspace.id);
+  if (input.profile) await audit(ctx, "workspace.profile_updated", "workspace", workspace.id, { fields: Object.keys(selfDeclaredOf(workspace) ?? {}).sort(), source: "self_declared" }, workspace.id);
   await audit(ctx, "member.added", "workspace", workspace.id, { userId: ctx.actor.userId, role: "admin" }, workspace.id);
   return { workspace: workspaceView(workspace), warnings };
 }
@@ -146,7 +193,7 @@ export async function getWorkspace(ctx: ServiceContext, id: string) {
 }
 
 export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.output<typeof updateWorkspaceInput>) {
-  await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: id, what: "Workspace" });
+  const caller = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: id, what: "Workspace" });
   // `brand` and `settings` are merge patches: a key that is not sent keeps its value and `null`
   // removes it, so two admins changing different settings do not overwrite each other.
   const current = required(await ctx.repos.table("workspaces").one({ id }), "Workspace");
@@ -157,7 +204,7 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
     {
       ...(input.displayName ? { display_name: input.displayName } : {}),
       ...(resolved ? { brand: resolved.brand } : {}),
-      ...(input.settings ? { settings: merge(current.settings, input.settings) as Row<"workspaces">["settings"] } : {}),
+      ...(input.settings ? { settings: merge(current.settings, userSettingsPatch(caller.kind, input.settings)) as Row<"workspaces">["settings"] } : {}),
     },
   );
   await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input) });
