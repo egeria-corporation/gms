@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Giving an award directly: the form's checks, the mock's rules (one address, one use, expiry,
 // replacement on resend, the daily limit), every state of the claim screen, and the screens end to end.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { errorCode, invitationOf, type DirectAwardInput, type InvitationLookup } from "../src/api/directAwards.ts";
+import { createHttpApi } from "../src/api/client.ts";
+import { clearClaimToken, getClaimToken } from "../src/lib/claimToken.ts";
 import { mockApplicantStore } from "../src/api/applicantHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
@@ -13,7 +15,7 @@ import { directAwardProblems, EMPTY_DIRECT_AWARD, formatDecimalAmount, maskEmail
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_MEMBERSHIPS, MOCK_USER } from "../src/mocks/fixtures.ts";
 import type { MockDirectAwardsApi } from "../src/mocks/directAwards.ts";
-import { ClaimView, setupOrganizationHref, type ClaimViewProps } from "../src/screens/public/ClaimAward.tsx";
+import { ClaimView, funderIsVerified, setupOrganizationHref, type ClaimViewProps } from "../src/screens/public/ClaimAward.tsx";
 
 const valid: DirectAwardForm = { ...EMPTY_DIRECT_AWARD, organizationName: "Pine Ridge Youth Alliance", contactEmail: "maria@pineridge.example", title: "Summer programs", amount: "25,000" };
 
@@ -66,7 +68,7 @@ async function riverbend(opts: { now?: () => Date; email?: string } = {}) {
   const api = services.api as unknown as MockDirectAwardsApi & Services["api"];
   return { services, api };
 }
-const tokenOf = (api: MockDirectAwardsApi, n = -1) => new URL(api.outbox().at(n)!.link, "http://x").searchParams.get("token")!;
+const tokenOf = (api: MockDirectAwardsApi, n = -1) => new URLSearchParams(new URL(api.outbox().at(n)!.link, "http://x").hash.slice(1)).get("token")!;
 const codeOf = async (p: Promise<unknown>) => p.then(() => null, (e: unknown) => ({ status: (e as { status: number }).status, code: errorCode(e) }));
 
 describe("giving an award directly (mock)", () => {
@@ -83,7 +85,7 @@ describe("giving an award directly (mock)", () => {
     expect((await api.listAwards()).find((a) => a.id === award.id)).toBeTruthy();
     // The email says whether the funder is verified with Passport, and carries only the claim link.
     expect(api.outbox().at(-1)).toMatchObject({ funderName: "Riverbend Community Foundation", to: MOCK_USER.email });
-    expect(api.outbox().at(-1)!.link).toMatch(/^\/awards\/claim\?token=[A-Za-z0-9_-]{43}$/);
+    expect(api.outbox().at(-1)!.link).toMatch(/^\/awards\/claim#token=[A-Za-z0-9_-]{43}$/);
   });
   it("refuses a bad request in plain words, and a member who is not admin or finance", async () => {
     const { api } = await riverbend();
@@ -239,7 +241,7 @@ function view(l: InvitationLookup, over: Partial<ClaimViewProps> = {}) {
   const handlers = { onAccept: vi.fn(), onDecline: vi.fn(), onSwitchAddress: vi.fn() };
   render(
     <MemoryRouter>
-      <ClaimView lookup={l} claimUrl="/awards/claim?token=abc" signedInAs="maria@pineridge.example" {...handlers} {...over} />
+      <ClaimView lookup={l} claimUrl="/awards/claim" signedInAs="maria@pineridge.example" {...handlers} {...over} />
     </MemoryRouter>,
   );
   return handlers;
@@ -255,9 +257,22 @@ describe("the claim screen", () => {
     expect(screen.getAllByText("Pine Ridge Youth Alliance").length).toBeGreaterThan(0);
     expect(screen.queryByText("Not verified")).toBeNull();
   });
-  it("says so when the funder is not verified with Passport", () => {
+  it("warns unless the funder is verified with Passport at L1 or above", () => {
+    const warning = "This funder's organization is not verified with OpenGrants Passport.";
+    cleanup();
     view(lookup({ funder: { name: "Small Fund", handle: "small", verification: { source: "self_declared", level: null } }, workspaces: [alder] }));
+    expect(screen.getByText(warning)).toBeInTheDocument();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
+    for (const v of [{ source: "passport", level: "L0" }, { source: "passport", level: null }, { source: "none", level: null }, { source: "weird", level: "L3" }, null, undefined]) {
+      expect(funderIsVerified(v as never)).toBe(false);
+    }
+    for (const level of ["L1", "L2", "L3"]) expect(funderIsVerified({ source: "passport", level })).toBe(true);
+    cleanup();
+    view(lookup({ funder: { name: "Linked Fund", handle: "l", verification: { source: "passport", level: "L0" } }, workspaces: [alder] }));
+    expect(screen.getByText(warning)).toBeInTheDocument();
+    cleanup();
+    view(lookup({ workspaces: [alder] }));
+    expect(screen.queryByText(warning)).toBeNull();
   });
   it("with one organization: it is chosen, the consent is plain, and Accept sends its id", async () => {
     const h = view(lookup({ workspaces: [alder] }));
@@ -272,12 +287,12 @@ describe("the claim screen", () => {
     await userEvent.click(screen.getByRole("radio", { name: /Pine Ridge Youth Alliance/ }));
     await userEvent.click(screen.getByRole("button", { name: "Accept award" }));
     expect(h.onAccept).toHaveBeenCalledWith("w2", undefined);
-    expect(screen.getByRole("link", { name: "Set up a new organization" })).toHaveAttribute("href", setupOrganizationHref("Pine Ridge Youth Alliance", "/awards/claim?token=abc"));
+    expect(screen.getByRole("link", { name: "Set up a new organization" })).toHaveAttribute("href", setupOrganizationHref("Pine Ridge Youth Alliance", "/awards/claim"));
   });
   it("with none: sends the person to set up an organization without Passport, then back here", () => {
     view(lookup());
     const link = screen.getByRole("link", { name: "Set up your organization" });
-    expect(link.getAttribute("href")).toBe("/onboarding/applicant?start=email&name=Pine%20Ridge%20Youth%20Alliance&next=%2Fawards%2Fclaim%3Ftoken%3Dabc");
+    expect(link.getAttribute("href")).toBe("/onboarding/applicant?start=email&name=Pine%20Ridge%20Youth%20Alliance&next=%2Fawards%2Fclaim");
     expect(screen.queryByRole("button", { name: "Accept award" })).toBeNull();
     expect(screen.getByText(/does not need Passport/)).toBeInTheDocument();
   });
@@ -443,10 +458,83 @@ describe("the grantee's screens", () => {
     expect(await screen.findByRole("heading", { name: "This invitation link is not valid" })).toBeInTheDocument();
   });
 
-  it("asks a signed-out person to sign in, and brings them back to the claim", async () => {
+  it("asks a signed-out person to sign in with a next that has no token, and keeps the token for the way back", async () => {
+    const token = "abcdefghij_-0123456789ABCD";
     const services = createMockServices({ session: null });
-    open("/awards/claim?token=abc_-123", services);
-    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/signin?next=%2Fawards%2Fclaim%3Ftoken%3Dabc_-123"));
+    open(`/awards/claim#token=${token}`, services);
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/signin?next=%2Fawards%2Fclaim"));
+    expect(getClaimToken()).toBe(token);
+    clearClaimToken();
+  });
+
+  it("never lets the token into an address: not from the fragment, not from an older ?token= link, not after accepting", async () => {
+    const services = createMockServices({ session: demoSession() });
+    await services.api.workspace("riverbend");
+    const api = services.api as unknown as MockDirectAwardsApi & Services["api"];
+    const seen: string[] = [];
+    const calls: string[] = [];
+    const real = api.lookupAwardInvitation;
+    api.lookupAwardInvitation = (t) => (calls.push(t), real(t));
+    function Spy() {
+      const l = useLocation();
+      seen.push(l.pathname + l.search + l.hash);
+      return null;
+    }
+    await api.createDirectAward(input());
+    const token = tokenOf(api);
+    for (const entry of [`/awards/claim#token=${token}`, `/awards/claim?token=${token}`]) {
+      clearClaimToken();
+      seen.length = 0;
+      calls.length = 0;
+      const view = render(
+        <MemoryRouter initialEntries={[entry]}>
+          <App services={services} />
+          <Spy />
+        </MemoryRouter>,
+      );
+      await screen.findByRole("heading", { level: 1, name: /Accept an award from/ });
+      expect(calls).toEqual([token]); // the token travels as an argument (a request body), never in an address
+      expect(seen.at(-1)).toBe("/awards/claim");
+      view.unmount();
+    }
+    // Accepting for the workspace clears the stored token and lands on the grant, not on an address with a token.
+    clearClaimToken();
+    seen.length = 0;
+    render(
+      <MemoryRouter initialEntries={[`/awards/claim#token=${token}`]}>
+        <App services={services} />
+        <Spy />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Accept award" }));
+    await user.type(await screen.findByLabelText(/^Your full legal name/), "Maria Santos");
+    await user.click(screen.getByRole("button", { name: "Accept award" }));
+    await waitFor(() => expect(seen.at(-1)).toMatch(/^\/w\/alder-creek\/grants\//));
+    // The arrival address is the only one that holds it (a fragment, which is never sent to a server).
+    expect(seen.slice(1).filter((a) => a.includes(token))).toEqual([]);
+    expect(getClaimToken()).toBe("");
+  });
+
+  it("sends the token only in a request body, never in a path or query", async () => {
+    const urls: string[] = [];
+    const bodies: string[] = [];
+    const api = createHttpApi({
+      baseUrl: "https://api.example",
+      token: async () => "jwt",
+      identity: async () => ({ email: "x@example.org" }),
+      fetch: (async (url: string, init?: RequestInit) => {
+        urls.push(String(url));
+        bodies.push(String(init?.body ?? ""));
+        return new Response(JSON.stringify({ data: {} }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch,
+    });
+    const token = "gms_awi_abcdefghijklmnopqrstuvwxyz0123456789ABCD";
+    await api.lookupAwardInvitation(token);
+    await api.acceptAwardInvitation({ token, workspaceId: "w", name: "Maria Santos" });
+    await api.declineAwardInvitation({ token });
+    expect(urls.every((u) => !u.includes(token) && !u.includes("?"))).toBe(true);
+    expect(bodies.every((b) => b.includes(token))).toBe(true);
   });
 
   it("shows an address mismatch from a real lookup", async () => {

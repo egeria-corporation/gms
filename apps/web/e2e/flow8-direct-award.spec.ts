@@ -74,6 +74,8 @@ test("a funder gives an award directly and the organization claims it without Pa
     await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
     await signInWith(page, "sam@newcomer.example");
     await expect(page.getByRole("heading", { level: 1, name: "Accept an award from Riverbend Community Foundation" })).toBeVisible();
+    // The token never stays in the address.
+    expect(page.url()).toMatch(/\/awards\/claim$/);
     await expect(page.getByText("Summer Youth Programs", { exact: true })).toBeVisible();
     await expect(page.getByText("$25,000", { exact: true })).toBeVisible();
     await expect(page.getByText("We are glad to support your work.")).toBeVisible();
@@ -81,7 +83,7 @@ test("a funder gives an award directly and the organization claims it without Pa
 
   await test.step("there is no organization yet: set one up without Passport", async () => {
     const setUp = page.getByRole("link", { name: "Set up your organization" });
-    await expect(setUp).toHaveAttribute("href", `/onboarding/applicant?start=email&name=Pine%20Ridge%20Youth%20Alliance&next=${encodeURIComponent(mail.link)}`);
+    await expect(setUp).toHaveAttribute("href", `/onboarding/applicant?start=email&name=Pine%20Ridge%20Youth%20Alliance&next=%2Fawards%2Fclaim`);
     await setUp.click();
     const legalName = page.getByLabel(/^Legal name/);
     await expect(page.getByRole("heading", { name: "Set up without Passport" }).or(legalName)).toBeVisible();

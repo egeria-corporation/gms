@@ -181,6 +181,8 @@ function AppRoutes() {
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         {/* The agent consent page. Not under /oauth/: the site hands every /oauth/ path to the API. */}
         <Route path="/consent" element={<OAuthConsent />} />
+        {/* An award invitation. Outside the guard so the token is lifted out of the address before any sign-in `next` is built. */}
+        <Route path="/awards/claim" element={<ClaimAward />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -189,7 +191,6 @@ function AppRoutes() {
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
           <Route path="/apply/:handle/:slug" element={<ApplyEntry />} />
           <Route path="/invitations/accept" element={<InvitationAccept />} />
-          <Route path="/awards/claim" element={<ClaimAward />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />

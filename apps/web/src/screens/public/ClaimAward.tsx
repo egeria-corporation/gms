@@ -5,15 +5,16 @@
 // organization only when the person signed in with the address it was sent to accepts it for a
 // workspace they administer.
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { Award as AwardIcon, Ban, CircleCheck, CircleX, Clock, LogOut, TriangleExclamationPoint } from "lucide-react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
+import { Award as AwardIcon, Ban, CircleCheck, CircleX, Clock, LogOut, ShieldOff, TriangleExclamationPoint } from "lucide-react";
 import { errorCode, type InvitationLookup } from "../../api/directAwards.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { useServices } from "../../app/services.tsx";
-import { signInPath } from "../../auth/RequireAuth.tsx";
+import { RequireAuth, signInPath } from "../../auth/RequireAuth.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice } from "../../components/ui.tsx";
+import { CLAIM_PATH, captureClaimToken, clearClaimToken, getClaimToken } from "../../lib/claimToken.ts";
 import { formatDate } from "../../lib/format.ts";
 import { formatDecimalAmount } from "../../lib/directAward.ts";
 
@@ -36,6 +37,11 @@ export interface ClaimViewProps {
   error?: unknown;
 }
 
+/** Passport-verified at L1 or above. Linked at L0, self-declared, none or anything unexpected counts as not verified. */
+export function funderIsVerified(v: { source?: unknown; level?: unknown } | null | undefined): boolean {
+  return v?.source === "passport" && typeof v.level === "string" && /^L[1-3]$/.test(v.level);
+}
+
 function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
   const { award, funder } = lookup;
   const period = award.startDate && award.endDate ? `${formatDate(award.startDate)} to ${formatDate(award.endDate)}` : award.startDate ? `From ${formatDate(award.startDate)}` : award.endDate ? `Until ${formatDate(award.endDate)}` : null;
@@ -51,6 +57,12 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {!funderIsVerified(funder.verification) && (
+          <p className="row small" style={{ gap: "6px" }}>
+            <ShieldOff className="ic" aria-hidden="true" />
+            <span>This funder's organization is not verified with OpenGrants Passport.</span>
+          </p>
+        )}
         <h2 id="claim-award-h" style={{ fontSize: "20px" }}>
           {award.title}
         </h2>
@@ -280,12 +292,27 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
   );
 }
 
-export default function ClaimAward() {
+/**
+ * The route. Outside the sign-in guard on purpose: the token is taken from the address before anything
+ * can build a sign-in `next` from it, and the address becomes the plain `/awards/claim`.
+ */
+export default function ClaimEntry() {
+  const location = useLocation();
+  captureClaimToken(location.search, location.hash);
+  if (location.search || location.hash) return <Navigate to={CLAIM_PATH} replace />;
+  return (
+    <RequireAuth>
+      <ClaimAward />
+    </RequireAuth>
+  );
+}
+
+function ClaimAward() {
   const { auth, meState, sessionState, reloadMe } = useServices();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const token = params.get("token")?.trim() ?? "";
-  const claimUrl = `/awards/claim?token=${encodeURIComponent(token)}`;
+  // Read once: the stored copy is cleared when the invitation is used up, and this page may reload after that.
+  const [token] = useState(getClaimToken);
+  const claimUrl = CLAIM_PATH;
   const lookup = useApiQuery((api) => (token ? api.lookupAwardInvitation(token) : Promise.reject(Object.assign(new Error("This invitation link is not complete."), { status: 404 }))), [token]);
   const accept = useApiMutation((api, workspaceId: string, name?: string) => api.acceptAwardInvitation({ token, workspaceId, ...(name ? { name } : {}) }));
   const decline = useApiMutation((api, reason: string) => api.declineAwardInvitation({ token, ...(reason.trim() ? { reason: reason.trim() } : {}) }));
@@ -295,6 +322,7 @@ export default function ClaimAward() {
   const onAccept = async (workspaceId: string, name?: string) => {
     const done = await accept.run(workspaceId, name);
     if (!done) return;
+    clearClaimToken();
     reloadMe();
     const handle = handleFor(done.workspaceId);
     navigate(handle ? `/w/${handle}/grants/${done.awardId}` : "/workspaces", { replace: true });
@@ -309,6 +337,12 @@ export default function ClaimAward() {
   useEffect(() => {
     if (failure === "invitation_expired" || failure === "invitation_used" || failure === "invitation_revoked") reloadLookup();
   }, [failure, reloadLookup]);
+
+  // The link is spent or invalid: nothing more to keep.
+  const spent = lookup.status === "ready" ? lookup.data.status !== "pending" : lookup.status === "error";
+  useEffect(() => {
+    if (spent) clearClaimToken();
+  }, [spent]);
 
   const notFound = lookup.status === "error" && (errorCode(lookup.error) === "invitation_not_found" || (lookup.error as { status?: number }).status === 404);
   return (

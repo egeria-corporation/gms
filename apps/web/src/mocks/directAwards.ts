@@ -121,7 +121,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
   /** The invitation email. A failed send still leaves the invitation standing, as the real service does. */
   function deliver(r: Rec): boolean {
     if (mailFailing) return false;
-    const link = `/awards/claim?token=${r.token}`;
+    const link = `/awards/claim#token=${r.token}`;
     outbox.push({ to: r.email, awardId: r.awardId, link, at: ctx.now(), funderName: r.funder.name, notVerifiedLine: r.funder.verification.source !== "passport" });
     return true;
   }
