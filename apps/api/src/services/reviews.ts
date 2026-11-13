@@ -38,9 +38,16 @@ async function rubricRow(ctx: ServiceContext, id: string, version?: number): Pro
 
 export const toRubric = (r: Row<"rubrics">): Rubric => ({ id: r.id, version: r.version, criteria: (Array.isArray(r.criteria) ? r.criteria : []) as unknown as Criterion[], ...(typeof (r.overall as { spreadThreshold?: unknown } | null)?.spreadThreshold === "number" ? { spreadThreshold: (r.overall as { spreadThreshold: number }).spreadThreshold } : {}) });
 
-function domainsOf(applicant: Row<"workspaces"> | null | undefined): string[] {
-  if (!applicant) return [];
-  const org = orgFacts(applicant).org as { emails?: Record<string, unknown>; socials?: { website?: unknown } };
+/**
+ * The applicant's email and web domains, by where they come from. Only Passport's record excludes a
+ * reviewer automatically (review F-05): a self-declared profile is the organization's own word, so
+ * using it would let an applicant choose which reviewers count as conflicted, or hide its real
+ * domain. Self-declared domains are only a hint shown to staff; they never exclude or include.
+ */
+function domainsOf(applicant: Row<"workspaces"> | null | undefined): { verified: string[]; selfDeclared: string[] } {
+  if (!applicant) return { verified: [], selfDeclared: [] };
+  const facts = orgFacts(applicant);
+  const org = facts.org as { emails?: Record<string, unknown>; socials?: { website?: unknown } };
   const out = new Set<string>();
   for (const v of Object.values(org.emails ?? {})) if (typeof v === "string" && v.includes("@")) out.add(emailDomain(v));
   if (typeof org.socials?.website === "string") {
@@ -50,7 +57,18 @@ function domainsOf(applicant: Row<"workspaces"> | null | undefined): string[] {
       // Not a URL: no domain to compare.
     }
   }
-  return [...out];
+  return facts.source === "passport" ? { verified: [...out], selfDeclared: [] } : { verified: [], selfDeclared: [...out] };
+}
+
+/**
+ * A hint for staff when the reviewer's email domain matches a domain the applicant gave in its own,
+ * unverified profile. The same domain rule as the automatic check (shared mailbox providers never
+ * match), but it changes no assignment.
+ */
+function selfDeclaredDomainHint(reviewerId: string, reviewerEmail: string, app: App, applicant: Row<"workspaces"> | null | undefined) {
+  const flag = detectCoi({ id: reviewerId, email: reviewerEmail, capacity: 0 }, { id: app.id, applicantDomains: domainsOf(applicant).selfDeclared });
+  if (flag?.reason !== "same_email_domain") return null;
+  return { applicationId: apiId("application", app.id), reviewerUserId: reviewerId, reason: "self_declared_domain" as const, detail: `The applicant's own profile, which is not verified, gives the reviewer's email domain (${emailDomain(reviewerEmail)}). Check for a conflict of interest before the review starts.` };
 }
 
 const memberEmail = (m: Member): string => (typeof (m.scope as { email?: unknown } | null)?.email === "string" ? (m.scope as { email: string }).email : "");
@@ -65,7 +83,7 @@ async function declaredConflicts(ctx: ServiceContext, wsId: string, reviewerId: 
 }
 
 async function assignable(ctx: ServiceContext, app: App, applicant: Row<"workspaces"> | null | undefined, programId: string | null, assigned: string[]): Promise<AssignableApplication> {
-  return { id: app.id, applicantOrgId: app.applicant_workspace_id, applicantDomains: domainsOf(applicant), programId, tags: app.tags, assignedReviewerIds: assigned };
+  return { id: app.id, applicantOrgId: app.applicant_workspace_id, applicantDomains: domainsOf(applicant).verified, programId, tags: app.tags, assignedReviewerIds: assigned };
 }
 
 function view(a: Assignment, app: App | undefined, review: Review | undefined, rubric?: Rubric) {
@@ -124,7 +142,7 @@ export async function createAssignment(ctx: ServiceContext, applicationUuid: str
   const row = await ctx.repos.table("review_assignments").insert({ workspace_id: ws.id, application_id: app.id, stage, reviewer_user_id: input.reviewerUserId, rubric_id: rubric.id, rubric_version: rubric.version, due_at: input.dueAt ?? null, status: "assigned", coi: {} });
   await audit(ctx, "review.assigned", "application", app.id, { assignmentId: row.id, stage, reviewerUserId: input.reviewerUserId });
   await markUnderReview(ctx, app);
-  return view(row, app, undefined);
+  return { ...view(row, app, undefined), coiHint: selfDeclaredDomainHint(input.reviewerUserId, profile.email, app, applicant) };
 }
 
 export const autoAssignInput = z
@@ -175,11 +193,17 @@ export async function autoAssignReviewers(ctx: ServiceContext, competitionUuid: 
   const unfilled = [...need.entries()].filter(([, missing]) => missing > 0).map(([applicationId, missing]) => ({ applicationId: apiId("application", applicationId), missing }));
   const assignments = wanted.map((x) => ({ applicationId: apiId("application", x.applicationId), reviewerUserId: x.reviewerId, matchedTags: x.matchedTags }));
   const coiFlags = plan.coiFlags.map((f) => ({ applicationId: apiId("application", f.applicationId), reviewerUserId: f.reviewerId, reason: f.reason, detail: f.detail }));
-  if (input.dryRun) return { stage, dryRun: true, created: 0, assignments, unfilled, coiFlags };
+  // Planned pairs the applicant's own, unverified profile would have flagged: shown, not acted on.
+  const coiHints = wanted.flatMap((x) => {
+    const app = apps.find((a) => a.id === x.applicationId)!;
+    const hint = selfDeclaredDomainHint(x.reviewerId, reviewers.find((r) => r.id === x.reviewerId)?.email ?? "", app, applicants.find((w) => w.id === app.applicant_workspace_id));
+    return hint ? [hint] : [];
+  });
+  if (input.dryRun) return { stage, dryRun: true, created: 0, assignments, unfilled, coiFlags, coiHints };
   for (const x of wanted) await ctx.repos.table("review_assignments").insert({ workspace_id: ws.id, application_id: x.applicationId, stage, reviewer_user_id: x.reviewerId, rubric_id: rubric.id, rubric_version: rubric.version, due_at: input.dueAt ?? null, status: "assigned", coi: {} });
   for (const a of apps) if (wanted.some((x) => x.applicationId === a.id)) await markUnderReview(ctx, a);
   await audit(ctx, "reviews.auto_assigned", "competition", competition.id, { stage, created: wanted.length, unfilled: unfilled.length, coiExcluded: coiFlags.length });
-  return { stage, dryRun: false, created: wanted.length, assignments, unfilled, coiFlags };
+  return { stage, dryRun: false, created: wanted.length, assignments, unfilled, coiFlags, coiHints };
 }
 
 export interface AssignmentFilter {

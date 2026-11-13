@@ -47,6 +47,11 @@ function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competiti
             {plan.coiFlags.length > 0 && `${plan.coiFlags.length} possible conflict(s) were skipped.`}
           </Notice>
         )}
+        {plan && plan.coiHints.length > 0 && (
+          <Notice tone="warn" title={`Check ${plan.coiHints.length} ${plan.coiHints.length === 1 ? "assignment" : "assignments"} for a conflict`}>
+            The applicant&rsquo;s own profile, which is not verified, gives the reviewer&rsquo;s email domain. These were not skipped: only a Passport record is used to exclude a reviewer.
+          </Notice>
+        )}
       </div>
       <div className="ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -120,6 +125,7 @@ export default function ReviewAssignment() {
   const assignments = useApiQuery(async (api) => (competition && stage ? api.listAssignments({ competitionId: competition.id, stage: stage.key }) : []), [competition?.id, stage?.key]);
   const [dialog, setDialog] = useState<"auto" | "invite" | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const toggle = useApiMutation(async (api, applicationId: string, reviewer: Person, existing: Assignment | undefined) => {
     if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: "Removed by program staff" });
     return api.createAssignment({ applicationId, reviewerUserId: reviewer.userId, ...(stage ? { stage: stage.key } : {}) });
@@ -187,6 +193,7 @@ export default function ReviewAssignment() {
               <div className="t">{note}</div>
             </div>
           )}
+          {hint && <Notice tone="warn" title="Check this assignment for a conflict">{hint}</Notice>}
           {toggle.error !== null && <ErrorBanner error={toggle.error} title="That assignment was not changed" />}
           {loading && <Loading label="Loading assignments" />}
           {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
@@ -244,7 +251,12 @@ export default function ReviewAssignment() {
                               aria-label={label}
                               title={label}
                               disabled={coi || locked || toggle.state === "saving"}
-                              onClick={async () => (await toggle.run(a.id, r, on ? x : undefined)) && assignments.reload()}
+                              onClick={async () => {
+                                const out = await toggle.run(a.id, r, on ? x : undefined);
+                                if (!out) return;
+                                setHint(out.coiHint?.detail ?? null);
+                                assignments.reload();
+                              }}
                             >
                               {coi ? <Slash className="ic ic-sm" aria-hidden="true" /> : on ? <Check className="ic ic-sm" aria-hidden="true" /> : null}
                             </button>

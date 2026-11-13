@@ -9,7 +9,7 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { access, recordEvent, stagesOf } from "./apply.ts";
-import { orgFacts } from "./profile.ts";
+import { orgFacts, sharingWith, shownHoldReason } from "./profile.ts";
 import { fundingOf, minorOf } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import type { InboxFilter } from "./inbox.ts";
@@ -345,11 +345,12 @@ export async function upcomingPayments(ctx: ServiceContext, days = 30) {
   const tranches = (await ctx.repos.table("tranches").find({ workspace_id: ws.id, status: ["scheduled", "due", "ready", "held"] }, { limit: 2000 })).filter((t) => t.due_at !== null && t.due_at <= until);
   const awards = tranches.length ? await ctx.repos.table("awards").find({ id: [...new Set(tranches.map((t) => t.award_id))] }) : [];
   const names = awards.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))] }) : [];
+  const shared = await sharingWith(ctx, ws.id, names.map((n) => n.id));
   const items = tranches
     .sort((a, b) => (a.due_at! < b.due_at! ? -1 : 1))
     .map((t) => {
       const award = awards.find((a) => a.id === t.award_id);
-      return { trancheId: apiId("tranche", t.id), awardId: apiId("award", t.award_id), awardTitle: award?.title ?? null, recipient: names.find((n) => n.id === award?.recipient_workspace_id)?.display_name ?? null, seq: t.seq, amountMinor: t.amount_minor, currency: t.currency, status: t.status, dueAt: t.due_at, holdReason: t.hold_reason };
+      return { trancheId: apiId("tranche", t.id), awardId: apiId("award", t.award_id), awardTitle: award?.title ?? null, recipient: names.find((n) => n.id === award?.recipient_workspace_id)?.display_name ?? null, seq: t.seq, amountMinor: t.amount_minor, currency: t.currency, status: t.status, dueAt: t.due_at, holdReason: shownHoldReason(t.hold_reason, !award?.recipient_workspace_id || shared.has(award.recipient_workspace_id)) };
     });
   return { days, totalMinor: items.reduce((s, i) => s + i.amountMinor, 0), items };
 }

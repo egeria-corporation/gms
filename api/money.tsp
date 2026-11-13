@@ -84,7 +84,9 @@ model TrancheListItem {
     verificationLevel: string | null;
 
     verification?: Verification;
-    pendingDestinationChange: boolean;
+
+    /** Null while the organization does not share its record with this funder */
+    pendingDestinationChange: boolean | null;
   } | null;
 }
 
@@ -428,14 +430,16 @@ model GranteeSummary {
   /** The workspace's own display name, when it differs from `name`. */
   workspaceName?: string | null;
 
+  /** Passport's facts (legal name, Passport id, level, payee status) show only while the organization shares its record with this funder; null otherwise */
   legalName: string | null;
+
   passportOrgId: string | null;
   verificationLevel: string | null;
   verification: Verification;
   payee: {
     pendingDestinationChange: boolean;
     active: boolean;
-  };
+  } | null;
   tags: string[];
   ownerUserId: string | null;
   applications: int32;
@@ -468,8 +472,8 @@ model GranteeDetail {
 
   consent: boolean;
 
-  /** Bank name and last four digits only */
-  payeeStatus: Record<unknown>;
+  /** Bank name and last four digits only; null when the organization does not share its record with this funder */
+  payeeStatus: Record<unknown> | null;
 
   applicationList: Record<unknown>[];
   awardList: Record<unknown>[];

@@ -9,6 +9,7 @@ import { project as projectApplication } from "./apply.ts";
 import { currencyOf, fundingOf, keyDatesOf, listCgAwards, minorOf, type Award } from "./awards.ts";
 import { audit, authorize, type ServiceContext } from "./context.ts";
 import { toDefinition } from "./forms.ts";
+import { connectedApplicants } from "./grantees.ts";
 import { projectOrThrow } from "./opportunities.ts";
 import type { TableName } from "@gms/db";
 import { orgFacts, profileSourceOf, selfDeclaredOf, verificationOf, verificationShared } from "./profile.ts";
@@ -131,7 +132,7 @@ export async function grantList990pf(ctx: ServiceContext, year: number) {
     const paidMinor = paid(a);
     return {
       awardId: apiId("award", a.id),
-      recipientName: w?.legal_name ?? w?.display_name ?? individual?.name ?? "Unknown recipient",
+      recipientName: (w ? (canRead ? (w.legal_name ?? w.display_name) : w.display_name) : null) ?? individual?.name ?? "Unknown recipient",
       recipientAddress: addr ? [addr.street1, addr.city, addr.stateOrProvince, addr.postalCode].filter(Boolean).join(", ") : null,
       recipientVerification: verificationShared(w, canRead),
       relationship: "None",
@@ -198,7 +199,7 @@ export async function exportBundle(ctx: ServiceContext, opts: { inline?: boolean
     // Organizations are references into Passport, plus the cached projection where the organization consented.
     orgs: applicants.map((w) => {
       const shared = consents.some((c) => c.applicant_workspace_id === w.id);
-      return { passportOrgId: w.passport_org_id, name: w.display_name, verification: verificationShared(w, shared), projection: shared && profileSourceOf(w) === "passport" ? w.org_projection : null, selfDeclared: shared ? selfDeclaredOf(w) : null };
+      return { passportOrgId: shared ? w.passport_org_id : null, name: w.display_name, verification: verificationShared(w, shared), projection: shared && profileSourceOf(w) === "passport" ? w.org_projection : null, selfDeclared: shared ? selfDeclaredOf(w) : null };
     }),
   };
   const strip = <R extends { workspace_id?: string }>(rows: R[]) => rows;
@@ -335,8 +336,11 @@ const dateOf = (v: string | undefined): string | null => {
 
 /**
  * Import historical awards from a CSV with a column mapping (generic mapper). A recipient is
- * matched to an applicant workspace by EIN, then by exact name; an unmatched recipient is kept on
- * the award as a named recipient without a workspace. Imported awards are `completed` or `active`
+ * matched by EIN, then by exact name, but only among the organizations already connected to this
+ * funder (an application, a consent, or an award made here: `connectedApplicants`). Anything else
+ * is kept on the award as a named recipient without a workspace, and is reported exactly like a
+ * name that matches nothing, so neither the dry run nor the import says whether some other
+ * organization is on this instance (review F-01). Imported awards are `completed` or `active`
  * records with no payment schedule: nothing imported can be paid from here.
  */
 export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeof importInput>) {
@@ -347,7 +351,8 @@ export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeo
   const col = (name: (typeof TARGETS)[number]) => (input.mapping[name] ? header.indexOf(input.mapping[name]!) : -1);
   const missing = (["recipientName", "title", "awardedAmount"] as const).filter((n) => col(n) < 0);
   if (missing.length) throw new ApiError(422, "mapping_incomplete", `Map a column for: ${missing.join(", ")}`, missing.map((m) => ({ code: "unmapped", field: m })));
-  const [applicants, programs] = await Promise.all([ctx.repos.table("workspaces").find({ kind: "applicant" }, { limit: 10000 }), ctx.repos.table("programs").find({ workspace_id: ws.id })]);
+  const connected = [...(await connectedApplicants(ctx, ws.id))];
+  const [applicants, programs] = await Promise.all([connected.length ? ctx.repos.table("workspaces").find({ id: connected, kind: "applicant" }) : Promise.resolve([]), ctx.repos.table("programs").find({ workspace_id: ws.id })]);
   const results: { row: number; ok: boolean; awardId?: string; matchedRecipient?: boolean; error?: string }[] = [];
   let created = 0;
   for (const [i, r] of rows.slice(1).entries()) {

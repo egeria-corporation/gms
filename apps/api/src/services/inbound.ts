@@ -9,6 +9,7 @@ import { onDestinationChangePending, onDestinationChanged, onDisbursementStatusC
 import { emitFor } from "./awards.ts";
 import { audit, systemContext, type BaseContext, type ServiceContext } from "./context.ts";
 import { payeeFactsOf, refreshDisbursed, type PayeeFacts } from "./payments.ts";
+import { sharingWith } from "./profile.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 import { applyTrancheUpdate, toPaymentsTranche } from "./tranches.ts";
 
@@ -66,6 +67,16 @@ export async function processPassportEvent(base: BaseContext, event: PassportEve
       break;
   }
 
+  // Which funders this organization shares its record with (review F-01). Passport's facts about the
+  // payee reach only those: a hold for a payee fact, and an alert about the organization. A funder it
+  // does not share with cannot pay it through the GMS anyway (the readiness check fails), and a hold
+  // placed earlier is still lifted when the fact clears.
+  const sharedBy = new Map<string, Set<string>>();
+  for (const f of new Set(awards.map((a) => a.workspace_id))) sharedBy.set(f, await sharingWith(base, f, recipients.map((w) => w.id)));
+  const awardShared = (a: Row<"awards"> | undefined) => !!a?.recipient_workspace_id && !!sharedBy.get(a.workspace_id)?.has(a.recipient_workspace_id);
+  const trancheShared = (trancheId: string) => awardShared(awards.find((a) => a.id === tranches.find((t) => t.id === trancheId)?.award_id));
+  if (event.type.startsWith("payee.")) fx = { ...fx, trancheUpdates: fx.trancheUpdates.filter((u) => !u.path.includes("held") || trancheShared(u.trancheId)) };
+
   // What Passport told us about the payee: display facts only (bank name, last four digits).
   if (fx.recipient) {
     for (const w of recipients) {
@@ -90,7 +101,9 @@ export async function processPassportEvent(base: BaseContext, event: PassportEve
     if (row) await emitFor(systemContext(base, "passport", { id: row.workspace_id, kind: "funder" }), row.workspace_id, "disbursement.status.changed", { trancheId: row.id, awardId: row.award_id, passportDisbursementId: row.passport_disbursement_id, status: row.passport_status });
   }
   for (const a of fx.alerts) {
-    const funders = [...new Set(awards.filter((x) => recipients.some((w) => w.id === x.recipient_workspace_id)).map((x) => x.workspace_id))];
+    // An alert about one payment goes to the funder that made it; one about the organization, to the funders it shares its record with.
+    const own = a.trancheId ? (await base.repos.table("tranches").one({ id: a.trancheId }))?.workspace_id : undefined;
+    const funders = a.trancheId ? (own ? [own] : []) : [...new Set(awards.filter((x) => awardShared(x)).map((x) => x.workspace_id))];
     for (const f of funders) await audit(systemContext(base, "passport", { id: f, kind: "funder" }), `payments.alert.${a.kind}`, "organization", a.orgId, { message: a.message, ...(a.trancheId ? { trancheId: a.trancheId } : {}) }, f);
   }
   // The disbursed amount is Passport's to state: read it back, never add it up here.

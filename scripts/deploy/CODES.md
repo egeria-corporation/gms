@@ -6,8 +6,10 @@ Every `pnpm gms deploy <step>` run ends with exactly one JSON line on stdout:
 {"step":"migrate","code":"needs_confirmation","message":"…","data":{…},"next":"migrate"}
 ```
 
-Progress for a person goes to stderr. Read only the last stdout line. (`pnpm` itself may print a
-`$ node …` banner above it; use `pnpm -s gms …` to silence that.) `data` never holds a secret.
+Progress for a person goes to stderr. Read the last stdout line that starts with `{`. (`pnpm` itself
+may print a `$ node …` banner above it, which `pnpm -s gms …` silences, and when the exit code is not
+0 it prints `[ELIFECYCLE] Command failed with exit code N.` on stdout after it, even with `-s`.)
+`data` never holds a secret.
 
 | Code | Exit | Meaning | What the agent does |
 |---|---|---|---|
@@ -37,6 +39,6 @@ Progress for a person goes to stderr. Read only the last stdout line. (`pnpm` it
 | `secrets` | `--recovery-file <absolute path outside the repo>` (required), `--rotate NAME[,NAME]` (replace named secrets; Supabase values refresh without touching the encryption keys), `--rotate-keys` (also required to replace `CREDENTIALS_ENCRYPTION_KEY` or `WEBHOOK_SECRET_KEY`) |
 | `email` | `--domain <sending domain>` (required the first time), `--from <address>` |
 | `passport` | `--rotate` (register again and replace the stored credentials; linked organizations must reconnect), `--cleanup` (remove a leftover temporary check code), `--display-name <name>` (what Passport shows; default `<name> grants`) |
-| `deploy` | `--force` redeploys the version already recorded; `--replace-dns` (needed, with `--yes`, when the custom domain is already in use or cannot be checked) |
+| `deploy` | `--force` redeploys the version already recorded (a change of build choices made with `init` redeploys without it); `--replace-dns` (needed, with `--yes`, when the custom domain is already in use or cannot be checked) |
 | `upgrade` | `--to vX.Y.Z` (required) |
 | any | `--yes`, `--dry-run` |

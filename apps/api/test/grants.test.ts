@@ -119,6 +119,24 @@ describe("review assignment", () => {
     const tight = await data<{ created: number; unfilled: unknown[] }>(s.funder, "POST", "/gms/review-assignments/auto", { competitionId: s.compId, stage: "loi", reviewersPerApplication: 1, reviewers: [{ userId: R1, capacity: 2 }], dryRun: true });
     expect(tight.unfilled).toHaveLength(1);
   });
+
+  it("uses only Passport's domains to exclude a reviewer; a self-declared domain is a hint for staff (review F-05)", async () => {
+    // The same organization without Passport, giving the reviewer's domain in its own profile.
+    await h.repos.table("workspaces").update({ id: WS_APPLICANT }, { passport_org_id: null, org_projection: null, profile_projection: null, verification_level: null, profile_source: "self_declared", self_declared_profile: { legalName: "Alder Creek Family Services", contactEmail: "grants@aldercreekfs.example" } as never });
+    const dry = await data<{ assignments: { reviewerUserId: string }[]; coiFlags: unknown[]; coiHints: { applicationId: string; reviewerUserId: string; reason: string; detail: string }[] }>(s.funder, "POST", "/gms/review-assignments/auto", { competitionId: s.compId, stage: "loi", reviewersPerApplication: 3, dryRun: true });
+    // Nobody is excluded on the applicant's word...
+    expect(dry.coiFlags).toEqual([]);
+    expect(dry.assignments.filter((x) => x.reviewerUserId === SAME_DOMAIN)).toHaveLength(3);
+    // ...and staff are told what it says.
+    expect(dry.coiHints).toHaveLength(3);
+    expect(dry.coiHints.every((x) => x.reviewerUserId === SAME_DOMAIN && x.reason === "self_declared_domain")).toBe(true);
+    expect(dry.coiHints[0]!.detail).toMatch(/not verified.*aldercreekfs\.example/);
+
+    const manual = await s.call<{ data: { coiHint: { reason: string } | null } }>(s.funder, "POST", "/gms/review-assignments", { applicationId: `app_${appA}`, reviewerUserId: SAME_DOMAIN });
+    expect(manual.status).toBe(201);
+    expect(manual.body.data.coiHint).toMatchObject({ reason: "self_declared_domain" });
+    expect((await data<{ coiHint: unknown }>(s.funder, "POST", "/gms/review-assignments", { applicationId: `app_${appA}`, reviewerUserId: R1 })).coiHint).toBeNull();
+  });
 });
 
 describe("conflict of interest and scoring", () => {

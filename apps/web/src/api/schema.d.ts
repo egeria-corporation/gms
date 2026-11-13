@@ -2318,7 +2318,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. */
+        /**
+         * @description Import historical awards from a CSV with a column mapping. `dryRun` reports without writing. A recipient is
+         *     linked only to an organization already connected to this funder (an application, a consent, or an award made
+         *     in the GMS); any other row keeps the recipient's name without a workspace and reports `matchedRecipient: false`.
+         */
         post: operations["Analytics_importCsv"];
         delete?: never;
         options?: never;
@@ -3638,7 +3642,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset). */
+        /**
+         * @description Send a reminder now, outside the plan. Planned reminders are sent by the jobs Worker, once per (requirement, offset).
+         *     Only to an organization that shares its record with this funder (409 `not_shared`), and at most one per
+         *     requirement per 24 hours (429 `reminder_sent_recently`).
+         */
         post: operations["Requirements_remind"];
         delete?: never;
         options?: never;
@@ -9918,7 +9926,7 @@ export interface components {
                 /** Format: int32 */
                 missing: number;
             }[];
-            /** @description Every reviewer/application pair excluded for a conflict of interest */
+            /** @description Every reviewer/application pair excluded for a conflict of interest. Email domains come from Passport records only. */
             coiFlags: {
                 applicationId: components["schemas"]["Models.PrefixedId"];
                 reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
@@ -9926,6 +9934,8 @@ export interface components {
                 reason: "declared_org" | "declared_program" | "same_email_domain";
                 detail: string;
             }[];
+            /** @description Planned pairs where the applicant's own, unverified profile gives the reviewer's email domain. A hint for staff: never used to exclude or include */
+            coiHints: components["schemas"]["Models.CoiHint"][];
         };
         "Models.AwardCloseout": {
             awardId: components["schemas"]["Models.PrefixedId"];
@@ -10274,6 +10284,14 @@ export interface components {
             /** @enum {string} */
             state: "pass" | "fail" | "unknown";
             reason: string;
+        };
+        /** @description A possible conflict seen only in an applicant's self-declared (unverified) profile. */
+        "Models.CoiHint": {
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @enum {string} */
+            reason: "self_declared_domain";
+            detail: string;
         };
         /** @description A field comment inside the applicant team. */
         "Models.Comment": {
@@ -11288,6 +11306,7 @@ export interface components {
             name: string;
             /** @description The workspace's own display name, when it differs from `name`. */
             workspaceName?: string | null;
+            /** @description Passport's facts (legal name, Passport id, level, payee status) show only while the organization shares its record with this funder; null otherwise */
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11295,7 +11314,7 @@ export interface components {
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
-            };
+            } | null;
             tags: string[];
             ownerUserId: string | null;
             /** Format: int32 */
@@ -11314,10 +11333,10 @@ export interface components {
             /** @description What an organization without Passport entered itself, when it consented. Not verified. */
             selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             consent: boolean;
-            /** @description Bank name and last four digits only */
+            /** @description Bank name and last four digits only; null when the organization does not share its record with this funder */
             payeeStatus: {
                 [key: string]: unknown;
-            };
+            } | null;
             applicationList: {
                 [key: string]: unknown;
             }[];
@@ -11351,6 +11370,7 @@ export interface components {
             name: string;
             /** @description The workspace's own display name, when it differs from `name`. */
             workspaceName?: string | null;
+            /** @description Passport's facts (legal name, Passport id, level, payee status) show only while the organization shares its record with this funder; null otherwise */
             legalName: string | null;
             passportOrgId: string | null;
             verificationLevel: string | null;
@@ -11358,7 +11378,7 @@ export interface components {
             payee: {
                 pendingDestinationChange: boolean;
                 active: boolean;
-            };
+            } | null;
             tags: string[];
             ownerUserId: string | null;
             /** Format: int32 */
@@ -12867,6 +12887,8 @@ export interface components {
             } | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
+            coiHint?: components["schemas"]["Models.CoiHint"] | null;
         };
         /**
          * @description The reviewer's working view: the rubric, their own review, and the application as a reviewer may
@@ -12902,6 +12924,8 @@ export interface components {
             } | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
+            coiHint?: components["schemas"]["Models.CoiHint"] | null;
             rubric: {
                 id: components["schemas"]["CommonGrants.Types.uuid"];
                 /** Format: int32 */
@@ -13638,7 +13662,8 @@ export interface components {
                 /** @description Passport's level, while the organization shares its record; null otherwise and without Passport. */
                 verificationLevel: string | null;
                 verification?: components["schemas"]["Models.Verification"];
-                pendingDestinationChange: boolean;
+                /** @description Null while the organization does not share its record with this funder */
+                pendingDestinationChange: boolean | null;
             } | null;
         };
         /** @description The seven readiness checks for one tranche, evaluated live. */
@@ -27277,6 +27302,15 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

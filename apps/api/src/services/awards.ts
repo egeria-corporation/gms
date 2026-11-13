@@ -16,7 +16,7 @@ import { audit, authorize, required, type ServiceContext, type ServiceWorkspace 
 import { checkSigner, payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
-import { namesOf, verificationShared } from "./profile.ts";
+import { namesOf, namesShared, sharesWith, shownHoldReason, verificationShared } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type Award = Row<"awards">;
@@ -133,7 +133,7 @@ function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipien
     programId: a.program_id,
     parentAwardId: a.parent_award_id ? apiId("award", a.parent_award_id) : null,
     funder: { workspaceId: a.workspace_id, name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? null },
-    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient ? namesOf(recipient).name : null, workspaceName: recipient ? namesOf(recipient).workspaceName : null, handle: recipient?.handle ?? null, level: verificationShared(recipient, consented).level, verification: verificationShared(recipient, consented) } : null,
+    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient ? namesShared(recipient, consented).name : null, workspaceName: recipient ? namesShared(recipient, consented).workspaceName : null, handle: recipient?.handle ?? null, level: verificationShared(recipient, consented).level, verification: verificationShared(recipient, consented) } : null,
     recipientIndividual: a.recipient_individual,
     passport: { awardId: a.passport_award_id, syncedAt: a.passport_synced_at, mirror: mirrorState(ctx, a) },
     createdAt: a.created_at,
@@ -156,7 +156,9 @@ export async function awardDetail(ctx: ServiceContext, a: Award) {
     ctx.repos.table("requirements").find({ award_id: a.id, workspace_id: a.workspace_id }, { orderBy: "due_at" }),
     ctx.repos.table("amendments").find({ award_id: a.id, workspace_id: a.workspace_id }, { orderBy: "created_at" }),
   ]);
-  return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map(trancheView), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
+  // The recipient reads its own hold reasons; the funder, a payee fact only while the record is shared.
+  const shared = ctx.workspace?.id === a.recipient_workspace_id || !a.recipient_workspace_id || p.consented(a);
+  return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map((t) => ({ ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, shared) })), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
 }
 
 export interface AwardFilter {
@@ -343,6 +345,10 @@ export async function mirrorAward(ctx: ServiceContext, award: Award): Promise<Mi
   const [funder, recipient] = await Promise.all([ctx.repos.table("workspaces").one({ id: award.workspace_id }), ctx.repos.table("workspaces").one({ id: award.recipient_workspace_id })]);
   if (!funder?.passport_org_id) return { state: "skipped", reason: "The funder workspace is not linked to a Passport organization" };
   if (!recipient?.passport_org_id) return { state: "skipped", reason: "The recipient is not linked to a Passport organization" };
+  // A new award is recorded at Passport only for an organization that shares its record with the
+  // funder (review F-01): the record would otherwise give the funder standing at Passport that the
+  // organization never gave it. An award already there is kept up to date.
+  if (!award.passport_award_id && !(await sharesWith(ctx, award.workspace_id, recipient.id))) return { state: "skipped", reason: "The recipient does not share its record with this funder, so the award is not recorded at Passport" };
   try {
     const passport = await passportClientFor(ctx, award.workspace_id);
     if (!passport) return { state: "skipped", reason: "Connect Passport to pay: this workspace has no Passport client" };
@@ -513,13 +519,15 @@ export async function listAmendments(ctx: ServiceContext, awardId: string) {
 // ------------------------------------------------------------------------------------ CommonGrants
 
 async function project(ctx: ServiceContext, a: Award): Promise<AwardBase> {
-  const [funder, recipient, opp, app, parent] = await Promise.all([
+  const [funder, found, opp, app, parent] = await Promise.all([
     ctx.repos.table("workspaces").one({ id: a.workspace_id }),
     a.recipient_workspace_id ? ctx.repos.table("workspaces").one({ id: a.recipient_workspace_id }) : null,
     a.opportunity_id ? ctx.repos.table("opportunities").one({ id: a.opportunity_id }) : null,
     a.application_id ? ctx.repos.table("applications").one({ id: a.application_id }) : null,
     a.parent_award_id ? ctx.repos.table("awards").one({ id: a.parent_award_id }) : null,
   ]);
+  // The funder names the recipient's Passport organization (id, name, EIN) only while it shares its record; the recipient always sees itself.
+  const recipient = found && (ctx.workspace?.id === found.id || (await sharesWith(ctx, a.workspace_id, found.id))) ? found : null;
   const row: AwardRow = { id: a.id, title: a.title, description: a.description, status: a.status as AwardRow["status"], funding: fundingOf(a), key_dates: a.key_dates as AwardRow["key_dates"], recipient_individual: a.recipient_individual as AwardRow["recipient_individual"], parent_award_id: a.parent_award_id, created_at: a.created_at, updated_at: a.updated_at };
   return projectAward(
     {

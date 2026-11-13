@@ -347,6 +347,52 @@ describe("deploy", () => {
     expect(f.everythingVisible()).not.toContain(SECRET.anon);
     expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("skipped");
   });
+  it("deploys the same version again when init changed a choice that shapes the build, refreshing the Worker configs", async () => {
+    const f = makeFake();
+    await ready(f, "--host", "grants.example.org", "--passport", "off");
+    const api = () => readFileSync(join(f.deployDir, "generated", "api.toml"), "utf8");
+    const webEnv = (from: number) => f.calls.slice(from).find((c) => c.args.join(" ").includes("@gms/web build"))!.env;
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m);
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    // Passport switched on: the same version and commit, but a different build.
+    expect((await f.step("init", "--passport", "on")).r.code).toBe("ok");
+    const ask = await f.step("deploy");
+    expect(ask.r.code).toBe("needs_confirmation");
+    expect((ask.r.data?.plan as string[]).join(" ")).toMatch(/refresh the generated api and jobs Worker configs.*version v1\.0\.0 again/);
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m); // nothing written before the person agrees
+    const m = f.calls.length;
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect(webEnv(m)).toMatchObject({ VITE_PASSPORT_BASE_URL: "https://passport.opengrants.io" });
+    expect(api()).toMatch(/^PASSPORT_BASE_URL = "https:\/\/passport\.opengrants\.io"$/m);
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    // And off again.
+    expect((await f.step("init", "--passport", "off")).r.code).toBe("ok");
+    const k = f.calls.length;
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect(webEnv(k)).not.toHaveProperty("VITE_PASSPORT_BASE_URL");
+    expect(api()).not.toMatch(/^PASSPORT_BASE_URL/m);
+  });
+  it("redeploys once a state written before fingerprints, and sends a new name or address to the cloudflare step", async () => {
+    const f = makeFake();
+    await ready(f, "--host", "grants.example.org");
+    expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    const statePath = join(f.deployDir, "state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(state.deploy.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    delete state.deploy.fingerprint;
+    writeFileSync(statePath, JSON.stringify(state));
+    expect((await f.step("deploy", "--yes")).r.code).toBe("ok");
+    expect((await f.step("deploy", "--yes")).r.code).toBe("skipped");
+
+    expect((await f.step("init", "--host", "other.example.org")).r.code).toBe("ok");
+    const moved = await f.step("deploy", "--yes");
+    expect(moved.r).toMatchObject({ code: "needs_input", next: "cloudflare" });
+    expect((await f.step("init", "--host", "grants.example.org", "--name", "renamed")).r.code).toBe("ok");
+    expect((await f.step("deploy", "--yes")).r).toMatchObject({ code: "needs_input", next: "cloudflare" });
+  });
   it("needs the earlier steps", async () => {
     const f = makeFake();
     await initted(f);
@@ -386,6 +432,40 @@ describe("verify", () => {
     const r = await f.step("verify", "--yes");
     expect(r.r.code).toBe("error");
     expect(r.r.message).toContain("health");
+  });
+  it("reports an unreachable host as a failed check naming it, instead of stopping", async () => {
+    const down = (prefix: string) => (_m: string, url: string) => {
+      if (url.startsWith(prefix)) throw new TypeError("fetch failed");
+      return undefined;
+    };
+    // The Supabase project's own host (where the sign-in code is sent).
+    const f = makeFake({ routes: down("https://abcdefghijklmnopqrst.supabase.co") });
+    await through(f, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const r = await f.step("verify", "--yes");
+    expect(r.r.code).toBe("error");
+    expect(r.r.next).toBe("verify");
+    expect(r.r.message).not.toContain("stopped unexpectedly");
+    expect(r.r.message).toContain("sign-in code (could not reach abcdefghijklmnopqrst.supabase.co");
+    const checks = r.r.data?.checks as { name: string; ok: boolean }[];
+    expect(checks.filter((c) => !c.ok).map((c) => c.name)).toEqual(["sign-in code"]);
+    expect(JSON.parse(readFileSync(join(f.deployDir, "state.json"), "utf8")).verify.ok).toBe(false);
+
+    // The instance itself, for one path: that check fails, the others still run.
+    const g = makeFake({ routes: down("https://grants.example.org/signin") });
+    await through(g, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const page = await g.step("verify", "--yes");
+    expect(page.r.code).toBe("error");
+    expect(page.r.message).toContain("sign-in page (could not reach grants.example.org)");
+    expect((page.r.data?.checks as unknown[]).length).toBe(5);
+
+    // The Management API, when reading the key the code is sent with.
+    const k = makeFake();
+    await through(k, "cloudflare", { init: ["--host", "grants.example.org"] });
+    const orig = k.ctx.fetch;
+    k.ctx.fetch = (async (input: string | URL | Request, init?: RequestInit) => (String(input).includes("/api-keys") ? Promise.reject(new TypeError("fetch failed")) : orig(input, init))) as typeof fetch;
+    const keys = await k.step("verify", "--yes");
+    expect(keys.r.code).toBe("error");
+    expect(keys.r.message).toContain("could not reach api.supabase.com");
   });
 });
 

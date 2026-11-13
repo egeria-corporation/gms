@@ -8,7 +8,7 @@ import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
-import { namesOf, orgFacts, verificationOf } from "./profile.ts";
+import { namesOf, namesShared, orgFacts, sharingWith, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
 export type PublicContext = Pick<ServiceContext, "repos" | "config" | "now">;
@@ -197,10 +197,12 @@ async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
   if ((w.settings as { transparency?: unknown } | null)?.transparency !== true) return null;
   const awards = (await ctx.repos.table("awards").find({ workspace_id: w.id }, { orderBy: "created_at", ascending: false, limit: 200 })).filter((a) => ["active", "completed"].includes(a.status) && a.recipient_workspace_id);
   const names = await funders(ctx, awards.map((a) => a.recipient_workspace_id as string));
+  // A recipient appears under its Passport legal name only while it shares its record with this funder.
+  const shared = await sharingWith(ctx, w.id, [...names.keys()]);
   return awards.map((a) => {
     const f = (a.funding ?? {}) as { awardedAmount?: { amount: string; currency: string } };
     const start = ((a.key_dates ?? {}) as { awardDate?: { date?: string } }).awardDate?.date ?? a.created_at;
-    return { recipient: ((r) => (r ? namesOf(r).name : null))(names.get(a.recipient_workspace_id as string)), title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
+    return { recipient: ((r) => (r ? namesShared(r, shared.has(r.id)).name : null))(names.get(a.recipient_workspace_id as string)), title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
   });
 }
 

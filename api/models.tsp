@@ -1172,6 +1172,9 @@ model ReviewAssignment {
   } | null;
 
   createdAt: utcDateTime;
+
+  /** On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
+  coiHint?: CoiHint | null;
 }
 
 /** The reviewer's working view: the rubric, their own review, and the application as a reviewer may
@@ -1246,13 +1249,24 @@ model AutoAssignResult {
     missing: int32;
   }[];
 
-  /** Every reviewer/application pair excluded for a conflict of interest */
+  /** Every reviewer/application pair excluded for a conflict of interest. Email domains come from Passport records only. */
   coiFlags: {
     applicationId: PrefixedId;
     reviewerUserId: CommonGrants.Types.uuid;
     reason: "declared_org" | "declared_program" | "same_email_domain";
     detail: string;
   }[];
+
+  /** Planned pairs where the applicant's own, unverified profile gives the reviewer's email domain. A hint for staff: never used to exclude or include */
+  coiHints: CoiHint[];
+}
+
+/** A possible conflict seen only in an applicant's self-declared (unverified) profile. */
+model CoiHint {
+  applicationId: PrefixedId;
+  reviewerUserId: CommonGrants.Types.uuid;
+  reason: "self_declared_domain";
+  detail: string;
 }
 
 /** `PATCH /gms/review-assignments/{id}`: one action per request. */

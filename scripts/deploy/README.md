@@ -6,7 +6,8 @@ an AI coding agent or a person: the agent supplies judgement, the tool does the 
 way every time. The result codes are in [CODES.md](CODES.md).
 
 Each step looks at what really exists, does only what is missing, and says what it did in one JSON
-line. If a step is interrupted, run it again.
+line: the last line on stdout that starts with `{` (when a step does not succeed, `pnpm` adds its
+own `[ELIFECYCLE]` line after it). If a step is interrupted, run it again.
 
 ## What you need
 
@@ -48,7 +49,7 @@ pnpm -s gms deploy verify
 | `cloudflare` | Creates the R2 buckets, queues (with the dead-letter queue) and KV namespace, named `<name>-…`, and writes `deploy/generated/api.toml` and `jobs.toml` from the checked-in `wrangler.toml` files. |
 | `auth` | Email sign-in on, email confirmation required, TOTP on, site address and return addresses (`/auth/callback`, `/signin`) set, then read back. |
 | `secrets` | Generates the signing key and the two encryption keys, sets every Worker secret over stdin, and writes the recovery file. Never overwrites a secret that is already set. To replace one, name it: `--rotate SUPABASE_SERVICE_ROLE_KEY` (the two encryption keys also need `--rotate-keys`). Rotation is staged in `<recovery-file>.new` and resumes if interrupted. |
-| `deploy` | Builds and deploys the API and jobs Workers (the OpenAPI document goes to the exports bucket, so no static-asset upload is needed), builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. |
+| `deploy` | Builds and deploys the API and jobs Workers (the OpenAPI document goes to the exports bucket, so no static-asset upload is needed), builds the web app for your addresses, and deploys the single front Worker that serves the app and forwards API paths to the API Worker. It is `skipped` only when the same version and commit were deployed with the same build choices; after `init` changes one (Passport on or off, for example) it refreshes the generated Worker configs and deploys again. A new name or address goes through `cloudflare` first. |
 | `email` | Optional. Adds a sending domain at Resend, its DNS records (in Cloudflare when the zone is in your account, otherwise it lists them), a send-only key, and the Worker and Supabase mail settings. |
 | `passport` | Optional. Registers the deployed instance with Passport: serves a one-time check code at `/.well-known/opengrants-passport-challenge`, shows a short code and a link, waits (up to 15 minutes) while the person signs in to Passport, types the code and approves, then stores the client id, client secret and webhook secret as Worker secrets (never shown) and removes the check code. Run it where its output stays visible, or in the background and read its stderr. `skipped` when the Workers already hold the credentials; `--rotate` registers again. |
 | `verify` | Checks `/health`, the signing key, the sign-in server, the app settings and the sign-in page, then sends a sign-in code to the operator email. |

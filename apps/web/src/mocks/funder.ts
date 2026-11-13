@@ -611,7 +611,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
         const rubric = rubricOf(w, stage.rubricId ?? "");
         for (const c of created) s.assignments.push({ id: newId(), applicationId: c.applicationId, applicationTitle: find(s.applications, c.applicationId, "Application").title, competitionId: comp.id, stage: stage.key, reviewerUserId: c.reviewerUserId, rubricId: rubric.id, rubricVersion: rubric.version, dueAt: null, status: "assigned", coi: { declared: null, reason: null }, review: null, createdAt: ctx.now() });
       }
-      return { stage: stage.key, dryRun: !!input.dryRun, created: input.dryRun ? 0 : created.length, assignments: created, unfilled, coiFlags: [] };
+      return { stage: stage.key, dryRun: !!input.dryRun, created: input.dryRun ? 0 : created.length, assignments: created, unfilled, coiFlags: [], coiHints: [] };
     },
     async inviteReviewer(input) {
       const { w } = await st();
