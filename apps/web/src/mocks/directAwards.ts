@@ -9,18 +9,20 @@ import type { FunderFullApi } from "../api/funderFull.ts";
 import type { AwardInvitation, DirectAwardsApi, DirectAwardView, InvitationLookup, InvitationStatus } from "../api/directAwards.ts";
 import type { Me } from "../api/client.ts";
 import type { Verification } from "../api/types.ts";
-import { directAwardProblems, maskEmail, normalizeAmount, type DirectAwardForm } from "../lib/directAward.ts";
+import { directAwardProblems, FUNDER_TEXT_LINK, maskEmail, normalizeAmount, type DirectAwardForm } from "../lib/directAward.ts";
 import type { MockFunderCtx } from "./funder.ts";
 
 /** Contract constants, one place to change. */
 export const DIRECT_AWARD_INVITATION_TTL_DAYS = 14;
 export const DIRECT_AWARD_INVITES_PER_DAY = 25;
+/** Lower for a funder that is not verified with Passport at L1 or above. */
+export const DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED = 10;
 const DAY = 86_400_000;
 
 interface Rec {
   awardId: string;
   funderWorkspaceId: string;
-  funder: { name: string; handle: string; verification: Verification };
+  funder: { name: string; workspaceName: string | null; handle: string; verification: Verification; verified: boolean };
   organizationName: string;
   email: string;
   token: string;
@@ -103,18 +105,23 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
     return rest;
   };
 
-  async function funderRole(): Promise<{ id: string; name: string; handle: string; verification: Verification }> {
+  /** Creating needs `awards:write` (admin, program officer); resending also lets finance in. */
+  async function funderRole(action: "create" | "resend"): Promise<{ id: string; name: string; handle: string; verification: Verification }> {
     const w = await ctx.ws();
     const me = await ctx.me();
     const role = me.workspaces.find((m) => m.id === w.record.id)?.role;
-    if (role !== "admin" && role !== "finance") throw ctx.fail(403, "Only a workspace admin or finance member can give an award directly.");
+    const allowed = action === "create" ? ["admin", "program_officer"] : ["admin", "program_officer", "finance"];
+    if (!role || !allowed.includes(role)) throw ctx.fail(403, action === "create" ? "This action needs the awards:write scope" : "Your role cannot resend invitations.", code(action === "create" ? "insufficient_scope" : "forbidden"));
+    // A funder name that reads as a link is not sent under.
+    if (FUNDER_TEXT_LINK.test(w.record.displayName)) throw ctx.fail(422, "Your workspace's name looks like a web or email address, so award invitations cannot be sent under it. Rename the workspace in its settings, then try again", code("funder_name_looks_like_link"));
     return { id: w.record.id, name: w.record.displayName, handle: w.record.handle, verification: w.record.verification };
   }
 
-  function spend(workspaceId: string) {
+  function spend(workspaceId: string, verification: Verification) {
     const since = Date.parse(ctx.now()) - DAY;
     const recent = (sendLog.get(workspaceId) ?? []).filter((t) => t > since);
-    if (recent.length >= DIRECT_AWARD_INVITES_PER_DAY) throw ctx.fail(429, "You have sent the most invitations allowed in a day. Try again tomorrow.", code("too_many_invitations"));
+    const verified = verification.source === "passport" && /^L[1-3]$/.test(verification.level ?? "");
+    if (recent.length >= (verified ? DIRECT_AWARD_INVITES_PER_DAY : DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED)) throw ctx.fail(429, "You have sent the most invitations allowed in a day. Try again tomorrow.", code("too_many_invitations"));
     sendLog.set(workspaceId, [...recent, Date.parse(ctx.now())]);
     }
 
@@ -167,13 +174,13 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
     },
 
     async createDirectAward(input) {
-      const funder = await funderRole();
+      const funder = await funderRole("create");
       const form: DirectAwardForm = { organizationName: input.recipient.organizationName, contactEmail: input.recipient.contactEmail, title: input.title, amount: input.amount.value, startDate: input.startDate ?? "", endDate: input.endDate ?? "", programId: input.programId ?? "", message: input.message ?? "" };
       const problems = directAwardProblems(form);
       if (Object.keys(problems).length) throw ctx.fail(422, "Check the award details", Object.entries(problems).map(([path, message]) => ({ path, message })));
       const w = await ctx.ws();
       if (input.programId && !w.programs.some((p) => p.id === input.programId)) throw ctx.fail(422, "Check the award details", [{ path: "programId", message: "Choose one of your programs." }]);
-      spend(funder.id);
+      spend(funder.id, funder.verification);
       const now = ctx.now();
       const minor = Math.round(Number(normalizeAmount(input.amount.value)) * 100);
       n += 1;
@@ -209,7 +216,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       const rec: Rec = {
         awardId: award.id,
         funderWorkspaceId: funder.id,
-        funder: { name: funder.name, handle: funder.handle, verification: funder.verification },
+        funder: { name: funder.name, workspaceName: null, handle: funder.handle, verification: funder.verification, verified: funder.verification.source === "passport" && /^L[1-3]$/.test(funder.verification.level ?? "") },
         organizationName: award.recipient!.name!,
         email: input.recipient.contactEmail.trim(),
         token,
@@ -227,7 +234,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
     },
 
     async resendInvitation(awardId, input = {}) {
-      const funder = await funderRole();
+      const funder = await funderRole("resend");
       const found = mine(awardId);
       if (!found || found.r.funderWorkspaceId !== funder.id) throw ctx.fail(404, "Award not found");
       const { a, r } = found;
@@ -238,7 +245,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
         const p = directAwardProblems({ organizationName: "x", contactEmail: email, title: "x", amount: "1", startDate: "", endDate: "", programId: "", message: "" });
         if (p.contactEmail) throw ctx.fail(422, "Check the address", [{ path: "contactEmail", message: p.contactEmail }]);
       }
-      spend(funder.id);
+      spend(funder.id, funder.verification);
       recs.delete(r.token);
       r.token = newToken();
       if (email) r.email = email;
@@ -314,6 +321,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       if (r.status === "expired") throw ctx.fail(410, "This invitation has expired.", code("invitation_expired"));
       if (r.status === "revoked") throw ctx.fail(410, "The funder withdrew this award.", code("invitation_revoked"));
       if (r.status !== "sent") throw ctx.fail(409, "This invitation was already used.", code("invitation_used"));
+      if (reason && FUNDER_TEXT_LINK.test(reason)) throw ctx.fail(400, "The reason cannot contain a web or email address", code("bad_request"));
       if (norm(me.email) !== norm(r.email)) throw ctx.fail(403, `Sign in with the address the invitation was sent to: ${maskEmail(r.email)}`, code("email_mismatch"));
       r.status = "declined";
       r.declineReason = reason?.trim() || null;

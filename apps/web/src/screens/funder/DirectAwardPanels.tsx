@@ -5,10 +5,11 @@
 import { useState } from "react";
 import { Ban, Mail, Send } from "lucide-react";
 import { useApiMutation } from "../../api/hooks.ts";
-import { errorCode, type AwardInvitation } from "../../api/directAwards.ts";
+import { type AwardInvitation } from "../../api/directAwards.ts";
 import type { AwardDetail } from "../../api/funder.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { StatusBadge } from "../../components/status.tsx";
+import { InvitationError } from "../../components/InvitationError.tsx";
 import { ErrorBanner, Field, Notice } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { daysLeft } from "../../lib/directAward.ts";
@@ -43,7 +44,7 @@ function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; o
           </div>
         </div>
         <div className="bd">
-          {resend.error !== null && <ErrorBanner error={resend.error} title="The invitation was not sent" />}
+          {resend.error !== null && <InvitationError error={resend.error} title="The invitation was not sent" />}
           <Field id="ca-email" label="New email address" required error={touched ? problem : null} help="We send a new link here. The link already sent stops working.">
             <input className="inp" id="ca-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
           </Field>
@@ -128,7 +129,6 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
   const open = award.status === "offered" && invitation.status !== "accepted" && invitation.status !== "revoked";
   // Resend is refused once the invitation is accepted, declined or withdrawn.
   const canResend = open && (invitation.status === "sent" || invitation.status === "expired");
-  const limited = errorCode(resend.error) === "too_many_invitations";
 
   return (
     <section className="card" aria-labelledby="invitation-h">
@@ -144,7 +144,7 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
         <InvitationBadge invitation={invitation} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {resend.error !== null && <ErrorBanner error={resend.error} title={limited ? "Too many invitations today" : "The invitation was not sent"} />}
+        {resend.error !== null && <InvitationError error={resend.error} title="The invitation was not sent" />}
         {unsent && (
           <div role="alert">
             <Notice tone="warn" title="The award was saved, but the email could not be sent">

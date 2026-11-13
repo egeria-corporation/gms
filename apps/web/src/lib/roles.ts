@@ -17,8 +17,11 @@ export function hiddenFunderRailItems(role: string): ReadonlySet<string> {
   return new Set();
 }
 
-/** Who may give an award directly (and resend or change the address): a funder admin or finance member. */
-export const canGiveDirectAward = (role: string): boolean => role === "admin" || role === "finance";
+/** Who may give an award directly: it needs the awards:write scope, so admin and program officer. */
+export const canGiveDirectAward = (role: string): boolean => role === "admin" || role === "program_officer";
 
-/** Who may cancel (withdraw) an award: cancel keeps its own roles, so a finance member can give an award but not withdraw it. */
+/** Who may resend or redirect an invitation already given: the givers, and finance, which follows up on awards. */
+export const canResendInvitation = (role: string): boolean => canGiveDirectAward(role) || role === "finance";
+
+/** Who may cancel (withdraw) an award: cancel keeps its own roles, the same two as giving one. */
 export const canCancelAward = (role: string): boolean => role === "admin" || role === "program_officer";

@@ -15,6 +15,7 @@ import { directAwardProblems, EMPTY_DIRECT_AWARD, formatDecimalAmount, maskEmail
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_MEMBERSHIPS, MOCK_USER } from "../src/mocks/fixtures.ts";
 import type { MockDirectAwardsApi } from "../src/mocks/directAwards.ts";
+import { InvitationError } from "../src/components/InvitationError.tsx";
 import { ClaimView, funderIsVerified, setupOrganizationHref, type ClaimViewProps } from "../src/screens/public/ClaimAward.tsx";
 
 const valid: DirectAwardForm = { ...EMPTY_DIRECT_AWARD, organizationName: "Pine Ridge Youth Alliance", contactEmail: "maria@pineridge.example", title: "Summer programs", amount: "25,000" };
@@ -203,13 +204,28 @@ describe("giving an award directly (mock)", () => {
     expect(award.recipient).toMatchObject({ workspaceId: null, handle: null, level: null, verification: null });
     expect(award.emailed).toBe(true);
   });
-  it("lets finance give and resend an award but not withdraw it", async () => {
-    const services = createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "finance" } : m)) });
+  it("lets only admin and program officer give an award, finance resend it, and neither finance nor others withdraw it", async () => {
+    const memberships = MOCK_MEMBERSHIPS.map((m) => ({ ...m }));
+    const services = createMockServices({ session: demoSession(), memberships });
     await services.api.workspace("riverbend");
     const api = services.api as unknown as MockDirectAwardsApi & Services["api"];
+    const role = (r: string) => (memberships.find((m) => m.handle === "riverbend")!.role = r);
+    role("finance");
+    expect(await codeOf(api.createDirectAward(input()))).toEqual({ status: 403, code: "insufficient_scope" });
+    role("program_officer");
     const award = await api.createDirectAward(input());
+    role("finance");
     await expect(api.resendInvitation(award.id)).resolves.toBeTruthy();
     expect(await codeOf(api.cancelAward(award.id, "Entered in error"))).toMatchObject({ status: 403 });
+    role("program_officer");
+    await expect(api.cancelAward(award.id, "Entered in error")).resolves.toBeTruthy();
+  });
+  it("sends no invitation under a funder name that reads as a link", async () => {
+    const { api } = await riverbend();
+    // Renaming through the workspace record is what a funder would do in Settings.
+    const rec = await api.workspaceRecord((await api.workspace("riverbend")).id);
+    await api.updateWorkspace(rec.id, { displayName: "Fund.org" });
+    expect(await codeOf(api.createDirectAward(input()))).toEqual({ status: 422, code: "funder_name_looks_like_link" });
   });
   it("asks for the second step when the organization's role requires it", async () => {
     const services = createMockServices({ session: demoSession("aal1") });
@@ -226,7 +242,7 @@ describe("giving an award directly (mock)", () => {
 
 const lookup = (over: Partial<InvitationLookup> = {}): InvitationLookup => ({
   status: "pending",
-  funder: { name: "Riverbend Community Foundation", handle: "riverbend", verification: { source: "passport", level: "L3" } },
+  funder: { name: "Riverbend Community Foundation", workspaceName: null, handle: "riverbend", verification: { source: "passport", level: "L3" }, verified: true },
   award: { title: "Summer programs", amount: { value: "25000.00", currency: "USD" }, startDate: "2027-07-01", endDate: "2028-06-30", message: "Welcome <b>aboard</b>" },
   organizationName: "Pine Ridge Youth Alliance",
   invitedEmail: "m…@pineridge.example",
@@ -247,6 +263,22 @@ function view(l: InvitationLookup, over: Partial<ClaimViewProps> = {}) {
   return handlers;
 }
 
+describe("why an invitation was not sent", () => {
+  it.each([
+    ["funder_name_looks_like_link", /Rename the workspace in Settings/],
+    ["too_many_invitations", /not verified with OpenGrants Passport/],
+    ["too_many_invitations_from_you", /across all your workspaces/],
+    ["too_many_invitations_from_network", /your network/],
+    ["too_many_invitations_to_recipient", /in a week/],
+    ["invitations_paused", /paused/],
+    ["insufficient_scope", /admins and program officers/],
+  ])("says %s in plain words", (code, words) => {
+    render(<InvitationError error={Object.assign(new Error("server words"), { errors: [{ code }] })} title="The invitation was not sent" />);
+    expect(screen.getByRole("alert")).toHaveTextContent(words);
+    expect(screen.queryByText(code)).toBeNull();
+  });
+});
+
 describe("the claim screen", () => {
   it("shows the funder, the award and the organization, with the message as plain text", () => {
     view(lookup({ workspaces: [alder] }));
@@ -257,22 +289,35 @@ describe("the claim screen", () => {
     expect(screen.getAllByText("Pine Ridge Youth Alliance").length).toBeGreaterThan(0);
     expect(screen.queryByText("Not verified")).toBeNull();
   });
-  it("warns unless the funder is verified with Passport at L1 or above", () => {
+  it("warns unless the server says the funder is verified (a missing field counts as not verified)", () => {
     const warning = "This funder's organization is not verified with OpenGrants Passport.";
+    const base = lookup().funder;
+    expect(funderIsVerified({ verified: true })).toBe(true);
+    for (const v of [{ verified: false }, {}, { verified: "yes" }, null, undefined]) expect(funderIsVerified(v as never)).toBe(false);
     cleanup();
-    view(lookup({ funder: { name: "Small Fund", handle: "small", verification: { source: "self_declared", level: null } }, workspaces: [alder] }));
+    view(lookup({ funder: { ...base, name: "Small Fund", verification: { source: "self_declared", level: null }, verified: false }, workspaces: [alder] }));
     expect(screen.getByText(warning)).toBeInTheDocument();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
-    for (const v of [{ source: "passport", level: "L0" }, { source: "passport", level: null }, { source: "none", level: null }, { source: "weird", level: "L3" }, null, undefined]) {
-      expect(funderIsVerified(v as never)).toBe(false);
-    }
-    for (const level of ["L1", "L2", "L3"]) expect(funderIsVerified({ source: "passport", level })).toBe(true);
     cleanup();
-    view(lookup({ funder: { name: "Linked Fund", handle: "l", verification: { source: "passport", level: "L0" } }, workspaces: [alder] }));
+    const { verified: _v, ...noFlag } = base;
+    view(lookup({ funder: noFlag as never, workspaces: [alder] }));
     expect(screen.getByText(warning)).toBeInTheDocument();
     cleanup();
     view(lookup({ workspaces: [alder] }));
     expect(screen.queryByText(warning)).toBeNull();
+  });
+  it("shows the workspace's own name second when it differs from the Passport legal name", () => {
+    view(lookup({ funder: { ...lookup().funder, name: "Riverbend Community Foundation, Inc.", workspaceName: "Riverbend" }, workspaces: [alder] }));
+    expect(screen.getByText("Workspace name: Riverbend")).toBeInTheDocument();
+  });
+  it("refuses a decline reason that holds a web or email address", async () => {
+    const h = view(lookup({ workspaces: [alder] }));
+    await userEvent.click(screen.getByRole("button", { name: "Decline…" }));
+    const d = screen.getByRole("dialog");
+    await userEvent.type(within(d).getByLabelText(/Reason/), "write to me@x.org");
+    expect(within(d).getByText("The reason cannot contain a web or email address.")).toBeInTheDocument();
+    expect(within(d).getByRole("button", { name: "Decline award" })).toBeDisabled();
+    expect(h.onDecline).not.toHaveBeenCalled();
   });
   it("with one organization: it is chosen, the consent is plain, and Accept sends its id", async () => {
     const h = view(lookup({ workspaces: [alder] }));
@@ -398,8 +443,8 @@ describe("the funder's screens", () => {
     expect(within(row).getByText("Cancelled")).toBeInTheDocument();
   });
 
-  it("says plainly when the email could not be sent, and offers Resend; finance does not see Withdraw", async () => {
-    const services = createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "finance" } : m)) });
+  it("says plainly when the email could not be sent, and offers Resend", async () => {
+    const services = createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "program_officer" } : m)) });
     await services.api.workspace("riverbend");
     (services.api as unknown as MockDirectAwardsApi).failMail(true);
     open("/w/riverbend/awards/new", services);
@@ -411,7 +456,7 @@ describe("the funder's screens", () => {
     await user.click(screen.getByRole("button", { name: "Send invitation" }));
     const panel = await screen.findByRole("region", { name: "Invitation" }, { timeout: 4000 });
     expect(within(panel).getByText("The award was saved, but the email could not be sent")).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Withdraw…" })).toBeNull();
+    expect(within(panel).getByRole("button", { name: "Withdraw…" })).toBeInTheDocument();
     (services.api as unknown as MockDirectAwardsApi).failMail(false);
     await user.click(within(panel).getByRole("button", { name: "Resend invitation" }));
     expect(await within(panel).findByText("Invitation sent again")).toBeInTheDocument();

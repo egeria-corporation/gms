@@ -86,21 +86,24 @@ test("a funder gives an award directly and the organization claims it without Pa
     await expect(setUp).toHaveAttribute("href", `/onboarding/applicant?start=email&name=Pine%20Ridge%20Youth%20Alliance&next=%2Fawards%2Fclaim`);
     await setUp.click();
     const legalName = page.getByLabel(/^Legal name/);
-    await expect(page.getByRole("heading", { name: "Set up without Passport" }).or(legalName)).toBeVisible();
-    if ((await legalName.count()) === 0) await page.getByRole("button", { name: "Set up without Passport" }).click();
+    // The organization's name travels with the link, and the form opens straight away.
+    await expect(legalName).toHaveValue("Pine Ridge Youth Alliance");
     await legalName.fill("Pine Ridge Youth Alliance");
     await page.getByLabel(/^Contact email/).fill("sam@newcomer.example");
     await page.getByRole("button", { name: "Create my workspace" }).click();
+    // Onboarding hands the person back to the claim.
+    await expect(page).toHaveURL(/\/awards\/claim$/);
+  });
+
+  await test.step("back at the claim, accepting asks for the second step an admin needs, then goes through", async () => {
+    await expect(page.getByRole("radio", { name: /Pine Ridge Youth Alliance/ })).toBeChecked();
+    await expect(page.getByText("Accepting shares your organization's record with Riverbend Community Foundation.")).toBeVisible();
+    await page.getByRole("button", { name: "Accept award" }).click();
+    await page.getByRole("link", { name: "Finish the second step" }).click();
     await expect(page.getByRole("heading", { name: "Set Up Two-Step Verification" })).toBeVisible();
     await page.getByLabel("Enter the 6-digit code from your app").fill("123456");
     await page.getByRole("button", { name: "Verify and continue" }).click();
-    await expect(page).toHaveURL(/\/w\/pine-ridge-youth-alliance|\/awards\/claim/);
-  });
-
-  await test.step("back at the claim, the new organization is the one to accept for", async () => {
-    if (!/\/awards\/claim/.test(page.url())) await go(page, mail.link);
-    await expect(page.getByRole("radio", { name: /Pine Ridge Youth Alliance/ })).toBeChecked();
-    await expect(page.getByText("Accepting shares your organization's record with Riverbend Community Foundation.")).toBeVisible();
+    await expect(page).toHaveURL(/\/awards\/claim$/);
     await page.getByRole("button", { name: "Accept award" }).click();
   });
 

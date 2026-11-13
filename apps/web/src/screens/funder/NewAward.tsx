@@ -7,10 +7,10 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { Send } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import { errorCode } from "../../api/directAwards.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { ErrorBanner, Field, Notice, PageHeader, problemFor } from "../../components/ui.tsx";
+import { InvitationError } from "../../components/InvitationError.tsx";
+import { Field, Notice, PageHeader, problemFor } from "../../components/ui.tsx";
 import { directAwardProblems, EMPTY_DIRECT_AWARD, MESSAGE_MAX, toDirectAwardInput, type DirectAwardField, type DirectAwardForm } from "../../lib/directAward.ts";
 import { canGiveDirectAward } from "../../lib/roles.ts";
 
@@ -46,8 +46,6 @@ export default function NewAward() {
     if (award) navigate(`${base}/awards/${award.id}/agreement`, { state: { emailed: award.emailed } });
   }
 
-  const limited = errorCode(create.error) === "too_many_invitations";
-
   return (
     <>
       <title>{`New award — ${ws.name}`}</title>
@@ -56,12 +54,12 @@ export default function NewAward() {
           <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Awards", to: `${base}/awards` }, { label: "New award" }]} title="New award" meta={<span>Give an award to an organization that has not applied.</span>} />
           {!allowed && (
             <Notice tone="warn" title="You cannot give an award directly">
-              Only a workspace admin or finance member can. Ask one of them, or have them add you with that role.
+              Only a workspace admin or program officer can. Ask one of them, or have them add you with that role.
             </Notice>
           )}
           <form className="card" onSubmit={submit} noValidate aria-label="New award" style={{ maxWidth: "720px" }}>
             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {create.error !== null && <ErrorBanner error={create.error} title={limited ? "Too many invitations today" : "The invitation was not sent"} />}
+              {create.error !== null && <InvitationError error={create.error} title="The invitation was not sent" />}
 
               <Field id="na-organizationName" label="Organization name" required error={shown("organizationName")}>
                 <input className={shown("organizationName") ? "inp err" : "inp"} {...field("organizationName")} autoComplete="off" />

@@ -16,7 +16,7 @@ import { VerificationBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice } from "../../components/ui.tsx";
 import { CLAIM_PATH, captureClaimToken, clearClaimToken, getClaimToken } from "../../lib/claimToken.ts";
 import { formatDate } from "../../lib/format.ts";
-import { formatDecimalAmount } from "../../lib/directAward.ts";
+import { FUNDER_TEXT_LINK, formatDecimalAmount } from "../../lib/directAward.ts";
 
 /** Where "Set up your organization" goes: the no-Passport onboarding, then back to this claim. */
 export function setupOrganizationHref(organizationName: string, claimUrl: string): string {
@@ -37,9 +37,9 @@ export interface ClaimViewProps {
   error?: unknown;
 }
 
-/** Passport-verified at L1 or above. Linked at L0, self-declared, none or anything unexpected counts as not verified. */
-export function funderIsVerified(v: { source?: unknown; level?: unknown } | null | undefined): boolean {
-  return v?.source === "passport" && typeof v.level === "string" && /^L[1-3]$/.test(v.level);
+/** The server says whether the funder is linked to Passport at L1 or above; a missing field counts as not verified. */
+export function funderIsVerified(funder: { verified?: unknown } | null | undefined): boolean {
+  return funder?.verified === true;
 }
 
 function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
@@ -53,11 +53,12 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
           <div className="row wrap" style={{ gap: "8px" }}>
             <span className="b">{funder.name}</span>
             <VerificationBadge verification={funder.verification} />
+            {funder.workspaceName && funder.workspaceName !== funder.name && <span className="small muted">Workspace name: {funder.workspaceName}</span>}
           </div>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {!funderIsVerified(funder.verification) && (
+        {!funderIsVerified(funder) && (
           <p className="row small" style={{ gap: "6px" }}>
             <ShieldOff className="ic" aria-hidden="true" />
             <span>This funder's organization is not verified with OpenGrants Passport.</span>
@@ -93,11 +94,14 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
 
 function DeclineDialog({ funderName, busy, onClose, onDecline }: { funderName: string; busy: boolean; onClose: () => void; onDecline: (reason: string) => void }) {
   const [reason, setReason] = useState("");
+  // The reason is emailed to the funder's staff as plain text, so it follows the same rule as the funder's own text.
+  const problem = FUNDER_TEXT_LINK.test(reason) ? "The reason cannot contain a web or email address." : null;
   return (
     <Dialog open onClose={onClose} labelledBy="decline-title">
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (problem) return;
           onDecline(reason);
         }}
       >
@@ -106,7 +110,7 @@ function DeclineDialog({ funderName, busy, onClose, onDecline }: { funderName: s
         </div>
         <div className="bd">
           <p>{funderName} is told you declined. They decide what happens to the award.</p>
-          <Field id="decline-reason" label="Reason" help="Optional. Shared with the funder.">
+          <Field id="decline-reason" label="Reason" help="Optional. Shared with the funder." error={problem}>
             <textarea className="ta" id="decline-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
         </div>
@@ -114,7 +118,7 @@ function DeclineDialog({ funderName, busy, onClose, onDecline }: { funderName: s
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Keep the award open
           </button>
-          <button type="submit" className="btn btn-danger" disabled={busy}>
+          <button type="submit" className="btn btn-danger" disabled={busy || problem !== null}>
             <CircleX className="ic" aria-hidden="true" />
             Decline award
           </button>

@@ -15,7 +15,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
-import { canCancelAward, canGiveDirectAward } from "../../lib/roles.ts";
+import { canCancelAward, canGiveDirectAward, canResendInvitation } from "../../lib/roles.ts";
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
 import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPanels.tsx";
 import { dateTime } from "./shared.tsx";
@@ -237,6 +237,7 @@ export default function AwardAgreement() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const canGive = canGiveDirectAward(ws.member.role ?? "admin");
+  const canResend = canResendInvitation(ws.member.role ?? "admin");
   const canWithdraw = canCancelAward(ws.member.role ?? "admin");
   // Set by New award when the email could not be sent.
   const [mail, setMail] = useState<MailNote>((useLocation().state as { emailed?: boolean } | null)?.emailed === false ? "failed" : null);
@@ -393,10 +394,10 @@ export default function AwardAgreement() {
               <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((t) => ["due", "ready", "held"].includes(t.status)).length }} />
               <TabPanel idPrefix="award" tab="agreement" active={tab}>
                 {invitation && invitation.status !== "accepted" ? (
-                  <InvitationPanel award={award.data} invitation={invitation} canAct={canGive} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />
+                  <InvitationPanel award={award.data} invitation={invitation} canAct={canResend} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />
                 ) : (
                   <>
-                    {invitation && <InvitationPanel award={award.data} invitation={invitation} canAct={canGive} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />}
+                    {invitation && <InvitationPanel award={award.data} invitation={invitation} canAct={canResend} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />}
                     <AgreementPanel award={award.data} onChanged={reload} />
                     <AgreementSignatures award={award.data} funderName={ws.name} />
                   </>
