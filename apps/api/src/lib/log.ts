@@ -7,8 +7,9 @@ const CREDENTIAL_KEY = /(secret|token|password|passwd|authorization|cookie|jwk|p
 const BANK_OR_IDENTITY_KEY = /(routing|account[\s_-]*(number|num|no)|iban|ssn|social[\s_-]*security|birth|dob|government[\s_-]*id|passport[\s_-]*(number|num|no)|tax[\s_-]*id)/i;
 const JWT_LIKE = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g;
 const BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi;
-// Client secrets, refresh tokens, codes, invitation links (workspace and direct-award) and webhook secrets.
-const OPAQUE = /\b(gms_(?:cs|rt|ac|inv|awi)_|whsec_)[A-Za-z0-9_-]{8,}/g;
+// Client secrets, refresh tokens, codes, invitation links (workspace and direct-award) and webhook
+// secrets. No word boundary before the prefix: inside an encoded URL one follows `%3D` directly.
+const OPAQUE = /(gms_(?:cs|rt|ac|inv|awi)_|whsec_)[A-Za-z0-9_-]{8,}/g;
 const REDACTED = "[REDACTED]";
 
 export function redactString(s: string): string {

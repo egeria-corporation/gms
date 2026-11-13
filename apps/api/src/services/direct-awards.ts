@@ -190,7 +190,8 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
     period: period?.startDate && period.endDate ? { startDate: period.startDate, endDate: period.endDate } : null,
     message: inv.message,
     invitedEmail: inv.email,
-    claimUrl: `${ctx.config.webBaseUrl}/awards/claim?token=${encodeURIComponent(token)}`,
+    // In the fragment: a browser never sends it to a server, so no request log holds it (review DA-05).
+    claimUrl: `${ctx.config.webBaseUrl}/awards/claim#token=${encodeURIComponent(token)}`,
     homeUrl: `${ctx.config.webBaseUrl}/`,
     expiresOn: inv.expires_at.slice(0, 10),
   });

@@ -11,7 +11,7 @@ const base: DirectAwardInvitationFields = {
   period: { startDate: "2027-05-01", endDate: "2028-04-30" },
   message: null,
   invitedEmail: "jo@aldercreek.example",
-  claimUrl: "https://app.gms.test/awards/claim?token=gms_awi_abcdefghijklmnop",
+  claimUrl: "https://app.gms.test/awards/claim#token=gms_awi_abcdefghijklmnop",
   homeUrl: "https://app.gms.test/",
   expiresOn: "2027-04-30",
 };

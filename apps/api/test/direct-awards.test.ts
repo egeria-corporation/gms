@@ -46,8 +46,8 @@ const create = async (token: string, overrides: Record<string, unknown> = {}, ws
 
 /** The token from the newest invitation email. */
 const lastToken = () => {
-  const mail = [...h.mailer.sent].reverse().find((m) => m.text.includes("/awards/claim?token="));
-  return decodeURIComponent(/\/awards\/claim\?token=([^\s]+)/.exec(mail!.text)![1]!);
+  const mail = [...h.mailer.sent].reverse().find((m) => m.text.includes("/awards/claim#token="));
+  return decodeURIComponent(/\/awards\/claim#token=([^\s]+)/.exec(mail!.text)![1]!);
 };
 const uuidOf = (awardId: string) => awardId.replace(/^awd_/, "");
 
@@ -85,7 +85,10 @@ describe("the funder gives an award directly", () => {
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toEqual([INVITED]);
     expect(mail.subject).toBe("Riverbend Community Foundation has offered Alder Creek Family Services a grant");
-    expect(mail.text).toContain(`${WEB}/awards/claim?token=gms_awi_`);
+    // The token rides in the fragment, which no browser sends to a server.
+    expect(mail.text).toContain(`${WEB}/awards/claim#token=gms_awi_`);
+    expect(mail.text).not.toContain("?token=");
+    expect(mail.html).toContain(`href="${WEB}/awards/claim#token=gms_awi_`);
     expect(mail.text).toContain("Thank you for your work this winter.");
     // Riverbend is verified with Passport: no "not verified" line.
     expect(mail.text).not.toContain("not verified with OpenGrants Passport");
@@ -493,6 +496,8 @@ describe("what never leaves the invitation", () => {
     for (const table of ["awards", "award_invitations", "consents", "tranches", "requirements"] as const) expect(JSON.stringify(await h.repos.table(table).find({}))).not.toContain(token);
     // A token that reaches a log line by mistake is redacted.
     expect(redactString(`claim ${token}`)).toBe("claim gms_awi_[REDACTED]");
+    // Also inside an encoded URL, where no word boundary precedes it.
+    expect(redactString(`/signin?next=%2Fawards%2Fclaim%3Ftoken%3D${token}`)).toBe("/signin?next=%2Fawards%2Fclaim%3Ftoken%3Dgms_awi_[REDACTED]");
   });
 });
 
