@@ -71,6 +71,10 @@ test("a funder gives an award directly and the organization claims it without Pa
   await test.step("the contact opens the link signed out, and signs in with the invited address", async () => {
     await signOut(page);
     await go(page, mail.link);
+    // Signing out already left the sign-in page on screen, so its heading proves nothing: wait for the
+    // claim link's own redirect (claim page, then sign-in with `next`) before typing, or the redirect can
+    // land mid-sign-in and start the form over.
+    await expect(page).toHaveURL(/\/signin\?next=%2Fawards%2Fclaim$/);
     await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
     await signInWith(page, "sam@newcomer.example");
     await expect(page.getByRole("heading", { level: 1, name: "Accept an award from Riverbend Community Foundation" })).toBeVisible();
