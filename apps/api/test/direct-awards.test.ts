@@ -9,7 +9,7 @@ import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { redactString, setLogSink } from "../src/lib/log.ts";
-import { MemoryInvitationLimiter, RepoDirectAwardClaims } from "../src/services/direct-award-store.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardStore } from "../src/services/direct-award-store.ts";
 import { DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED, DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY, DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK, DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY } from "../src/services/direct-awards.ts";
 import { BASE, CLIENT_AGENT, SESSION_SECRET, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, harness, type Harness } from "./helpers.ts";
 
@@ -208,6 +208,25 @@ describe("the funder gives an award directly", () => {
     expect((await create(admin, { title: "\u0000\u200B" })).status).toBe(400);
   });
 
+  it("creates the award, its schedule, the invitation and their ledger entries in one step: a failure leaves nothing", async () => {
+    const invitations = h.repos.table("award_invitations");
+    const insert = vi.spyOn(invitations, "insert").mockRejectedValueOnce(new Error("the database refused the row"));
+    const release = vi.spyOn(MemoryInvitationLimiter.prototype, "release");
+    const r = await create(admin);
+    insert.mockRestore();
+    expect(r.status).toBe(500);
+    for (const table of ["awards", "payment_schedules", "tranches", "requirements", "award_invitations"] as const) expect(await h.repos.table(table).count({})).toBe(0);
+    expect(h.ledger.events.filter((e) => e.eventType.startsWith("award."))).toEqual([]);
+    expect(h.webhooks.deliveries).toEqual([]);
+    expect(h.mailer.sent).toHaveLength(0);
+    expect(release).toHaveBeenCalledTimes(1);
+    release.mockRestore();
+    // And it goes through on the next try, with the award, its ledger entries and the invitation together.
+    const ok = await create(admin);
+    expect(ok.status).toBe(201);
+    expect(h.ledger.events.filter((e) => e.subjectId === uuidOf(ok.body.data.id)).map((e) => e.eventType)).toEqual(["award.created", "award.invitation_sent"]);
+  });
+
   it("refuses when mail is not configured, before anything is created", async () => {
     h.withoutPorts.add("mailer");
     const r = await create(admin);
@@ -333,6 +352,25 @@ describe("before acceptance", () => {
     expect(cg.body.items.map((a) => a.id)).not.toContain(award.id);
     expect((await call(admin, "GET", `/common-grants/awards/${award.id}`, undefined, WS_FUNDER)).status).toBe(404);
     expect((await call(admin, "POST", "/common-grants/awards/search", {}, WS_FUNDER)).status).toBe(200);
+  });
+});
+
+describe("CommonGrants output", () => {
+  it("leaves out, and logs, an award that does not project, instead of failing the list", async () => {
+    // A named recipient from an older award import: not a CommonGrants individual.
+    const broken = await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, recipient_individual: { name: "Imported Org", imported: true } as never, title: "Imported", status: "active", funding: { awardedAmount: { amount: "10.00", currency: "USD" } } as never });
+    await create(admin);
+    await call(grantee, "POST", "/gms/award-invitations/accept", { token: lastToken(), workspaceId: WS_APPLICANT });
+    const list = await call<{ items: { id: string }[]; paginationInfo: { totalItems: number } }>(admin, "GET", "/common-grants/awards", undefined, WS_FUNDER);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items.map((a) => a.id)).not.toContain(broken.id);
+    expect(list.body.paginationInfo.totalItems).toBe(1);
+    expect((await call(admin, "POST", "/common-grants/awards/search", {}, WS_FUNDER)).status).toBe(200);
+    expect((await call(admin, "GET", `/common-grants/awards/${broken.id}`, undefined, WS_FUNDER)).status).toBe(404);
+    const warned = logs.filter((l) => l.includes("award_projection_failed"));
+    expect(warned.length).toBeGreaterThan(0);
+    expect(warned[0]).toContain(broken.id);
   });
 });
 
@@ -469,7 +507,7 @@ describe("the invited person", () => {
 
   it("changes nothing when the claim itself is refused (a race lost after the checks)", async () => {
     const id = (await create(admin)).body.data.id;
-    const spy = vi.spyOn(RepoDirectAwardClaims.prototype, "claim").mockResolvedValueOnce({ outcome: "used", consentId: null });
+    const spy = vi.spyOn(RepoDirectAwardStore.prototype, "claim").mockResolvedValueOnce({ outcome: "used", consentId: null });
     const r = await call(grantee, "POST", "/gms/award-invitations/accept", { token: lastToken(), workspaceId: WS_APPLICANT });
     spy.mockRestore();
     expect(r.status).toBe(409);

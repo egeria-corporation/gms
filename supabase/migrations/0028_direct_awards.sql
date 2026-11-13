@@ -15,8 +15,9 @@
 --   * adds `award_invitations.award_id` to the same-workspace rules of 0020
 --     (`gms.same_workspace_rules()` is replaced with the same list plus that one row) and its two
 --     triggers on the new table.
---   * adds three functions only the service role may run: counting a send against the limit,
---     giving a count back, and claiming an invitation in one transaction.
+--   * adds four functions only the service role may run: counting a send against the limits,
+--     giving a count back, creating a direct award in one transaction and claiming one in one
+--     transaction, and `gms.append_ledger`, which only they call.
 -- No existing row changes.
 
 create table public.award_invitations (
@@ -137,6 +138,23 @@ create trigger award_invitations_same_workspace before insert or update of award
 create trigger award_invitations_workspace_immutable before update of workspace_id on public.award_invitations
   for each row execute function gms.workspace_id_immutable();
 
+-- Append ledger rows built by the API (`ledgerRow`, @gms/ledger) in the caller's transaction, so a
+-- change and its record commit together. Only into the workspaces the caller names.
+create or replace function gms.append_ledger(p_events jsonb, p_workspaces uuid[])
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if exists (select 1 from jsonb_populate_recordset(null::public.ledger_events, p_events) e
+              where e.workspace_id is null or not (e.workspace_id = any (p_workspaces))) then
+    raise exception 'a ledger row names a workspace this change does not touch' using errcode = '23514';
+  end if;
+  insert into public.ledger_events (id, workspace_id, actor, event_type, subject_type, subject_id, data, occurred_at)
+    select e.id, e.workspace_id, e.actor, e.event_type, e.subject_type, e.subject_id, coalesce(e.data, '{}'), coalesce(e.occurred_at, now())
+      from jsonb_populate_recordset(null::public.ledger_events, p_events) e;
+end;
+$$;
+
 -- Count one invitation email against every send limit, or against none. The limits are the
 -- callers' (apps/api/src/services/direct-awards.ts); the windows are 24 hours, and seven days for
 -- the recipient. One transaction-scoped advisory lock for all sends makes the counts and the
@@ -188,6 +206,51 @@ returns void
 language sql security definer set search_path = ''
 as $$
   delete from public.award_invitation_sends s where s.id = p_send;
+$$;
+
+-- Create a direct award, all in one transaction (review DA-04): count the send against every limit
+-- (as above; nothing is written when one is reached), then write the award with its payment
+-- schedule, tranches and requirements, the invitation and their ledger entries, all from the plan
+-- the API built (apps/api/src/services/direct-awards.ts). Every row is put in the sending workspace
+-- and the award is always `offered` to its named recipient, whatever the plan says. Returns what
+-- gms_claim_award_invitation_send returned.
+create or replace function public.gms_create_direct_award(p_plan jsonb, p_send jsonb)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  ws uuid := (p_send ->> 'p_workspace')::uuid;
+  award uuid := (p_plan -> 'award' ->> 'id')::uuid;
+  counted jsonb;
+begin
+  if ws is null or award is null then
+    raise exception 'a workspace and an award id are required';
+  end if;
+  counted := public.gms_claim_award_invitation_send(
+    ws, (p_send ->> 'p_sender')::uuid, p_send ->> 'p_address', p_send ->> 'p_recipient',
+    (p_send ->> 'p_workspace_limit')::integer, (p_send ->> 'p_sender_limit')::integer, (p_send ->> 'p_address_limit')::integer,
+    (p_send ->> 'p_recipient_limit')::integer, (p_send ->> 'p_instance_limit')::integer
+  );
+  if counted ->> 'outcome' <> 'ok' then
+    return counted;
+  end if;
+  insert into public.awards (id, workspace_id, recipient_workspace_id, recipient_individual, program_id, title, description, status, cg_status, conditions, funding, key_dates)
+    select award, ws, null, a.recipient_individual, a.program_id, a.title, a.description, 'offered', a.cg_status, coalesce(a.conditions, '{}'), coalesce(a.funding, '{}'), coalesce(a.key_dates, '{}')
+      from jsonb_populate_record(null::public.awards, p_plan -> 'award') a;
+  insert into public.payment_schedules (id, workspace_id, award_id, currency)
+    select s.id, ws, award, s.currency from jsonb_populate_record(null::public.payment_schedules, p_plan -> 'schedule') s;
+  insert into public.tranches (id, workspace_id, award_id, schedule_id, seq, amount_minor, currency, condition, status, due_at, idempotency_key)
+    select t.id, ws, award, t.schedule_id, t.seq, t.amount_minor, t.currency, t.condition, 'scheduled', t.due_at, t.idempotency_key
+      from jsonb_populate_recordset(null::public.tranches, coalesce(p_plan -> 'tranches', '[]')) t;
+  insert into public.requirements (id, workspace_id, award_id, type, title, form_id, form_version, due_at, grace_days, reminder_plan, status, releases_tranche_id)
+    select r.id, ws, award, r.type, r.title, r.form_id, r.form_version, r.due_at, coalesce(r.grace_days, 0), coalesce(r.reminder_plan, '[-30, -14, -7, 0, 3, 14]'), 'scheduled', r.releases_tranche_id
+      from jsonb_populate_recordset(null::public.requirements, coalesce(p_plan -> 'requirements', '[]')) r;
+  insert into public.award_invitations (id, workspace_id, award_id, email, organization_name, message, token_hash, expires_at, sent_count, last_sent_at, created_by)
+    select i.id, ws, award, i.email, i.organization_name, i.message, i.token_hash, i.expires_at, 1, coalesce(i.last_sent_at, now()), i.created_by
+      from jsonb_populate_record(null::public.award_invitations, p_plan -> 'invitation') i;
+  perform gms.append_ledger(coalesce(p_plan -> 'ledger', '[]'), array[ws]);
+  return counted;
+end;
 $$;
 
 -- Claim a direct award, all in one transaction (contract: direct awards). The API has already
@@ -259,6 +322,9 @@ $$;
 revoke all on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.gms_release_award_invitation_send(uuid) from public, anon, authenticated;
 revoke all on function public.gms_claim_direct_award(text, uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.gms_create_direct_award(jsonb, jsonb) from public, anon, authenticated;
+revoke all on function gms.append_ledger(jsonb, uuid[]) from public, anon, authenticated, service_role;
 grant execute on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) to service_role;
 grant execute on function public.gms_release_award_invitation_send(uuid) to service_role;
 grant execute on function public.gms_claim_direct_award(text, uuid, uuid, text, text) to service_role;
+grant execute on function public.gms_create_direct_award(jsonb, jsonb) to service_role;

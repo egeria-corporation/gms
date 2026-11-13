@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The two database steps of a direct award that must be atomic (contract: direct awards):
-// counting an invitation email against the funder's rolling daily limit, and claiming an
-// invitation (award, consent and invitation written in one transaction). In production both are
+// counting an invitation email and creating the award with its invitation (one transaction), and
+// claiming an invitation (award, consent and invitation written in one transaction). In production both are
 // Postgres functions (migration 0028) run with the service role; the repository versions keep the
 // same rules for the in-memory tests and for one isolate.
+import { ledgerRow, type LedgerEvent, type LedgerStore } from "@gms/ledger";
 import type { RpcLike } from "../lib/rate-limit.ts";
-import type { Repos } from "./repos/types.ts";
+import type { OfferedAwardPlan } from "./awards.ts";
+import type { Insert, Repos } from "./repos/types.ts";
 
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
@@ -114,17 +116,38 @@ export interface ClaimInput {
   cgStatus: string;
 }
 
+/** A direct award to create in one transaction: the award's rows, its invitation, their ledger entries and the send count. */
+export interface CreateInput {
+  plan: Pick<OfferedAwardPlan, "award" | "schedule" | "tranches" | "requirements">;
+  invitation: Insert<"award_invitations"> & { id: string };
+  /** Written with the rows, in the funder's workspace. */
+  ledger: LedgerEvent[];
+  send: SendKey;
+  limits: SendLimits;
+}
+
 /**
- * Claim an invitation: re-check it, attach the award to the workspace, move it offered → accepted,
- * record the `award` consent unless a live consent exists, and mark the invitation accepted, all
- * or nothing. The API has checked everything before; this is the check that holds under races.
+ * The two writes of a direct award that must be all or nothing. `create` counts the send against
+ * every limit and writes the award, its schedule, tranches and requirements, the invitation and
+ * their ledger entries. `claim` re-checks an invitation, attaches the award to the workspace,
+ * moves it offered → accepted, records the `award` consent unless a live consent exists, and marks
+ * the invitation accepted. The API has checked everything before; these checks hold under races.
  */
-export interface DirectAwardClaims {
+export interface DirectAwardStore {
+  create(input: CreateInput, now: Date): Promise<SendClaim>;
   claim(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }>;
 }
 
-export class SupabaseDirectAwardClaims implements DirectAwardClaims {
+export class SupabaseDirectAwardStore implements DirectAwardStore {
   constructor(private readonly client: RpcLike) {}
+  async create(input: CreateInput): Promise<SendClaim> {
+    const { data, error } = await this.client.rpc("gms_create_direct_award", {
+      p_plan: { ...input.plan, invitation: input.invitation, ledger: input.ledger.map(ledgerRow) },
+      p_send: sendArgs(input.send, input.limits),
+    });
+    if (error) throw new Error(`Creating the direct award failed: ${error.message}`);
+    return readSendClaim(data);
+  }
   async claim(input: ClaimInput): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
     const { data, error } = await this.client.rpc("gms_claim_direct_award", { p_token_hash: input.tokenHash, p_workspace: input.workspaceId, p_user: input.userId, p_email: input.email, p_cg_status: input.cgStatus });
     if (error) throw new Error(`Claiming the award failed: ${error.message}`);
@@ -136,15 +159,57 @@ export class SupabaseDirectAwardClaims implements DirectAwardClaims {
 
 const norm = (email: string) => email.trim().toLowerCase();
 
-/** The same rules over the repositories, one claim at a time (tests, one isolate). */
-export class RepoDirectAwardClaims implements DirectAwardClaims {
+/** The same rules over the repositories, one write at a time, undoing a create that fails half way (tests, one isolate). */
+export class RepoDirectAwardStore implements DirectAwardStore {
   private queue: Promise<unknown> = Promise.resolve();
-  constructor(private readonly repos: Repos) {}
+  constructor(
+    private readonly repos: Repos,
+    private readonly ledger: LedgerStore,
+    private readonly limiter: InvitationLimiter,
+  ) {}
 
-  claim(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
-    const run = this.queue.then(() => this.claimNow(input, now));
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(work);
     this.queue = run.catch(() => undefined);
     return run;
+  }
+
+  create(input: CreateInput, now: Date): Promise<SendClaim> {
+    return this.serial(() => this.createNow(input, now));
+  }
+
+  claim(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
+    return this.serial(() => this.claimNow(input, now));
+  }
+
+  private async createNow(input: CreateInput, now: Date): Promise<SendClaim> {
+    const counted = await this.limiter.claim(input.send, input.limits, now);
+    if (!counted.ok) return counted;
+    const { plan } = input;
+    const undo: (() => Promise<unknown>)[] = [];
+    try {
+      await this.repos.table("awards").insert(plan.award);
+      undo.push(() => this.repos.table("awards").remove({ id: plan.award.id }));
+      await this.repos.table("payment_schedules").insert(plan.schedule);
+      undo.push(() => this.repos.table("payment_schedules").remove({ id: plan.schedule.id }));
+      for (const t of plan.tranches) {
+        await this.repos.table("tranches").insert(t);
+        undo.push(() => this.repos.table("tranches").remove({ id: t.id }));
+      }
+      for (const r of plan.requirements) {
+        await this.repos.table("requirements").insert(r);
+        undo.push(() => this.repos.table("requirements").remove({ id: r.id }));
+      }
+      await this.repos.table("award_invitations").insert(input.invitation);
+      undo.push(() => this.repos.table("award_invitations").remove({ id: input.invitation.id }));
+    } catch (e) {
+      // As a rolled-back transaction would leave it: no row, no count.
+      for (const step of undo.reverse()) await step();
+      await this.limiter.release(counted.sendId, now);
+      throw e;
+    }
+    for (const e of input.ledger) await this.ledger.append(e);
+    return counted;
   }
 
   private async claimNow(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {

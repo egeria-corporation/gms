@@ -4,13 +4,14 @@
 // last read from Passport, never a sum computed in the GMS.
 import type { FunderAwardInput } from "@gms/passport-client";
 import { buildSchedule, DEFAULT_PLAN, ScheduleError, type PlanItem } from "@gms/payments";
-import { filtered, matchesFilter, parseSearchRequest, projectAward, readPath, sortByPath, toMinor, toMoney, type AwardBase, type AwardRow, type Money } from "@gms/protocol";
+import { filtered, matchesFilter, parseSearchRequest, projectAward, ProjectionError, readPath, sortByPath, toMinor, toMoney, type AwardBase, type AwardRow, type Money } from "@gms/protocol";
 import { awardCgStatus, awardEffects, awardMachine, NO_AGREEMENT_REQUIRED, trancheMachine, type AgreementStatus, type AwardAction, type AwardContext, type AwardStatus, type TrancheStatus } from "@gms/workflow";
 import { fanOut, isWebhookEventType } from "@gms/webhooks";
 import { DEFAULT_REMINDER_PLAN } from "@gms/notify";
 import { z } from "zod";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { log } from "../lib/log.ts";
 import { apiId } from "../lib/ids.ts";
 import { invitationView, type AwardInvitation } from "./award-invitations.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -18,7 +19,7 @@ import { checkSigner, payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
 import type { PageRequest } from "./programs.ts";
 import { namesOf, namesShared, sharesWith, shownHoldReason, verificationShared } from "./profile.ts";
-import type { Row } from "./repos/types.ts";
+import type { Insert, Row } from "./repos/types.ts";
 
 export type Award = Row<"awards">;
 export type Agreement = Row<"agreements">;
@@ -272,15 +273,27 @@ export interface NewAward {
   parentAwardId?: string | null;
 }
 
+/** The rows of a new offered award, with their ids, and the ledger entries that go with them. */
+export interface OfferedAwardPlan {
+  award: Insert<"awards"> & { id: string };
+  schedule: Insert<"payment_schedules"> & { id: string };
+  tranches: (Insert<"tranches"> & { id: string })[];
+  requirements: (Insert<"requirements"> & { id: string })[];
+  ledger: { eventType: string; subjectType: string; subjectId: string; data: Record<string, unknown> }[];
+}
+
 /**
- * Create an award in `offered`, with its payment schedule and requirements from the program's
- * defaults. The agreement draft is created by the caller (services/agreements.ts).
+ * Plan an award in `offered`, with its payment schedule and requirements from the program's
+ * defaults. Nothing is written: `createOfferedAward` writes the plan row by row, and a direct award
+ * writes it in one transaction (services/direct-awards.ts).
  */
-export async function createOfferedAward(ctx: ServiceContext, input: NewAward, defaults: ProgramDefaults): Promise<Award> {
+export function planOfferedAward(ctx: ServiceContext, input: NewAward, defaults: ProgramDefaults): OfferedAwardPlan {
   const now = ctx.now();
   const period = input.period ?? defaults.awardPeriod;
   const conditions = [...new Set([...input.conditions, ...(defaults.noAgreementRequired ? [NO_AGREEMENT_REQUIRED] : [])])];
-  const award = await ctx.repos.table("awards").insert({
+  const awardId = crypto.randomUUID();
+  const award: OfferedAwardPlan["award"] = {
+    id: awardId,
     workspace_id: input.workspaceId,
     recipient_workspace_id: input.recipientWorkspaceId,
     recipient_individual: (input.recipientWorkspaceId ? null : (input.recipientIndividual ?? null)) as Award["recipient_individual"],
@@ -299,15 +312,18 @@ export async function createOfferedAward(ctx: ServiceContext, input: NewAward, d
       awardDate: { name: "Award date", eventType: "singleDate", date: now.toISOString().slice(0, 10) },
       ...(period?.startDate && period.endDate ? { periodOfPerformance: { name: "Period of performance", eventType: "dateRange", startDate: period.startDate, endDate: period.endDate } } : {}),
     } as Award["key_dates"],
-  });
+  };
+  const ledger: OfferedAwardPlan["ledger"] = [];
 
-  // Requirements first: an onReportAccepted tranche names the requirement that releases it.
+  // Requirements are planned first: an onReportAccepted tranche names the requirement that releases it.
   const byKey = new Map<string, string>();
+  const requirements: OfferedAwardPlan["requirements"] = [];
   for (const [i, r] of (defaults.requirements ?? []).entries()) {
     const base = period?.endDate && r.dueOffsetDays === undefined && !r.dueAt ? new Date(`${period.endDate}T00:00:00Z`) : null;
     const dueAt = r.dueAt ?? (r.dueOffsetDays !== undefined ? new Date(now.getTime() + r.dueOffsetDays * 86_400_000).toISOString() : (base?.toISOString() ?? null));
-    const row = await ctx.repos.table("requirements").insert({ workspace_id: input.workspaceId, award_id: award.id, type: r.type, title: r.title, form_id: r.formId ?? null, form_version: r.formId ? (r.formVersion ?? 1) : null, due_at: dueAt, grace_days: r.graceDays ?? 0, reminder_plan: (defaults.reminderPlan ?? [...DEFAULT_REMINDER_PLAN]) as Row<"requirements">["reminder_plan"], status: "scheduled" });
-    byKey.set(r.key ?? String(i), row.id);
+    const id = crypto.randomUUID();
+    requirements.push({ id, workspace_id: input.workspaceId, award_id: awardId, type: r.type, title: r.title, form_id: r.formId ?? null, form_version: r.formId ? (r.formVersion ?? 1) : null, due_at: dueAt, grace_days: r.graceDays ?? 0, reminder_plan: (defaults.reminderPlan ?? [...DEFAULT_REMINDER_PLAN]) as Row<"requirements">["reminder_plan"], status: "scheduled", releases_tranche_id: null });
+    byKey.set(r.key ?? String(i), id);
   }
 
   const plan: PlanItem[] = (defaults.schedule?.length ? defaults.schedule : DEFAULT_PLAN).map((s) => {
@@ -316,22 +332,38 @@ export async function createOfferedAward(ctx: ServiceContext, input: NewAward, d
     const condition = s.condition.type === "onReportAccepted" ? { type: "onReportAccepted" as const, ...(requirementId ? { requirementId } : {}) } : s.condition.type === "onDate" ? { type: "onDate" as const, date: ("date" in s.condition ? s.condition.date : undefined) ?? "" } : { type: s.condition.type };
     return ("amountMinor" in s && s.amountMinor !== undefined ? { amountMinor: s.amountMinor, condition } : { percent: ("percent" in s ? s.percent : undefined) ?? 100, condition }) as PlanItem;
   });
-  let tranches;
+  let built;
   try {
-    tranches = buildSchedule({ awardId: award.id, awardedMinor: input.awardedMinor, currency: input.currency, plan, newId: () => crypto.randomUUID() });
+    built = buildSchedule({ awardId, awardedMinor: input.awardedMinor, currency: input.currency, plan, newId: () => crypto.randomUUID() });
   } catch (e) {
     if (!(e instanceof ScheduleError)) throw e;
     // A program default that does not fit this amount must not lose the award: fall back to one payment on execution.
-    await audit(ctx, "award.schedule_default_rejected", "award", award.id, { code: e.code }, input.workspaceId);
-    tranches = buildSchedule({ awardId: award.id, awardedMinor: input.awardedMinor, currency: input.currency, plan: DEFAULT_PLAN, newId: () => crypto.randomUUID() });
+    ledger.push({ eventType: "award.schedule_default_rejected", subjectType: "award", subjectId: awardId, data: { code: e.code } });
+    built = buildSchedule({ awardId, awardedMinor: input.awardedMinor, currency: input.currency, plan: DEFAULT_PLAN, newId: () => crypto.randomUUID() });
   }
-  const schedule = await ctx.repos.table("payment_schedules").insert({ workspace_id: input.workspaceId, award_id: award.id, currency: input.currency });
-  for (const t of tranches) {
-    const row = await ctx.repos.table("tranches").insert({ id: t.id, workspace_id: input.workspaceId, award_id: award.id, schedule_id: schedule.id, seq: t.seq, amount_minor: t.amountMinor, currency: t.currency, condition: t.condition as unknown as Tranche["condition"], status: "scheduled", due_at: t.dueAt, idempotency_key: `trn_${t.id}` });
+  const schedule: OfferedAwardPlan["schedule"] = { id: crypto.randomUUID(), workspace_id: input.workspaceId, award_id: awardId, currency: input.currency };
+  const tranches = built.map((t) => {
     const releasedBy = t.condition.type === "onReportAccepted" ? t.condition.requirementId : undefined;
-    if (releasedBy) await ctx.repos.table("requirements").update({ id: releasedBy }, { releases_tranche_id: row.id });
-  }
-  await audit(ctx, "award.created", "award", award.id, { applicationId: input.applicationId, awardedMinor: input.awardedMinor, currency: input.currency, tranches: tranches.length, requirements: byKey.size }, input.workspaceId);
+    const req = releasedBy ? requirements.find((r) => r.id === releasedBy) : undefined;
+    if (req) req.releases_tranche_id = t.id;
+    return { id: t.id, workspace_id: input.workspaceId, award_id: awardId, schedule_id: schedule.id, seq: t.seq, amount_minor: t.amountMinor, currency: t.currency, condition: t.condition as unknown as Tranche["condition"], status: "scheduled", due_at: t.dueAt, idempotency_key: `trn_${t.id}` };
+  });
+  ledger.push({ eventType: "award.created", subjectType: "award", subjectId: awardId, data: { applicationId: input.applicationId, awardedMinor: input.awardedMinor, currency: input.currency, tranches: tranches.length, requirements: byKey.size } });
+  return { award, schedule, tranches, requirements, ledger };
+}
+
+/**
+ * Create an award in `offered`, with its payment schedule and requirements from the program's
+ * defaults. The agreement draft is created by the caller (services/agreements.ts).
+ */
+export async function createOfferedAward(ctx: ServiceContext, input: NewAward, defaults: ProgramDefaults): Promise<Award> {
+  const plan = planOfferedAward(ctx, input, defaults);
+  const award = await ctx.repos.table("awards").insert(plan.award);
+  await ctx.repos.table("payment_schedules").insert(plan.schedule);
+  for (const t of plan.tranches) await ctx.repos.table("tranches").insert(t);
+  // Each requirement names the tranche it releases, which now exists.
+  for (const r of plan.requirements) await ctx.repos.table("requirements").insert(r);
+  for (const e of plan.ledger) await audit(ctx, e.eventType, e.subjectType, e.subjectId, e.data, input.workspaceId);
   await emitFor(ctx, input.workspaceId, "award.created", { awardId: award.id, applicationId: input.applicationId, status: "offered" });
   return award;
 }
@@ -587,16 +619,35 @@ const visibleAwards = async (ctx: ServiceContext, ws: ServiceWorkspace) => {
 };
 
 /** `GET /common-grants/awards`: the caller's awards, as funder or as recipient. */
+/**
+ * The award as CommonGrants, or null (logged) when it does not validate: one record that cannot
+ * be projected, such as a named recipient that is not a CommonGrants individual, is left out of
+ * protocol output instead of failing the whole list (review DA-04).
+ */
+async function projectOrSkip(ctx: ServiceContext, a: Award): Promise<AwardBase | null> {
+  try {
+    return await project(ctx, a);
+  } catch (e) {
+    if (!(e instanceof ProjectionError)) throw e;
+    log("warn", "award_projection_failed", { awardId: a.id, workspaceId: a.workspace_id, issues: e.issues.map((i) => i.path) });
+    return null;
+  }
+}
+
+const projectAll = async (ctx: ServiceContext, rows: Award[]) => (await Promise.all(rows.map((a) => projectOrSkip(ctx, a)))).filter((a): a is AwardBase => a !== null);
+
 export async function listCgAwards(ctx: ServiceContext, page: PageRequest) {
   const ws = await authorize(ctx, { scope: "awards:read" });
-  const rows = await visibleAwards(ctx, ws);
-  return { items: await Promise.all(rows.slice(page.offset, page.offset + page.pageSize).map((a) => project(ctx, a))), total: rows.length };
+  const items = await projectAll(ctx, await visibleAwards(ctx, ws));
+  return { items: items.slice(page.offset, page.offset + page.pageSize), total: items.length };
 }
 
 export async function getCgAward(ctx: ServiceContext, awardId: string): Promise<AwardBase> {
   const { award } = await accessAward(ctx, awardId, "awards:read");
   if ((await unclaimedDirect(ctx, [award])).size) throw notFound("Award");
-  return project(ctx, award);
+  const projected = await projectOrSkip(ctx, award);
+  if (!projected) throw notFound("Award");
+  return projected;
 }
 
 const FILTER_PATHS: Record<string, string> = { status: "status.value", title: "title", awardedAmount: "funding.awardedAmount.amount" };
@@ -604,7 +655,7 @@ const FILTER_PATHS: Record<string, string> = { status: "status.value", title: "t
 export async function searchCgAwards(ctx: ServiceContext, body: unknown) {
   const ws = await authorize(ctx, { scope: "awards:read" });
   const req = parseSearchRequest("awards", body);
-  const all = await Promise.all((await visibleAwards(ctx, ws)).map((a) => project(ctx, a)));
+  const all = await projectAll(ctx, await visibleAwards(ctx, ws));
   const needle = req.search?.toLowerCase();
   let hits = all.filter((a) => (!needle || a.title.toLowerCase().includes(needle)) && req.parsedFilters.every((f) => matchesFilter(readPath(a, FILTER_PATHS[f.name] ?? f.name), f.operator, f.value)));
   hits = sortByPath(hits, req.sortInfo.sortBy === "custom" ? "lastModifiedAt" : req.sortInfo.sortBy, req.sortInfo.sortOrder);

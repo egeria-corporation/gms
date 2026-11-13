@@ -7,6 +7,7 @@
 // any accepted award, and records the organization's consent to share its record with the funder.
 import { cleanLine, cleanText, containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
 import { toMinor } from "@gms/protocol";
+import { ledgerEvent } from "@gms/ledger";
 import { awardCgStatus, awardEffects, awardMachine } from "@gms/workflow";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
@@ -15,9 +16,9 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { invitationStatus, maskEmail, type AwardInvitation } from "./award-invitations.ts";
-import { STAFF_ROLES, awardDetail, createOfferedAward, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, printMoney, readDefaults, type Award } from "./awards.ts";
+import { STAFF_ROLES, awardDetail, currencyOf, emitFor, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, planOfferedAward, printMoney, readDefaults, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter, type SendLimitName, type SendLimits } from "./direct-award-store.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardStore, type ClaimOutcome, type DirectAwardStore, type InvitationLimiter, type SendKey, type SendLimitName, type SendLimits } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
 import { checkSigner } from "./organization.ts";
 import { namesOf, verificationOf, type VerificationLevel } from "./profile.ts";
@@ -61,17 +62,17 @@ const NOTIFIED_ROLES = ["admin", "program_officer", "finance"] as const;
 // ------------------------------------------------------------------------------------ ports
 
 const fallbackLimiters = new WeakMap<Repos, InvitationLimiter>();
-const fallbackClaims = new WeakMap<Repos, DirectAwardClaims>();
+const fallbackStores = new WeakMap<Repos, DirectAwardStore>();
 const limiterFor = (ctx: ServiceContext): InvitationLimiter => {
   if (ctx.ports.invitationLimiter) return ctx.ports.invitationLimiter;
   let l = fallbackLimiters.get(ctx.repos);
   if (!l) fallbackLimiters.set(ctx.repos, (l = new MemoryInvitationLimiter()));
   return l;
 };
-const claimsFor = (ctx: ServiceContext): DirectAwardClaims => {
-  if (ctx.ports.directAwardClaims) return ctx.ports.directAwardClaims;
-  let c = fallbackClaims.get(ctx.repos);
-  if (!c) fallbackClaims.set(ctx.repos, (c = new RepoDirectAwardClaims(ctx.repos)));
+const storeFor = (ctx: ServiceContext): DirectAwardStore => {
+  if (ctx.ports.directAwards) return ctx.ports.directAwards;
+  let c = fallbackStores.get(ctx.repos);
+  if (!c) fallbackStores.set(ctx.repos, (c = new RepoDirectAwardStore(ctx.repos, ctx.ledger, limiterFor(ctx))));
   return c;
 };
 
@@ -207,10 +208,12 @@ function overLimit(limit: SendLimitName, limits: SendLimits, funderVerified: boo
   }
 }
 
+const sendKey = async (ctx: ServiceContext, workspaceId: string, recipient: string, origin: SendOrigin): Promise<SendKey> => ({ workspaceId, senderId: ctx.actor.userId!, addressKey: origin.address, recipientDigest: await sha256b64url(recipient) });
+
 /** Count one invitation email against every limit; the send id, to give it back if the email is not sent. */
 async function countSend(ctx: ServiceContext, workspaceId: string, funderVerified: boolean, recipient: string, origin: SendOrigin): Promise<string> {
   const limits = sendLimits(funderVerified);
-  const r = await limiterFor(ctx).claim({ workspaceId, senderId: ctx.actor.userId!, addressKey: origin.address, recipientDigest: await sha256b64url(recipient) }, limits, ctx.now());
+  const r = await limiterFor(ctx).claim(await sendKey(ctx, workspaceId, recipient, origin), limits, ctx.now());
   if (!r.ok) throw overLimit(r.limit, limits, funderVerified);
   return r.sendId;
 }
@@ -248,52 +251,56 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
   }
 }
 
-/** `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the invitation. */
+/**
+ * `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the
+ * invitation. The send count, the award with its schedule and requirements, the invitation and
+ * their ledger entries are one transaction (review DA-04); the email and the webhook follow it.
+ */
 export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput, origin: SendOrigin = { address: null }) {
   const { ws, funder } = await sender(ctx, "create");
   const program = input.programId ? await ctx.repos.table("programs").one({ id: input.programId, workspace_id: ws.id }) : null;
   if (input.programId && !program) throw notFound("Program");
-  const sendId = await countSend(ctx, ws.id, funder.verified, input.recipient.contactEmail, origin);
   const { token, hash } = await newToken();
   const now = ctx.now();
-  let award: Award;
-  let inv: AwardInvitation;
-  try {
-    award = await createOfferedAward(
-      ctx,
-      {
-        workspaceId: ws.id,
-        recipientWorkspaceId: null,
-        recipientIndividual: { name: input.recipient.organizationName },
-        applicationId: null,
-        opportunityId: null,
-        programId: program?.id ?? null,
-        title: input.title,
-        awardedMinor: toMinor({ amount: input.amount.value, currency: input.amount.currency }),
-        currency: input.amount.currency,
-        conditions: [],
-        ...(input.startDate && input.endDate ? { period: { startDate: input.startDate, endDate: input.endDate } } : {}),
-      },
-      readDefaults(program),
-    );
-    inv = await ctx.repos.table("award_invitations").insert({
-      workspace_id: ws.id,
-      award_id: award.id,
-      email: input.recipient.contactEmail,
-      organization_name: input.recipient.organizationName,
-      message: input.message || null,
-      token_hash: hash,
-      expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(),
-      sent_count: 1,
-      last_sent_at: now.toISOString(),
-      created_by: ctx.actor.userId!,
-    });
-  } catch (e) {
-    await limiterFor(ctx).release(sendId, now).catch(() => undefined);
-    throw e;
-  }
+  const plan = planOfferedAward(
+    ctx,
+    {
+      workspaceId: ws.id,
+      recipientWorkspaceId: null,
+      recipientIndividual: { name: input.recipient.organizationName },
+      applicationId: null,
+      opportunityId: null,
+      programId: program?.id ?? null,
+      title: input.title,
+      awardedMinor: toMinor({ amount: input.amount.value, currency: input.amount.currency }),
+      currency: input.amount.currency,
+      conditions: [],
+      ...(input.startDate && input.endDate ? { period: { startDate: input.startDate, endDate: input.endDate } } : {}),
+    },
+    readDefaults(program),
+  );
+  const invitation = {
+    id: crypto.randomUUID(),
+    workspace_id: ws.id,
+    award_id: plan.award.id,
+    email: input.recipient.contactEmail,
+    organization_name: input.recipient.organizationName,
+    message: input.message || null,
+    token_hash: hash,
+    expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(),
+    sent_count: 1,
+    last_sent_at: now.toISOString(),
+    created_by: ctx.actor.userId!,
+  };
+  const entry = (e: { eventType: string; subjectType: string; subjectId: string; data: Record<string, unknown> }) => ledgerEvent({ workspaceId: ws.id, actor: ctx.actor.ledger, ...e }, { now: ctx.now });
+  const ledger = [...plan.ledger, { eventType: "award.invitation_sent", subjectType: "award", subjectId: plan.award.id, data: { invitationId: invitation.id, email: maskEmail(invitation.email), sentCount: 1, expiresAt: invitation.expires_at } }].map(entry);
+  const limits = sendLimits(funder.verified);
+  const made = await storeFor(ctx).create({ plan, invitation, ledger, send: await sendKey(ctx, ws.id, invitation.email, origin), limits }, now);
+  if (!made.ok) throw overLimit(made.limit, limits, funder.verified);
+  await emitFor(ctx, ws.id, "award.created", { awardId: plan.award.id, applicationId: null, status: "offered" });
+  const award = required(await ctx.repos.table("awards").one({ id: plan.award.id, workspace_id: ws.id }), "Award");
+  const inv = required(await ctx.repos.table("award_invitations").one({ id: invitation.id }), "Award invitation");
   const emailed = await sendInvitation(ctx, award, inv, token);
-  await audit(ctx, "award.invitation_sent", "award", award.id, { invitationId: inv.id, email: maskEmail(inv.email), sentCount: 1, expiresAt: inv.expires_at, emailed }, ws.id);
   return { ...(await awardDetail(ctx, award)), emailed };
 }
 
@@ -454,7 +461,7 @@ export async function acceptInvitation(ctx: ServiceContext, input: z.output<type
     ...ports,
     write: async (change) => {
       if (change.subjectType !== "award" || change.from !== "offered" || change.to !== "accepted") throw new Error("A direct award is claimed only by accept_offer");
-      const claimed = await claimsFor(ctx).claim({ tokenHash: inv.token_hash, workspaceId: target.id, userId, email: signedInEmail ?? "", cgStatus: awardCgStatus("accepted").value }, ctx.now());
+      const claimed = await storeFor(ctx).claim({ tokenHash: inv.token_hash, workspaceId: target.id, userId, email: signedInEmail ?? "", cgStatus: awardCgStatus("accepted").value }, ctx.now());
       if (claimed.outcome !== "claimed") throw refusal(claimed.outcome, inv);
       consentId = claimed.consentId;
     },

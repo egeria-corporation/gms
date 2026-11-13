@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sha256b64url } from "../src/auth/crypto.ts";
 import type { RpcLike } from "../src/lib/rate-limit.ts";
-import { SupabaseDirectAwardClaims, SupabaseInvitationLimiter, type DirectAwardClaims, type InvitationLimiter } from "../src/services/direct-award-store.ts";
+import { SupabaseDirectAwardStore, SupabaseInvitationLimiter, type DirectAwardStore, type InvitationLimiter } from "../src/services/direct-award-store.ts";
 import { SupabaseRepos } from "../src/services/repos/supabase.ts";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -59,7 +59,7 @@ describe.skipIf(!URL_ || !KEY)("Direct awards on the real schema", () => {
     const token = `gms_awi_int_${run}_${crypto.randomUUID()}`;
     const tokenHash = await sha256b64url(token);
     await repos.table("award_invitations").insert({ workspace_id: funderId, award_id: award.id, email: invited, organization_name: "Integration Alder", token_hash: tokenHash, expires_at: new Date(Date.now() + 86_400_000).toISOString(), created_by: otherUser });
-    const claims: DirectAwardClaims = new SupabaseDirectAwardClaims(db as unknown as RpcLike);
+    const claims: DirectAwardStore = new SupabaseDirectAwardStore(db as unknown as RpcLike);
     const input = { tokenHash, workspaceId: applicantId, cgStatus: "awarded" };
 
     expect((await claims.claim({ ...input, userId: otherUser, email: `int-other-${run}@aldercreek.example` }, new Date())).outcome).toBe("email_mismatch");

@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(37);
+select plan(48);
 
 insert into auth.users (id, email, aud, role, email_confirmed_at) values
   ('7da00000-0000-4000-8000-000000000001', 'Jo.Grant@Alder.example', 'authenticated', 'authenticated', now()),  -- the invited person
@@ -93,6 +93,39 @@ select public.gms_release_award_invitation_send((select id from public.award_inv
 select is((select count(*)::int from public.award_invitation_sends), 2, 'a released send is given back');
 select ok((select bool_and(recipient_digest ~ '^[A-Za-z0-9_-]{43}$') from public.award_invitation_sends), 'only a digest of the recipient is kept');
 
+-- Creating a direct award is one transaction: the count, the rows and the ledger together, or nothing.
+create temporary table plan_args (name text primary key, plan jsonb, send jsonb) on commit drop;
+grant all on plan_args to service_role;
+insert into plan_args values ('good',
+  jsonb_build_object(
+    'award', jsonb_build_object('id', '7d500000-0000-4000-8000-0000000000c1', 'workspace_id', '7d000000-0000-4000-8000-0000000000f2', 'recipient_workspace_id', '7d000000-0000-4000-8000-0000000000a1',
+      'recipient_individual', jsonb_build_object('name', 'Alder Creek'), 'title', 'Created in one step', 'status', 'active', 'cg_status', 'awarded', 'conditions', jsonb_build_array(),
+      'funding', jsonb_build_object('awardedAmount', jsonb_build_object('amount', '100.00', 'currency', 'USD')), 'key_dates', jsonb_build_object()),
+    'schedule', jsonb_build_object('id', '7d600000-0000-4000-8000-0000000000c1', 'currency', 'USD'),
+    'tranches', jsonb_build_array(jsonb_build_object('id', '7d700000-0000-4000-8000-0000000000c1', 'schedule_id', '7d600000-0000-4000-8000-0000000000c1', 'seq', 1, 'amount_minor', 10000, 'currency', 'USD', 'condition', jsonb_build_object('type', 'onExecution'), 'status', 'released', 'idempotency_key', 'trn_c1')),
+    'requirements', jsonb_build_array(jsonb_build_object('id', '7d800000-0000-4000-8000-0000000000c1', 'type', 'report', 'title', 'Final report', 'releases_tranche_id', '7d700000-0000-4000-8000-0000000000c1')),
+    'invitation', jsonb_build_object('id', '7d900000-0000-4000-8000-0000000000c1', 'email', 'new@alder.example', 'organization_name', 'Alder Creek', 'token_hash', repeat('g', 43), 'expires_at', now() + interval '14 days', 'created_by', '7da00000-0000-4000-8000-000000000002'),
+    'ledger', jsonb_build_array(jsonb_build_object('id', '7db00000-0000-4000-8000-0000000000c1', 'workspace_id', '7d000000-0000-4000-8000-0000000000f1', 'actor', 'user:7da00000-0000-4000-8000-000000000002', 'event_type', 'award.created', 'subject_type', 'award', 'subject_id', '7d500000-0000-4000-8000-0000000000c1', 'data', jsonb_build_object('tranches', 1), 'occurred_at', now()))),
+  jsonb_build_object('p_workspace', '7d000000-0000-4000-8000-0000000000f1', 'p_sender', '7da00000-0000-4000-8000-000000000002', 'p_address', null, 'p_recipient', repeat('c', 43),
+    'p_workspace_limit', 99, 'p_sender_limit', 99, 'p_address_limit', 99, 'p_recipient_limit', 99, 'p_instance_limit', 99));
+insert into plan_args select 'bad_invitation', jsonb_set(jsonb_set(plan, '{invitation,token_hash}', '"not-a-hash"'), '{award,id}', '"7d500000-0000-4000-8000-0000000000c2"'), send from plan_args where name = 'good';
+insert into plan_args select 'other_ledger', jsonb_set(jsonb_set(jsonb_set(plan, '{ledger,0,workspace_id}', '"7d000000-0000-4000-8000-0000000000f2"'), '{award,id}', '"7d500000-0000-4000-8000-0000000000c3"'), '{invitation,token_hash}', to_jsonb(repeat('h', 43))), send from plan_args where name = 'good';
+insert into plan_args select 'limited', plan, jsonb_set(send, '{p_workspace_limit}', '0') from plan_args where name = 'good';
+
+select is(public.gms_create_direct_award((select plan from plan_args where name = 'limited'), (select send from plan_args where name = 'limited')) ->> 'outcome', 'workspace', 'a create at a limit is refused');
+select is((select count(*)::int from public.awards where id = '7d500000-0000-4000-8000-0000000000c1'), 0, 'and writes nothing');
+select throws_ok($$ select public.gms_create_direct_award((select plan from plan_args where name = 'bad_invitation'), (select send from plan_args where name = 'bad_invitation')) $$, '23514', null, 'a row the database refuses fails the whole create');
+select is((select count(*)::int from public.awards where id = '7d500000-0000-4000-8000-0000000000c2'), 0, 'leaving no award behind');
+select throws_ok($$ select public.gms_create_direct_award((select plan from plan_args where name = 'other_ledger'), (select send from plan_args where name = 'other_ledger')) $$, '23514', null, 'a ledger row for another workspace is refused');
+select is((select count(*)::int from public.awards where id = '7d500000-0000-4000-8000-0000000000c3'), 0, 'and nothing is written');
+select is(public.gms_create_direct_award((select plan from plan_args where name = 'good'), (select send from plan_args where name = 'good')) ->> 'outcome', 'ok', 'a direct award is created');
+select is((select workspace_id::text || ':' || status || ':' || coalesce(recipient_workspace_id::text, 'none') from public.awards where id = '7d500000-0000-4000-8000-0000000000c1'),
+  '7d000000-0000-4000-8000-0000000000f1:offered:none', 'in the sending workspace, offered to the named recipient, whatever the plan said');
+select is((select count(*)::int from public.tranches t join public.requirements r on r.releases_tranche_id = t.id
+           where t.award_id = '7d500000-0000-4000-8000-0000000000c1' and t.status = 'scheduled' and t.workspace_id = '7d000000-0000-4000-8000-0000000000f1'), 1, 'with its schedule, tranche and requirement');
+select is((select count(*)::int from public.award_invitations where id = '7d900000-0000-4000-8000-0000000000c1' and award_id = '7d500000-0000-4000-8000-0000000000c1'), 1, 'its invitation');
+select is((select count(*)::int from public.ledger_events where id = '7db00000-0000-4000-8000-0000000000c1'), 1, 'and its ledger entry');
+
 reset role;
 select ok(not has_table_privilege('authenticated', 'public.award_invitations', 'SELECT') and not has_table_privilege('anon', 'public.award_invitations', 'SELECT')
           and not has_table_privilege('authenticated', 'public.award_invitation_sends', 'SELECT'),
@@ -100,7 +133,10 @@ select ok(not has_table_privilege('authenticated', 'public.award_invitations', '
 select ok(not has_function_privilege('authenticated', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE')
           and not has_function_privilege('anon', 'public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'public.gms_release_award_invitation_send(uuid)', 'EXECUTE')
-          and has_function_privilege('service_role', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE'),
+          and not has_function_privilege('authenticated', 'public.gms_create_direct_award(jsonb, jsonb)', 'EXECUTE')
+          and not has_function_privilege('service_role', 'gms.append_ledger(jsonb, uuid[])', 'EXECUTE')
+          and has_function_privilege('service_role', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE')
+          and has_function_privilege('service_role', 'public.gms_create_direct_award(jsonb, jsonb)', 'EXECUTE'),
   'only the service role may claim or count');
 
 select * from finish();
