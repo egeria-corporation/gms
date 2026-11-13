@@ -101,7 +101,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
                 <StatusBadge kind="tranche" status={x.status} {...(x.status === "held" ? { label: "Paused" } : {})} />
                 <span className="small muted">
                   {expectedText(x, requirements)}
-                  {x.bankName && x.last4 ? ` · ${x.bankName} •••• ${x.last4}` : ""}
+                  {x.bankName && x.last4 ? <span className="userback-block">{` · ${x.bankName} •••• ${x.last4}`}</span> : ""}
                   {req && x.status === "scheduled" ? (
                     <>
                       {" · "}
@@ -126,7 +126,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
           <div className="row" style={{ gap: "10px" }}>
             <Landmark className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />
             <div>
-              <div className="b" style={{ fontSize: "15px" }}>
+              <div className="b userback-block" style={{ fontSize: "15px" }}>
                 {destination}
               </div>
               <div className="small muted">From Passport</div>

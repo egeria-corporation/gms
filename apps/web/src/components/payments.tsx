@@ -108,7 +108,7 @@ export function ReleaseDialog({ readiness, awardTitle, recipientName, onClose, o
             <dt>Amount</dt>
             <dd className="b">{formatMinor(t.amountMinor, t.currency)}</dd>
             <dt>Destination</dt>
-            <dd>{destinationLabel(readiness.destination)}</dd>
+            <dd className="userback-block">{destinationLabel(readiness.destination)}</dd>
             <dt>Paid through</dt>
             <dd>OpenGrants Passport · fees paid by the funder</dd>
           </dl>
@@ -182,7 +182,7 @@ export function RecordExternalDialog({ tranche, recipientName, onClose, onDone }
               <input className="inp" id="external-date" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} required />
             </Field>
             <Field id="external-last4" label="Destination, last four digits" required help="Passport checks these against the payee’s verified destination. Never enter a full number.">
-              <input className="inp" id="external-last4" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} required />
+              <input className="inp userback-block" id="external-last4" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} required />
             </Field>
           </div>
         </div>

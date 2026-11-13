@@ -16,6 +16,8 @@ export const env = {
   /** Google Picker (Export to Drive). Both are public values; without both the export control explains what is missing. */
   googlePickerApiKey: (raw.VITE_GOOGLE_PICKER_API_KEY ?? "").trim(),
   googleOAuthClientId: (raw.VITE_GOOGLE_OAUTH_CLIENT_ID ?? "").trim(),
+  /** Userback's public access token. Unset (the default) means no feedback widget, no script, no extra CSP origin. */
+  userbackToken: (raw.VITE_USERBACK_TOKEN ?? "").trim(),
   /** True unless VITE_USE_MOCKS is "false" and both an API and a Supabase project are configured. */
   useMocks: raw.VITE_USE_MOCKS !== "false" || !trim(raw.VITE_API_BASE_URL) || !trim(raw.VITE_SUPABASE_URL),
 } as const;

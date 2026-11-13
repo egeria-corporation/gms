@@ -179,7 +179,7 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
           <span className="stat-v" style={{ fontSize: "22px" }}>
             {formatMinor(t.amountMinor, t.currency)}
           </span>
-          <span className="small muted">To {destinationLabel(item.destination)}</span>
+          <span className="small muted userback-block">To {destinationLabel(item.destination)}</span>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -264,7 +264,7 @@ function MatchDialog({ txn, rows, onClose, onDone }: { txn: BankTransaction; row
             </select>
           </Field>
           <Field id="match-last4" label="Destination, last four digits" required help="From your bank’s record of the payment. Never enter a full number.">
-            <input className="inp" id="match-last4" inputMode="numeric" maxLength={4} value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} style={{ maxWidth: "160px" }} required />
+            <input className="inp userback-block" id="match-last4" inputMode="numeric" maxLength={4} value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} style={{ maxWidth: "160px" }} required />
           </Field>
         </div>
         <div className="ft">

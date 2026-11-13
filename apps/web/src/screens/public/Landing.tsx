@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useServices } from "../../app/services.tsx";
+import { env } from "../../env.ts";
+import { userbackActive, whoCanSeeAnswer } from "../../lib/userback.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, ChevronDown, Download, ExternalLink, Menu, ShieldCheck, ShieldOff, X } from "lucide-react";
@@ -44,7 +46,7 @@ const FAQ: Array<[string, string]> = [
   ["How do payments work without Passport?", "The funder pays the way they already do and records the payment here; the grantee sees it. The GMS never holds bank details."],
   ["What does “Not verified” mean?", "The organization entered its own details. Funders see that label so they know to check. Connecting Passport later replaces it."],
   ["Why does an admin need an authenticator app?", "Admins can change awards and payment records, so we ask for a second step at sign-in. It takes a minute with any authenticator app."],
-  ["Who can see my organization's information?", "Only funders you apply to or accept an award from."],
+  ["Who can see my organization's information?", whoCanSeeAnswer(userbackActive({ token: env.userbackToken, useMocks: env.useMocks }))],
 ];
 
 function Header() {

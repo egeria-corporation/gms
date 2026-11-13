@@ -48,7 +48,7 @@ function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v:
           ref={(el) => {
             refs.current[i] = el;
           }}
-          className={invalid ? "inp err" : "inp"}
+          className={invalid ? "inp err userback-ignore" : "inp userback-ignore"}
           aria-label={`Digit ${i + 1}`}
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
@@ -365,7 +365,7 @@ export default function SignIn() {
 
             {step === "mfa" && (
               <form
-                className="card"
+                className="card userback-block"
                 style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }}
                 onSubmit={verifyTotp}
               >

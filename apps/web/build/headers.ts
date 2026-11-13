@@ -35,6 +35,19 @@ const PICKER = {
 };
 
 /**
+ * What the Userback feedback widget adds, only when VITE_USERBACK_TOKEN is set. One list per
+ * directive so each is easy to adjust. Images already allow any https origin; `frame-src` and
+ * 'unsafe-inline' are deliberately left alone until tuned against the live site.
+ */
+export const USERBACK = {
+  script: ["https://static.userback.io"],
+  connect: ["https://api.userback.io", "https://events.userback.io", "https://static.userback.io"],
+  style: ["https://static.userback.io"],
+  font: ["https://static.userback.io"],
+};
+export const userbackConfigured = (token: string | undefined): boolean => !!token?.trim();
+
+/**
  * The GMS web app talks to its own API Worker and to the Supabase project (Auth, and Realtime over
  * WebSocket for presence in the application editor); it navigates to Passport, which needs no CSP
  * entry. Scripts and fonts are first-party only. Styles are first-party; React writes `style`
@@ -42,22 +55,24 @@ const PICKER = {
  * from any https origin because a funder's logo is a URL they choose. Nothing may frame the app,
  * and the app frames nothing, unless the Google Picker is configured: then, and only then, the
  * Google origins in PICKER are added.
+ * Likewise the Userback origins are added only when a Userback token is configured.
  */
-export function contentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google?: GooglePickerEnv): string {
+export function contentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google?: GooglePickerEnv, userbackToken?: string): string {
   const picker = pickerConfigured(google);
+  const ub = userbackConfigured(userbackToken);
   const api = originOf(apiBaseUrl);
   const supabase = originOf(supabaseUrl);
   const realtime = supabase ? supabase.replace(/^http/, "ws") : null;
-  const connect = ["'self'", api, supabase, realtime, ...(picker ? PICKER.connect : [])].filter((o): o is string => o !== null);
+  const connect = ["'self'", api, supabase, realtime, ...(picker ? PICKER.connect : []), ...(ub ? USERBACK.connect : [])].filter((o): o is string => o !== null);
   const backends = [api, supabase].filter((o): o is string => o !== null);
   // Only upgrade when every backend is https; an http backend (local development) would break.
   const allHttps = backends.length > 0 && backends.every((o) => o.startsWith("https://"));
   return [
     "default-src 'self'",
-    `script-src ${["'self'", ...(picker ? PICKER.script : [])].join(" ")}`,
-    `style-src ${["'self'", ...(picker ? PICKER.style : [])].join(" ")}`,
+    `script-src ${["'self'", ...(picker ? PICKER.script : []), ...(ub ? USERBACK.script : [])].join(" ")}`,
+    `style-src ${["'self'", ...(picker ? PICKER.style : []), ...(ub ? USERBACK.style : [])].join(" ")}`,
     "img-src 'self' data: https:",
-    "font-src 'self'",
+    `font-src ${["'self'", ...(ub ? USERBACK.font : [])].join(" ")}`,
     `connect-src ${connect.join(" ")}`,
     `frame-src ${picker ? PICKER.frame.join(" ") : "'none'"}`,
     "frame-ancestors 'none'",
@@ -68,10 +83,10 @@ export function contentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUr
   ].join("; ");
 }
 
-export function headersFile(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google?: GooglePickerEnv): string {
+export function headersFile(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google?: GooglePickerEnv, userbackToken?: string): string {
   return [
     "/*",
-    `  Content-Security-Policy: ${contentSecurityPolicy(apiBaseUrl, supabaseUrl, google)}`,
+    `  Content-Security-Policy: ${contentSecurityPolicy(apiBaseUrl, supabaseUrl, google, userbackToken)}`,
     "  X-Frame-Options: DENY",
     "  X-Content-Type-Options: nosniff",
     // The OAuth consent screen and invitation links carry a token in the query string; never leak it via Referer.
@@ -95,7 +110,9 @@ export function staticAssetHeaders(env: Record<string, string>): Plugin {
     name: "gms-static-asset-headers",
     apply: "build",
     generateBundle() {
-      this.emitFile({ type: "asset", fileName: "_headers", source: headersFile(env.VITE_API_BASE_URL, env.VITE_SUPABASE_URL, { apiKey: env.VITE_GOOGLE_PICKER_API_KEY, clientId: env.VITE_GOOGLE_OAUTH_CLIENT_ID }) });
+      // Mock mode (same rule as src/env.ts) never loads the widget, so it never gets its origins either.
+      const mock = env.VITE_USE_MOCKS !== "false" || !env.VITE_API_BASE_URL?.trim() || !env.VITE_SUPABASE_URL?.trim();
+      this.emitFile({ type: "asset", fileName: "_headers", source: headersFile(env.VITE_API_BASE_URL, env.VITE_SUPABASE_URL, { apiKey: env.VITE_GOOGLE_PICKER_API_KEY, clientId: env.VITE_GOOGLE_OAUTH_CLIENT_ID }, mock ? undefined : env.VITE_USERBACK_TOKEN) });
     },
   };
 }

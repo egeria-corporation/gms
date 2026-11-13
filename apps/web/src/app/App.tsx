@@ -8,6 +8,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
+import { UserbackBridge } from "./UserbackBridge.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
@@ -171,6 +172,7 @@ function AppRoutes() {
   const { mock } = useServices();
   return (
     <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
+      <UserbackBridge />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />

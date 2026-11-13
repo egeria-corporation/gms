@@ -125,7 +125,7 @@ export function HoldBanner({ data }: { data: GrantData }) {
   if (!hold) return null;
   const what = hold.tranche ? `Tranche ${hold.tranche.seq} (${formatMinor(hold.tranche.amountMinor, hold.tranche.currency)}) is paused` : "Payments are paused";
   return (
-    <div className="bnr bnr-warn" role="status">
+    <div className={`bnr bnr-warn${data.payee.status === "pending_change" ? " userback-block" : ""}`} role="status">
       <Lock className="ic" aria-hidden="true" />
       <div>
         <div className="t">{what}</div>
@@ -154,7 +154,7 @@ const PAYEE_CHIP = {
 export function PayeeChip({ payee }: { payee: PayeeSummary }) {
   const chip = PAYEE_CHIP[payee.status];
   return (
-    <span className={`pay ${chip.cls}`}>
+    <span className={`pay ${chip.cls} userback-block`}>
       {payee.status === "active" ? <Check className="ic" aria-hidden="true" /> : <Clock className="ic" aria-hidden="true" />}
       {chip.text}
     </span>
@@ -165,7 +165,7 @@ export function PayeeChip({ payee }: { payee: PayeeSummary }) {
 export function DestinationCard({ payee, destination = null, orgHref }: { payee: PayeeSummary; destination?: PayoutDestination | null; orgHref: string }) {
   const said = destination && destination.state !== "ok" ? describeDestination(destination) : null;
   return (
-    <div className="card">
+    <div className="card userback-block">
       <div className="card-h">
         <h3>Payment destination</h3>
         <PayeeChip payee={payee} />
@@ -234,7 +234,7 @@ export function DisbursementTimeline({ tranche }: { tranche: ScheduleTranche }) 
           </span>
           <div>
             <div className="what">Settled</div>
-            <div className="who">Passport{destination}</div>
+            <div className="who userback-block">Passport{destination}</div>
           </div>
         </div>
       )}
