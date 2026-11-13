@@ -5,11 +5,16 @@ import type { Page } from "@playwright/test";
 // "Not verified" beside an applicant that has no Passport record and sets the two opportunity toggles.
 import { expect, start, test } from "./helpers.ts";
 
-/** The mock starts signed in as the demo funder: sign out, then sign in as a person with no workspaces. */
-async function signIn(page: Page) {
+/** The mock starts signed in as the demo funder: sign out, go to the landing page, and start as a grantee. */
+async function signIn(page: Page, passportOff = false) {
   await start(page, "/workspaces");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
+  await page.getByRole("link", { name: "Learn how OpenGrants GMS works" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Sign up with your email");
+  if (passportOff) await expect(page.getByRole("button", { name: /Continue with Passport/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /I’m a grantee or applicant: start free/ }).click();
+  await expect(page).toHaveURL(/\/signin\?as=grantee/);
   await page.getByLabel("Work email").fill("sam@newcomer.example");
   await page.getByRole("button", { name: "Send code" }).click();
   const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
@@ -17,11 +22,11 @@ async function signIn(page: Page) {
   await page.getByRole("button", { name: "Verify and continue" }).click();
 }
 
-async function signInAsNewcomer(page: Page) {
-  await signIn(page);
-  await expect(page.getByRole("heading", { name: "How Will You Use OpenGrants GMS?" })).toBeVisible();
-  await page.getByRole("radio", { name: /Set up my applicant organization/ }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+/** After the code, a grantee goes straight to setup: no "How will you use" question. */
+async function signInAsNewcomer(page: Page, passportOff = false) {
+  await signIn(page, passportOff);
+  await expect(page).toHaveURL(/\/onboarding\/applicant\?start=email/);
+  await expect(page.getByRole("heading", { name: "How Will You Use OpenGrants GMS?" })).toHaveCount(0);
 }
 
 test("applicant sets up without Passport", async ({ app: page }) => {
@@ -34,7 +39,6 @@ test("applicant sets up without Passport", async ({ app: page }) => {
   });
 
   await test.step("a short profile: legal name and contact email are required", async () => {
-    await page.getByRole("button", { name: "Set up without Passport" }).click();
     await page.getByRole("button", { name: "Create my workspace" }).click();
     await expect(page.getByText("Enter your organization’s legal name")).toBeVisible();
     await page.getByLabel(/^Legal name/).fill("Pine Ridge Youth Alliance");
@@ -67,19 +71,8 @@ test.describe("an install without Passport", () => {
   });
 
   test("no Passport button or step anywhere", async ({ app: page }) => {
-    await start(page, "/workspaces");
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Continue with Passport/ })).toHaveCount(0);
-
-    await page.getByLabel("Work email").fill("sam@newcomer.example");
-    await page.getByRole("button", { name: "Send code" }).click();
-    const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
-    for (let i = 0; i < 6; i++) await digits.nth(i).fill(String(i + 1));
-    await page.getByRole("button", { name: "Verify and continue" }).click();
-    await page.getByRole("radio", { name: /Set up my applicant organization/ }).click();
+    await signInAsNewcomer(page, true);
     await expect(page.getByText(/Link your Passport record/)).toHaveCount(0);
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Set up without Passport" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Continue with Passport" })).toHaveCount(0);
     await expect(page.getByText("Recommended")).toHaveCount(0);
