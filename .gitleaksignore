@@ -6,3 +6,7 @@
 1e922b6b8b1311e60ca5285949049aa3d9a3f984:apps/web/app/console/(app)/settings/developers/page.tsx:generic-api-key:41
 1e922b6b8b1311e60ca5285949049aa3d9a3f984:apps/web/app/console/(app)/settings/developers/page.tsx:generic-api-key:42
 f494e4709f6a4e140d66862fface05505c1aa095:packages/forms/src/library.ts:generic-api-key:847
+
+# A made-up claim token in a web unit test (the direct-award claim screen reads it from the URL fragment).
+# It is a fixed test string, not a credential; no real invitation token is ever written to the repo.
+e7a291b26972b03267a80dcc18b510b922099c92:apps/web/test/directAwards.test.tsx:generic-api-key:462
