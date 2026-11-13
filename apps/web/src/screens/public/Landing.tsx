@@ -13,15 +13,16 @@ const DEPLOY_GUIDE = "https://github.com/egeria-corporation/gms/blob/main/DEPLOY
 const FUNDER_STEPS: Array<[string, string]> = [
   ["Sign up with your email", "We send a code. No password."],
   ["Name your organization", "Then invite your team."],
-  ["Publish an opportunity", "Review applications, decide and send award letters."],
+  ["Create an award or open a grant round", "Award an organization directly by email, or publish an opportunity and review applications."],
 ];
 const GRANTEE_STEPS: Array<[string, string]> = [
   ["Sign up with your email", "We send a code. No password."],
   ["Enter your organization", "Its name and a contact email."],
-  ["Apply, accept and report", "Apply to open opportunities, accept an award, sign the agreement and send reports."],
+  ["Accept, apply and report", "Accept an award a funder sends you, or apply to open opportunities. Then sign the agreement and send reports."],
 ];
 
 const FUNDER_CAN = [
+  "Give an award directly: enter the organization's name and a contact email",
   "Publish opportunities on your own page, with application and report forms",
   "Review, score and decide, then send award letters",
   "Agreements, payment schedules and reporting requirements",
@@ -30,7 +31,7 @@ const FUNDER_CAN = [
 ];
 const GRANTEE_CAN = [
   "Apply to opportunities, with your team",
-  "Accept awards and sign agreements in the app",
+  "Accept awards sent to your email, and sign agreements in the app",
   "See your payment schedule and the payments your funder records",
   "Send reports and request changes to an award",
   "Message your funder in one thread",
