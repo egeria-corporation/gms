@@ -1090,7 +1090,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Decline as the invited person. The funder is told and decides whether to withdraw the award. */
+        /**
+         * @description Decline as the invited person. The funder is told and decides whether to withdraw the award.
+         *     The reason is emailed to the funder's staff, so it is plain text and may not contain a web or
+         *     email address (400).
+         */
         post: operations["AwardInvitations_decline"];
         delete?: never;
         options?: never;
@@ -1107,7 +1111,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer) a link. */
+        /**
+         * @description What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer)
+         *     a link. The email's link carries the token in its fragment (`/awards/claim#token=…`), which
+         *     no browser sends to a server.
+         */
         post: operations["AwardInvitations_lookup"];
         delete?: never;
         options?: never;

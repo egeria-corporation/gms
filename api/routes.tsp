@@ -660,7 +660,11 @@ namespace GMS.Routes.Custom {
    */
   @tag("Awards (GMS)")
   namespace AwardInvitations {
-    /** What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer) a link. */
+    /**
+     * What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer)
+     * a link. The email's link carries the token in its fragment (`/awards/claim#token=…`), which
+     * no browser sends to a server.
+     */
     @post @route("/award-invitations/lookup") @useAuth(UserSession)
     op lookup(@body body: AwardInvitationTokenInput): OkT<AwardInvitationLookup> | BadRequest | AuthErrors | NotFound;
 
@@ -674,7 +678,11 @@ namespace GMS.Routes.Custom {
     @post @route("/award-invitations/accept") @useAuth(UserSession)
     op accept(@body body: AwardInvitationAcceptInput): OkT<AwardInvitationAccepted> | BadRequest | AuthErrors | NotFound | Conflict | Gone | Unprocessable;
 
-    /** Decline as the invited person. The funder is told and decides whether to withdraw the award. */
+    /**
+     * Decline as the invited person. The funder is told and decides whether to withdraw the award.
+     * The reason is emailed to the funder's staff, so it is plain text and may not contain a web or
+     * email address (400).
+     */
     @post @route("/award-invitations/decline") @useAuth(UserSession)
     op decline(@body body: AwardInvitationDeclineInput): OkT<AwardInvitationDeclined> | BadRequest | AuthErrors | NotFound | Conflict | Gone;
   }
