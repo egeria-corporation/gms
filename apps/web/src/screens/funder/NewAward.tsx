@@ -43,7 +43,7 @@ export default function NewAward() {
     setSubmitted(true);
     if (Object.keys(problems).length) return;
     const award = await create.run(toDirectAwardInput(form));
-    if (award) navigate(`${base}/awards/${award.id}/agreement`);
+    if (award) navigate(`${base}/awards/${award.id}/agreement`, { state: { emailed: award.emailed } });
   }
 
   const limited = errorCode(create.error) === "too_many_invitations";

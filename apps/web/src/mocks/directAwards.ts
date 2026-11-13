@@ -6,7 +6,7 @@
 // (`outbox()`); the token is never in an API path.
 import type { AwardDetail, AwardSummary, FunderApi } from "../api/funder.ts";
 import type { FunderFullApi } from "../api/funderFull.ts";
-import type { AwardInvitation, DirectAwardsApi, InvitationLookup, InvitationStatus } from "../api/directAwards.ts";
+import type { AwardInvitation, DirectAwardsApi, DirectAwardView, InvitationLookup, InvitationStatus } from "../api/directAwards.ts";
 import type { Me } from "../api/client.ts";
 import type { Verification } from "../api/types.ts";
 import { directAwardProblems, maskEmail, normalizeAmount, type DirectAwardForm } from "../lib/directAward.ts";
@@ -58,11 +58,12 @@ export type MockDirectAwardsApi = DirectAwardsApi &
   Pick<Inner, "listAwards" | "getAward" | "cancelAward"> & {
     /** Mock only: what a real install would have emailed. */
     outbox(): MockOutboxEntry[];
+    /** Mock only: make the next sends fail the way an unreachable mail service does (`emailed: false`). */
+    failMail(failing: boolean): void;
     /** Mock only: where a claim hands the award to the grantee's own mock store. */
     onPublished(cb: (award: AwardDetail) => void): void;
   };
 
-const NO_PASSPORT: Verification = { source: "none", level: null };
 const code = (c: string) => [{ code: c }];
 const norm = (e: string) => e.trim().toLowerCase();
 
@@ -79,6 +80,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
   const outbox: MockOutboxEntry[] = [];
   let publish: ((award: AwardDetail) => void) | undefined = ctx.published;
   let n = 0;
+  let mailFailing = false;
 
   const recOfAward = (awardId: string) => [...recs.values()].find((r) => r.awardId === awardId);
   /** An invitation that is still "sent" past its expiry reads as expired, wherever it is looked at. */
@@ -89,10 +91,12 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
   const invitationOf = (r: Rec): AwardInvitation => ({ email: maskEmail(r.email), status: settle(r).status, sentAt: r.sentAt, expiresAt: r.expiresAt });
 
   /** The funder's view: the invitation rides on the recipient until a workspace has claimed the award. */
-  function viewOf(a: AwardDetail, r: Rec): AwardDetail {
+  function viewOf(a: AwardDetail, r: Rec): AwardDetail;
+  function viewOf(a: AwardDetail, r: Rec, emailed: boolean): DirectAwardView;
+  function viewOf(a: AwardDetail, r: Rec, emailed?: boolean): AwardDetail | DirectAwardView {
     const v = structuredClone(a);
     (v.recipient as { invitation?: AwardInvitation } | null) = { ...(v.recipient as object), invitation: invitationOf(r) } as never;
-    return v;
+    return emailed === undefined ? v : { ...v, emailed };
   }
   const summary = (a: AwardDetail): AwardSummary => {
     const { agreement: _a, tranches: _t, requirements: _r, amendments: _m, ...rest } = a;
@@ -114,9 +118,12 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
     sendLog.set(workspaceId, [...recent, Date.parse(ctx.now())]);
     }
 
-  function deliver(r: Rec) {
+  /** The invitation email. A failed send still leaves the invitation standing, as the real service does. */
+  function deliver(r: Rec): boolean {
+    if (mailFailing) return false;
     const link = `/awards/claim?token=${r.token}`;
     outbox.push({ to: r.email, awardId: r.awardId, link, at: ctx.now(), funderName: r.funder.name, notVerifiedLine: r.funder.verification.source !== "passport" });
+    return true;
   }
 
   const mine = (awardId: string) => {
@@ -127,6 +134,9 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
 
   return {
     outbox: () => structuredClone(outbox),
+    failMail(failing) {
+      mailFailing = failing;
+    },
     onPublished(cb) {
       publish = cb;
     },
@@ -145,6 +155,9 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
     async cancelAward(id, reason) {
       const found = mine(id);
       if (!found) return inner.cancelAward(id, reason);
+      // Cancel keeps its existing roles: finance can give an award directly but not withdraw it.
+      const role = (await ctx.me()).workspaces.find((m) => m.id === found.r.funderWorkspaceId)?.role;
+      if (role !== "admin" && role !== "program_officer") throw ctx.fail(403, "Your role cannot cancel an award.");
       if (!reason.trim()) throw ctx.fail(422, "Say why you are withdrawing this award.");
       if (found.a.status === "cancelled") throw ctx.fail(409, "This award is already cancelled.");
       found.a.status = "cancelled";
@@ -182,8 +195,8 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
         parentAwardId: null,
         funder: { workspaceId: funder.id, name: funder.name, handle: funder.handle, brand: null },
         // Pending: no workspace yet, so nothing about an organization is known beyond the name typed.
-        recipient: { workspaceId: null as unknown as string, name: input.recipient.organizationName.trim(), handle: null, level: null, verification: NO_PASSPORT },
-        recipientIndividual: { organizationName: input.recipient.organizationName.trim() },
+        recipient: { workspaceId: null, name: input.recipient.organizationName.trim(), handle: null, level: null, verification: null },
+        recipientIndividual: { name: input.recipient.organizationName.trim() },
         passport: { awardId: null, syncedAt: null, mirror: "not_applicable" },
         createdAt: now,
         updatedAt: now,
@@ -210,8 +223,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       };
       awards.set(award.id, award);
       recs.set(token, rec);
-      deliver(rec);
-      return viewOf(award, rec);
+      return viewOf(award, rec, deliver(rec));
     },
 
     async resendInvitation(awardId, input = {}) {
@@ -220,7 +232,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       if (!found || found.r.funderWorkspaceId !== funder.id) throw ctx.fail(404, "Award not found");
       const { a, r } = found;
       settle(r);
-      if (r.status === "accepted" || r.status === "declined" || a.status === "cancelled" || r.status === "revoked") throw ctx.fail(409, "This invitation can no longer be sent again.");
+      if (r.status === "accepted" || r.status === "declined" || a.status === "cancelled" || r.status === "revoked") throw ctx.fail(409, a.status === "cancelled" || r.status === "revoked" ? "This award was withdrawn." : r.status === "declined" ? "This award was declined. Withdraw it, or give a new award." : "This award was already accepted.", code("invitation_closed"));
       const email = input.contactEmail?.trim();
       if (email !== undefined && email !== "") {
         const p = directAwardProblems({ organizationName: "x", contactEmail: email, title: "x", amount: "1", startDate: "", endDate: "", programId: "", message: "" });
@@ -235,8 +247,7 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       r.expiresAt = new Date(Date.parse(r.sentAt) + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY).toISOString();
       r.sentCount += 1;
       recs.set(r.token, r);
-      deliver(r);
-      return viewOf(a, r);
+      return viewOf(a, r, deliver(r));
     },
 
     async lookupAwardInvitation(token) {
@@ -247,7 +258,8 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       settle(r);
       const minor = a.awardedAmountMinor ?? 0;
       const period = a.keyDates.periodOfPerformance as { startDate?: string; endDate?: string } | undefined;
-      const workspaces = me.workspaces
+      const emailMatches = norm(me.email) === norm(r.email);
+      const workspaces = (r.status !== "sent" || !emailMatches ? [] : me.workspaces)
         .filter((m) => m.kind === "applicant" && m.role === "admin")
         .flatMap((m) => {
           const info = ctx.applicantInfo(m.id);
@@ -259,25 +271,28 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
         award: { title: a.title, amount: { value: `${Math.floor(minor / 100)}.${String(minor % 100).padStart(2, "0")}`, currency: a.currency }, startDate: period?.startDate ?? null, endDate: period?.endDate ?? null, message: r.message },
         organizationName: r.organizationName,
         invitedEmail: maskEmail(r.email),
-        emailMatches: norm(me.email) === norm(r.email),
+        emailMatches,
         workspaces,
       };
       return out;
     },
 
-    async acceptAwardInvitation({ token, workspaceId }) {
+    async acceptAwardInvitation({ token, workspaceId, name }) {
       const me = await ctx.me();
       const r = recs.get(token);
       const a = r && awards.get(r.awardId);
       if (!r || !a) throw ctx.fail(404, "This invitation link is not valid.", code("invitation_not_found"));
       settle(r);
       if (r.status === "expired") throw ctx.fail(410, "This invitation has expired. Ask the funder to send a new one.", code("invitation_expired"));
-      if (r.status !== "sent") throw ctx.fail(409, r.status === "revoked" ? "The funder withdrew this award." : "This invitation has already been used.", code("invitation_used"));
+      if (r.status === "revoked") throw ctx.fail(410, "The funder withdrew this award.", code("invitation_revoked"));
+      if (r.status !== "sent") throw ctx.fail(409, "This invitation was already used.", code("invitation_used"));
       if (norm(me.email) !== norm(r.email)) throw ctx.fail(403, `Sign in with the address the invitation was sent to: ${maskEmail(r.email)}`, code("email_mismatch"));
       const membership = me.workspaces.find((m) => m.id === workspaceId && m.kind === "applicant");
       const info = membership && ctx.applicantInfo(workspaceId);
       if (!membership || !info || membership.role !== "admin") throw ctx.fail(403, "Only an admin of the organization can accept an award for it.", code("not_workspace_admin"));
-      if (membership.requiresMfa && !me.mfaVerified) throw ctx.fail(403, "Finish the second step of sign-in, then accept.", code("second_step_required"));
+      if (membership.requiresMfa && !me.mfaVerified) throw ctx.fail(403, "Finish the second step of sign-in, then accept.", code("mfa_required"));
+      // Where Passport lists verified representatives, the typed legal name is required.
+      if (info.verification.source === "passport" && (name ?? "").trim().length < 2) throw ctx.fail(422, "Type your full legal name. It must match one of your organization's verified representatives in Passport", code("signer_name_required"));
       const at = ctx.now();
       // One step: the award moves to the workspace, is accepted, and the organization's consent is recorded.
       r.status = "accepted";
@@ -297,11 +312,12 @@ export function createMockDirectAwardsApi(ctx: MockDirectCtx, inner: Inner): Moc
       if (!r) throw ctx.fail(404, "This invitation link is not valid.", code("invitation_not_found"));
       settle(r);
       if (r.status === "expired") throw ctx.fail(410, "This invitation has expired.", code("invitation_expired"));
-      if (r.status !== "sent") throw ctx.fail(409, "This invitation has already been used.", code("invitation_used"));
+      if (r.status === "revoked") throw ctx.fail(410, "The funder withdrew this award.", code("invitation_revoked"));
+      if (r.status !== "sent") throw ctx.fail(409, "This invitation was already used.", code("invitation_used"));
       if (norm(me.email) !== norm(r.email)) throw ctx.fail(403, `Sign in with the address the invitation was sent to: ${maskEmail(r.email)}`, code("email_mismatch"));
       r.status = "declined";
       r.declineReason = reason?.trim() || null;
-      return { declined: true };
+      return { status: "declined" as const };
     },
   };
 }

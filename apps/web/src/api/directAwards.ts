@@ -5,60 +5,36 @@
 // declared here, so moving to the generated types is one import change.
 //
 // A claim token is only ever sent in a request body, never in a path or a query string.
-import type { AwardDetail, FunderHttpIo } from "./funder.ts";
-import type { Verification } from "./types.ts";
+import type { FunderHttpIo } from "./funder.ts";
+import type { components } from "./schema.d.ts";
 
-export type InvitationStatus = "sent" | "accepted" | "declined" | "expired" | "revoked";
-
+type S = components["schemas"];
+export type InvitationStatus = S["Models.AwardInvitationStatus"];
 /** The invitation on a direct award, as the funder sees it. The address is masked: `j…@example.org`. */
-export interface AwardInvitation {
-  email: string;
-  status: InvitationStatus;
-  sentAt: string;
-  expiresAt: string;
-}
-
-export interface DirectAwardInput {
-  recipient: { organizationName: string; contactEmail: string };
-  title: string;
-  /** `value` is a decimal string such as "25000.00". */
-  amount: { value: string; currency: "USD" };
-  startDate?: string;
-  endDate?: string;
-  programId?: string;
-  /** Plain text, shown in the invitation email. At most 2000 characters. */
-  message?: string;
-}
-
+export type AwardInvitation = S["Models.AwardInvitationSummary"];
+export type DirectAwardInput = S["Models.DirectAwardInput"];
+export type LookupStatus = S["Models.AwardInvitationLookup"]["status"];
 /** What the person who received the link sees before deciding. */
-export type LookupStatus = "pending" | "accepted" | "declined" | "expired" | "revoked";
-
-export interface InvitationLookup {
-  status: LookupStatus;
-  funder: { name: string; handle: string; verification: Verification };
-  award: { title: string; amount: { value: string; currency: string }; startDate: string | null; endDate: string | null; message: string | null };
-  organizationName: string;
-  /** Masked: `j…@example.org`. */
-  invitedEmail: string;
-  emailMatches: boolean;
-  /** Applicant workspaces where the signed-in person is an admin. */
-  workspaces: { id: string; name: string; verification: Verification }[];
-}
-
-export interface AwardClaimResult {
-  awardId: string;
-  workspaceId: string;
-}
+export type InvitationLookup = S["Models.AwardInvitationLookup"];
+export type AwardClaimResult = S["Models.AwardInvitationAccepted"];
+export type AwardInvitationAcceptInput = S["Models.AwardInvitationAcceptInput"];
+/** The funder's award view after a create or a resend. `emailed` is false when the email could not be sent. */
+export type DirectAwardView = S["Models.DirectAwardView"];
 
 /** The codes the API answers with, in `errors[].code` of a failed call. */
 export type DirectAwardErrorCode =
   | "invitation_not_found"
+  | "invitation_expired"
+  | "invitation_revoked"
+  | "invitation_used"
+  | "invitation_closed"
   | "email_mismatch"
   | "not_workspace_admin"
-  | "invitation_expired"
-  | "invitation_used"
+  | "mfa_required"
+  | "signer_name_required"
+  | "not_a_representative"
   | "too_many_invitations"
-  | "second_step_required";
+  | "mail_not_configured";
 
 /** The first `code` an ApiError carries, if any. */
 export function errorCode(error: unknown): string | null {
@@ -86,21 +62,19 @@ export interface DirectAwardsApi {
 
   // ---- grantee (signed in; the token always travels in the body) ----
   lookupAwardInvitation(token: string): Promise<InvitationLookup>;
-  acceptAwardInvitation(input: { token: string; workspaceId: string }): Promise<AwardClaimResult>;
-  declineAwardInvitation(input: { token: string; reason?: string }): Promise<{ declined: true }>;
+  /** `name` is the signer's typed legal name, needed when Passport lists verified representatives. */
+  acceptAwardInvitation(input: AwardInvitationAcceptInput): Promise<AwardClaimResult>;
+  declineAwardInvitation(input: { token: string; reason?: string }): Promise<{ status: "declined" }>;
 }
-
-/** The funder's award view, as the existing award views plus the invitation on the recipient. */
-export type DirectAwardView = AwardDetail;
 
 export function createHttpDirectAwardsApi(io: FunderHttpIo): DirectAwardsApi {
   const e = encodeURIComponent;
-  async function call<T>(method: string, path: string, body: unknown): Promise<T> {
+  async function call<T>(method: string, path: string, body: unknown, funder = true): Promise<T> {
     const token = await io.token();
     const ws = io.workspaceId();
     const res = await (io.fetch ?? fetch)(`${io.baseUrl}${path}`, {
       method,
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(ws ? { "X-GMS-Workspace": ws } : {}) },
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(ws && funder ? { "X-GMS-Workspace": ws } : {}) },
       body: JSON.stringify(body),
     });
     const j = (await res.json().catch(() => ({}))) as { data?: unknown; message?: string; errors?: unknown[] };
@@ -110,8 +84,8 @@ export function createHttpDirectAwardsApi(io: FunderHttpIo): DirectAwardsApi {
   return {
     createDirectAward: (input) => call("POST", "/gms/awards/direct", input),
     resendInvitation: (awardId, input = {}) => call("POST", `/gms/awards/${e(awardId)}/invitation/resend`, input),
-    lookupAwardInvitation: (token) => call("POST", "/gms/award-invitations/lookup", { token }),
-    acceptAwardInvitation: (input) => call("POST", "/gms/award-invitations/accept", input),
-    declineAwardInvitation: (input) => call("POST", "/gms/award-invitations/decline", input),
+    lookupAwardInvitation: (token) => call("POST", "/gms/award-invitations/lookup", { token }, false),
+    acceptAwardInvitation: (input) => call("POST", "/gms/award-invitations/accept", input, false),
+    declineAwardInvitation: (input) => call("POST", "/gms/award-invitations/decline", input, false),
   };
 }

@@ -11,7 +11,7 @@ import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
 import { directAwardProblems, EMPTY_DIRECT_AWARD, formatDecimalAmount, maskEmail, normalizeAmount, toDirectAwardInput, type DirectAwardForm } from "../src/lib/directAward.ts";
 import { demoSession } from "../src/mocks/auth.ts";
-import { MOCK_USER } from "../src/mocks/fixtures.ts";
+import { MOCK_MEMBERSHIPS, MOCK_USER } from "../src/mocks/fixtures.ts";
 import type { MockDirectAwardsApi } from "../src/mocks/directAwards.ts";
 import { ClaimView, setupOrganizationHref, type ClaimViewProps } from "../src/screens/public/ClaimAward.tsx";
 
@@ -57,6 +57,7 @@ describe("the New award form", () => {
 // ---- the mock's rules ----------------------------------------------------------------------------
 
 const DAY = 86_400_000;
+const ALDER = MOCK_MEMBERSHIPS.find((m) => m.handle === "alder-creek")!.id;
 const input = (over: Partial<DirectAwardInput> = {}): DirectAwardInput => ({ recipient: { organizationName: "Pine Ridge Youth Alliance", contactEmail: MOCK_USER.email }, title: "Summer programs", amount: { value: "25000.00", currency: "USD" }, message: "Welcome <b>aboard</b>", ...over });
 
 async function riverbend(opts: { now?: () => Date; email?: string } = {}) {
@@ -121,7 +122,9 @@ describe("giving an award directly (mock)", () => {
     expect(looked.workspaces.map((w) => w.name)).toEqual(["Alder Creek Family Services"]);
     // A workspace the person is not an admin of, or a funder workspace, cannot take it.
     expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: "00000000-0000-4000-8000-000000000000" }))).toEqual({ status: 403, code: "not_workspace_admin" });
-    const claimed = await api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id });
+    // Passport lists verified representatives for this organization, so a legal name is asked for.
+    expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id }))).toEqual({ status: 422, code: "signer_name_required" });
+    const claimed = await api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id, name: "Maria Santos" });
     expect(claimed.awardId).toBe(award.id);
     const after = await api.getAward(award.id);
     expect(after.status).toBe("accepted");
@@ -136,6 +139,8 @@ describe("giving an award directly (mock)", () => {
     const token = tokenOf(api);
     const looked = await api.lookupAwardInvitation(token);
     expect(looked.emailMatches).toBe(false);
+    expect(looked.workspaces).toEqual([]); // nothing to choose from when the address is not the invited one
+    looked.workspaces.push({ id: ALDER, name: "", verification: { source: "none", level: null } });
     const refused = await codeOf(api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id }));
     expect(refused).toEqual({ status: 403, code: "email_mismatch" });
     await expect(api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id })).rejects.toThrow("Sign in with the address the invitation was sent to: s…@alder.example");
@@ -154,7 +159,7 @@ describe("giving an award directly (mock)", () => {
     now += 14 * DAY + 1000;
     expect((await api.lookupAwardInvitation(token)).status).toBe("expired");
     expect(invitationOf(await api.getAward(award.id))!.status).toBe("expired");
-    const workspaceId = (await api.lookupAwardInvitation(token)).workspaces[0]!.id;
+    const workspaceId = ALDER;
     expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId }))).toEqual({ status: 410, code: "invitation_expired" });
     await api.resendInvitation(award.id);
     expect(invitationOf(await api.getAward(award.id))!.status).toBe("sent");
@@ -175,8 +180,34 @@ describe("giving an award directly (mock)", () => {
     expect(cancelled.status).toBe("cancelled");
     expect(invitationOf(cancelled)!.status).toBe("revoked");
     expect((await api.lookupAwardInvitation(token)).status).toBe("revoked");
-    expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: "x" }))).toMatchObject({ status: 409 });
-    expect(await codeOf(api.resendInvitation(award.id))).toMatchObject({ status: 409 });
+    expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: "x" }))).toEqual({ status: 410, code: "invitation_revoked" });
+    expect(await codeOf(api.resendInvitation(award.id))).toEqual({ status: 409, code: "invitation_closed" });
+  });
+  it("saves the award when the email cannot be sent, says so, and a resend delivers it", async () => {
+    const { api } = await riverbend();
+    api.failMail(true);
+    const award = await api.createDirectAward(input());
+    expect(award.emailed).toBe(false);
+    expect(award.status).toBe("offered");
+    expect(api.outbox()).toHaveLength(0);
+    api.failMail(false);
+    const again = await api.resendInvitation(award.id);
+    expect(again.emailed).toBe(true);
+    expect(api.outbox()).toHaveLength(1);
+  });
+  it("leaves the recipient's workspace, handle and verification empty until acceptance", async () => {
+    const { api } = await riverbend();
+    const award = await api.createDirectAward(input());
+    expect(award.recipient).toMatchObject({ workspaceId: null, handle: null, level: null, verification: null });
+    expect(award.emailed).toBe(true);
+  });
+  it("lets finance give and resend an award but not withdraw it", async () => {
+    const services = createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "finance" } : m)) });
+    await services.api.workspace("riverbend");
+    const api = services.api as unknown as MockDirectAwardsApi & Services["api"];
+    const award = await api.createDirectAward(input());
+    await expect(api.resendInvitation(award.id)).resolves.toBeTruthy();
+    expect(await codeOf(api.cancelAward(award.id, "Entered in error"))).toMatchObject({ status: 403 });
   });
   it("asks for the second step when the organization's role requires it", async () => {
     const services = createMockServices({ session: demoSession("aal1") });
@@ -185,7 +216,7 @@ describe("giving an award directly (mock)", () => {
     await api.createDirectAward(input());
     const token = tokenOf(api);
     const looked = await api.lookupAwardInvitation(token);
-    expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id }))).toEqual({ status: 403, code: "second_step_required" });
+    expect(await codeOf(api.acceptAwardInvitation({ token, workspaceId: looked.workspaces[0]!.id }))).toEqual({ status: 403, code: "mfa_required" });
   });
 });
 
@@ -233,14 +264,14 @@ describe("the claim screen", () => {
     expect(screen.getByRole("radio", { name: /Alder Creek Family Services/ })).toBeChecked();
     expect(screen.getByText("Accepting shares your organization's record with Riverbend Community Foundation.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Accept award" }));
-    expect(h.onAccept).toHaveBeenCalledWith("w1");
+    expect(h.onAccept).toHaveBeenCalledWith("w1", undefined);
   });
   it("with several: nothing is chosen until the person chooses, and a new organization can be set up", async () => {
     const h = view(lookup({ workspaces: [alder, pine] }));
     expect(screen.getByRole("button", { name: "Accept award" })).toBeDisabled();
     await userEvent.click(screen.getByRole("radio", { name: /Pine Ridge Youth Alliance/ }));
     await userEvent.click(screen.getByRole("button", { name: "Accept award" }));
-    expect(h.onAccept).toHaveBeenCalledWith("w2");
+    expect(h.onAccept).toHaveBeenCalledWith("w2", undefined);
     expect(screen.getByRole("link", { name: "Set up a new organization" })).toHaveAttribute("href", setupOrganizationHref("Pine Ridge Youth Alliance", "/awards/claim?token=abc"));
   });
   it("with none: sends the person to set up an organization without Passport, then back here", () => {
@@ -352,6 +383,32 @@ describe("the funder's screens", () => {
     expect(within(row).getByText("Cancelled")).toBeInTheDocument();
   });
 
+  it("says plainly when the email could not be sent, and offers Resend; finance does not see Withdraw", async () => {
+    const services = createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "finance" } : m)) });
+    await services.api.workspace("riverbend");
+    (services.api as unknown as MockDirectAwardsApi).failMail(true);
+    open("/w/riverbend/awards/new", services);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/^Organization name/), "Pine Ridge Youth Alliance");
+    await user.type(screen.getByLabelText(/^Contact email/), "maria@pineridge.example");
+    await user.type(screen.getByLabelText(/^Award title/), "Summer programs");
+    await user.type(screen.getByLabelText(/^Amount/), "25000");
+    await user.click(screen.getByRole("button", { name: "Send invitation" }));
+    const panel = await screen.findByRole("region", { name: "Invitation" }, { timeout: 4000 });
+    expect(within(panel).getByText("The award was saved, but the email could not be sent")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: "Withdraw…" })).toBeNull();
+    (services.api as unknown as MockDirectAwardsApi).failMail(false);
+    await user.click(within(panel).getByRole("button", { name: "Resend invitation" }));
+    expect(await within(panel).findByText("Invitation sent again")).toBeInTheDocument();
+    expect(within(panel).queryByText("The award was saved, but the email could not be sent")).toBeNull();
+  });
+
+  it("refuses a web or email address in the funder's text", () => {
+    expect(directAwardProblems({ ...valid, message: "See https://example.org" }).message).toMatch(/cannot contain a web or email address/);
+    expect(directAwardProblems({ ...valid, title: "Write to me@x.org" }).title).toMatch(/cannot contain/);
+    expect(directAwardProblems({ ...valid, startDate: "2027-07-01" }).endDate).toMatch(/both the start and the end/);
+  });
+
   it("offers New award only to an admin or finance member", async () => {
     const services = createMockServices({ session: demoSession() });
     await services.api.workspace("riverbend");
@@ -371,6 +428,9 @@ describe("the grantee's screens", () => {
     const user = userEvent.setup();
     expect(await screen.findByRole("heading", { level: 1, name: "Accept an award from Riverbend Community Foundation" })).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Accept award" }));
+    // Passport lists representatives for this organization: the claim asks for the signer's legal name.
+    await user.type(await screen.findByLabelText(/^Your full legal name/), "Maria Santos");
+    await user.click(screen.getByRole("button", { name: "Accept award" }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(`/w/alder-creek/grants/${award.id}`));
     await services.api.workspace("riverbend");
     expect((await api.getAward(award.id)).status).toBe("accepted");

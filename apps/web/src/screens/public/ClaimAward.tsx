@@ -27,7 +27,7 @@ export interface ClaimViewProps {
   /** The path and query of this page: where onboarding and a second step send the person back to. */
   claimUrl: string;
   signedInAs: string;
-  onAccept: (workspaceId: string) => void;
+  onAccept: (workspaceId: string, signerName?: string) => void;
   onDecline: (reason: string) => void;
   onSwitchAddress: () => void;
   accepting?: boolean;
@@ -56,7 +56,7 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
         </h2>
         <dl className="kv">
           <dt>Amount</dt>
-          <dd>{formatDecimalAmount(award.amount.value, award.amount.currency)}</dd>
+          <dd>{award.amount ? formatDecimalAmount(award.amount.value, award.amount.currency) : "—"}</dd>
           <dt>For</dt>
           <dd>{lookup.organizationName}</dd>
           {period && (
@@ -125,10 +125,16 @@ function AcceptProblem({ error, claimUrl, onSwitchAddress }: { error: unknown; c
       </Notice>
     );
   }
+  if (code === "signer_name_required") {
+    return <Notice tone="info" title="Type your full legal name">Passport lists verified representatives for this organization. Type your full legal name below, as it appears there, then accept again.</Notice>;
+  }
+  if (code === "invitation_revoked") {
+    return <Notice tone="warn" title="This award was withdrawn">The funder withdrew this award, so it can no longer be accepted.</Notice>;
+  }
   if (code === "not_workspace_admin") {
     return <Notice tone="warn" title="Only an admin can accept">Only an admin of an organization can accept an award for it. Choose an organization you administer, or ask one of its admins to accept.</Notice>;
   }
-  if (code === "second_step_required") {
+  if (code === "mfa_required") {
     return (
       <Notice tone="warn" title="One more step before you can accept">
         Accepting needs the second step of sign-in. <Link to={signInPath(claimUrl, "mfa")}>Finish the second step</Link>, then come back to accept.
@@ -142,6 +148,10 @@ function AcceptProblem({ error, claimUrl, onSwitchAddress }: { error: unknown; c
 export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, onSwitchAddress, accepting = false, declining = false, error }: ClaimViewProps) {
   const [chosen, setChosen] = useState<string>(lookup.workspaces.length === 1 ? lookup.workspaces[0]!.id : "");
   const [deciding, setDeciding] = useState(false);
+  // Where Passport lists verified representatives, the person accepting types their legal name; it must match one.
+  const [signerName, setSignerName] = useState("");
+  const errorCode_ = errorCode(error);
+  const needsName = errorCode_ === "signer_name_required" || errorCode_ === "not_a_representative";
   const funderName = lookup.funder.name;
   const setUp = setupOrganizationHref(lookup.organizationName, claimUrl);
 
@@ -211,9 +221,14 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
               <p className="small">
                 Not one of these? <Link to={setUp}>Set up a new organization</Link>
               </p>
+              {needsName && (
+                <Field id="claim-signer" label="Your full legal name" required help="Passport lists verified representatives for this organization. Type your name as it appears there.">
+                  <input className="inp" id="claim-signer" value={signerName} onChange={(e) => setSignerName(e.target.value)} autoComplete="name" />
+                </Field>
+              )}
               <p>Accepting shares your organization's record with {funderName}.</p>
               <div className="row wrap">
-                <button type="button" className="btn btn-primary" disabled={!chosen || accepting} onClick={() => onAccept(chosen)}>
+                <button type="button" className="btn btn-primary" disabled={!chosen || accepting || (needsName && signerName.trim().length < 2)} onClick={() => onAccept(chosen, signerName.trim() || undefined)}>
                   <AwardIcon className="ic" aria-hidden="true" />
                   Accept award
                 </button>
@@ -272,13 +287,13 @@ export default function ClaimAward() {
   const token = params.get("token")?.trim() ?? "";
   const claimUrl = `/awards/claim?token=${encodeURIComponent(token)}`;
   const lookup = useApiQuery((api) => (token ? api.lookupAwardInvitation(token) : Promise.reject(Object.assign(new Error("This invitation link is not complete."), { status: 404 }))), [token]);
-  const accept = useApiMutation((api, workspaceId: string) => api.acceptAwardInvitation({ token, workspaceId }));
+  const accept = useApiMutation((api, workspaceId: string, name?: string) => api.acceptAwardInvitation({ token, workspaceId, ...(name ? { name } : {}) }));
   const decline = useApiMutation((api, reason: string) => api.declineAwardInvitation({ token, ...(reason.trim() ? { reason: reason.trim() } : {}) }));
   const email = sessionState.status === "signedIn" ? sessionState.session.email : "";
 
   const handleFor = (workspaceId: string) => (meState.status === "ready" ? meState.me.workspaces.find((w) => w.id === workspaceId)?.handle : undefined);
-  const onAccept = async (workspaceId: string) => {
-    const done = await accept.run(workspaceId);
+  const onAccept = async (workspaceId: string, name?: string) => {
+    const done = await accept.run(workspaceId, name);
     if (!done) return;
     reloadMe();
     const handle = handleFor(done.workspaceId);
@@ -292,7 +307,7 @@ export default function ClaimAward() {
   const failure = errorCode(accept.error) ?? errorCode(decline.error);
   const reloadLookup = lookup.reload;
   useEffect(() => {
-    if (failure === "invitation_expired" || failure === "invitation_used") reloadLookup();
+    if (failure === "invitation_expired" || failure === "invitation_used" || failure === "invitation_revoked") reloadLookup();
   }, [failure, reloadLookup]);
 
   const notFound = lookup.status === "error" && (errorCode(lookup.error) === "invitation_not_found" || (lookup.error as { status?: number }).status === 404);

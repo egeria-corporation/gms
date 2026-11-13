@@ -19,7 +19,7 @@ export function InvitationBadge({ invitation }: { invitation: AwardInvitation })
   return <StatusBadge kind="invitation" status={invitation.status} />;
 }
 
-function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; onClose: () => void; onDone: () => void }) {
+function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; onClose: () => void; onDone: (emailed: boolean) => void }) {
   const [email, setEmail] = useState("");
   const [touched, setTouched] = useState(false);
   const resend = useApiMutation((api, contactEmail: string) => api.resendInvitation(award.id, { contactEmail }));
@@ -32,7 +32,8 @@ function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; o
           e.preventDefault();
           setTouched(true);
           if (problem) return;
-          if (await resend.run(email.trim())) onDone();
+          const sent = await resend.run(email.trim());
+          if (sent) onDone(sent.emailed);
         }}
       >
         <div className="hd">
@@ -104,6 +105,9 @@ function WithdrawDialog({ award, onClose, onDone }: { award: AwardDetail; onClos
   );
 }
 
+/** What the last send did, shown above the invitation: it went out, or the award was saved without the email. */
+export type MailNote = "sent" | "failed" | null;
+
 const WHAT_NEXT: Record<AwardInvitation["status"], (name: string, inv: AwardInvitation) => string> = {
   sent: (name, inv) => `Waiting for ${name}. The link works until ${formatDate(inv.expiresAt)} (${daysLeft(inv.expiresAt)} days). The agreement and payment schedule start once they accept.`,
   expired: (name, inv) => `The link expired on ${formatDate(inv.expiresAt)}. Send a new one, or withdraw the award.`,
@@ -113,10 +117,13 @@ const WHAT_NEXT: Record<AwardInvitation["status"], (name: string, inv: AwardInvi
 };
 
 /** Where the invitation stands, with the actions the funder may take. `canAct` is admin or finance. */
-export function InvitationPanel({ award, invitation, canAct, onChanged }: { award: AwardDetail; invitation: AwardInvitation; canAct: boolean; onChanged: () => void }) {
+export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, onMail, onChanged }: { award: AwardDetail; invitation: AwardInvitation; canAct: boolean; canWithdraw: boolean; mail: MailNote; onMail: (note: MailNote) => void; onChanged: () => void }) {
   const [dialog, setDialog] = useState<"address" | "withdraw" | null>(null);
   const resend = useApiMutation((api) => api.resendInvitation(award.id));
-  const [resent, setResent] = useState(false);
+  // The award is saved either way; "failed" means the email did not go out and the funder should resend.
+  // Held by the page, because reloading the award rebuilds this panel.
+  const unsent = mail === "failed";
+  const resent = mail === "sent";
   const name = award.recipient?.name ?? "the organization";
   const open = award.status === "offered" && invitation.status !== "accepted" && invitation.status !== "revoked";
   // Resend is refused once the invitation is accepted, declined or withdrawn.
@@ -138,7 +145,14 @@ export function InvitationPanel({ award, invitation, canAct, onChanged }: { awar
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {resend.error !== null && <ErrorBanner error={resend.error} title={limited ? "Too many invitations today" : "The invitation was not sent"} />}
-        {resent && <div role="status"><Notice tone="ok" title="Invitation sent again">A new link is on its way to {invitation.email}. The earlier link no longer works.</Notice></div>}
+        {unsent && (
+          <div role="alert">
+            <Notice tone="warn" title="The award was saved, but the email could not be sent">
+              {name} has not been told yet. Choose Resend invitation to try again{canAct ? "" : ", or ask a workspace admin or finance member to"}.
+            </Notice>
+          </div>
+        )}
+        {resent && !unsent && <div role="status"><Notice tone="ok" title="Invitation sent again">A new link is on its way to {invitation.email}. The earlier link no longer works.</Notice></div>}
         <p>
           <Mail className="ic" aria-hidden="true" style={{ verticalAlign: "-3px", marginRight: "6px" }} />
           {WHAT_NEXT[invitation.status](name, invitation)}
@@ -159,9 +173,10 @@ export function InvitationPanel({ award, invitation, canAct, onChanged }: { awar
                 className="btn btn-secondary"
                 disabled={resend.state === "saving"}
                 onClick={async () => {
-                  setResent(false);
-                  if (await resend.run()) {
-                    setResent(true);
+                  onMail(null);
+                  const sent = await resend.run();
+                  if (sent) {
+                    onMail(sent.emailed ? "sent" : "failed");
                     onChanged();
                   }
                 }}
@@ -175,10 +190,12 @@ export function InvitationPanel({ award, invitation, canAct, onChanged }: { awar
                 Change address…
               </button>
             )}
-            <button type="button" className="btn btn-danger" onClick={() => setDialog("withdraw")}>
-              <Ban className="ic" aria-hidden="true" />
-              Withdraw…
-            </button>
+            {canWithdraw && (
+              <button type="button" className="btn btn-danger" onClick={() => setDialog("withdraw")}>
+                <Ban className="ic" aria-hidden="true" />
+                Withdraw…
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -186,9 +203,9 @@ export function InvitationPanel({ award, invitation, canAct, onChanged }: { awar
         <ChangeAddressDialog
           award={award}
           onClose={() => setDialog(null)}
-          onDone={() => {
+          onDone={(emailed) => {
             setDialog(null);
-            setResent(true);
+            onMail(emailed ? "sent" : "failed");
             onChanged();
           }}
         />
