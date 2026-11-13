@@ -115,9 +115,10 @@ export default function SignIn() {
     const needsMfa = !me.mfaVerified && (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa));
     if (needsMfa) return setStep("mfa");
     if (me.workspaces.length === 0 && !next) {
-      if (as === "funder") return navigate("/onboarding/funder/organization", { replace: true });
-      if (as === "grantee") return navigate("/onboarding/applicant?start=email", { replace: true });
-      return setStep("first-run");
+      if (as === "funder") navigate("/onboarding/funder/organization", { replace: true });
+      else if (as === "grantee") navigate("/onboarding/applicant?start=email", { replace: true });
+      else setStep("first-run");
+      return;
     }
     // Someone whose only job here is reviewing works in the reviewer portal, not the funder workspace.
     const first = me.workspaces[0]!;
