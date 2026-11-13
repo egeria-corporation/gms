@@ -428,3 +428,52 @@ describe("what never leaves the invitation", () => {
     expect(redactString(`claim ${token}`)).toBe("claim gms_awi_[REDACTED]");
   });
 });
+
+describe("over MCP", () => {
+  const rpc = async (token: string, name: string, args: Record<string, unknown>) => {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) });
+    return ((await res.json()) as { result: { isError: boolean; structuredContent: Record<string, unknown> } }).result;
+  };
+  const args = { organizationName: "Alder Creek Family Services", contactEmail: INVITED, title: "Emergency operating support", amount: { value: "25000.00", currency: "USD" } };
+
+  it("a funder agent's request always waits for a person, then runs as that person", async () => {
+    const agent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "awards:read awards:write approvals:bypass", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-mcp-direct" });
+    const out = await rpc(agent, "create_direct_award", args);
+    expect(out.structuredContent).toMatchObject({ status: "pending_approval" });
+    expect(await h.repos.table("awards").count({})).toBe(0);
+    expect(h.mailer.sent).toHaveLength(0);
+    const approvalId = (out.structuredContent as { approvalId: string }).approvalId;
+    // A program officer may write awards but may not give one directly: approving fails, nothing is sent.
+    const officer = await funderAs(USER_OFFICER);
+    const byOfficer = await call<{ data: { status: string } }>(officer, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(byOfficer.body.data).toMatchObject({ status: "failed", error: "This needs one of these roles: admin, finance" });
+    expect(h.mailer.sent).toHaveLength(0);
+  });
+
+  it("the admin's approval creates the award and sends the invitation", async () => {
+    const agent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "awards:read awards:write", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-mcp-direct-2" });
+    const out = await rpc(agent, "create_direct_award", args);
+    const approvalId = (out.structuredContent as { approvalId: string }).approvalId;
+    const ok = await call<{ data: { status: string } }>(admin, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.status).toBe("executed");
+    expect(await h.repos.table("award_invitations").count({})).toBe(1);
+    expect(h.mailer.sent.at(-1)!.to).toEqual([INVITED]);
+    // The request is ledgered with the address masked; only the approval keeps it, to send the email.
+    const requested = h.ledger.events.find((e) => e.eventType === "approval.requested")!;
+    expect(requested.data).toMatchObject({ tool: "create_direct_award", input: { contactEmail: "j…@aldercreek.example" } });
+    expect(JSON.stringify(h.ledger.events)).not.toContain(INVITED);
+    // The input rules hold over MCP too.
+    const linked = await rpc(agent, "create_direct_award", { ...args, message: "See https://example.org" });
+    const linkedId = (linked.structuredContent as { approvalId: string }).approvalId;
+    const refused = await call<{ data: { status: string } }>(admin, "POST", `/gms/approvals/${linkedId}/decision`, { approve: true }, WS_FUNDER);
+    expect(refused.body.data).toMatchObject({ status: "failed", error: "The request is not valid" });
+    expect(await h.repos.table("award_invitations").count({})).toBe(1);
+  });
+
+  it("no agent tool accepts or declines on the grantee's behalf", async () => {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${await h.forge({ sub: USER_GRANTEE, client_id: CLIENT_AGENT, scope: "awards:read awards:write", [WORKSPACE_CLAIM]: WS_APPLICANT, jti: "tok-mcp-grantee" })}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    const names = ((await res.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+    expect(names.filter((n) => /invitation|claim|direct/.test(n))).toEqual([]);
+  });
+});

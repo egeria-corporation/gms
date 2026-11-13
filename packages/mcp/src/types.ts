@@ -40,6 +40,8 @@ export interface ToolSpec<S extends string = string, I extends z.ZodObject = z.Z
   input: I;
   /** Gated by default (human approval required for agents). */
   gated: boolean;
+  /** How the input is written to the ledger, when it holds something the ledger must not (an email address). The approval keeps the full input to run. */
+  ledgerInput?: (input: Record<string, unknown>) => Record<string, unknown>;
 }
 
 export interface ToolDefinition extends ToolSpec {
