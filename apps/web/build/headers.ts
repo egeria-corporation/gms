@@ -36,13 +36,16 @@ const PICKER = {
 
 /**
  * What the Userback feedback widget adds, only when VITE_USERBACK_TOKEN is set. One list per
- * directive so each is easy to adjust. Images already allow any https origin; `frame-src` and
- * 'unsafe-inline' are deliberately left alone until tuned against the live site.
+ * directive so each is easy to adjust. Images already allow any https origin; `frame-src` stays
+ * 'none'. Checked against gms.opengrants.io on 2026-11-13: the widget positions its button with
+ * inline <style> elements, and without 'unsafe-inline' for styles the button fell to the bottom of
+ * the page instead of the corner. Scripts stay strict ('self' plus static.userback.io only); the app
+ * itself sets styles through React, which this directive never blocked.
  */
 export const USERBACK = {
   script: ["https://static.userback.io"],
   connect: ["https://api.userback.io", "https://events.userback.io", "https://static.userback.io"],
-  style: ["https://static.userback.io"],
+  style: ["https://static.userback.io", "'unsafe-inline'"],
   font: ["https://static.userback.io"],
 };
 export const userbackConfigured = (token: string | undefined): boolean => !!token?.trim();
