@@ -97,7 +97,7 @@ async function handle(c: C, ctx: CallContext, req: RpcRequest): Promise<unknown 
       return rpcResult(req.id, {
         protocolVersion: (PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false }, resources: { subscribe: false, listChanged: false }, prompts: { listChanged: false } },
-        serverInfo: { name: "opengrants-gms", title: "OpenGrants GMS", version: "1.1.0" },
+        serverInfo: { name: "opengrants-gms", title: "OpenGrants GMS", version: "1.2.0" },
         instructions: `You are connected to a ${ctx.workspaceKind} workspace on OpenGrants GMS. Some tools need a person's approval: they return { status: "pending_approval", approvalId, url }; poll get_approval. The GMS never shows bank or identity numbers.`,
       });
     }

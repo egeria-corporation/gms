@@ -96,6 +96,7 @@ export class Dispatcher {
       return fail({ code: "invalid_input", message: "Input failed validation.", issues: parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })) });
     }
     const input = parsed.data;
+    const recorded = tool.ledgerInput ? tool.ledgerInput(input as Record<string, unknown>) : input;
 
     const policy = (await this.deps.gatePolicy?.({ workspaceId: ctx.workspaceId, clientId: ctx.clientId })) ?? {};
     const occurredAt = this.now().toISOString();
@@ -113,18 +114,18 @@ export class Dispatcher {
         createdAt: occurredAt,
       };
       await this.deps.approvals.create(approval);
-      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "approval.requested", subjectType: "approval", subjectId: approval.id, data: { tool: name, input }, occurredAt });
+      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "approval.requested", subjectType: "approval", subjectId: approval.id, data: { tool: name, input: recorded }, occurredAt });
       await this.deps.events?.emit({ type: "approval.requested", workspaceId: ctx.workspaceId, data: { approvalId: approval.id, tool: name, requestedBy: approval.requestedBy } });
       return { ok: true, pending: { status: "pending_approval", approvalId: approval.id, url: this.approvalUrl(approval.id) } };
     }
 
     try {
       const result = await this.run(tool, actor, input);
-      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "mcp.tool.called", subjectType: "tool", subjectId: name, data: { input, outcome: "ok" }, occurredAt });
+      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "mcp.tool.called", subjectType: "tool", subjectId: name, data: { input: recorded, outcome: "ok" }, occurredAt });
       return { ok: true, result };
     } catch (e) {
       const error = serviceFailure(e);
-      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "mcp.tool.called", subjectType: "tool", subjectId: name, data: { input, outcome: "error", code: error.code }, occurredAt });
+      await this.deps.ledger.append({ workspaceId: ctx.workspaceId, actor: actor.actor, eventType: "mcp.tool.called", subjectType: "tool", subjectId: name, data: { input: recorded, outcome: "error", code: error.code }, occurredAt });
       return fail(error);
     }
   }

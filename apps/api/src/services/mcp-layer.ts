@@ -15,6 +15,7 @@ import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
 import * as collab from "./collaboration.ts";
 import * as decisions from "./decisions.ts";
+import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
 import * as forms from "./forms.ts";
@@ -47,7 +48,7 @@ export async function contextFor(base: ContextBase, actor: McpActor): Promise<Se
 function toServiceError(e: unknown): never {
   if (e instanceof ApiError) {
     const issues = e.details.map((x) => ({ field: x.field ?? "", message: x.detail ?? x.code }));
-    const code = e.status === 404 ? "not_found" : e.status === 403 || e.status === 401 ? "forbidden" : e.status === 409 ? "conflict" : e.status === 400 || e.status === 422 || e.status === 413 ? "invalid_input" : null;
+    const code = e.status === 404 ? "not_found" : e.status === 403 || e.status === 401 ? "forbidden" : e.status === 409 || e.status === 429 ? "conflict" : e.status === 400 || e.status === 422 || e.status === 413 ? "invalid_input" : null;
     if (code) throw new ServiceError(code, e.message, issues.length ? issues : undefined);
   }
   throw e;
@@ -113,6 +114,13 @@ const IMPLEMENTED: Impl = {
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
   listAwards: (ctx, i) => awards.listAwards(ctx, paged(i), { status: i.status?.join(","), programId: i.programId, recipientWorkspaceId: i.recipientWorkspaceId }),
   getAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "funder"),
+  // Gated for every agent: this runs only after a person approved the call, as that person, and the
+  // service checks the input with the same schema as the REST route.
+  createDirectAward: (ctx, i) => {
+    const input = directAwards.directAwardInput.safeParse({ recipient: { organizationName: i.organizationName, contactEmail: i.contactEmail }, title: i.title, amount: i.amount, startDate: i.startDate, endDate: i.endDate, programId: i.programId, message: i.message });
+    if (!input.success) throw new ApiError(400, "bad_request", "The request is not valid", input.error.issues.map((x) => ({ code: "invalid_field", field: x.path.map(String).join("."), detail: x.message })));
+    return directAwards.createDirectAward(ctx, input.data);
+  },
   createAwardFromApplication: (ctx, i) => decisions.createAwardFromApplication(ctx, app(i.applicationId), { amountMinor: i.amountMinor, currency: i.currency, startDate: i.startDate, endDate: i.endDate, conditions: i.conditions }),
   amendAward: (ctx, i) => awards.requestAmendment(ctx, awd(i.awardId), { type: i.type, request: i.request, reason: i.reason }),
   closeAward: (ctx, i) => (i.outcome === "completed" ? awards.completeAward(ctx, awd(i.awardId)) : awards.cancelAward(ctx, awd(i.awardId), { reason: i.reason?.trim() || "Cancelled" })),

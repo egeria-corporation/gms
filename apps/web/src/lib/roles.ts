@@ -16,3 +16,12 @@ export function hiddenFunderRailItems(role: string): ReadonlySet<string> {
   if (READ_ONLY.has(role)) return new Set(["Communications", "Approvals", "Settings"]);
   return new Set();
 }
+
+/** Who may give an award directly: it needs the awards:write scope, so admin and program officer. */
+export const canGiveDirectAward = (role: string): boolean => role === "admin" || role === "program_officer";
+
+/** Who may resend or redirect an invitation already given: the givers, and finance, which follows up on awards. */
+export const canResendInvitation = (role: string): boolean => canGiveDirectAward(role) || role === "finance";
+
+/** Who may cancel (withdraw) an award: cancel keeps its own roles, the same two as giving one. */
+export const canCancelAward = (role: string): boolean => role === "admin" || role === "program_officer";

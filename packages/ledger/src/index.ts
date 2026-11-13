@@ -101,13 +101,16 @@ export interface LedgerOptions {
   newId?: () => string;
 }
 
-/** Validate and append one event. Returns the stored event so callers can fan it out to webhooks. */
-export async function record(store: LedgerStore, entry: LedgerEntry, opts: LedgerOptions = {}): Promise<LedgerEvent> {
+/**
+ * Validate one event and give it its id and time, without storing it. For a caller that writes the
+ * event in the same database transaction as the change it records; everyone else uses `record`.
+ */
+export function ledgerEvent(entry: LedgerEntry, opts: LedgerOptions = {}): LedgerEvent {
   if (!EVENT_TYPE.test(entry.eventType)) throw new Error(`invalid ledger event type: ${entry.eventType}`);
   if (!entry.subjectType || !entry.subjectId) throw new Error("ledger events need a subject");
   const data = entry.data ?? {};
   assertNoSensitiveKeys(data);
-  const event: LedgerEvent = {
+  return {
     id: (opts.newId ?? (() => crypto.randomUUID()))(),
     workspaceId: entry.workspaceId,
     actor: formatActor(entry.actor),
@@ -117,6 +120,11 @@ export async function record(store: LedgerStore, entry: LedgerEntry, opts: Ledge
     data,
     occurredAt: (opts.now ?? (() => new Date()))().toISOString(),
   };
+}
+
+/** Validate and append one event. Returns the stored event so callers can fan it out to webhooks. */
+export async function record(store: LedgerStore, entry: LedgerEntry, opts: LedgerOptions = {}): Promise<LedgerEvent> {
+  const event = ledgerEvent(entry, opts);
   await store.append(event);
   return event;
 }
@@ -150,7 +158,7 @@ export class MemoryLedgerStore implements LedgerStore {
   }
 }
 
-interface LedgerRow {
+export interface LedgerRow {
   id: string;
   workspace_id: string | null;
   actor: string;
@@ -167,6 +175,9 @@ export interface LedgerDb {
   from(table: "ledger_events"): any;
 }
 
+/** An event as a `ledger_events` row, for a database function that writes it in its own transaction. */
+export const ledgerRow = (e: LedgerEvent): LedgerRow => ({ id: e.id, workspace_id: e.workspaceId, actor: e.actor, event_type: e.eventType, subject_type: e.subjectType, subject_id: e.subjectId, data: e.data, occurred_at: e.occurredAt });
+
 const toEvent = (r: LedgerRow): LedgerEvent => ({
   id: r.id,
   workspaceId: r.workspace_id,
@@ -182,17 +193,7 @@ export class SupabaseLedgerStore implements LedgerStore {
   constructor(private readonly db: LedgerDb) {}
 
   async append(e: LedgerEvent): Promise<void> {
-    const row: LedgerRow = {
-      id: e.id,
-      workspace_id: e.workspaceId,
-      actor: e.actor,
-      event_type: e.eventType,
-      subject_type: e.subjectType,
-      subject_id: e.subjectId,
-      data: e.data,
-      occurred_at: e.occurredAt,
-    };
-    const { error } = await this.db.from("ledger_events").insert(row);
+    const { error } = await this.db.from("ledger_events").insert(ledgerRow(e));
     if (error) throw new Error(`ledger append failed: ${error.message}`);
   }
 

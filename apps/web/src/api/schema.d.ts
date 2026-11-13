@@ -1058,6 +1058,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/award-invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Accept for an applicant workspace. 403 `email_mismatch` unless signed in with the invited
+         *     address, 403 `not_workspace_admin`, 403 `mfa_required` without the admin role's second step,
+         *     410 `invitation_expired` or `invitation_revoked`, 409 `invitation_used`. One step attaches the
+         *     award, records the organization's consent (basis `award`) and accepts it; the Passport mirror
+         *     follows as for any accepted award. Signer rules as for `acceptOffer`.
+         */
+        post: operations["AwardInvitations_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/award-invitations/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Decline as the invited person. The funder is told and decides whether to withdraw the award.
+         *     The reason is emailed to the funder's staff, so it is plain text and may not contain a web or
+         *     email address (400).
+         */
+        post: operations["AwardInvitations_decline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/award-invitations/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer)
+         *     a link. The email's link carries the token in its fragment (`/awards/claim#token=…`), which
+         *     no browser sends to a server.
+         */
+        post: operations["AwardInvitations_lookup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/awards": {
         parameters: {
             query?: never;
@@ -1069,6 +1134,37 @@ export interface paths {
         put?: never;
         /** @description Create an award for an accepted application that has none. */
         post: operations["Awards_createFromApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/awards/direct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Give an award directly to an organization that has not applied, by its name and a contact
+         *     email. The award is created `offered` with no recipient workspace; the contact is emailed a
+         *     link and the award is attached only when they accept it, signed in with that address, for an
+         *     applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
+         *     (as for an award from an application), people only (an agent's request waits for a person's
+         *     approval). Invitation emails, new and resent, are limited over rolling windows, each with
+         *     its own 429: per funder workspace 25 a day, 10 for a funder not verified with Passport at L1
+         *     or above (`too_many_invitations`); per person across workspaces 25 a day
+         *     (`too_many_invitations_from_you`); per network address 50 a day
+         *     (`too_many_invitations_from_network`); per invited address 3 a week across funders
+         *     (`too_many_invitations_to_recipient`); for the whole service 500 a day
+         *     (`invitations_paused`). 422 `funder_name_looks_like_link` when the funder's name would read as
+         *     a link. 503 `mail_not_configured` creates nothing.
+         */
+        post: operations["Awards_createDirect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1223,6 +1319,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Cancelling a direct award not yet accepted also revokes its invitation. */
         post: operations["Awards_cancel"];
         delete?: never;
         options?: never;
@@ -1290,6 +1387,28 @@ export interface paths {
         get: operations["Insights_awardDocuments"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/awards/{id}/invitation/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Send a direct award's invitation again with a new link (the old one stops working), to a new
+         *     address when `contactEmail` is given. Funder `admin`, `program_officer` or `finance`, people
+         *     only. Counts against the daily limits. 409 `invitation_closed` once it was accepted, declined or
+         *     withdrawn.
+         */
+        post: operations["Awards_resendInvitation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9291,8 +9410,12 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
             };
+            /**
+             * @description The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+             *     organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+             */
             recipient: {
-                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
                 /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
                 /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
@@ -9300,7 +9423,9 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"] | null;
+                /** @description For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+                invitation?: components["schemas"]["Models.AwardInvitationSummary"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -9980,6 +10105,87 @@ export interface components {
             agreementId: (string & components["schemas"]["Models.PrefixedId"]) | null;
             status: components["schemas"]["Models.AwardStatus"];
         };
+        "Models.AwardInvitationAcceptInput": {
+            token: string;
+            /** @description An applicant workspace where the signed-in person is an admin */
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Required when Passport lists verified representatives for the organization; it must be one of theirs. */
+            name?: string;
+        };
+        "Models.AwardInvitationAccepted": {
+            awardId: components["schemas"]["Models.PrefixedId"];
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+        };
+        "Models.AwardInvitationDeclineInput": {
+            token: string;
+            reason?: string;
+        };
+        "Models.AwardInvitationDeclined": {
+            /** @enum {string} */
+            status: "declined";
+        };
+        "Models.AwardInvitationLookup": {
+            /** @enum {string} */
+            status: "pending" | "accepted" | "declined" | "expired" | "revoked";
+            funder: {
+                /** @description The Passport legal name when the funder's workspace is linked to Passport, else the workspace's name */
+                name: string;
+                /** @description The workspace's own name, when it differs from the Passport legal name in `name` */
+                workspaceName: string | null;
+                handle: string;
+                verification: components["schemas"]["Models.Verification"];
+                /** @description Linked to Passport at L1 or above. When false, show that the funder is not verified with Passport. */
+                verified: boolean;
+            };
+            award: {
+                title: string;
+                amount: {
+                    value: string;
+                    currency: string;
+                } | null;
+                /** Format: date */
+                startDate: string | null;
+                /** Format: date */
+                endDate: string | null;
+                message: string | null;
+            };
+            /** @description As the funder typed it */
+            organizationName: string;
+            /** @description Masked: `j…@example.org` */
+            invitedEmail: string;
+            /** @description Whether the signed-in person's address is the invited one */
+            emailMatches: boolean;
+            /** @description Applicant workspaces where the signed-in person is an admin (empty unless pending and the address matches) */
+            workspaces: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string;
+                verification: components["schemas"]["Models.Verification"];
+            }[];
+        };
+        /**
+         * @description Where a directly given award's invitation stands. `expired` is computed from `expiresAt`.
+         * @enum {string}
+         */
+        "Models.AwardInvitationStatus": "sent" | "accepted" | "declined" | "expired" | "revoked";
+        "Models.AwardInvitationSummary": {
+            /** @description The invited address, masked: `j…@example.org` */
+            email: string;
+            status: components["schemas"]["Models.AwardInvitationStatus"];
+            /**
+             * Format: date-time
+             * @description When the current link was sent
+             */
+            sentAt: string;
+            /**
+             * Format: date-time
+             * @description When the current link stops working (14 days after it was sent)
+             */
+            expiresAt: string;
+        };
+        /** @description The invitation token from the link, always in the body (never in a path or query string). */
+        "Models.AwardInvitationTokenInput": {
+            token: string;
+        };
         "Models.AwardRequirement": {
             id: components["schemas"]["Models.PrefixedId"];
             /** @enum {string} */
@@ -10582,6 +10788,112 @@ export interface components {
         "Models.DeletedResult": {
             deleted: boolean;
         };
+        /**
+         * @description `POST /gms/awards/direct`: an award for an organization that has not applied. Nothing is looked
+         *     up by the name; the award is attached only when the invited person accepts it. The organization
+         *     name, the title and the message are plain text and may not contain web or email addresses.
+         */
+        "Models.DirectAwardInput": {
+            recipient: {
+                organizationName: string;
+                /** @description The person who will accept for the organization. They sign in with this address. */
+                contactEmail: string;
+            };
+            title: string;
+            amount: {
+                /** @description A decimal string, e.g. `25000.00` */
+                value: string;
+                /** @enum {string} */
+                currency: "USD";
+            };
+            /**
+             * Format: date
+             * @description Give both or neither
+             */
+            startDate?: string;
+            /** Format: date */
+            endDate?: string;
+            programId?: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Plain text for the email */
+            message?: string;
+        };
+        /** @description The funder's award view after an invitation was created or resent. */
+        "Models.DirectAwardView": {
+            id: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            description: string | null;
+            status: components["schemas"]["Models.AwardStatus"];
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /**
+             * Format: int64
+             * @description The value last read from Passport; never computed in the GMS. Null until Passport reports one.
+             */
+            disbursedAmountMinor: number | null;
+            /**
+             * Format: date-time
+             * @description When `disbursedAmountMinor` was last read from Passport
+             */
+            disbursedAt: string | null;
+            /** @description CommonGrants `AwdTimeline` */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            conditions: string[];
+            applicationId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            opportunityId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            programId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            parentAwardId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+            funder: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string | null;
+                handle: string | null;
+                brand: {
+                    [key: string]: unknown;
+                } | null;
+            };
+            /**
+             * @description The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+             *     organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+             */
+            recipient: {
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
+                name: string | null;
+                /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
+                workspaceName?: string | null;
+                handle: string | null;
+                /** @description The recipient's current Passport level, while their consent stands */
+                level: string | null;
+                verification: components["schemas"]["Models.Verification"] | null;
+                /** @description For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+                invitation?: components["schemas"]["Models.AwardInvitationSummary"];
+            } | null;
+            recipientIndividual: {
+                [key: string]: unknown;
+            } | null;
+            passport: {
+                /** @description The mirrored award in Passport, set after acceptance */
+                awardId: string | null;
+                /** Format: date-time */
+                syncedAt: string | null;
+                /** @enum {string} */
+                mirror: "synced" | "pending" | "not_applicable" | "disabled";
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            agreement: components["schemas"]["Models.AgreementSummary"] | null;
+            tranches: components["schemas"]["Models.AwardTranche"][];
+            requirements: components["schemas"]["Models.AwardRequirement"][];
+            amendments: components["schemas"]["Models.Amendment"][];
+            /** @description False when the email could not be sent; the invitation stands and can be resent. */
+            emailed: boolean;
+        };
         "Models.DirectoryPersonSuggestion": {
             email: string;
             name: string | null;
@@ -10983,8 +11295,12 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
             };
+            /**
+             * @description The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+             *     organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+             */
             recipient: {
-                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
                 /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
                 /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
@@ -10992,7 +11308,9 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"] | null;
+                /** @description For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+                invitation?: components["schemas"]["Models.AwardInvitationSummary"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11047,8 +11365,12 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
             };
+            /**
+             * @description The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+             *     organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+             */
             recipient: {
-                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
                 /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
                 /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
@@ -11056,7 +11378,9 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"] | null;
+                /** @description For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+                invitation?: components["schemas"]["Models.AwardInvitationSummary"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -11839,8 +12163,12 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
             };
+            /**
+             * @description The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+             *     organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+             */
             recipient: {
-                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
                 /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
                 name: string | null;
                 /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
@@ -11848,7 +12176,9 @@ export interface components {
                 handle: string | null;
                 /** @description The recipient's current Passport level, while their consent stands */
                 level: string | null;
-                verification: components["schemas"]["Models.Verification"];
+                verification: components["schemas"]["Models.Verification"] | null;
+                /** @description For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+                invitation?: components["schemas"]["Models.AwardInvitationSummary"];
             } | null;
             recipientIndividual: {
                 [key: string]: unknown;
@@ -12827,6 +13157,10 @@ export interface components {
             funder?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** @description `POST /gms/awards/{id}/invitation/resend`. A new address replaces the old one. */
+        "Models.ResendInvitationInput": {
+            contactEmail?: string;
         };
         "Models.Review": {
             id: components["schemas"]["Models.PrefixedId"];
@@ -17038,6 +17372,240 @@ export interface operations {
             };
         };
     };
+    AwardInvitations_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardInvitationAcceptInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardInvitationAccepted"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardInvitations_decline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardInvitationDeclineInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardInvitationDeclined"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardInvitations_lookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardInvitationTokenInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardInvitationLookup"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Awards_list_2: {
         parameters: {
             query?: {
@@ -17152,6 +17720,96 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Awards_createDirect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DirectAwardInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DirectAwardView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18084,6 +18742,107 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Awards_resendInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Models.ResendInvitationInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DirectAwardView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

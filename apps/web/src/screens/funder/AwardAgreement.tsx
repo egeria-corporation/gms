@@ -4,17 +4,20 @@
 // attesting, against the hash of the document that was sent. Payments stay on their own tab.
 import { useState } from "react";
 import { openBlob } from "../../lib/browser.ts";
-import { Link, useParams } from "react-router";
-import { Award as AwardIcon, Check, FileText, Hash, PenLine, Send } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router";
+import { Award as AwardIcon, Check, FileText, Hash, PenLine, Plus, Send } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Agreement, AwardDetail, AwardSummary } from "../../api/funder.ts";
+import { invitationOf } from "../../api/directAwards.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { canCancelAward, canGiveDirectAward, canResendInvitation } from "../../lib/roles.ts";
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
+import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPanels.tsx";
 import { dateTime } from "./shared.tsx";
 
 const STEPS: [Agreement["status"], string][] = [
@@ -233,6 +236,11 @@ function AgreementSignatures({ award, funderName }: { award: AwardDetail; funder
 export default function AwardAgreement() {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
+  const canGive = canGiveDirectAward(ws.member.role ?? "admin");
+  const canResend = canResendInvitation(ws.member.role ?? "admin");
+  const canWithdraw = canCancelAward(ws.member.role ?? "admin");
+  // Set by New award when the email could not be sent.
+  const [mail, setMail] = useState<MailNote>((useLocation().state as { emailed?: boolean } | null)?.emailed === false ? "failed" : null);
   const { awardId } = useParams();
   const awards = useApiQuery((api) => api.listAwards(), []);
   const programs = useApiQuery((api) => api.listPrograms(), []);
@@ -251,6 +259,9 @@ export default function AwardAgreement() {
     award.reload();
     awards.reload();
   };
+  const invitation = award.data ? invitationOf(award.data) : null;
+  // Until the organization accepts there is no agreement, schedule or payment to show.
+  const awaitingAcceptance = invitation !== null && invitation.status !== "accepted";
 
   return (
     <>
@@ -260,6 +271,14 @@ export default function AwardAgreement() {
           <PageHeader
             crumbs={[{ label: ws.name, to: base }, { label: "Awards" }]}
             title="Awards"
+            actions={
+              canGive && (
+                <Link to={`${base}/awards/new`} className="btn btn-primary">
+                  <Plus className="ic" aria-hidden="true" />
+                  New award
+                </Link>
+              )
+            }
             meta={
               <span>
                 {awards.data?.length === 1 ? "1 award" : `${awards.data?.length ?? 0} awards`} · {formatMinor(total)} awarded
@@ -270,7 +289,7 @@ export default function AwardAgreement() {
           {awards.status === "error" && <ErrorBanner error={awards.error} onRetry={awards.reload} />}
           {awards.status === "ready" && awards.data.length === 0 && (
             <EmptyState icon={AwardIcon} title="No awards yet">
-              An award is created when a panel decision to approve is committed.
+              An award is created when a panel decision to approve is committed, or you can give one directly to an organization that has not applied.
             </EmptyState>
           )}
           {awards.status === "ready" && awards.data.length > 0 && (
@@ -297,7 +316,11 @@ export default function AwardAgreement() {
                             {a.recipient?.name ?? "Recipient"}
                           </Link>
                           <div className="sub">
-                            <VerificationBadge verification={a.recipient?.verification} level={a.recipient?.level} />
+                            {invitationOf(a) && invitationOf(a)!.status !== "accepted" ? (
+                              <InvitationBadge invitation={invitationOf(a)!} />
+                            ) : (
+                              <VerificationBadge verification={a.recipient?.verification} level={a.recipient?.level} />
+                            )}
                             <WorkspaceName name={a.recipient?.workspaceName} />
                           </div>
                         </div>
@@ -328,7 +351,7 @@ export default function AwardAgreement() {
                       <span className="b" style={{ color: "#0D2A43" }}>
                         {award.data.recipient?.name}
                       </span>
-                      <VerificationBadge verification={award.data.recipient?.verification} level={award.data.recipient?.level} />
+                      {invitation && invitation.status !== "accepted" ? <InvitationBadge invitation={invitation} /> : <VerificationBadge verification={award.data.recipient?.verification} level={award.data.recipient?.level} />}
                       <WorkspaceName name={award.data.recipient?.workspaceName} />
                       <StatusBadge kind="award" status={award.data.status} />
                     </div>
@@ -340,9 +363,11 @@ export default function AwardAgreement() {
                         Application
                       </Link>
                     )}
-                    <Link to={`${base}/awards/${award.data.id}/payments`} className="btn btn-secondary">
-                      Payments
-                    </Link>
+                    {!awaitingAcceptance && (
+                      <Link to={`${base}/awards/${award.data.id}/payments`} className="btn btn-secondary">
+                        Payments
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
@@ -368,8 +393,15 @@ export default function AwardAgreement() {
               </div>
               <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((t) => ["due", "ready", "held"].includes(t.status)).length }} />
               <TabPanel idPrefix="award" tab="agreement" active={tab}>
-                <AgreementPanel award={award.data} onChanged={reload} />
-                <AgreementSignatures award={award.data} funderName={ws.name} />
+                {invitation && invitation.status !== "accepted" ? (
+                  <InvitationPanel award={award.data} invitation={invitation} canAct={canResend} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />
+                ) : (
+                  <>
+                    {invitation && <InvitationPanel award={award.data} invitation={invitation} canAct={canResend} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />}
+                    <AgreementPanel award={award.data} onChanged={reload} />
+                    <AgreementSignatures award={award.data} funderName={ws.name} />
+                  </>
+                )}
               </TabPanel>
               <TabPanel idPrefix="award" tab="amendments" active={tab}>
                 <Amendments award={award.data} onChanged={reload} />

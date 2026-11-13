@@ -30,6 +30,7 @@ import { seedStore, type Store, type WorkspaceData } from "./store.ts";
 import { createMockFunderApi } from "./funder.ts";
 import { createMockFunderMoneyApi } from "./funderMoney.ts";
 import { createMockFunderFullApi } from "./funderFull.ts";
+import { createMockDirectAwardsApi } from "./directAwards.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -219,6 +220,13 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
 
   const funderCtx = { ws, now, fail: (status: number, message: string, errors: unknown[] = []) => new ApiError(status, message, errors) };
   const funderMocks = { ...createMockFunderApi(funderCtx), ...createMockFunderMoneyApi(funderCtx) };
+
+  const funderFull = createMockFunderFullApi(funderCtx, funderMocks);
+  const applicantInfo = (workspaceId: string) => {
+    const r = store.workspaces.find((w) => w.record.id === workspaceId)?.record ?? fixtureApplicantRecord(workspaceId);
+    return r ? { name: r.displayName, handle: r.handle, verification: verificationOfRecord(r) } : null;
+  };
+  const directAwards = createMockDirectAwardsApi({ ...funderCtx, me, applicantInfo }, { ...funderMocks, ...funderFull });
 
   return {
     me,
@@ -552,7 +560,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     },
 
     ...funderMocks,
-    ...createMockFunderFullApi(funderCtx, funderMocks),
+    ...funderFull,
+    ...directAwards,
 
     async evaluateEligibility(input) {
       const w = await ws();

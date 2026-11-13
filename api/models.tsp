@@ -1510,8 +1510,12 @@ model GmsAward {
     handle: string | null;
     brand: Record<unknown> | null;
   };
+  /**
+   * The recipient organization. A direct award not yet accepted has no workspace: `name` is the
+   * organization's name as the funder typed it, and `handle`, `level` and `verification` are null.
+   */
   recipient: {
-    workspaceId: CommonGrants.Types.uuid;
+    workspaceId: CommonGrants.Types.uuid | null;
 
     /** The Passport legal name for a Passport workspace, else the workspace's name. */
     name: string | null;
@@ -1524,7 +1528,10 @@ model GmsAward {
     /** The recipient's current Passport level, while their consent stands */
     level: string | null;
 
-    verification: Verification;
+    verification: Verification | null;
+
+    /** For an award given directly (`POST /gms/awards/direct`): where its invitation stands. */
+    invitation?: AwardInvitationSummary;
   } | null;
   recipientIndividual: Record<unknown> | null;
   passport: {
@@ -1544,6 +1551,143 @@ model GmsAwardDetail {
   tranches: AwardTranche[];
   requirements: AwardRequirement[];
   amendments: Amendment[];
+}
+
+/** Where a directly given award's invitation stands. `expired` is computed from `expiresAt`. */
+union AwardInvitationStatus {
+  "sent",
+  "accepted",
+  "declined",
+  "expired",
+  "revoked",
+}
+
+model AwardInvitationSummary {
+  /** The invited address, masked: `j…@example.org` */
+  email: string;
+
+  status: AwardInvitationStatus;
+
+  /** When the current link was sent */
+  sentAt: utcDateTime;
+
+  /** When the current link stops working (14 days after it was sent) */
+  expiresAt: utcDateTime;
+}
+
+/**
+ * `POST /gms/awards/direct`: an award for an organization that has not applied. Nothing is looked
+ * up by the name; the award is attached only when the invited person accepts it. The organization
+ * name, the title and the message are plain text and may not contain web or email addresses.
+ */
+model DirectAwardInput {
+  recipient: {
+    @minLength(1) @maxLength(200) organizationName: string;
+
+    /** The person who will accept for the organization. They sign in with this address. */
+    @maxLength(320) contactEmail: string;
+  };
+  @minLength(1) @maxLength(300) title: string;
+  amount: {
+    /** A decimal string, e.g. `25000.00` */
+    @pattern("^(?:0|[1-9][0-9]{0,12})(?:\\.[0-9]{1,2})?$") value: string;
+
+    currency: "USD";
+  };
+
+  /** Give both or neither */
+  startDate?: plainDate;
+
+  endDate?: plainDate;
+  programId?: CommonGrants.Types.uuid;
+
+  /** Plain text for the email */
+  @maxLength(2000) message?: string;
+}
+
+/** The funder's award view after an invitation was created or resent. */
+model DirectAwardView {
+  ...GmsAwardDetail;
+
+  /** False when the email could not be sent; the invitation stands and can be resent. */
+  emailed: boolean;
+}
+
+/** `POST /gms/awards/{id}/invitation/resend`. A new address replaces the old one. */
+model ResendInvitationInput {
+  @maxLength(320) contactEmail?: string;
+}
+
+/** The invitation token from the link, always in the body (never in a path or query string). */
+model AwardInvitationTokenInput {
+  @minLength(40) @maxLength(200) token: string;
+}
+
+model AwardInvitationLookup {
+  status: "pending" | "accepted" | "declined" | "expired" | "revoked";
+  funder: {
+    /** The Passport legal name when the funder's workspace is linked to Passport, else the workspace's name */
+    name: string;
+
+    /** The workspace's own name, when it differs from the Passport legal name in `name` */
+    workspaceName: string | null;
+
+    handle: string;
+    verification: Verification;
+
+    /** Linked to Passport at L1 or above. When false, show that the funder is not verified with Passport. */
+    verified: boolean;
+  };
+  award: {
+    title: string;
+    amount: {
+      value: string;
+      currency: string;
+    } | null;
+    startDate: plainDate | null;
+    endDate: plainDate | null;
+    message: string | null;
+  };
+
+  /** As the funder typed it */
+  organizationName: string;
+
+  /** Masked: `j…@example.org` */
+  invitedEmail: string;
+
+  /** Whether the signed-in person's address is the invited one */
+  emailMatches: boolean;
+
+  /** Applicant workspaces where the signed-in person is an admin (empty unless pending and the address matches) */
+  workspaces: {
+    id: CommonGrants.Types.uuid;
+    name: string;
+    verification: Verification;
+  }[];
+}
+
+model AwardInvitationAcceptInput {
+  ...AwardInvitationTokenInput;
+
+  /** An applicant workspace where the signed-in person is an admin */
+  workspaceId: CommonGrants.Types.uuid;
+
+  /** Required when Passport lists verified representatives for the organization; it must be one of theirs. */
+  @minLength(2) @maxLength(200) name?: string;
+}
+
+model AwardInvitationAccepted {
+  awardId: PrefixedId;
+  workspaceId: CommonGrants.Types.uuid;
+}
+
+model AwardInvitationDeclineInput {
+  ...AwardInvitationTokenInput;
+  @maxLength(2000) reason?: string;
+}
+
+model AwardInvitationDeclined {
+  status: "declined";
 }
 
 /** `POST /gms/my/awards/{id}/accept`: the award plus what happened with the Passport mirror. */

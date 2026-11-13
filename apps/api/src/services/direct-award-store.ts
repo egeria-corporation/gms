@@ -1,0 +1,252 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// The two database steps of a direct award that must be atomic (contract: direct awards):
+// counting an invitation email and creating the award with its invitation (one transaction), and
+// claiming an invitation (award, consent and invitation written in one transaction). In production both are
+// Postgres functions (migration 0028) run with the service role; the repository versions keep the
+// same rules for the in-memory tests and for one isolate.
+import { ledgerRow, type LedgerEvent, type LedgerStore } from "@gms/ledger";
+import type { RpcLike } from "../lib/rate-limit.ts";
+import type { OfferedAwardPlan } from "./awards.ts";
+import type { Insert, Repos } from "./repos/types.ts";
+
+const DAY_MS = 86_400_000;
+const WEEK_MS = 7 * DAY_MS;
+
+/** Which send limit a refused send reached. */
+export type SendLimitName = "workspace" | "sender" | "address" | "recipient" | "instance";
+
+/** What one invitation email is counted against. */
+export interface SendKey {
+  /** The funder workspace sending it. */
+  workspaceId: string;
+  /** The signed-in person sending it, across all their workspaces. */
+  senderId: string;
+  /** `addressKey` of the request (an IPv4 address or an IPv6 /64); null when unknown. */
+  addressKey: string | null;
+  /** base64url SHA-256 of the invited address, trimmed and in lower case. */
+  recipientDigest: string;
+}
+
+/** Most sends per key: per 24 hours, except `recipient`, per 7 days. */
+export interface SendLimits {
+  workspace: number;
+  sender: number;
+  address: number;
+  recipient: number;
+  instance: number;
+}
+
+export type SendClaim = { ok: true; sendId: string } | { ok: false; limit: SendLimitName };
+
+/** Invitation emails over rolling windows. `claim` checks every limit and counts, all in one step. */
+export interface InvitationLimiter {
+  /** Count one send against every key, or (at any limit) against none. */
+  claim(key: SendKey, limits: SendLimits, now: Date): Promise<SendClaim>;
+  /** Give back a count whose invitation was not sent. */
+  release(sendId: string, now: Date): Promise<void>;
+}
+
+/** One isolate's counts. Check and count happen with no await between them, so they cannot interleave. */
+export class MemoryInvitationLimiter implements InvitationLimiter {
+  private sends: (SendKey & { id: string; at: number })[] = [];
+  async claim(key: SendKey, limits: SendLimits, now: Date): Promise<SendClaim> {
+    const t = now.getTime();
+    this.sends = this.sends.filter((s) => s.at > t - 8 * DAY_MS);
+    const day = this.sends.filter((s) => s.at > t - DAY_MS);
+    const n = (pick: (s: SendKey) => boolean, list = day) => list.filter(pick).length;
+    if (n((s) => s.workspaceId === key.workspaceId) >= limits.workspace) return { ok: false, limit: "workspace" };
+    if (n((s) => s.senderId === key.senderId) >= limits.sender) return { ok: false, limit: "sender" };
+    if (key.addressKey && n((s) => s.addressKey === key.addressKey) >= limits.address) return { ok: false, limit: "address" };
+    if (n((s) => s.recipientDigest === key.recipientDigest, this.sends.filter((s) => s.at > t - WEEK_MS)) >= limits.recipient) return { ok: false, limit: "recipient" };
+    if (day.length >= limits.instance) return { ok: false, limit: "instance" };
+    const id = crypto.randomUUID();
+    this.sends.push({ ...key, id, at: t });
+    return { ok: true, sendId: id };
+  }
+  async release(sendId: string): Promise<void> {
+    this.sends = this.sends.filter((s) => s.id !== sendId);
+  }
+}
+
+const sendArgs = (key: SendKey, limits: SendLimits) => ({
+  p_workspace: key.workspaceId,
+  p_sender: key.senderId,
+  p_address: key.addressKey,
+  p_recipient: key.recipientDigest,
+  p_workspace_limit: limits.workspace,
+  p_sender_limit: limits.sender,
+  p_address_limit: limits.address,
+  p_recipient_limit: limits.recipient,
+  p_instance_limit: limits.instance,
+});
+
+const LIMIT_NAMES: readonly string[] = ["workspace", "sender", "address", "recipient", "instance"];
+export function readSendClaim(data: unknown): SendClaim {
+  const row = (data ?? {}) as { outcome?: unknown; sendId?: unknown };
+  if (row.outcome === "ok" && typeof row.sendId === "string") return { ok: true, sendId: row.sendId };
+  if (typeof row.outcome === "string" && LIMIT_NAMES.includes(row.outcome)) return { ok: false, limit: row.outcome as SendLimitName };
+  throw new Error("Counting award invitations returned an unexpected answer");
+}
+
+export class SupabaseInvitationLimiter implements InvitationLimiter {
+  constructor(private readonly client: RpcLike) {}
+  async claim(key: SendKey, limits: SendLimits): Promise<SendClaim> {
+    // The database's clock decides the windows; the counts and the insert happen under one lock.
+    const { data, error } = await this.client.rpc("gms_claim_award_invitation_send", sendArgs(key, limits));
+    if (error) throw new Error(`Counting award invitations failed: ${error.message}`);
+    return readSendClaim(data);
+  }
+  async release(sendId: string): Promise<void> {
+    const { error } = await this.client.rpc("gms_release_award_invitation_send", { p_send: sendId });
+    if (error) throw new Error(`Releasing an award invitation count failed: ${error.message}`);
+  }
+}
+
+export type ClaimOutcome = "claimed" | "not_found" | "used" | "revoked" | "expired" | "email_mismatch" | "not_workspace_admin" | "award_changed";
+
+export interface ClaimInput {
+  /** SHA-256 (base64url) of the token the person presented. */
+  tokenHash: string;
+  /** The applicant workspace the award goes to. */
+  workspaceId: string;
+  userId: string;
+  /** The address of the person's session. The database also checks the account's own confirmed address. */
+  email: string;
+  /** The award's CommonGrants status after `accept_offer`. */
+  cgStatus: string;
+  /** The id a consent made by this claim takes, so its ledger row can name it. */
+  consentId: string;
+  /** Written with the claim: `award.claimed` gets `consentId` (the consent made, or null). */
+  ledger: LedgerEvent[];
+  /** Written with the claim only when it made a consent. */
+  consentLedger: LedgerEvent[];
+}
+
+/** A direct award to create in one transaction: the award's rows, its invitation, their ledger entries and the send count. */
+export interface CreateInput {
+  plan: Pick<OfferedAwardPlan, "award" | "schedule" | "tranches" | "requirements">;
+  invitation: Insert<"award_invitations"> & { id: string };
+  /** Written with the rows, in the funder's workspace. */
+  ledger: LedgerEvent[];
+  send: SendKey;
+  limits: SendLimits;
+}
+
+/**
+ * The two writes of a direct award that must be all or nothing. `create` counts the send against
+ * every limit and writes the award, its schedule, tranches and requirements, the invitation and
+ * their ledger entries. `claim` re-checks an invitation, attaches the award to the workspace,
+ * moves it offered → accepted, records the `award` consent unless a live consent exists, and marks
+ * the invitation accepted. The API has checked everything before; these checks hold under races.
+ */
+export interface DirectAwardStore {
+  create(input: CreateInput, now: Date): Promise<SendClaim>;
+  claim(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }>;
+}
+
+export class SupabaseDirectAwardStore implements DirectAwardStore {
+  constructor(private readonly client: RpcLike) {}
+  async create(input: CreateInput): Promise<SendClaim> {
+    const { data, error } = await this.client.rpc("gms_create_direct_award", {
+      p_plan: { ...input.plan, invitation: input.invitation, ledger: input.ledger.map(ledgerRow) },
+      p_send: sendArgs(input.send, input.limits),
+    });
+    if (error) throw new Error(`Creating the direct award failed: ${error.message}`);
+    return readSendClaim(data);
+  }
+  async claim(input: ClaimInput): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
+    const { data, error } = await this.client.rpc("gms_claim_direct_award", {
+      p_token_hash: input.tokenHash,
+      p_workspace: input.workspaceId,
+      p_user: input.userId,
+      p_email: input.email,
+      p_cg_status: input.cgStatus,
+      p_consent_id: input.consentId,
+      p_ledger: input.ledger.map(ledgerRow),
+      p_consent_ledger: input.consentLedger.map(ledgerRow),
+    });
+    if (error) throw new Error(`Claiming the award failed: ${error.message}`);
+    const row = (data ?? {}) as { outcome?: unknown; consentId?: unknown };
+    const outcome = typeof row.outcome === "string" ? (row.outcome as ClaimOutcome) : "award_changed";
+    return { outcome, consentId: typeof row.consentId === "string" ? row.consentId : null };
+  }
+}
+
+const norm = (email: string) => email.trim().toLowerCase();
+
+/** The same rules over the repositories, one write at a time, undoing a create that fails half way (tests, one isolate). */
+export class RepoDirectAwardStore implements DirectAwardStore {
+  private queue: Promise<unknown> = Promise.resolve();
+  constructor(
+    private readonly repos: Repos,
+    private readonly ledger: LedgerStore,
+    private readonly limiter: InvitationLimiter,
+  ) {}
+
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(work);
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  create(input: CreateInput, now: Date): Promise<SendClaim> {
+    return this.serial(() => this.createNow(input, now));
+  }
+
+  claim(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
+    return this.serial(() => this.claimNow(input, now));
+  }
+
+  private async createNow(input: CreateInput, now: Date): Promise<SendClaim> {
+    const counted = await this.limiter.claim(input.send, input.limits, now);
+    if (!counted.ok) return counted;
+    const { plan } = input;
+    const undo: (() => Promise<unknown>)[] = [];
+    try {
+      await this.repos.table("awards").insert(plan.award);
+      undo.push(() => this.repos.table("awards").remove({ id: plan.award.id }));
+      await this.repos.table("payment_schedules").insert(plan.schedule);
+      undo.push(() => this.repos.table("payment_schedules").remove({ id: plan.schedule.id }));
+      for (const t of plan.tranches) {
+        await this.repos.table("tranches").insert(t);
+        undo.push(() => this.repos.table("tranches").remove({ id: t.id }));
+      }
+      for (const r of plan.requirements) {
+        await this.repos.table("requirements").insert(r);
+        undo.push(() => this.repos.table("requirements").remove({ id: r.id }));
+      }
+      await this.repos.table("award_invitations").insert(input.invitation);
+      undo.push(() => this.repos.table("award_invitations").remove({ id: input.invitation.id }));
+    } catch (e) {
+      // As a rolled-back transaction would leave it: no row, no count.
+      for (const step of undo.reverse()) await step();
+      await this.limiter.release(counted.sendId, now);
+      throw e;
+    }
+    for (const e of input.ledger) await this.ledger.append(e);
+    return counted;
+  }
+
+  private async claimNow(input: ClaimInput, now: Date): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
+    const none = (outcome: ClaimOutcome) => ({ outcome, consentId: null });
+    const inv = await this.repos.table("award_invitations").one({ token_hash: input.tokenHash });
+    if (!inv) return none("not_found");
+    if (inv.accepted_at || inv.declined_at) return none("used");
+    if (inv.revoked_at) return none("revoked");
+    if (Date.parse(inv.expires_at) <= now.getTime()) return none("expired");
+    if (norm(input.email) !== inv.email) return none("email_mismatch");
+    const member = await this.repos.table("workspace_members").one({ workspace_id: input.workspaceId, user_id: input.userId });
+    const ws = member ? await this.repos.table("workspaces").one({ id: input.workspaceId }) : null;
+    if (!member || member.role !== "admin" || ws?.kind !== "applicant" || ws.id === inv.workspace_id || (member.expires_at && Date.parse(member.expires_at) <= now.getTime())) return none("not_workspace_admin");
+    const [award] = await this.repos.table("awards").update({ id: inv.award_id, workspace_id: inv.workspace_id, status: "offered", recipient_workspace_id: null }, { recipient_workspace_id: input.workspaceId, recipient_individual: null, status: "accepted", cg_status: input.cgStatus });
+    if (!award) return none("award_changed");
+    let consentId: string | null = null;
+    if (!(await this.repos.table("consents").one({ applicant_workspace_id: input.workspaceId, funder_workspace_id: inv.workspace_id, revoked_at: null }))) {
+      consentId = (await this.repos.table("consents").insert({ id: input.consentId, applicant_workspace_id: input.workspaceId, funder_workspace_id: inv.workspace_id, basis: "award", scopes: ["org:read"], granted_by: input.userId, granted_at: now.toISOString() })).id;
+    }
+    await this.repos.table("award_invitations").update({ id: inv.id }, { accepted_at: now.toISOString(), accepted_by: input.userId, accepted_workspace_id: input.workspaceId });
+    for (const e of input.ledger) await this.ledger.append(e.eventType === "award.claimed" ? { ...e, data: { ...e.data, consentId } } : e);
+    if (consentId) for (const e of input.consentLedger) await this.ledger.append(e);
+    return { outcome: "claimed", consentId };
+  }
+}

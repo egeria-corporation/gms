@@ -29,6 +29,8 @@ const ROWS: readonly Row[] = [
   r("POST", "/gms/decisions/propose", "propose_decision"),
   r("POST", "/gms/decisions/commit", "commit_decisions"),
   r("POST", "/gms/awards", "create_award_from_application"),
+  r("POST", "/gms/awards/direct", "create_direct_award"),
+  r("POST", "/gms/awards/:id/invitation/resend", "create_direct_award"),
   r("POST", "/gms/awards/:id/amendments", "amend_award"),
   r("PATCH", "/gms/amendments/:id", "amend_award"),
   r("POST", "/gms/awards/:id/complete", "close_award"),

@@ -3,6 +3,7 @@
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
 import type { CreationLimiter } from "../lib/rate-limit.ts";
+import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
 import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
@@ -103,6 +104,10 @@ export interface ServicePorts {
   secondSteps?: SecondStepPort;
   /** Daily workspace-creation counts (Postgres); an in-memory limiter for one isolate otherwise. */
   creationLimiter?: CreationLimiter;
+  /** Direct-award invitation emails per funder workspace over a rolling day (Postgres); in memory for one isolate otherwise. */
+  invitationLimiter?: InvitationLimiter;
+  /** Creating and claiming a direct award, each in one transaction (Postgres); over the repositories otherwise. */
+  directAwards?: DirectAwardStore;
 }
 
 export interface ServiceContext {

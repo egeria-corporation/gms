@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
 // funder and applicant workspaces share URL shapes (dashboard, applications/:id).
+import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
+import type { AwardDetail } from "../api/funder.ts";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
@@ -17,6 +19,7 @@ const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
+const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -39,6 +42,7 @@ const FReviewerAssignments = lazy(() => import("../screens/funder/ReviewerAssign
 const FReviewerScoring = lazy(() => import("../screens/funder/ReviewerScoring.tsx"));
 const FPanel = lazy(() => import("../screens/funder/Panel.tsx"));
 const FAwardAgreement = lazy(() => import("../screens/funder/AwardAgreement.tsx"));
+const FNewAward = lazy(() => import("../screens/funder/NewAward.tsx"));
 const FAwardPayments = lazy(() => import("../screens/funder/AwardPayments.tsx"));
 const FPaymentsDue = lazy(() => import("../screens/funder/PaymentsDue.tsx"));
 const FPaymentsInFlight = lazy(() => import("../screens/funder/PaymentsInFlight.tsx"));
@@ -149,6 +153,10 @@ export function App({ services }: { services?: Services }) {
       (window as unknown as { __gmsMock?: unknown }).__gmsMock = resolved.api;
       // The mock's install switches (payments through Passport), so a flow can run with them on.
       (window as unknown as { __gmsLaunch?: unknown }).__gmsLaunch = mockLaunchStore(resolved);
+      // A direct award that an organization accepts reaches that organization's own grants.
+      (resolved.api as { onPublished?: (cb: (award: AwardDetail) => void) => void }).onPublished?.((award) => {
+        mockApplicantStore(resolved).awards.unshift(award);
+      });
     }
   }, [resolved]);
   return (
@@ -173,6 +181,8 @@ function AppRoutes() {
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         {/* The agent consent page. Not under /oauth/: the site hands every /oauth/ path to the API. */}
         <Route path="/consent" element={<OAuthConsent />} />
+        {/* An award invitation. Outside the guard so the token is lifted out of the address before any sign-in `next` is built. */}
+        <Route path="/awards/claim" element={<ClaimAward />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -219,6 +229,7 @@ function AppRoutes() {
             <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
             <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
             <Route path="awards" element={f(<FAwardAgreement />)} />
+            <Route path="awards/new" element={f(<FNewAward />)} />
             <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
             <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
             <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />

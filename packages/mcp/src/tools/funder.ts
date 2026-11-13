@@ -19,6 +19,7 @@ import {
   isoDateTime,
   jsonObject,
   keyDatesSchema,
+  maskEmail,
   opportunityId,
   paging,
   requirementId,
@@ -98,6 +99,23 @@ export const FUNDER_TOOLS = {
 
   list_awards: tool("listAwards", "awards:read", "List awards by status, program or recipient.", z.object({ status: z.array(awardStatus).optional(), programId: programId.optional(), recipientWorkspaceId: applicantWorkspaceId.optional(), ...paging })),
   get_award: tool("getAward", "awards:read", "Get one award: lifecycle status, funding (disbursed amount is read from Passport), dates and conditions.", z.object({ awardId })),
+  create_direct_award: tool(
+    "createDirectAward",
+    "awards:write",
+    "Give an award directly to an organization that has not applied: the award is created as offered and its contact is emailed a link to accept. Nothing is matched by name; the award is attached only when the invited person accepts it. Always waits for a person's approval (a funder admin or program officer).",
+    z.object({
+      organizationName: z.string().min(1).max(200).describe("The organization's name, as it should appear in the email"),
+      contactEmail: z.string().email().max(320).describe("The person who will accept for the organization"),
+      title: z.string().min(1).max(300),
+      amount: z.object({ value: z.string().regex(/^\d{1,13}(\.\d{1,2})?$/).describe("Decimal amount, e.g. 25000.00"), currency: z.literal("USD") }),
+      startDate: isoDate.optional(),
+      endDate: isoDate.optional(),
+      programId: programId.optional(),
+      message: z.string().max(2000).optional().describe("Plain text for the email. No web or email addresses"),
+    }),
+    // The ledger records the address masked; the approval keeps it to send the invitation.
+    { gated: true, ledgerInput: (i) => ({ ...i, contactEmail: maskEmail(i.contactEmail) }) },
+  ),
   create_award_from_application: tool("createAwardFromApplication", "awards:write", "Create an award in offered from an accepted application.", z.object({ applicationId, amountMinor, currency, startDate: isoDate, endDate: isoDate, conditions: z.array(z.string().max(500)).default([]) })),
   amend_award: tool("amendAward", "awards:write", "Record an amendment (extension, reallocation, scope or supplemental). Amount and period changes are mirrored to Passport.", z.object({ awardId, type: amendmentType, request: jsonObject, reason: z.string().min(1).max(5000) })),
   close_award: tool("closeAward", "awards:write", "Complete or cancel an award.", z.object({ awardId, outcome: z.enum(["completed", "cancelled"]), reason: z.string().max(5000).optional() })),
