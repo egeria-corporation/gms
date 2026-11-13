@@ -230,7 +230,7 @@ export default function Landing() {
                   </h2>
                   <ul>
                     <li>
-                      <ShieldOff className="ic" aria-hidden="true" />
+                      <ShieldCheck className="ic" aria-hidden="true" />
                       <span>
                         Your organization shows as <span className="lvl lvl-3">Verified</span>. Without Passport it shows as{" "}
                         <span className="lvl lvl-na">
