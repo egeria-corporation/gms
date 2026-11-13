@@ -1,8 +1,10 @@
 # OpenGrants GMS
 
-Free, open-source (AGPL-3.0) grants management for funders and awardees, built on
-[CommonGrants](https://commongrants.org) v0.5.0 and [OpenGrants Passport](https://github.com/egeria-corporation/passport).
-Hosted at `gms.opengrants.io`, and you can run your own copy.
+Free, open-source (AGPL-3.0) grants management for funders and grantees, built on
+[CommonGrants](https://commongrants.org) v0.5.0. Sign up with just an email and use it: no
+[OpenGrants Passport](https://github.com/egeria-corporation/passport) account is needed, and Passport
+is an optional upgrade for verification and payments. Hosted at `gms.opengrants.io`, and you can run
+your own copy.
 
 ## Deploy with Claude Code
 

@@ -87,6 +87,9 @@ export default function SignIn() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
+  // The landing page's two start buttons carry who the person is, so they are not asked again.
+  const asParam = params.get("as");
+  const as: "funder" | "grantee" | null = asParam === "funder" || asParam === "grantee" ? asParam : null;
   // Passport sent the person back without a session: say why, and what to do next.
   const passport = sessionState.status === "signedIn" ? null : passportProblem(params.get("passport_error"));
 
@@ -111,11 +114,15 @@ export default function SignIn() {
     const target = next ? me.workspaces.find((w) => next === `/w/${w.handle}` || next.startsWith(`/w/${w.handle}/`)) : undefined;
     const needsMfa = !me.mfaVerified && (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa));
     if (needsMfa) return setStep("mfa");
-    if (me.workspaces.length === 0 && !next) return setStep("first-run");
+    if (me.workspaces.length === 0 && !next) {
+      if (as === "funder") return navigate("/onboarding/funder/organization", { replace: true });
+      if (as === "grantee") return navigate("/onboarding/applicant?start=email", { replace: true });
+      return setStep("first-run");
+    }
     // Someone whose only job here is reviewing works in the reviewer portal, not the funder workspace.
     const first = me.workspaces[0]!;
     navigate(next ?? (isReviewOnly(first.role) && me.workspaces.every((w) => isReviewOnly(w.role)) ? "/review/assignments" : `/w/${first.handle}`), { replace: true });
-  }, [sessionState.status, meState, next, navigate]);
+  }, [sessionState.status, meState, next, as, navigate]);
 
   // Entering the second step: challenge an enrolled authenticator, or start enrollment.
   useEffect(() => {
@@ -226,7 +233,7 @@ export default function SignIn() {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "center", alignItems: "center" }}>
             <h1 style={{ fontSize: "32px" }}>Sign In to OpenGrants GMS</h1>
             <p style={{ fontSize: "16px", color: "#4A5C5A", maxWidth: "560px" }}>
-              One account for every workspace you belong to. Sign in with email{passportFlags.signIn ? ", or continue with Passport" : ""}.
+              Sign up or sign in with your email. No password and no Passport account needed{passportFlags.signIn ? ", though you can continue with Passport instead" : ""}.
             </p>
           </div>
           <div
@@ -282,6 +289,7 @@ export default function SignIn() {
                       style={{ height: "44px", fontSize: "16px" }}
                     />
                     <span className="help">We'll send a one-time code. No password to remember.</span>
+                    <span className="help">Admins add an authenticator app as a second step. It takes a minute.</span>
                   </div>
                   {error && <Problem>{error}</Problem>}
                   <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
