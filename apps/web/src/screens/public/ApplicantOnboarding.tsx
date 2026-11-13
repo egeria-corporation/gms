@@ -14,6 +14,7 @@ import { useServices } from "../../app/services.tsx";
 import { ProfileForm } from "../../components/ProfileForm.tsx";
 import { LevelBadge } from "../../components/status.tsx";
 import { slugify } from "../../lib/format.ts";
+import { safeNext } from "../../lib/passportSignIn.ts";
 import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
 import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
 
@@ -50,13 +51,17 @@ export default function ApplicantOnboarding() {
   const linkedHandle = params.get("ws");
   // The opportunity the person clicked Apply on, if that is how they got here.
   const wanted = wantedFrom(params);
+  // Hand-offs from other screens: open the email setup first, pre-fill the name, return afterwards.
+  const startWithEmail = params.get("start") === "email";
+  const presetName = (params.get("name") ?? "").slice(0, 200);
+  const returnNext = safeNext(params.get("next"));
 
   const memberships = meState.status === "ready" ? meState.me.workspaces.filter((w) => w.kind === "applicant") : [];
   const workspace = memberships.find((w) => w.handle === linkedHandle) ?? memberships[0] ?? null;
   const api = useApplicantApi(workspace?.id);
 
   const flags = usePassportFlags();
-  const [withoutPassport, setWithoutPassport] = useState(false);
+  const [withoutPassport, setWithoutPassport] = useState(startWithEmail);
   const [creating, setCreating] = useState<{ state: "idle" | "saving"; error?: unknown }>({ state: "idle" });
   const { api: gms } = useServices();
   const [start, setStart] = useState<{ state: "idle" | "going"; error?: unknown }>({ state: "idle" });
@@ -131,7 +136,7 @@ export default function ApplicantOnboarding() {
       try {
         const made = await gms.createWorkspace({ kind: "applicant", handle: handleFor(profile.legalName, attempt), displayName: profile.displayName ?? profile.legalName, profile });
         reloadMe();
-        navigate(wanted ? `/w/${made.workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${made.workspace.handle}`, { replace: true });
+        navigate(returnNext ?? (wanted ? `/w/${made.workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${made.workspace.handle}`), { replace: true });
         return;
       } catch (error) {
         // A taken handle is not the person's problem: try another.
@@ -276,7 +281,7 @@ export default function ApplicantOnboarding() {
                     Set up without Passport
                   </button>
                 ) : (
-                  <ProfileForm idPrefix="onb" initial={{ contactEmail: email }} submitLabel="Create my workspace" busy={creating.state === "saving"} error={creating.error ?? null} onSubmit={createWithoutPassport} />
+                  <ProfileForm idPrefix="onb" initial={{ contactEmail: email, ...(presetName ? { legalName: presetName } : {}) }} submitLabel="Create my workspace" busy={creating.state === "saving"} error={creating.error ?? null} onSubmit={createWithoutPassport} />
                 )}
               </section>
             </div>

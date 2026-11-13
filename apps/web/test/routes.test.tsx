@@ -19,8 +19,8 @@ function open(path: string) {
 describe("routes", () => {
   it("renders the landing page with both entry points", async () => {
     open("/");
-    expect(await screen.findByRole("heading", { level: 1, name: "Grants Management for Funders and Applicants" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Create a funder workspace/ })).toHaveAttribute("href", "/onboarding/funder");
+    expect(await screen.findByRole("heading", { level: 1, name: "Give and manage grants, free. Sign up with your email." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /I’m a funder: start free/ })).toHaveAttribute("href", "/signin?as=funder");
   });
 
   it("resolves /w/:ws by workspace kind", async () => {

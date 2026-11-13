@@ -1,327 +1,310 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// The public home page. The message: sign up with an email and use the GMS; Passport is an
+// optional upgrade, never a requirement. Styles are the `.landing-*` classes in app.css.
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useServices } from "../../app/services.tsx";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
-import { ArrowRight, Bot, Check, Download, ExternalLink, FileText, Landmark, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bot, Check, ChevronDown, Download, ExternalLink, Menu, ShieldCheck, ShieldOff, X } from "lucide-react";
 
-/** The applicant call to action: Passport when this install offers it, plain sign-in when not. */
-function ApplyStart() {
-  const flags = usePassportFlags();
-  if (flags.signIn) return <PassportButton className="btn btn-primary" />;
+const DEPLOY_GUIDE = "https://github.com/egeria-corporation/gms/blob/main/DEPLOY_WITH_AGENT.md";
+
+const FUNDER_STEPS: Array<[string, string]> = [
+  ["Sign up with your email", "We send a code. No password."],
+  ["Name your organization", "Then invite your team."],
+  ["Publish an opportunity", "Review applications, decide and send award letters."],
+];
+const GRANTEE_STEPS: Array<[string, string]> = [
+  ["Sign up with your email", "We send a code. No password."],
+  ["Enter your organization", "Its name and a contact email."],
+  ["Apply, accept and report", "Apply to open opportunities, accept an award, sign the agreement and send reports."],
+];
+
+const FUNDER_CAN = [
+  "Publish opportunities on your own page, with application and report forms",
+  "Review, score and decide, then send award letters",
+  "Agreements, payment schedules and reporting requirements",
+  "Record payments you make your usual way (cheque, bank transfer)",
+  "Export everything (CommonGrants JSON, CSV)",
+];
+const GRANTEE_CAN = [
+  "Apply to opportunities, with your team",
+  "Accept awards and sign agreements in the app",
+  "See your payment schedule and the payments your funder records",
+  "Send reports and request changes to an award",
+  "Message your funder in one thread",
+  "Keep one status view across funders",
+];
+
+const FAQ: Array<[string, string]> = [
+  ["Do I need OpenGrants Passport?", "No. Sign up with your email. Passport is optional and adds verification and payments through Passport."],
+  ["Is it really free?", "Yes, for funders and grantees, hosted or self-hosted."],
+  ["How do payments work without Passport?", "The funder pays the way they already do and records the payment here; the grantee sees it. The GMS never holds bank details."],
+  ["What does “Not verified” mean?", "The organization entered its own details. Funders see that label so they know to check. Connecting Passport later replaces it."],
+  ["Why does an admin need an authenticator app?", "Admins can change awards and payment records, so we ask for a second step at sign-in. It takes a minute with any authenticator app."],
+  ["Who can see my organization's information?", "Only funders you apply to or accept an award from."],
+];
+
+function Header() {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLButtonElement>(null);
+  // Escape closes the menu and returns focus to its button.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        menuRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+  const close = () => setOpen(false);
   return (
-    <Link to="/signin" className="btn btn-primary">
-      Get started
-    </Link>
+    <header className="landing-hd">
+      <div className="wrap-c bar">
+        <Link to="/" className="landing-logo">
+          <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
+          <span className="suffix">GMS</span>
+        </Link>
+        <nav aria-label="Main" className="landing-links" id="landing-links" data-open={open} onClick={(e) => (e.target as HTMLElement).closest("a") && close()}>
+          <a href="#funders">For funders</a>
+          <a href="#grantees">For grantees</a>
+          <a href="#how">How it works</a>
+          <a href="#selfhost">Self-host</a>
+        </nav>
+        <div className="landing-tools">
+          <button ref={menuRef} type="button" className="btn btn-ghost landing-menu-btn" aria-expanded={open} aria-controls="landing-links" onClick={() => setOpen((v) => !v)}>
+            {open ? <X className="ic" aria-hidden="true" /> : <Menu className="ic" aria-hidden="true" />}
+            Menu
+          </button>
+          <Link to="/signin" className="btn btn-secondary">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Steps({ items }: { items: Array<[string, string]> }) {
+  return (
+    <ol className="landing-steps">
+      {items.map(([t, d]) => (
+        <li key={t}>
+          <span>
+            <span className="t">{t}</span>
+            {d}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
 export default function Landing() {
-  // The example funder, applicant and opportunity exist only in the demo data (mock mode).
+  // The example funder and opportunity exist only in the demo data (mock mode).
   const { mock: demo } = useServices();
+  const flags = usePassportFlags();
   return (
     <>
-      <title>{"OpenGrants GMS — free, open-source grants management"}</title>
-      <div className="gms pub" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#FFFFFF" }}>
-        <header style={{ borderBottom: "1px solid #D6DEDE", background: "#FFFFFF" }}>
-          <div
-            className="wrap-c"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "24px",
-              height: "64px",
-              flexWrap: "wrap",
-            }}
-          >
-            <Link
-              to="/"
-              className="logo"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                textDecoration: "none",
-                fontFamily: "var(--font-display)",
-                fontWeight: 700,
-                color: "#0D2A43",
-                fontSize: "16px",
-              }}
-            >
-              <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" style={{ height: "22px", width: "auto", display: "block" }} />
-              <span style={{ color: "#145450", fontWeight: 500 }}>GMS</span>
-            </Link>
-            <nav
-              aria-label="Primary"
-              style={{ display: "flex", alignItems: "center", gap: "24px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}
-            >
-              <a href="#how" style={{ color: "#1E2D2B" }}>
-                How it works
-              </a>
-              <a href="#fund" style={{ color: "#1E2D2B" }}>
-                For funders
-              </a>
-              <a href="#apply" style={{ color: "#1E2D2B" }}>
-                For applicants
-              </a>
-              <a href="#agents" style={{ color: "#1E2D2B" }}>
-                For agents
-              </a>
-              <a href="#selfhost" style={{ color: "#1E2D2B" }}>
-                Self-host
-              </a>
-              <Link to="/signin" className="btn btn-secondary">
-                Sign in
-              </Link>
-            </nav>
-          </div>
-        </header>
+      <title>{"OpenGrants GMS: free grants management for funders and grantees"}</title>
+      <div className="gms pub" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <Header />
         <main>
-        <section style={{ background: "var(--grad-hero)", padding: "64px 0 56px" }}>
-          <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <span className="og-eyebrow">
-              <ShieldCheck className="ic" aria-hidden="true" />
-              Free Grants Management
-            </span>
-            <h1 style={{ fontSize: "48px", maxWidth: "760px", color: "#0D2A43" }}>Grants Management for Funders and Applicants</h1>
-            <p style={{ fontSize: "19px", maxWidth: "680px", color: "#1E2D2B", lineHeight: 1.6 }}>
-              One system for the whole grant. Funders design opportunities and forms, run reviews, decide, issue awards, pay through
-              OpenGrants Passport and track reporting. Applicants apply from a record they keep once, report once, and get paid to a
-              destination they have verified.
-            </p>
-            <div className="og-accent" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "20px",
-                marginTop: "16px",
-                maxWidth: "960px",
-              }}
-            >
-              <div
-                className="card"
-                id="fund"
-                style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "12px", background: "#FFFFFF" }}
-              >
-                <div
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "10px",
-                    background: "#E1F8F6",
-                    color: "#145450",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Landmark className="ic ic-md" aria-hidden="true" />
-                </div>
-                <h2 style={{ fontSize: "22px" }}>I fund</h2>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  Publish opportunities on your own branded page, build application and report forms, assign reviewers, decide in a panel,
-                  and release payments only when a readiness check passes.
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
-                  <Link to="/onboarding/funder" className="btn btn-cta">
-                    Create a funder workspace
-                    <ArrowRight className="ic" aria-hidden="true" />
-                  </Link>
-                  {demo && (
-                    <Link to="/f/riverbend" style={{ fontSize: "14px", fontWeight: 700 }}>
-                      See an example funder page
-                    </Link>
-                  )}
-                </div>
+          <section className="landing-sec landing-hero" aria-labelledby="landing-h1">
+            <div className="wrap-c landing-stack">
+              <span className="og-eyebrow">
+                <ShieldCheck className="ic" aria-hidden="true" />
+                Free and open source
+              </span>
+              <h1 id="landing-h1">Give and manage grants, free. Sign up with your email.</h1>
+              <p className="landing-lede">
+                Funders create opportunities and awards, collect reports and keep track of payments. Grantees accept awards, sign agreements and send reports.{" "}
+                <b>No Passport account needed.</b>
+              </p>
+              <div className="landing-cta">
+                <Link to="/signin?as=funder" className="btn btn-cta btn-lg">
+                  I’m a funder: start free
+                  <ArrowRight className="ic" aria-hidden="true" />
+                </Link>
+                <Link to="/signin?as=grantee" className="btn btn-cta btn-lg">
+                  I’m a grantee or applicant: start free
+                  <ArrowRight className="ic" aria-hidden="true" />
+                </Link>
               </div>
-              <div
-                className="card"
-                id="apply"
-                style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "12px", background: "#FFFFFF" }}
-              >
-                <div
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "10px",
-                    background: "#D2E1F9",
-                    color: "#1E4F8F",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <FileText className="ic ic-md" aria-hidden="true" />
+              {flags.signIn && (
+                <div className="landing-passport-line">
+                  <span>Already use OpenGrants Passport?</span>
+                  <PassportButton className="btn btn-secondary btn-sm" />
                 </div>
-                <h2 style={{ fontSize: "22px" }}>I apply</h2>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  Link your Passport record and organization details, documents and payee status arrive pre-filled, or set up with a few details of
-                  your own. Work on applications with your team, track every status, and report once.
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
-                  <ApplyStart />
-                  <Link to={demo ? "/w/alder-creek/find" : "/signin"} style={{ fontSize: "14px", fontWeight: 700 }}>
-                    {demo ? "Find funding" : "Sign in with email"}
+              )}
+              <ul className="landing-facts" aria-label="At a glance">
+                {["Free for funders", "Free for grantees", "Email sign-in, no password", "No Passport required", "Open source"].map((f) => (
+                  <li key={f}>
+                    <Check className="ic" aria-hidden="true" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              {demo && (
+                <div className="landing-links-row">
+                  <Link to="/f/riverbend">See an example funder page</Link>
+                  <Link to="/f/riverbend/o/community-health-2027">View a live opportunity</Link>
+                  <Link to="/w/alder-creek/find">Find funding</Link>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="landing-sec" id="how" aria-labelledby="how-h">
+            <div className="wrap-c">
+              <h2 id="how-h">Start in three steps</h2>
+              <p className="landing-sub">Pick the side you are on. Both start with an email address.</p>
+              <div className="landing-cols">
+                <div className="card landing-card" id="funders">
+                  <h3>Funders</h3>
+                  <Steps items={FUNDER_STEPS} />
+                  <Link to="/signin?as=funder" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+                    Start as a funder
+                  </Link>
+                </div>
+                <div className="card landing-card" id="grantees">
+                  <h3>Grantees and applicants</h3>
+                  <Steps items={GRANTEE_STEPS} />
+                  <Link to="/signin?as=grantee" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+                    Start as a grantee
                   </Link>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-        <section id="how" style={{ padding: "48px 0" }}>
-          <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: "1px",
-                background: "#D6DEDE",
-                border: "1px solid #D6DEDE",
-                borderRadius: "12px",
-                overflow: "hidden",
-              }}
-            >
-              <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "var(--og-teal-dark)" }}>$0</div>
-                <div style={{ fontSize: "14px", color: "#4A5C5A" }}>for funders, every plan</div>
-              </div>
-              <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "#4A86E8" }}>$0</div>
-                <div style={{ fontSize: "14px", color: "#4A5C5A" }}>for applicants, always</div>
-              </div>
-              <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "#2470B3" }}>1 record</div>
-                <div style={{ fontSize: "14px", color: "#4A5C5A" }}>Passport, entered once</div>
-              </div>
-              <div style={{ background: "#FFFFFF", padding: "22px 24px" }}>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "28px", color: "#145450" }}>Open</div>
-                <div style={{ fontSize: "14px", color: "#4A5C5A" }}>CommonGrants protocol</div>
-              </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "20px" }}>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <span className="eyebrow">Passport</span>
-                <h3 style={{ fontSize: "18px" }}>One Record, Read With Consent</h3>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  An organization keeps its profile, documents and representatives in OpenGrants Passport. A funder reads it only with the
-                  organization's consent, and every imported value shows where it came from.
-                </p>
-              </div>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <span className="eyebrow">Verified payee</span>
-                <h3 style={{ fontSize: "18px" }}>Paid To a Verified Destination</h3>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  Payments go to a destination the organization verified in Passport. Changes cool off before they take effect, holds are
-                  explicit, and the GMS never edits bank details.
-                </p>
-              </div>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <span className="eyebrow">CommonGrants</span>
-                <h3 style={{ fontSize: "18px" }}>An Open Protocol Underneath</h3>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  Opportunities, applications and awards are readable as CommonGrants JSON. Export anything, index opportunities on
-                  OpenGrants, and move data between systems without a vendor in the way.
-                </p>
+          </section>
+
+          <section className="landing-sec" aria-labelledby="can-h">
+            <div className="wrap-c">
+              <h2 id="can-h">What you can do without Passport</h2>
+              <p className="landing-sub">Everything here works with just an email sign-in.</p>
+              <div className="tbl-wrap">
+                <table className="tbl landing-tbl">
+                  <thead>
+                    <tr>
+                      <th scope="col">Funders</th>
+                      <th scope="col">Grantees</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: Math.max(FUNDER_CAN.length, GRANTEE_CAN.length) }, (_, i) => (
+                      <tr key={i}>
+                        <td>
+                          {FUNDER_CAN[i] && (
+                            <>
+                              <Check className="ic" aria-hidden="true" />
+                              {FUNDER_CAN[i]}
+                            </>
+                          )}
+                        </td>
+                        <td>
+                          {GRANTEE_CAN[i] && (
+                            <>
+                              <Check className="ic" aria-hidden="true" />
+                              {GRANTEE_CAN[i]}
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div
-              className="card"
-              style={{
-                padding: "24px 28px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "24px",
-                flexWrap: "wrap",
-                background: "#F7FAFA",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "720px" }}>
-                <h3 style={{ fontSize: "18px" }}>Free for Both Sides</h3>
-                <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
-                  OpenGrants GMS is free for funders and free for applicants. Use it hosted at gms.opengrants.io or run it yourself.
-                </p>
+          </section>
+
+          {flags.linking && (
+            <section className="landing-sec" aria-labelledby="adds-h">
+              <div className="wrap-c">
+                <div className="card landing-adds">
+                  <h2 id="adds-h" style={{ marginBottom: 0 }}>
+                    What Passport adds, if you want it
+                  </h2>
+                  <ul>
+                    <li>
+                      <ShieldCheck className="ic" aria-hidden="true" />
+                      <span>
+                        Your organization shows as <span className="lvl lvl-3">Verified</span>. Without Passport it shows as{" "}
+                        <span className="lvl lvl-na">
+                          <ShieldOff className="ic" aria-hidden="true" />
+                          Not verified
+                        </span>
+                        .
+                      </span>
+                    </li>
+                    <li>
+                      <Check className="ic" aria-hidden="true" />
+                      Forms fill themselves from one record you keep up to date.
+                    </li>
+                    <li>
+                      <Check className="ic" aria-hidden="true" />
+                      Funders can send payments through Passport to a bank account the organization verified, with safeguards on changes.
+                    </li>
+                  </ul>
+                  <a href="https://passport.opengrants.io" className="landing-links-row" style={{ fontWeight: 700 }}>
+                    Learn about OpenGrants Passport
+                    <ExternalLink className="ic" aria-hidden="true" />
+                  </a>
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap" }}>
-                <a
-                  href="https://github.com/egeria-corporation/gms/blob/main/docs/self-host.md"
-                  id="selfhost"
-                  style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
-                >
+            </section>
+          )}
+
+          <section className="landing-sec" id="selfhost" aria-labelledby="oss-h">
+            <div className="wrap-c landing-stack">
+              <h2 id="oss-h" style={{ marginBottom: 0 }}>
+                Open source, and you can run your own
+              </h2>
+              <p className="landing-sub" style={{ marginBottom: 0 }}>
+                Point Claude Code or another coding agent at the repository and it sets up the GMS on your own Supabase and Cloudflare accounts, asking before it creates anything. Our test deploys took about 10 minutes.
+              </p>
+              <div className="landing-links-row">
+                <a href={DEPLOY_GUIDE}>
                   <Download className="ic" aria-hidden="true" />
-                  Self-host
+                  Deploy with an agent
                 </a>
-                <Link
-                  to="/agents"
-                  id="agents"
-                  style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
-                >
+                <a href="https://github.com/egeria-corporation/gms">
+                  <ExternalLink className="ic" aria-hidden="true" />
+                  Source (AGPL)
+                </a>
+                <a href="/openapi.json">
+                  <ExternalLink className="ic" aria-hidden="true" />
+                  API
+                </a>
+                <a href="https://commongrants.org">
+                  <ExternalLink className="ic" aria-hidden="true" />
+                  CommonGrants
+                </a>
+                <Link to="/agents">
                   <Bot className="ic" aria-hidden="true" />
                   For agents (MCP)
                 </Link>
-                {demo && (
-                  <Link
-                    to="/f/riverbend/o/community-health-2027"
-                    style={{ fontSize: "14px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
-                  >
-                    <ExternalLink className="ic" aria-hidden="true" />
-                    View a live opportunity
-                  </Link>
-                )}
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <h3 style={{ fontSize: "16px" }}>What a funder gets</h3>
-                <ul style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px", color: "#1E2D2B" }}>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#145450", marginTop: "3px" }} />A branded public page and
-                    opportunity listings, indexed on OpenGrants
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#145450", marginTop: "3px" }} />
-                    Form builder with Passport prefill, eligibility rules in plain language, multi-stage competitions
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#145450", marginTop: "3px" }} />
-                    Reviewer assignment, scoring, panel allocation and decision letters
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#145450", marginTop: "3px" }} />
-                    Agreements, scheduled tranches, readiness checks, reconciliation and reporting
-                  </li>
-                </ul>
-              </div>
-              <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <h3 style={{ fontSize: "16px" }}>What an applicant gets</h3>
-                <ul style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px", color: "#1E2D2B" }}>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#1E4F8F", marginTop: "3px" }} />
-                    Applications pre-filled from Passport, with every sourced value marked
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#1E4F8F", marginTop: "3px" }} />
-                    Shared editing with teammates and consultants, an answer library, section assignments
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#1E4F8F", marginTop: "3px" }} />
-                    One status view across funders, a shared message thread, revision diffs
-                  </li>
-                  <li style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <Check className="ic" aria-hidden="true" style={{ color: "#1E4F8F", marginTop: "3px" }} />
-                    Report once and share it with another funder; payments to your verified destination
-                  </li>
-                </ul>
-              </div>
+          </section>
+
+          <section className="landing-sec" aria-labelledby="faq-h">
+            <div className="wrap-c landing-faq" style={{ maxWidth: "820px" }}>
+              <h2 id="faq-h">Questions people ask</h2>
+              {FAQ.map(([q, a]) => (
+                <details key={q}>
+                  <summary>
+                    {q}
+                    <ChevronDown className="ic" aria-hidden="true" />
+                  </summary>
+                  <p>{a}</p>
+                </details>
+              ))}
             </div>
-          </div>
-        </section>
+          </section>
         </main>
         <footer className="pub-foot" style={{ marginTop: "auto" }}>
           <div className="wrap-c">
