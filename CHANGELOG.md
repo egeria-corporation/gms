@@ -3,6 +3,30 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.1.0
+
+A clearer front door: the landing page and sign-up now say plainly that funders and grantees can
+sign up with an email address and use the GMS without OpenGrants Passport.
+
+### Changed
+
+- The landing page is rebuilt on the design system. It leads with email sign-up, has equal start
+  buttons for funders and for grantees and applicants, a table of what works without Passport, a
+  short "What Passport adds" card (shown only when the instance offers Passport), a self-host section
+  pointing to `DEPLOY_WITH_AGENT.md`, and a short FAQ.
+- On phones the header keeps Sign in visible and puts the section links behind a Menu button.
+- Sign-in carries the choice from the landing page (`/signin?as=funder` or `?as=grantee`) straight to
+  the right setup instead of asking again, and tells admins before the code step that they will add an
+  authenticator app.
+- Applicant setup accepts `start=email` (open the email-only setup first), `name=` (pre-fill the
+  organization's name) and `next=` (a same-origin page to return to afterwards).
+- Shared links now show a title, description and preview image (`/brand/og-preview.png`).
+
+### Upgrade notes
+
+- No database migrations and no setting changes. `pnpm -s gms deploy upgrade --to v1.1.0` redeploys
+  the Workers and the web app.
+
 ## v1.0.1
 
 Fixes from an independent review of v1.0.0 and from trial deployments.
