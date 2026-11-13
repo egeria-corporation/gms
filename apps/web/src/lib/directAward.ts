@@ -81,3 +81,10 @@ export function maskEmail(email: string): string {
 export function daysLeft(iso: string, now: Date = new Date()): number {
   return Math.max(0, Math.ceil((Date.parse(iso) - now.getTime()) / 86_400_000));
 }
+
+/** "25000.50" as "$25,000.50"; whole dollars lose the cents. An amount that is not a number shows as "—". */
+export function formatDecimalAmount(value: string, currency = "USD"): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }).format(n);
+}

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Route table. Screens are code-split; `/w/:ws/*` resolves against the workspace kind because
 // funder and applicant workspaces share URL shapes (dashboard, applications/:id).
+import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
+import type { AwardDetail } from "../api/funder.ts";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
@@ -17,6 +19,7 @@ const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
+const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -150,6 +153,10 @@ export function App({ services }: { services?: Services }) {
       (window as unknown as { __gmsMock?: unknown }).__gmsMock = resolved.api;
       // The mock's install switches (payments through Passport), so a flow can run with them on.
       (window as unknown as { __gmsLaunch?: unknown }).__gmsLaunch = mockLaunchStore(resolved);
+      // A direct award that an organization accepts reaches that organization's own grants.
+      (resolved.api as { onPublished?: (cb: (award: AwardDetail) => void) => void }).onPublished?.((award) => {
+        mockApplicantStore(resolved).awards.unshift(award);
+      });
     }
   }, [resolved]);
   return (
@@ -182,6 +189,7 @@ function AppRoutes() {
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
           <Route path="/apply/:handle/:slug" element={<ApplyEntry />} />
           <Route path="/invitations/accept" element={<InvitationAccept />} />
+          <Route path="/awards/claim" element={<ClaimAward />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />
