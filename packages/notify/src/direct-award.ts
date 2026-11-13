@@ -4,16 +4,16 @@
 // never turned into markup or a link. The only links are the claim link and the GMS home.
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
-/** Shown whenever the funder's workspace is not verified with Passport. */
+/** Shown unless the funder is verified with Passport (linked at L1 or above). */
 export const FUNDER_NOT_VERIFIED_LINE = "This funder's organization is not verified with OpenGrants Passport.";
 
 /** The funder's note is plain text, at most this long. */
 export const DIRECT_AWARD_MESSAGE_MAX = 2000;
 
 export interface DirectAwardInvitationFields {
-  /** The funder's name exactly as its workspace has it. */
+  /** The funder's Passport legal name when it is linked to Passport, else its workspace's name. */
   funderName: string;
-  /** True only when the funder's verification source is Passport. */
+  /** True only when the funder is verified with Passport (L1 or above). */
   funderVerified: boolean;
   /** The organization's name as the funder typed it. */
   organizationName: string;

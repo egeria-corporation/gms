@@ -58,6 +58,8 @@ beforeEach(async () => {
   h = await harness();
   logs = [];
   setLogSink((line) => logs.push(line));
+  // Riverbend is linked to Passport and verified there (L2), under its legal name.
+  await h.repos.table("workspaces").update({ id: WS_FUNDER }, { legal_name: "Riverbend Community Foundation", verification_level: "L2" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: USER_FINANCE, role: "finance" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_GRANTEE, role: "admin" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_OTHER_ADMIN, role: "admin" });
@@ -85,7 +87,7 @@ describe("the funder gives an award directly", () => {
     expect(mail.subject).toBe("Riverbend Community Foundation has offered Alder Creek Family Services a grant");
     expect(mail.text).toContain(`${WEB}/awards/claim?token=gms_awi_`);
     expect(mail.text).toContain("Thank you for your work this winter.");
-    // Riverbend is linked to Passport: no "not verified" line.
+    // Riverbend is verified with Passport: no "not verified" line.
     expect(mail.text).not.toContain("not verified with OpenGrants Passport");
 
     // Only the token's hash is stored.
@@ -99,6 +101,26 @@ describe("the funder gives an award directly", () => {
     // The funder's list carries the invitation too.
     const list = await call<{ items: { id: string; recipient: { invitation?: { status: string } } }[] }>(admin, "GET", "/gms/awards", undefined, WS_FUNDER);
     expect(list.body.items.find((a) => a.id === award.id)?.recipient.invitation?.status).toBe("sent");
+  });
+
+  it("names a Passport funder by its legal name, whatever its workspace is called, and warns below L1", async () => {
+    // An admin renames the workspace to a famous name: the email and the claim page keep the Passport name.
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { display_name: "Ford Foundation", org_projection: { name: "Riverbend Community Foundation" } });
+    await create(admin);
+    const mail = h.mailer.sent.at(-1)!;
+    expect(mail.subject).toBe("Riverbend Community Foundation has offered Alder Creek Family Services a grant");
+    expect(mail.text).not.toContain("Ford Foundation");
+    const lookup = await call<{ data: { funder: Record<string, unknown> } }>(grantee, "POST", "/gms/award-invitations/lookup", { token: lastToken() });
+    expect(lookup.body.data.funder).toEqual({ name: "Riverbend Community Foundation", workspaceName: "Ford Foundation", handle: "riverbend", verification: { source: "passport", level: "L2" }, verified: true });
+
+    // Linked but only claimed (L0), or with no level recorded: not verified.
+    for (const level of ["L0", null]) {
+      await h.repos.table("workspaces").update({ id: WS_FUNDER }, { verification_level: level });
+      await create(admin);
+      expect(h.mailer.sent.at(-1)!.text).toContain("This funder's organization is not verified with OpenGrants Passport.");
+      const l = await call<{ data: { funder: { verified: boolean } } }>(grantee, "POST", "/gms/award-invitations/lookup", { token: lastToken() });
+      expect(l.body.data.funder.verified).toBe(false);
+    }
   });
 
   it("says when the funder is not verified with Passport", async () => {
@@ -237,7 +259,7 @@ describe("the invited person", () => {
     expect(r.status).toBe(200);
     expect(r.body.data).toEqual({
       status: "pending",
-      funder: { name: "Riverbend Community Foundation", handle: "riverbend", verification: { source: "passport", level: null } },
+      funder: { name: "Riverbend Community Foundation", workspaceName: null, handle: "riverbend", verification: { source: "passport", level: "L2" }, verified: true },
       award: { title: "Emergency operating support", amount: { value: "25000.00", currency: "USD" }, startDate: "2027-05-01", endDate: "2028-04-30", message: "Thank you for your work this winter." },
       organizationName: "Alder Creek Family Services",
       invitedEmail: "j…@aldercreek.example",

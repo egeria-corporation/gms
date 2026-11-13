@@ -20,8 +20,8 @@ import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
 import { checkSigner } from "./organization.ts";
-import { verificationOf } from "./profile.ts";
-import type { Repos } from "./repos/types.ts";
+import { namesOf, verificationOf, type VerificationLevel } from "./profile.ts";
+import type { Repos, Row } from "./repos/types.ts";
 
 /** How long an invitation link works. Resending issues a new link with a new period. */
 export const DIRECT_AWARD_INVITATION_TTL_DAYS = 14;
@@ -38,6 +38,11 @@ export const DIRECT_AWARD_RESEND_ROLES = ["admin", "program_officer", "finance"]
 export const INVITATION_TOKEN_PREFIX = "gms_awi_";
 
 const DAY_MS = 86_400_000;
+/**
+ * Passport levels at which a funder counts as verified: L1 or above. A funder linked at L0 (an
+ * organization claimed and not yet confirmed) is not, and the email says so.
+ */
+export const FUNDER_VERIFIED_LEVELS: readonly VerificationLevel[] = ["L1", "L2", "L3"];
 /** Funder members emailed when an invitation is accepted or declined. */
 const NOTIFIED_ROLES = ["admin", "program_officer", "finance"] as const;
 
@@ -113,6 +118,18 @@ export const declineInput = z.object({ token: TOKEN, reason: z.string().trim().m
 // ------------------------------------------------------------------------------------ funder side
 
 /**
+ * How the funder is named to the people it invites (NP-02): by its Passport legal name when the
+ * workspace is linked to Passport, with the workspace's own name second; by the workspace's name
+ * otherwise. `verified` only at FUNDER_VERIFIED_LEVELS.
+ */
+export function funderIdentity(funder: Row<"workspaces">) {
+  const names = namesOf(funder);
+  const verification = verificationOf(funder);
+  const verified = verification.source === "passport" && !!verification.level && FUNDER_VERIFIED_LEVELS.includes(verification.level);
+  return { name: names.name, workspaceName: names.workspaceName, verification, verified };
+}
+
+/**
  * Who may send: to give an award, a person with `awards:write` and one of DIRECT_AWARD_ROLES; to
  * resend, one of DIRECT_AWARD_RESEND_ROLES (finance holds no `awards:write`). An agent's call waits for a person.
  */
@@ -136,11 +153,11 @@ const newToken = async () => {
 
 /** The email for one invitation. The token is used for the link and dropped; it is never stored or logged. */
 async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvitation, token: string): Promise<boolean> {
-  const funder = required(await ctx.repos.table("workspaces").one({ id: award.workspace_id }), "Workspace");
+  const funder = funderIdentity(required(await ctx.repos.table("workspaces").one({ id: award.workspace_id }), "Workspace"));
   const period = keyDatesOf(award).periodOfPerformance;
   const email = directAwardInvitationEmail({
-    funderName: funder.display_name,
-    funderVerified: verificationOf(funder).source === "passport",
+    funderName: funder.name,
+    funderVerified: funder.verified,
     organizationName: inv.organization_name,
     awardTitle: award.title,
     amount: printMoney(minorOf(fundingOf(award).awardedAmount) ?? 0, currencyOf(award)),
@@ -294,7 +311,7 @@ export async function lookupInvitation(ctx: ServiceContext, input: z.output<type
   const emailMatches = norm(signedInEmail) === inv.email;
   return {
     status,
-    funder: { name: funder.display_name, handle: funder.handle, verification: verificationOf(funder) },
+    funder: { ...funderIdentity(funder), handle: funder.handle },
     award: { title: award.title, amount: awarded ? { value: awarded.amount, currency: awarded.currency } : null, startDate: period?.startDate ?? null, endDate: period?.endDate ?? null, message: inv.message },
     organizationName: inv.organization_name,
     invitedEmail: maskEmail(inv.email),
