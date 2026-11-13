@@ -39,6 +39,7 @@ const FReviewerAssignments = lazy(() => import("../screens/funder/ReviewerAssign
 const FReviewerScoring = lazy(() => import("../screens/funder/ReviewerScoring.tsx"));
 const FPanel = lazy(() => import("../screens/funder/Panel.tsx"));
 const FAwardAgreement = lazy(() => import("../screens/funder/AwardAgreement.tsx"));
+const FNewAward = lazy(() => import("../screens/funder/NewAward.tsx"));
 const FAwardPayments = lazy(() => import("../screens/funder/AwardPayments.tsx"));
 const FPaymentsDue = lazy(() => import("../screens/funder/PaymentsDue.tsx"));
 const FPaymentsInFlight = lazy(() => import("../screens/funder/PaymentsInFlight.tsx"));
@@ -219,6 +220,7 @@ function AppRoutes() {
             <Route path="applications/first-run" element={f(<FApplicationsEmpty />)} />
             <Route path="reviews/assign" element={f(<FReviewAssignment />)} />
             <Route path="awards" element={f(<FAwardAgreement />)} />
+            <Route path="awards/new" element={f(<FNewAward />)} />
             <Route path="awards/:awardId" element={<Navigate to="agreement" replace />} />
             <Route path="awards/:awardId/agreement" element={f(<FAwardAgreement />)} />
             <Route path="awards/:awardId/payments" element={f(<FAwardPayments />)} />

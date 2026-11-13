@@ -16,3 +16,6 @@ export function hiddenFunderRailItems(role: string): ReadonlySet<string> {
   if (READ_ONLY.has(role)) return new Set(["Communications", "Approvals", "Settings"]);
   return new Set();
 }
+
+/** Who may give an award directly (and resend or change the address): a funder admin or finance member. */
+export const canGiveDirectAward = (role: string): boolean => role === "admin" || role === "finance";

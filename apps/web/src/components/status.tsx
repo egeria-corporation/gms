@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Verification } from "../api/types.ts";
+import type { InvitationStatus } from "../api/directAwards.ts";
 import type { AgreementStatus, ApplicationStatus, AwardStatus, RequirementStatus, SubmissionStatus, TrancheStatus } from "@gms/workflow";
 
 export type Tone = "neutral" | "info" | "prog" | "ok" | "warn" | "dng" | "done" | "agent";
@@ -65,6 +66,14 @@ export const STATUS = {
     completed: look(CircleCheck, "Completed", "done"),
     cancelled: look(Ban, "Cancelled", "dng"),
   } satisfies Record<AwardStatus, StatusLook>,
+  // The invitation on an award given directly: where the organization's answer stands.
+  invitation: {
+    sent: look(Mail, "Invitation sent", "info"),
+    accepted: look(CircleCheck, "Accepted", "ok"),
+    declined: look(CircleX, "Declined", "dng"),
+    expired: look(Clock, "Expired", "warn"),
+    revoked: look(Ban, "Withdrawn", "neutral"),
+  } satisfies Record<InvitationStatus, StatusLook>,
   agreement: {
     draft: look(Pencil, "Draft", "neutral"),
     sent: look(Send, "Sent", "info"),
