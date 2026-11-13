@@ -3,6 +3,19 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.3.1
+
+### Fixed
+
+- With Userback switched on, its Feedback button sat at the bottom of the page instead of the
+  corner: the widget positions it with inline `<style>` elements, which the Content-Security-Policy
+  refused. When `VITE_USERBACK_TOKEN` is set, `style-src` now also allows `'unsafe-inline'`. Scripts
+  stay strict, and nothing changes when the token is unset.
+
+### Upgrade notes
+
+- No database migrations and no setting changes.
+
 ## v1.3.0
 
 ### Added
