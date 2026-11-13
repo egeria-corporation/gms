@@ -15,7 +15,7 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { invitationStatus, maskEmail, type AwardInvitation } from "./award-invitations.ts";
-import { awardDetail, createOfferedAward, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, printMoney, readDefaults, type Award } from "./awards.ts";
+import { STAFF_ROLES, awardDetail, createOfferedAward, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, printMoney, readDefaults, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
@@ -27,8 +27,13 @@ import type { Repos } from "./repos/types.ts";
 export const DIRECT_AWARD_INVITATION_TTL_DAYS = 14;
 /** Invitation emails (new and resent) per funder workspace over a rolling 24 hours. */
 export const DIRECT_AWARD_INVITES_PER_DAY = 25;
-/** Funder roles that may give an award directly. People only: an agent's request waits for one of them. */
-export const DIRECT_AWARD_ROLES = ["admin", "finance"] as const;
+/**
+ * Funder roles that may give an award directly: those that make an award from an application
+ * (`createAwardFromApplication`, `awards:write`). People only: an agent's request waits for one of them.
+ */
+export const DIRECT_AWARD_ROLES = STAFF_ROLES;
+/** Funder roles that may resend an invitation already given: the givers, and finance, which follows up on awards. */
+export const DIRECT_AWARD_RESEND_ROLES = ["admin", "program_officer", "finance"] as const;
 /** Recognizable so the log redactor and secret scanners can spot one. */
 export const INVITATION_TOKEN_PREFIX = "gms_awi_";
 
@@ -107,10 +112,12 @@ export const declineInput = z.object({ token: TOKEN, reason: z.string().trim().m
 
 // ------------------------------------------------------------------------------------ funder side
 
-/** Who may send: a person with one of DIRECT_AWARD_ROLES in a funder workspace. An agent's call waits for one. */
-async function sender(ctx: ServiceContext) {
-  // Finance holds no `awards:write`; the role list and the human gate decide here.
-  const ws = await authorize(ctx, { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true });
+/**
+ * Who may send: to give an award, a person with `awards:write` and one of DIRECT_AWARD_ROLES; to
+ * resend, one of DIRECT_AWARD_RESEND_ROLES (finance holds no `awards:write`). An agent's call waits for a person.
+ */
+async function sender(ctx: ServiceContext, action: "create" | "resend") {
+  const ws = await authorize(ctx, action === "create" ? { scope: "awards:write", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true } : { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_RESEND_ROLES, person: true });
   if (ctx.actor.kind !== "user" || !ctx.actor.userId || ws.role === null) throw humanOnly("Giving an award directly");
   if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_not_configured", "Outbound mail is not configured on this server, so the invitation cannot be sent. Nothing was created");
   return ws;
@@ -156,7 +163,7 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
 
 /** `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the invitation. */
 export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput) {
-  const ws = await sender(ctx);
+  const ws = await sender(ctx, "create");
   const program = input.programId ? await ctx.repos.table("programs").one({ id: input.programId, workspace_id: ws.id }) : null;
   if (input.programId && !program) throw notFound("Program");
   await countSend(ctx, ws.id);
@@ -212,7 +219,7 @@ async function funderInvitation(ctx: ServiceContext, workspaceId: string, awardI
 
 /** `POST /gms/awards/{id}/invitation/resend`: a new link (the old one stops working), optionally to a new address. */
 export async function resendInvitation(ctx: ServiceContext, awardId: string, input: z.output<typeof resendInput>) {
-  const ws = await sender(ctx);
+  const ws = await sender(ctx, "resend");
   const { award, inv } = await funderInvitation(ctx, ws.id, awardId);
   const status = invitationStatus(inv, ctx.now());
   if (status === "accepted" || status === "declined" || status === "revoked" || award.status !== "offered") {

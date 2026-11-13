@@ -109,11 +109,16 @@ describe("the funder gives an award directly", () => {
     expect(h.mailer.sent.at(-1)!.subject).toMatch(/^Cascade County Health Department has offered/);
   });
 
-  it("is for funder admins and finance, people only", async () => {
-    expect((await create(await funderAs(USER_FINANCE))).status).toBe(201);
-    const officer = await create(await funderAs(USER_OFFICER));
-    expect(officer.status).toBe(403);
-    expect(officer.body.errors[0]!.code).toBe("insufficient_role");
+  it("is for the roles that make awards (admin, program officer), people only; finance may resend", async () => {
+    const officerMade = await create(await funderAs(USER_OFFICER));
+    expect(officerMade.status).toBe(201);
+    const finance = await funderAs(USER_FINANCE);
+    const byFinance = await create(finance);
+    expect(byFinance.status).toBe(403);
+    expect(byFinance.body.errors[0]!.code).toBe("insufficient_scope");
+    expect((await call(finance, "POST", `/gms/awards/${officerMade.body.data.id}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
+    const auditor = await call(await funderAs("cccccccc-cccc-4ccc-8ccc-cccccccccccc"), "POST", `/gms/awards/${officerMade.body.data.id}/invitation/resend`, {}, WS_FUNDER);
+    expect(auditor.status).toBe(403);
     // An applicant workspace cannot give awards.
     expect((await create(grantee, {}, WS_APPLICANT)).status).toBe(403);
     // An agent acting for the admin is refused over REST; over MCP its call waits for a person.
@@ -443,11 +448,15 @@ describe("over MCP", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
     expect(h.mailer.sent).toHaveLength(0);
     const approvalId = (out.structuredContent as { approvalId: string }).approvalId;
-    // A program officer may write awards but may not give one directly: approving fails, nothing is sent.
-    const officer = await funderAs(USER_OFFICER);
-    const byOfficer = await call<{ data: { status: string } }>(officer, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
-    expect(byOfficer.body.data).toMatchObject({ status: "failed", error: "This needs one of these roles: admin, finance" });
+    // Finance cannot approve it: it holds no awards:write, so it cannot give an award either.
+    const finance = await funderAs(USER_FINANCE);
+    const byFinance = await call(finance, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(byFinance.status).toBe(403);
     expect(h.mailer.sent).toHaveLength(0);
+    // A program officer may, and the call then runs as the officer.
+    const byOfficer = await call<{ data: { status: string } }>(await funderAs(USER_OFFICER), "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(byOfficer.body.data.status).toBe("executed");
+    expect(h.mailer.sent).toHaveLength(1);
   });
 
   it("the admin's approval creates the award and sends the invitation", async () => {

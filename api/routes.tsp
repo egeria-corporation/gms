@@ -576,8 +576,9 @@ namespace GMS.Routes.Custom {
      * Give an award directly to an organization that has not applied, by its name and a contact
      * email. The award is created `offered` with no recipient workspace; the contact is emailed a
      * link and the award is attached only when they accept it, signed in with that address, for an
-     * applicant workspace they administer. Funder `admin` or `finance`, people only (an agent's
-     * request waits for a person's approval). 25 invitations, new and resent, per funder workspace
+     * applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
+     * (as for an award from an application), people only (an agent's request waits for a person's
+     * approval). 25 invitations, new and resent, per funder workspace
      * per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
      */
     @post @route("/awards/direct") @useAuth(UserSession)
@@ -585,8 +586,9 @@ namespace GMS.Routes.Custom {
 
     /**
      * Send a direct award's invitation again with a new link (the old one stops working), to a new
-     * address when `contactEmail` is given. Counts against the daily limit. 409 `invitation_closed`
-     * once it was accepted, declined or withdrawn.
+     * address when `contactEmail` is given. Funder `admin`, `program_officer` or `finance`, people
+     * only. Counts against the daily limits. 409 `invitation_closed` once it was accepted, declined or
+     * withdrawn.
      */
     @post @route("/awards/{id}/invitation/resend") @useAuth(UserSession)
     op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | TooManyRequests | ServiceUnavailable;
