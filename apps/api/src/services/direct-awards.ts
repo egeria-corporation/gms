@@ -5,7 +5,7 @@
 // applicant workspace where they are an admin (review F-01: never by name or EIN). Accepting runs
 // `accept_offer` through the award machine, so the Passport mirror and every effect behave as for
 // any accepted award, and records the organization's consent to share its record with the funder.
-import { directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
+import { containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
 import { toMinor } from "@gms/protocol";
 import { awardCgStatus, awardEffects, awardMachine } from "@gms/workflow";
 import { z } from "zod";
@@ -65,20 +65,18 @@ const claimsFor = (ctx: ServiceContext): DirectAwardClaims => {
 
 // ------------------------------------------------------------------------------------ input
 
-/**
- * Web and email addresses in text the funder types. The invitation email may carry no link but the
- * claim link and the GMS home, and mail programs turn written addresses into links, so funder text
- * that names one is refused rather than sent (the stricter reading of the contract).
+/*
+ * The invitation email may carry no link but the claim link and the GMS home, and mail programs turn
+ * written addresses into links, so free text that reads as one (`containsLink`, `@gms/notify`: any
+ * URL scheme, `@` address or host name, after NFKC) is refused rather than sent.
  */
-export const FUNDER_TEXT_LINK = /(?:[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[^\s@]+@[^\s@]+\.[a-z]{2,}|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|co|us|gov|edu|info|biz|app|dev|link|xyz|me|ly|site|online|ru|cn|top|click)\b)/i;
-const noLinks = (what: string) => (v: string | undefined) => !v || !FUNDER_TEXT_LINK.test(v) || { message: `${what} cannot contain a web or email address` };
 const textWithoutLinks = (max: number, what: string) =>
   z
     .string()
     .trim()
     .min(1)
     .max(max)
-    .refine((v) => noLinks(what)(v) === true, { message: `${what} cannot contain a web or email address` });
+    .refine((v) => !containsLink(v), { message: `${what} cannot contain a web or email address` });
 
 const emailInput = z
   .email()
@@ -99,7 +97,7 @@ export const directAwardInput = z
       .string()
       .trim()
       .max(DIRECT_AWARD_MESSAGE_MAX)
-      .refine((v) => !v || !FUNDER_TEXT_LINK.test(v), { message: "The message cannot contain a web or email address. The email already links to the award" })
+      .refine((v) => !containsLink(v), { message: "The message cannot contain a web or email address. The email already links to the award" })
       .optional(),
   })
   .strict()
@@ -137,6 +135,17 @@ async function sender(ctx: ServiceContext, action: "create" | "resend") {
   const ws = await authorize(ctx, action === "create" ? { scope: "awards:write", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true } : { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_RESEND_ROLES, person: true });
   if (ctx.actor.kind !== "user" || !ctx.actor.userId || ws.role === null) throw humanOnly("Giving an award directly");
   if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_not_configured", "Outbound mail is not configured on this server, so the invitation cannot be sent. Nothing was created");
+  // The funder's name heads the email: one that reads as a link is not sent under.
+  const funder = funderIdentity(required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace"));
+  if (containsLink(funder.name)) {
+    throw new ApiError(
+      422,
+      "funder_name_looks_like_link",
+      funder.verification.source === "passport"
+        ? "Your organization's name in OpenGrants Passport looks like a web or email address, so award invitations cannot be sent under it. Ask Passport to correct the name, then try again"
+        : "Your workspace's name looks like a web or email address, so award invitations cannot be sent under it. Rename the workspace in its settings, then try again",
+    );
+  }
   return ws;
 }
 

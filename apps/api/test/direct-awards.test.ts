@@ -157,6 +157,12 @@ describe("the funder gives an award directly", () => {
     expect(await bad({ message: "Write to grants@riverbendcf.example" })).toBe(400);
     expect(await bad({ message: "See www.example.com" })).toBe(400);
     expect(await bad({ title: "Visit riverbend-grants.com" })).toBe(400);
+    // Any ending, and dots a mail program reads as dots.
+    expect(await bad({ message: "Confirm your bank at grants-portal.ngo" })).toBe(400);
+    expect(await bad({ title: "Ford grants at fordgrants.foundation" })).toBe(400);
+    expect(await bad({ recipient: { organizationName: "Alder\uFF0Ede", contactEmail: INVITED } })).toBe(400);
+    expect(await bad({ message: "Questions: agent.ai" })).toBe(400);
+    expect(await bad({ message: "grants\u3002org" })).toBe(400);
     expect(await bad({ recipient: { organizationName: "Alder", contactEmail: "not-an-email" } })).toBe(400);
     expect(await bad({ amount: { value: "0.00", currency: "USD" } })).toBe(400);
     expect(await bad({ amount: { value: "100.00", currency: "EUR" } })).toBe(400);
@@ -165,6 +171,23 @@ describe("the funder gives an award directly", () => {
     expect(await bad({ message: "x".repeat(2001) })).toBe(400);
     const elsewhere = await h.repos.table("programs").insert({ workspace_id: WS_OTHER, name: "Not yours" });
     expect(await bad({ programId: elsewhere.id })).toBe(404);
+    expect(h.mailer.sent).toHaveLength(0);
+    expect(await h.repos.table("awards").count({})).toBe(0);
+  });
+
+  it("refuses to send under a funder name that reads as a link, with a plain way out", async () => {
+    await h.repos.table("workspaces").update({ id: WS_OTHER }, { display_name: "Cascade Health - verify at cascade-grants.foundation" });
+    const otherAdmin = "f1000000-0000-4000-8000-0000000000d1";
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: otherAdmin, role: "admin" });
+    const r = await create(await funderAs(otherAdmin), {}, WS_OTHER);
+    expect(r.status).toBe(422);
+    expect(r.body.errors[0]!.code).toBe("funder_name_looks_like_link");
+    expect(r.body.message).toContain("Rename the workspace");
+    // A Passport funder is named by its legal name; when that reads as a link, Passport must fix it.
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { legal_name: "Riverbend．Foundation" });
+    const linked = await create(admin);
+    expect(linked.status).toBe(422);
+    expect(linked.body.message).toContain("Passport");
     expect(h.mailer.sent).toHaveLength(0);
     expect(await h.repos.table("awards").count({})).toBe(0);
   });

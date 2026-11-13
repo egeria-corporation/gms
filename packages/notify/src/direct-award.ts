@@ -10,6 +10,42 @@ export const FUNDER_NOT_VERIFIED_LINE = "This funder's organization is not verif
 /** The funder's note is plain text, at most this long. */
 export const DIRECT_AWARD_MESSAGE_MAX = 2000;
 
+// ------------------------------------------------------------------------------------ links
+
+/** Characters read as the dot between host labels (IDNA): the ideographic, fullwidth and halfwidth full stops. */
+const LABEL_DOTS = /[\u3002\uFF0E\uFF61]/g;
+/** `scheme://` and the schemes that work without slashes. */
+const SCHEME = /(?:[a-z][a-z0-9+.-]*:\/\/|\b(?:mailto|tel|sms|javascript|data|file|https?|ftp):)/i;
+/** An address: something@something. */
+const AT_ADDRESS = /[^\s@]@[^\s@]/;
+/** Two dot-separated labels, the last of two or more letters, whatever the ending: `grants.ngo`, `x.foundation`, `a.de`. */
+const HOST = /[\p{L}\p{N}_-]\.\p{L}{2,}/u;
+
+/** Text as a mail program or browser would read it for links: NFKC, every full stop a dot, no invisible format characters. */
+export function linkView(text: string): string {
+  return text.normalize("NFKC").replace(LABEL_DOTS, ".").replace(/\p{Cf}/gu, "");
+}
+
+/**
+ * Whether free text someone supplies would show up as a link in an email: a URL scheme, an `@`
+ * address, or a host name of any ending. The one detector for every field a funder or grantee
+ * types into GMS mail (organization name, title, message, decline reason) and for the funder's
+ * name as the email prints it. Deliberately broad: `St.John` or `file.pdf` without a space count too.
+ */
+export function containsLink(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const v = linkView(text);
+  return SCHEME.test(v) || AT_ADDRESS.test(v) || HOST.test(v);
+}
+
+/** A field of the invitation email that would carry a link. */
+export class LinkInTextError extends Error {
+  constructor(readonly field: string) {
+    super(`${field} would show as a link in the email`);
+    this.name = "LinkInTextError";
+  }
+}
+
 export interface DirectAwardInvitationFields {
   /** The funder's Passport legal name when it is linked to Passport, else its workspace's name. */
   funderName: string;
@@ -48,6 +84,8 @@ const SAFE_URL = /^https:\/\/[^\s"'<>]+$/;
 
 export function directAwardInvitationEmail(f: DirectAwardInvitationFields): RenderedEmail {
   if (!SAFE_URL.test(f.claimUrl) || !SAFE_URL.test(f.homeUrl)) throw new Error("The claim and home links must be https URLs");
+  // The only links are the claim link and the GMS home: no other field may read as one.
+  for (const [field, value] of [["funderName", f.funderName], ["organizationName", f.organizationName], ["awardTitle", f.awardTitle], ["message", f.message]] as const) if (containsLink(value)) throw new LinkInTextError(field);
   const funder = oneLine(f.funderName);
   const org = oneLine(f.organizationName);
   const title = oneLine(f.awardTitle);

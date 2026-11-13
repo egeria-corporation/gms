@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { directAwardInvitationEmail, FUNDER_NOT_VERIFIED_LINE, type DirectAwardInvitationFields } from "../src/index.ts";
+import { containsLink, directAwardInvitationEmail, FUNDER_NOT_VERIFIED_LINE, LinkInTextError, type DirectAwardInvitationFields } from "../src/index.ts";
 
 const base: DirectAwardInvitationFields = {
   funderName: "Riverbend Community Foundation",
@@ -39,8 +39,8 @@ describe("direct award invitation email", () => {
   });
 
   it("keeps the funder's message plain text: escaped, never markup or a link", () => {
-    const message = 'Congratulations!\n\n<a href="https://evil.example">Click</a> [here](https://evil.example) **bold** <script>alert(1)</script>';
-    const e = directAwardInvitationEmail({ ...base, message, funderName: 'Fund <b>"X"</b>', awardTitle: "[Title](https://evil.example)" });
+    const message = 'Congratulations!\n\n<a href="#x">Click</a> [here](#x) **bold** <script>alert(1)</script>';
+    const e = directAwardInvitationEmail({ ...base, message, funderName: 'Fund <b>"X"</b>', awardTitle: "[Title](#x)" });
     expect(links(e.html)).toEqual([base.claimUrl, base.homeUrl]);
     expect(e.html).not.toContain("<script>");
     expect(e.html).not.toContain("<b>");
@@ -50,7 +50,7 @@ describe("direct award invitation email", () => {
   });
 
   it("puts no line break in the subject and refuses links that are not https", () => {
-    expect(directAwardInvitationEmail({ ...base, funderName: "A\r\nBcc: x@y.example" }).subject).toBe("A Bcc: x@y.example has offered Alder Creek Family Services a grant");
+    expect(directAwardInvitationEmail({ ...base, funderName: "A\r\nBcc: someone" }).subject).toBe("A Bcc: someone has offered Alder Creek Family Services a grant");
     expect(() => directAwardInvitationEmail({ ...base, claimUrl: "javascript:alert(1)" })).toThrow();
     expect(() => directAwardInvitationEmail({ ...base, homeUrl: 'https://x.example/"onmouseover=1' })).toThrow();
   });
@@ -59,5 +59,46 @@ describe("direct award invitation email", () => {
     const e = directAwardInvitationEmail({ ...base, message: "x".repeat(2500) });
     expect(e.text).toContain(`${"x".repeat(2000)}\n\n`);
     expect(e.text).not.toContain("x".repeat(2001));
+  });
+});
+
+describe("the one link detector", () => {
+  it.each([
+    "verify at fordgrants.foundation",
+    "confirm your bank at grants-portal.ngo",
+    "see riverbend.de",
+    "ask agent.ai",
+    "grants．ngo",
+    "grants。org",
+    "grants｡org",
+    "ｅｘａｍｐｌｅ．ｃｏｍ",
+    "exa​mple.org",
+    "www.example.com",
+    "https://x",
+    "mailto:someone",
+    "javascript:alert(1)",
+    "write to grants@riverbend",
+    "grants＠riverbend",
+    "Riverbend.Foundation Inc",
+    "例え.テスト",
+  ])("finds a link in %j", (text) => {
+    expect(containsLink(text)).toBe(true);
+  });
+
+  it.each([
+    "Riverbend Community Foundation",
+    "Dr. Smith and the U.S. Department of Health",
+    "St. Mary's Clinic, Inc.",
+    "e.g. clinics and 3.5 million meals",
+    "Version 2.0 of the plan",
+    "Thank you for your work this winter.\n\nWe look forward to it.",
+    "",
+  ])("finds none in %j", (text) => {
+    expect(containsLink(text)).toBe(false);
+  });
+
+  it("refuses to build an email whose funder-supplied text reads as a link", () => {
+    expect(() => directAwardInvitationEmail({ ...base, funderName: "Ford Foundation - verify at fordgrants.foundation" })).toThrow(LinkInTextError);
+    expect(() => directAwardInvitationEmail({ ...base, message: "grants．ngo" })).toThrow(LinkInTextError);
   });
 });
