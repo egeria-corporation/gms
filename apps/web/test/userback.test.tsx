@@ -35,7 +35,7 @@ describe("Content-Security-Policy", () => {
     expect(directives(contentSecurityPolicy(API, SB))["font-src"]).toEqual(["'self'"]);
   });
 
-  it("adds exactly Userback's origins with a token and leaves frames and inline styles alone", () => {
+  it("adds exactly Userback's origins with a token, inline styles for its widget, and never inline scripts or frames", () => {
     const d = directives(contentSecurityPolicy(API, SB, undefined, TOKEN));
     expect(d["script-src"]).toEqual(["'self'", ...USERBACK.script]);
     expect(d["style-src"]).toEqual(["'self'", ...USERBACK.style]);
@@ -43,7 +43,12 @@ describe("Content-Security-Policy", () => {
     expect(d["connect-src"]).toEqual(["'self'", API, SB, "wss://project.supabase.example", "https://api.userback.io", "https://events.userback.io", "https://static.userback.io"]);
     expect(d["img-src"]).toEqual(["'self'", "data:", "https:"]);
     expect(d["frame-src"]).toEqual(["'none'"]);
-    expect(contentSecurityPolicy(API, SB, undefined, TOKEN)).not.toContain("unsafe-inline");
+    // The widget positions its button with inline <style> elements (checked on the live site).
+    expect(d["style-src"]).toContain("'unsafe-inline'");
+    expect(d["script-src"]).not.toContain("'unsafe-inline'");
+    expect(d["script-src"]).not.toContain("'unsafe-eval'");
+    // Without a token nothing is relaxed.
+    expect(contentSecurityPolicy(API, SB)).not.toContain("unsafe-inline");
   });
 
   it("combines with the Google Picker", () => {
