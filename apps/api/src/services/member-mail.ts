@@ -28,6 +28,8 @@ export interface MemberMail {
   link?: string;
   /** The person who caused the notice is not mailed about it. */
   exceptUserId?: string | null;
+  /** Only members with one of these roles; everyone when absent. */
+  roles?: readonly string[];
   /** Sent at once even to members on a digest (still not to members who turned the category's email off). */
   always?: boolean;
   replyTo?: string;
@@ -40,7 +42,7 @@ export async function mailMembers(ctx: Mailing, mail: MemberMail): Promise<{ sen
   const { mailer, directory } = ctx.ports;
   const from = ctx.config.mailFrom;
   if (!mailer || !from || !directory) return out;
-  const members = (await ctx.repos.table("workspace_members").find({ workspace_id: mail.workspaceId })).filter((m) => live(m, ctx.now()) && m.user_id !== mail.exceptUserId);
+  const members = (await ctx.repos.table("workspace_members").find({ workspace_id: mail.workspaceId })).filter((m) => live(m, ctx.now()) && m.user_id !== mail.exceptUserId && (!mail.roles || mail.roles.includes(m.role)));
   const people = await directory.lookup(members.map((m) => m.user_id));
   const body = mail.link ? `${mail.text}\n\n${mail.link}` : mail.text;
   for (const m of members) {

@@ -4,16 +4,18 @@
 // Each handler parses input, builds the ServiceContext and calls one service function.
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../app.ts";
-import { authenticate } from "../../auth/middleware.ts";
+import { authenticate, requireUser } from "../../auth/middleware.ts";
+import { secondStepVerified } from "../../auth/second-step.ts";
 import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid, uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as agreements from "../../services/agreements.ts";
 import * as awards from "../../services/awards.ts";
 import * as decisions from "../../services/decisions.ts";
+import * as directAwards from "../../services/direct-awards.ts";
 import * as reviews from "../../services/reviews.ts";
 import * as templates from "../../services/templates.ts";
-import { jsonBody, page, svc } from "../http.ts";
+import { jsonBody, page, svc, userSvc } from "../http.ts";
 
 export const grantRoutes = new Hono<AppEnv>();
 
@@ -89,6 +91,13 @@ grantRoutes.post("/awards", async (c) => {
   const { applicationId: app, ...input } = parse(decisions.awardFromApplicationInput, await jsonBody(c));
   return c.json(created(await decisions.createAwardFromApplication(await svc(c), applicationId(app), input)), 201);
 });
+// An award given directly to an organization that has not applied: it is attached only when the
+// invited person accepts it (`/award-invitations/accept`).
+grantRoutes.post("/awards/direct", async (c) => {
+  const input = parse(directAwards.directAwardInput, await jsonBody(c));
+  return c.json(created(await directAwards.createDirectAward(await svc(c), { ...input, ...(input.programId ? { programId: bareUuid(input.programId, "Program") } : {}) })), 201);
+});
+grantRoutes.post("/awards/:id/invitation/resend", async (c) => c.json(ok(await directAwards.resendInvitation(await svc(c), awardId(c), parse(directAwards.resendInput, await jsonBody(c))))));
 grantRoutes.get("/awards/:id", async (c) => c.json(ok(await awards.getAward(await svc(c), awardId(c), "funder"))));
 grantRoutes.get("/awards/:id/letter.pdf", async (c) => pdf(await agreements.awardLetterPdf(await svc(c), awardId(c))));
 grantRoutes.post("/awards/:id/accept-offer", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c), parse(awards.acceptOfferInput, await jsonBody(c))))));
@@ -100,6 +109,15 @@ grantRoutes.post("/awards/:id/cancel", async (c) => c.json(ok(await awards.cance
 grantRoutes.get("/awards/:id/amendments", async (c) => c.json(ok(await awards.listAmendments(await svc(c), awardId(c)))));
 grantRoutes.post("/awards/:id/amendments", async (c) => c.json(created(await awards.requestAmendment(await svc(c), awardId(c), parse(awards.amendmentInput, await jsonBody(c)))), 201));
 grantRoutes.patch("/amendments/:amendmentId", async (c) => c.json(ok(await awards.decideAmendment(await svc(c), bareUuid(c.req.param("amendmentId"), "Amendment"), parse(awards.amendmentDecision, await jsonBody(c))))));
+
+// ---- a direct award, from the invited person's side: signed in, no workspace yet, the token only ever in the body ----
+grantRoutes.post("/award-invitations/lookup", requireUser(), async (c) => c.json(ok(await directAwards.lookupInvitation(userSvc(c), parse(directAwards.lookupInput, await jsonBody(c)), c.get("user").email))));
+grantRoutes.post("/award-invitations/accept", requireUser(), async (c) => {
+  const input = parse(directAwards.acceptInput, await jsonBody(c));
+  const user = c.get("user");
+  return c.json(ok(await directAwards.acceptInvitation(userSvc(c), { ...input, workspaceId: bareUuid(input.workspaceId, "Workspace") }, user.email, () => secondStepVerified(c, user))));
+});
+grantRoutes.post("/award-invitations/decline", requireUser(), async (c) => c.json(ok(await directAwards.declineInvitation(userSvc(c), parse(directAwards.declineInput, await jsonBody(c)), c.get("user").email))));
 
 // ---- the recipient's awards (`/my` is authenticated by the applicant routes) ----
 grantRoutes.get("/my/awards", async (c) => {

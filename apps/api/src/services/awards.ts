@@ -12,6 +12,7 @@ import { z } from "zod";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
+import { invitationView, type AwardInvitation } from "./award-invitations.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { checkSigner, payoutDestinationFor } from "./organization.ts";
 import { passportClientFor } from "./passport-link.ts";
@@ -113,7 +114,19 @@ function mirrorState(ctx: ServiceContext, a: Award): "synced" | "pending" | "not
   return ctx.config.passportAwardWrite ? "pending" : "disabled";
 }
 
-function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipient: Ws | undefined, consented: boolean) {
+/**
+ * The recipient as a view shows it. A direct award not yet accepted names the organization as the
+ * funder typed it, with no workspace and no organization data (there is none), and its invitation.
+ */
+function recipientView(ctx: ServiceContext, a: Award, recipient: Ws | undefined, consented: boolean, inv: AwardInvitation | undefined) {
+  const invitation = inv ? { invitation: invitationView(inv, ctx.now()) } : {};
+  if (a.recipient_workspace_id) {
+    return { workspaceId: a.recipient_workspace_id, name: recipient ? namesShared(recipient, consented).name : null, workspaceName: recipient ? namesShared(recipient, consented).workspaceName : null, handle: recipient?.handle ?? null, level: verificationShared(recipient, consented).level, verification: verificationShared(recipient, consented), ...invitation };
+  }
+  return inv ? { workspaceId: null, name: inv.organization_name, workspaceName: null, handle: null, level: null, verification: null, ...invitation } : null;
+}
+
+function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipient: Ws | undefined, consented: boolean, inv?: AwardInvitation) {
   const f = fundingOf(a);
   return {
     id: apiId("award", a.id),
@@ -133,7 +146,7 @@ function summary(ctx: ServiceContext, a: Award, funder: Ws | undefined, recipien
     programId: a.program_id,
     parentAwardId: a.parent_award_id ? apiId("award", a.parent_award_id) : null,
     funder: { workspaceId: a.workspace_id, name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? null },
-    recipient: a.recipient_workspace_id ? { workspaceId: a.recipient_workspace_id, name: recipient ? namesShared(recipient, consented).name : null, workspaceName: recipient ? namesShared(recipient, consented).workspaceName : null, handle: recipient?.handle ?? null, level: verificationShared(recipient, consented).level, verification: verificationShared(recipient, consented) } : null,
+    recipient: recipientView(ctx, a, recipient, consented, inv),
     recipientIndividual: a.recipient_individual,
     passport: { awardId: a.passport_award_id, syncedAt: a.passport_synced_at, mirror: mirrorState(ctx, a) },
     createdAt: a.created_at,
@@ -145,7 +158,13 @@ async function parties(ctx: ServiceContext, awards: Award[]) {
   const ids = [...new Set(awards.flatMap((a) => [a.workspace_id, ...(a.recipient_workspace_id ? [a.recipient_workspace_id] : [])]))];
   const rows = ids.length ? await ctx.repos.table("workspaces").find({ id: ids }) : [];
   const consents = ids.length ? await ctx.repos.table("consents").find({ applicant_workspace_id: ids, revoked_at: null }) : [];
-  return { ws: (id: string | null) => rows.find((w) => w.id === id), consented: (a: Award) => consents.some((c) => c.applicant_workspace_id === a.recipient_workspace_id && c.funder_workspace_id === a.workspace_id) };
+  const invitations = awards.length ? await ctx.repos.table("award_invitations").find({ award_id: awards.map((a) => a.id) }) : [];
+  return {
+    ws: (id: string | null) => rows.find((w) => w.id === id),
+    consented: (a: Award) => consents.some((c) => c.applicant_workspace_id === a.recipient_workspace_id && c.funder_workspace_id === a.workspace_id),
+    // An invitation is the award's only when both sit in the same workspace (0020).
+    invitation: (a: Award) => invitations.find((i) => i.award_id === a.id && i.workspace_id === a.workspace_id),
+  };
 }
 
 export async function awardDetail(ctx: ServiceContext, a: Award) {
@@ -158,7 +177,7 @@ export async function awardDetail(ctx: ServiceContext, a: Award) {
   ]);
   // The recipient reads its own hold reasons; the funder, a payee fact only while the record is shared.
   const shared = ctx.workspace?.id === a.recipient_workspace_id || !a.recipient_workspace_id || p.consented(a);
-  return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map((t) => ({ ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, shared) })), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
+  return { ...summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a), p.invitation(a)), agreement: agreement ? agreementSummary(agreement) : null, tranches: tranches.map((t) => ({ ...trancheView(t), holdReason: shownHoldReason(t.hold_reason, shared) })), requirements: requirements.map(requirementView), amendments: amendments.map(amendmentView) };
 }
 
 export interface AwardFilter {
@@ -171,7 +190,7 @@ async function listFor(ctx: ServiceContext, page: PageRequest, rows: Award[], f:
   const hits = rows.filter((a) => (!f.status || f.status.split(",").includes(a.status)) && (!f.programId || a.program_id === f.programId) && (!f.recipientWorkspaceId || a.recipient_workspace_id === f.recipientWorkspaceId)).sort((x, y) => (x.created_at < y.created_at ? 1 : -1));
   const slice = hits.slice(page.offset, page.offset + page.pageSize);
   const p = await parties(ctx, slice);
-  return { items: slice.map((a) => summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a))), total: hits.length };
+  return { items: slice.map((a) => summary(ctx, a, p.ws(a.workspace_id), p.ws(a.recipient_workspace_id), p.consented(a), p.invitation(a))), total: hits.length };
 }
 
 export async function listAwards(ctx: ServiceContext, page: PageRequest, f: AwardFilter = {}) {
@@ -236,7 +255,10 @@ export function readDefaults(program: Row<"programs"> | null): ProgramDefaults {
 
 export interface NewAward {
   workspaceId: string;
-  recipientWorkspaceId: string;
+  /** Null only for a direct award waiting for its recipient, which `recipientIndividual` names. */
+  recipientWorkspaceId: string | null;
+  /** The named recipient (`{ name }`), never an email address. */
+  recipientIndividual?: { name: string } | null;
   applicationId: string | null;
   opportunityId: string | null;
   programId: string | null;
@@ -261,6 +283,7 @@ export async function createOfferedAward(ctx: ServiceContext, input: NewAward, d
   const award = await ctx.repos.table("awards").insert({
     workspace_id: input.workspaceId,
     recipient_workspace_id: input.recipientWorkspaceId,
+    recipient_individual: (input.recipientWorkspaceId ? null : (input.recipientIndividual ?? null)) as Award["recipient_individual"],
     application_id: input.applicationId,
     opportunity_id: input.opportunityId,
     program_id: input.programId,
@@ -456,6 +479,9 @@ export async function cancelAward(ctx: ServiceContext, awardId: string, input: z
     if (["scheduled", "due", "ready", "held", "failed"].includes(t.status)) await trancheMachine.transition({ id: t.id, status: t.status as TrancheStatus }, "cancel", { id: ctx.actor.id, kind: "funder" }, { now: ctx.now().toISOString() }, grantPorts(ctx, award.workspace_id));
   }
   if (cancelled.passport_award_id) await mirrorAward(ctx, cancelled);
+  // Withdrawing a direct award also ends its invitation: the link stops working.
+  const [revoked] = await ctx.repos.table("award_invitations").update({ award_id: award.id, workspace_id: award.workspace_id, accepted_at: null, declined_at: null, revoked_at: null }, { revoked_at: ctx.now().toISOString() });
+  if (revoked) await audit(ctx, "award.invitation_revoked", "award", award.id, { invitationId: revoked.id }, award.workspace_id);
   return awardDetail(ctx, cancelled);
 }
 
@@ -542,7 +568,23 @@ async function project(ctx: ServiceContext, a: Award): Promise<AwardBase> {
   );
 }
 
-const visibleAwards = async (ctx: ServiceContext, ws: ServiceWorkspace) => ctx.repos.table("awards").find(ws.kind === "funder" ? { workspace_id: ws.id } : { recipient_workspace_id: ws.id }, { limit: 2000, orderBy: "created_at", ascending: false });
+/**
+ * Direct awards nobody has accepted yet. Their named recipient is an organization's name, which is
+ * not a CommonGrants individual (and would not validate as one), and there is no recipient
+ * organization yet, so they stay out of protocol output until they are claimed.
+ */
+async function unclaimedDirect(ctx: ServiceContext, awards: readonly Award[]): Promise<Set<string>> {
+  const named = awards.filter((a) => !a.recipient_workspace_id);
+  if (!named.length) return new Set();
+  const open = await ctx.repos.table("award_invitations").find({ award_id: named.map((a) => a.id), accepted_at: null });
+  return new Set(open.map((i) => i.award_id));
+}
+
+const visibleAwards = async (ctx: ServiceContext, ws: ServiceWorkspace) => {
+  const rows = await ctx.repos.table("awards").find(ws.kind === "funder" ? { workspace_id: ws.id } : { recipient_workspace_id: ws.id }, { limit: 2000, orderBy: "created_at", ascending: false });
+  const hidden = await unclaimedDirect(ctx, rows);
+  return hidden.size ? rows.filter((a) => !hidden.has(a.id)) : rows;
+};
 
 /** `GET /common-grants/awards`: the caller's awards, as funder or as recipient. */
 export async function listCgAwards(ctx: ServiceContext, page: PageRequest) {
@@ -552,7 +594,9 @@ export async function listCgAwards(ctx: ServiceContext, page: PageRequest) {
 }
 
 export async function getCgAward(ctx: ServiceContext, awardId: string): Promise<AwardBase> {
-  return project(ctx, (await accessAward(ctx, awardId, "awards:read")).award);
+  const { award } = await accessAward(ctx, awardId, "awards:read");
+  if ((await unclaimedDirect(ctx, [award])).size) throw notFound("Award");
+  return project(ctx, award);
 }
 
 const FILTER_PATHS: Record<string, string> = { status: "status.value", title: "title", awardedAmount: "funding.awardedAmount.amount" };
