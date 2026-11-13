@@ -404,22 +404,31 @@ export type Database = {
       };
       award_invitation_sends: {
         Row: {
+          address_key: string | null;
           created_at: string;
           id: string;
+          recipient_digest: string;
+          sender_user_id: string;
           sent_at: string;
           updated_at: string;
           workspace_id: string;
         };
         Insert: {
+          address_key?: string | null;
           created_at?: string;
           id?: string;
+          recipient_digest: string;
+          sender_user_id: string;
           sent_at?: string;
           updated_at?: string;
           workspace_id: string;
         };
         Update: {
+          address_key?: string | null;
           created_at?: string;
           id?: string;
+          recipient_digest?: string;
+          sender_user_id?: string;
           sent_at?: string;
           updated_at?: string;
           workspace_id?: string;

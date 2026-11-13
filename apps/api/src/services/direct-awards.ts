@@ -16,8 +16,8 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { invitationStatus, maskEmail, type AwardInvitation } from "./award-invitations.ts";
 import { STAFF_ROLES, awardDetail, createOfferedAward, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, printMoney, readDefaults, type Award } from "./awards.ts";
-import { audit, authorize, required, type ServiceContext } from "./context.ts";
-import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter } from "./direct-award-store.ts";
+import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter, type SendLimitName, type SendLimits } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
 import { checkSigner } from "./organization.ts";
 import { namesOf, verificationOf, type VerificationLevel } from "./profile.ts";
@@ -25,8 +25,20 @@ import type { Repos, Row } from "./repos/types.ts";
 
 /** How long an invitation link works. Resending issues a new link with a new period. */
 export const DIRECT_AWARD_INVITATION_TTL_DAYS = 14;
-/** Invitation emails (new and resent) per funder workspace over a rolling 24 hours. */
+// Invitation emails, new and resent, over rolling windows. Each is enforced in the same atomic step
+// (`gms_claim_award_invitation_send`, migration 0028); one place to relax them.
+/** Per funder workspace verified with Passport (FUNDER_VERIFIED_LEVELS), per 24 hours. */
 export const DIRECT_AWARD_INVITES_PER_DAY = 25;
+/** Per funder workspace not verified with Passport, per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED = 10;
+/** Per signed-in sender, across all their workspaces, per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY = 25;
+/** Per network address (an IPv4 address or an IPv6 /64, as for workspace creation), per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY = 50;
+/** Per invited address, across all funders, per 7 days. */
+export const DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK = 3;
+/** For the whole instance, per 24 hours: a circuit breaker. */
+export const DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY = 500;
 /**
  * Funder roles that may give an award directly: those that make an award from an application
  * (`createAwardFromApplication`, `awards:write`). People only: an agent's request waits for one of them.
@@ -148,7 +160,7 @@ export function funderIdentity(funder: Row<"workspaces">) {
  * Who may send: to give an award, a person with `awards:write` and one of DIRECT_AWARD_ROLES; to
  * resend, one of DIRECT_AWARD_RESEND_ROLES (finance holds no `awards:write`). An agent's call waits for a person.
  */
-async function sender(ctx: ServiceContext, action: "create" | "resend") {
+async function sender(ctx: ServiceContext, action: "create" | "resend"): Promise<{ ws: ServiceWorkspace; funder: ReturnType<typeof funderIdentity> }> {
   const ws = await authorize(ctx, action === "create" ? { scope: "awards:write", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true } : { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_RESEND_ROLES, person: true });
   if (ctx.actor.kind !== "user" || !ctx.actor.userId || ws.role === null) throw humanOnly("Giving an award directly");
   if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_not_configured", "Outbound mail is not configured on this server, so the invitation cannot be sent. Nothing was created");
@@ -163,13 +175,44 @@ async function sender(ctx: ServiceContext, action: "create" | "resend") {
         : "Your workspace's name looks like a web or email address, so award invitations cannot be sent under it. Rename the workspace in its settings, then try again",
     );
   }
-  return ws;
+  return { ws, funder };
 }
 
-async function countSend(ctx: ServiceContext, workspaceId: string) {
-  if (!(await limiterFor(ctx).claim(workspaceId, DIRECT_AWARD_INVITES_PER_DAY, ctx.now()))) {
-    throw new ApiError(429, "too_many_invitations", `This workspace has sent ${DIRECT_AWARD_INVITES_PER_DAY} award invitations in the last 24 hours, the most we allow. Try again later`);
+/** Where a request came from, for the per-address limit. Null when the server cannot tell (an approved agent call). */
+export interface SendOrigin {
+  address: string | null;
+}
+
+const sendLimits = (funderVerified: boolean): SendLimits => ({
+  workspace: funderVerified ? DIRECT_AWARD_INVITES_PER_DAY : DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED,
+  sender: DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY,
+  address: DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY,
+  recipient: DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK,
+  instance: DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY,
+});
+
+/** The 429 for each limit, in plain words. */
+function overLimit(limit: SendLimitName, limits: SendLimits, funderVerified: boolean): ApiError {
+  switch (limit) {
+    case "workspace":
+      return new ApiError(429, "too_many_invitations", `This workspace has sent ${limits.workspace} award invitations in the last 24 hours, the most we allow${funderVerified ? "" : " for a funder not verified with OpenGrants Passport"}. Try again later`);
+    case "sender":
+      return new ApiError(429, "too_many_invitations_from_you", `You have sent ${limits.sender} award invitations in the last 24 hours, across all your workspaces, the most we allow. Try again later`);
+    case "address":
+      return new ApiError(429, "too_many_invitations_from_network", "Too many award invitations were sent from your network in the last 24 hours. Try again later");
+    case "recipient":
+      return new ApiError(429, "too_many_invitations_to_recipient", `This address has been sent ${limits.recipient} award invitations in the last 7 days, the most we allow. Try again later`);
+    default:
+      return new ApiError(429, "invitations_paused", "Award invitations are paused for now because many were sent in the last 24 hours. Try again later");
   }
+}
+
+/** Count one invitation email against every limit; the send id, to give it back if the email is not sent. */
+async function countSend(ctx: ServiceContext, workspaceId: string, funderVerified: boolean, recipient: string, origin: SendOrigin): Promise<string> {
+  const limits = sendLimits(funderVerified);
+  const r = await limiterFor(ctx).claim({ workspaceId, senderId: ctx.actor.userId!, addressKey: origin.address, recipientDigest: await sha256b64url(recipient) }, limits, ctx.now());
+  if (!r.ok) throw overLimit(r.limit, limits, funderVerified);
+  return r.sendId;
 }
 
 const newToken = async () => {
@@ -206,11 +249,11 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
 }
 
 /** `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the invitation. */
-export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput) {
-  const ws = await sender(ctx, "create");
+export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput, origin: SendOrigin = { address: null }) {
+  const { ws, funder } = await sender(ctx, "create");
   const program = input.programId ? await ctx.repos.table("programs").one({ id: input.programId, workspace_id: ws.id }) : null;
   if (input.programId && !program) throw notFound("Program");
-  await countSend(ctx, ws.id);
+  const sendId = await countSend(ctx, ws.id, funder.verified, input.recipient.contactEmail, origin);
   const { token, hash } = await newToken();
   const now = ctx.now();
   let award: Award;
@@ -246,7 +289,7 @@ export async function createDirectAward(ctx: ServiceContext, input: DirectAwardI
       created_by: ctx.actor.userId!,
     });
   } catch (e) {
-    await limiterFor(ctx).release(ws.id, now).catch(() => undefined);
+    await limiterFor(ctx).release(sendId, now).catch(() => undefined);
     throw e;
   }
   const emailed = await sendInvitation(ctx, award, inv, token);
@@ -262,23 +305,23 @@ async function funderInvitation(ctx: ServiceContext, workspaceId: string, awardI
 }
 
 /** `POST /gms/awards/{id}/invitation/resend`: a new link (the old one stops working), optionally to a new address. */
-export async function resendInvitation(ctx: ServiceContext, awardId: string, input: z.output<typeof resendInput>) {
-  const ws = await sender(ctx, "resend");
+export async function resendInvitation(ctx: ServiceContext, awardId: string, input: z.output<typeof resendInput>, origin: SendOrigin = { address: null }) {
+  const { ws, funder } = await sender(ctx, "resend");
   const { award, inv } = await funderInvitation(ctx, ws.id, awardId);
   const status = invitationStatus(inv, ctx.now());
   if (status === "accepted" || status === "declined" || status === "revoked" || award.status !== "offered") {
     throw new ApiError(409, "invitation_closed", status === "accepted" ? "This award was already accepted" : status === "declined" ? "This award was declined. Withdraw it, or give a new award" : "This award was withdrawn");
   }
-  await countSend(ctx, ws.id);
+  const email = input.contactEmail ?? inv.email;
+  const sendId = await countSend(ctx, ws.id, funder.verified, email, origin);
   const { token, hash } = await newToken();
   const now = ctx.now();
-  const email = input.contactEmail ?? inv.email;
   const [updated] = await ctx.repos.table("award_invitations").update(
     { id: inv.id, token_hash: inv.token_hash, accepted_at: null, declined_at: null, revoked_at: null },
     { token_hash: hash, email, expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(), sent_count: inv.sent_count + 1, last_sent_at: now.toISOString() },
   );
   if (!updated) {
-    await limiterFor(ctx).release(ws.id, now).catch(() => undefined);
+    await limiterFor(ctx).release(sendId, now).catch(() => undefined);
     throw new ApiError(409, "conflict", "This invitation changed while you were working. Reload and try again");
   }
   const emailed = await sendInvitation(ctx, award, updated, token);

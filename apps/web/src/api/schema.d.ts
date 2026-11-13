@@ -1147,8 +1147,14 @@ export interface paths {
          *     link and the award is attached only when they accept it, signed in with that address, for an
          *     applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
          *     (as for an award from an application), people only (an agent's request waits for a person's
-         *     approval). 25 invitations, new and resent, per funder workspace
-         *     per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
+         *     approval). Invitation emails, new and resent, are limited over rolling windows, each with
+         *     its own 429: per funder workspace 25 a day, 10 for a funder not verified with Passport at L1
+         *     or above (`too_many_invitations`); per person across workspaces 25 a day
+         *     (`too_many_invitations_from_you`); per network address 50 a day
+         *     (`too_many_invitations_from_network`); per invited address 3 a week across funders
+         *     (`too_many_invitations_to_recipient`); for the whole service 500 a day
+         *     (`invitations_paused`). 422 `funder_name_looks_like_link` when the funder's name would read as
+         *     a link. 503 `mail_not_configured` creates nothing.
          */
         post: operations["Awards_createDirect"];
         delete?: never;
@@ -17777,6 +17783,15 @@ export interface operations {
                 };
             };
             /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -18793,6 +18808,15 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

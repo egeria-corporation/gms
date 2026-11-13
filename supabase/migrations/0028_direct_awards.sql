@@ -7,8 +7,9 @@
 -- What this changes on a live database:
 --   * adds `award_invitations` (one row per directly given award: the invited address, the name
 --     the funder typed, the SHA-256 of the current link token, and when it was sent, accepted,
---     declined or revoked) and `award_invitation_sends` (one row per email sent, for the daily
---     limit). Both are service role only: RLS on, no policy, nothing for anon or signed-in users.
+--     declined or revoked) and `award_invitation_sends` (one row per email sent, for the send
+--     limits: per funder workspace, per sender, per network address, per recipient and for the
+--     whole instance; the recipient is kept as a digest). Both are service role only: RLS on, no policy, nothing for anon or signed-in users.
 --   * widens `consents.basis` to allow 'award' (accepting a direct award is the consent). Every
 --     existing row already satisfies the wider check.
 --   * adds `award_invitations.award_id` to the same-workspace rules of 0020
@@ -57,17 +58,27 @@ grant select, insert, update, delete on public.award_invitations to service_role
 create trigger award_invitations_touch_updated_at before update on public.award_invitations
   for each row execute function gms.touch_updated_at();
 
--- One row per invitation email (new or resent), for DIRECT_AWARD_INVITES_PER_DAY over a rolling
--- 24 hours. Rows older than two days are deleted as new ones are counted.
+-- One row per invitation email (new or resent), for the send limits of apps/api/src/services/
+-- direct-awards.ts over rolling windows. Rows older than eight days are deleted as new ones are
+-- counted (the longest window is seven days).
 create table public.award_invitation_sends (
-  id            uuid primary key default gms.uuid_v7(),
-  workspace_id  uuid not null references public.workspaces (id) on delete cascade,
-  sent_at       timestamptz not null default now(),
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  id                uuid primary key default gms.uuid_v7(),
+  workspace_id      uuid not null references public.workspaces (id) on delete cascade,
+  sender_user_id    uuid not null,
+  -- `addressKey` in apps/api/src/lib/rate-limit.ts: an IPv4 address or an IPv6 /64. Null when unknown.
+  address_key       text check (address_key is null or address_key ~ '^[0-9A-Za-z:./-]{1,80}$'),
+  -- base64url SHA-256 of the invited address, trimmed and in lower case. Never the address itself.
+  recipient_digest  text not null check (recipient_digest ~ '^[A-Za-z0-9_-]{43}$'),
+  sent_at           timestamptz not null default now(),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
 );
-comment on table public.award_invitation_sends is 'Direct-award invitation emails per funder workspace, for the rolling daily limit. Service role only.';
+comment on table public.award_invitation_sends is 'Direct-award invitation emails, for the rolling send limits. The recipient is a digest. Service role only.';
+create index award_invitation_sends_sent_idx on public.award_invitation_sends (sent_at);
 create index award_invitation_sends_workspace_idx on public.award_invitation_sends (workspace_id, sent_at);
+create index award_invitation_sends_sender_idx on public.award_invitation_sends (sender_user_id, sent_at);
+create index award_invitation_sends_address_idx on public.award_invitation_sends (address_key, sent_at) where address_key is not null;
+create index award_invitation_sends_recipient_idx on public.award_invitation_sends (recipient_digest, sent_at);
 
 alter table public.award_invitation_sends enable row level security;
 revoke all on public.award_invitation_sends from public, anon, authenticated, service_role;
@@ -126,39 +137,57 @@ create trigger award_invitations_same_workspace before insert or update of award
 create trigger award_invitations_workspace_immutable before update of workspace_id on public.award_invitations
   for each row execute function gms.workspace_id_immutable();
 
--- Count one invitation email against the funder's limit over the last 24 hours; false (and nothing
--- counted) when the limit is reached. A transaction-scoped advisory lock per workspace makes the
--- count and the insert one step, so parallel requests cannot both take the last place.
-create or replace function public.gms_claim_award_invitation_send(p_workspace uuid, p_limit integer)
-returns boolean
+-- Count one invitation email against every send limit, or against none. The limits are the
+-- callers' (apps/api/src/services/direct-awards.ts); the windows are 24 hours, and seven days for
+-- the recipient. One transaction-scoped advisory lock for all sends makes the counts and the
+-- insert one step (the instance-wide count needs a single lock anyway), so parallel requests
+-- cannot both take the last place. Returns { outcome, sendId }: outcome is 'ok' or the first limit
+-- reached ('workspace', 'sender', 'address', 'recipient', 'instance'), and nothing is counted then.
+create or replace function public.gms_claim_award_invitation_send(
+  p_workspace uuid, p_sender uuid, p_address text, p_recipient text,
+  p_workspace_limit integer, p_sender_limit integer, p_address_limit integer, p_recipient_limit integer, p_instance_limit integer
+)
+returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  used integer;
+  day_ago timestamptz := now() - interval '24 hours';
+  sent uuid;
 begin
-  if p_workspace is null or p_limit is null or p_limit < 0 then
-    raise exception 'a workspace and a limit are required';
+  if p_workspace is null or p_sender is null or p_recipient is null
+     or p_workspace_limit is null or p_sender_limit is null or p_address_limit is null or p_recipient_limit is null or p_instance_limit is null then
+    raise exception 'every key and limit is required (the address may be null)';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('gms.award_invitation_sends:' || p_workspace::text, 0));
-  delete from public.award_invitation_sends s where s.workspace_id = p_workspace and s.sent_at < now() - interval '2 days';
-  select count(*)::integer into used from public.award_invitation_sends s where s.workspace_id = p_workspace and s.sent_at > now() - interval '24 hours';
-  if used >= p_limit then
-    return false;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('gms.award_invitation_sends', 0));
+  delete from public.award_invitation_sends s where s.sent_at < now() - interval '8 days';
+  if (select count(*) from public.award_invitation_sends s where s.workspace_id = p_workspace and s.sent_at > day_ago) >= p_workspace_limit then
+    return jsonb_build_object('outcome', 'workspace');
   end if;
-  insert into public.award_invitation_sends (workspace_id) values (p_workspace);
-  return true;
+  if (select count(*) from public.award_invitation_sends s where s.sender_user_id = p_sender and s.sent_at > day_ago) >= p_sender_limit then
+    return jsonb_build_object('outcome', 'sender');
+  end if;
+  if p_address is not null and (select count(*) from public.award_invitation_sends s where s.address_key = p_address and s.sent_at > day_ago) >= p_address_limit then
+    return jsonb_build_object('outcome', 'address');
+  end if;
+  if (select count(*) from public.award_invitation_sends s where s.recipient_digest = p_recipient and s.sent_at > now() - interval '7 days') >= p_recipient_limit then
+    return jsonb_build_object('outcome', 'recipient');
+  end if;
+  if (select count(*) from public.award_invitation_sends s where s.sent_at > day_ago) >= p_instance_limit then
+    return jsonb_build_object('outcome', 'instance');
+  end if;
+  insert into public.award_invitation_sends (workspace_id, sender_user_id, address_key, recipient_digest)
+  values (p_workspace, p_sender, p_address, p_recipient)
+  returning id into sent;
+  return jsonb_build_object('outcome', 'ok', 'sendId', sent);
 end;
 $$;
 
--- Give back a count whose invitation was not made (the award could not be created).
-create or replace function public.gms_release_award_invitation_send(p_workspace uuid)
+-- Give back a count whose invitation was not sent (the resend lost a race).
+create or replace function public.gms_release_award_invitation_send(p_send uuid)
 returns void
 language sql security definer set search_path = ''
 as $$
-  delete from public.award_invitation_sends s
-   where s.id = (select x.id from public.award_invitation_sends x
-                  where x.workspace_id = p_workspace and x.sent_at > now() - interval '24 hours'
-                  order by x.sent_at desc, x.id desc limit 1);
+  delete from public.award_invitation_sends s where s.id = p_send;
 $$;
 
 -- Claim a direct award, all in one transaction (contract: direct awards). The API has already
@@ -227,9 +256,9 @@ begin
 end;
 $$;
 
-revoke all on function public.gms_claim_award_invitation_send(uuid, integer) from public, anon, authenticated;
+revoke all on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.gms_release_award_invitation_send(uuid) from public, anon, authenticated;
 revoke all on function public.gms_claim_direct_award(text, uuid, uuid, text, text) from public, anon, authenticated;
-grant execute on function public.gms_claim_award_invitation_send(uuid, integer) to service_role;
+grant execute on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) to service_role;
 grant execute on function public.gms_release_award_invitation_send(uuid) to service_role;
 grant execute on function public.gms_claim_direct_award(text, uuid, uuid, text, text) to service_role;

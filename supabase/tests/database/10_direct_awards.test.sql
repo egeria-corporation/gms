@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(37);
 
 insert into auth.users (id, email, aud, role, email_confirmed_at) values
   ('7da00000-0000-4000-8000-000000000001', 'Jo.Grant@Alder.example', 'authenticated', 'authenticated', now()),  -- the invited person
@@ -78,20 +78,27 @@ select is(public.gms_claim_direct_award(repeat('e', 43), '7d000000-0000-4000-800
 select is(public.gms_claim_direct_award(repeat('d', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded'), '{"outcome": "claimed", "consentId": null}'::jsonb, 'a live consent is not recorded twice');
 select is((select count(*)::int from public.consents where funder_workspace_id = '7d000000-0000-4000-8000-0000000000f1'), 1, 'one consent per organization and funder');
 
--- The rolling daily limit: every send counts, a refused one counts nothing, a release gives one back.
-select ok(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', 2), 'a first send is counted');
-select ok(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', 2), 'a second send is counted');
-select ok(not public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', 2), 'the third is refused at a limit of two');
-select ok(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', 2), 'each funder has its own count');
-select public.gms_release_award_invitation_send('7d000000-0000-4000-8000-0000000000f1');
-select is((select count(*)::int from public.award_invitation_sends where workspace_id = '7d000000-0000-4000-8000-0000000000f1'), 1, 'a released send is given back');
+-- The send limits: each counts in its own window, a refused send counts nothing, a release gives one back.
+-- Arguments: workspace, sender, address, recipient digest; limits workspace, sender, address, recipient, instance.
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', '7da00000-0000-4000-8000-000000000002', '198.51.100.7', repeat('r', 43), 2, 9, 9, 9, 99) ->> 'outcome', 'ok', 'a first send is counted');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', '7da00000-0000-4000-8000-000000000002', '198.51.100.7', repeat('s', 43), 2, 9, 9, 9, 99) ->> 'outcome', 'ok', 'a second send is counted');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f1', '7da00000-0000-4000-8000-000000000002', '198.51.100.7', repeat('t', 43), 2, 9, 9, 9, 99) ->> 'outcome', 'workspace', 'the third is refused at a workspace limit of two');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', '7da00000-0000-4000-8000-000000000002', null, repeat('t', 43), 9, 2, 9, 9, 99) ->> 'outcome', 'sender', 'one person is counted across workspaces');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', '7da00000-0000-4000-8000-000000000001', '198.51.100.7', repeat('t', 43), 9, 9, 2, 9, 99) ->> 'outcome', 'address', 'one network address is counted across people');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', '7da00000-0000-4000-8000-000000000001', null, repeat('r', 43), 9, 9, 9, 1, 99) ->> 'outcome', 'recipient', 'one recipient is counted across funders');
+select is(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', '7da00000-0000-4000-8000-000000000001', null, repeat('u', 43), 9, 9, 9, 9, 2) ->> 'outcome', 'instance', 'and the whole instance has a ceiling');
+select is((select count(*)::int from public.award_invitation_sends), 2, 'refused sends counted nothing');
+select ok(public.gms_claim_award_invitation_send('7d000000-0000-4000-8000-0000000000f2', '7da00000-0000-4000-8000-000000000001', null, repeat('u', 43), 9, 9, 9, 9, 99) ->> 'outcome' = 'ok', 'another funder, person and recipient still has a place');
+select public.gms_release_award_invitation_send((select id from public.award_invitation_sends where recipient_digest = repeat('u', 43)));
+select is((select count(*)::int from public.award_invitation_sends), 2, 'a released send is given back');
+select ok((select bool_and(recipient_digest ~ '^[A-Za-z0-9_-]{43}$') from public.award_invitation_sends), 'only a digest of the recipient is kept');
 
 reset role;
 select ok(not has_table_privilege('authenticated', 'public.award_invitations', 'SELECT') and not has_table_privilege('anon', 'public.award_invitations', 'SELECT')
           and not has_table_privilege('authenticated', 'public.award_invitation_sends', 'SELECT'),
   'signed-in users and anon cannot read invitations or counts');
 select ok(not has_function_privilege('authenticated', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE')
-          and not has_function_privilege('anon', 'public.gms_claim_award_invitation_send(uuid, integer)', 'EXECUTE')
+          and not has_function_privilege('anon', 'public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'public.gms_release_award_invitation_send(uuid)', 'EXECUTE')
           and has_function_privilege('service_role', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE'),
   'only the service role may claim or count');

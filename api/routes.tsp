@@ -578,11 +578,17 @@ namespace GMS.Routes.Custom {
      * link and the award is attached only when they accept it, signed in with that address, for an
      * applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
      * (as for an award from an application), people only (an agent's request waits for a person's
-     * approval). 25 invitations, new and resent, per funder workspace
-     * per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
+     * approval). Invitation emails, new and resent, are limited over rolling windows, each with
+     * its own 429: per funder workspace 25 a day, 10 for a funder not verified with Passport at L1
+     * or above (`too_many_invitations`); per person across workspaces 25 a day
+     * (`too_many_invitations_from_you`); per network address 50 a day
+     * (`too_many_invitations_from_network`); per invited address 3 a week across funders
+     * (`too_many_invitations_to_recipient`); for the whole service 500 a day
+     * (`invitations_paused`). 422 `funder_name_looks_like_link` when the funder's name would read as
+     * a link. 503 `mail_not_configured` creates nothing.
      */
     @post @route("/awards/direct") @useAuth(UserSession)
-    op createDirect(@body body: DirectAwardInput): CreatedT<DirectAwardView> | BadRequest | AuthErrors | NotFound | TooManyRequests | ServiceUnavailable;
+    op createDirect(@body body: DirectAwardInput): CreatedT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     /**
      * Send a direct award's invitation again with a new link (the old one stops working), to a new
@@ -591,7 +597,7 @@ namespace GMS.Routes.Custom {
      * withdrawn.
      */
     @post @route("/awards/{id}/invitation/resend") @useAuth(UserSession)
-    op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | TooManyRequests | ServiceUnavailable;
+    op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     @get @route("/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op read(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;

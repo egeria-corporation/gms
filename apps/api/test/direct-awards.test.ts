@@ -9,8 +9,8 @@ import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { redactString, setLogSink } from "../src/lib/log.ts";
-import { RepoDirectAwardClaims } from "../src/services/direct-award-store.ts";
-import { DIRECT_AWARD_INVITES_PER_DAY } from "../src/services/direct-awards.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardClaims } from "../src/services/direct-award-store.ts";
+import { DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED, DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY, DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK, DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY } from "../src/services/direct-awards.ts";
 import { BASE, CLIENT_AGENT, SESSION_SECRET, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, harness, type Harness } from "./helpers.ts";
 
 const USER_FINANCE = "f1000000-0000-4000-8000-0000000000f1";
@@ -215,22 +215,68 @@ describe("the funder gives an award directly", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
   });
 
-  it(`limits a funder to ${DIRECT_AWARD_INVITES_PER_DAY} invitations, new and resent, per rolling 24 hours`, async () => {
-    const first = (await create(admin)).body.data.id;
-    for (let i = 1; i < DIRECT_AWARD_INVITES_PER_DAY - 1; i++) expect((await create(admin)).status).toBe(201);
+  it(`limits a verified funder to ${DIRECT_AWARD_INVITES_PER_DAY} invitations, new and resent, per rolling 24 hours`, async () => {
+    const to = (i: number) => ({ recipient: { organizationName: "Alder Creek Family Services", contactEmail: `contact${i}@aldercreek.example` } });
+    const first = (await create(admin, to(0))).body.data.id;
+    for (let i = 1; i < DIRECT_AWARD_INVITES_PER_DAY - 1; i++) expect((await create(admin, to(i))).status).toBe(201);
     expect((await call(admin, "POST", `/gms/awards/${first}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
-    const over = await create(admin);
+    const over = await create(admin, to(99));
     expect(over.status).toBe(429);
     expect(over.body.errors[0]!.code).toBe("too_many_invitations");
     const resendOver = await call(admin, "POST", `/gms/awards/${first}/invitation/resend`, {}, WS_FUNDER);
     expect(resendOver.status).toBe(429);
-    // Another funder has its own count.
+    // Rolling: a day later the earliest sends no longer count.
+    h.clock.now = new Date(h.clock.now.getTime() + 24 * 3600_000 + 1000);
+    expect((await create(await funderAs(USER_ADMIN), to(100))).status).toBe(201);
+  });
+
+  it(`limits a funder not verified with Passport to ${DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED}`, async () => {
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { verification_level: "L0" });
+    for (let i = 0; i < DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i++) expect((await create(admin, { recipient: { organizationName: "Alder", contactEmail: `u${i}@aldercreek.example` } })).status).toBe(201);
+    const over = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "u99@aldercreek.example" } });
+    expect(over.status).toBe(429);
+    expect(over.body.message).toContain("not verified with OpenGrants Passport");
+  });
+
+  it(`limits one person to ${DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY} across all their workspaces`, async () => {
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: USER_ADMIN, role: "admin" });
+    const to = (i: number) => ({ recipient: { organizationName: "Alder", contactEmail: `s${i}@aldercreek.example` } });
+    for (let i = 0; i < DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i++) expect((await create(admin, to(i), WS_OTHER)).status).toBe(201);
+    for (let i = DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i < DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY; i++) expect((await create(admin, to(i))).status).toBe(201);
+    const over = await create(admin, to(99));
+    expect(over.status).toBe(429);
+    expect(over.body.errors[0]!.code).toBe("too_many_invitations_from_you");
+    // Someone else in the same workspace still has room.
+    expect((await create(await funderAs(USER_OFFICER), to(98))).status).toBe(201);
+  });
+
+  it(`limits one invited address to ${DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK} invitations a week, across funders`, async () => {
+    const id = (await create(admin)).body.data.id;
+    expect((await call(admin, "POST", `/gms/awards/${id}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
     const otherAdmin = "f1000000-0000-4000-8000-0000000000d1";
     await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: otherAdmin, role: "admin" });
     expect((await create(await funderAs(otherAdmin), {}, WS_OTHER)).status).toBe(201);
-    // Rolling: a day later the earliest sends no longer count.
-    h.clock.now = new Date(h.clock.now.getTime() + 24 * 3600_000 + 1000);
-    expect((await create(await funderAs(USER_ADMIN))).status).toBe(201);
+    const over = await create(await funderAs(otherAdmin), { recipient: { organizationName: "Alder", contactEmail: "JO.GRANT@aldercreek.example" } }, WS_OTHER);
+    expect(over.status).toBe(429);
+    expect(over.body.errors[0]!.code).toBe("too_many_invitations_to_recipient");
+    h.clock.now = new Date(h.clock.now.getTime() + 7 * 86_400_000 + 1000);
+    expect((await create(await funderAs(otherAdmin), {}, WS_OTHER)).status).toBe(201);
+  });
+
+  it("counts each send under the request's network address, and pauses the whole instance at its ceiling", async () => {
+    const claim = vi.spyOn(MemoryInvitationLimiter.prototype, "claim");
+    const res = await h.request("/gms/awards/direct", { method: "POST", headers: { Authorization: `Bearer ${admin}`, "Content-Type": "application/json", "X-GMS-Workspace": WS_FUNDER, "CF-Connecting-IP": "203.0.113.9" }, body: JSON.stringify({ recipient: { organizationName: "Alder", contactEmail: INVITED }, title: "Support", amount: { value: "10.00", currency: "USD" } }) });
+    expect(res.status).toBe(201);
+    expect(claim.mock.calls[0]![0]).toMatchObject({ workspaceId: WS_FUNDER, senderId: USER_ADMIN, addressKey: "203.0.113.9" });
+    expect(claim.mock.calls[0]![1]).toEqual({ workspace: DIRECT_AWARD_INVITES_PER_DAY, sender: DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY, address: DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY, recipient: DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK, instance: DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY });
+    // The recipient is counted by a digest, never by address.
+    expect(JSON.stringify(claim.mock.calls[0]![0])).not.toContain("@");
+    claim.mockResolvedValueOnce({ ok: false, limit: "address" }).mockResolvedValueOnce({ ok: false, limit: "instance" });
+    const byAddress = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "n1@aldercreek.example" } });
+    expect([byAddress.status, byAddress.body.errors[0]!.code]).toEqual([429, "too_many_invitations_from_network"]);
+    const paused = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "n2@aldercreek.example" } });
+    expect([paused.status, paused.body.errors[0]!.code]).toEqual([429, "invitations_paused"]);
+    claim.mockRestore();
   });
 
   it("resends with a new link (the old one stops working), to a new address when given", async () => {
@@ -551,5 +597,20 @@ describe("over MCP", () => {
     const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${await h.forge({ sub: USER_GRANTEE, client_id: CLIENT_AGENT, scope: "awards:read awards:write", [WORKSPACE_CLAIM]: WS_APPLICANT, jti: "tok-mcp-grantee" })}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
     const names = ((await res.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
     expect(names.filter((n) => /invitation|claim|direct/.test(n))).toEqual([]);
+  });
+});
+
+describe("the in-memory send limiter (tests and one isolate)", () => {
+  it("counts each key in its own window and counts nothing it refuses", async () => {
+    const l = new MemoryInvitationLimiter();
+    const now = new Date("2027-04-16T17:00:00Z");
+    const limits = { workspace: 9, sender: 9, address: 2, recipient: 9, instance: 3 };
+    const key = (i: number, over: Record<string, unknown> = {}) => ({ workspaceId: `w${i}`, senderId: `s${i}`, addressKey: "203.0.113.9", recipientDigest: `r${i}`, ...over });
+    expect((await l.claim(key(1), limits, now)).ok).toBe(true);
+    expect((await l.claim(key(2), limits, now)).ok).toBe(true);
+    expect(await l.claim(key(3), limits, now)).toEqual({ ok: false, limit: "address" });
+    expect((await l.claim(key(3, { addressKey: null }), limits, now)).ok).toBe(true);
+    expect(await l.claim(key(4, { addressKey: null }), limits, now)).toEqual({ ok: false, limit: "instance" });
+    expect((await l.claim(key(4, { addressKey: null }), limits, new Date(now.getTime() + 86_400_001))).ok).toBe(true);
   });
 });

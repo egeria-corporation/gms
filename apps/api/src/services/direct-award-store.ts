@@ -8,44 +8,94 @@ import type { RpcLike } from "../lib/rate-limit.ts";
 import type { Repos } from "./repos/types.ts";
 
 const DAY_MS = 86_400_000;
+const WEEK_MS = 7 * DAY_MS;
 
-/** Invitation emails per funder workspace over a rolling 24 hours. `claim` checks and counts in one step. */
+/** Which send limit a refused send reached. */
+export type SendLimitName = "workspace" | "sender" | "address" | "recipient" | "instance";
+
+/** What one invitation email is counted against. */
+export interface SendKey {
+  /** The funder workspace sending it. */
+  workspaceId: string;
+  /** The signed-in person sending it, across all their workspaces. */
+  senderId: string;
+  /** `addressKey` of the request (an IPv4 address or an IPv6 /64); null when unknown. */
+  addressKey: string | null;
+  /** base64url SHA-256 of the invited address, trimmed and in lower case. */
+  recipientDigest: string;
+}
+
+/** Most sends per key: per 24 hours, except `recipient`, per 7 days. */
+export interface SendLimits {
+  workspace: number;
+  sender: number;
+  address: number;
+  recipient: number;
+  instance: number;
+}
+
+export type SendClaim = { ok: true; sendId: string } | { ok: false; limit: SendLimitName };
+
+/** Invitation emails over rolling windows. `claim` checks every limit and counts, all in one step. */
 export interface InvitationLimiter {
-  /** Count one send; false (and nothing counted) when `limit` sends were made in the last 24 hours. */
-  claim(workspaceId: string, limit: number, now: Date): Promise<boolean>;
-  /** Give back the latest count, when the invitation it was for was not made. */
-  release(workspaceId: string, now: Date): Promise<void>;
+  /** Count one send against every key, or (at any limit) against none. */
+  claim(key: SendKey, limits: SendLimits, now: Date): Promise<SendClaim>;
+  /** Give back a count whose invitation was not sent. */
+  release(sendId: string, now: Date): Promise<void>;
 }
 
 /** One isolate's counts. Check and count happen with no await between them, so they cannot interleave. */
 export class MemoryInvitationLimiter implements InvitationLimiter {
-  private readonly sends = new Map<string, number[]>();
-  async claim(workspaceId: string, limit: number, now: Date): Promise<boolean> {
-    const since = now.getTime() - DAY_MS;
-    const recent = (this.sends.get(workspaceId) ?? []).filter((t) => t > since);
-    if (recent.length >= limit) {
-      this.sends.set(workspaceId, recent);
-      return false;
-    }
-    recent.push(now.getTime());
-    this.sends.set(workspaceId, recent);
-    return true;
+  private sends: (SendKey & { id: string; at: number })[] = [];
+  async claim(key: SendKey, limits: SendLimits, now: Date): Promise<SendClaim> {
+    const t = now.getTime();
+    this.sends = this.sends.filter((s) => s.at > t - 8 * DAY_MS);
+    const day = this.sends.filter((s) => s.at > t - DAY_MS);
+    const n = (pick: (s: SendKey) => boolean, list = day) => list.filter(pick).length;
+    if (n((s) => s.workspaceId === key.workspaceId) >= limits.workspace) return { ok: false, limit: "workspace" };
+    if (n((s) => s.senderId === key.senderId) >= limits.sender) return { ok: false, limit: "sender" };
+    if (key.addressKey && n((s) => s.addressKey === key.addressKey) >= limits.address) return { ok: false, limit: "address" };
+    if (n((s) => s.recipientDigest === key.recipientDigest, this.sends.filter((s) => s.at > t - WEEK_MS)) >= limits.recipient) return { ok: false, limit: "recipient" };
+    if (day.length >= limits.instance) return { ok: false, limit: "instance" };
+    const id = crypto.randomUUID();
+    this.sends.push({ ...key, id, at: t });
+    return { ok: true, sendId: id };
   }
-  async release(workspaceId: string): Promise<void> {
-    this.sends.get(workspaceId)?.pop();
+  async release(sendId: string): Promise<void> {
+    this.sends = this.sends.filter((s) => s.id !== sendId);
   }
+}
+
+const sendArgs = (key: SendKey, limits: SendLimits) => ({
+  p_workspace: key.workspaceId,
+  p_sender: key.senderId,
+  p_address: key.addressKey,
+  p_recipient: key.recipientDigest,
+  p_workspace_limit: limits.workspace,
+  p_sender_limit: limits.sender,
+  p_address_limit: limits.address,
+  p_recipient_limit: limits.recipient,
+  p_instance_limit: limits.instance,
+});
+
+const LIMIT_NAMES: readonly string[] = ["workspace", "sender", "address", "recipient", "instance"];
+export function readSendClaim(data: unknown): SendClaim {
+  const row = (data ?? {}) as { outcome?: unknown; sendId?: unknown };
+  if (row.outcome === "ok" && typeof row.sendId === "string") return { ok: true, sendId: row.sendId };
+  if (typeof row.outcome === "string" && LIMIT_NAMES.includes(row.outcome)) return { ok: false, limit: row.outcome as SendLimitName };
+  throw new Error("Counting award invitations returned an unexpected answer");
 }
 
 export class SupabaseInvitationLimiter implements InvitationLimiter {
   constructor(private readonly client: RpcLike) {}
-  async claim(workspaceId: string, limit: number): Promise<boolean> {
-    // The database's clock decides the window; the count and the insert happen under one lock.
-    const { data, error } = await this.client.rpc("gms_claim_award_invitation_send", { p_workspace: workspaceId, p_limit: limit });
+  async claim(key: SendKey, limits: SendLimits): Promise<SendClaim> {
+    // The database's clock decides the windows; the counts and the insert happen under one lock.
+    const { data, error } = await this.client.rpc("gms_claim_award_invitation_send", sendArgs(key, limits));
     if (error) throw new Error(`Counting award invitations failed: ${error.message}`);
-    return data === true;
+    return readSendClaim(data);
   }
-  async release(workspaceId: string): Promise<void> {
-    const { error } = await this.client.rpc("gms_release_award_invitation_send", { p_workspace: workspaceId });
+  async release(sendId: string): Promise<void> {
+    const { error } = await this.client.rpc("gms_release_award_invitation_send", { p_send: sendId });
     if (error) throw new Error(`Releasing an award invitation count failed: ${error.message}`);
   }
 }
