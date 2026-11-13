@@ -3,6 +3,19 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.2.2
+
+### Fixed
+
+- The two-step verification screen no longer flashes "Open your authenticator app for the current
+  code" to a new admin while it is still preparing the set-up (QR code). Until it knows whether the
+  person already has an authenticator, it says "Getting your second step ready…" and shows no code
+  box.
+
+### Upgrade notes
+
+- No database migrations and no setting changes.
+
 ## v1.2.1
 
 ### Fixed

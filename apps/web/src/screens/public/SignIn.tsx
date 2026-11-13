@@ -387,10 +387,16 @@ export default function SignIn() {
                   </div>
                   <div>
                     <h2 style={{ fontSize: "20px" }}>{enrollment ? "Set Up Two-Step Verification" : "Two-Step Verification"}</h2>
-                    <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }}>
+                    {/* Until Supabase says whether an authenticator is already set up, say neither: the
+                        "open your app" wording flashed for new admins before the set-up screen loaded. */}
+                    <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }} role="status" aria-live="polite">
                       {enrollment
                         ? "Your role in this workspace requires a second step. This takes about two minutes."
-                        : "Your role in this workspace requires a second step. Open your authenticator app for the current code."}
+                        : factorId
+                          ? "Your role in this workspace requires a second step. Open your authenticator app for the current code."
+                          : error
+                            ? "Your role in this workspace requires a second step."
+                            : "Getting your second step ready…"}
                     </p>
                   </div>
                 </div>
@@ -456,6 +462,10 @@ export default function SignIn() {
                     </div>
                   </div>
                 )}
+                {!enrollment && !factorId ? (
+                  error && <Problem>{error}</Problem>
+                ) : (
+                  <>
                 <div className="fld">
                   <label className="lbl" htmlFor="totp">
                     Enter the 6-digit code from your app
@@ -477,6 +487,8 @@ export default function SignIn() {
                 <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !factorId || totp.replace(/\D/g, "").length < 6}>
                   Verify and continue
                 </button>
+                  </>
+                )}
                 <button className="btn btn-ghost" type="button" onClick={() => void auth.signOut().then(() => setStep("email"))}>
                   Sign out
                 </button>

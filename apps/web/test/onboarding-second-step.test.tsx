@@ -34,7 +34,7 @@ describe("funder setup and the second step of sign-in", () => {
     expect(await screen.findByRole("heading", { name: "Two-Step Verification" })).toBeInTheDocument();
     expect(where()).toContain("step=mfa");
     expect(where()).toContain(encodeURIComponent("/onboarding/funder/brand"));
-    await userEvent.type(screen.getByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
+    await userEvent.type(await screen.findByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
     await userEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
     await waitFor(() => expect(where()).toBe("/onboarding/funder/brand"));
     expect(screen.queryByText("This role requires two-step verification", { exact: false })).toBeNull();
@@ -43,6 +43,25 @@ describe("funder setup and the second step of sign-in", () => {
   it("shows the second step when a page asks for it, even before the membership list has caught up", async () => {
     open(`/signin?next=${encodeURIComponent("/onboarding/funder/brand")}&step=mfa`, createMockServices({ session: demoSession("aal1"), memberships: [], totpEnrolled: true }));
     expect(await screen.findByRole("heading", { name: "Two-Step Verification" })).toBeInTheDocument();
+  });
+
+  it("says neither 'set up' nor 'open your app' until it knows which one applies", async () => {
+    const services = createMockServices({ session: demoSession("aal1"), memberships: [] });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const enroll = services.auth.enrollTotp.bind(services.auth);
+    services.auth.enrollTotp = async () => {
+      await gate;
+      return enroll();
+    };
+    open(`/signin?next=${encodeURIComponent("/onboarding/funder/brand")}&step=mfa`, services);
+    expect(await screen.findByText("Getting your second step ready…")).toBeInTheDocument();
+    expect(screen.queryByText(/Open your authenticator app/)).toBeNull();
+    expect(screen.queryByLabelText("Enter the 6-digit code from your app")).toBeNull();
+    release();
+    expect(await screen.findByRole("heading", { name: "Set Up Two-Step Verification" })).toBeInTheDocument();
+    expect(screen.queryByText(/Open your authenticator app/)).toBeNull();
+    expect(screen.getByLabelText("Enter the 6-digit code from your app")).toBeInTheDocument();
   });
 
   it("does not hold back someone who already did the second step", async () => {
