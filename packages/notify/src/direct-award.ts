@@ -66,12 +66,30 @@ export interface DirectAwardInvitationFields {
   expiresOn: string;
 }
 
-/** One line: no control characters, no line breaks (subjects and single-line fields). */
-// eslint-disable-next-line no-control-regex -- removing control characters is the point
-const oneLine = (v: string) => v.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
-/** Plain text that keeps its paragraphs and line breaks, without other control characters. */
-// eslint-disable-next-line no-control-regex -- removing control characters is the point
-const plain = (v: string) => v.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, " ").trim();
+/**
+ * One line of free text: line breaks and tabs become spaces, other control characters (C0, C1,
+ * NUL) and invisible format characters (Unicode Cf: bidirectional controls, zero-width
+ * characters) are removed, and spaces are folded. For every single-line field someone types into
+ * GMS mail, at input and again in the email.
+ */
+export const cleanLine = (v: string): string =>
+  v
+    .replace(/\p{Cf}+/gu, "")
+    .replace(/[\t\n\v\f\r\u0085\u2028\u2029]+/g, " ")
+    .replace(/\p{Cc}+/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+/** Free text that keeps its paragraphs and line breaks; otherwise as `cleanLine`. */
+export const cleanText = (v: string): string =>
+  v
+    .replace(/\r\n?|[\u0085\u2028\u2029]/g, "\n")
+    .replace(/\p{Cf}+/gu, "")
+    .replace(/[\t\v\f]+/g, " ")
+    .replace(/[^\P{Cc}\n]+/gu, "")
+    .replace(/[ ]+\n/g, "\n")
+    .trim();
+const oneLine = cleanLine;
+const plain = cleanText;
 const paragraphs = (text: string) =>
   text
     .split(/\n{2,}/)

@@ -5,7 +5,7 @@
 // applicant workspace where they are an admin (review F-01: never by name or EIN). Accepting runs
 // `accept_offer` through the award machine, so the Passport mirror and every effect behave as for
 // any accepted award, and records the organization's consent to share its record with the funder.
-import { containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
+import { cleanLine, cleanText, containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
 import { toMinor } from "@gms/protocol";
 import { awardCgStatus, awardEffects, awardMachine } from "@gms/workflow";
 import { z } from "zod";
@@ -70,13 +70,34 @@ const claimsFor = (ctx: ServiceContext): DirectAwardClaims => {
  * written addresses into links, so free text that reads as one (`containsLink`, `@gms/notify`: any
  * URL scheme, `@` address or host name, after NFKC) is refused rather than sent.
  */
+/**
+ * Free text: control characters and invisible format characters (Unicode Cf, such as
+ * bidirectional controls and zero-width spaces) are removed first (`cleanLine`, `cleanText`),
+ * then the length and the link rule are checked on what would be stored and sent.
+ */
 const textWithoutLinks = (max: number, what: string) =>
   z
     .string()
-    .trim()
-    .min(1)
-    .max(max)
-    .refine((v) => !containsLink(v), { message: `${what} cannot contain a web or email address` });
+    .max(max * 2)
+    .transform(cleanLine)
+    .pipe(
+      z
+        .string()
+        .min(1)
+        .max(max)
+        .refine((v) => !containsLink(v), { message: `${what} cannot contain a web or email address` }),
+    );
+const paragraphsWithoutLinks = (max: number, message: string) =>
+  z
+    .string()
+    .max(max * 2)
+    .transform(cleanText)
+    .pipe(
+      z
+        .string()
+        .max(max)
+        .refine((v) => !containsLink(v), { message }),
+    );
 
 const emailInput = z
   .email()
@@ -93,12 +114,7 @@ export const directAwardInput = z
     startDate: z.iso.date().optional(),
     endDate: z.iso.date().optional(),
     programId: z.uuid().optional(),
-    message: z
-      .string()
-      .trim()
-      .max(DIRECT_AWARD_MESSAGE_MAX)
-      .refine((v) => !containsLink(v), { message: "The message cannot contain a web or email address. The email already links to the award" })
-      .optional(),
+    message: paragraphsWithoutLinks(DIRECT_AWARD_MESSAGE_MAX, "The message cannot contain a web or email address. The email already links to the award").optional(),
   })
   .strict()
   .refine((i) => !!i.startDate === !!i.endDate, { path: ["endDate"], message: "Give both the start and the end of the grant period, or neither" })
@@ -110,8 +126,9 @@ export const resendInput = z.object({ contactEmail: emailInput.optional() }).str
 
 const TOKEN = z.string().min(40).max(200);
 export const lookupInput = z.object({ token: TOKEN }).strict();
-export const acceptInput = z.object({ token: TOKEN, workspaceId: z.uuid(), name: z.string().trim().min(2).max(200).optional() }).strict();
-export const declineInput = z.object({ token: TOKEN, reason: z.string().trim().max(2000).optional() }).strict();
+export const acceptInput = z.object({ token: TOKEN, workspaceId: z.uuid(), name: z.string().max(400).transform(cleanLine).pipe(z.string().min(2).max(200)).optional() }).strict();
+/** The reason goes to the funder's staff by email, so it follows the funder's rules: plain text, no links. */
+export const declineInput = z.object({ token: TOKEN, reason: paragraphsWithoutLinks(2000, "The reason cannot contain a web or email address").optional() }).strict();
 
 // ------------------------------------------------------------------------------------ funder side
 
@@ -406,7 +423,9 @@ export async function acceptInvitation(ctx: ServiceContext, input: z.output<type
   if (consentId) await audit(recipientCtx, "consent.granted", "workspace", target.id, { funderWorkspaceId: award.workspace_id, basis: "award" }, target.id);
   const accepted = required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
   if (awardEffects("accepted").mirrorToPassport) await mirrorAward(recipientCtx, accepted);
-  await noticeToFunder(ctx, award, `${target.display_name} accepted ${award.title}`, `${target.display_name} accepted the award "${award.title}" that was offered to ${inv.organization_name}. The organization now shares its record with you, and the award follows its usual steps from here.`, `award-claimed:${award.id}`);
+  // The accepting workspace's name is the grantee's own text: printed only when it reads as no link.
+  const accepter = containsLink(target.display_name) ? inv.organization_name : cleanLine(target.display_name);
+  await noticeToFunder(ctx, award, `${accepter} accepted ${award.title}`, `${accepter} accepted the award "${award.title}" that was offered to ${inv.organization_name}. The organization now shares its record with you, and the award follows its usual steps from here.`, `award-claimed:${award.id}`);
   return { awardId: apiId("award", award.id), workspaceId: target.id };
 }
 

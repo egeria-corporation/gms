@@ -192,6 +192,19 @@ describe("the funder gives an award directly", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
   });
 
+  it("removes control and invisible format characters from free text before it is checked or stored", async () => {
+    const r = await create(admin, { recipient: { organizationName: "Alder\u202E Creek\u200B\u0000 Family Services", contactEmail: INVITED }, title: "Emergency\u2066 operating\u2069 support\u0007", message: "Thank\u0000 you.\r\n\r\nSee\u200F you soon." });
+    expect(r.status).toBe(201);
+    const inv = (await h.repos.table("award_invitations").find({}))[0]!;
+    expect(inv.organization_name).toBe("Alder Creek Family Services");
+    expect(inv.message).toBe("Thank you.\n\nSee you soon.");
+    expect((await h.repos.table("awards").one({ id: inv.award_id }))!.title).toBe("Emergency operating support");
+    // A link hidden by a zero-width space is still a link.
+    expect((await create(admin, { message: "exa\u200Bmple.org" })).status).toBe(400);
+    // Nothing but control characters is no name at all.
+    expect((await create(admin, { title: "\u0000\u200B" })).status).toBe(400);
+  });
+
   it("refuses when mail is not configured, before anything is created", async () => {
     h.withoutPorts.add("mailer");
     const r = await create(admin);
@@ -433,11 +446,15 @@ describe("the invited person", () => {
     const wrong = await call(await sessionAs(USER_STRANGER, "someone@else.example"), "POST", "/gms/award-invitations/decline", { token });
     expect(wrong.status).toBe(403);
     expect(wrong.body.errors[0]!.code).toBe("email_mismatch");
-    const r = await call<{ data: { status: string } }>(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "We are not able to take on new funding this year." });
+    // The reason is emailed to the funder's staff: plain text, no links.
+    const linked = await call(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "Please confirm at funder-help.ngo" });
+    expect(linked.status).toBe(400);
+    const r = await call<{ data: { status: string } }>(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "We are not able\u202E to take on new funding this year.\u0000" });
     expect(r.status).toBe(200);
     expect(r.body.data).toEqual({ status: "declined" });
     expect(h.mailer.sent.map((m) => m.to[0]).sort()).toEqual(["dana.ortiz@riverbendcf.example", "helen.ortiz@riverbendcf.example"]);
     expect(h.mailer.sent[0]!.text).toContain("We are not able to take on new funding this year.");
+    expect((await h.repos.table("award_invitations").one({ award_id: uuidOf(id) }))!.decline_reason).toBe("We are not able to take on new funding this year.");
     const ev = h.ledger.events.find((e) => e.eventType === "award.invitation_declined")!;
     expect(ev.data).toMatchObject({ email: "j…@aldercreek.example", reasonGiven: true });
     expect(JSON.stringify(ev.data)).not.toContain("new funding");

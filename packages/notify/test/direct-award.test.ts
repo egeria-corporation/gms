@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { containsLink, directAwardInvitationEmail, FUNDER_NOT_VERIFIED_LINE, LinkInTextError, type DirectAwardInvitationFields } from "../src/index.ts";
+import { cleanLine, cleanText, containsLink, directAwardInvitationEmail, FUNDER_NOT_VERIFIED_LINE, LinkInTextError, type DirectAwardInvitationFields } from "../src/index.ts";
 
 const base: DirectAwardInvitationFields = {
   funderName: "Riverbend Community Foundation",
@@ -100,5 +100,20 @@ describe("the one link detector", () => {
   it("refuses to build an email whose funder-supplied text reads as a link", () => {
     expect(() => directAwardInvitationEmail({ ...base, funderName: "Ford Foundation - verify at fordgrants.foundation" })).toThrow(LinkInTextError);
     expect(() => directAwardInvitationEmail({ ...base, message: "grants．ngo" })).toThrow(LinkInTextError);
+  });
+});
+
+describe("free text cleaning", () => {
+  it("removes bidirectional controls, zero-width characters and control characters", () => {
+    const bidi = "‪‫‬‭‮⁦⁧⁨⁩​‌‍‎‏﻿­";
+    expect(cleanLine(`Al${bidi}der\u0000 Creek\u0007\r\n Family\tServices\u0085 `)).toBe("Alder Creek Family Services");
+    expect(cleanText(`Line one‮\r\nLine two\u0000\n\n\tNext${bidi}`)).toBe("Line one\nLine two\n\n Next");
+  });
+
+  it("cleans the email's fields too", () => {
+    const e = directAwardInvitationEmail({ ...base, organizationName: "Alder‮ Creek", message: "Hi​ there" });
+    expect(e.subject).toBe("Riverbend Community Foundation has offered Alder Creek a grant");
+    expect(e.text).toContain("Hi there");
+    expect(e.text).not.toMatch(/\p{Cf}/u);
   });
 });
