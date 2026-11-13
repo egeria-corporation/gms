@@ -90,6 +90,9 @@ export default function SignIn() {
   // The landing page's two start buttons carry who the person is, so they are not asked again.
   const asParam = params.get("as");
   const as: "funder" | "grantee" | null = asParam === "funder" || asParam === "grantee" ? asParam : null;
+  // A page that was refused for want of the second step sends the person here with `step=mfa`. Honour
+  // it even when the membership list has not caught up yet (a workspace created a moment ago).
+  const wantsSecondStep = params.get("step") === "mfa";
   // Passport sent the person back without a session: say why, and what to do next.
   const passport = sessionState.status === "signedIn" ? null : passportProblem(params.get("passport_error"));
 
@@ -112,7 +115,7 @@ export default function SignIn() {
     if (sessionState.status !== "signedIn" || meState.status !== "ready") return;
     const { me } = meState;
     const target = next ? me.workspaces.find((w) => next === `/w/${w.handle}` || next.startsWith(`/w/${w.handle}/`)) : undefined;
-    const needsMfa = !me.mfaVerified && (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa));
+    const needsMfa = !me.mfaVerified && (wantsSecondStep || (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa)));
     if (needsMfa) return setStep("mfa");
     if (me.workspaces.length === 0 && !next) {
       if (as === "funder") navigate("/onboarding/funder/organization", { replace: true });
@@ -123,7 +126,7 @@ export default function SignIn() {
     // Someone whose only job here is reviewing works in the reviewer portal, not the funder workspace.
     const first = me.workspaces[0]!;
     navigate(next ?? (isReviewOnly(first.role) && me.workspaces.every((w) => isReviewOnly(w.role)) ? "/review/assignments" : `/w/${first.handle}`), { replace: true });
-  }, [sessionState.status, meState, next, as, navigate]);
+  }, [sessionState.status, meState, next, as, wantsSecondStep, navigate]);
 
   // Entering the second step: challenge an enrolled authenticator, or start enrollment.
   useEffect(() => {

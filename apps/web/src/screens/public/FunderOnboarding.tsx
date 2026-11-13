@@ -13,6 +13,8 @@ import { Busy } from "../../auth/RequireAuth.tsx";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { ErrorBanner, Field, problemFor } from "../../components/ui.tsx";
+import { needsSecondStep, SecondStepNotice } from "../../components/SecondStep.tsx";
+import { signInPath } from "../../auth/RequireAuth.tsx";
 import { checkBrand, isHexColor, suggestOnAccent, SYSTEM_BRAND } from "../../lib/contrast.ts";
 import { parseDollars, slugify } from "../../lib/format.ts";
 import { markOf } from "./PublicFrame.tsx";
@@ -184,6 +186,12 @@ export default function FunderOnboarding() {
   // Later steps need the workspace the first step creates.
   if (resuming && !workspace) return <Busy />;
   if (step !== "organization" && !workspace) return <Navigate to="/onboarding/funder/organization" replace />;
+  // Every later step is an admin action, and an admin needs the second step of sign-in. Workspace
+  // pages send the person there on their own; these setup pages are outside them, so do it here.
+  if (step !== "organization" && workspace && meState.status === "ready") {
+    const membership = meState.me.workspaces.find((m) => m.id === workspace.id);
+    if (membership?.requiresMfa && !meState.me.mfaVerified) return <Navigate to={signInPath(`/onboarding/funder/${step}`, "mfa")} replace />;
+  }
 
   const index = STEPS.findIndex((s) => s.key === step);
   const go = (key: StepKey) => navigate(`/onboarding/funder/${key}`);
@@ -204,6 +212,9 @@ export default function FunderOnboarding() {
     setWorkspace(result.workspace);
     keepWorkspaceId(result.workspace.id);
     reloadMe();
+    // The person is the new workspace's admin. Without the second step of sign-in every save from
+    // here would be refused, so take them through it now; it comes back to the brand step.
+    if (meState.status === "ready" && !meState.me.mfaVerified) return navigate(signInPath("/onboarding/funder/brand", "mfa"));
     go("brand");
   }
   async function submitBrand(e: FormEvent) {
@@ -350,7 +361,7 @@ export default function FunderOnboarding() {
                     </>
                   }
                 >
-                  {saveBrand.error !== null && <ErrorBanner error={saveBrand.error} title="The brand could not be saved" />}
+                  {saveBrand.error !== null && (needsSecondStep(saveBrand.error) ? <SecondStepNotice next="/onboarding/funder/brand" /> : <ErrorBanner error={saveBrand.error} title="The brand could not be saved" />)}
                   <div className="fld-row">
                     <Field id="accent" label="Accent color" help="A hex color, such as #1F6F8B.">
                       <div className="row" style={{ gap: "10px" }}>
@@ -416,7 +427,7 @@ export default function FunderOnboarding() {
                   <div className="d">{w}</div>
                 </div>
               ))}
-              {invite.error !== null && <ErrorBanner error={invite.error} title="The invitation could not be sent" />}
+              {invite.error !== null && (needsSecondStep(invite.error) ? <SecondStepNotice next="/onboarding/funder/team" /> : <ErrorBanner error={invite.error} title="The invitation could not be sent" />)}
               <form onSubmit={submitInvite} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr) auto", gap: "12px", alignItems: "end" }}>
                 <Field id="invite-email" label="Email" error={problemFor(invite.error, "email")}>
                   <input className="inp" id="invite-email" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required />
@@ -483,7 +494,7 @@ export default function FunderOnboarding() {
                   </>
                 }
               >
-                {createProgram.error !== null && <ErrorBanner error={createProgram.error} title="The program could not be created" />}
+                {createProgram.error !== null && (needsSecondStep(createProgram.error) ? <SecondStepNotice next="/onboarding/funder/program" /> : <ErrorBanner error={createProgram.error} title="The program could not be created" />)}
                 <p>A program holds a budget and the defaults new opportunities start from. You can add more later.</p>
                 <Field id="first-program-name" label="Program name" required>
                   <input className="inp" id="first-program-name" value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Community Health 2027" required />
