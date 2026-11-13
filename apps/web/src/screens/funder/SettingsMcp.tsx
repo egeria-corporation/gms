@@ -30,7 +30,7 @@ const FUNDER_ROLES = ["admin", "program_officer", "finance", "reviewer", "observ
 const words = (s: string) => s.replace(/_/g, " ");
 
 /** A secret that is shown exactly once, with a copy button. */
-function SecretOnce({ title, label, value, extra, onClose }: { title: string; label: string; value: string; extra?: React.ReactNode; onClose: () => void }) {
+export function SecretOnce({ title, label, value, extra, onClose }: { title: string; label: string; value: string; extra?: React.ReactNode; onClose: () => void }) {
   return (
     <Dialog open onClose={onClose} labelledBy="secret-title">
       <div className="hd">

@@ -147,6 +147,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `ANTHROPIC_API_KEY` | api | Only with `ASSISTANT_ENABLED = "true"` |
 | `PAYMENTS_FACILITATED` | api, jobs | Plain variable, default `"false"`. `"true"` turns on release through Passport; otherwise payments are recorded after being paid outside the GMS |
 | `OPENGRANTS_API_KEY` | api | Optional |
+| `VITE_USERBACK_TOKEN` | web build | Optional, build-time (not a Worker secret). Userback's public access token for the feedback button. Leave it unset to load nothing and keep the Content-Security-Policy unchanged |
 
 Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_URL`,
 `OAUTH_ISSUER`, `PASSPORT_BASE_URL`, `PASSPORT_ISSUER`, `OPENGRANTS_API_URL`, `ASSISTANT_ENABLED`,
@@ -218,6 +219,11 @@ VITE_USE_MOCKS=false VITE_API_BASE_URL=https://gms.example.org VITE_SUPABASE_URL
 ```bash
 pnpm --filter @gms/web exec wrangler deploy
 ```
+
+Optional: `VITE_USERBACK_TOKEN` is the public access token of a Userback project. When it is set at
+build time, the app shows Userback's feedback button and the Content-Security-Policy adds Userback's
+origins (`static.userback.io`, `api.userback.io`, `events.userback.io`). When it is unset, which is
+the default, nothing loads and the policy is unchanged. Self-hosters normally leave it unset.
 
 Route the web Worker to your host with a custom domain in `apps/web/wrangler.jsonc`. The API
 Worker's routes (`/gms/*`, `/common-grants/*`, `/oauth/*`, `/.well-known/*`, `/mcp*`,

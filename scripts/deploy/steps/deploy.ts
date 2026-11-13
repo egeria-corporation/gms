@@ -146,6 +146,8 @@ export async function deploy(ctx: Ctx): Promise<Result> {
         VITE_SUPABASE_URL: state.supabase.url,
         VITE_SUPABASE_ANON_KEY: keys.anon,
         ...(config.passport ? { VITE_PASSPORT_BASE_URL: config.passportUrl } : {}),
+        // Optional: Userback's public access token for the feedback widget. Passed only when the environment has one.
+        ...(ctx.env.VITE_USERBACK_TOKEN?.trim() ? { VITE_USERBACK_TOKEN: ctx.env.VITE_USERBACK_TOKEN.trim() } : {}),
       },
     ],
   ];

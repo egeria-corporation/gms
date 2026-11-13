@@ -347,6 +347,16 @@ describe("deploy", () => {
     expect(f.everythingVisible()).not.toContain(SECRET.anon);
     expect((await f.step("deploy", "--yes", "--replace-dns")).r.code).toBe("skipped");
   });
+  it("passes the optional Userback token into the web build only when the environment has one", async () => {
+    const without = makeFake();
+    await ready(without, "--host", "grants.example.org");
+    expect((await without.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    expect(without.calls.find((c) => c.args.join(" ").includes("@gms/web build"))!.env).not.toHaveProperty("VITE_USERBACK_TOKEN");
+    const withToken = makeFake({ env: { VITE_USERBACK_TOKEN: "A-test" } });
+    await ready(withToken, "--host", "grants.example.org");
+    expect((await withToken.step("deploy", "--yes", "--replace-dns")).r.code).toBe("ok");
+    expect(withToken.calls.find((c) => c.args.join(" ").includes("@gms/web build"))!.env).toMatchObject({ VITE_USERBACK_TOKEN: "A-test" });
+  });
   it("deploys the same version again when init changed a choice that shapes the build, refreshing the Worker configs", async () => {
     const f = makeFake();
     await ready(f, "--host", "grants.example.org", "--passport", "off");
