@@ -45,7 +45,7 @@ describe("DEPLOY_WITH_AGENT.md", () => {
 describe("release files", () => {
   it("agree on the version, the tag and the entry points", () => {
     const version = JSON.parse(read("package.json")).version as string;
-    expect(version).toBe("1.2.1");
+    expect(version).toBe("1.2.2");
     expect(releaseNotes(read("CHANGELOG.md"), `v${version}`)).toContain("Upgrade notes");
     expect(releaseNotes(read("CHANGELOG.md"), "v0.9.0")).toContain("Upgrade notes");
     expect(read("README.md")).toMatch(new RegExp("```bash\\n[^`]*--branch v" + version.replace(/\./g, "\\.") + "[^`]*\\n```"));

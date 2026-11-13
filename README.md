@@ -12,7 +12,7 @@ You need a Supabase account, a Cloudflare account (the Workers Paid plan) and Cl
 empty folder, run:
 
 ```bash
-git clone --branch v1.2.1 https://github.com/egeria-corporation/gms.git && cd gms && pnpm install && claude "/deploy-gms"
+git clone --branch v1.2.2 https://github.com/egeria-corporation/gms.git && cd gms && pnpm install && claude "/deploy-gms"
 ```
 
 Claude asks a few questions, stops before anything that costs money or changes DNS, and finishes
