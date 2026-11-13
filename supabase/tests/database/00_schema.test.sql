@@ -20,7 +20,7 @@ select tables_are(
     'mcp_connections', 'approvals', 'custom_mcp_servers', 'connector_accounts',
     'webhook_subscriptions', 'webhook_deliveries', 'inbound_events', 'assist_calls',
     'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
-    'workspace_creation_counts'
+    'workspace_creation_counts', 'award_invitations', 'award_invitation_sends'
   ],
   'public schema has exactly the GMS tables'
 );
@@ -70,7 +70,8 @@ select is_empty(
      where table_schema = 'public' and grantee = 'authenticated'
        and table_name in ('passport_links', 'invitations', 'api_clients', 'oauth_clients_dynamic', 'oauth_grants', 'oauth_codes',
                           'oauth_refresh_tokens', 'custom_mcp_servers', 'webhook_subscriptions', 'webhook_deliveries',
-                          'inbound_events', 'ledger_archives', 'reminder_sends', 'connector_accounts', 'passport_second_steps', 'passport_account_links', 'passport_link_requests') $$,
+                          'inbound_events', 'ledger_archives', 'reminder_sends', 'connector_accounts', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
+                          'award_invitations', 'award_invitation_sends') $$,
   'tables holding secrets or OAuth state are not granted to authenticated'
 );
 select is_empty(

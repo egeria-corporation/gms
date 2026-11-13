@@ -72,6 +72,7 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   discover_saved: () => ({ url: null, listing: {}, gms_opportunity_id: null, saved_by: null }),
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
+  award_invitations: () => ({ message: null, sent_count: 1, accepted_at: null, accepted_by: null, accepted_workspace_id: null, declined_at: null, decline_reason: null, revoked_at: null }),
   awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null }),
   agreements: () => ({ template_id: null, version: 1, status: "draft", rendered_pdf_path: null, document_sha256: null, grantee_signature: null, funder_signature: null, executed_at: null }),
   payment_schedules: () => ({ currency: "USD", notes: null }),
@@ -98,6 +99,7 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   workspaces: [{ columns: ["handle"] }],
   workspace_members: [{ columns: ["workspace_id", "user_id"] }],
   invitations: [{ columns: ["token_hash"] }],
+  award_invitations: [{ columns: ["award_id"] }, { columns: ["token_hash"] }],
   passport_links: [{ columns: ["workspace_id", "mode"], whereNull: "revoked_at" }],
   opportunities: [{ columns: ["workspace_id", "slug"] }],
   forms: [{ columns: ["id", "version"] }],
@@ -139,6 +141,7 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   budgets: { award_id: "awards", application_id: "applications" },
   amendments: { award_id: "awards", child_award_id: "awards" },
   bank_transactions: { matched_tranche_id: "tranches" },
+  award_invitations: { award_id: "awards" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
