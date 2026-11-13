@@ -4,7 +4,9 @@
 import { useState, type FormEvent } from "react";
 import { Check, Cloud, UserPlus } from "lucide-react";
 import type { ApplicantApi } from "../../api/applicant.ts";
+import { useLocation } from "react-router";
 import { ErrorBanner, Field } from "../../components/ui.tsx";
+import { needsSecondStep, SecondStepNotice } from "../../components/SecondStep.tsx";
 
 const ROLES = [
   { value: "editor", label: "Editor" },
@@ -13,6 +15,8 @@ const ROLES = [
 ];
 
 export function InviteTeammates({ api }: { api: ApplicantApi }) {
+  const location = useLocation();
+  const here = location.pathname + location.search;
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("editor");
   const [sent, setSent] = useState<string[]>([]);
@@ -55,7 +59,7 @@ export function InviteTeammates({ api }: { api: ApplicantApi }) {
             </select>
           </Field>
         </div>
-        {error ? <ErrorBanner error={error} title="The invitation was not sent" /> : null}
+        {error ? needsSecondStep(error) ? <SecondStepNotice next={here} /> : <ErrorBanner error={error} title="The invitation was not sent" /> : null}
         <button type="submit" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} disabled={busy || !email.trim()}>
           <UserPlus className="ic" aria-hidden="true" />
           Send invitation
