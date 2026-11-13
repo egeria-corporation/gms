@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(48);
+select plan(52);
 
 insert into auth.users (id, email, aud, role, email_confirmed_at) values
   ('7da00000-0000-4000-8000-000000000001', 'Jo.Grant@Alder.example', 'authenticated', 'authenticated', now()),  -- the invited person
@@ -57,15 +57,21 @@ select is((select status || ':' || coalesce(recipient_workspace_id::text, 'none'
 select is((select count(*)::int from public.consents where funder_workspace_id = '7d000000-0000-4000-8000-0000000000f1'), 0, 'and record no consent');
 
 -- The invited person, signed in with that address in another case, claims for their workspace.
-select is(public.gms_claim_direct_award(repeat('a', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', '  JO.GRANT@alder.example ', 'awarded') ->> 'outcome', 'claimed', 'the invited person claims it');
+select is(public.gms_claim_direct_award(repeat('a', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', '  JO.GRANT@alder.example ', 'awarded', '7dd00000-0000-4000-8000-0000000000a1',
+    jsonb_build_array(jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000a1', 'workspace_id', '7d000000-0000-4000-8000-0000000000f1', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'award.claimed', 'subject_type', 'award', 'subject_id', '7d500000-0000-4000-8000-000000000001', 'data', '{"workspaceId": "a1"}'::jsonb)),
+    jsonb_build_array(jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000a2', 'workspace_id', '7d000000-0000-4000-8000-0000000000a1', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'consent.granted', 'subject_type', 'workspace', 'subject_id', '7d000000-0000-4000-8000-0000000000a1', 'data', '{"basis": "award"}'::jsonb)))
+  ->> 'outcome', 'claimed', 'the invited person claims it');
+select is((select string_agg(event_type || '=' || coalesce(data ->> 'consentId', '-'), ',' order by id) from public.ledger_events where id in ('7dc00000-0000-4000-8000-0000000000a1', '7dc00000-0000-4000-8000-0000000000a2')),
+  'award.claimed=7dd00000-0000-4000-8000-0000000000a1,consent.granted=-', 'the claim and the new consent are ledgered with it, naming the consent');
 select is((select recipient_workspace_id from public.awards where id = '7d500000-0000-4000-8000-000000000001'), '7d000000-0000-4000-8000-0000000000a1'::uuid, 'the award now names the workspace');
 select is((select recipient_individual from public.awards where id = '7d500000-0000-4000-8000-000000000001'), null::jsonb, 'and no longer the named recipient');
 select is((select status || ':' || cg_status from public.awards where id = '7d500000-0000-4000-8000-000000000001'), 'accepted:awarded', 'the award is accepted');
-select is((select basis || ':' || array_to_string(scopes, ',') from public.consents where funder_workspace_id = '7d000000-0000-4000-8000-0000000000f1' and applicant_workspace_id = '7d000000-0000-4000-8000-0000000000a1' and revoked_at is null), 'award:org:read', 'accepting records the consent, basis award');
+select is((select id::text || ':' || basis || ':' || array_to_string(scopes, ',') from public.consents where funder_workspace_id = '7d000000-0000-4000-8000-0000000000f1' and applicant_workspace_id = '7d000000-0000-4000-8000-0000000000a1' and revoked_at is null), '7dd00000-0000-4000-8000-0000000000a1:award:org:read', 'accepting records the consent, basis award, under the id the API chose');
 select ok((select accepted_at is not null and accepted_by = '7da00000-0000-4000-8000-000000000001' and accepted_workspace_id = '7d000000-0000-4000-8000-0000000000a1' from public.award_invitations where award_id = '7d500000-0000-4000-8000-000000000001'), 'the invitation is marked accepted');
 select is(public.gms_claim_direct_award(repeat('a', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded') ->> 'outcome', 'used', 'a token is single use');
 
 -- A second claim from the same organization does not add a second consent.
+
 reset role;
 insert into public.awards (id, workspace_id, recipient_individual, title, status) values
   ('7d500000-0000-4000-8000-000000000004', '7d000000-0000-4000-8000-0000000000f1', '{"name": "Alder Creek"}', 'Second direct award', 'offered'),
@@ -75,7 +81,18 @@ insert into public.award_invitations (workspace_id, award_id, email, organizatio
   ('7d000000-0000-4000-8000-0000000000f1', '7d500000-0000-4000-8000-000000000004', 'jo.grant@alder.example', 'Alder Creek', repeat('d', 43), now() + interval '1 day', '7da00000-0000-4000-8000-000000000002', null),
   ('7d000000-0000-4000-8000-0000000000f1', '7d500000-0000-4000-8000-000000000005', 'jo.grant@alder.example', 'Alder Creek', repeat('e', 43), now() + interval '1 day', '7da00000-0000-4000-8000-000000000002', now());
 select is(public.gms_claim_direct_award(repeat('e', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded') ->> 'outcome', 'revoked', 'a revoked invitation cannot be claimed');
-select is(public.gms_claim_direct_award(repeat('d', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded'), '{"outcome": "claimed", "consentId": null}'::jsonb, 'a live consent is not recorded twice');
+select throws_ok($$ select public.gms_claim_direct_award(repeat('d', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded', null,
+    jsonb_build_array(jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000e9', 'workspace_id', '7d000000-0000-4000-8000-0000000000f2', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'award.claimed', 'subject_type', 'award', 'subject_id', 'x', 'data', '{}'::jsonb))) $$,
+  '23514', null, 'a claim whose ledger row names a third workspace fails whole');
+select is((select accepted_at from public.award_invitations where token_hash = repeat('d', 43)), null, 'and leaves the invitation open');
+select is(public.gms_claim_direct_award(repeat('d', 43), '7d000000-0000-4000-8000-0000000000a1', '7da00000-0000-4000-8000-000000000001', 'jo.grant@alder.example', 'awarded', '7dd00000-0000-4000-8000-0000000000d1',
+    jsonb_build_array(
+      jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000d1', 'workspace_id', '7d000000-0000-4000-8000-0000000000f1', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'award.accept_offer', 'subject_type', 'award', 'subject_id', '7d500000-0000-4000-8000-000000000004', 'data', '{"from": "offered"}'::jsonb),
+      jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000d2', 'workspace_id', '7d000000-0000-4000-8000-0000000000f1', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'award.claimed', 'subject_type', 'award', 'subject_id', '7d500000-0000-4000-8000-000000000004', 'data', '{"workspaceId": "a1"}'::jsonb)),
+    jsonb_build_array(jsonb_build_object('id', '7dc00000-0000-4000-8000-0000000000d3', 'workspace_id', '7d000000-0000-4000-8000-0000000000a1', 'actor', 'user:7da00000-0000-4000-8000-000000000001', 'event_type', 'consent.granted', 'subject_type', 'workspace', 'subject_id', '7d000000-0000-4000-8000-0000000000a1', 'data', '{}'::jsonb))),
+  '{"outcome": "claimed", "consentId": null}'::jsonb, 'a live consent is not recorded twice');
+select is((select string_agg(event_type || '=' || coalesce(data ->> 'consentId', 'null'), ',' order by id) from public.ledger_events where id in ('7dc00000-0000-4000-8000-0000000000d1', '7dc00000-0000-4000-8000-0000000000d2', '7dc00000-0000-4000-8000-0000000000d3')),
+  'award.accept_offer=null,award.claimed=null', 'the claim''s ledger rows commit with it, and no consent row when no consent was made');
 select is((select count(*)::int from public.consents where funder_workspace_id = '7d000000-0000-4000-8000-0000000000f1'), 1, 'one consent per organization and funder');
 
 -- The send limits: each counts in its own window, a refused send counts nothing, a release gives one back.
@@ -130,12 +147,12 @@ reset role;
 select ok(not has_table_privilege('authenticated', 'public.award_invitations', 'SELECT') and not has_table_privilege('anon', 'public.award_invitations', 'SELECT')
           and not has_table_privilege('authenticated', 'public.award_invitation_sends', 'SELECT'),
   'signed-in users and anon cannot read invitations or counts');
-select ok(not has_function_privilege('authenticated', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE')
+select ok(not has_function_privilege('authenticated', 'public.gms_claim_direct_award(text, uuid, uuid, text, text, uuid, jsonb, jsonb)', 'EXECUTE')
           and not has_function_privilege('anon', 'public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'public.gms_release_award_invitation_send(uuid)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'public.gms_create_direct_award(jsonb, jsonb)', 'EXECUTE')
           and not has_function_privilege('service_role', 'gms.append_ledger(jsonb, uuid[])', 'EXECUTE')
-          and has_function_privilege('service_role', 'public.gms_claim_direct_award(text, uuid, uuid, text, text)', 'EXECUTE')
+          and has_function_privilege('service_role', 'public.gms_claim_direct_award(text, uuid, uuid, text, text, uuid, jsonb, jsonb)', 'EXECUTE')
           and has_function_privilege('service_role', 'public.gms_create_direct_award(jsonb, jsonb)', 'EXECUTE'),
   'only the service role may claim or count');
 

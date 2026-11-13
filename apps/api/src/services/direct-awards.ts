@@ -456,22 +456,42 @@ export async function acceptInvitation(ctx: ServiceContext, input: z.output<type
   const authority = await checkSigner(recipientCtx, target.id, input.name ?? null);
 
   const ports = grantPorts(recipientCtx, award.workspace_id);
-  let consentId: string | null = null;
+  const entry = (workspaceId: string, eventType: string, subjectType: string, subjectId: string, data: Record<string, unknown>) => ledgerEvent({ workspaceId, actor: ctx.actor.ledger, eventType, subjectType, subjectId, data }, { now: ctx.now });
+  let accepting = false;
+  // guard → write → ledger → webhook as for any transition, with the write and its ledger rows in
+  // one database transaction (review DA-07): `write` checks what the machine decided, and `ledger`
+  // commits the claim together with the machine's entry and the claim's own.
   const r = await awardMachine.transition({ id: award.id, status: award.status as "offered" }, "accept_offer", { id: ctx.actor.id, kind: "applicant" }, { now: ctx.now().toISOString() }, {
     ...ports,
     write: async (change) => {
       if (change.subjectType !== "award" || change.from !== "offered" || change.to !== "accepted") throw new Error("A direct award is claimed only by accept_offer");
-      const claimed = await storeFor(ctx).claim({ tokenHash: inv.token_hash, workspaceId: target.id, userId, email: signedInEmail ?? "", cgStatus: awardCgStatus("accepted").value }, ctx.now());
+      accepting = true;
+    },
+    ledger: async (e) => {
+      if (!accepting) throw new Error("A direct award's ledger entry follows its claim");
+      const claimed = await storeFor(ctx).claim(
+        {
+          tokenHash: inv.token_hash,
+          workspaceId: target.id,
+          userId,
+          email: signedInEmail ?? "",
+          cgStatus: awardCgStatus("accepted").value,
+          consentId: crypto.randomUUID(),
+          ledger: [
+            entry(award.workspace_id, e.eventType, e.subjectType, e.subjectId, e.data),
+            entry(award.workspace_id, "award.invitation_accepted", "award", award.id, { invitationId: inv.id, workspaceId: target.id, email: maskEmail(inv.email) }),
+            entry(award.workspace_id, "award.claimed", "award", award.id, { invitationId: inv.id, workspaceId: target.id }),
+            entry(award.workspace_id, "award.acceptance_signer_checked", "award", award.id, { rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId, name: input.name ?? null }),
+          ],
+          consentLedger: [entry(target.id, "consent.granted", "workspace", target.id, { funderWorkspaceId: award.workspace_id, basis: "award" })],
+        },
+        ctx.now(),
+      );
       if (claimed.outcome !== "claimed") throw refusal(claimed.outcome, inv);
-      consentId = claimed.consentId;
     },
   });
   if (!r.ok) throw new ApiError(r.code === "actor_not_allowed" ? 403 : 409, r.code, r.reason);
 
-  await audit(recipientCtx, "award.invitation_accepted", "award", award.id, { invitationId: inv.id, workspaceId: target.id, email: maskEmail(inv.email) }, award.workspace_id);
-  await audit(recipientCtx, "award.claimed", "award", award.id, { invitationId: inv.id, workspaceId: target.id, consentId }, award.workspace_id);
-  await audit(recipientCtx, "award.acceptance_signer_checked", "award", award.id, { rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId, name: input.name ?? null }, award.workspace_id);
-  if (consentId) await audit(recipientCtx, "consent.granted", "workspace", target.id, { funderWorkspaceId: award.workspace_id, basis: "award" }, target.id);
   const accepted = required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
   if (awardEffects("accepted").mirrorToPassport) await mirrorAward(recipientCtx, accepted);
   // The accepting workspace's name is the grantee's own text: printed only when it reads as no link.

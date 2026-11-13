@@ -518,6 +518,28 @@ describe("the invited person", () => {
     expect(h.ledger.events.some((e) => e.eventType === "award.accept_offer" || e.eventType === "award.claimed")).toBe(false);
   });
 
+  it("writes the claim's ledger rows in the same step as the claim, or none of them", async () => {
+    const id = (await create(admin)).body.data.id;
+    const token = lastToken();
+    const before = h.ledger.events.length;
+    const spy = vi.spyOn(RepoDirectAwardStore.prototype, "claim").mockRejectedValueOnce(new Error("the database went away"));
+    expect((await call(grantee, "POST", "/gms/award-invitations/accept", { token, workspaceId: WS_APPLICANT })).status).toBe(500);
+    expect(h.ledger.events.length).toBe(before);
+    expect((await h.repos.table("awards").one({ id: uuidOf(id) }))!.status).toBe("offered");
+    expect(await h.repos.table("consents").count({})).toBe(0);
+
+    expect((await call(grantee, "POST", "/gms/award-invitations/accept", { token, workspaceId: WS_APPLICANT })).status).toBe(200);
+    const input = spy.mock.calls.at(-1)![0];
+    spy.mockRestore();
+    expect(input.ledger.map((e) => e.eventType)).toEqual(["award.accept_offer", "award.invitation_accepted", "award.claimed", "award.acceptance_signer_checked"]);
+    expect(input.consentLedger.map((e) => [e.eventType, e.workspaceId])).toEqual([["consent.granted", WS_APPLICANT]]);
+    const consent = (await h.repos.table("consents").find({ applicant_workspace_id: WS_APPLICANT }))[0]!;
+    expect(consent.id).toBe(input.consentId);
+    expect(h.ledger.events.find((e) => e.eventType === "award.claimed")!.data).toMatchObject({ consentId: consent.id, workspaceId: WS_APPLICANT });
+    // Nothing is ledgered twice.
+    expect(h.ledger.events.filter((e) => e.eventType === "award.accept_offer")).toHaveLength(1);
+  });
+
   it("does not add a second consent when the organization already shares its record", async () => {
     await h.repos.table("consents").insert({ applicant_workspace_id: WS_APPLICANT, funder_workspace_id: WS_FUNDER, basis: "application", scopes: ["org:read"] });
     await create(admin);

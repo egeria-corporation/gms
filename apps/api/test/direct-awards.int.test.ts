@@ -60,7 +60,7 @@ describe.skipIf(!URL_ || !KEY)("Direct awards on the real schema", () => {
     const tokenHash = await sha256b64url(token);
     await repos.table("award_invitations").insert({ workspace_id: funderId, award_id: award.id, email: invited, organization_name: "Integration Alder", token_hash: tokenHash, expires_at: new Date(Date.now() + 86_400_000).toISOString(), created_by: otherUser });
     const claims: DirectAwardStore = new SupabaseDirectAwardStore(db as unknown as RpcLike);
-    const input = { tokenHash, workspaceId: applicantId, cgStatus: "awarded" };
+    const input = { tokenHash, workspaceId: applicantId, cgStatus: "awarded", consentId: crypto.randomUUID(), ledger: [], consentLedger: [] };
 
     expect((await claims.claim({ ...input, userId: otherUser, email: `int-other-${run}@aldercreek.example` }, new Date())).outcome).toBe("email_mismatch");
     // The session address alone is not enough: the account's own confirmed address must match too.

@@ -114,6 +114,12 @@ export interface ClaimInput {
   email: string;
   /** The award's CommonGrants status after `accept_offer`. */
   cgStatus: string;
+  /** The id a consent made by this claim takes, so its ledger row can name it. */
+  consentId: string;
+  /** Written with the claim: `award.claimed` gets `consentId` (the consent made, or null). */
+  ledger: LedgerEvent[];
+  /** Written with the claim only when it made a consent. */
+  consentLedger: LedgerEvent[];
 }
 
 /** A direct award to create in one transaction: the award's rows, its invitation, their ledger entries and the send count. */
@@ -149,7 +155,16 @@ export class SupabaseDirectAwardStore implements DirectAwardStore {
     return readSendClaim(data);
   }
   async claim(input: ClaimInput): Promise<{ outcome: ClaimOutcome; consentId: string | null }> {
-    const { data, error } = await this.client.rpc("gms_claim_direct_award", { p_token_hash: input.tokenHash, p_workspace: input.workspaceId, p_user: input.userId, p_email: input.email, p_cg_status: input.cgStatus });
+    const { data, error } = await this.client.rpc("gms_claim_direct_award", {
+      p_token_hash: input.tokenHash,
+      p_workspace: input.workspaceId,
+      p_user: input.userId,
+      p_email: input.email,
+      p_cg_status: input.cgStatus,
+      p_consent_id: input.consentId,
+      p_ledger: input.ledger.map(ledgerRow),
+      p_consent_ledger: input.consentLedger.map(ledgerRow),
+    });
     if (error) throw new Error(`Claiming the award failed: ${error.message}`);
     const row = (data ?? {}) as { outcome?: unknown; consentId?: unknown };
     const outcome = typeof row.outcome === "string" ? (row.outcome as ClaimOutcome) : "award_changed";
@@ -227,9 +242,11 @@ export class RepoDirectAwardStore implements DirectAwardStore {
     if (!award) return none("award_changed");
     let consentId: string | null = null;
     if (!(await this.repos.table("consents").one({ applicant_workspace_id: input.workspaceId, funder_workspace_id: inv.workspace_id, revoked_at: null }))) {
-      consentId = (await this.repos.table("consents").insert({ applicant_workspace_id: input.workspaceId, funder_workspace_id: inv.workspace_id, basis: "award", scopes: ["org:read"], granted_by: input.userId, granted_at: now.toISOString() })).id;
+      consentId = (await this.repos.table("consents").insert({ id: input.consentId, applicant_workspace_id: input.workspaceId, funder_workspace_id: inv.workspace_id, basis: "award", scopes: ["org:read"], granted_by: input.userId, granted_at: now.toISOString() })).id;
     }
     await this.repos.table("award_invitations").update({ id: inv.id }, { accepted_at: now.toISOString(), accepted_by: input.userId, accepted_workspace_id: input.workspaceId });
+    for (const e of input.ledger) await this.ledger.append(e.eventType === "award.claimed" ? { ...e, data: { ...e.data, consentId } } : e);
+    if (consentId) for (const e of input.consentLedger) await this.ledger.append(e);
     return { outcome: "claimed", consentId };
   }
 }

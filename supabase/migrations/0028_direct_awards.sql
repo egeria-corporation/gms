@@ -264,8 +264,13 @@ $$;
 -- one-recipient check) and its status `accepted` (offered → accepted, the transition
 -- packages/workflow decided; `p_cg_status` is its CommonGrants status), a consent with basis
 -- 'award' is recorded unless a live one exists, and the invitation is marked accepted.
--- Returns { outcome, consentId }: outcome is 'claimed' or the first check that failed.
-create or replace function public.gms_claim_direct_award(p_token_hash text, p_workspace uuid, p_user uuid, p_email text, p_cg_status text)
+-- The ledger rows the API built for the claim (`p_ledger`, and `p_consent_ledger` for a new
+-- consent) are written in the same transaction. Returns { outcome, consentId }: outcome is
+-- 'claimed' or the first check that failed, and nothing is written then.
+create or replace function public.gms_claim_direct_award(
+  p_token_hash text, p_workspace uuid, p_user uuid, p_email text, p_cg_status text,
+  p_consent_id uuid default null, p_ledger jsonb default '[]', p_consent_ledger jsonb default '[]'
+)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -308,23 +313,34 @@ begin
   end if;
   if not exists (select 1 from public.consents c
                   where c.applicant_workspace_id = p_workspace and c.funder_workspace_id = inv.workspace_id and c.revoked_at is null) then
-    insert into public.consents (applicant_workspace_id, funder_workspace_id, basis, scopes, granted_by, granted_at)
-    values (p_workspace, inv.workspace_id, 'award', array['org:read'], p_user, now())
+    insert into public.consents (id, applicant_workspace_id, funder_workspace_id, basis, scopes, granted_by, granted_at)
+    values (coalesce(p_consent_id, gms.uuid_v7()), p_workspace, inv.workspace_id, 'award', array['org:read'], p_user, now())
     returning id into consent;
   end if;
   update public.award_invitations i
      set accepted_at = now(), accepted_by = p_user, accepted_workspace_id = p_workspace
    where i.id = inv.id;
+  -- The claim's ledger rows commit with it (review DA-07): `award.claimed` names the consent made
+  -- here, if any, and the consent's own row is written only when one was made.
+  perform gms.append_ledger(
+    (select coalesce(jsonb_agg(case when e.v ->> 'event_type' = 'award.claimed'
+                                    then jsonb_set(e.v, '{data}', coalesce(e.v -> 'data', '{}') || jsonb_build_object('consentId', consent))
+                                    else e.v end order by e.n), '[]')
+       from jsonb_array_elements(coalesce(p_ledger, '[]')) with ordinality as e(v, n)),
+    array[inv.workspace_id, p_workspace]);
+  if consent is not null then
+    perform gms.append_ledger(coalesce(p_consent_ledger, '[]'), array[p_workspace]);
+  end if;
   return jsonb_build_object('outcome', 'claimed', 'consentId', consent);
 end;
 $$;
 
 revoke all on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.gms_release_award_invitation_send(uuid) from public, anon, authenticated;
-revoke all on function public.gms_claim_direct_award(text, uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function public.gms_claim_direct_award(text, uuid, uuid, text, text, uuid, jsonb, jsonb) from public, anon, authenticated;
 revoke all on function public.gms_create_direct_award(jsonb, jsonb) from public, anon, authenticated;
 revoke all on function gms.append_ledger(jsonb, uuid[]) from public, anon, authenticated, service_role;
 grant execute on function public.gms_claim_award_invitation_send(uuid, uuid, text, text, integer, integer, integer, integer, integer) to service_role;
 grant execute on function public.gms_release_award_invitation_send(uuid) to service_role;
-grant execute on function public.gms_claim_direct_award(text, uuid, uuid, text, text) to service_role;
+grant execute on function public.gms_claim_direct_award(text, uuid, uuid, text, text, uuid, jsonb, jsonb) to service_role;
 grant execute on function public.gms_create_direct_award(jsonb, jsonb) to service_role;
