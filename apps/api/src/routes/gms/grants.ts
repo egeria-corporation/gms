@@ -9,6 +9,7 @@ import { secondStepVerified } from "../../auth/second-step.ts";
 import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid, uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
+import { addressKey } from "../../lib/rate-limit.ts";
 import * as agreements from "../../services/agreements.ts";
 import * as awards from "../../services/awards.ts";
 import * as decisions from "../../services/decisions.ts";
@@ -25,6 +26,8 @@ const awardId = (c: C) => uuidOf("award", c.req.param("id"), "Award");
 const agreementId = (c: C) => uuidOf("agreement", c.req.param("id"), "Agreement");
 const competitionId = (v: string | undefined) => uuidOf("competition", v, "Competition");
 const applicationId = (v: string | undefined) => uuidOf("application", v, "Application");
+/** The address invitation emails are counted under (per-address limit), as workspace creation counts it. */
+const sendOrigin = (c: C) => ({ address: addressKey((name) => c.req.header(name), c.env.TRUSTED_PROXY === "true") });
 /** The network address a signature records. Cloudflare sets CF-Connecting-IP; the fallback is for local runs. */
 const clientIp = (c: C) => c.req.header("CF-Connecting-IP") ?? c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() ?? "unknown";
 const pdf = (file: { bytes: Uint8Array; sha256: string; filename: string }) =>
@@ -95,9 +98,9 @@ grantRoutes.post("/awards", async (c) => {
 // invited person accepts it (`/award-invitations/accept`).
 grantRoutes.post("/awards/direct", async (c) => {
   const input = parse(directAwards.directAwardInput, await jsonBody(c));
-  return c.json(created(await directAwards.createDirectAward(await svc(c), { ...input, ...(input.programId ? { programId: bareUuid(input.programId, "Program") } : {}) })), 201);
+  return c.json(created(await directAwards.createDirectAward(await svc(c), { ...input, ...(input.programId ? { programId: bareUuid(input.programId, "Program") } : {}) }, sendOrigin(c))), 201);
 });
-grantRoutes.post("/awards/:id/invitation/resend", async (c) => c.json(ok(await directAwards.resendInvitation(await svc(c), awardId(c), parse(directAwards.resendInput, await jsonBody(c))))));
+grantRoutes.post("/awards/:id/invitation/resend", async (c) => c.json(ok(await directAwards.resendInvitation(await svc(c), awardId(c), parse(directAwards.resendInput, await jsonBody(c)), sendOrigin(c)))));
 grantRoutes.get("/awards/:id", async (c) => c.json(ok(await awards.getAward(await svc(c), awardId(c), "funder"))));
 grantRoutes.get("/awards/:id/letter.pdf", async (c) => pdf(await agreements.awardLetterPdf(await svc(c), awardId(c))));
 grantRoutes.post("/awards/:id/accept-offer", async (c) => c.json(ok(await awards.acceptOffer(await svc(c), awardId(c), parse(awards.acceptOfferInput, await jsonBody(c))))));

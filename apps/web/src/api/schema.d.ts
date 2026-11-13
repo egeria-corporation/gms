@@ -1090,7 +1090,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Decline as the invited person. The funder is told and decides whether to withdraw the award. */
+        /**
+         * @description Decline as the invited person. The funder is told and decides whether to withdraw the award.
+         *     The reason is emailed to the funder's staff, so it is plain text and may not contain a web or
+         *     email address (400).
+         */
         post: operations["AwardInvitations_decline"];
         delete?: never;
         options?: never;
@@ -1107,7 +1111,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer) a link. */
+        /**
+         * @description What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer)
+         *     a link. The email's link carries the token in its fragment (`/awards/claim#token=…`), which
+         *     no browser sends to a server.
+         */
         post: operations["AwardInvitations_lookup"];
         delete?: never;
         options?: never;
@@ -1145,9 +1153,16 @@ export interface paths {
          * @description Give an award directly to an organization that has not applied, by its name and a contact
          *     email. The award is created `offered` with no recipient workspace; the contact is emailed a
          *     link and the award is attached only when they accept it, signed in with that address, for an
-         *     applicant workspace they administer. Funder `admin` or `finance`, people only (an agent's
-         *     request waits for a person's approval). 25 invitations, new and resent, per funder workspace
-         *     per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
+         *     applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
+         *     (as for an award from an application), people only (an agent's request waits for a person's
+         *     approval). Invitation emails, new and resent, are limited over rolling windows, each with
+         *     its own 429: per funder workspace 25 a day, 10 for a funder not verified with Passport at L1
+         *     or above (`too_many_invitations`); per person across workspaces 25 a day
+         *     (`too_many_invitations_from_you`); per network address 50 a day
+         *     (`too_many_invitations_from_network`); per invited address 3 a week across funders
+         *     (`too_many_invitations_to_recipient`); for the whole service 500 a day
+         *     (`invitations_paused`). 422 `funder_name_looks_like_link` when the funder's name would read as
+         *     a link. 503 `mail_not_configured` creates nothing.
          */
         post: operations["Awards_createDirect"];
         delete?: never;
@@ -1389,8 +1404,9 @@ export interface paths {
         put?: never;
         /**
          * @description Send a direct award's invitation again with a new link (the old one stops working), to a new
-         *     address when `contactEmail` is given. Counts against the daily limit. 409 `invitation_closed`
-         *     once it was accepted, declined or withdrawn.
+         *     address when `contactEmail` is given. Funder `admin`, `program_officer` or `finance`, people
+         *     only. Counts against the daily limits. 409 `invitation_closed` once it was accepted, declined or
+         *     withdrawn.
          */
         post: operations["Awards_resendInvitation"];
         delete?: never;
@@ -10112,10 +10128,14 @@ export interface components {
             /** @enum {string} */
             status: "pending" | "accepted" | "declined" | "expired" | "revoked";
             funder: {
-                /** @description The funder's name exactly as its workspace has it */
+                /** @description The Passport legal name when the funder's workspace is linked to Passport, else the workspace's name */
                 name: string;
+                /** @description The workspace's own name, when it differs from the Passport legal name in `name` */
+                workspaceName: string | null;
                 handle: string;
                 verification: components["schemas"]["Models.Verification"];
+                /** @description Linked to Passport at L1 or above. When false, show that the funder is not verified with Passport. */
+                verified: boolean;
             };
             award: {
                 title: string;
@@ -17771,6 +17791,15 @@ export interface operations {
                 };
             };
             /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -18787,6 +18816,15 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

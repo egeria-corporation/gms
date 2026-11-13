@@ -576,20 +576,28 @@ namespace GMS.Routes.Custom {
      * Give an award directly to an organization that has not applied, by its name and a contact
      * email. The award is created `offered` with no recipient workspace; the contact is emailed a
      * link and the award is attached only when they accept it, signed in with that address, for an
-     * applicant workspace they administer. Funder `admin` or `finance`, people only (an agent's
-     * request waits for a person's approval). 25 invitations, new and resent, per funder workspace
-     * per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
+     * applicant workspace they administer. Needs `awards:write`: funder `admin` or `program_officer`
+     * (as for an award from an application), people only (an agent's request waits for a person's
+     * approval). Invitation emails, new and resent, are limited over rolling windows, each with
+     * its own 429: per funder workspace 25 a day, 10 for a funder not verified with Passport at L1
+     * or above (`too_many_invitations`); per person across workspaces 25 a day
+     * (`too_many_invitations_from_you`); per network address 50 a day
+     * (`too_many_invitations_from_network`); per invited address 3 a week across funders
+     * (`too_many_invitations_to_recipient`); for the whole service 500 a day
+     * (`invitations_paused`). 422 `funder_name_looks_like_link` when the funder's name would read as
+     * a link. 503 `mail_not_configured` creates nothing.
      */
     @post @route("/awards/direct") @useAuth(UserSession)
-    op createDirect(@body body: DirectAwardInput): CreatedT<DirectAwardView> | BadRequest | AuthErrors | NotFound | TooManyRequests | ServiceUnavailable;
+    op createDirect(@body body: DirectAwardInput): CreatedT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     /**
      * Send a direct award's invitation again with a new link (the old one stops working), to a new
-     * address when `contactEmail` is given. Counts against the daily limit. 409 `invitation_closed`
-     * once it was accepted, declined or withdrawn.
+     * address when `contactEmail` is given. Funder `admin`, `program_officer` or `finance`, people
+     * only. Counts against the daily limits. 409 `invitation_closed` once it was accepted, declined or
+     * withdrawn.
      */
     @post @route("/awards/{id}/invitation/resend") @useAuth(UserSession)
-    op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | TooManyRequests | ServiceUnavailable;
+    op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     @get @route("/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op read(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;
@@ -652,7 +660,11 @@ namespace GMS.Routes.Custom {
    */
   @tag("Awards (GMS)")
   namespace AwardInvitations {
-    /** What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer) a link. */
+    /**
+     * What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer)
+     * a link. The email's link carries the token in its fragment (`/awards/claim#token=…`), which
+     * no browser sends to a server.
+     */
     @post @route("/award-invitations/lookup") @useAuth(UserSession)
     op lookup(@body body: AwardInvitationTokenInput): OkT<AwardInvitationLookup> | BadRequest | AuthErrors | NotFound;
 
@@ -666,7 +678,11 @@ namespace GMS.Routes.Custom {
     @post @route("/award-invitations/accept") @useAuth(UserSession)
     op accept(@body body: AwardInvitationAcceptInput): OkT<AwardInvitationAccepted> | BadRequest | AuthErrors | NotFound | Conflict | Gone | Unprocessable;
 
-    /** Decline as the invited person. The funder is told and decides whether to withdraw the award. */
+    /**
+     * Decline as the invited person. The funder is told and decides whether to withdraw the award.
+     * The reason is emailed to the funder's staff, so it is plain text and may not contain a web or
+     * email address (400).
+     */
     @post @route("/award-invitations/decline") @useAuth(UserSession)
     op decline(@body body: AwardInvitationDeclineInput): OkT<AwardInvitationDeclined> | BadRequest | AuthErrors | NotFound | Conflict | Gone;
   }

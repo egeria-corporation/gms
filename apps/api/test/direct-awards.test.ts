@@ -9,8 +9,8 @@ import { SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { redactString, setLogSink } from "../src/lib/log.ts";
-import { RepoDirectAwardClaims } from "../src/services/direct-award-store.ts";
-import { DIRECT_AWARD_INVITES_PER_DAY } from "../src/services/direct-awards.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardStore } from "../src/services/direct-award-store.ts";
+import { DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY, DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED, DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY, DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK, DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY } from "../src/services/direct-awards.ts";
 import { BASE, CLIENT_AGENT, SESSION_SECRET, USER_ADMIN, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, harness, type Harness } from "./helpers.ts";
 
 const USER_FINANCE = "f1000000-0000-4000-8000-0000000000f1";
@@ -46,8 +46,8 @@ const create = async (token: string, overrides: Record<string, unknown> = {}, ws
 
 /** The token from the newest invitation email. */
 const lastToken = () => {
-  const mail = [...h.mailer.sent].reverse().find((m) => m.text.includes("/awards/claim?token="));
-  return decodeURIComponent(/\/awards\/claim\?token=([^\s]+)/.exec(mail!.text)![1]!);
+  const mail = [...h.mailer.sent].reverse().find((m) => m.text.includes("/awards/claim#token="));
+  return decodeURIComponent(/\/awards\/claim#token=([^\s]+)/.exec(mail!.text)![1]!);
 };
 const uuidOf = (awardId: string) => awardId.replace(/^awd_/, "");
 
@@ -58,6 +58,8 @@ beforeEach(async () => {
   h = await harness();
   logs = [];
   setLogSink((line) => logs.push(line));
+  // Riverbend is linked to Passport and verified there (L2), under its legal name.
+  await h.repos.table("workspaces").update({ id: WS_FUNDER }, { legal_name: "Riverbend Community Foundation", verification_level: "L2" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: USER_FINANCE, role: "finance" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_GRANTEE, role: "admin" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_OTHER_ADMIN, role: "admin" });
@@ -83,9 +85,12 @@ describe("the funder gives an award directly", () => {
     const mail = h.mailer.sent.at(-1)!;
     expect(mail.to).toEqual([INVITED]);
     expect(mail.subject).toBe("Riverbend Community Foundation has offered Alder Creek Family Services a grant");
-    expect(mail.text).toContain(`${WEB}/awards/claim?token=gms_awi_`);
+    // The token rides in the fragment, which no browser sends to a server.
+    expect(mail.text).toContain(`${WEB}/awards/claim#token=gms_awi_`);
+    expect(mail.text).not.toContain("?token=");
+    expect(mail.html).toContain(`href="${WEB}/awards/claim#token=gms_awi_`);
     expect(mail.text).toContain("Thank you for your work this winter.");
-    // Riverbend is linked to Passport: no "not verified" line.
+    // Riverbend is verified with Passport: no "not verified" line.
     expect(mail.text).not.toContain("not verified with OpenGrants Passport");
 
     // Only the token's hash is stored.
@@ -101,6 +106,26 @@ describe("the funder gives an award directly", () => {
     expect(list.body.items.find((a) => a.id === award.id)?.recipient.invitation?.status).toBe("sent");
   });
 
+  it("names a Passport funder by its legal name, whatever its workspace is called, and warns below L1", async () => {
+    // An admin renames the workspace to a famous name: the email and the claim page keep the Passport name.
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { display_name: "Ford Foundation", org_projection: { name: "Riverbend Community Foundation" } });
+    await create(admin);
+    const mail = h.mailer.sent.at(-1)!;
+    expect(mail.subject).toBe("Riverbend Community Foundation has offered Alder Creek Family Services a grant");
+    expect(mail.text).not.toContain("Ford Foundation");
+    const lookup = await call<{ data: { funder: Record<string, unknown> } }>(grantee, "POST", "/gms/award-invitations/lookup", { token: lastToken() });
+    expect(lookup.body.data.funder).toEqual({ name: "Riverbend Community Foundation", workspaceName: "Ford Foundation", handle: "riverbend", verification: { source: "passport", level: "L2" }, verified: true });
+
+    // Linked but only claimed (L0), or with no level recorded: not verified.
+    for (const level of ["L0", null]) {
+      await h.repos.table("workspaces").update({ id: WS_FUNDER }, { verification_level: level });
+      await create(admin);
+      expect(h.mailer.sent.at(-1)!.text).toContain("This funder's organization is not verified with OpenGrants Passport.");
+      const l = await call<{ data: { funder: { verified: boolean } } }>(grantee, "POST", "/gms/award-invitations/lookup", { token: lastToken() });
+      expect(l.body.data.funder.verified).toBe(false);
+    }
+  });
+
   it("says when the funder is not verified with Passport", async () => {
     const otherAdmin = "f1000000-0000-4000-8000-0000000000d1";
     await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: otherAdmin, role: "admin" });
@@ -109,11 +134,16 @@ describe("the funder gives an award directly", () => {
     expect(h.mailer.sent.at(-1)!.subject).toMatch(/^Cascade County Health Department has offered/);
   });
 
-  it("is for funder admins and finance, people only", async () => {
-    expect((await create(await funderAs(USER_FINANCE))).status).toBe(201);
-    const officer = await create(await funderAs(USER_OFFICER));
-    expect(officer.status).toBe(403);
-    expect(officer.body.errors[0]!.code).toBe("insufficient_role");
+  it("is for the roles that make awards (admin, program officer), people only; finance may resend", async () => {
+    const officerMade = await create(await funderAs(USER_OFFICER));
+    expect(officerMade.status).toBe(201);
+    const finance = await funderAs(USER_FINANCE);
+    const byFinance = await create(finance);
+    expect(byFinance.status).toBe(403);
+    expect(byFinance.body.errors[0]!.code).toBe("insufficient_scope");
+    expect((await call(finance, "POST", `/gms/awards/${officerMade.body.data.id}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
+    const auditor = await call(await funderAs("cccccccc-cccc-4ccc-8ccc-cccccccccccc"), "POST", `/gms/awards/${officerMade.body.data.id}/invitation/resend`, {}, WS_FUNDER);
+    expect(auditor.status).toBe(403);
     // An applicant workspace cannot give awards.
     expect((await create(grantee, {}, WS_APPLICANT)).status).toBe(403);
     // An agent acting for the admin is refused over REST; over MCP its call waits for a person.
@@ -130,6 +160,12 @@ describe("the funder gives an award directly", () => {
     expect(await bad({ message: "Write to grants@riverbendcf.example" })).toBe(400);
     expect(await bad({ message: "See www.example.com" })).toBe(400);
     expect(await bad({ title: "Visit riverbend-grants.com" })).toBe(400);
+    // Any ending, and dots a mail program reads as dots.
+    expect(await bad({ message: "Confirm your bank at grants-portal.ngo" })).toBe(400);
+    expect(await bad({ title: "Ford grants at fordgrants.foundation" })).toBe(400);
+    expect(await bad({ recipient: { organizationName: "Alder\uFF0Ede", contactEmail: INVITED } })).toBe(400);
+    expect(await bad({ message: "Questions: agent.ai" })).toBe(400);
+    expect(await bad({ message: "grants\u3002org" })).toBe(400);
     expect(await bad({ recipient: { organizationName: "Alder", contactEmail: "not-an-email" } })).toBe(400);
     expect(await bad({ amount: { value: "0.00", currency: "USD" } })).toBe(400);
     expect(await bad({ amount: { value: "100.00", currency: "EUR" } })).toBe(400);
@@ -142,6 +178,55 @@ describe("the funder gives an award directly", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
   });
 
+  it("refuses to send under a funder name that reads as a link, with a plain way out", async () => {
+    await h.repos.table("workspaces").update({ id: WS_OTHER }, { display_name: "Cascade Health - verify at cascade-grants.foundation" });
+    const otherAdmin = "f1000000-0000-4000-8000-0000000000d1";
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: otherAdmin, role: "admin" });
+    const r = await create(await funderAs(otherAdmin), {}, WS_OTHER);
+    expect(r.status).toBe(422);
+    expect(r.body.errors[0]!.code).toBe("funder_name_looks_like_link");
+    expect(r.body.message).toContain("Rename the workspace");
+    // A Passport funder is named by its legal name; when that reads as a link, Passport must fix it.
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { legal_name: "Riverbend．Foundation" });
+    const linked = await create(admin);
+    expect(linked.status).toBe(422);
+    expect(linked.body.message).toContain("Passport");
+    expect(h.mailer.sent).toHaveLength(0);
+    expect(await h.repos.table("awards").count({})).toBe(0);
+  });
+
+  it("removes control and invisible format characters from free text before it is checked or stored", async () => {
+    const r = await create(admin, { recipient: { organizationName: "Alder\u202E Creek\u200B\u0000 Family Services", contactEmail: INVITED }, title: "Emergency\u2066 operating\u2069 support\u0007", message: "Thank\u0000 you.\r\n\r\nSee\u200F you soon." });
+    expect(r.status).toBe(201);
+    const inv = (await h.repos.table("award_invitations").find({}))[0]!;
+    expect(inv.organization_name).toBe("Alder Creek Family Services");
+    expect(inv.message).toBe("Thank you.\n\nSee you soon.");
+    expect((await h.repos.table("awards").one({ id: inv.award_id }))!.title).toBe("Emergency operating support");
+    // A link hidden by a zero-width space is still a link.
+    expect((await create(admin, { message: "exa\u200Bmple.org" })).status).toBe(400);
+    // Nothing but control characters is no name at all.
+    expect((await create(admin, { title: "\u0000\u200B" })).status).toBe(400);
+  });
+
+  it("creates the award, its schedule, the invitation and their ledger entries in one step: a failure leaves nothing", async () => {
+    const invitations = h.repos.table("award_invitations");
+    const insert = vi.spyOn(invitations, "insert").mockRejectedValueOnce(new Error("the database refused the row"));
+    const release = vi.spyOn(MemoryInvitationLimiter.prototype, "release");
+    const r = await create(admin);
+    insert.mockRestore();
+    expect(r.status).toBe(500);
+    for (const table of ["awards", "payment_schedules", "tranches", "requirements", "award_invitations"] as const) expect(await h.repos.table(table).count({})).toBe(0);
+    expect(h.ledger.events.filter((e) => e.eventType.startsWith("award."))).toEqual([]);
+    expect(h.webhooks.deliveries).toEqual([]);
+    expect(h.mailer.sent).toHaveLength(0);
+    expect(release).toHaveBeenCalledTimes(1);
+    release.mockRestore();
+    // And it goes through on the next try, with the award, its ledger entries and the invitation together.
+    const ok = await create(admin);
+    expect(ok.status).toBe(201);
+    expect(h.ledger.events.filter((e) => e.subjectId === uuidOf(ok.body.data.id)).map((e) => e.eventType)).toEqual(["award.created", "award.invitation_sent"]);
+  });
+
   it("refuses when mail is not configured, before anything is created", async () => {
     h.withoutPorts.add("mailer");
     const r = await create(admin);
@@ -149,22 +234,68 @@ describe("the funder gives an award directly", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
   });
 
-  it(`limits a funder to ${DIRECT_AWARD_INVITES_PER_DAY} invitations, new and resent, per rolling 24 hours`, async () => {
-    const first = (await create(admin)).body.data.id;
-    for (let i = 1; i < DIRECT_AWARD_INVITES_PER_DAY - 1; i++) expect((await create(admin)).status).toBe(201);
+  it(`limits a verified funder to ${DIRECT_AWARD_INVITES_PER_DAY} invitations, new and resent, per rolling 24 hours`, async () => {
+    const to = (i: number) => ({ recipient: { organizationName: "Alder Creek Family Services", contactEmail: `contact${i}@aldercreek.example` } });
+    const first = (await create(admin, to(0))).body.data.id;
+    for (let i = 1; i < DIRECT_AWARD_INVITES_PER_DAY - 1; i++) expect((await create(admin, to(i))).status).toBe(201);
     expect((await call(admin, "POST", `/gms/awards/${first}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
-    const over = await create(admin);
+    const over = await create(admin, to(99));
     expect(over.status).toBe(429);
     expect(over.body.errors[0]!.code).toBe("too_many_invitations");
     const resendOver = await call(admin, "POST", `/gms/awards/${first}/invitation/resend`, {}, WS_FUNDER);
     expect(resendOver.status).toBe(429);
-    // Another funder has its own count.
+    // Rolling: a day later the earliest sends no longer count.
+    h.clock.now = new Date(h.clock.now.getTime() + 24 * 3600_000 + 1000);
+    expect((await create(await funderAs(USER_ADMIN), to(100))).status).toBe(201);
+  });
+
+  it(`limits a funder not verified with Passport to ${DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED}`, async () => {
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { verification_level: "L0" });
+    for (let i = 0; i < DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i++) expect((await create(admin, { recipient: { organizationName: "Alder", contactEmail: `u${i}@aldercreek.example` } })).status).toBe(201);
+    const over = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "u99@aldercreek.example" } });
+    expect(over.status).toBe(429);
+    expect(over.body.message).toContain("not verified with OpenGrants Passport");
+  });
+
+  it(`limits one person to ${DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY} across all their workspaces`, async () => {
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: USER_ADMIN, role: "admin" });
+    const to = (i: number) => ({ recipient: { organizationName: "Alder", contactEmail: `s${i}@aldercreek.example` } });
+    for (let i = 0; i < DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i++) expect((await create(admin, to(i), WS_OTHER)).status).toBe(201);
+    for (let i = DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED; i < DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY; i++) expect((await create(admin, to(i))).status).toBe(201);
+    const over = await create(admin, to(99));
+    expect(over.status).toBe(429);
+    expect(over.body.errors[0]!.code).toBe("too_many_invitations_from_you");
+    // Someone else in the same workspace still has room.
+    expect((await create(await funderAs(USER_OFFICER), to(98))).status).toBe(201);
+  });
+
+  it(`limits one invited address to ${DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK} invitations a week, across funders`, async () => {
+    const id = (await create(admin)).body.data.id;
+    expect((await call(admin, "POST", `/gms/awards/${id}/invitation/resend`, {}, WS_FUNDER)).status).toBe(200);
     const otherAdmin = "f1000000-0000-4000-8000-0000000000d1";
     await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: otherAdmin, role: "admin" });
     expect((await create(await funderAs(otherAdmin), {}, WS_OTHER)).status).toBe(201);
-    // Rolling: a day later the earliest sends no longer count.
-    h.clock.now = new Date(h.clock.now.getTime() + 24 * 3600_000 + 1000);
-    expect((await create(await funderAs(USER_ADMIN))).status).toBe(201);
+    const over = await create(await funderAs(otherAdmin), { recipient: { organizationName: "Alder", contactEmail: "JO.GRANT@aldercreek.example" } }, WS_OTHER);
+    expect(over.status).toBe(429);
+    expect(over.body.errors[0]!.code).toBe("too_many_invitations_to_recipient");
+    h.clock.now = new Date(h.clock.now.getTime() + 7 * 86_400_000 + 1000);
+    expect((await create(await funderAs(otherAdmin), {}, WS_OTHER)).status).toBe(201);
+  });
+
+  it("counts each send under the request's network address, and pauses the whole instance at its ceiling", async () => {
+    const claim = vi.spyOn(MemoryInvitationLimiter.prototype, "claim");
+    const res = await h.request("/gms/awards/direct", { method: "POST", headers: { Authorization: `Bearer ${admin}`, "Content-Type": "application/json", "X-GMS-Workspace": WS_FUNDER, "CF-Connecting-IP": "203.0.113.9" }, body: JSON.stringify({ recipient: { organizationName: "Alder", contactEmail: INVITED }, title: "Support", amount: { value: "10.00", currency: "USD" } }) });
+    expect(res.status).toBe(201);
+    expect(claim.mock.calls[0]![0]).toMatchObject({ workspaceId: WS_FUNDER, senderId: USER_ADMIN, addressKey: "203.0.113.9" });
+    expect(claim.mock.calls[0]![1]).toEqual({ workspace: DIRECT_AWARD_INVITES_PER_DAY, sender: DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY, address: DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY, recipient: DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK, instance: DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY });
+    // The recipient is counted by a digest, never by address.
+    expect(JSON.stringify(claim.mock.calls[0]![0])).not.toContain("@");
+    claim.mockResolvedValueOnce({ ok: false, limit: "address" }).mockResolvedValueOnce({ ok: false, limit: "instance" });
+    const byAddress = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "n1@aldercreek.example" } });
+    expect([byAddress.status, byAddress.body.errors[0]!.code]).toEqual([429, "too_many_invitations_from_network"]);
+    const paused = await create(admin, { recipient: { organizationName: "Alder", contactEmail: "n2@aldercreek.example" } });
+    expect([paused.status, paused.body.errors[0]!.code]).toEqual([429, "invitations_paused"]);
+    claim.mockRestore();
   });
 
   it("resends with a new link (the old one stops working), to a new address when given", async () => {
@@ -224,6 +355,25 @@ describe("before acceptance", () => {
   });
 });
 
+describe("CommonGrants output", () => {
+  it("leaves out, and logs, an award that does not project, instead of failing the list", async () => {
+    // A named recipient from an older award import: not a CommonGrants individual.
+    const broken = await h.repos.table("awards").insert({ workspace_id: WS_FUNDER, recipient_individual: { name: "Imported Org", imported: true } as never, title: "Imported", status: "active", funding: { awardedAmount: { amount: "10.00", currency: "USD" } } as never });
+    await create(admin);
+    await call(grantee, "POST", "/gms/award-invitations/accept", { token: lastToken(), workspaceId: WS_APPLICANT });
+    const list = await call<{ items: { id: string }[]; paginationInfo: { totalItems: number } }>(admin, "GET", "/common-grants/awards", undefined, WS_FUNDER);
+    expect(list.status).toBe(200);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items.map((a) => a.id)).not.toContain(broken.id);
+    expect(list.body.paginationInfo.totalItems).toBe(1);
+    expect((await call(admin, "POST", "/common-grants/awards/search", {}, WS_FUNDER)).status).toBe(200);
+    expect((await call(admin, "GET", `/common-grants/awards/${broken.id}`, undefined, WS_FUNDER)).status).toBe(404);
+    const warned = logs.filter((l) => l.includes("award_projection_failed"));
+    expect(warned.length).toBeGreaterThan(0);
+    expect(warned[0]).toContain(broken.id);
+  });
+});
+
 describe("the invited person", () => {
   it("looks the invitation up with the token in the body", async () => {
     await create(admin);
@@ -232,7 +382,7 @@ describe("the invited person", () => {
     expect(r.status).toBe(200);
     expect(r.body.data).toEqual({
       status: "pending",
-      funder: { name: "Riverbend Community Foundation", handle: "riverbend", verification: { source: "passport", level: null } },
+      funder: { name: "Riverbend Community Foundation", workspaceName: null, handle: "riverbend", verification: { source: "passport", level: "L2" }, verified: true },
       award: { title: "Emergency operating support", amount: { value: "25000.00", currency: "USD" }, startDate: "2027-05-01", endDate: "2028-04-30", message: "Thank you for your work this winter." },
       organizationName: "Alder Creek Family Services",
       invitedEmail: "j…@aldercreek.example",
@@ -357,7 +507,7 @@ describe("the invited person", () => {
 
   it("changes nothing when the claim itself is refused (a race lost after the checks)", async () => {
     const id = (await create(admin)).body.data.id;
-    const spy = vi.spyOn(RepoDirectAwardClaims.prototype, "claim").mockResolvedValueOnce({ outcome: "used", consentId: null });
+    const spy = vi.spyOn(RepoDirectAwardStore.prototype, "claim").mockResolvedValueOnce({ outcome: "used", consentId: null });
     const r = await call(grantee, "POST", "/gms/award-invitations/accept", { token: lastToken(), workspaceId: WS_APPLICANT });
     spy.mockRestore();
     expect(r.status).toBe(409);
@@ -366,6 +516,28 @@ describe("the invited person", () => {
     expect(await h.repos.table("consents").count({})).toBe(0);
     // The machine's ledger entry and webhooks follow the write, so neither happened.
     expect(h.ledger.events.some((e) => e.eventType === "award.accept_offer" || e.eventType === "award.claimed")).toBe(false);
+  });
+
+  it("writes the claim's ledger rows in the same step as the claim, or none of them", async () => {
+    const id = (await create(admin)).body.data.id;
+    const token = lastToken();
+    const before = h.ledger.events.length;
+    const spy = vi.spyOn(RepoDirectAwardStore.prototype, "claim").mockRejectedValueOnce(new Error("the database went away"));
+    expect((await call(grantee, "POST", "/gms/award-invitations/accept", { token, workspaceId: WS_APPLICANT })).status).toBe(500);
+    expect(h.ledger.events.length).toBe(before);
+    expect((await h.repos.table("awards").one({ id: uuidOf(id) }))!.status).toBe("offered");
+    expect(await h.repos.table("consents").count({})).toBe(0);
+
+    expect((await call(grantee, "POST", "/gms/award-invitations/accept", { token, workspaceId: WS_APPLICANT })).status).toBe(200);
+    const input = spy.mock.calls.at(-1)![0];
+    spy.mockRestore();
+    expect(input.ledger.map((e) => e.eventType)).toEqual(["award.accept_offer", "award.invitation_accepted", "award.claimed", "award.acceptance_signer_checked"]);
+    expect(input.consentLedger.map((e) => [e.eventType, e.workspaceId])).toEqual([["consent.granted", WS_APPLICANT]]);
+    const consent = (await h.repos.table("consents").find({ applicant_workspace_id: WS_APPLICANT }))[0]!;
+    expect(consent.id).toBe(input.consentId);
+    expect(h.ledger.events.find((e) => e.eventType === "award.claimed")!.data).toMatchObject({ consentId: consent.id, workspaceId: WS_APPLICANT });
+    // Nothing is ledgered twice.
+    expect(h.ledger.events.filter((e) => e.eventType === "award.accept_offer")).toHaveLength(1);
   });
 
   it("does not add a second consent when the organization already shares its record", async () => {
@@ -383,11 +555,15 @@ describe("the invited person", () => {
     const wrong = await call(await sessionAs(USER_STRANGER, "someone@else.example"), "POST", "/gms/award-invitations/decline", { token });
     expect(wrong.status).toBe(403);
     expect(wrong.body.errors[0]!.code).toBe("email_mismatch");
-    const r = await call<{ data: { status: string } }>(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "We are not able to take on new funding this year." });
+    // The reason is emailed to the funder's staff: plain text, no links.
+    const linked = await call(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "Please confirm at funder-help.ngo" });
+    expect(linked.status).toBe(400);
+    const r = await call<{ data: { status: string } }>(grantee, "POST", "/gms/award-invitations/decline", { token, reason: "We are not able\u202E to take on new funding this year.\u0000" });
     expect(r.status).toBe(200);
     expect(r.body.data).toEqual({ status: "declined" });
     expect(h.mailer.sent.map((m) => m.to[0]).sort()).toEqual(["dana.ortiz@riverbendcf.example", "helen.ortiz@riverbendcf.example"]);
     expect(h.mailer.sent[0]!.text).toContain("We are not able to take on new funding this year.");
+    expect((await h.repos.table("award_invitations").one({ award_id: uuidOf(id) }))!.decline_reason).toBe("We are not able to take on new funding this year.");
     const ev = h.ledger.events.find((e) => e.eventType === "award.invitation_declined")!;
     expect(ev.data).toMatchObject({ email: "j…@aldercreek.example", reasonGiven: true });
     expect(JSON.stringify(ev.data)).not.toContain("new funding");
@@ -426,6 +602,8 @@ describe("what never leaves the invitation", () => {
     for (const table of ["awards", "award_invitations", "consents", "tranches", "requirements"] as const) expect(JSON.stringify(await h.repos.table(table).find({}))).not.toContain(token);
     // A token that reaches a log line by mistake is redacted.
     expect(redactString(`claim ${token}`)).toBe("claim gms_awi_[REDACTED]");
+    // Also inside an encoded URL, where no word boundary precedes it.
+    expect(redactString(`/signin?next=%2Fawards%2Fclaim%3Ftoken%3D${token}`)).toBe("/signin?next=%2Fawards%2Fclaim%3Ftoken%3Dgms_awi_[REDACTED]");
   });
 });
 
@@ -443,11 +621,15 @@ describe("over MCP", () => {
     expect(await h.repos.table("awards").count({})).toBe(0);
     expect(h.mailer.sent).toHaveLength(0);
     const approvalId = (out.structuredContent as { approvalId: string }).approvalId;
-    // A program officer may write awards but may not give one directly: approving fails, nothing is sent.
-    const officer = await funderAs(USER_OFFICER);
-    const byOfficer = await call<{ data: { status: string } }>(officer, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
-    expect(byOfficer.body.data).toMatchObject({ status: "failed", error: "This needs one of these roles: admin, finance" });
+    // Finance cannot approve it: it holds no awards:write, so it cannot give an award either.
+    const finance = await funderAs(USER_FINANCE);
+    const byFinance = await call(finance, "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(byFinance.status).toBe(403);
     expect(h.mailer.sent).toHaveLength(0);
+    // A program officer may, and the call then runs as the officer.
+    const byOfficer = await call<{ data: { status: string } }>(await funderAs(USER_OFFICER), "POST", `/gms/approvals/${approvalId}/decision`, { approve: true }, WS_FUNDER);
+    expect(byOfficer.body.data.status).toBe("executed");
+    expect(h.mailer.sent).toHaveLength(1);
   });
 
   it("the admin's approval creates the award and sends the invitation", async () => {
@@ -475,5 +657,20 @@ describe("over MCP", () => {
     const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${await h.forge({ sub: USER_GRANTEE, client_id: CLIENT_AGENT, scope: "awards:read awards:write", [WORKSPACE_CLAIM]: WS_APPLICANT, jti: "tok-mcp-grantee" })}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
     const names = ((await res.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
     expect(names.filter((n) => /invitation|claim|direct/.test(n))).toEqual([]);
+  });
+});
+
+describe("the in-memory send limiter (tests and one isolate)", () => {
+  it("counts each key in its own window and counts nothing it refuses", async () => {
+    const l = new MemoryInvitationLimiter();
+    const now = new Date("2027-04-16T17:00:00Z");
+    const limits = { workspace: 9, sender: 9, address: 2, recipient: 9, instance: 3 };
+    const key = (i: number, over: Record<string, unknown> = {}) => ({ workspaceId: `w${i}`, senderId: `s${i}`, addressKey: "203.0.113.9", recipientDigest: `r${i}`, ...over });
+    expect((await l.claim(key(1), limits, now)).ok).toBe(true);
+    expect((await l.claim(key(2), limits, now)).ok).toBe(true);
+    expect(await l.claim(key(3), limits, now)).toEqual({ ok: false, limit: "address" });
+    expect((await l.claim(key(3, { addressKey: null }), limits, now)).ok).toBe(true);
+    expect(await l.claim(key(4, { addressKey: null }), limits, now)).toEqual({ ok: false, limit: "instance" });
+    expect((await l.claim(key(4, { addressKey: null }), limits, new Date(now.getTime() + 86_400_001))).ok).toBe(true);
   });
 });

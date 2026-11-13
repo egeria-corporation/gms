@@ -5,8 +5,9 @@
 // applicant workspace where they are an admin (review F-01: never by name or EIN). Accepting runs
 // `accept_offer` through the award machine, so the Passport mirror and every effect behave as for
 // any accepted award, and records the organization's consent to share its record with the funder.
-import { directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
+import { cleanLine, cleanText, containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
 import { toMinor } from "@gms/protocol";
+import { ledgerEvent } from "@gms/ledger";
 import { awardCgStatus, awardEffects, awardMachine } from "@gms/workflow";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
@@ -15,60 +16,101 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { invitationStatus, maskEmail, type AwardInvitation } from "./award-invitations.ts";
-import { awardDetail, createOfferedAward, currencyOf, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, printMoney, readDefaults, type Award } from "./awards.ts";
-import { audit, authorize, required, type ServiceContext } from "./context.ts";
-import { MemoryInvitationLimiter, RepoDirectAwardClaims, type ClaimOutcome, type DirectAwardClaims, type InvitationLimiter } from "./direct-award-store.ts";
+import { STAFF_ROLES, awardDetail, currencyOf, emitFor, fundingOf, grantPorts, humanOnly, keyDatesOf, minorOf, mirrorAward, planOfferedAward, printMoney, readDefaults, type Award } from "./awards.ts";
+import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { MemoryInvitationLimiter, RepoDirectAwardStore, type ClaimOutcome, type DirectAwardStore, type InvitationLimiter, type SendKey, type SendLimitName, type SendLimits } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
 import { checkSigner } from "./organization.ts";
-import { verificationOf } from "./profile.ts";
-import type { Repos } from "./repos/types.ts";
+import { namesOf, verificationOf, type VerificationLevel } from "./profile.ts";
+import type { Repos, Row } from "./repos/types.ts";
 
 /** How long an invitation link works. Resending issues a new link with a new period. */
 export const DIRECT_AWARD_INVITATION_TTL_DAYS = 14;
-/** Invitation emails (new and resent) per funder workspace over a rolling 24 hours. */
+// Invitation emails, new and resent, over rolling windows. Each is enforced in the same atomic step
+// (`gms_claim_award_invitation_send`, migration 0028); one place to relax them.
+/** Per funder workspace verified with Passport (FUNDER_VERIFIED_LEVELS), per 24 hours. */
 export const DIRECT_AWARD_INVITES_PER_DAY = 25;
-/** Funder roles that may give an award directly. People only: an agent's request waits for one of them. */
-export const DIRECT_AWARD_ROLES = ["admin", "finance"] as const;
+/** Per funder workspace not verified with Passport, per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED = 10;
+/** Per signed-in sender, across all their workspaces, per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY = 25;
+/** Per network address (an IPv4 address or an IPv6 /64, as for workspace creation), per 24 hours. */
+export const DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY = 50;
+/** Per invited address, across all funders, per 7 days. */
+export const DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK = 3;
+/** For the whole instance, per 24 hours: a circuit breaker. */
+export const DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY = 500;
+/**
+ * Funder roles that may give an award directly: those that make an award from an application
+ * (`createAwardFromApplication`, `awards:write`). People only: an agent's request waits for one of them.
+ */
+export const DIRECT_AWARD_ROLES = STAFF_ROLES;
+/** Funder roles that may resend an invitation already given: the givers, and finance, which follows up on awards. */
+export const DIRECT_AWARD_RESEND_ROLES = ["admin", "program_officer", "finance"] as const;
 /** Recognizable so the log redactor and secret scanners can spot one. */
 export const INVITATION_TOKEN_PREFIX = "gms_awi_";
 
 const DAY_MS = 86_400_000;
+/**
+ * Passport levels at which a funder counts as verified: L1 or above. A funder linked at L0 (an
+ * organization claimed and not yet confirmed) is not, and the email says so.
+ */
+export const FUNDER_VERIFIED_LEVELS: readonly VerificationLevel[] = ["L1", "L2", "L3"];
 /** Funder members emailed when an invitation is accepted or declined. */
 const NOTIFIED_ROLES = ["admin", "program_officer", "finance"] as const;
 
 // ------------------------------------------------------------------------------------ ports
 
 const fallbackLimiters = new WeakMap<Repos, InvitationLimiter>();
-const fallbackClaims = new WeakMap<Repos, DirectAwardClaims>();
+const fallbackStores = new WeakMap<Repos, DirectAwardStore>();
 const limiterFor = (ctx: ServiceContext): InvitationLimiter => {
   if (ctx.ports.invitationLimiter) return ctx.ports.invitationLimiter;
   let l = fallbackLimiters.get(ctx.repos);
   if (!l) fallbackLimiters.set(ctx.repos, (l = new MemoryInvitationLimiter()));
   return l;
 };
-const claimsFor = (ctx: ServiceContext): DirectAwardClaims => {
-  if (ctx.ports.directAwardClaims) return ctx.ports.directAwardClaims;
-  let c = fallbackClaims.get(ctx.repos);
-  if (!c) fallbackClaims.set(ctx.repos, (c = new RepoDirectAwardClaims(ctx.repos)));
+const storeFor = (ctx: ServiceContext): DirectAwardStore => {
+  if (ctx.ports.directAwards) return ctx.ports.directAwards;
+  let c = fallbackStores.get(ctx.repos);
+  if (!c) fallbackStores.set(ctx.repos, (c = new RepoDirectAwardStore(ctx.repos, ctx.ledger, limiterFor(ctx))));
   return c;
 };
 
 // ------------------------------------------------------------------------------------ input
 
-/**
- * Web and email addresses in text the funder types. The invitation email may carry no link but the
- * claim link and the GMS home, and mail programs turn written addresses into links, so funder text
- * that names one is refused rather than sent (the stricter reading of the contract).
+/*
+ * The invitation email may carry no link but the claim link and the GMS home, and mail programs turn
+ * written addresses into links, so free text that reads as one (`containsLink`, `@gms/notify`: any
+ * URL scheme, `@` address or host name, after NFKC) is refused rather than sent.
  */
-export const FUNDER_TEXT_LINK = /(?:[a-z][a-z0-9+.-]*:\/\/|\bwww\.|\bmailto:|[^\s@]+@[^\s@]+\.[a-z]{2,}|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|co|us|gov|edu|info|biz|app|dev|link|xyz|me|ly|site|online|ru|cn|top|click)\b)/i;
-const noLinks = (what: string) => (v: string | undefined) => !v || !FUNDER_TEXT_LINK.test(v) || { message: `${what} cannot contain a web or email address` };
+/**
+ * Free text: control characters and invisible format characters (Unicode Cf, such as
+ * bidirectional controls and zero-width spaces) are removed first (`cleanLine`, `cleanText`),
+ * then the length and the link rule are checked on what would be stored and sent.
+ */
 const textWithoutLinks = (max: number, what: string) =>
   z
     .string()
-    .trim()
-    .min(1)
-    .max(max)
-    .refine((v) => noLinks(what)(v) === true, { message: `${what} cannot contain a web or email address` });
+    .max(max * 2)
+    .transform(cleanLine)
+    .pipe(
+      z
+        .string()
+        .min(1)
+        .max(max)
+        .refine((v) => !containsLink(v), { message: `${what} cannot contain a web or email address` }),
+    );
+const paragraphsWithoutLinks = (max: number, message: string) =>
+  z
+    .string()
+    .max(max * 2)
+    .transform(cleanText)
+    .pipe(
+      z
+        .string()
+        .max(max)
+        .refine((v) => !containsLink(v), { message }),
+    );
 
 const emailInput = z
   .email()
@@ -85,12 +127,7 @@ export const directAwardInput = z
     startDate: z.iso.date().optional(),
     endDate: z.iso.date().optional(),
     programId: z.uuid().optional(),
-    message: z
-      .string()
-      .trim()
-      .max(DIRECT_AWARD_MESSAGE_MAX)
-      .refine((v) => !v || !FUNDER_TEXT_LINK.test(v), { message: "The message cannot contain a web or email address. The email already links to the award" })
-      .optional(),
+    message: paragraphsWithoutLinks(DIRECT_AWARD_MESSAGE_MAX, "The message cannot contain a web or email address. The email already links to the award").optional(),
   })
   .strict()
   .refine((i) => !!i.startDate === !!i.endDate, { path: ["endDate"], message: "Give both the start and the end of the grant period, or neither" })
@@ -102,24 +139,83 @@ export const resendInput = z.object({ contactEmail: emailInput.optional() }).str
 
 const TOKEN = z.string().min(40).max(200);
 export const lookupInput = z.object({ token: TOKEN }).strict();
-export const acceptInput = z.object({ token: TOKEN, workspaceId: z.uuid(), name: z.string().trim().min(2).max(200).optional() }).strict();
-export const declineInput = z.object({ token: TOKEN, reason: z.string().trim().max(2000).optional() }).strict();
+export const acceptInput = z.object({ token: TOKEN, workspaceId: z.uuid(), name: z.string().max(400).transform(cleanLine).pipe(z.string().min(2).max(200)).optional() }).strict();
+/** The reason goes to the funder's staff by email, so it follows the funder's rules: plain text, no links. */
+export const declineInput = z.object({ token: TOKEN, reason: paragraphsWithoutLinks(2000, "The reason cannot contain a web or email address").optional() }).strict();
 
 // ------------------------------------------------------------------------------------ funder side
 
-/** Who may send: a person with one of DIRECT_AWARD_ROLES in a funder workspace. An agent's call waits for one. */
-async function sender(ctx: ServiceContext) {
-  // Finance holds no `awards:write`; the role list and the human gate decide here.
-  const ws = await authorize(ctx, { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true });
-  if (ctx.actor.kind !== "user" || !ctx.actor.userId || ws.role === null) throw humanOnly("Giving an award directly");
-  if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_not_configured", "Outbound mail is not configured on this server, so the invitation cannot be sent. Nothing was created");
-  return ws;
+/**
+ * How the funder is named to the people it invites (NP-02): by its Passport legal name when the
+ * workspace is linked to Passport, with the workspace's own name second; by the workspace's name
+ * otherwise. `verified` only at FUNDER_VERIFIED_LEVELS.
+ */
+export function funderIdentity(funder: Row<"workspaces">) {
+  const names = namesOf(funder);
+  const verification = verificationOf(funder);
+  const verified = verification.source === "passport" && !!verification.level && FUNDER_VERIFIED_LEVELS.includes(verification.level);
+  return { name: names.name, workspaceName: names.workspaceName, verification, verified };
 }
 
-async function countSend(ctx: ServiceContext, workspaceId: string) {
-  if (!(await limiterFor(ctx).claim(workspaceId, DIRECT_AWARD_INVITES_PER_DAY, ctx.now()))) {
-    throw new ApiError(429, "too_many_invitations", `This workspace has sent ${DIRECT_AWARD_INVITES_PER_DAY} award invitations in the last 24 hours, the most we allow. Try again later`);
+/**
+ * Who may send: to give an award, a person with `awards:write` and one of DIRECT_AWARD_ROLES; to
+ * resend, one of DIRECT_AWARD_RESEND_ROLES (finance holds no `awards:write`). An agent's call waits for a person.
+ */
+async function sender(ctx: ServiceContext, action: "create" | "resend"): Promise<{ ws: ServiceWorkspace; funder: ReturnType<typeof funderIdentity> }> {
+  const ws = await authorize(ctx, action === "create" ? { scope: "awards:write", kind: "funder", roles: DIRECT_AWARD_ROLES, person: true } : { scope: "awards:read", kind: "funder", roles: DIRECT_AWARD_RESEND_ROLES, person: true });
+  if (ctx.actor.kind !== "user" || !ctx.actor.userId || ws.role === null) throw humanOnly("Giving an award directly");
+  if (!ctx.ports.mailer || !ctx.config.mailFrom) throw new ApiError(503, "mail_not_configured", "Outbound mail is not configured on this server, so the invitation cannot be sent. Nothing was created");
+  // The funder's name heads the email: one that reads as a link is not sent under.
+  const funder = funderIdentity(required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace"));
+  if (containsLink(funder.name)) {
+    throw new ApiError(
+      422,
+      "funder_name_looks_like_link",
+      funder.verification.source === "passport"
+        ? "Your organization's name in OpenGrants Passport looks like a web or email address, so award invitations cannot be sent under it. Ask Passport to correct the name, then try again"
+        : "Your workspace's name looks like a web or email address, so award invitations cannot be sent under it. Rename the workspace in its settings, then try again",
+    );
   }
+  return { ws, funder };
+}
+
+/** Where a request came from, for the per-address limit. Null when the server cannot tell (an approved agent call). */
+export interface SendOrigin {
+  address: string | null;
+}
+
+const sendLimits = (funderVerified: boolean): SendLimits => ({
+  workspace: funderVerified ? DIRECT_AWARD_INVITES_PER_DAY : DIRECT_AWARD_INVITES_PER_DAY_UNVERIFIED,
+  sender: DIRECT_AWARD_INVITES_PER_SENDER_PER_DAY,
+  address: DIRECT_AWARD_INVITES_PER_ADDRESS_PER_DAY,
+  recipient: DIRECT_AWARD_INVITES_PER_RECIPIENT_PER_WEEK,
+  instance: DIRECT_AWARD_INVITES_PER_INSTANCE_PER_DAY,
+});
+
+/** The 429 for each limit, in plain words. */
+function overLimit(limit: SendLimitName, limits: SendLimits, funderVerified: boolean): ApiError {
+  switch (limit) {
+    case "workspace":
+      return new ApiError(429, "too_many_invitations", `This workspace has sent ${limits.workspace} award invitations in the last 24 hours, the most we allow${funderVerified ? "" : " for a funder not verified with OpenGrants Passport"}. Try again later`);
+    case "sender":
+      return new ApiError(429, "too_many_invitations_from_you", `You have sent ${limits.sender} award invitations in the last 24 hours, across all your workspaces, the most we allow. Try again later`);
+    case "address":
+      return new ApiError(429, "too_many_invitations_from_network", "Too many award invitations were sent from your network in the last 24 hours. Try again later");
+    case "recipient":
+      return new ApiError(429, "too_many_invitations_to_recipient", `This address has been sent ${limits.recipient} award invitations in the last 7 days, the most we allow. Try again later`);
+    default:
+      return new ApiError(429, "invitations_paused", "Award invitations are paused for now because many were sent in the last 24 hours. Try again later");
+  }
+}
+
+const sendKey = async (ctx: ServiceContext, workspaceId: string, recipient: string, origin: SendOrigin): Promise<SendKey> => ({ workspaceId, senderId: ctx.actor.userId!, addressKey: origin.address, recipientDigest: await sha256b64url(recipient) });
+
+/** Count one invitation email against every limit; the send id, to give it back if the email is not sent. */
+async function countSend(ctx: ServiceContext, workspaceId: string, funderVerified: boolean, recipient: string, origin: SendOrigin): Promise<string> {
+  const limits = sendLimits(funderVerified);
+  const r = await limiterFor(ctx).claim(await sendKey(ctx, workspaceId, recipient, origin), limits, ctx.now());
+  if (!r.ok) throw overLimit(r.limit, limits, funderVerified);
+  return r.sendId;
 }
 
 const newToken = async () => {
@@ -129,18 +225,19 @@ const newToken = async () => {
 
 /** The email for one invitation. The token is used for the link and dropped; it is never stored or logged. */
 async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvitation, token: string): Promise<boolean> {
-  const funder = required(await ctx.repos.table("workspaces").one({ id: award.workspace_id }), "Workspace");
+  const funder = funderIdentity(required(await ctx.repos.table("workspaces").one({ id: award.workspace_id }), "Workspace"));
   const period = keyDatesOf(award).periodOfPerformance;
   const email = directAwardInvitationEmail({
-    funderName: funder.display_name,
-    funderVerified: verificationOf(funder).source === "passport",
+    funderName: funder.name,
+    funderVerified: funder.verified,
     organizationName: inv.organization_name,
     awardTitle: award.title,
     amount: printMoney(minorOf(fundingOf(award).awardedAmount) ?? 0, currencyOf(award)),
     period: period?.startDate && period.endDate ? { startDate: period.startDate, endDate: period.endDate } : null,
     message: inv.message,
     invitedEmail: inv.email,
-    claimUrl: `${ctx.config.webBaseUrl}/awards/claim?token=${encodeURIComponent(token)}`,
+    // In the fragment: a browser never sends it to a server, so no request log holds it (review DA-05).
+    claimUrl: `${ctx.config.webBaseUrl}/awards/claim#token=${encodeURIComponent(token)}`,
     homeUrl: `${ctx.config.webBaseUrl}/`,
     expiresOn: inv.expires_at.slice(0, 10),
   });
@@ -154,52 +251,56 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
   }
 }
 
-/** `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the invitation. */
-export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput) {
-  const ws = await sender(ctx);
+/**
+ * `POST /gms/awards/direct`: create the award in `offered` for a named organization and email the
+ * invitation. The send count, the award with its schedule and requirements, the invitation and
+ * their ledger entries are one transaction (review DA-04); the email and the webhook follow it.
+ */
+export async function createDirectAward(ctx: ServiceContext, input: DirectAwardInput, origin: SendOrigin = { address: null }) {
+  const { ws, funder } = await sender(ctx, "create");
   const program = input.programId ? await ctx.repos.table("programs").one({ id: input.programId, workspace_id: ws.id }) : null;
   if (input.programId && !program) throw notFound("Program");
-  await countSend(ctx, ws.id);
   const { token, hash } = await newToken();
   const now = ctx.now();
-  let award: Award;
-  let inv: AwardInvitation;
-  try {
-    award = await createOfferedAward(
-      ctx,
-      {
-        workspaceId: ws.id,
-        recipientWorkspaceId: null,
-        recipientIndividual: { name: input.recipient.organizationName },
-        applicationId: null,
-        opportunityId: null,
-        programId: program?.id ?? null,
-        title: input.title,
-        awardedMinor: toMinor({ amount: input.amount.value, currency: input.amount.currency }),
-        currency: input.amount.currency,
-        conditions: [],
-        ...(input.startDate && input.endDate ? { period: { startDate: input.startDate, endDate: input.endDate } } : {}),
-      },
-      readDefaults(program),
-    );
-    inv = await ctx.repos.table("award_invitations").insert({
-      workspace_id: ws.id,
-      award_id: award.id,
-      email: input.recipient.contactEmail,
-      organization_name: input.recipient.organizationName,
-      message: input.message || null,
-      token_hash: hash,
-      expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(),
-      sent_count: 1,
-      last_sent_at: now.toISOString(),
-      created_by: ctx.actor.userId!,
-    });
-  } catch (e) {
-    await limiterFor(ctx).release(ws.id, now).catch(() => undefined);
-    throw e;
-  }
+  const plan = planOfferedAward(
+    ctx,
+    {
+      workspaceId: ws.id,
+      recipientWorkspaceId: null,
+      recipientIndividual: { name: input.recipient.organizationName },
+      applicationId: null,
+      opportunityId: null,
+      programId: program?.id ?? null,
+      title: input.title,
+      awardedMinor: toMinor({ amount: input.amount.value, currency: input.amount.currency }),
+      currency: input.amount.currency,
+      conditions: [],
+      ...(input.startDate && input.endDate ? { period: { startDate: input.startDate, endDate: input.endDate } } : {}),
+    },
+    readDefaults(program),
+  );
+  const invitation = {
+    id: crypto.randomUUID(),
+    workspace_id: ws.id,
+    award_id: plan.award.id,
+    email: input.recipient.contactEmail,
+    organization_name: input.recipient.organizationName,
+    message: input.message || null,
+    token_hash: hash,
+    expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(),
+    sent_count: 1,
+    last_sent_at: now.toISOString(),
+    created_by: ctx.actor.userId!,
+  };
+  const entry = (e: { eventType: string; subjectType: string; subjectId: string; data: Record<string, unknown> }) => ledgerEvent({ workspaceId: ws.id, actor: ctx.actor.ledger, ...e }, { now: ctx.now });
+  const ledger = [...plan.ledger, { eventType: "award.invitation_sent", subjectType: "award", subjectId: plan.award.id, data: { invitationId: invitation.id, email: maskEmail(invitation.email), sentCount: 1, expiresAt: invitation.expires_at } }].map(entry);
+  const limits = sendLimits(funder.verified);
+  const made = await storeFor(ctx).create({ plan, invitation, ledger, send: await sendKey(ctx, ws.id, invitation.email, origin), limits }, now);
+  if (!made.ok) throw overLimit(made.limit, limits, funder.verified);
+  await emitFor(ctx, ws.id, "award.created", { awardId: plan.award.id, applicationId: null, status: "offered" });
+  const award = required(await ctx.repos.table("awards").one({ id: plan.award.id, workspace_id: ws.id }), "Award");
+  const inv = required(await ctx.repos.table("award_invitations").one({ id: invitation.id }), "Award invitation");
   const emailed = await sendInvitation(ctx, award, inv, token);
-  await audit(ctx, "award.invitation_sent", "award", award.id, { invitationId: inv.id, email: maskEmail(inv.email), sentCount: 1, expiresAt: inv.expires_at, emailed }, ws.id);
   return { ...(await awardDetail(ctx, award)), emailed };
 }
 
@@ -211,23 +312,23 @@ async function funderInvitation(ctx: ServiceContext, workspaceId: string, awardI
 }
 
 /** `POST /gms/awards/{id}/invitation/resend`: a new link (the old one stops working), optionally to a new address. */
-export async function resendInvitation(ctx: ServiceContext, awardId: string, input: z.output<typeof resendInput>) {
-  const ws = await sender(ctx);
+export async function resendInvitation(ctx: ServiceContext, awardId: string, input: z.output<typeof resendInput>, origin: SendOrigin = { address: null }) {
+  const { ws, funder } = await sender(ctx, "resend");
   const { award, inv } = await funderInvitation(ctx, ws.id, awardId);
   const status = invitationStatus(inv, ctx.now());
   if (status === "accepted" || status === "declined" || status === "revoked" || award.status !== "offered") {
     throw new ApiError(409, "invitation_closed", status === "accepted" ? "This award was already accepted" : status === "declined" ? "This award was declined. Withdraw it, or give a new award" : "This award was withdrawn");
   }
-  await countSend(ctx, ws.id);
+  const email = input.contactEmail ?? inv.email;
+  const sendId = await countSend(ctx, ws.id, funder.verified, email, origin);
   const { token, hash } = await newToken();
   const now = ctx.now();
-  const email = input.contactEmail ?? inv.email;
   const [updated] = await ctx.repos.table("award_invitations").update(
     { id: inv.id, token_hash: inv.token_hash, accepted_at: null, declined_at: null, revoked_at: null },
     { token_hash: hash, email, expires_at: new Date(now.getTime() + DIRECT_AWARD_INVITATION_TTL_DAYS * DAY_MS).toISOString(), sent_count: inv.sent_count + 1, last_sent_at: now.toISOString() },
   );
   if (!updated) {
-    await limiterFor(ctx).release(ws.id, now).catch(() => undefined);
+    await limiterFor(ctx).release(sendId, now).catch(() => undefined);
     throw new ApiError(409, "conflict", "This invitation changed while you were working. Reload and try again");
   }
   const emailed = await sendInvitation(ctx, award, updated, token);
@@ -287,7 +388,7 @@ export async function lookupInvitation(ctx: ServiceContext, input: z.output<type
   const emailMatches = norm(signedInEmail) === inv.email;
   return {
     status,
-    funder: { name: funder.display_name, handle: funder.handle, verification: verificationOf(funder) },
+    funder: { ...funderIdentity(funder), handle: funder.handle },
     award: { title: award.title, amount: awarded ? { value: awarded.amount, currency: awarded.currency } : null, startDate: period?.startDate ?? null, endDate: period?.endDate ?? null, message: inv.message },
     organizationName: inv.organization_name,
     invitedEmail: maskEmail(inv.email),
@@ -355,25 +456,47 @@ export async function acceptInvitation(ctx: ServiceContext, input: z.output<type
   const authority = await checkSigner(recipientCtx, target.id, input.name ?? null);
 
   const ports = grantPorts(recipientCtx, award.workspace_id);
-  let consentId: string | null = null;
+  const entry = (workspaceId: string, eventType: string, subjectType: string, subjectId: string, data: Record<string, unknown>) => ledgerEvent({ workspaceId, actor: ctx.actor.ledger, eventType, subjectType, subjectId, data }, { now: ctx.now });
+  let accepting = false;
+  // guard → write → ledger → webhook as for any transition, with the write and its ledger rows in
+  // one database transaction (review DA-07): `write` checks what the machine decided, and `ledger`
+  // commits the claim together with the machine's entry and the claim's own.
   const r = await awardMachine.transition({ id: award.id, status: award.status as "offered" }, "accept_offer", { id: ctx.actor.id, kind: "applicant" }, { now: ctx.now().toISOString() }, {
     ...ports,
     write: async (change) => {
       if (change.subjectType !== "award" || change.from !== "offered" || change.to !== "accepted") throw new Error("A direct award is claimed only by accept_offer");
-      const claimed = await claimsFor(ctx).claim({ tokenHash: inv.token_hash, workspaceId: target.id, userId, email: signedInEmail ?? "", cgStatus: awardCgStatus("accepted").value }, ctx.now());
+      accepting = true;
+    },
+    ledger: async (e) => {
+      if (!accepting) throw new Error("A direct award's ledger entry follows its claim");
+      const claimed = await storeFor(ctx).claim(
+        {
+          tokenHash: inv.token_hash,
+          workspaceId: target.id,
+          userId,
+          email: signedInEmail ?? "",
+          cgStatus: awardCgStatus("accepted").value,
+          consentId: crypto.randomUUID(),
+          ledger: [
+            entry(award.workspace_id, e.eventType, e.subjectType, e.subjectId, e.data),
+            entry(award.workspace_id, "award.invitation_accepted", "award", award.id, { invitationId: inv.id, workspaceId: target.id, email: maskEmail(inv.email) }),
+            entry(award.workspace_id, "award.claimed", "award", award.id, { invitationId: inv.id, workspaceId: target.id }),
+            entry(award.workspace_id, "award.acceptance_signer_checked", "award", award.id, { rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId, name: input.name ?? null }),
+          ],
+          consentLedger: [entry(target.id, "consent.granted", "workspace", target.id, { funderWorkspaceId: award.workspace_id, basis: "award" })],
+        },
+        ctx.now(),
+      );
       if (claimed.outcome !== "claimed") throw refusal(claimed.outcome, inv);
-      consentId = claimed.consentId;
     },
   });
   if (!r.ok) throw new ApiError(r.code === "actor_not_allowed" ? 403 : 409, r.code, r.reason);
 
-  await audit(recipientCtx, "award.invitation_accepted", "award", award.id, { invitationId: inv.id, workspaceId: target.id, email: maskEmail(inv.email) }, award.workspace_id);
-  await audit(recipientCtx, "award.claimed", "award", award.id, { invitationId: inv.id, workspaceId: target.id, consentId }, award.workspace_id);
-  await audit(recipientCtx, "award.acceptance_signer_checked", "award", award.id, { rule: authority.rule, reason: authority.reason, representativeId: authority.representativeId, name: input.name ?? null }, award.workspace_id);
-  if (consentId) await audit(recipientCtx, "consent.granted", "workspace", target.id, { funderWorkspaceId: award.workspace_id, basis: "award" }, target.id);
   const accepted = required(await ctx.repos.table("awards").one({ id: award.id }), "Award");
   if (awardEffects("accepted").mirrorToPassport) await mirrorAward(recipientCtx, accepted);
-  await noticeToFunder(ctx, award, `${target.display_name} accepted ${award.title}`, `${target.display_name} accepted the award "${award.title}" that was offered to ${inv.organization_name}. The organization now shares its record with you, and the award follows its usual steps from here.`, `award-claimed:${award.id}`);
+  // The accepting workspace's name is the grantee's own text: printed only when it reads as no link.
+  const accepter = containsLink(target.display_name) ? inv.organization_name : cleanLine(target.display_name);
+  await noticeToFunder(ctx, award, `${accepter} accepted ${award.title}`, `${accepter} accepted the award "${award.title}" that was offered to ${inv.organization_name}. The organization now shares its record with you, and the award follows its usual steps from here.`, `award-claimed:${award.id}`);
   return { awardId: apiId("award", award.id), workspaceId: target.id };
 }
 

@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sha256b64url } from "../src/auth/crypto.ts";
 import type { RpcLike } from "../src/lib/rate-limit.ts";
-import { SupabaseDirectAwardClaims, SupabaseInvitationLimiter, type DirectAwardClaims, type InvitationLimiter } from "../src/services/direct-award-store.ts";
+import { SupabaseDirectAwardStore, SupabaseInvitationLimiter, type DirectAwardStore, type InvitationLimiter } from "../src/services/direct-award-store.ts";
 import { SupabaseRepos } from "../src/services/repos/supabase.ts";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -41,13 +41,17 @@ describe.skipIf(!URL_ || !KEY)("Direct awards on the real schema", () => {
     await repos.table("workspace_members").insert({ workspace_id: applicantId, user_id: otherUser, role: "admin" });
   });
 
-  it("counts invitation sends under one lock: parallel requests cannot pass the limit", async () => {
+  it("counts invitation sends under one lock: parallel requests cannot pass a limit", async () => {
     const limiter: InvitationLimiter = new SupabaseInvitationLimiter(db as unknown as RpcLike);
-    const results = await Promise.all(Array.from({ length: 6 }, () => limiter.claim(funderId, 3, new Date())));
-    expect(results.filter(Boolean)).toHaveLength(3);
-    await limiter.release(funderId, new Date());
-    expect(await limiter.claim(funderId, 3, new Date())).toBe(true);
-    expect(await limiter.claim(funderId, 3, new Date())).toBe(false);
+    const limits = { workspace: 3, sender: 99, address: 99, recipient: 99, instance: 100_000 };
+    const key = (i: number) => ({ workspaceId: funderId, senderId: otherUser, addressKey: null, recipientDigest: `${run}${String(i).padStart(2, "0")}`.padEnd(43, "x").slice(0, 43) });
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => limiter.claim(key(i), limits, new Date())));
+    expect(results.filter((r) => r.ok)).toHaveLength(3);
+    expect(results.filter((r) => !r.ok).map((r) => (r.ok ? null : r.limit))).toEqual(["workspace", "workspace", "workspace"]);
+    const first = results.find((r) => r.ok)!;
+    await limiter.release(first.ok ? first.sendId : "", new Date());
+    expect((await limiter.claim(key(7), limits, new Date())).ok).toBe(true);
+    expect((await limiter.claim(key(8), limits, new Date())).ok).toBe(false);
   });
 
   it("claims in one step, once, only for the invited and confirmed address", async () => {
@@ -55,8 +59,8 @@ describe.skipIf(!URL_ || !KEY)("Direct awards on the real schema", () => {
     const token = `gms_awi_int_${run}_${crypto.randomUUID()}`;
     const tokenHash = await sha256b64url(token);
     await repos.table("award_invitations").insert({ workspace_id: funderId, award_id: award.id, email: invited, organization_name: "Integration Alder", token_hash: tokenHash, expires_at: new Date(Date.now() + 86_400_000).toISOString(), created_by: otherUser });
-    const claims: DirectAwardClaims = new SupabaseDirectAwardClaims(db as unknown as RpcLike);
-    const input = { tokenHash, workspaceId: applicantId, cgStatus: "awarded" };
+    const claims: DirectAwardStore = new SupabaseDirectAwardStore(db as unknown as RpcLike);
+    const input = { tokenHash, workspaceId: applicantId, cgStatus: "awarded", consentId: crypto.randomUUID(), ledger: [], consentLedger: [] };
 
     expect((await claims.claim({ ...input, userId: otherUser, email: `int-other-${run}@aldercreek.example` }, new Date())).outcome).toBe("email_mismatch");
     // The session address alone is not enough: the account's own confirmed address must match too.

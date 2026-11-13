@@ -1626,11 +1626,17 @@ model AwardInvitationTokenInput {
 model AwardInvitationLookup {
   status: "pending" | "accepted" | "declined" | "expired" | "revoked";
   funder: {
-    /** The funder's name exactly as its workspace has it */
+    /** The Passport legal name when the funder's workspace is linked to Passport, else the workspace's name */
     name: string;
+
+    /** The workspace's own name, when it differs from the Passport legal name in `name` */
+    workspaceName: string | null;
 
     handle: string;
     verification: Verification;
+
+    /** Linked to Passport at L1 or above. When false, show that the funder is not verified with Passport. */
+    verified: boolean;
   };
   award: {
     title: string;

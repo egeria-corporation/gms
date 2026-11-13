@@ -102,7 +102,7 @@ export const FUNDER_TOOLS = {
   create_direct_award: tool(
     "createDirectAward",
     "awards:write",
-    "Give an award directly to an organization that has not applied: the award is created as offered and its contact is emailed a link to accept. Nothing is matched by name; the award is attached only when the invited person accepts it. Always waits for a person's approval (a funder admin or finance member).",
+    "Give an award directly to an organization that has not applied: the award is created as offered and its contact is emailed a link to accept. Nothing is matched by name; the award is attached only when the invited person accepts it. Always waits for a person's approval (a funder admin or program officer).",
     z.object({
       organizationName: z.string().min(1).max(200).describe("The organization's name, as it should appear in the email"),
       contactEmail: z.string().email().max(320).describe("The person who will accept for the organization"),
