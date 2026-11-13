@@ -36,13 +36,13 @@ function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
     );
   if (pending)
     return (
-      <span className="pay pay-cooling">
+      <span className="pay pay-cooling userback-block">
         <Clock className="ic" aria-hidden="true" />
         Change pending
       </span>
     );
   return (
-    <span className="pay pay-active">
+    <span className="pay pay-active userback-block">
       <CircleCheck className="ic" aria-hidden="true" />
       Payee active
     </span>
@@ -195,7 +195,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               <WorkspaceName name={g.workspaceName} />
               <PayeeChip payee={g.payee} />
             </div>
-            <p className="small muted">
+            <p className="small muted userback-block">
               {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : "Payee details not available"} · record synced {g.lastSyncedAt ? dateTime(g.lastSyncedAt) : "never"}
             </p>
           </div>

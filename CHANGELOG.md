@@ -3,6 +3,24 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.3.0
+
+### Added
+
+- An optional feedback button for testers, powered by Userback. It is off unless the web build has
+  `VITE_USERBACK_TOKEN` (Userback's public access token); with it unset, which is the default and
+  the case in demo mode, nothing loads and the Content-Security-Policy is unchanged. When it is on,
+  the app tells Userback only the person's id, name and email. Two-step verification (QR code, setup
+  key, code boxes), one-time secrets (API, agent and webhook secrets, the Passport client secret),
+  bank name, last four digits and pending destination changes are marked so Userback leaves them out
+  of screenshots and recordings, and sign-in code boxes are not recorded. The landing page says so
+  in its answer to "Who can see my organization's information?", only when the button is on.
+
+### Upgrade notes
+
+- No database migrations.
+- Optional build-time setting `VITE_USERBACK_TOKEN`. Self-hosters leave it unset.
+
 ## v1.2.2
 
 ### Fixed

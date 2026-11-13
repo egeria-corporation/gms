@@ -192,7 +192,7 @@ export function ReadinessChecklist({ checklist, title }: { checklist: Checklist;
         {checklist.items.map((item) => {
           const Icon = CHECK_ICON[item.state];
           return (
-            <li key={item.key} className={`rc-row ${CHECK_CLASS[item.state]}`}>
+            <li key={item.key} className={`rc-row ${CHECK_CLASS[item.state]}${item.key === "payee" ? " userback-block" : ""}`}>
               <Icon className="ic" role="img" aria-label={CHECK_WORD[item.state]} />
               <div>
                 <div className="l">{item.label}</div>

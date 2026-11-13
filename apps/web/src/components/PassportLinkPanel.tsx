@@ -114,7 +114,7 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
               <input className="inp mono" id="passport-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" required />
             </Field>
             <Field id="passport-client-secret" label="Client secret" required help="Stored encrypted. It is never shown again.">
-              <input className="inp mono" id="passport-client-secret" type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" minLength={8} required />
+              <input className="inp mono userback-block userback-ignore" id="passport-client-secret" type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" minLength={8} required />
             </Field>
           </div>
           <div>

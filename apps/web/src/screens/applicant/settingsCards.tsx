@@ -83,7 +83,7 @@ export function TokensCard({ base }: { base: string }) {
       {fresh ? (
         <div style={{ padding: "16px 20px 0" }}>
           <Notice tone="ok" title={`“${fresh.name}” was created. Copy the secret now; it is not shown again.`}>
-            <div className="row wrap" style={{ gap: "8px", marginTop: "8px" }}>
+            <div className="row wrap userback-block" style={{ gap: "8px", marginTop: "8px" }}>
               <code className="mono" style={{ wordBreak: "break-all" }}>
                 {fresh.clientSecret}
               </code>

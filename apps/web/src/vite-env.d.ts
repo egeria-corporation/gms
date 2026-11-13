@@ -8,4 +8,5 @@ interface ImportMetaEnv {
   readonly VITE_USE_MOCKS?: string;
   readonly VITE_GOOGLE_PICKER_API_KEY?: string;
   readonly VITE_GOOGLE_OAUTH_CLIENT_ID?: string;
+  readonly VITE_USERBACK_TOKEN?: string;
 }

@@ -13,6 +13,7 @@ Read at build time (`src/env.ts`); all are public values.
 | `VITE_USE_MOCKS` | `false` to use them; anything else renders the fixture workspaces |
 | `VITE_PASSPORT_BASE_URL` | Passport, default `https://passport.opengrants.io` |
 | `VITE_GOOGLE_PICKER_API_KEY`, `VITE_GOOGLE_OAUTH_CLIENT_ID` | Optional, both or neither. Switch on "Export to Drive" (the Google Picker). The client id must be the Google OAuth client the Composio auth config uses, because `drive.file` grants are per Google Cloud project. Without both, the export control says it is not configured and the Content-Security-Policy names no Google origin |
+| `VITE_USERBACK_TOKEN` | Optional. Userback's public access token. Shows the feedback button and adds Userback's origins to the Content-Security-Policy. Unset (the default) and in mock mode nothing loads |
 
 With both Google values set, `build/headers.ts` adds exactly these to the CSP: scripts from
 `https://apis.google.com` and `https://accounts.google.com/gsi/client`, frames from
