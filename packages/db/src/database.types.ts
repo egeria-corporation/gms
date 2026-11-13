@@ -402,6 +402,96 @@ export type Database = {
         };
         Relationships: [];
       };
+      award_invitation_sends: {
+        Row: {
+          created_at: string;
+          id: string;
+          sent_at: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          sent_at?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          sent_at?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      award_invitations: {
+        Row: {
+          accepted_at: string | null;
+          accepted_by: string | null;
+          accepted_workspace_id: string | null;
+          award_id: string;
+          created_at: string;
+          created_by: string;
+          decline_reason: string | null;
+          declined_at: string | null;
+          email: string;
+          expires_at: string;
+          id: string;
+          last_sent_at: string;
+          message: string | null;
+          organization_name: string;
+          revoked_at: string | null;
+          sent_count: number;
+          token_hash: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          accepted_workspace_id?: string | null;
+          award_id: string;
+          created_at?: string;
+          created_by: string;
+          decline_reason?: string | null;
+          declined_at?: string | null;
+          email: string;
+          expires_at: string;
+          id?: string;
+          last_sent_at?: string;
+          message?: string | null;
+          organization_name: string;
+          revoked_at?: string | null;
+          sent_count?: number;
+          token_hash: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          accepted_workspace_id?: string | null;
+          award_id?: string;
+          created_at?: string;
+          created_by?: string;
+          decline_reason?: string | null;
+          declined_at?: string | null;
+          email?: string;
+          expires_at?: string;
+          id?: string;
+          last_sent_at?: string;
+          message?: string | null;
+          organization_name?: string;
+          revoked_at?: string | null;
+          sent_count?: number;
+          token_hash?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       awards: {
         Row: {
           application_id: string | null;
@@ -2319,6 +2409,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_creation_counts: {
+        Row: {
+          created_at: string;
+          day: string;
+          id: string;
+          key: string;
+          updated_at: string;
+          used: number;
+        };
+        Insert: {
+          created_at?: string;
+          day: string;
+          id?: string;
+          key: string;
+          updated_at?: string;
+          used?: number;
+        };
+        Update: {
+          created_at?: string;
+          day?: string;
+          id?: string;
+          key?: string;
+          updated_at?: string;
+          used?: number;
+        };
+        Relationships: [];
+      };
       workspace_members: {
         Row: {
           created_at: string;
@@ -2367,33 +2484,6 @@ export type Database = {
           updated_at?: string;
           user_id?: string;
           workspace_id?: string;
-        };
-        Relationships: [];
-      };
-      workspace_creation_counts: {
-        Row: {
-          created_at: string;
-          day: string;
-          id: string;
-          key: string;
-          updated_at: string;
-          used: number;
-        };
-        Insert: {
-          created_at?: string;
-          day: string;
-          id?: string;
-          key: string;
-          updated_at?: string;
-          used?: number;
-        };
-        Update: {
-          created_at?: string;
-          day?: string;
-          id?: string;
-          key?: string;
-          updated_at?: string;
-          used?: number;
         };
         Relationships: [];
       };
@@ -2477,4 +2567,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","awards","bank_transactions","budgets","competitions","connector_accounts","consents","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","competitions","connector_accounts","consents","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];

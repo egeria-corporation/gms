@@ -62,6 +62,16 @@ namespace GMS.Errors {
     @statusCode statusCode: 429;
   };
 
+  /** The link was valid once and is not any more (410 `invitation_expired`, `invitation_revoked`). */
+  alias Gone = CommonGrants.Responses.Error & {
+    @statusCode statusCode: 410;
+  };
+
+  /** Something the action needs is not set up on this server (e.g. 503 `mail_not_configured`). */
+  alias ServiceUnavailable = CommonGrants.Responses.Error & {
+    @statusCode statusCode: 503;
+  };
+
   /** Errors every authenticated GMS route can return. */
   alias AuthErrors = Unauthorized | Forbidden;
 }
@@ -562,6 +572,25 @@ namespace GMS.Routes.Custom {
     @post @route("/awards") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
     op createFromApplication(@body body: AwardFromApplicationRequest): CreatedT<AwardFromApplicationResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /**
+     * Give an award directly to an organization that has not applied, by its name and a contact
+     * email. The award is created `offered` with no recipient workspace; the contact is emailed a
+     * link and the award is attached only when they accept it, signed in with that address, for an
+     * applicant workspace they administer. Funder `admin` or `finance`, people only (an agent's
+     * request waits for a person's approval). 25 invitations, new and resent, per funder workspace
+     * per rolling 24 hours: 429 `too_many_invitations`. 503 `mail_not_configured` creates nothing.
+     */
+    @post @route("/awards/direct") @useAuth(UserSession)
+    op createDirect(@body body: DirectAwardInput): CreatedT<DirectAwardView> | BadRequest | AuthErrors | NotFound | TooManyRequests | ServiceUnavailable;
+
+    /**
+     * Send a direct award's invitation again with a new link (the old one stops working), to a new
+     * address when `contactEmail` is given. Counts against the daily limit. 409 `invitation_closed`
+     * once it was accepted, declined or withdrawn.
+     */
+    @post @route("/awards/{id}/invitation/resend") @useAuth(UserSession)
+    op resendInvitation(@path id: GmsId, @body body?: ResendInvitationInput): OkT<DirectAwardView> | BadRequest | AuthErrors | NotFound | Conflict | TooManyRequests | ServiceUnavailable;
+
     @get @route("/awards/{id}") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op read(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound;
 
@@ -590,6 +619,7 @@ namespace GMS.Routes.Custom {
     @post @route("/awards/{id}/complete") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
     op complete(@path id: GmsId): OkT<GmsAwardDetail> | AuthErrors | NotFound | Conflict;
 
+    /** Cancelling a direct award not yet accepted also revokes its invitation. */
     @post @route("/awards/{id}/cancel") @useAuth(GmsOAuth<["awards:write"]> | UserSession)
     op cancel(@path id: GmsId, @body body: ReasonBody): OkT<GmsAwardDetail> | BadRequest | AuthErrors | NotFound | Conflict;
 
@@ -615,6 +645,31 @@ namespace GMS.Routes.Custom {
     op variance(@path id: GmsId): OkT<BudgetVariance> | AuthErrors | NotFound;
   }
 
+
+  /**
+   * A directly given award, from the invited person's side: signed in (no workspace yet), the
+   * token from the link always in the body. People only; no agent can accept or decline.
+   */
+  @tag("Awards (GMS)")
+  namespace AwardInvitations {
+    /** What the invitation offers. 404 `invitation_not_found` for a token that is not (or no longer) a link. */
+    @post @route("/award-invitations/lookup") @useAuth(UserSession)
+    op lookup(@body body: AwardInvitationTokenInput): OkT<AwardInvitationLookup> | BadRequest | AuthErrors | NotFound;
+
+    /**
+     * Accept for an applicant workspace. 403 `email_mismatch` unless signed in with the invited
+     * address, 403 `not_workspace_admin`, 403 `mfa_required` without the admin role's second step,
+     * 410 `invitation_expired` or `invitation_revoked`, 409 `invitation_used`. One step attaches the
+     * award, records the organization's consent (basis `award`) and accepts it; the Passport mirror
+     * follows as for any accepted award. Signer rules as for `acceptOffer`.
+     */
+    @post @route("/award-invitations/accept") @useAuth(UserSession)
+    op accept(@body body: AwardInvitationAcceptInput): OkT<AwardInvitationAccepted> | BadRequest | AuthErrors | NotFound | Conflict | Gone | Unprocessable;
+
+    /** Decline as the invited person. The funder is told and decides whether to withdraw the award. */
+    @post @route("/award-invitations/decline") @useAuth(UserSession)
+    op decline(@body body: AwardInvitationDeclineInput): OkT<AwardInvitationDeclined> | BadRequest | AuthErrors | NotFound | Conflict | Gone;
+  }
   @tag("Agreements")
   namespace Agreements {
     /** Draft an agreement from a template. Refused while a live agreement exists; void it first. */

@@ -11,10 +11,17 @@ export function tool<S extends string, I extends z.ZodObject>(
   scope: Scope,
   description: string,
   input: I,
-  options: { gated?: boolean } = {},
+  options: { gated?: boolean; ledgerInput?: (input: Record<string, unknown>) => Record<string, unknown> } = {},
 ): ToolSpec<S, I> {
-  return { service, scope, description, input, gated: options.gated ?? false };
+  return { service, scope, description, input, gated: options.gated ?? false, ...(options.ledgerInput ? { ledgerInput: options.ledgerInput } : {}) };
 }
+
+/** `jo@example.org` → `j…@example.org`, for ledger entries. */
+export const maskEmail = (email: unknown): string => {
+  const s = typeof email === "string" ? email : "";
+  const at = s.lastIndexOf("@");
+  return at > 0 ? `${s.slice(0, 1)}…${s.slice(at)}` : "…";
+};
 
 /** API-visible id with its human prefix (`app_…`, `awd_…`). */
 export const id = (prefix: string, what: string) =>

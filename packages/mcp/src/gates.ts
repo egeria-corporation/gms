@@ -13,13 +13,15 @@ export const DEFAULT_GATED_TOOLS = [
   // Not in the spec's default list. Added because acceptance item 11 requires an agent's decline to
   // appear as pending approval, and a decline queues a letter to the applicant.
   "decline_application",
+  // Giving an award directly emails a person outside the GMS under the funder's name.
+  "create_direct_award",
 ] as const;
 
 /** Gated for every agent, whatever the token grants and whatever a workspace configures. This is
  * the stricter reading of the design note "Signing is a human gate: agents can prepare an
  * agreement, never sign one": money leaving, legal signature and offer acceptance always need a
  * person. */
-export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche"] as const;
+export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche", "create_direct_award"] as const;
 
 export interface GatePolicy {
   /** Extra tools a workspace (settings) or an API client (`gated_tools`) wants gated. Overrides can
