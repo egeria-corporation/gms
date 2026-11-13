@@ -3,6 +3,24 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.2.1
+
+### Fixed
+
+- A new funder could not finish setup: after creating the workspace, saving the brand (or inviting
+  the team, or creating the first program) failed with "This role requires two-step verification".
+  The person signed in with an email code before they had a workspace, so sign-in never asked for
+  the second step, and the setup pages did not send them to it. Setup now takes a new admin through
+  setting up an authenticator app right after the workspace is created and returns to the brand
+  step; any setup page reached without the second step sends the person to it; and a refused save
+  shows "Set up two-step verification to continue" with a link instead of a dead end. Sign-in now
+  shows the second step whenever a page asks for it (`step=mfa`), even before the list of the
+  person's workspaces has caught up.
+
+### Upgrade notes
+
+- No database migrations and no setting changes.
+
 ## v1.2.0
 
 ### Added
