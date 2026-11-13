@@ -121,7 +121,7 @@ describe("Continue with Passport", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Continue with Passport" }));
     expect(await screen.findByRole("heading", { name: "Set Up Two-Step Verification" })).toBeInTheDocument();
     expect((await services.api.me()).mfaVerified).toBe(false);
-    await userEvent.type(screen.getByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
+    await userEvent.type(await screen.findByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
     await userEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
     expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
   });

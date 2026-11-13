@@ -62,7 +62,7 @@ describe("two-step verification", () => {
     open("/w/riverbend", createMockServices({ session: demoSession("aal1"), totpEnrolled: true }));
     expect(await screen.findByRole("heading", { name: "Two-Step Verification" })).toBeInTheDocument();
     expect(where()).toContain("step=mfa");
-    await userEvent.type(screen.getByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
+    await userEvent.type(await screen.findByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
     await userEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
     expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
   });
@@ -88,7 +88,7 @@ describe("sign-in flow", () => {
 
     expect(await screen.findByRole("heading", { name: "Set Up Two-Step Verification" })).toBeInTheDocument();
     expect(await screen.findByText("QHX7-R2MP-4TLC-W9KD")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
+    await userEvent.type(await screen.findByLabelText("Enter the 6-digit code from your app"), MOCK_CODE);
     await userEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
 
     expect(await screen.findByRole("navigation", { name: "Funder workspace" })).toBeInTheDocument();
