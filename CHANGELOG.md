@@ -3,6 +3,45 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.5.0
+
+### Added
+
+- **Apply anywhere.** An applicant organization can start, write, record and track an application to
+  any funder, not only funders on this GMS. Outside applications are the organization's own records,
+  visible only to its own team: never to funders on this GMS, never sent to Passport, never in
+  CommonGrants output or funder analytics. The GMS never submits anything for you; it records what
+  you submitted elsewhere, with a PDF of your answers as submitted.
+- One pipeline of every application (on this GMS and outside it) and saved opportunity, with stages
+  from prospect to awarded, deadlines, the ask and an owner.
+- Questions pasted from a funder's guidelines are split into questions with their word or character
+  limits. Answers keep every version, show words, characters and characters without spaces, and can
+  come from the answer library. Export as text, Markdown or PDF.
+- A light record per funder: contacts, notes, its portal and who holds the login, and past asks.
+- A private calendar link with every deadline, for any calendar app. It is shown once and can be
+  replaced or turned off.
+- Deadline reminders by email 14, 7 and 2 days before and on the day, and upcoming deadlines in the
+  weekly digest. The notification setting is "Application deadlines".
+- CSV import (with a preview) and CSV or JSON export of outside applications.
+- "Get help writing this": a request to OpenGrants consulting, showing exactly what will be sent.
+- Find funding also shows opportunities on this GMS that are not taking applications yet, can open
+  one OpenGrants listing's details, and saving an OpenGrants listing starts tracking it as a prospect.
+- Agents get the same capabilities through MCP; recording a submission or a decision always waits
+  for a person.
+
+### Upgrade notes
+
+- **Database migration `0029_outside_applications.sql`.** It adds six tables (funder records, outside
+  applications, their questions and answer versions, calendar feeds, consulting requests), each with
+  row-level security, and triggers that keep them in applicant workspaces and in the same workspace
+  as what they point at. It changes no existing row. **It adds rows:** every listing an applicant
+  saved from OpenGrants is copied into a prospect (with one ledger entry each); saved rows stay as
+  they are, and GMS and alert rows are not copied. Running the copy again adds nothing.
+- New optional setting `CONSULTING_REQUEST_TO` (API Worker): where consulting requests go. Unset,
+  they go to hello@agents.opengrants.io. Requests need outbound mail (`RESEND_API_KEY`, `RESEND_FROM`).
+- The jobs Worker runs a new daily job at 14:30 UTC (`outside-deadlines`) on the existing cron.
+- Recording a submission keeps a PDF copy, so it needs the `ATTACHMENTS` file storage binding.
+
 ## v1.3.1
 
 ### Fixed
