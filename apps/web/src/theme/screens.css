@@ -27,7 +27,9 @@ html, .phone-scroll, .gms-frame > .shell { overflow-anchor: none; }
   .gms-applicant.gms-frame > .shell > .rail { display: none; }
   /* The page scrolls inside the frame and the bottom tabs sit below it, so a bar never covers a control. */
   .gms-applicant.gms-frame { height: 100dvh; min-height: 0; }
-  .gms-applicant.gms-frame > .shell { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+  /* The scroller is also the containing block, so a visually hidden label (.sr, absolutely
+     positioned) is clipped with the page and never lengthens the document past the frame. */
+  .gms-applicant.gms-frame > .shell { flex: 1 1 0; min-height: 0; overflow-y: auto; position: relative; }
   .gms-phone-only { display: flex; flex: none; }
   .gms .main, .gms-applicant .main { padding: 16px; gap: 16px; }
   /* Multi-column page grids stack; wide tables scroll inside their wrapper. */
