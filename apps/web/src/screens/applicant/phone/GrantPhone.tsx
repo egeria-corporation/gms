@@ -186,8 +186,8 @@ export default function GrantPhone() {
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   return (
     <>
-      <title>{`My grants — ${ws.name}`}</title>
-      <PhoneShell title="My grants" active="My grants">
+      <title>{`Awarded funding — ${ws.name}`}</title>
+      <PhoneShell title="Awarded funding" active="Awarded funding">
         <main className="main" style={{ flex: 1 }}>
           {query.status === "loading" && <Loading label="Loading the grant" />}
           {query.status === "error" && <ErrorBanner error={query.error} onRetry={query.reload} />}

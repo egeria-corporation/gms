@@ -277,12 +277,12 @@ export default function GrantPayments() {
   return (
     <>
       <title>{`${title} — Payments — ${ws.name}`}</title>
-      <ApplicantShell active="My grants">
+      <ApplicantShell active="Awarded funding">
         <main className="main">
           <nav className="crumbs" aria-label="Breadcrumb">
             <Link to={base}>Dashboard</Link>
             <span aria-hidden="true">›</span>
-            <Link to={`${base}/grants`}>My grants</Link>
+            <Link to={`${base}/grants`}>Awarded funding</Link>
             <span aria-hidden="true">›</span>
             <span aria-current="page">{title}</span>
           </nav>

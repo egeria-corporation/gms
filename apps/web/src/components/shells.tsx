@@ -126,7 +126,7 @@ export const APPLICANT_RAIL: RailItem[] = [
   { label: "Organization", icon: Building, path: "/organization" },
   { label: "Find funding", icon: Search, path: "/find" },
   { label: "Applications", icon: FileText, path: "/applications" },
-  { label: "My grants", icon: Award, path: "/grants" },
+  { label: "Awarded funding", icon: Award, path: "/grants" },
   { label: "Reports", icon: ClipboardCheck, path: "/reports" },
   { label: "Answer library", icon: BookOpen, path: "/library" },
   { label: "Funders", icon: Landmark, path: "/funders" },
@@ -138,7 +138,7 @@ export const APPLICANT_RAIL: RailItem[] = [
 export const APPLICANT_TABS: Array<RailItem & { rail: string[] }> = [
   { label: "Home", icon: House, path: "", rail: ["Dashboard"] },
   { label: "Apply", icon: FileText, path: "/applications", rail: ["Applications", "Find funding"] },
-  { label: "Grants", icon: Award, path: "/grants", rail: ["My grants"] },
+  { label: "Awards", icon: Award, path: "/grants", rail: ["Awarded funding"] },
   { label: "Reports", icon: ClipboardCheck, path: "/reports", rail: ["Reports"] },
   { label: "Org", icon: Building, path: "/organization", rail: ["Organization"] },
 ];
