@@ -86,6 +86,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `list_competitions` | `competitions:read` | — | List competitions, optionally for one opportunity. |
 | `get_competition` | `competitions:read` | — | Get one competition with its stages, pinned forms and launch-check result. |
 | `create_competition` | `competitions:write` | — | Create a draft competition under an opportunity. One stage is the common case. |
+| `quick_setup_competition` | `competitions:write`, `competitions:read`, `forms:write`, `reviews:write` | — | Fill the gaps that keep an opportunity from taking applications: a one-stage competition on the opportunity's dates, a starter application form (published and pinned) and a starter rubric. Reuses what it made before and never overwrites stages the funder set; held when the workspace gates any action inside it. Opening stays `open_competition`. |
 | `set_stage_forms` | `competitions:write` | — | Pin form versions to a stage. On an open competition, pass migrate to re-validate in-progress responses. |
 | `set_rubric` | `competitions:write` | — | Set the rubric used to score a stage. |
 | `list_forms` | `forms:read` | — | List forms in the workspace, or the shared library. |

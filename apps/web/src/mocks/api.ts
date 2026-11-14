@@ -31,6 +31,7 @@ import { createMockFunderApi } from "./funder.ts";
 import { createMockFunderMoneyApi } from "./funderMoney.ts";
 import { createMockFunderFullApi } from "./funderFull.ts";
 import { createMockDirectAwardsApi } from "./directAwards.ts";
+import { STARTER_FORM, STARTER_RUBRIC, STARTER_STAGE, starterFormTitle, starterRubricName } from "./quickSetup.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -228,7 +229,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   };
   const directAwards = createMockDirectAwardsApi({ ...funderCtx, me, applicantInfo }, { ...funderMocks, ...funderFull });
 
-  return {
+  const api: GmsApi = {
     me,
     claimPassportSecondStep,
     async workspace(handle) {
@@ -492,6 +493,65 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       Object.assign(comp, { status: "closed", updatedAt: now() });
       return clone(comp);
     },
+    // Mirrors the Worker's quick setup: the same steps through this port's own writes, so the same
+    // rules hold. It keeps what the funder set and reuses what an earlier run made.
+    async quickSetup(opportunityId) {
+      const w = await ws();
+      const opp = one(w.opportunities, opportunityId, "Opportunity");
+      if (opp.status === "closed") throw new ApiError(409, "This opportunity is closed, so it cannot take applications");
+      const created = { competition: false, form: false, rubric: false };
+      const mine = w.competitions.filter((c) => c.opportunityId === opp.id);
+      let comp = mine.find((c) => c.status === "open") ?? mine.find((c) => c.status === "draft");
+      if (!comp) {
+        comp = one(w.competitions, (await api.createCompetition({ opportunityId: opp.id, title: opp.title })).id, "Competition");
+        created.competition = true;
+      }
+      if (comp.status === "draft") {
+        const stages = clone(comp.stages);
+        const before = JSON.stringify(stages);
+        let first = stages[0];
+        if (!first) {
+          first = { ...STARTER_STAGE, forms: {}, opens: null, closes: null, rubricId: null, reviewers: null, entryFrom: [], requiresSubmission: true, decisionRequired: true };
+          stages.push(first);
+        }
+        const opens = opp.keyDates.postDate?.date;
+        const closes = opp.keyDates.closeDate?.date;
+        const inOrder = (a: string | null | undefined, b: string | null | undefined) => !a || !b || Date.parse(a) < Date.parse(b);
+        if (!first.opens && opens && inOrder(`${opens}T00:00:00Z`, first.closes)) first.opens = `${opens}T00:00:00Z`;
+        if (!first.closes && closes && inOrder(first.opens, `${closes}T23:59:59Z`)) first.closes = `${closes}T23:59:59Z`;
+        if (first.requiresSubmission && !Object.keys(first.forms).length) {
+          const title = starterFormTitle(opp.title);
+          const versions = w.forms.filter((f) => f.title === title);
+          const published = versions.filter((f) => f.status === "published").sort((a, b) => b.version - a.version)[0];
+          let pin = published ? { id: published.id, version: published.version } : null;
+          if (!pin) {
+            const draft = versions.length === 1 && JSON.stringify(versions[0]!.jsonSchema) === JSON.stringify(STARTER_FORM.jsonSchema) ? versions[0]! : null;
+            const form = draft ?? (await api.createForm({ title, ...clone(STARTER_FORM) }));
+            created.form = !draft;
+            pin = { id: form.id, version: (await api.publishForm(form.id)).version };
+          }
+          first.forms = { [pin.id]: pin.version };
+        }
+        if (first.decisionRequired && !first.rubricId) {
+          const name = starterRubricName(opp.title);
+          const existing = w.rubrics.find((r) => r.name === name);
+          first.rubricId = existing?.id ?? (await api.createRubric({ name, ...clone(STARTER_RUBRIC) })).id;
+          created.rubric = !existing;
+        }
+        if (JSON.stringify(stages) !== before) await api.putStages(comp.id, stages);
+      }
+      const after = one(w.competitions, comp.id, "Competition");
+      const pinned = Object.entries(after.stages[0]?.forms ?? {})[0];
+      const form = pinned ? allForms(w).find((f) => f.id === pinned[0] && f.version === pinned[1]) : undefined;
+      const rubric = [...w.rubrics, ...store.sharedRubrics].find((r) => r.id === after.stages[0]?.rubricId);
+      return clone({
+        competition: after,
+        form: pinned ? { id: pinned[0], version: pinned[1], title: form?.title ?? "" } : null,
+        rubric: rubric ? { id: rubric.id, version: rubric.version, name: rubric.name } : null,
+        created,
+        checklist: checklist(w, after),
+      });
+    },
 
     async listForms() {
       const w = await ws();
@@ -571,4 +631,5 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return clone(evaluate(parsed.rules, { org: input.org, profile: input.profile, applicant: input.applicant }));
     },
   };
+  return api;
 }

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Funder dashboard: what needs a person today. Counts, the pipeline of each competition by stage,
 // committed money by program, open tasks, agent requests awaiting approval, and payee alerts
-// (holds, destination changes, level drops) as Passport reports them.
+// (holds, destination changes, level drops) as Passport reports them. A published opportunity that
+// is not taking applications is a task until a competition opens.
 import { useAppConfig } from "../../api/launchHooks.ts";
 import { Link } from "react-router";
-import { Bot, Briefcase, ClipboardCheck, Eye, Gavel, Info } from "lucide-react";
+import { Bot, Briefcase, CirclePause, ClipboardCheck, Eye, Gavel, Info } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Task } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -14,6 +15,7 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 import { ActivityTimeline } from "../../components/ActivityTimeline.tsx";
 import { ApprovalCard } from "./Approvals.tsx";
 import { timeAgo, usePeople } from "./shared.tsx";
+import { publishedNotTaking } from "./applicationsStatus.tsx";
 
 const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
 const OPEN = ["submitted", "screening", "under_review", "revision_requested", "interview", "recommended"];
@@ -24,6 +26,7 @@ export default function Dashboard() {
   const base = `/w/${ws.handle}`;
   const programs = useApiQuery((api) => api.listPrograms(), []);
   const competitions = useApiQuery((api) => api.listCompetitions(), []);
+  const opportunities = useApiQuery((api) => api.listOpportunities(), []);
   const apps = useApiQuery((api) => api.listApplications({ pageSize: 100 }), []);
   const assignments = useApiQuery((api) => api.listAssignments(), []);
   const awards = useApiQuery((api) => api.listAwards(), []);
@@ -40,6 +43,8 @@ export default function Dashboard() {
   const reviewsOpen = assignments.data?.filter((a) => ["assigned", "coi_declared", "in_progress"].includes(a.status)) ?? [];
   const toCountersign = awards.data?.filter((a) => a.status === "accepted").length ?? 0;
   const firstRun = programs.status === "ready" && programs.data.length === 0;
+  // Published opportunities applicants can find but cannot apply to yet.
+  const notTaking = opportunities.data && competitions.data ? opportunities.data.filter((o) => publishedNotTaking(o, competitions.data!)) : [];
   const today = new Date();
 
   return (
@@ -209,12 +214,21 @@ export default function Dashboard() {
                   <section className="card" aria-labelledby="tasks-h">
                     <div className="card-h">
                       <h3 id="tasks-h">My tasks</h3>
-                      <span className="small muted">{tasks.data?.length ?? 0} open</span>
+                      <span className="small muted">{(tasks.data?.length ?? 0) + notTaking.length} open</span>
                     </div>
                     {tasks.status === "error" && <ErrorBanner error={tasks.error} onRetry={tasks.reload} />}
                     {done.error !== null && <ErrorBanner error={done.error} />}
-                    {tasks.data?.length === 0 && <div className="card-b muted">Nothing waiting on you.</div>}
+                    {tasks.data?.length === 0 && notTaking.length === 0 && <div className="card-b muted">Nothing waiting on you.</div>}
                     <ul>
+                      {notTaking.map((o) => (
+                        <li key={`open-${o.id}`} className="row" style={{ gap: "12px", padding: "10px 20px", borderBottom: "1px solid var(--border-1)" }}>
+                          <CirclePause className="ic" aria-hidden="true" />
+                          <Link to={`${base}/opportunities/${o.id}/edit#applications`} className="grow" style={{ color: "var(--fg-2)" }}>
+                            Open applications for {o.title}
+                          </Link>
+                          <span className="small muted">Published, not taking applications</span>
+                        </li>
+                      ))}
                       {tasks.data?.map((t) => {
                         const overdue = t.dueAt !== null && Date.parse(t.dueAt) < today.getTime();
                         return (

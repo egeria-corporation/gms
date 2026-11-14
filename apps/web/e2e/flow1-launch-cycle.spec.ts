@@ -83,7 +83,8 @@ test("funder launches a cycle", async ({ app: page }) => {
     await checklist.getByRole("link", { name: /Fix/ }).click();
     await page.getByRole("link", { name: "Publish", exact: true }).first().click();
     await page.getByRole("button", { name: "Publish as open" }).click();
-    await expect(page.getByText("Open", { exact: true }).first()).toBeVisible();
+    // Published, but its competition is still a draft: the builder says so.
+    await expect(page.getByText("Published, not taking applications").first()).toBeVisible();
     await rail(page, "Opportunities").click();
     await page.getByRole("link", { name: "Competition for Rural Health Access Grants 2028" }).click();
     const ready = page.getByRole("region", { name: "Launch checklist" });

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // /gms routes for what a funder designs before anyone applies: programs, opportunities,
 // competitions, forms, rubrics and eligibility dry-runs (build spec §9.2).
-import { Hono } from "hono";
+import { gateNamesFor } from "@gms/mcp";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../../app.ts";
 import { authenticate } from "../../auth/middleware.ts";
+import { workspaceGates } from "../../auth/rest-gates.ts";
+import { forbidden } from "../../auth/verify.ts";
 import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid, uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
@@ -13,6 +16,7 @@ import * as eligibility from "../../services/eligibility.ts";
 import * as forms from "../../services/forms.ts";
 import * as opportunities from "../../services/opportunities.ts";
 import * as programs from "../../services/programs.ts";
+import * as quickSetup from "../../services/quick-setup.ts";
 import { jsonBody, page, svc, versionQuery } from "../http.ts";
 
 export const designRoutes = new Hono<AppEnv>();
@@ -59,6 +63,26 @@ designRoutes.patch("/opportunities/:id", async (c) => c.json(ok(await opportunit
 designRoutes.post("/opportunities/:id/publish", async (c) => c.json(ok(await opportunities.publishOpportunity(await svc(c), oppId(c), parse(opportunities.publishInput, await jsonBody(c))))));
 designRoutes.post("/opportunities/:id/close", async (c) => c.json(ok(await opportunities.closeOpportunity(await svc(c), oppId(c)))));
 designRoutes.post("/opportunities/:id/preview", async (c) => c.json(ok(await opportunities.previewOpportunity(await svc(c), oppId(c)))));
+/**
+ * A gate on a composite tool's parts holds it over REST too (`svc()` checks only the route's own
+ * tool): an agent or API-client token cannot make, through quick setup, what a gate would hold.
+ */
+async function refuseGated(c: Context<AppEnv>, tool: string) {
+  const p = c.get("principal");
+  if (p.kind === "user" || p.scopes.includes("approvals:bypass")) return;
+  const ws = await c.get("deps").repos.table("workspaces").one({ id: p.workspaceId });
+  const client = p.clientId ? await c.get("deps").auth.getClient(p.clientId) : null;
+  const gated = new Set([...workspaceGates(ws?.settings), ...(client?.gatedTools ?? [])]);
+  const held = gateNamesFor(tool).find((t) => gated.has(t));
+  if (held) throw forbidden("approval_required", `This workspace requires a person's approval for ${held}. Call the MCP tool ${tool}, which files the approval request, or do it in the GMS`);
+}
+
+/** Quick setup: a one-stage draft competition with a starter form and rubric, ready for the launch checklist. */
+designRoutes.post("/opportunities/:id/quick-setup", async (c) => {
+  parse(z.object({}).strict(), await jsonBody(c));
+  await refuseGated(c, "quick_setup_competition");
+  return c.json(ok(await quickSetup.quickSetupCompetition(await svc(c), oppId(c))));
+});
 
 // ---- competitions ----
 designRoutes.get("/competitions", async (c) => {
