@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Fixes from tester feedback (v1.3.2): switches that flip at once and lists that stay on screen
-// while they refresh, and "Awarded funding" in place of "My grants".
+// while they refresh, "Awarded funding" in place of "My grants", and funding alerts kept by the
+// GMS's own alerts service.
 import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ApplicationStatusView } from "../src/api/applicant.ts";
+import { createHttpApplicantFullApi, OPENGRANTS_ALERTS } from "../src/api/applicantFull.ts";
+import { ApiError } from "../src/api/client.ts";
 import { provideApplicantFullApi } from "../src/api/applicantFullHooks.ts";
 import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
 import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
@@ -243,5 +246,76 @@ describe("Awarded funding (was My grants)", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText(/The award and its agreement are under Awarded funding\./)).toBeInTheDocument();
+  });
+});
+
+describe("funding alerts over HTTP", () => {
+  type Sent = { method: string; path: string; body: unknown };
+  /** A fake GMS: the alerts service answers, OpenGrants alerts answer 501 as they do in production. */
+  function server(opts: { alerts?: { status: number; body: unknown } } = {}) {
+    const sent: Sent[] = [];
+    const rows: { id: string; name: string; query: string | null; filters: object; frequency: string; createdAt: string }[] = [
+      { id: "a-old", name: "rural health", query: "rural health", filters: {}, frequency: "weekly", createdAt: "2027-03-01T00:00:00Z" },
+    ];
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+      const method = init?.method ?? "GET";
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
+      sent.push({ method, path: url.pathname, body });
+      if (url.pathname === "/gms/discover/alerts" && method === "GET") return json(200, { data: rows });
+      if (url.pathname === "/gms/discover/alerts" && method === "POST") {
+        if (opts.alerts) return json(opts.alerts.status, opts.alerts.body);
+        const b = body as { name: string; query?: string };
+        const row = { id: `a-${rows.length + 1}`, name: b.name, query: b.query ?? null, filters: {}, frequency: "weekly", createdAt: "2027-04-20T00:00:00Z" };
+        rows.push(row);
+        return json(201, { data: row });
+      }
+      if (url.pathname === "/gms/discover/opengrants/alerts") return json(501, { code: "opengrants_not_supported", message: "Funding alerts are set up on opengrants.io; they are not available from here yet" });
+      return json(404, { message: "Not found" });
+    };
+    return { sent, fetch };
+  }
+  const api = (fetch: typeof globalThis.fetch, openGrantsAlerts?: boolean) =>
+    createHttpApplicantFullApi({ baseUrl: "http://api.test", token: async () => "t", workspaceId: () => "ws-1", fetch, ...(openGrantsAlerts === undefined ? {} : { openGrantsAlerts }) });
+
+  it("creates the alert with the GMS's own alerts service and never asks OpenGrants, which cannot take one", async () => {
+    expect(OPENGRANTS_ALERTS).toBe(false);
+    const s = server();
+    const alert = await api(s.fetch).createAlert("  housing stability ");
+    expect(alert).toEqual({ id: "a-2", query: "housing stability", createdAt: "2027-04-20T00:00:00Z" });
+    expect(s.sent).toEqual([{ method: "POST", path: "/gms/discover/alerts", body: { name: "housing stability", query: "housing stability" } }]);
+  });
+
+  it("lists the alerts from the same service, newest first", async () => {
+    const s = server();
+    const full = api(s.fetch);
+    await full.createAlert("housing stability");
+    expect((await full.alerts()).map((a) => a.query)).toEqual(["housing stability", "rural health"]);
+    expect(s.sent.map((x) => `${x.method} ${x.path}`)).toEqual(["POST /gms/discover/alerts", "GET /gms/discover/alerts"]);
+  });
+
+  it("keeps a long topic whole and shortens only the alert's name to what the service takes", async () => {
+    const s = server();
+    const topic = "community health worker programs ".repeat(6).trim();
+    expect(topic.length).toBeGreaterThan(120);
+    const alert = await api(s.fetch).createAlert(topic);
+    expect(alert.query).toBe(topic);
+    expect((s.sent[0]!.body as { name: string }).name).toHaveLength(120);
+  });
+
+  it("where OpenGrants is said to take alerts, also tells it, and its 501 does not lose the saved alert", async () => {
+    const s = server();
+    const alert = await api(s.fetch, true).createAlert("housing stability");
+    expect(alert.query).toBe("housing stability");
+    expect(s.sent.map((x) => x.path)).toEqual(["/gms/discover/alerts", "/gms/discover/opengrants/alerts"]);
+  });
+
+  it("reports a refused alert as an error and asks OpenGrants nothing", async () => {
+    const s = server({ alerts: { status: 422, body: { message: "A workspace can keep up to 25 funding alerts" } } });
+    const err = await api(s.fetch, true).createAlert("one more").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 422, message: "A workspace can keep up to 25 funding alerts" });
+    expect(s.sent.map((x) => x.path)).toEqual(["/gms/discover/alerts"]);
   });
 });
