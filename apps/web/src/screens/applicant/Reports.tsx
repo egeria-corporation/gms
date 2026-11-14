@@ -191,7 +191,7 @@ export default function Reports() {
             </div>
             <div className="actions">
               <Link to={`${base}/grants`} className="btn btn-secondary">
-                My grants
+                Awarded funding
               </Link>
             </div>
           </div>

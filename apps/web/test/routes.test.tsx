@@ -33,7 +33,7 @@ describe("routes", () => {
 
     open("/w/alder-creek");
     const applicantRail = await screen.findByRole("navigation", { name: "Applicant workspace" });
-    expect(within(applicantRail).getByRole("link", { name: "My grants" })).toBeInTheDocument();
+    expect(within(applicantRail).getByRole("link", { name: "Awarded funding" })).toBeInTheDocument();
   });
 
   it("keeps funder-only routes out of an applicant workspace", async () => {

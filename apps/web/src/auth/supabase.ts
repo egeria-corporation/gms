@@ -21,6 +21,9 @@ function fail(error: { message: string; status?: number }): never {
   throw new AuthError(error.message, code);
 }
 
+/** The name authenticator apps show for the two-step verification entry. */
+export const TOTP_ISSUER = "OpenGrants";
+
 export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
   const supabase: SupabaseClient = createClient(url, anonKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
@@ -69,7 +72,7 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
       return data.totp.filter((f) => f.status === "verified").map((f) => f.id);
     },
     async enrollTotp(): Promise<TotpEnrollment> {
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: TOTP_ISSUER });
       if (error) fail(error);
       return { factorId: data.id, secret: data.totp.secret, uri: data.totp.uri, qrCode: data.totp.qr_code };
     },
