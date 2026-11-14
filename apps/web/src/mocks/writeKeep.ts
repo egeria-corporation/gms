@@ -489,7 +489,8 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       if (patch.title !== undefined && !patch.title.trim()) throw invalid("title", "Give it a title");
       if (patch.status) {
         const allowed: Record<Obligation["kind"], Obligation["status"][]> = { report: ["upcoming", "done", "missed"], condition: ["upcoming", "done", "missed"], payment_expected: ["upcoming", "received", "missed"], payment_received: ["received"] };
-        if (!allowed[o.kind].includes(patch.status)) throw new ApiError(409, "That status does not apply to this obligation");
+        // A submitted report that was marked done can go back to submitted; nothing else sets it but submit.
+        if (!allowed[o.kind].includes(patch.status) && !(o.kind === "report" && patch.status === "submitted" && o.submittedAt)) throw new ApiError(409, "That status does not apply to this obligation");
       }
       const { scope, series, ...fields } = patch;
       if (scope === "series" && o.seriesId) {

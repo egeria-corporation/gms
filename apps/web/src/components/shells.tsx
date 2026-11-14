@@ -127,6 +127,7 @@ export const APPLICANT_RAIL: RailItem[] = [
   { label: "Find funding", icon: Search, path: "/find" },
   { label: "Applications", icon: FileText, path: "/applications" },
   { label: "Awarded funding", icon: Award, path: "/grants" },
+  { label: "Funding summary", icon: ChartColumn, path: "/summary" },
   { label: "Reports", icon: ClipboardCheck, path: "/reports" },
   { label: "Answer library", icon: BookOpen, path: "/library" },
   { label: "Funders", icon: Landmark, path: "/funders" },

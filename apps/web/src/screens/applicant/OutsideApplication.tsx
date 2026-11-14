@@ -9,7 +9,7 @@ import type { ApplicantApi } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import type { OutsideApi, OutsideApplication as OutsideRecord } from "../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../api/outsideHooks.ts";
-import type { WriteKeepApi } from "../../api/writeKeep.ts";
+import { libraryWithMeta, type WriteKeepApi } from "../../api/writeKeep.ts";
 import { useWriteKeepApi } from "../../api/writeKeepHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -36,7 +36,7 @@ const load = async (api: OutsideApi, applicant: ApplicantApi, wk: WriteKeepApi, 
     api.funderRecords().catch(() => []),
     applicant.members().catch(() => []),
     // The library with when each answer was last verified and its variants.
-    wk.library().catch(() => applicant.answers().catch(() => [])),
+    libraryWithMeta(() => applicant.answers(), wk).catch(() => []),
     applicant.organization().catch(() => null),
     wk.settings().catch(() => null),
   ]);

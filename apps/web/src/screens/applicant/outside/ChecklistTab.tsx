@@ -9,7 +9,7 @@ import { useFullQuery } from "../../../api/applicantFullHooks.ts";
 import type { OutsideDetail } from "../../../api/outside.ts";
 import { useOutsideMutation } from "../../../api/outsideHooks.ts";
 import type { VaultDocument } from "../../../api/writeKeep.ts";
-import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
+import { useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
 import { openBlob } from "../../../lib/browser.ts";

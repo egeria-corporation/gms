@@ -221,6 +221,20 @@ export interface WriteKeepApi {
   exportSummary(format: "csv" | "pdf"): Promise<ExportFile>;
 }
 
+/**
+ * The answer library with its v1.6 fields. A server that sends `lastVerifiedAt` on the answers
+ * needs nothing more; otherwise the fields are read from the library call and joined by key.
+ */
+export async function libraryWithMeta(answers: () => Promise<Answer[]>, wk: Pick<WriteKeepApi, "library">): Promise<LibraryAnswer[]> {
+  const list = await answers();
+  if (list.length === 0 || list.some((a) => "lastVerifiedAt" in a)) return list;
+  const meta = await wk.library().catch(() => [] as LibraryAnswer[]);
+  return list.map((a) => {
+    const m = meta.find((x) => x.id === a.id) ?? meta.find((x) => x.key === a.key);
+    return m ? { ...a, lastVerifiedAt: m.lastVerifiedAt ?? null, variants: m.variants ?? {}, tags: m.tags ?? [] } : a;
+  });
+}
+
 // ------------------------------------------------------------------------------------ shaping
 
 type Raw = Record<string, unknown>;

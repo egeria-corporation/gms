@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, CalendarCheck, Plus } from "lucide-react";
 import type { Answer } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantMutation } from "../../api/applicantHooks.ts";
-import type { LibraryAnswer } from "../../api/writeKeep.ts";
+import { libraryWithMeta, type LibraryAnswer } from "../../api/writeKeep.ts";
 import { useWKMutation, useWKQuery } from "../../api/writeKeepHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Loaded, timeAgo } from "../../components/applicant.tsx";
@@ -159,7 +159,7 @@ export default function AnswerLibrary() {
   const ws = useWorkspace("applicant");
   const applicant = useApplicantApi();
   // The library with each answer's last check, versions and tags (v1.6).
-  const query = useWKQuery<LibraryAnswer[]>((api) => api.library().catch(() => applicant.answers()), [ws.id, applicant]);
+  const query = useWKQuery<LibraryAnswer[]>((api) => libraryWithMeta(() => applicant.answers(), api), [ws.id, applicant]);
   const [selected, setSelected] = useState<string | "new" | null>(null);
 
   return (
