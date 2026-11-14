@@ -71,6 +71,17 @@ const ROWS: readonly Row[] = [
   r("POST", "/gms/outside-applications/:id/stage", "set_outside_stage"),
   r("POST", "/gms/outside-applications/:id/submit", "record_outside_submission"),
   r("POST", "/gms/outside-applications/:id/decision", "record_outside_decision"),
+  // Write faster and keep it (drafts and reads have no gate entry: they change nothing)
+  r("POST", "/gms/my/answers/:id/verify", "verify_answer"),
+  r("POST", "/gms/outside-applications/:id/required-documents/use-from-vault", "use_vault_document"),
+  r("POST", "/gms/outside-applications/:id/go-no-go", "decide_go_no_go"),
+  r("POST", "/gms/outside-questions/:id/comments", "comment_on_question"),
+  r("POST", "/gms/outside-applications/:id/milestones", "create_milestones"),
+  r("POST", "/gms/outside-applications/:id/obligations", "add_obligation"),
+  r("POST", "/gms/outside-obligations/:id/status", "set_obligation_status"),
+  r("POST", "/gms/outside-obligations/:id/submit", "record_report_submission"),
+  r("POST", "/gms/outside-applications/:id/close-out", "close_out_award"),
+  r("POST", "/gms/outside-applications/:id/next-cycle-alert", "alert_on_next_cycle"),
 ];
 
 /** The MCP tool a REST call stands for, or null for reads and routes no tool covers. */

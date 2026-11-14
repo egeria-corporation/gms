@@ -19,9 +19,12 @@ import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
+import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
+import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
+import * as obligations from "./obligations.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
 import * as org from "./organization.ts";
@@ -31,7 +34,9 @@ import * as pub from "./public.ts";
 import * as quickSetup from "./quick-setup.ts";
 import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
+import * as team from "./team.ts";
 import * as templates from "./templates.ts";
+import * as vault from "./vault.ts";
 import type { Repos, Row } from "./repos/types.ts";
 
 export type ContextBase = Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">;
@@ -261,6 +266,35 @@ const IMPLEMENTED: Impl = {
     const { outsideApplicationId, ...rest } = i;
     return outside.recordDecision(ctx, oa(outsideApplicationId), input(outside.decisionInput, rest));
   },
+
+  // ---- write faster and keep it (v1.6.0, v1.7.0), through the same services as the REST routes ----
+  // Drafts save nothing: the agent (or person) saves accepted text with put_outside_answer.
+  draftOutsideAnswer: (ctx, i) => drafting.draftOutsideAnswer(ctx, bareUuid(i.questionId, "Question")),
+  readFunderGuidelines: (ctx, i) => drafting.parseGuidelinesText(ctx, oa(i.outsideApplicationId), i.text, i.phase),
+  libraryForQuestion: (ctx, i) => drafting.librarySuggestions(ctx, bareUuid(i.questionId, "Question")),
+  verifyAnswer: (ctx, i) => applicant.verifyAnswer(ctx, bareUuid(i.answerId, "Answer")),
+  listVaultDocuments: (ctx, i) => vault.listVault(ctx, i.docType ? { docType: i.docType } : {}),
+  useVaultDocument: (ctx, i) => vault.useFromVault(ctx, oa(i.outsideApplicationId), input(vault.useFromVaultInput, { label: i.label, documentId: i.documentId })),
+  decideGoNoGo: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return team.decideGoNoGo(ctx, oa(outsideApplicationId), input(team.goNoGoInput, rest));
+  },
+  commentOnQuestion: (ctx, i) => team.addQuestionComment(ctx, bareUuid(i.questionId, "Question"), input(team.commentInput, { body: i.body })),
+  createMilestones: (ctx, i) => team.createMilestones(ctx, oa(i.outsideApplicationId), input(team.milestonesInput, { tasks: i.tasks })),
+  getOutsideAward: (ctx, i) => obligations.getOutsideAward(ctx, oa(i.outsideApplicationId)),
+  addObligation: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return obligations.createObligation(ctx, oa(outsideApplicationId), input(obligations.obligationInput, rest));
+  },
+  setObligationStatus: (ctx, i) => {
+    const { obligationId, ...rest } = i;
+    return obligations.setObligationStatus(ctx, bareUuid(obligationId, "Obligation"), input(obligations.statusInput, rest));
+  },
+  // Gated for every agent: it runs only after a person approved the call, as that person.
+  recordReportSubmission: (ctx, i) => obligations.submitReport(ctx, bareUuid(i.obligationId, "Obligation"), input(obligations.reportSubmitInput, { submittedAt: i.submittedAt, ...(i.confirmationRef ? { confirmationRef: i.confirmationRef } : {}) })),
+  closeOutAward: (ctx, i) => obligations.closeOut(ctx, oa(i.outsideApplicationId)),
+  getFundingSummary: (ctx) => summary.fundingSummary(ctx),
+  alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
 
   listMessages: async (ctx, i) => {
     if (!i.applicationId) throw new ServiceError("invalid_input", "Pass applicationId: threads are listed per application.", [{ field: "applicationId", message: "Required" }]);
