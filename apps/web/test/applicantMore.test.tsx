@@ -274,7 +274,7 @@ describe("phone layouts follow the 390px artboards", () => {
     expect(screen.getByRole("heading", { level: 2, name: /Maria$/ })).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Manage in Passport" })).toHaveClass("btn-block");
     const tabs = screen.getByRole("navigation", { name: "Primary" });
-    expect(within(tabs).getAllByRole("link").map((l) => l.textContent)).toEqual(["Home", "Apply", "Grants", "Reports", "Org"]);
+    expect(within(tabs).getAllByRole("link").map((l) => l.textContent)).toEqual(["Home", "Apply", "Awards", "Reports", "Org"]);
     expect(within(tabs).getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
     // No desktop rail on the phone layout until the menu is opened.
     expect(screen.queryByRole("navigation", { name: "Applicant workspace" })).not.toBeInTheDocument();
@@ -296,7 +296,7 @@ describe("phone layouts follow the 390px artboards", () => {
     expect(await screen.findByText("Tranche 1 of 2")).toBeInTheDocument();
     expect(screen.getByText("Tranche 2 of 2")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Payment destination" })).getByText("River City Credit Union •••• 4821")).toBeInTheDocument();
-    expect(within(screen.getByRole("navigation", { name: "Primary" })).getByRole("link", { name: "Grants" })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Primary" })).getByRole("link", { name: "Awards" })).toHaveAttribute("aria-current", "page");
   });
 
   it("reports: a card per requirement, then the report with a full-width submit", async () => {

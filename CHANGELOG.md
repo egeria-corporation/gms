@@ -42,6 +42,31 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 - The jobs Worker runs a new daily job at 14:30 UTC (`outside-deadlines`) on the existing cron.
 - Recording a submission keeps a PDF copy, so it needs the `ATTACHMENTS` file storage binding.
 
+## v1.3.2
+
+### Fixed
+
+- Switching a human gate on or off (Settings, Human gates) no longer makes the list flash to
+  "Loading gates" and the switch move late. The switch flips at once, stays disabled while the
+  change saves, and goes back with a message naming the gate if the save fails. Elsewhere, a list
+  that refreshes after a change keeps showing what it had until the new data arrives, instead of
+  going blank.
+- Authenticator apps now name the two-step verification entry "OpenGrants".
+- In the applicant workspace, "My grants" is now "Awarded funding" (menu, page title and heading,
+  breadcrumbs, the reports page and the line under an accepted decision), and the phone tab says
+  "Awards". The address is still `/grants`.
+- Creating a funding alert failed: the app asked OpenGrants first, which does not take alerts and
+  answered "not available". Alerts are now kept by the GMS's own alerts service
+  (`/gms/discover/alerts`), and OpenGrants is not asked.
+- The landing page no longer says "No Passport account needed." or "No Passport required". Where
+  the server can link Passport, it presents OpenGrants Passport as an optional add-on: a free,
+  verified profile for your organization that you set up once and share with the funders you
+  choose. Signing up with an email is unchanged.
+
+### Upgrade notes
+
+- None. No database migrations and no setting changes.
+
 ## v1.3.1
 
 ### Fixed

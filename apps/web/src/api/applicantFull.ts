@@ -154,9 +154,16 @@ export interface HttpApplicantFullOptions {
   token: () => Promise<string | null>;
   workspaceId: () => string | null;
   fetch?: typeof fetch;
+  /** Also register each new funding alert with OpenGrants. Defaults to `OPENGRANTS_ALERTS`. */
+  openGrantsAlerts?: boolean;
 }
 
-const ALERT_PREFIX = "alert:";
+/**
+ * Funding alerts are kept by the GMS's own alerts service. The OpenGrants API this server uses
+ * takes no alerts (it answers 501), so the web does not call it. Set true once OpenGrants takes
+ * them: each new alert is then also registered there, and a failure there never loses the alert.
+ */
+export const OPENGRANTS_ALERTS = false;
 
 interface RawAward {
   recipient: string | null;
@@ -204,8 +211,8 @@ export function createHttpApplicantFullApi(opts: HttpApplicantFullOptions): Appl
   const e = encodeURIComponent;
   const token = (c: ApiToken): ApiToken => ({ id: c.id, name: c.name, scopes: c.scopes ?? [], createdAt: c.createdAt, lastUsedAt: c.lastUsedAt ?? null, revokedAt: c.revokedAt ?? null });
 
-  type Saved = { id: string; source: string; externalId: string; title: string; createdAt?: string };
-  const toAlert = (s: Saved): FundingAlert => ({ id: s.id, query: s.title, createdAt: s.createdAt ?? "" });
+  type RawAlert = { id: string; name: string; query?: string | null; createdAt?: string | null };
+  const toAlert = (a: RawAlert): FundingAlert => ({ id: a.id, query: a.query || a.name, createdAt: a.createdAt ?? "" });
 
   return {
     apiTokens: async () => ((await get<ApiToken[] | null>("/gms/api-clients")) ?? []).map(token),
@@ -235,11 +242,14 @@ export function createHttpApplicantFullApi(opts: HttpApplicantFullOptions): Appl
     },
     payoutDestination: (awardId) => get(`/gms/my/awards/${e(awardId)}/payout-destination`),
 
-    // An alert is registered with OpenGrants and remembered as a saved listing, so it is listed here.
-    alerts: async () => ((await get<Saved[] | null>("/gms/discover/saved")) ?? []).filter((s) => s.externalId.startsWith(ALERT_PREFIX)).map(toAlert),
+    // The GMS's own alerts service keeps them; the newest is listed first, as in the mock.
+    alerts: async () => ((await get<RawAlert[] | null>("/gms/discover/alerts")) ?? []).map(toAlert).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     createAlert: async (query) => {
-      await call("POST", "/gms/discover/opengrants/alerts", { query });
-      return toAlert(await call<Saved>("POST", "/gms/discover/saved", { source: "opengrants", externalId: `${ALERT_PREFIX}${query.toLowerCase()}`, title: query }));
+      const q = query.trim();
+      const alert = toAlert(await call<RawAlert>("POST", "/gms/discover/alerts", { name: q.slice(0, 120), query: q }));
+      // Only where OpenGrants takes alerts, and never at the cost of the one just saved.
+      if (opts.openGrantsAlerts ?? OPENGRANTS_ALERTS) await call("POST", "/gms/discover/opengrants/alerts", { query: q }).catch(() => undefined);
+      return alert;
     },
 
     assistStatus: async () => {

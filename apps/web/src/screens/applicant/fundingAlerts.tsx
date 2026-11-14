@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Funding alerts: searches OpenGrants keeps watching for the organization. Creating one registers
-// it with OpenGrants; the list is kept with the workspace's saved listings.
+// Funding alerts: topics the organization keeps watching for, kept by the GMS's own alerts service.
+// OpenGrants is told about one only where it takes alerts (see OPENGRANTS_ALERTS).
 import { useState, type FormEvent } from "react";
 import { BellRing, Check } from "lucide-react";
 import { useFullMutation, useFullQuery } from "../../api/applicantFullHooks.ts";
@@ -28,14 +28,14 @@ export function FundingAlerts() {
             <h2 id="alerts-h" style={{ fontSize: "18px" }}>
               Alerts
             </h2>
-            <p className="small muted">OpenGrants watches for new funding that matches, using your organization's type, region and mission.</p>
+            <p className="small muted">Topics your organization keeps watching for. Alerts are kept with this workspace.</p>
           </div>
         </div>
         <Loaded query={query} label="Loading your alerts">
           {(alerts) =>
             alerts.length === 0 ? (
               <EmptyState icon={BellRing} title="No alerts yet">
-                Create one for a topic you search for often, and new matches will be sent to you.
+                Create one for a topic you search for often.
               </EmptyState>
             ) : (
               <ul>

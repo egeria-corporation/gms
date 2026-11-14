@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// My grants: every award on record, and for the open one the offer, acceptance and the grant
+// Awarded funding: every award on record, and for the open one the offer, acceptance and the grant
 // agreement with click-to-sign. Signing is a human gate: the Sign button needs the typed legal
 // name and the attestation, and the server refuses agent tokens.
 import { useState } from "react";
@@ -157,8 +157,8 @@ export default function GrantOffered() {
 
   return (
     <>
-      <title>{`My grants — ${ws.name}`}</title>
-      <ApplicantShell active="My grants">
+      <title>{`Awarded funding — ${ws.name}`}</title>
+      <ApplicantShell active="Awarded funding">
         <main className="main">
           <Loaded query={query} label="Loading your grants">
             {({ awards, award, agreement }) => {
@@ -187,7 +187,7 @@ export default function GrantOffered() {
                 <>
                   <div className="ph">
                     <div>
-                      <h1>My grants</h1>
+                      <h1>Awarded funding</h1>
                       <div className="meta">
                         <span>
                           {awards.length} grant{awards.length === 1 ? "" : "s"} · {formatMinor(total)} awarded · {formatMinor(received)} received

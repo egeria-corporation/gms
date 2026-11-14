@@ -115,7 +115,7 @@ export function DecisionSection({ status, funder, base, awardId }: { status: App
           <>
             <p style={{ fontSize: "15px" }}>
               {funder} decided{event ? ` on ${formatDate(event.at)}` : ""}.{" "}
-              {status.status === "accepted" ? "The award and its agreement are under My grants." : status.status === "waitlisted" ? "Your application is on the waitlist; you will be told if funding becomes available." : "The letter was sent to your team by email."}
+              {status.status === "accepted" ? "The award and its agreement are under Awarded funding." : status.status === "waitlisted" ? "Your application is on the waitlist; you will be told if funding becomes available." : "The letter was sent to your team by email."}
             </p>
             {event?.message ? <p>{event.message}</p> : null}
             {status.status === "accepted" ? (
