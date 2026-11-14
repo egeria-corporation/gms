@@ -161,3 +161,26 @@ export function parseQuestions(input: string, phase: QuestionPhase = "full"): Pa
   }
   return out;
 }
+
+// ------------------------------------------------------------------------------------ library variants
+
+export type VariantKey = "short" | "medium" | "long";
+/** About how long each variant of a library answer is, in words (contract: about 50, 150 and 500). */
+export const VARIANT_WORDS: Readonly<Record<VariantKey, number>> = { short: 50, medium: 150, long: 500 };
+
+/**
+ * The version of a library answer that best fits a question's limit: the longest one within the
+ * limit, or the shortest when none fits. Without a limit, the answer itself.
+ */
+export function bestVariant(answer: { body: string; variants?: Partial<Record<VariantKey, string>> | null }, limit: { kind: LimitKind; value: number } | null): { key: VariantKey | "body"; text: string; fits: boolean } {
+  const options: { key: VariantKey | "body"; text: string }[] = [{ key: "body", text: answer.body }];
+  for (const k of ["short", "medium", "long"] as const) {
+    const t = answer.variants?.[k];
+    if (typeof t === "string" && t.trim()) options.push({ key: k, text: t });
+  }
+  if (!limit) return { ...options[0]!, fits: true };
+  const sized = options.map((o) => ({ ...o, n: countFor(countText(o.text), limit.kind) }));
+  const fitting = sized.filter((o) => o.n <= limit.value).sort((a, b) => b.n - a.n);
+  const pick = fitting[0] ?? sized.sort((a, b) => a.n - b.n)[0]!;
+  return { key: pick.key, text: pick.text, fits: pick.n <= limit.value };
+}

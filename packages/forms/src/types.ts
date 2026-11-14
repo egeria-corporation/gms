@@ -149,8 +149,13 @@ export interface FormDefinition {
   supersedesFormVersion?: number | null;
 }
 
-/** `self_declared`: prefilled from the profile an organization without Passport entered itself (shown as "you entered"). */
-export type ProvenanceSource = "passport" | "self_declared" | "library" | "prior_submission" | "qbo" | "user" | `agent:${string}`;
+/**
+ * `self_declared`: prefilled from the profile an organization without Passport entered itself (shown as "you entered").
+ * `assist`: text the drafting assistant wrote and a person accepted (listed in the application's "AI use" note).
+ */
+export type ProvenanceSource = "passport" | "self_declared" | "library" | "prior_submission" | "qbo" | "user" | "assist" | `agent:${string}`;
+/** Every fixed provenance value (agents add `agent:<clientId>`). The database checks hold the same list. */
+export const PROVENANCE_SOURCES = ["passport", "self_declared", "library", "prior_submission", "qbo", "user", "assist"] as const;
 export type Provenance = Record<string, ProvenanceSource>;
 /** Provenance a later prefill may overwrite: values that came from the organization record, not from a person. */
 export const isPrefillSource = (s: ProvenanceSource | undefined): boolean => s === "passport" || s === "self_declared";

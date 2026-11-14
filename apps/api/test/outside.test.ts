@@ -216,8 +216,9 @@ describe("questions and answers", () => {
     ]);
     expect(await h.repos.table("outside_questions").count({})).toBe(0);
     const ai = await s.call<{ errors: { code: string }[] }>(s.applicant, "POST", `/gms/outside-applications/${oa.id}/questions/parse`, { text: "x", mode: "ai" });
-    expect(ai.status).toBe(501);
-    expect(ai.body.errors[0]!.code).toBe("not_available_yet");
+    // v1.6.0 reads guidelines with the assistant; with the assistant off it is simply not there.
+    expect(ai.status).toBe(404);
+    expect(ai.body.errors[0]!.code).toBe("assistant_disabled");
   });
 
   it("saves every answer as a version with counts, the over-limit flag and provenance", async () => {

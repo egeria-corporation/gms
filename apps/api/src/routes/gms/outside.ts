@@ -13,6 +13,7 @@ import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as calendar from "../../services/calendar.ts";
 import * as consulting from "../../services/consulting.ts";
+import * as drafting from "../../services/drafting.ts";
 import * as records from "../../services/funder-records.ts";
 import * as outside from "../../services/outside.ts";
 import { pipeline } from "../../services/pipeline.ts";
@@ -95,7 +96,16 @@ outsideRoutes.get("/outside-applications/:id/documents/:docId/file", async (c) =
 // ---- questions and answers ----
 outsideRoutes.get("/outside-applications/:id/questions", async (c) => c.json(ok(await outside.listQuestions(await svc(c), oaId(c)))));
 outsideRoutes.post("/outside-applications/:id/questions", async (c) => c.json(created(await outside.addQuestions(await svc(c), oaId(c), parse(outside.questionsInput, await jsonBody(c)))), 201));
-outsideRoutes.post("/outside-applications/:id/questions/parse", async (c) => c.json(ok(await outside.parseQuestionText(await svc(c), oaId(c), parse(outside.parseInput, await jsonBody(c))))));
+outsideRoutes.post("/outside-applications/:id/questions/parse", async (c) => {
+  const input = parse(outside.parseInput, await jsonBody(c));
+  if (input.mode === "ai") return c.json(ok(await drafting.parseGuidelinesText(await svc(c), oaId(c), input.text, input.phase ?? "full")));
+  return c.json(ok(await outside.parseQuestionText(await svc(c), oaId(c), input)));
+});
+outsideRoutes.post("/outside-applications/:id/guidelines", async (c) => c.json(ok(await drafting.uploadGuidelines(await svc(c), oaId(c), parse(drafting.guidelinesInput, await jsonBody(c))))));
+outsideRoutes.post("/outside-questions/:qid/draft", async (c) => {
+  parse(drafting.draftInput, await jsonBody(c));
+  return c.json(ok(await drafting.draftOutsideAnswer(await svc(c), qId(c))));
+});
 outsideRoutes.patch("/outside-questions/:qid", async (c) => c.json(ok(await outside.patchQuestion(await svc(c), qId(c), parse(outside.questionPatch, await jsonBody(c))))));
 outsideRoutes.delete("/outside-questions/:qid", async (c) => c.json(ok(await outside.deleteQuestion(await svc(c), qId(c)))));
 outsideRoutes.put("/outside-questions/:qid/answer", async (c) => c.json(ok(await outside.putAnswer(await svc(c), qId(c), parse(outside.answerInput, await jsonBody(c))))));

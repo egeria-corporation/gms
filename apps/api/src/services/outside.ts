@@ -61,11 +61,11 @@ export function requirePerson(ctx: ServiceContext, what: string): void {
   throw forbidden("approval_required", `${what} is done by a person. Call the MCP tool, which files an approval request, or do it in the GMS`);
 }
 
-const writable = (row: Oa) => {
+export const writable = (row: Oa) => {
   if (row.archived_at) throw new ApiError(409, "archived", "This application is archived. Unarchive it to change it");
 };
 
-async function assertMember(ctx: ServiceContext, workspaceId: string, userId: string | null | undefined) {
+export async function assertMember(ctx: ServiceContext, workspaceId: string, userId: string | null | undefined) {
   if (userId && !(await ctx.repos.table("workspace_members").one({ workspace_id: workspaceId, user_id: userId }))) throw new ApiError(422, "not_a_member", "That person is not a member of this workspace");
 }
 
@@ -161,15 +161,15 @@ async function questionCounts(ctx: ServiceContext, workspaceId: string, ids: str
   return out;
 }
 
-const limitOf = (q: Question) => (q.limit_kind && q.limit_value ? { kind: q.limit_kind as LimitKind, value: q.limit_value } : null);
+export const limitOf = (q: Question) => (q.limit_kind && q.limit_value ? { kind: q.limit_kind as LimitKind, value: q.limit_value } : null);
 const limitText = (q: Question) => (q.limit_kind && q.limit_value ? `${q.limit_value.toLocaleString("en-US")} ${LIMIT_LABEL[q.limit_kind as LimitKind]}` : null);
 
-function answerView(a: Answer, q: Question) {
+export function answerView(a: Answer, q: Question) {
   const counts = countText(a.body);
   return { id: a.id, questionId: a.question_id, version: a.version, body: a.body, provenance: a.provenance, libraryAnswerId: a.library_answer_id, counts, overLimit: isOverLimit(counts, { kind: (q.limit_kind as LimitKind | null) ?? null, value: q.limit_value }), createdBy: a.created_by, createdAt: a.created_at, savedBy: a.created_by, savedAt: a.created_at };
 }
 
-const questionView = (q: Question, latest: Answer | null) => ({
+export const questionView = (q: Question, latest: Answer | null) => ({
   id: q.id,
   outsideApplicationId: q.outside_application_id,
   phase: q.phase,
@@ -188,7 +188,7 @@ const questionView = (q: Question, latest: Answer | null) => ({
 });
 
 /** Questions of one application in order, each with its latest answer. */
-async function questionsWithAnswers(ctx: ServiceContext, row: Oa) {
+export async function questionsWithAnswers(ctx: ServiceContext, row: Oa) {
   const qs = (await ctx.repos.table("outside_questions").find({ workspace_id: row.workspace_id, outside_application_id: row.id })).sort(byOrder);
   const answers = qs.length ? await ctx.repos.table("outside_answers").find({ workspace_id: row.workspace_id, question_id: qs.map((q) => q.id) }) : [];
   const latest = new Map<string, Answer>();
@@ -199,7 +199,7 @@ const PHASE_ORDER = { loi: 0, full: 1, report: 2 } as Record<string, number>;
 const byOrder = (a: Question, b: Question) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position || a.created_at.localeCompare(b.created_at);
 
 /** As the built-in attachments show a document (`Models.Document`). */
-const docView = (d: Row<"documents">) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, source: d.passport_document_id ? "passport_locker" : "upload", passportDocumentId: d.passport_document_id, scanStatus: d.scan_status, uploadedAt: d.created_at });
+export const docView = (d: Row<"documents">) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, source: d.passport_document_id ? "passport_locker" : "upload", passportDocumentId: d.passport_document_id, scanStatus: d.scan_status, docType: d.doc_type, expiresOn: d.expires_on, uploadedAt: d.created_at });
 /** As `/gms/tasks` shows a task (`Models.Task`). */
 const taskView = (t: Row<"tasks">) => ({ id: t.id, subjectType: t.subject_type, subjectId: t.subject_id, title: t.title, assigneeUserId: t.assignee_user_id, dueAt: t.due_at, doneAt: t.done_at, createdAt: t.created_at });
 
@@ -214,6 +214,15 @@ async function activityOf(ctx: ServiceContext, row: Oa) {
   const total = await ctx.ledger.count(q);
   const events = await ctx.ledger.list({ ...q, offset: Math.max(0, total - ACTIVITY_LIMIT), limit: ACTIVITY_LIMIT });
   return events.reverse().map((e) => ({ id: e.id, type: e.eventType, at: e.occurredAt, actor: e.actor, data: Object.fromEntries(Object.entries(e.data ?? {}).filter(([k]) => ACTIVITY_KEYS.has(k))) }));
+}
+
+/**
+ * The "AI use" note: the questions whose current answer is text the assistant drafted and a person
+ * accepted (provenance `assist`). Empty when the assistant wrote none of it.
+ */
+export function aiUseOf(qa: { q: Question; latest: Answer | null }[]) {
+  const questions = qa.filter((x) => x.latest?.provenance === "assist").map(({ q, latest }) => ({ questionId: q.id, prompt: q.prompt, phase: q.phase, version: latest!.version, savedAt: latest!.created_at }));
+  return { used: questions.length > 0, count: questions.length, questions };
 }
 
 async function detailView(ctx: ServiceContext, row: Oa) {
@@ -261,6 +270,7 @@ async function detailView(ctx: ServiceContext, row: Oa) {
     archivedAt: row.archived_at,
     createdAt: row.created_at,
     questions: qa.map(({ q, latest }) => questionView(q, latest)),
+    aiUse: aiUseOf(qa),
     documents: docs.map(docView),
     tasks: tasks.map(taskView),
     activity,
@@ -615,16 +625,17 @@ export async function addQuestions(ctx: ServiceContext, id: string, input: z.out
 export const parseInput = z.object({ text: z.string().max(100_000), phase: z.enum(QUESTION_PHASES).optional(), mode: z.enum(["deterministic", "ai"]).optional() }).strict();
 
 /**
- * Propose questions from pasted text, saving nothing. Deterministic in this release; `mode: "ai"`
- * (a model reading a funder's guidelines, owner decision D5) arrives in v1.6.
+ * Propose questions from pasted text by numbering, blank lines and the usual limit phrasings,
+ * saving nothing. `mode: "ai"` (the assistant reading a funder's guidelines, owner decision D5) is
+ * `parseGuidelinesText` in ./drafting.ts; the route sends it there.
  */
 export async function parseQuestionText(ctx: ServiceContext, id: string, input: z.output<typeof parseInput>) {
   await loadOutside(ctx, id, "applications:write");
-  if (input.mode === "ai") throw new ApiError(501, "not_available_yet", "Reading questions with the assistant arrives in a later release. Paste the questions and review what is found");
-  return { questions: parseQuestions(input.text, input.phase ?? "full") };
+  if (input.mode === "ai") throw new ApiError(400, "bad_request", "Reading guidelines with the assistant goes through parseGuidelinesText");
+  return { mode: "deterministic" as const, questions: parseQuestions(input.text, input.phase ?? "full") };
 }
 
-async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write") {
+export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write") {
   const ws = await outsideWorkspace(ctx, scope);
   const q = await ctx.repos.table("outside_questions").one({ id: qid, workspace_id: ws.id });
   if (!q) throw notFound("Question");
@@ -633,7 +644,7 @@ async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applicatio
   return { ws, q, row };
 }
 
-async function latestAnswer(ctx: ServiceContext, q: Question) {
+export async function latestAnswer(ctx: ServiceContext, q: Question) {
   return (await ctx.repos.table("outside_answers").find({ workspace_id: q.workspace_id, question_id: q.id }, { orderBy: "version", ascending: false, limit: 1 }))[0] ?? null;
 }
 
@@ -700,14 +711,38 @@ export async function deleteQuestion(ctx: ServiceContext, qid: string) {
   return { id: q.id, deleted: true };
 }
 
-export const answerInput = z.object({ body: z.string().max(100_000), libraryAnswerId: z.uuid().optional() }).strict();
+export const answerInput = z
+  .object({
+    body: z.string().max(100_000),
+    libraryAnswerId: z.uuid().optional(),
+    /** `assist`: the person accepted (and perhaps edited) a draft from the assistant. `prior_submission`: reused from an earlier report. */
+    provenance: z.enum(["assist", "prior_submission"]).optional(),
+    /** With `prior_submission`: the earlier report answer the text came from. */
+    sourceAnswerId: z.uuid().optional(),
+  })
+  .strict()
+  .refine((v) => !(v.libraryAnswerId && v.provenance), { message: "An answer comes from the library or from the assistant or an earlier report, not both", path: ["provenance"] })
+  .refine((v) => (v.provenance === "prior_submission") === !!v.sourceAnswerId, { message: "Name the earlier report answer the text was reused from", path: ["sourceAnswerId"] });
 
 type LibraryUse = { outsideApplicationId?: string; questionId?: string; applicationId?: string; version: number; insertedAt: string };
 
 /**
- * Save an answer as a new version. Provenance is `library` when it came from the answer library
- * (and the library answer records where it was used), `agent:<clientId>` for an agent, `user`
- * otherwise. An edit of an approved answer sends the question back to draft.
+ * Text reused from an earlier report must come from a report answer of this workspace, on another
+ * report obligation than the question's own (contract: "Reuse from an earlier report").
+ */
+async function assertPriorReportAnswer(ctx: ServiceContext, workspaceId: string, q: Question, sourceAnswerId: string) {
+  const src = await ctx.repos.table("outside_answers").one({ id: sourceAnswerId, workspace_id: workspaceId });
+  const srcQ = src ? await ctx.repos.table("outside_questions").one({ id: src.question_id, workspace_id: workspaceId }) : null;
+  if (!src || !srcQ || srcQ.phase !== "report" || !srcQ.obligation_id) throw notFound("Earlier report answer");
+  if (q.phase !== "report" || srcQ.obligation_id === q.obligation_id) throw new ApiError(422, "not_an_earlier_report", "Text can be reused from another report's answers into a report question");
+}
+
+/**
+ * Save an answer as a new version. Provenance is `agent:<clientId>` for an agent; otherwise
+ * `library` when it came from the answer library (and the library answer records where it was
+ * used), `assist` when the person accepted the assistant's draft, `prior_submission` when reused
+ * from an earlier report, `user` otherwise. An edit of an approved answer sends the question back
+ * to draft.
  */
 export async function putAnswer(ctx: ServiceContext, qid: string, input: z.output<typeof answerInput>) {
   const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
@@ -717,7 +752,9 @@ export async function putAnswer(ctx: ServiceContext, qid: string, input: z.outpu
     if (!ctx.scopes.includes("library:read")) throw new ApiError(403, "insufficient_scope", "This action needs the library:read scope");
     if (!library) throw notFound("Answer");
   }
-  const provenance = library ? "library" : ctx.actor.clientId ? `agent:${ctx.actor.clientId.replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 200) || "client"}` : "user";
+  // An agent's save is always recorded as the agent's, whatever it says the text is.
+  const provenance = ctx.actor.clientId ? `agent:${ctx.actor.clientId.replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 200) || "client"}` : library ? "library" : (input.provenance ?? "user");
+  if (input.provenance === "prior_submission") await assertPriorReportAnswer(ctx, ws.id, q, input.sourceAnswerId!);
   const body = input.body.replace(/\r\n?/g, "\n");
   let saved: Answer | null = null;
   for (let attempt = 0; attempt < 3 && !saved; attempt++) {
