@@ -187,7 +187,7 @@ namespace GMS.Models {
     version: int32;
     body: string;
 
-    /** `user`, `library`, or `agent:<clientId>` (the forms provenance vocabulary). */
+    /** `user`, `library`, `assist`, `prior_submission`, or `agent:<clientId>` (the forms provenance vocabulary). */
     provenance: string;
 
     libraryAnswerId: CommonGrants.Types.uuid | null;
@@ -286,6 +286,18 @@ namespace GMS.Models {
 
     /** Newest first, the latest 200. */
     activity: OutsideActivity[];
+
+    /** v1.6.0: the questions whose current answer is accepted assistant text. */
+    aiUse: AiUse;
+
+    /** v1.6.0: the funder's required documents, matched to the vault. */
+    requiredDocuments: RequiredDocument[];
+
+    /** v1.6.0: the workspace's go/no-go setting and this application's scorecard. */
+    goNoGo: GoNoGo;
+
+    /** v1.7.0: when an awarded application was closed out. */
+    closedOutAt: utcDateTime | null;
   }
 
   model OutsideApplicationInput {
@@ -394,7 +406,7 @@ namespace GMS.Models {
     text: string;
     phase?: QuestionPhase;
 
-    /** `ai` is reserved for a later release and answers 501 `not_available_yet`. */
+    /** `ai` (v1.6.0): the assistant reads pasted guidelines (60,000 characters at most) and answers a `GuidelinesProposal`; 404 `assistant_disabled` when it is off. */
     mode?: "deterministic" | "ai";
   }
 
@@ -406,6 +418,7 @@ namespace GMS.Models {
   }
 
   model ParsedQuestions {
+    mode?: "deterministic";
     questions: ParsedQuestion[];
   }
 
@@ -414,6 +427,11 @@ namespace GMS.Models {
 
     /** The library answer it came from: provenance becomes `library` and the library records the use. */
     libraryAnswerId?: CommonGrants.Types.uuid;
+
+    /** `assist`: accepted assistant text. `prior_submission`: reused from an earlier report (with `sourceAnswerId`). Not with `libraryAnswerId`. An agent's save is always the agent's. */
+    provenance?: "assist" | "prior_submission";
+
+    sourceAnswerId?: CommonGrants.Types.uuid;
   }
 
   model OutsideAnswerSaved {
@@ -426,6 +444,9 @@ namespace GMS.Models {
       name: string;
       mime: string;
       contentBase64: string;
+
+      /** v1.7.0: `award_letter` marks the funder's award letter. A file named like a bank or tax form is refused (422 `sensitive_document`). */
+      docType?: "award_letter";
     },
     lockerWithDetails: {
       name: string;
@@ -433,9 +454,11 @@ namespace GMS.Models {
       passportDocumentId: string;
       size: int64;
       sha256: Sha256;
+      docType?: "award_letter";
     },
     locker: {
       passportDocumentId: string;
+      docType?: "award_letter";
     },
   }
 
@@ -778,7 +801,7 @@ namespace GMS.Routes.Custom {
 
     /** Propose questions from pasted text; nothing is saved. Deterministic: split on numbering and blank lines, limits read from the text. */
     @post @route("/outside-applications/{id}/questions/parse") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op parseQuestions(@path id: CommonGrants.Types.uuid, @body body: ParseQuestionsInput): OkT<ParsedQuestions> | BadRequest | AuthErrors | NotFound;
+    op parseQuestions(@path id: CommonGrants.Types.uuid, @body body: ParseQuestionsInput): OkT<ParsedQuestions | GuidelinesProposal> | BadRequest | AuthErrors | NotFound | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     @patch @route("/outside-questions/{qid}") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op updateQuestion(@path qid: CommonGrants.Types.uuid, @body body: OutsideQuestionPatch): OkT<OutsideQuestion> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable;

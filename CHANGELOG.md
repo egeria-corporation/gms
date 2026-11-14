@@ -3,6 +3,57 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.7.0
+
+### Added
+
+- **Win and keep it.** Awarded funding lists your outside awards next to awards made on this GMS,
+  each labelled "Outside award" or "On this GMS". An outside award has its own page: the amount per
+  year, the grant period, the award letter, what you owe the funder, and payments received.
+- Obligations of an outside award: reports, expected payments, payments received and conditions,
+  once or repeating every few months until the grant ends (up to 60). Changing a repeating
+  obligation updates only future ones you have not touched.
+- Reports are written in the same editor as applications, can reuse text from an earlier report,
+  and are marked submitted with the date, the confirmation and a PDF of what was sent.
+- Payments received are amounts and dates only, with the total received against the amount awarded.
+  No money moves through the GMS and no bank details are kept.
+- Reminders before and after a report or condition is due, and "Close out this award" once
+  everything is done or received.
+- When a funder declines, a reminder on the date its next round may open, and "Get an alert when it
+  reopens".
+- A funding summary by fiscal year: applications submitted, decided, awarded and declined, the win
+  rate and the amounts asked and awarded, with a CSV export and a one-page PDF for your board. Set
+  the month your fiscal year starts in Settings.
+- Agents get the same capabilities through MCP; recording a report's submission always waits for a
+  person.
+
+## v1.6.0
+
+### Added
+
+- **Write faster as a team.** The assistant drafts an answer to a funder's question from your own
+  answer library and your organization's profile, and nothing else. It never makes up facts: what it
+  does not know is left as [placeholders], it keeps to the word or character limit, and it flags any
+  figure taken from an answer nobody has checked in a year. Nothing is saved until you accept it,
+  and each application shows which answers the assistant helped write.
+- The assistant can read a funder's guidelines, pasted or uploaded as a PDF or text file, and
+  propose the questions, their limits and phase, the deadlines and the documents to attach, for you
+  to review. It reads only guidelines you give it, never your own documents.
+- The hosted site turns the assistant on with 100 uses per workspace per month; self-hosters set
+  `ASSISTANT_MONTHLY_QUOTA` (default 40) and their own `ANTHROPIC_API_KEY`.
+- The answer library keeps when each answer was last checked ("Mark as verified", and a stale badge
+  after 12 months), short, medium and long versions, and tags. Inserting from the library offers the
+  version that best fits the question's limit.
+- A document vault for your organization's standing documents (IRS letter, audit, financials, board
+  list, budget, annual report, logo), with expiry dates and a warning 30 days before. It never keeps
+  bank letters, voided checks, ACH forms or anything with a Social Security number, and refuses
+  files named like them. An application's checklist lists the documents the funder asks for and
+  offers the matching ones from the vault.
+- An optional go/no-go scorecard for the Deciding stage, switched on in Settings.
+- Only a workspace admin or the application's owner approves an answer. Comments per question, a
+  month calendar of deadlines, and milestone tasks offered when a full deadline is set.
+- Agents get the same capabilities through MCP; drafts never save anything.
+
 ## v1.5.0
 
 ### Added

@@ -1021,7 +1021,9 @@ model NotificationPreferences {
 
   /** Category → channels. Every category is present in responses; missing ones default to on.
    * Besides the notification categories, `outside_deadline` sets the outside application deadline
-   * reminders (no notification carries that category).
+   * reminders, `document_expiring` the vault's expiry warnings, `outside_obligation_due` an outside
+   * award's report and condition reminders, and `outside_next_cycle` the next-cycle reminder (no
+   * notification carries those categories).
    */
   channels: Record<NotificationChannel>;
 }
@@ -2595,7 +2597,32 @@ model Document {
   source: "upload" | "passport_locker";
   passportDocumentId: string | null;
   scanStatus: "not_scanned" | "clean" | "infected";
+
+  /** On an outside application's documents: `funder_guidelines`, `award_letter` or null. */
+  docType?: "funder_guidelines" | "award_letter" | null;
+
+  expiresOn?: plainDate | null;
   uploadedAt: utcDateTime;
+}
+
+/** Whether a library answer's facts were checked in the last 12 months. */
+model AnswerVerification {
+  state: "verified" | "stale" | "never";
+  lastVerifiedAt: utcDateTime | null;
+
+  /** True when stale or never verified. */
+  stale: boolean;
+}
+
+model AnswerVariants {
+  /** About 50 words. */
+  short?: string;
+
+  /** About 150 words. */
+  medium?: string;
+
+  /** About 500 words. */
+  long?: string;
 }
 
 model Answer {
@@ -2606,6 +2633,11 @@ model Answer {
   version: int32;
   usedIn?: AnswerUse[];
   words: int32;
+  variants?: AnswerVariants;
+  variantWords?: Record<int32>;
+  tags?: string[];
+  lastVerifiedAt?: utcDateTime | null;
+  verification?: AnswerVerification;
   updatedAt: utcDateTime;
 }
 
@@ -2613,6 +2645,19 @@ model AnswerInput {
   key?: string;
   title: string;
   body: string;
+
+  /** A variant set to null (on a patch) or an empty string is removed. */
+  variants?: {
+    short?: string | null;
+    medium?: string | null;
+    long?: string | null;
+  };
+
+  /** Up to 20, each 1-50 characters; the first spelling of a tag is kept. */
+  tags?: string[];
+
+  /** Mark the saved text as checked now. Without it, new text is unverified. */
+  verified?: boolean;
 }
 
 // #########################################################
@@ -2704,7 +2749,7 @@ model AssistStatus {
 model AssistDraftBase {
   draft: true;
 
-  /** `summarize`, `compare_rubric`, `draft_letter` or `adapt_answer` */
+  /** `summarize`, `compare_rubric`, `draft_letter` or `adapt_answer` (`draft_answer` and `parse_guidelines` have their own shapes) */
   tool: string;
 
   /** The model that produced the draft */
