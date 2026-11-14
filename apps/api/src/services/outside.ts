@@ -20,6 +20,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { matchGmsOpportunity } from "./applicant.ts";
 import { audit, authorize, changeStatus, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { listMyDocuments } from "./organization.ts";
+import { goNoGoSettingsOf } from "./team.ts";
 import { refuseSensitiveFilename, requiredDocumentsView } from "./vault.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -273,6 +274,8 @@ async function detailView(ctx: ServiceContext, row: Oa) {
     questions: qa.map(({ q, latest }) => questionView(q, latest)),
     aiUse: aiUseOf(qa),
     requiredDocuments: await requiredDocumentsView(ctx, row),
+    goNoGo: { ...goNoGoSettingsOf((await ctx.repos.table("workspaces").one({ id: row.workspace_id }))?.settings), scorecard: row.go_no_go },
+    closedOutAt: row.closed_out_at,
     documents: docs.map(docView),
     tasks: tasks.map(taskView),
     activity,
@@ -437,7 +440,7 @@ export async function patchOutside(ctx: ServiceContext, id: string, input: z.out
 
 // ------------------------------------------------------------------------------------ stage changes (packages/workflow)
 
-const subjectOf = (row: Oa) => ({ id: row.id, stage: row.stage as OutsideStage, previousStage: (row.previous_stage as OutsideStage | null) ?? null, archivedAt: row.archived_at });
+const subjectOf = (row: Oa) => ({ id: row.id, stage: row.stage as OutsideStage, previousStage: (row.previous_stage as OutsideStage | null) ?? null, archivedAt: row.archived_at, closedOutAt: row.closed_out_at });
 
 /**
  * Run one action through the machine. `extra` columns are written in the same update as the
@@ -458,6 +461,9 @@ async function transition(ctx: ServiceContext, row: Oa, req: OutsideRequest, ext
   if (!result.ok) throw new ApiError(409, result.code === "guard_failed" ? "guard_failed" : "invalid_transition", result.reason);
   return wrote!;
 }
+
+/** One action through the machine, for the v1.6.0 and v1.7.0 services (go/no-go, closeout). */
+export const transitionOutsideRow = transition;
 
 export const stageInput = z.object({ to: z.enum(OUTSIDE_STAGES) }).strict();
 
@@ -650,6 +656,16 @@ export async function latestAnswer(ctx: ServiceContext, q: Question) {
   return (await ctx.repos.table("outside_answers").find({ workspace_id: q.workspace_id, question_id: q.id }, { orderBy: "version", ascending: false, limit: 1 }))[0] ?? null;
 }
 
+/** Who may approve an answer: a workspace admin, or the application's owner (contract). One place to widen. */
+export const APPROVER_ROLES: readonly string[] = ["admin"];
+
+/** Refuse `approved` unless the caller is a workspace admin or the application's owner. */
+export function assertMayApprove(ctx: ServiceContext, ws: ServiceWorkspace, row: Pick<Oa, "owner_user_id">): void {
+  if (ws.role !== null && APPROVER_ROLES.includes(ws.role)) return;
+  if (ctx.actor.userId && row.owner_user_id === ctx.actor.userId) return;
+  throw forbidden("approver_required", "Only a workspace admin or the application's owner can approve an answer");
+}
+
 /** A question's status is an editorial flag; it changes through changeStatus (guard → write → ledger). */
 async function setQuestionStatus(ctx: ServiceContext, q: Question, to: string) {
   if (q.status === to) return q;
@@ -677,6 +693,8 @@ export const questionPatch = z
 export async function patchQuestion(ctx: ServiceContext, qid: string, input: z.output<typeof questionPatch>) {
   const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
   writable(row);
+  // Refused before anything is written.
+  if (input.status === "approved") assertMayApprove(ctx, ws, row);
   await assertMember(ctx, ws.id, input.assigneeUserId);
   const limitKind = input.limitKind === undefined ? q.limit_kind : input.limitKind;
   const limitValue = input.limitValue === undefined ? q.limit_value : input.limitValue;

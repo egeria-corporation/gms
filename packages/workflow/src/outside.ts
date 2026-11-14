@@ -47,8 +47,16 @@ export const OUTSIDE_WEBHOOK_EVENTS: readonly string[] = [];
 /** Only the applicant moves its own record. */
 const ACTORS: readonly ActorKind[] = ["applicant"];
 
+/** Where a go/no-go decision is taken (contract: the Deciding stage). One place to widen. */
+export const GO_NO_GO_FROM: readonly OutsideStage[] = ["deciding"];
+/** Where a "go" may lead; "no go" leads to not_pursuing. */
+export const GO_TARGETS = ["loi", "drafting"] as const;
+export type GoTarget = (typeof GO_TARGETS)[number];
+
 export type OutsideRequest =
   | { action: "move"; to: OutsideStage }
+  | { action: "go_no_go"; decision: "go" | "no_go"; to?: GoTarget | null; eligible: boolean }
+  | { action: "close_out"; settled: boolean }
   | { action: "submit"; submittedAt?: string | null; method?: string | null }
   | { action: "decide"; outcome: OutsideOutcome; awardedAmountMinor?: number | null }
   | { action: "reopen" }
@@ -60,10 +68,12 @@ export interface OutsideSubject {
   stage: OutsideStage;
   previousStage: OutsideStage | null;
   archivedAt: string | null;
+  /** When an awarded application was closed out; reopening clears it. */
+  closedOutAt?: string | null;
 }
 
 /** The ledger event each action writes (`outside_application.<event>`). */
-export const OUTSIDE_EVENTS = { move: "stage_changed", submit: "submitted", decide: "decided", reopen: "reopened", archive: "archived", unarchive: "archived" } as const;
+export const OUTSIDE_EVENTS = { move: "stage_changed", go_no_go: "go_no_go_decided", close_out: "closed_out", submit: "submitted", decide: "decided", reopen: "reopened", archive: "archived", unarchive: "archived" } as const;
 
 export type OutsideCheck =
   | { ok: true; from: OutsideStage; to: OutsideStage; eventType: string; patch: Record<string, unknown>; data: Record<string, unknown> }
@@ -106,6 +116,25 @@ export function checkOutside(subject: OutsideSubject, req: OutsideRequest, actor
       if (!edge(from, to)) return edgeRefusal(from, to);
       return { ok: true, from, to, eventType, patch: { stage: to, previous_stage: from }, data: { from, to } };
     }
+    case "go_no_go": {
+      if (!GO_NO_GO_FROM.includes(from)) return refuse("invalid_from", `A go/no-go decision is made while the application is deciding; this one is ${label(from)}.`);
+      if (req.decision !== "go" && req.decision !== "no_go") return refuse("unknown_action", `Unknown decision "${String(req.decision)}".`);
+      if (req.decision === "go") {
+        if (!req.eligible) return refuse("guard_failed", "The organization is not eligible, so the decision cannot be go.");
+        const to = req.to;
+        if (!to || !(GO_TARGETS as readonly string[]).includes(to)) return refuse("guard_failed", "Say where it goes next: a letter of inquiry or drafting.");
+        if (!edge(from, to)) return edgeRefusal(from, to);
+        return { ok: true, from, to, eventType, patch: { stage: to, previous_stage: from }, data: { from, to, decision: "go" } };
+      }
+      if (!edge(from, "not_pursuing")) return edgeRefusal(from, "not_pursuing");
+      return { ok: true, from, to: "not_pursuing", eventType, patch: { stage: "not_pursuing", previous_stage: from }, data: { from, to: "not_pursuing", decision: "no_go" } };
+    }
+    case "close_out": {
+      if (from !== "awarded") return refuse("invalid_from", `Only an awarded application is closed out; this one is ${label(from)}.`);
+      if (subject.closedOutAt) return refuse("guard_failed", "This award is already closed out.");
+      if (!req.settled) return refuse("guard_failed", "Every obligation must be done or received before the award is closed out.");
+      return { ok: true, from, to: from, eventType, patch: { closed_out_at: now }, data: { stage: from, closedOutAt: now } };
+    }
     case "submit": {
       if (!edge(from, "submitted")) return edgeRefusal(from, "submitted");
       const at = req.submittedAt ? Date.parse(req.submittedAt) : Number.NaN;
@@ -126,7 +155,7 @@ export function checkOutside(subject: OutsideSubject, req: OutsideRequest, actor
       if (!OUTSIDE_CLOSED_STAGES.includes(from)) return refuse("invalid_from", `Only an awarded, declined, withdrawn or not pursued application can be reopened; this one is ${label(from)}.`);
       const to = reopenTarget(subject);
       // A reopened decision is no longer a decision.
-      const cleared = from === "awarded" || from === "declined" ? { decided_at: null, awarded_amount_minor: null, award_by_year: [], grant_start: null, grant_end: null } : {};
+      const cleared = from === "awarded" || from === "declined" ? { decided_at: null, awarded_amount_minor: null, award_by_year: [], grant_start: null, grant_end: null, closed_out_at: null } : {};
       return { ok: true, from, to, eventType, patch: { stage: to, previous_stage: from, ...cleared }, data: { from, to } };
     }
     default:

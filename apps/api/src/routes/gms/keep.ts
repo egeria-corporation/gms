@@ -10,13 +10,14 @@ import { authenticate } from "../../auth/middleware.ts";
 import { created, ok } from "../../lib/errors.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
+import * as team from "../../services/team.ts";
 import * as vault from "../../services/vault.ts";
 import { jsonBody, svc } from "../http.ts";
 
 type C = Context<AppEnv>;
 export const keepRoutes = new Hono<AppEnv>();
 
-for (const prefix of ["vault", "outside-applications", "outside-questions", "outside-obligations", "outside-awards", "funding-summary"]) {
+for (const prefix of ["vault", "outside-applications", "outside-questions", "outside-obligations", "outside-awards", "funding-summary", "pipeline"]) {
   keepRoutes.use(`/${prefix}`, authenticate());
   keepRoutes.use(`/${prefix}/*`, authenticate());
 }
@@ -37,3 +38,13 @@ keepRoutes.get("/vault/:docId/file", async (c) => {
 // ---- required documents of an outside application ----
 keepRoutes.put("/outside-applications/:id/required-documents", async (c) => c.json(ok(await vault.setRequiredDocuments(await svc(c), oaId(c), parse(vault.requiredDocumentsInput, await jsonBody(c))))));
 keepRoutes.post("/outside-applications/:id/required-documents/use-from-vault", async (c) => c.json(ok(await vault.useFromVault(await svc(c), oaId(c), parse(vault.useFromVaultInput, await jsonBody(c))))));
+
+// ---- go/no-go, comments per question, milestones, the calendar ----
+const qId = (c: C) => bareUuid(c.req.param("qid"), "Question");
+keepRoutes.post("/outside-applications/:id/go-no-go", async (c) => c.json(ok(await team.decideGoNoGo(await svc(c), oaId(c), parse(team.goNoGoInput, await jsonBody(c))))));
+keepRoutes.get("/outside-applications/:id/comments", async (c) => c.json(ok(await team.listQuestionComments(await svc(c), oaId(c), parse(team.commentsQuery, { questionId: c.req.query("questionId") })))));
+keepRoutes.post("/outside-questions/:qid/comments", async (c) => c.json(created(await team.addQuestionComment(await svc(c), qId(c), parse(team.commentInput, await jsonBody(c)))), 201));
+keepRoutes.post("/outside-applications/:id/comments/:commentId/resolve", async (c) => c.json(ok(await team.resolveQuestionComment(await svc(c), oaId(c), bareUuid(c.req.param("commentId"), "Comment")))));
+keepRoutes.get("/outside-applications/:id/milestones", async (c) => c.json(ok(await team.milestoneOffer(await svc(c), oaId(c)))));
+keepRoutes.post("/outside-applications/:id/milestones", async (c) => c.json(created(await team.createMilestones(await svc(c), oaId(c), parse(team.milestonesInput, await jsonBody(c)))), 201));
+keepRoutes.get("/pipeline/calendar", async (c) => c.json(ok(await team.pipelineCalendar(await svc(c), parse(team.calendarQuery, { month: c.req.query("month") })))));

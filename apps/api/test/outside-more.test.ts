@@ -396,7 +396,8 @@ describe("what the web client reads (R3b)", () => {
     expect((await s.call(other, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "x.txt", mime: "text/plain", contentBase64: btoa("x") })).status).toBe(404);
     expect((await s.call(consultant, "GET", `/gms/outside-applications/${oaId}/documents/${up.id}/file`)).status).toBe(403);
     expect((await s.call(s.funder, "GET", `/gms/outside-applications/${oaId}/documents`)).status).toBe(403);
-  });
+    // Decoding the 25 MB body takes about four seconds alone; more under a full parallel run.
+  }, 30_000);
 
   it("list items carry source and sourceRef; deadlines are loiDue, fullDue and internalDue", async () => {
     await data(s.applicant, "POST", "/gms/outside-applications", { source: "opengrants", sourceRef: "og-1", title: "Rural Health Access Fund", funderName: "Northwind", stage: "prospect" });
