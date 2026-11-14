@@ -6,7 +6,8 @@
 import { validateResponse, type JsonObject } from "@gms/forms";
 import { ServiceError, type Actor as McpActor, type Approval, type ApprovalStatus, type ApprovalStore, type ResourceKind, type ResourceReader, type ServiceLayer } from "@gms/mcp";
 import { ApiError } from "../lib/errors.ts";
-import { uuidOf } from "../lib/ids.ts";
+import { bareUuid, uuidOf } from "../lib/ids.ts";
+import type { z } from "zod";
 import * as applicant from "./applicant.ts";
 import * as assist from "./assist.ts";
 import * as apply from "./apply.ts";
@@ -22,6 +23,7 @@ import * as forms from "./forms.ts";
 import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
 import * as opportunities from "./opportunities.ts";
+import * as outside from "./outside.ts";
 import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
@@ -68,6 +70,13 @@ const trn = (id: string) => uuidOf("tranche", id, "Tranche");
 const req = (id: string) => uuidOf("requirement", id, "Requirement");
 const sub = (id: string) => uuidOf("submission", id, "Submission");
 const LEVELS = ["L0", "L1", "L2", "L3"];
+const oa = (id: string) => bareUuid(id, "Outside application");
+/** A tool's input checked with the REST route's own schema, so both surfaces accept the same thing. */
+function input<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
+  const r = schema.safeParse(value);
+  if (!r.success) throw new ApiError(400, "bad_request", "The request is not valid", r.error.issues.map((x) => ({ code: "invalid_field", field: x.path.map(String).join("."), detail: x.message })));
+  return r.data;
+}
 
 type Impl = { [K in keyof ServiceLayer]?: (ctx: ServiceContext, input: Parameters<ServiceLayer[K]>[1]) => Promise<unknown> };
 
@@ -228,6 +237,29 @@ const IMPLEMENTED: Impl = {
     return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
   },
   saveAnswer: (ctx, i) => (i.answerId ? applicant.updateAnswer(ctx, i.answerId, { title: i.title, body: i.body }) : applicant.createAnswer(ctx, { key: i.key, title: i.title, body: i.body })),
+  // ---- applicant: outside applications (apply anywhere), through the same services as the REST routes ----
+  listOutsideApplications: async (ctx, i) => {
+    const all = await outside.listOutside(ctx, { ...(i.stage?.length ? { stage: i.stage.join(",") } : {}), ...(i.search ? { q: i.search } : {}), archived: i.archived ? "true" : "false" });
+    const p = paged(i);
+    return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
+  },
+  getOutsideApplication: (ctx, i) => outside.getOutside(ctx, oa(i.outsideApplicationId)),
+  createOutsideApplication: (ctx, i) => outside.createOutside(ctx, input(outside.createInput, i)),
+  addOutsideQuestions: async (ctx, i) => {
+    const id = oa(i.outsideApplicationId);
+    const { questions } = await outside.parseQuestionText(ctx, id, { text: i.text, phase: i.phase });
+    if (!questions.length) throw new ServiceError("invalid_input", "No questions were found in the text.", [{ field: "text", message: "No questions found" }]);
+    return { questions: await outside.addQuestions(ctx, id, input(outside.questionsInput, { questions: questions.slice(0, 100) })) };
+  },
+  putOutsideAnswer: (ctx, i) => outside.putAnswer(ctx, bareUuid(i.questionId, "Question"), input(outside.answerInput, { body: i.body, ...(i.libraryAnswerId ? { libraryAnswerId: i.libraryAnswerId } : {}) })),
+  setOutsideStage: (ctx, i) => outside.setStage(ctx, oa(i.outsideApplicationId), { to: i.to }),
+  // Both gated for every agent: they run only after a person approved the call, as that person.
+  recordOutsideSubmission: (ctx, i) => outside.recordSubmission(ctx, oa(i.outsideApplicationId), input(outside.submitInput, { submittedAt: i.submittedAt, method: i.method, ...(i.confirmationRef ? { confirmationRef: i.confirmationRef } : {}) })),
+  recordOutsideDecision: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return outside.recordDecision(ctx, oa(outsideApplicationId), input(outside.decisionInput, rest));
+  },
+
   listMessages: async (ctx, i) => {
     if (!i.applicationId) throw new ServiceError("invalid_input", "Pass applicationId: threads are listed per application.", [{ field: "applicationId", message: "Required" }]);
     const threads = await collab.listThreads(ctx, { subjectType: "application", subjectId: app(i.applicationId) });

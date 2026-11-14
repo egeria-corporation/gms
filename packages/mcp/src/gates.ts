@@ -15,13 +15,16 @@ export const DEFAULT_GATED_TOOLS = [
   "decline_application",
   // Giving an award directly emails a person outside the GMS under the funder's name.
   "create_direct_award",
+  // Apply anywhere: recording what a person did elsewhere (submitted to a funder, the funder's answer).
+  "record_outside_submission",
+  "record_outside_decision",
 ] as const;
 
 /** Gated for every agent, whatever the token grants and whatever a workspace configures. This is
  * the stricter reading of the design note "Signing is a human gate: agents can prepare an
  * agreement, never sign one": money leaving, legal signature and offer acceptance always need a
  * person. */
-export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche", "create_direct_award"] as const;
+export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche", "create_direct_award", "record_outside_submission", "record_outside_decision"] as const;
 
 export interface GatePolicy {
   /** Extra tools a workspace (settings) or an API client (`gated_tools`) wants gated. Overrides can
