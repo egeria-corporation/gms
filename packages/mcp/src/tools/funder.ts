@@ -74,6 +74,12 @@ export const FUNDER_TOOLS = {
   create_competition: tool("createCompetition", "competitions:write", "Create a draft competition under an opportunity. One stage is the common case.", z.object({ opportunityId, title: z.string().min(1).max(200), description: z.string().max(20000).optional(), instructions: z.string().max(20000).optional(), stages: z.array(stageSchema).min(1) })),
   set_stage_forms: tool("setStageForms", "competitions:write", "Pin form versions to a stage. On an open competition, pass migrate to re-validate in-progress responses.", z.object({ competitionId, stage, forms: z.record(formId, z.number().int().positive()), migrate: z.boolean().default(false) })),
   set_rubric: tool("setRubric", "competitions:write", "Set the rubric used to score a stage.", z.object({ competitionId, stage, rubricId, rubricVersion: z.number().int().positive().optional() })),
+  quick_setup_competition: tool(
+    "quickSetupCompetition",
+    "competitions:write",
+    "Quick setup for an opportunity: makes, as editable drafts, a one-stage competition dated from the opportunity's open and close dates, a starter application form (published and pinned to the stage) and a starter rubric. Keeps whatever the funder already set and reuses what an earlier run made. Returns the competition and its launch checklist; opening is a separate step. Also needs forms:write and reviews:write.",
+    z.object({ opportunityId }),
+  ),
 
   list_forms: tool("listForms", "forms:read", "List forms in the workspace, or the shared library.", z.object({ purpose: z.enum(["application", "report", "loi", "amendment", "site_visit", "other"]).optional(), library: z.boolean().default(false), ...paging })),
   get_form: tool("getForm", "forms:read", "Get a form version: JSON Schema, UI schema and CommonGrants mappings.", z.object({ formId, version: z.number().int().positive().optional() })),

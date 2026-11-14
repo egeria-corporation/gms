@@ -28,6 +28,7 @@ import type {
   PassportStatus,
   Program,
   ProgramInput,
+  QuickSetupResult,
   Rubric,
   RubricInput,
   SelfDeclaredProfilePatch,
@@ -138,6 +139,12 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, Direct
   launchCheck(id: string): Promise<Checklist>;
   openCompetition(id: string): Promise<Competition>;
   closeCompetition(id: string): Promise<Competition>;
+  /**
+   * Quick setup for an opportunity: a one-stage draft competition from its dates, a starter
+   * application form (published, pinned) and a starter rubric. Keeps what the funder set and
+   * reuses what an earlier run made. Does not open the competition.
+   */
+  quickSetup(opportunityId: string): Promise<QuickSetupResult>;
 
   listForms(): Promise<FormSummary[]>;
   listFormLibrary(): Promise<FormSummary[]>;
@@ -334,6 +341,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     launchCheck: (id) => call("POST", `/gms/competitions/${e(id)}/launch-check`, {}),
     openCompetition: (id) => call("POST", `/gms/competitions/${e(id)}/open`, {}),
     closeCompetition: (id) => call("POST", `/gms/competitions/${e(id)}/close`, {}),
+    quickSetup: (opportunityId) => call("POST", `/gms/opportunities/${e(opportunityId)}/quick-setup`, {}),
 
     listForms: () => all("/gms/forms?pageSize=100"),
     listFormLibrary: () => all("/gms/forms/library?pageSize=100"),

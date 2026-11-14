@@ -384,6 +384,14 @@ namespace GMS.Routes.Custom {
     /** The CommonGrants record as it would be published, without publishing. */
     @post @route("/opportunities/{id}/preview") @useAuth(GmsOAuth<["opportunities:read"]> | UserSession)
     op preview(@path id: GmsId): OkT<OpportunityPreview> | BadRequest | AuthErrors | NotFound;
+
+    /**
+     * Quick setup: makes, as editable drafts, a one-stage competition dated from the opportunity's
+     * open and close dates, a starter application form (published and pinned) and a starter rubric.
+     * Keeps what the funder set and reuses what an earlier run made. Does not open the competition.
+     */
+    @post @route("/opportunities/{id}/quick-setup") @useAuth(GmsOAuth<["competitions:write", "forms:write", "reviews:write"]> | UserSession)
+    op quickSetup(@path id: GmsId, @body body: {}): OkT<QuickSetupResult> | BadRequest | AuthErrors | NotFound | Conflict;
   }
 
   @tag("Competitions (GMS)")
