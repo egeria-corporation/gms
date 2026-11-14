@@ -7,7 +7,7 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, type ServiceContext } from "./context.ts";
 import { sha256Hex } from "./ports.ts";
-import { OUTSIDE_ROLES } from "./outside.ts";
+import { OUTSIDE_ROLES, requirePerson } from "./outside.ts";
 import { workspaceDeadlines, type DeadlineEvent } from "./pipeline.ts";
 import type { Repos } from "./repos/types.ts";
 
@@ -32,6 +32,8 @@ export async function getFeed(ctx: ServiceContext) {
 /** Make the workspace's link, or replace it (the old one stops working). The URL is returned this once. */
 export async function createOrRotateFeed(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant", roles: FEED_ROLES, person: true });
+  // The link is a key to the workspace's deadlines: only a person makes one, never an agent.
+  requirePerson(ctx, "Making a calendar link");
   const token = `${CALENDAR_TOKEN_PREFIX}${b64url(crypto.getRandomValues(new Uint8Array(32)))}`;
   const hash = await calendarTokenHash(token);
   const existing = await ctx.repos.table("calendar_feeds").one({ workspace_id: ws.id });
@@ -43,6 +45,7 @@ export async function createOrRotateFeed(ctx: ServiceContext) {
 
 export async function deleteFeed(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant", roles: FEED_ROLES, person: true });
+  requirePerson(ctx, "Deleting the calendar link");
   const removed = await ctx.repos.table("calendar_feeds").remove({ workspace_id: ws.id });
   if (removed) await audit(ctx, "calendar_feed.deleted", "workspace", ws.id, {});
   return { deleted: removed > 0 };
