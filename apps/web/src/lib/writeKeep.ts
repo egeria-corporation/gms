@@ -224,10 +224,11 @@ export function fiscalYearOf(iso: string, startMonth: number): number {
   const m = Number(iso.slice(5, 7));
   return startMonth <= 1 || m < startMonth ? y : y + 1;
 }
+/** As the API words it: "FY 2027", or "FY 2027 (Jul 2026 to Jun 2027)" when it does not start in January. */
 export function fiscalYearLabel(fy: number, startMonth: number): string {
-  if (startMonth <= 1) return String(fy);
+  if (startMonth <= 1) return `FY ${fy}`;
   const short = (m: number) => MONTHS[m - 1]!.slice(0, 3);
-  return `FY${fy} (${short(startMonth)} ${fy - 1} – ${short(startMonth === 1 ? 12 : startMonth - 1)} ${fy})`;
+  return `FY ${fy} (${short(startMonth)} ${fy - 1} to ${short(startMonth - 1)} ${fy})`;
 }
 
 // ------------------------------------------------------------------------------------ drafts

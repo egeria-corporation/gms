@@ -322,7 +322,7 @@ describe("the mock follows the contract", () => {
     expect(total.awarded).toBeGreaterThan(0);
     for (const y of s.years) expect(y.winRate).toBe(y.decided ? y.awarded / y.decided : null);
     await m.wk.saveSettings({ fiscalYearStartMonth: 7 });
-    expect((await m.wk.fundingSummary()).years[0]!.label).toMatch(/^FY\d{4} \(Jul \d{4} – Jun \d{4}\)$/);
+    expect((await m.wk.fundingSummary()).years[0]!.label).toMatch(/^FY \d{4} \(Jul \d{4} to Jun \d{4}\)$/);
     const csv = await (await m.wk.exportSummary("csv")).blob.text();
     expect(csv.split("\r\n")[0]).toBe("Fiscal year,Submitted,Decided,Awarded,Declined,Win rate,Asked,Awarded amount");
   });

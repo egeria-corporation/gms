@@ -124,8 +124,8 @@ describe("fiscal years", () => {
     expect(fiscalYearOf("2026-06-30", 7)).toBe(2026);
     expect(fiscalYearOf("2026-07-01", 7)).toBe(2027);
     expect(fiscalYearOf("2026-12-31", 1)).toBe(2026);
-    expect(fiscalYearLabel(2027, 7)).toBe("FY2027 (Jul 2026 – Jun 2027)");
-    expect(fiscalYearLabel(2026, 1)).toBe("2026");
+    expect(fiscalYearLabel(2027, 7)).toBe("FY 2027 (Jul 2026 to Jun 2027)");
+    expect(fiscalYearLabel(2026, 1)).toBe("FY 2026");
   });
 });
 
