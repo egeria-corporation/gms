@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Opportunity builder: basics, funding, dates, who can apply, then publish. One draft is edited
-// across the steps and saved through `/gms/opportunities`; publishing validates the CommonGrants
-// record on the server. `/opportunities/new` creates; `/opportunities/:id/edit` edits (the id may
+// Opportunity builder: basics, funding, dates, who can apply, publish, then applications. One draft
+// is edited across the steps and saved through `/gms/opportunities`; publishing validates the
+// CommonGrants record on the server. The Applications step takes a published opportunity to one
+// applicants can apply to (quick setup, the launch checklist, opening). `/opportunities/new` creates; `/opportunities/:id/edit` edits (the id may
 // also be the opportunity's slug).
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clock, Eye } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -13,6 +14,8 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
+import { ApplicationsStep } from "./ApplicationsStep.tsx";
+import { competitionOf, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
 import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
@@ -24,9 +27,17 @@ const STEPS = [
   { key: "dates", title: "Dates", hint: "Opens, closes, decision" },
   { key: "who", title: "Who can apply", hint: "Applicant types and rules" },
   { key: "publish", title: "Publish", hint: "Targets and public page" },
+  { key: "applications", title: "Applications", hint: "Form, rubric and opening" },
 ] as const;
 type StepKey = (typeof STEPS)[number]["key"];
 const isStep = (v: string): v is StepKey => STEPS.some((s) => s.key === v);
+/**
+ * The steps the funder has opened. A step is ticked only once it has been visited and is valid,
+ * so a default (the 501(c)(3) applicant type) never ticks a step nobody looked at. Every step of
+ * an opportunity saved before this visit counts as visited.
+ */
+type Visited = ReadonlySet<StepKey>;
+const ALL_VISITED: Visited = new Set(STEPS.map((s) => s.key));
 
 interface Draft {
   title: string;
@@ -104,6 +115,7 @@ const STEP_FIELDS: Record<StepKey, (keyof Draft)[]> = {
   dates: ["opens", "closes"],
   who: ["rows"],
   publish: [],
+  applications: [],
 };
 
 function toInput(d: Draft): OpportunityInput {
@@ -170,7 +182,7 @@ function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; 
   );
 }
 
-function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity | undefined; programs: Program[]; onSaved: (o: Opportunity) => void }) {
+function Builder({ opportunity, programs, initialVisited, onSaved }: { opportunity: Opportunity | undefined; programs: Program[]; initialVisited: Visited; onSaved: (o: Opportunity, visited: Visited) => void }) {
   const ws = useWorkspace("funder");
   const passportFlags = usePassportFlags();
   const base = `/w/${ws.handle}`;
@@ -183,6 +195,8 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
   const hash = location.hash.slice(1);
   const step: StepKey = isStep(hash) ? hash : "basics";
   const goto = (key: StepKey) => navigate({ hash: key }, { replace: true });
+  const [visited, setVisited] = useState<Visited>(() => new Set(initialVisited));
+  useEffect(() => setVisited((v) => (v.has(step) ? v : new Set([...v, step]))), [step]);
 
   const errors = useMemo(() => {
     const e = check(draft);
@@ -195,6 +209,11 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
   };
   const text = (key: keyof Draft) => ({ value: draft[key] as string, onChange: (e: { target: { value: string } }) => set(key, e.target.value as never) });
   const err = (key: keyof Draft) => (showErrors ? (errors[key] ?? null) : null);
+
+  const comps = useApiQuery(async (api) => (opportunity ? api.listCompetitions({ opportunityId: opportunity.id }) : []), [opportunity?.id]);
+  const competitions = comps.status === "ready" ? comps.data : undefined;
+  const competition = opportunity && competitions ? competitionOf(opportunity.id, competitions) : undefined;
+  const taking = !!opportunity && !!competitions && takingApplications(opportunity.id, competitions);
 
   const save = useApiMutation((api, input: OpportunityInput) => (opportunity ? api.updateOpportunity(opportunity.id, input) : api.createOpportunity(input)));
   const publish = useApiMutation((api, id: string, status: "forecasted" | "open") => api.publishOpportunity(id, status));
@@ -211,7 +230,7 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
     if (saved) {
       setDirty(false);
       setDraft((d) => ({ ...d, slug: saved.slug }));
-      onSaved(saved);
+      onSaved(saved, visited);
     }
     return saved;
   }
@@ -219,15 +238,17 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
     const saved = dirty || !opportunity ? await saveDraft() : opportunity;
     if (!saved) return;
     const live = await publish.run(saved.id, status);
-    if (live) onSaved(live);
+    if (live) onSaved(live, visited);
   }
 
   const stepDone = (key: StepKey) => {
+    if (!visited.has(key)) return false;
     if (STEP_FIELDS[key].some((f) => errors[f])) return false;
     if (key === "basics") return !!draft.title.trim() && !!draft.description.trim();
     if (key === "funding") return !!draft.max.trim() || !!draft.min.trim();
     if (key === "dates") return !!draft.closes;
     if (key === "who") return draft.types.length > 0;
+    if (key === "applications") return taking;
     return !!opportunity?.published;
   };
   const index = STEPS.findIndex((s) => s.key === step);
@@ -244,7 +265,7 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
         title="Opportunity builder"
         badge={
           <>
-            {opportunity ? <StatusBadge kind="opportunity" status={opportunity.status} label={opportunity.published ? undefined : "Draft"} /> : <StatusBadge kind="form" status="draft" />}
+            {opportunity ? <OpportunityStatusBadge opportunity={opportunity} competitions={competitions} /> : <StatusBadge kind="form" status="draft" />}
             {dirty && (
               <span className="pill-warn">
                 <Clock className="ic ic-sm" aria-hidden="true" />
@@ -321,6 +342,7 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
                 {step === "dates" && "Key dates shown to applicants. Stage dates are set on the competition."}
                 {step === "who" && "Applicant types come from the CommonGrants list. Rules are evaluated against each organization's Passport record and shown to applicants in plain language."}
                 {step === "publish" && "Where the opportunity is listed once it is published."}
+                {step === "applications" && "Applicants can apply only once a competition is open. Quick setup gets one ready from what you entered; the launch checklist says what is left."}
               </p>
             </div>
           </div>
@@ -464,6 +486,11 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
                     </div>
                   </div>
                 )}
+                {opportunity?.published && opportunity.status !== "closed" && competitions && !taking && (
+                  <Notice tone="warn" title="Not taking applications yet">
+                    Applicants can find this opportunity but cannot apply. <Link to={{ hash: "#applications" }} replace>Set up applications</Link>
+                  </Notice>
+                )}
                 {opportunity?.status === "closed" && <Notice tone="neu" title="This opportunity is closed">It no longer accepts applications and cannot be reopened.</Notice>}
                 {!draft.description.trim() && <Notice tone="warn" title="Add a summary before publishing">The public page and the CommonGrants record both need one.</Notice>}
                 {opportunity?.status !== "closed" && (
@@ -483,7 +510,7 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
                         disabled={close.state === "saving"}
                         onClick={async () => {
                           const closed = await close.run(opportunity.id);
-                          if (closed) onSaved(closed);
+                          if (closed) onSaved(closed, visited);
                         }}
                       >
                         Close opportunity
@@ -493,6 +520,7 @@ function Builder({ opportunity, programs, onSaved }: { opportunity: Opportunity 
                 )}
               </>
             )}
+            {step === "applications" && <ApplicationsStep opportunity={opportunity} competition={competition} base={base} publicPath={publicPath} onChanged={comps.reload} />}
           </div>
           <div className="card-f" style={{ justifyContent: "space-between" }}>
             {prev ? (
@@ -538,6 +566,8 @@ export default function OpportunityBuilder() {
   }, [ws.id, oppId]);
   const [saved, setSaved] = useState<Opportunity | null>(null);
   useEffect(() => setSaved(null), [oppId]);
+  // An opportunity created in this visit keeps the steps actually visited when it gets its own address.
+  const carried = useRef<{ id: string; visited: Visited } | null>(null);
 
   if (data.status === "ready" && oppId && !data.data.opportunity) return <NotFound />;
   const opportunity = saved ?? (data.status === "ready" ? data.data.opportunity : undefined);
@@ -560,8 +590,10 @@ export default function OpportunityBuilder() {
           key={data.data.opportunity?.id ?? "new"}
           opportunity={opportunity}
           programs={data.data.programs}
-          onSaved={(o) => {
+          initialVisited={data.data.opportunity ? (carried.current?.id === data.data.opportunity.id ? carried.current.visited : ALL_VISITED) : new Set()}
+          onSaved={(o, visited) => {
             setSaved(o);
+            if (!oppId) carried.current = { id: o.id, visited };
             // A new opportunity gets its own address once it exists.
             if (!oppId) navigate({ pathname: `/w/${ws.handle}/opportunities/${o.id}/edit`, hash: location.hash }, { replace: true });
           }}

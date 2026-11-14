@@ -7,12 +7,15 @@ import { archiveDay, GENESIS_HASH, type ArchiveBucket } from "@gms/ledger";
 import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
 import { deliverDue } from "@gms/webhooks";
+import { OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
 import { NO_AGREEMENT_REQUIRED } from "@gms/workflow";
 import { scopesForRole } from "./auth/scopes.ts";
 import { exportBundle, importBundle } from "./services/analytics.ts";
 import { latestAgreement, retryAwardMirrors } from "./services/awards.ts";
 import { audit, systemContext, type BaseContext, type ServiceContext } from "./services/context.ts";
 import { pollOrgChanges } from "./services/grantees.ts";
+import { mailMembers } from "./services/member-mail.ts";
+import { OUTSIDE_ROLES } from "./services/outside.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
@@ -206,4 +209,50 @@ export async function exportWorkspaceBundle(base: BaseContext, workspaceId: stri
 /** `gms import <dir> --workspace <id>`. */
 export async function importWorkspaceBundle(base: BaseContext, workspaceId: string, bundle: { gms?: unknown }) {
   return importBundle(await operatorContext(base, workspaceId), bundle);
+}
+
+// ------------------------------------------------------------------------------------ apply anywhere
+
+/** Stages in which each deadline still matters: a letter of inquiry before it is sent, the full application before submission. */
+const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]> = {
+  loi: ["prospect", "deciding", "loi"],
+  full: ["prospect", "deciding", "loi", "invited", "drafting"],
+  internal: ["prospect", "deciding", "loi", "invited", "drafting"],
+};
+
+/**
+ * Outside application deadlines (letter of inquiry, full, internal) 14, 7 and 2 days ahead and on
+ * the day: email the application's owner and the people assigned to questions not yet approved,
+ * with the `outside_deadline` template, honouring each one's `outside_deadline` email preference. Runs once a day; the
+ * idempotency key names the application, deadline, date and offset, so a re-run that day sends
+ * nothing twice. Archived and closed applications are skipped.
+ */
+export async function sendOutsideReminders(base: BaseContext): Promise<{ checked: number; reminded: number; sent: number; failed: number }> {
+  const now = base.now();
+  let checked = 0;
+  let reminded = 0;
+  let sent = 0;
+  const due: { row: Row<"outside_applications">; kind: "loi" | "full" | "internal"; date: string; days: number }[] = [];
+  for (const days of OUTSIDE_DEADLINE_OFFSETS) {
+    const date = new Date(now.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+    for (const kind of ["loi", "full", "internal"] as const) {
+      const column = kind === "loi" ? "loi_due" : kind === "full" ? "full_due" : "internal_due";
+      const rows = await base.repos.table("outside_applications").find({ [column]: date, archived_at: null, stage: [...OUTSIDE_REMINDABLE[kind]] } as never, { limit: 5000 });
+      for (const row of rows) due.push({ row, kind, date, days });
+    }
+  }
+  checked = due.length;
+  const failed = await each(due, async ({ row, kind, date, days }) => {
+    const ws = await base.repos.table("workspaces").one({ id: row.workspace_id });
+    if (!ws || ws.kind !== "applicant") return;
+    const questions = await base.repos.table("outside_questions").find({ workspace_id: row.workspace_id, outside_application_id: row.id });
+    const open = questions.filter((q) => q.status !== "approved");
+    const people = [...new Set([row.owner_user_id, ...open.map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
+    if (!people.length) return;
+    const mail = outsideDeadlineEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, kind, dueOn: date, daysLeft: days, openQuestions: open.length, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_deadline", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
+    reminded++;
+    sent += out.sent;
+  });
+  return { checked, reminded, sent, failed };
 }

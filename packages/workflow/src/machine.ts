@@ -3,7 +3,7 @@
 // guard → write → ledger → webhook, in that order, through injected ports. No route writes a status
 // column directly (build spec §10.1).
 
-export type SubjectType = "application" | "award" | "agreement" | "tranche" | "requirement" | "submission";
+export type SubjectType = "application" | "award" | "agreement" | "tranche" | "requirement" | "submission" | "outside_application";
 
 export type ActorKind = "applicant" | "funder" | "system" | "passport";
 

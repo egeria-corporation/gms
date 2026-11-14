@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The public home page. The message: sign up with an email and use the GMS; Passport is an
-// optional upgrade, never a requirement. Styles are the `.landing-*` classes in app.css.
+// The public home page. The message: sign up with an email and use the GMS; Passport is a
+// worthwhile optional add-on, never a requirement. Styles are the `.landing-*` classes in app.css.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useServices } from "../../app/services.tsx";
@@ -39,6 +39,9 @@ const GRANTEE_CAN = [
   "Message your funder in one thread",
   "Keep one status view across funders",
 ];
+
+/** How the page presents Passport: an add-on worth having, and optional. */
+const PASSPORT_PITCH = "Add OpenGrants Passport, a free, verified profile for your organization that you set up once and share with the funders you choose. It's optional.";
 
 const FAQ: Array<[string, string]> = [
   ["Do I need OpenGrants Passport?", "No. Sign up with your email. Passport is optional and adds verification and payments through Passport."],
@@ -125,8 +128,7 @@ export default function Landing() {
               </span>
               <h1 id="landing-h1">Give and manage grants, free. Sign up with your email.</h1>
               <p className="landing-lede">
-                Funders create opportunities and awards, collect reports and keep track of payments. Grantees accept awards, sign agreements and send reports.{" "}
-                <b>No Passport account needed.</b>
+                Funders create opportunities and awards, collect reports and keep track of payments. Grantees accept awards, sign agreements and send reports.
               </p>
               <div className="landing-cta">
                 <Link to="/signin?as=funder" className="btn btn-cta btn-lg">
@@ -145,7 +147,7 @@ export default function Landing() {
                 </div>
               )}
               <ul className="landing-facts" aria-label="At a glance">
-                {["Free for funders", "Free for grantees", "Email sign-in, no password", "No Passport required", "Open source"].map((f) => (
+                {["Free for funders", "Free for grantees", "Email sign-in, no password", "Open source"].map((f) => (
                   <li key={f}>
                     <Check className="ic" aria-hidden="true" />
                     {f}
@@ -231,6 +233,9 @@ export default function Landing() {
                   <h2 id="adds-h" style={{ marginBottom: 0 }}>
                     What Passport adds, if you want it
                   </h2>
+                  <p className="landing-sub" style={{ marginBottom: 0 }}>
+                    {PASSPORT_PITCH}
+                  </p>
                   <ul>
                     <li>
                       <ShieldCheck className="ic" aria-hidden="true" />

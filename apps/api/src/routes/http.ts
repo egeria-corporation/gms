@@ -34,6 +34,7 @@ export function config(c: C): ServiceConfig {
     passportWebhookSecret: c.env.PASSPORT_WEBHOOK_SECRET ?? null,
     resendInboundSecret: c.env.RESEND_INBOUND_SECRET ?? null,
     inboundDomain: c.env.RESEND_INBOUND_DOMAIN ?? (c.env.RESEND_FROM?.match(/@([A-Za-z0-9.-]+)/)?.[1] ?? null),
+    consultingRequestTo: c.env.CONSULTING_REQUEST_TO?.trim() || null,
   };
 }
 

@@ -574,6 +574,36 @@ model GmsCompetitionInput {
   acceptedApplicantTypes?: string[];
 }
 
+/** `POST /gms/opportunities/{id}/quick-setup`: what quick setup made or reused, and the launch checklist. */
+model QuickSetupResult {
+  /** The opportunity's competition: newly made, or the draft (or open) one it already had */
+  competition: GmsCompetition;
+
+  /** The form pinned to the first stage; null when that stage takes no submission */
+  form: {
+    id: PrefixedId;
+    version: int32;
+    title: string;
+  } | null;
+
+  /** The rubric on the first stage; null when that stage records no decision */
+  rubric: {
+    id: CommonGrants.Types.uuid;
+    version: int32;
+    name: string;
+  } | null;
+
+  /** What this run made; false means it was there already and was reused */
+  created: {
+    competition: boolean;
+    form: boolean;
+    rubric: boolean;
+  };
+
+  /** The unchanged launch checklist. Opening is a separate call */
+  checklist: Readiness;
+}
+
 /** `PUT /gms/competitions/{id}/stages`. Allowed only while the competition is a draft. */
 model StagesInput {
   stages: Stage[];
@@ -989,7 +1019,10 @@ model NotificationChannel {
 model NotificationPreferences {
   digest: "immediate" | "daily" | "weekly" | "off";
 
-  /** Category → channels. Every category is present in responses; missing ones default to on. */
+  /** Category → channels. Every category is present in responses; missing ones default to on.
+   * Besides the notification categories, `outside_deadline` sets the outside application deadline
+   * reminders (no notification carries that category).
+   */
   channels: Record<NotificationChannel>;
 }
 
@@ -2308,6 +2341,9 @@ model SavedListing {
   url: string | null;
   gmsOpportunityId?: GmsId | null;
   savedAt: utcDateTime;
+
+  /** Saving an OpenGrants listing makes (or finds) its prospect: the outside application tracking it. */
+  outsideApplicationId?: CommonGrants.Types.uuid | null;
 }
 
 model ThreadInput {
@@ -2584,8 +2620,14 @@ model AnswerInput {
 // #########################################################
 
 /** A competition open on this GMS, with the caller's eligibility. */
+/** A competition open on this GMS, or (apply anywhere) a published opportunity not taking applications yet. */
 model DiscoverCompetition {
-  competitionId: CommonGrants.Types.uuid;
+  /** Null for an opportunity with no open competition. */
+  competitionId: CommonGrants.Types.uuid | null;
+
+  /** False for a published opportunity with no open competition: it can be saved, not started. */
+  acceptingApplications: boolean;
+
   opportunity: {
     id: PrefixedId;
     slug: string;
@@ -2607,7 +2649,8 @@ model DiscoverCompetition {
   /** Number of forms in the first stage */
   forms: int32;
 
-  eligibility: EligibilityResult;
+  /** Null when the opportunity is not taking applications yet (no eligibility is run). */
+  eligibility: EligibilityResult | null;
 
   /** The caller's application to this competition, when one exists. */
   application: {

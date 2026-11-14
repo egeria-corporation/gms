@@ -14,6 +14,7 @@ const ROWS: readonly Row[] = [
   r("PATCH", "/gms/opportunities/:id", "update_opportunity"),
   r("POST", "/gms/opportunities/:id/publish", "publish_opportunity"),
   r("POST", "/gms/competitions", "create_competition"),
+  r("POST", "/gms/opportunities/:id/quick-setup", "quick_setup_competition"),
   r("PUT", "/gms/competitions/:id/forms", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/stages", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/rubric", "set_rubric"),
@@ -63,6 +64,13 @@ const ROWS: readonly Row[] = [
   r("POST", "/gms/my/answers", "save_answer"),
   r("PATCH", "/gms/my/answers/:id", "save_answer"),
   r("POST", "/gms/threads/:id/messages", "reply"),
+  // Apply anywhere
+  r("POST", "/gms/outside-applications", "create_outside_application"),
+  r("POST", "/gms/outside-applications/:id/questions", "add_outside_questions"),
+  r("PUT", "/gms/outside-questions/:id/answer", "put_outside_answer"),
+  r("POST", "/gms/outside-applications/:id/stage", "set_outside_stage"),
+  r("POST", "/gms/outside-applications/:id/submit", "record_outside_submission"),
+  r("POST", "/gms/outside-applications/:id/decision", "record_outside_decision"),
 ];
 
 /** The MCP tool a REST call stands for, or null for reads and routes no tool covers. */

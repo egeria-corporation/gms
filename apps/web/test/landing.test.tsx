@@ -60,6 +60,26 @@ describe("landing page", () => {
     expect(screen.queryByRole("heading", { name: "What Passport adds, if you want it" })).not.toBeInTheDocument();
   });
 
+  it("presents Passport as an optional add-on and no longer leads with not needing it", async () => {
+    const pitch = "Add OpenGrants Passport, a free, verified profile for your organization that you set up once and share with the funders you choose. It's optional.";
+    const on = open("/", flags(signedOut(), { signIn: true, linking: true, payments: true }));
+    const adds = (await screen.findByRole("heading", { name: "What Passport adds, if you want it" })).closest("section")!;
+    expect(within(adds).getByText(pitch)).toBeInTheDocument();
+    expect(screen.queryByText(/No Passport account needed/)).not.toBeInTheDocument();
+    const facts = screen.getByRole("list", { name: "At a glance" });
+    expect(within(facts).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Free for funders", "Free for grantees", "Email sign-in, no password", "Open source"]);
+    // Anyone can still sign up with an email.
+    expect(screen.getByRole("heading", { level: 1, name: "Give and manage grants, free. Sign up with your email." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What you can do without Passport" })).toBeInTheDocument();
+    on.unmount();
+
+    // Where this server cannot link Passport, the page does not offer it.
+    open("/", flags(signedOut(), { signIn: false, linking: false, payments: false }));
+    expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(screen.queryByText(pitch)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No Passport (account needed|required)/)).not.toBeInTheDocument();
+  });
+
   it("links the self-host section to the deploy runbook and states what works without Passport", async () => {
     open("/", signedOut());
     expect(await screen.findByRole("link", { name: /Deploy with an agent/ })).toHaveAttribute("href", "https://github.com/egeria-corporation/gms/blob/main/DEPLOY_WITH_AGENT.md");

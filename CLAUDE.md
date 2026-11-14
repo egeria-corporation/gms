@@ -10,7 +10,8 @@ its stylesheet lives in `apps/web/src/theme/` (tokens.css = OpenGrants Design Sy
 - **Passport owns organizations and money**: profile, assurance level, attestation, PayeeCredential,
   destinations, disbursements, `Award.funding.disbursedAmount`.
 - **The GMS owns the funder's process**: programs, opportunities, competitions, forms, applications,
-  reviews, decisions, award lifecycle, agreements, payment schedules, requirements, budgets, messages.
+  reviews, decisions, award lifecycle, agreements, payment schedules, requirements, budgets, messages,
+  and the applicant's own grant seeking, including outside applications.
 - Awards are mirrored: GMS is authoritative for lifecycle, Passport for amounts disbursed.
 
 ## Non-negotiable constraints
@@ -60,6 +61,8 @@ pnpm dev:api      # wrangler dev on :8787
 
 ## Do not build (v1)
 
-Payments to individuals, third-party e-signature vendors, document-AI extraction, Grants.gov/SAM.gov
-submission, reviewer stipends, custom domains for funder pages, mobile apps, SOC 2 work, a CRM,
-Candid import, anything Microsoft.
+Payments to individuals, third-party e-signature vendors, document-AI extraction of an organization's
+own documents (AI may read a funder's guidelines the person pastes or uploads), Grants.gov/SAM.gov
+submission, reviewer stipends, custom domains for funder pages, mobile apps, SOC 2 work, a CRM (donor
+management, outreach pipelines); applicants keep a light record per funder, Candid import, anything
+Microsoft.
