@@ -220,6 +220,9 @@ namespace GMS.Models {
     assigneeUserId: CommonGrants.Types.uuid | null;
     status: QuestionStatus;
 
+    /** A report question's report obligation (v1.7); null for the application's own questions. */
+    obligationId: CommonGrants.Types.uuid | null;
+
     /** The latest saved version, or null when nothing was written yet. */
     answer: OutsideAnswer | null;
 

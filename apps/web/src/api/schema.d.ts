@@ -14538,6 +14538,8 @@ export interface components {
             required: boolean;
             assigneeUserId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             status: components["schemas"]["Models.QuestionStatus"];
+            /** @description A report question's report obligation (v1.7); null for the application's own questions. */
+            obligationId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** @description The latest saved version, or null when nothing was written yet. */
             answer: components["schemas"]["Models.OutsideAnswer"] | null;
             /** Format: date-time */

@@ -186,6 +186,7 @@ export const questionView = (q: Question, latest: Answer | null) => ({
   required: q.required,
   assigneeUserId: q.assignee_user_id,
   status: q.status,
+  obligationId: q.obligation_id ?? null,
   answer: latest ? answerView(latest, q) : null,
   updatedAt: q.updated_at,
 });
