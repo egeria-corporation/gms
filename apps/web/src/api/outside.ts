@@ -11,6 +11,7 @@
 import type { AppDocument, AttachmentInput, DiscoverCompetition, OpenGrantsListing, Task } from "./applicant.ts";
 import { ApiError } from "./client.ts";
 import type { LimitKind, OutsideStage, ParsedQuestion, QuestionPhase, TextCounts, DecisionOutcome } from "../lib/outside.ts";
+import type { Criterion, RequiredDocument, RequiredDocStatus } from "../lib/writeKeep.ts";
 
 export type { OutsideStage, LimitKind, QuestionPhase, DecisionOutcome };
 export type OutsideSource = "opengrants" | "manual" | "import" | "link";
@@ -61,6 +62,19 @@ export interface OutsideListItem {
   archivedAt?: string | null;
 }
 
+/** The go/no-go scorecard as decided (v1.6): eligibility, the weighted scores and who decided. */
+export interface GoNoGo {
+  eligibility: "pass" | "fail";
+  scores: Partial<Record<Criterion, number>>;
+  weights: Partial<Record<Criterion, number>>;
+  total: number;
+  max: number | null;
+  decision: "go" | "no_go";
+  decidedBy: string | null;
+  decidedAt: string | null;
+  reason: string | null;
+}
+
 export interface OutsideApplication {
   id: string;
   title: string;
@@ -99,6 +113,13 @@ export interface OutsideApplication {
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** The funder's required documents and what meets each (v1.6). */
+  requiredDocuments: RequiredDocument[];
+  goNoGo: GoNoGo | null;
+  /** Set when an awarded grant is closed out (v1.7); the stage stays awarded. */
+  closedOutAt: string | null;
+  /** The award letter, one of the application's documents (v1.7). */
+  awardLetterDocumentId: string | null;
 }
 
 export interface OutsideAnswer {
@@ -106,7 +127,7 @@ export interface OutsideAnswer {
   questionId: string;
   version: number;
   body: string;
-  /** `user`, `library`, `agent:<client>` … (the forms provenance vocabulary). */
+  /** `user`, `library`, `assist`, `prior_submission`, `agent:<client>` … (the forms provenance vocabulary). */
   provenance: string;
   libraryAnswerId: string | null;
   createdBy: string | null;
@@ -129,6 +150,8 @@ export interface OutsideQuestion {
   required: boolean;
   assigneeUserId: string | null;
   status: QuestionStatus;
+  /** A report question belongs to one report obligation (v1.7); null for the application's own questions. */
+  obligationId: string | null;
   /** The latest version, or null before anything is written. */
   answer: OutsideAnswer | null;
 }
@@ -183,7 +206,21 @@ export type OutsidePatch = Partial<{
   askByYear: YearAmount[];
   ownerUserId: string | null;
   customFields: Record<string, string | number | boolean | null>;
+  requiredDocuments: RequiredDocument[];
+  awardLetterDocumentId: string | null;
 }>;
+
+/**
+ * A new answer version. `libraryAnswerId` marks it as from the library; `provenance` marks accepted
+ * AI text ("assist") or text reused from an earlier report ("prior_submission", with the answer it
+ * came from).
+ */
+export interface AnswerInput {
+  body: string;
+  libraryAnswerId?: string;
+  provenance?: "assist" | "prior_submission";
+  sourceAnswerId?: string;
+}
 
 export interface SubmitInput {
   /** Date (YYYY-MM-DD) the person submitted on the funder's own site. */
@@ -212,6 +249,8 @@ export interface QuestionInput {
   limitValue?: number | null;
   required?: boolean;
   assigneeUserId?: string | null;
+  /** Report questions only: the report obligation they belong to. */
+  obligationId?: string | null;
 }
 export type QuestionPatch = Partial<QuestionInput & { status: QuestionStatus; position: number }>;
 
@@ -359,7 +398,7 @@ export interface OutsideApi {
   /** Splits pasted text into proposed questions. Nothing is saved. */
   parseQuestions(id: string, text: string): Promise<ParsedQuestion[]>;
   /** Saves a new version. `libraryAnswerId` marks it as from the answer library. */
-  putAnswer(questionId: string, input: { body: string; libraryAnswerId?: string }): Promise<SavedAnswer>;
+  putAnswer(questionId: string, input: AnswerInput): Promise<SavedAnswer>;
   answerHistory(questionId: string): Promise<OutsideAnswer[]>;
   exportApplication(id: string, format: "txt" | "md" | "pdf"): Promise<ExportFile>;
 
@@ -497,6 +536,43 @@ export function toApplication(raw: unknown): OutsideApplication {
     archivedAt: str(r.archivedAt),
     createdAt: str(r.createdAt) ?? "",
     updatedAt: str(r.updatedAt) ?? "",
+    requiredDocuments: requiredOf(r.requiredDocuments),
+    goNoGo: goNoGoOf(r.goNoGo),
+    closedOutAt: str(r.closedOutAt),
+    awardLetterDocumentId: str(r.awardLetterDocumentId),
+  };
+}
+
+const REQUIRED_STATUSES: ReadonlySet<string> = new Set<RequiredDocStatus>(["needed", "attached", "not_needed"]);
+export const requiredOf = (v: unknown): RequiredDocument[] =>
+  Array.isArray(v)
+    ? v.flatMap((x) => {
+        const d = obj(x);
+        const label = str(d.label);
+        if (!label) return [];
+        const documentId = str(d.documentId);
+        const status = str(d.status);
+        return [{ label, documentId, status: (status && REQUIRED_STATUSES.has(status) ? status : documentId ? "attached" : "needed") as RequiredDocStatus }];
+      })
+    : [];
+
+export function goNoGoOf(v: unknown): GoNoGo | null {
+  const g = obj(v);
+  const decision = str(g.decision);
+  if (decision !== "go" && decision !== "no_go") return null;
+  const scores = obj(g.scores);
+  const numbers = (o: Raw) => Object.fromEntries(Object.entries(o).filter((e): e is [string, number] => typeof e[1] === "number")) as Partial<Record<Criterion, number>>;
+  const eligibility = str(g.eligibility) ?? str(scores.eligibility);
+  return {
+    eligibility: eligibility === "fail" ? "fail" : "pass",
+    scores: numbers(scores),
+    weights: numbers(obj(g.weights)),
+    total: num(g.total) ?? 0,
+    max: num(g.max),
+    decision,
+    decidedBy: str(g.decidedBy),
+    decidedAt: str(g.decidedAt),
+    reason: str(g.reason),
   };
 }
 
@@ -530,6 +606,7 @@ export function toQuestion(raw: unknown, answers: Map<string, OutsideAnswer> = n
     required: r.required === true,
     assigneeUserId: str(r.assigneeUserId),
     status: (str(r.status) ?? "empty") as QuestionStatus,
+    obligationId: str(r.obligationId),
     answer: inline && typeof inline === "object" ? toAnswer({ questionId: id, ...(inline as Raw) }) : (answers.get(id) ?? null),
   };
 }
