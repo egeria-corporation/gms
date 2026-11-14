@@ -9,7 +9,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Bookmark, CalendarClock, CircleCheck, CircleDashed, CircleX, ExternalLink, Info, Search, X } from "lucide-react";
 import type { ApplicantApi, OpenGrantsListing, SavedListing } from "../../api/applicant.ts";
 import { useApplicantApi, useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
-import { isAccepting, type DiscoverItem, type ListingSnapshot, type OutsideApi, type OutsideListItem } from "../../api/outside.ts";
+import { isAccepting, type DiscoverItem, type ListingSnapshot, type OpenDiscoverItem, type OutsideApi, type OutsideListItem } from "../../api/outside.ts";
 import { useOutsideApi, useOutsideMutation } from "../../api/outsideHooks.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { useAppConfig } from "../../api/launchHooks.ts";
@@ -27,7 +27,7 @@ import { FundingAlerts } from "./fundingAlerts.tsx";
 type Tab = "here" | "index" | "saved" | "alerts";
 
 const load = async (api: ApplicantApi, outside: OutsideApi) => {
-  const [competitions, saved, mine] = await Promise.all([api.discover() as Promise<DiscoverItem[]>, api.saved(), outside.list().catch(() => [] as OutsideListItem[])]);
+  const [competitions, saved, mine] = await Promise.all([api.discover(), api.saved(), outside.list().catch(() => [] as OutsideListItem[])]);
   return { competitions, saved, mine };
 };
 
@@ -131,7 +131,7 @@ function NotOpenCard({ c, saved, onSave, saving }: { c: DiscoverItem; saved: boo
   );
 }
 
-function CompetitionCard({ c, base, onStart, starting }: { c: DiscoverItem & { competitionId: string }; base: string; onStart: (c: DiscoverItem & { competitionId: string }) => void; starting: boolean }) {
+function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; base: string; onStart: (c: OpenDiscoverItem) => void; starting: boolean }) {
   const failed = c.eligibility.results.filter((r) => r.outcome === "fail");
   const unknown = c.eligibility.results.filter((r) => r.outcome === "unknown");
   const range = formatAwardRange(c.opportunity.funding as OppFunding);
@@ -227,7 +227,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: DiscoverItem & { c
 
 /** What a listing offers: built-in on this GMS, not open yet on this GMS, or an outside application. */
 type ListingAction =
-  | { kind: "builtin"; item: DiscoverItem & { competitionId: string } }
+  | { kind: "builtin"; item: OpenDiscoverItem }
   | { kind: "builtin-direct"; competitionId: string }
   | { kind: "not-open"; item: DiscoverItem | null }
   | { kind: "outside"; existing: OutsideListItem | undefined };

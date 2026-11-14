@@ -308,6 +308,7 @@ describe("Find funding", () => {
     const card = await screen.findByRole("article", { name: "Youth Mental Health Partnerships 2028" });
     expect(within(card).getByText("Not taking applications yet")).toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: /Start/ })).not.toBeInTheDocument();
+    expect(within(card).queryByText(/eligib/i)).not.toBeInTheDocument();
     await userEvent.click(within(card).getByRole("button", { name: "Save" }));
     expect(await within(card).findByRole("button", { name: "Saved" })).toBeDisabled();
     expect(o.store.saved.some((s) => s.source === "gms" && s.title === "Youth Mental Health Partnerships 2028")).toBe(true);

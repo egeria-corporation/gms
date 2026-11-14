@@ -6,7 +6,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { FileText, Link2, Search, X } from "lucide-react";
 import type { FunderRecord, OutsideApi, OutsideCreateInput } from "../../../api/outside.ts";
-import { isAccepting, type DiscoverItem } from "../../../api/outside.ts";
+import { isAccepting } from "../../../api/outside.ts";
 import { useApplicantApi } from "../../../api/applicantHooks.ts";
 import { useOutsideApi } from "../../../api/outsideHooks.ts";
 import { Dialog } from "../../../components/Dialog.tsx";
@@ -76,7 +76,7 @@ export function NewApplicationDialog({ base, records, openGrants, onClose }: { b
 
   const openBuiltIn = () =>
     run(async () => {
-      const found = ((await applicant.discover()) as DiscoverItem[]).find((d) => d.funder.handle === gms!.handle && d.opportunity.slug === gms!.slug);
+      const found = (await applicant.discover()).find((d) => d.funder.handle === gms!.handle && d.opportunity.slug === gms!.slug);
       if (found?.application) return `${base}/applications/${found.application.id}${found.application.status === "draft" || found.application.status === "revision_requested" ? "/edit" : ""}`;
       if (found && isAccepting(found)) return `${base}/applications/${(await applicant.startApplication(found.competitionId)).id}/edit`;
       // Not open yet, or not listed: Find funding shows it first and says where it stands.

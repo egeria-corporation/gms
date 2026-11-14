@@ -867,7 +867,7 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
     async discover() {
       await signedIn();
       // Opportunities not taking applications yet come after the open ones, with no eligibility run.
-      const notOpen = (store.listed ?? []).map((o) => {
+      const notOpen = (store.listed ?? []).map((o): DiscoverCompetition => {
         const funder = store.funders[o.funderWorkspaceId];
         return {
           competitionId: null,
@@ -876,10 +876,10 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
           funder: { name: funder?.name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
           stage: null,
           forms: 0,
-          eligibility: { eligible: "unknown", results: [] },
+          eligibility: null,
           application: null,
           url: funder ? `/f/${funder.handle}/o/${o.slug}` : null,
-        } as unknown as DiscoverCompetition;
+        };
       });
       return [...store.competitions.map((c): DiscoverCompetition => {
         const funder = store.funders[c.funderWorkspaceId];

@@ -328,9 +328,15 @@ export interface ExportFile {
   blob: Blob;
 }
 
-/** A Find funding item: the contract adds opportunities with no open competition (D10). */
-export type DiscoverItem = Omit<DiscoverCompetition, "competitionId"> & { competitionId: string | null; acceptingApplications?: boolean };
-export const isAccepting = (d: DiscoverItem): d is DiscoverItem & { competitionId: string } => d.acceptingApplications !== false && !!d.competitionId;
+/**
+ * A Find funding item, as the API sends it. Published opportunities with no open competition (D10)
+ * come back with `acceptingApplications: false`, `competitionId: null` and `eligibility: null`.
+ */
+export type DiscoverItem = DiscoverCompetition;
+/** An item taking applications: it has a competition to start and this organization's eligibility. */
+export type OpenDiscoverItem = DiscoverItem & { competitionId: string; eligibility: NonNullable<DiscoverItem["eligibility"]> };
+/** Only an item with a competition and an eligibility result offers Start; anything else is "not taking applications yet". */
+export const isAccepting = (d: DiscoverItem): d is OpenDiscoverItem => d.acceptingApplications !== false && !!d.competitionId && !!d.eligibility;
 
 export interface OutsideApi {
   list(filter?: { stage?: OutsideStage; q?: string; archived?: boolean }): Promise<OutsideListItem[]>;

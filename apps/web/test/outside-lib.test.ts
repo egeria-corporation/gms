@@ -3,10 +3,10 @@
 // splitter the paste flow previews, the stage moves the screens offer, the pipeline lanes, the
 // client's request paths and response shaping, and the mock's rules (dedupe, guards, limits).
 import { describe, expect, it } from "vitest";
-import { createHttpOutsideApi, toDetail, toListItem } from "../src/api/outside.ts";
+import { createHttpOutsideApi, isAccepting, toDetail, toListItem, type DiscoverItem } from "../src/api/outside.ts";
 import { parseCsv } from "../src/lib/csv.ts";
 import { canMarkSubmitted, canReopen, countText, decisionOutcomes, detectLimit, gmsOpportunityOf, isOverLimit, parseQuestions, plainMoves } from "../src/lib/outside.ts";
-import { seedApplicantStore } from "../src/mocks/applicant.ts";
+import { createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
 import { demoSession } from "../src/mocks/auth.ts";
 import { CONSULTING_REQUEST_TO, createMockOutsideApi, OUTSIDE_IDS, textPdf } from "../src/mocks/outside.ts";
 import { laneOf, matchesDeadline, rowsOf } from "../src/screens/applicant/Applications.tsx";
@@ -319,5 +319,21 @@ describe("the mock follows the contract's rules", () => {
     expect(v).toMatchObject({ version: 1, provenance: "library", libraryAnswerId: lib.id, overLimit: false });
     expect(v.counts.words).toBe(22);
     expect((lib.usedIn as unknown[]).length).toBe(before + 1);
+  });
+
+  it("offers Start only for a discovery item with a competition and an eligibility result", async () => {
+    const applicant = seedApplicantStore();
+    const items = await createMockApplicantApi({ session: async () => demoSession(), store: applicant }).discover();
+    const open = items.filter((d) => d.acceptingApplications);
+    const notOpen = items.filter((d) => !d.acceptingApplications);
+    expect(open.length).toBeGreaterThan(0);
+    expect(notOpen.length).toBeGreaterThan(0);
+    for (const d of open) expect(isAccepting(d)).toBe(true);
+    // Not taking applications yet: no competition to start and no eligibility run, as the API sends it.
+    for (const d of notOpen) expect(d).toMatchObject({ competitionId: null, eligibility: null, stage: null });
+    for (const d of notOpen) expect(isAccepting(d)).toBe(false);
+    const half = { ...open[0]!, eligibility: null } as DiscoverItem;
+    expect(isAccepting(half)).toBe(false);
+    expect(isAccepting({ ...open[0]!, acceptingApplications: false })).toBe(false);
   });
 });
