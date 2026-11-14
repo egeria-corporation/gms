@@ -20,6 +20,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { matchGmsOpportunity } from "./applicant.ts";
 import { audit, authorize, changeStatus, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { listMyDocuments } from "./organization.ts";
+import { refuseSensitiveFilename, requiredDocumentsView } from "./vault.ts";
 import type { Row } from "./repos/types.ts";
 
 type Oa = Row<"outside_applications">;
@@ -271,6 +272,7 @@ async function detailView(ctx: ServiceContext, row: Oa) {
     createdAt: row.created_at,
     questions: qa.map(({ q, latest }) => questionView(q, latest)),
     aiUse: aiUseOf(qa),
+    requiredDocuments: await requiredDocumentsView(ctx, row),
     documents: docs.map(docView),
     tasks: tasks.map(taskView),
     activity,
@@ -821,19 +823,22 @@ export async function exportOutside(ctx: ServiceContext, id: string, format: Exp
 
 // ------------------------------------------------------------------------------------ documents
 
+/** `award_letter` marks the funder's award letter, shown on the outside award page (v1.7.0). */
+const outsideDocType = z.enum(["award_letter"]).optional();
 export const documentInput = z.union([
-  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), contentBase64: z.string().min(1) }).strict(),
+  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), contentBase64: z.string().min(1), docType: outsideDocType }).strict(),
   // A Passport locker file referenced with its details, as built-in attachments accept; the GMS keeps no copy.
-  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), passportDocumentId: z.string().min(1).max(200), size: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
+  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), passportDocumentId: z.string().min(1).max(200), size: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/), docType: outsideDocType }).strict(),
   // A file already in the Passport locker, by id: name, type and hash come from the locker.
-  z.object({ passportDocumentId: z.string().min(1).max(200) }).strict(),
+  z.object({ passportDocumentId: z.string().min(1).max(200), docType: outsideDocType }).strict(),
 ]);
 
 /** Attach a file to an outside application (its checklist or a receipt). The applicant's own document. */
 export async function attachOutsideDocument(ctx: ServiceContext, id: string, input: z.output<typeof documentInput>) {
   const { ws, row } = await loadOutside(ctx, id, "applications:write");
   writable(row);
-  const base = { workspace_id: ws.id, owner_workspace_id: ws.id, subject_type: "outside_application", subject_id: row.id, uploaded_by: ctx.actor.userId };
+  if ("name" in input) refuseSensitiveFilename(input.name);
+  const base = { workspace_id: ws.id, owner_workspace_id: ws.id, subject_type: "outside_application", subject_id: row.id, uploaded_by: ctx.actor.userId, doc_type: input.docType ?? null };
   let doc: Row<"documents">;
   if ("passportDocumentId" in input && "sha256" in input) {
     doc = await ctx.repos.table("documents").insert({ ...base, name: input.name, mime: input.mime, size: input.size, sha256: input.sha256, storage: "supabase", path: `passport:${input.passportDocumentId}`, passport_document_id: input.passportDocumentId });

@@ -7,7 +7,7 @@ import { archiveDay, GENESIS_HASH, type ArchiveBucket } from "@gms/ledger";
 import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
 import { deliverDue } from "@gms/webhooks";
-import { OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
+import { DOCUMENT_EXPIRING_TEMPLATE, DOCUMENT_EXPIRY_OFFSETS, documentExpiringEmail, OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
 import { NO_AGREEMENT_REQUIRED } from "@gms/workflow";
 import { scopesForRole } from "./auth/scopes.ts";
 import { exportBundle, importBundle } from "./services/analytics.ts";
@@ -16,6 +16,7 @@ import { audit, systemContext, type BaseContext, type ServiceContext } from "./s
 import { pollOrgChanges } from "./services/grantees.ts";
 import { mailMembers } from "./services/member-mail.ts";
 import { OUTSIDE_ROLES } from "./services/outside.ts";
+import { VAULT_TYPE_LABEL, type VaultType } from "./services/vault.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
@@ -255,4 +256,37 @@ export async function sendOutsideReminders(base: BaseContext): Promise<{ checked
     sent += out.sent;
   });
   return { checked, reminded, sent, failed };
+}
+
+// ------------------------------------------------------------------------------------ write faster and keep it
+
+const dayFrom = (now: Date, days: number) => new Date(now.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * The vault's expiry warning: 30 days before a vault document expires, email the applicant
+ * workspace's admins and editors (template `document_expiring`, preference key of the same name).
+ * Daily; the idempotency key names the document, its expiry date and the offset.
+ */
+export async function sendDocumentExpiryWarnings(base: BaseContext): Promise<{ checked: number; warned: number; sent: number; failed: number }> {
+  const now = base.now();
+  const due: { doc: Row<"documents">; days: number }[] = [];
+  for (const days of DOCUMENT_EXPIRY_OFFSETS) {
+    for (const doc of await base.repos.table("documents").find({ subject_type: "vault", expires_on: dayFrom(now, days) }, { limit: 5000 })) due.push({ doc, days });
+  }
+  let warned = 0;
+  let sent = 0;
+  const failed = await each(due, async ({ doc, days }) => {
+    const ws = await base.repos.table("workspaces").one({ id: doc.workspace_id });
+    if (!ws || ws.kind !== "applicant" || !doc.expires_on) return;
+    const mail = documentExpiringEmail({ organization: ws.legal_name ?? ws.display_name, documentName: doc.name, typeLabel: VAULT_TYPE_LABEL[doc.doc_type as VaultType] ?? "Document", expiresOn: doc.expires_on, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/organization/documents` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "document_expiring", subject: mail.subject, text: mail.text, html: mail.html, roles: ["admin", "editor"], always: true, idempotencyKey: `${DOCUMENT_EXPIRING_TEMPLATE}:${doc.id}:${doc.expires_on}:${days}` });
+    warned++;
+    sent += out.sent;
+  });
+  return { checked: due.length, warned, sent, failed };
+}
+
+/** The daily write-faster and keep-it reminders, in one job: the vault's expiry warnings, and (below) obligations and next cycles. */
+export async function sendKeepReminders(base: BaseContext): Promise<Record<string, unknown>> {
+  return { documents: await sendDocumentExpiryWarnings(base) };
 }
