@@ -215,6 +215,8 @@ export interface WriteKeepApi {
   submitObligation(obligationId: string, input: { submittedAt: string; confirmationRef?: string }): Promise<Obligation>;
   priorReportAnswers(q?: string): Promise<PriorReportAnswer[]>;
   closeOut(applicationId: string): Promise<OutsideApplication>;
+  /** "Get an alert when it reopens": a funding alert on the GMS's own alerts service (never OpenGrants' API). */
+  createAlert(query: string): Promise<{ id: string; query: string; createdAt: string }>;
   fundingSummary(): Promise<FundingSummary>;
   exportSummary(format: "csv" | "pdf"): Promise<ExportFile>;
 }
@@ -456,6 +458,10 @@ export function createHttpWriteKeepApi(opts: HttpWriteKeepOptions): WriteKeepApi
     submitObligation: async (oid, input) => toObligation(await call("POST", `${ob(oid)}/submit`, input)),
     priorReportAnswers: async (q) => (await list(`/gms/outside-report-answers${q?.trim() ? `?q=${e(q.trim())}` : ""}`)) as PriorReportAnswer[],
     closeOut: async (id) => toApplication(await call("POST", `${oa(id)}/close-out`, {})),
+    createAlert: async (query) => {
+      const r = obj(await call("POST", "/gms/discover/alerts", { name: query.trim().slice(0, 120), query: query.trim() }));
+      return { id: String(r.id), query: str(r.query) ?? query.trim(), createdAt: str(r.createdAt) ?? "" };
+    },
     fundingSummary: async () => toSummary(await call("GET", "/gms/funding-summary")),
     exportSummary: (format) => file(`/gms/funding-summary/export.${format}`, `funding-summary.${format}`),
   };

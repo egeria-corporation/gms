@@ -134,7 +134,7 @@ export const MILESTONES = [
   { key: "final", title: "Final version ready", offsetDays: -2 },
 ] as const;
 export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-export const milestonesFor = (fullDue: string) => MILESTONES.map((m) => ({ key: m.key, title: m.title, dueOn: addDays(fullDue, m.offsetDays) }));
+export const milestonesFor = (fullDue: string): { key: string; title: string; dueOn: string }[] => MILESTONES.map((m) => ({ key: m.key, title: m.title, dueOn: addDays(fullDue, m.offsetDays) }));
 
 // ------------------------------------------------------------------------------------ go / no-go
 

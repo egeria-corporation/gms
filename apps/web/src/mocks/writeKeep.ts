@@ -568,6 +568,17 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       return viewApp(a);
     },
 
+    async createAlert(query) {
+      await signedIn();
+      const q = query.trim();
+      if (!q) throw invalid("query", "Say what the alert should watch for");
+      const existing = opts.full.alerts.find((a) => a.query.toLowerCase() === q.toLowerCase());
+      if (existing) return clone(existing);
+      const alert = { id: uuid(), query: q, createdAt: now() };
+      opts.full.alerts.unshift(alert);
+      return clone(alert);
+    },
+
     // ---------------------------------------------------------------- funding summary
     async fundingSummary() {
       await signedIn();
