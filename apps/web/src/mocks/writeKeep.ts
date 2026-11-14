@@ -12,6 +12,7 @@ import { ApiError } from "../api/client.ts";
 import { minorOf, type Money, type OutsideApplication } from "../api/outside.ts";
 import type {
   AnswerDraft,
+  ObligationPatch,
   FundingSummary,
   FundingYear,
   GrantSettings,
@@ -28,10 +29,10 @@ import type {
 } from "../api/writeKeep.ts";
 import type { Session } from "../auth/types.ts";
 import { countFor, countText, isOverLimit, parseQuestions, TRANSITIONS, type LimitKind } from "../lib/outside.ts";
-import { blockedFilename, DEFAULT_WEIGHTS, DOC_TYPES, fiscalYearLabel, fiscalYearOf, goNoGoTotal, GO_CRITERIA, isStale, SERIES_MAX, seriesDates, VAULT_WARNING, type Variants } from "../lib/writeKeep.ts";
+import { addMonths, blockedFilename, DEFAULT_WEIGHTS, DOC_TYPES, fiscalYearLabel, fiscalYearOf, GO_CRITERIA, isStale, movesFrom, SERIES_MAX, seriesDates, VAULT_MAX_BYTES, VAULT_WARNING, WEIGHT_MAX, type RequiredDocument, type Variants } from "../lib/writeKeep.ts";
 import { APPLICANT_IDS, type ApplicantStore } from "./applicant.ts";
 import type { FullStore } from "./applicantFull.ts";
-import { day, OUTSIDE_IDS, textPdf, type MockQuestion, type MockRecord, type OutsideStore } from "./outside.ts";
+import { createMockOutsideApi, day, OUTSIDE_IDS, textPdf, type MockQuestion, type MockRecord, type OutsideStore } from "./outside.ts";
 
 const clone = <T>(v: T): T => structuredClone(v);
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
@@ -39,21 +40,23 @@ const invalid = (field: string, message: string) => new ApiError(422, message, [
 /** As the Worker: pasted guidelines and uploaded files the assistant may read, at most. */
 export const GUIDELINES_LIMITS = { chars: 60_000, bytes: 10 * 1_048_576, pages: 50 };
 
-interface MockObligation extends Obligation {
+interface MockObligation extends Omit<Obligation, "allowedStatuses"> {
   /** Changed by hand (or acted on), so a series edit leaves it alone. */
   touched: boolean;
 }
-interface CommentThread {
+interface MockSeries {
   id: string;
   applicationId: string;
-  questionId: string;
-  messages: QuestionComment[];
+  everyMonths: number;
+  startOn: string;
+  endOn: string;
 }
 export interface WriteKeepStore {
   vault: VaultDocument[];
   settings: GrantSettings;
   obligations: MockObligation[];
-  threads: CommentThread[];
+  series: MockSeries[];
+  comments: (QuestionComment & { applicationId: string })[];
   /** Library fields this release adds, by answer key (a new version keeps them). */
   library: Record<string, { lastVerifiedAt: string | null; variants: Variants; tags: string[] }>;
 }
@@ -83,6 +86,7 @@ export function seedWriteKeepStore(): WriteKeepStore {
     confirmationRef: null,
     documentId: null,
     snapshotSha256: null,
+    completedOn: null,
     createdAt: at,
     updatedAt: at,
     touched: false,
@@ -97,13 +101,15 @@ export function seedWriteKeepStore(): WriteKeepStore {
     settings: { goNoGoEnabled: false, goNoGoWeights: { ...DEFAULT_WEIGHTS }, fiscalYearStartMonth: 1 },
     obligations: [
       obligation({ id: WK_IDS.oblReport1, kind: "report", title: "Progress report", dueOn: day(-38), status: "submitted", seriesId: WK_IDS.seriesReports, submittedAt: day(-40), confirmationRef: "CVCF-R1", touched: true }),
-      obligation({ id: WK_IDS.oblReport2, kind: "report", title: "Progress report", dueOn: day(145), status: "upcoming", seriesId: WK_IDS.seriesReports }),
-      obligation({ id: WK_IDS.oblReport3, kind: "report", title: "Progress report", dueOn: day(327), status: "upcoming", seriesId: WK_IDS.seriesReports }),
+      obligation({ id: WK_IDS.oblReport2, kind: "report", title: "Progress report", dueOn: addMonths(day(-38), 6), status: "upcoming", seriesId: WK_IDS.seriesReports }),
+      obligation({ id: WK_IDS.oblReport3, kind: "report", title: "Progress report", dueOn: addMonths(day(-38), 12), status: "upcoming", seriesId: WK_IDS.seriesReports }),
       obligation({ id: WK_IDS.oblPaid1, kind: "payment_received", title: "First payment", dueOn: day(-210), amount: { amount: "30000.00", currency: "USD" }, status: "received", touched: true }),
       obligation({ id: WK_IDS.oblExpected2, kind: "payment_expected", title: "Second payment", dueOn: day(220), amount: { amount: "30000.00", currency: "USD" }, status: "upcoming" }),
       obligation({ id: WK_IDS.oblCondition, kind: "condition", title: "Thank the funder in the annual report", dueOn: day(90), status: "upcoming" }),
     ],
-    threads: [],
+    // Every six months from the first report; the last one falls after these three.
+    series: [{ id: WK_IDS.seriesReports, applicationId: OUTSIDE_IDS.cedar, everyMonths: 6, startOn: day(-38), endOn: addMonths(day(-38), 18) }],
+    comments: [],
     library: {
       need: { lastVerifiedAt: "2025-08-12T00:00:00Z", variants: { short: "Families in the Alder Creek valley travel more than forty minutes to reach a clinic, and many miss care because of the distance." }, tags: ["health", "rural"] },
       mission: { lastVerifiedAt: null, variants: {}, tags: ["organization"] },
@@ -183,6 +189,8 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
   const today = () => now().slice(0, 10);
   const actor = opts.actor ?? { userId: APPLICANT_IDS.maria, name: "Maria Santos" };
   const uuid = () => crypto.randomUUID();
+  // Report questions are written through the outside-applications port, on the same store.
+  const outsideApi = createMockOutsideApi({ session: opts.session, applicant: A, store: O, ...(opts.now ? { now: opts.now } : {}), actor });
 
   async function signedIn() {
     if (!(await opts.session())) throw new ApiError(401, "Sign in to continue");
@@ -229,11 +237,13 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     return doc;
   };
 
-  // What an obligation reads as now: "due" within two weeks of its date while still upcoming.
+  // What an obligation reads as now: "due" within two weeks of its date while still upcoming (the
+  // Worker's daily job does the same), with the moves its kind allows from there.
   const view = (o: MockObligation): Obligation => {
     const { touched: _t, ...rest } = o;
     const soon = o.status === "upcoming" && !!o.dueOn && Date.parse(`${o.dueOn}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`) <= 14 * 86_400_000;
-    return clone({ ...rest, status: soon ? "due" : o.status });
+    const status = soon ? "due" : o.status;
+    return clone({ ...rest, status, allowedStatuses: movesFrom(o.kind, status) });
   };
   const obligationOf = (id: string) => {
     const o = wk.obligations.find((x) => x.id === id);
@@ -241,7 +251,7 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     return o;
   };
   const isPayment = (k: Obligation["kind"]) => k === "payment_expected" || k === "payment_received";
-  const settled = (o: Obligation) => o.status === "done" || o.status === "received";
+  const settled = (o: Pick<Obligation, "status">) => o.status === "done" || o.status === "received";
   const sum = (ms: (Money | null)[]) => ms.reduce((n, m) => n + (minorOf(m) ?? 0), 0);
   const money = (minor: number, currency = "USD"): Money => ({ amount: (minor / 100).toFixed(2), currency });
 
@@ -251,13 +261,12 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     if (isPayment(input.kind) && (minorOf(input.amount) ?? -1) < 0) throw invalid("amount", "Enter the amount in dollars");
     if (input.kind === "payment_received" && !input.dueOn) throw invalid("dueOn", "Enter the date it arrived");
     if (input.kind === "payment_received" && input.dueOn! > today()) throw invalid("dueOn", "A payment received cannot be dated in the future");
-    if (input.series) {
-      const { everyMonths, from, until } = input.series;
-      if (!(everyMonths >= 1 && everyMonths <= 24)) throw invalid("series.everyMonths", "Repeat every 1 to 24 months");
-      if (!from || !until || until < from) throw invalid("series.until", "The series needs a start and an end after it");
-      if (seriesDates(from, until, everyMonths, SERIES_MAX + 1).length > SERIES_MAX) throw invalid("series", `A series can make at most ${SERIES_MAX} obligations`);
-      if (seriesDates(from, until, everyMonths).length === 0) throw invalid("series", "No date in that series falls before its end");
-    }
+    if (input.series) checkSeries(input.series);
+  }
+  function checkSeries(sr: { everyMonths: number; startOn: string; endOn: string }) {
+    if (!(sr.everyMonths >= 1 && sr.everyMonths <= 24)) throw invalid("series.everyMonths", "Repeat every 1 to 24 months");
+    if (!sr.startOn || !sr.endOn || sr.endOn < sr.startOn) throw invalid("series.endOn", "The series needs a first date and an end after it");
+    if (seriesDates(sr.startOn, sr.endOn, sr.everyMonths, SERIES_MAX + 1).length > SERIES_MAX) throw invalid("series", `A series can make at most ${SERIES_MAX} obligations`);
   }
   const make = (applicationId: string, input: ObligationInput, dueOn: string | null, seriesId: string | null): MockObligation => ({
     id: `obl_${uuid()}`,
@@ -273,6 +282,7 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     confirmationRef: null,
     documentId: null,
     snapshotSha256: null,
+    completedOn: input.kind === "payment_received" ? (input.dueOn ?? null) : null,
     createdAt: now(),
     updatedAt: now(),
     touched: input.kind === "payment_received",
@@ -371,7 +381,7 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       if (blockedFilename(input.name)) throw invalid("name", VAULT_WARNING);
       if (!(DOC_TYPES as readonly string[]).includes(input.docType)) throw invalid("docType", "Choose what kind of document this is");
       const bytes = fromBase64(input.contentBase64);
-      if (bytes.length > 10 * 1_048_576) throw invalid("file", "Upload a file of 10 MB or less");
+      if (bytes.length > VAULT_MAX_BYTES) throw new ApiError(413, "Upload a file of 25 MB or less");
       const doc = await storeFile(input.name, input.mime, bytes);
       const v: VaultDocument = { id: doc.id, name: doc.name, mime: doc.mime, size: doc.size, sha256: doc.sha256, docType: input.docType, expiresOn: input.expiresOn ?? null, uploadedAt: doc.uploadedAt };
       wk.vault.push(v);
@@ -402,6 +412,48 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       return { filename: v.name, blob: new Blob([bytes as BlobPart], { type: f?.mime ?? v.mime }) };
     },
 
+    async setRequiredDocuments(id, list) {
+      await signedIn();
+      const a = appOf(id);
+      writable(a);
+      if (list.length > 50) throw invalid("items", "Keep to 50 required documents");
+      const seen = new Set<string>();
+      for (const d of list) {
+        const k = d.label.trim().toLowerCase();
+        if (!k) throw invalid("items", "Each required document needs a label");
+        if (seen.has(k)) throw invalid("items", "Each required document is listed once");
+        seen.add(k);
+        if (d.documentId && !wk.vault.some((v) => v.id === d.documentId) && !a.documents.some((x) => x.id === d.documentId)) throw notFound("Document");
+      }
+      a.requiredDocuments = list.map((d): RequiredDocument => ({ label: d.label.trim(), documentId: d.status === "attached" ? d.documentId : null, status: d.status === "attached" && d.documentId ? "attached" : d.status === "not_needed" ? "not_needed" : "needed" }));
+      log(a, "required_documents_changed", { count: a.requiredDocuments.length });
+      return clone(a.requiredDocuments);
+    },
+    async useFromVault(id, label, documentId) {
+      await signedIn();
+      const a = appOf(id);
+      writable(a);
+      const d = a.requiredDocuments.find((x) => x.label.toLowerCase() === label.trim().toLowerCase());
+      if (!d) throw notFound("Required document");
+      if (documentId && !wk.vault.some((v) => v.id === documentId) && !a.documents.some((x) => x.id === documentId)) throw notFound("Vault document");
+      Object.assign(d, documentId ? { documentId, status: "attached" } : { documentId: null, status: "needed" });
+      log(a, "required_documents_changed", { label: d.label });
+      return clone(a.requiredDocuments);
+    },
+    async createMilestones(id, tasks) {
+      await signedIn();
+      const a = appOf(id);
+      writable(a);
+      if (tasks.length < 1 || tasks.length > 10) throw invalid("tasks", "Add 1 to 10 tasks");
+      for (const t of tasks) {
+        if (!t.title.trim() || !t.dueOn) throw invalid("tasks", "Each task needs a title and a date");
+        if (t.assigneeUserId && !A.members.some((m) => m.userId === t.assigneeUserId)) throw invalid("tasks", "Assign tasks to people in this workspace");
+        A.tasks.push({ id: uuid(), subjectType: "outside_application", subjectId: id, title: t.title.trim(), assigneeUserId: t.assigneeUserId ?? a.owner?.userId ?? null, dueAt: `${t.dueOn}T17:00:00Z`, doneAt: null, createdAt: now() } as (typeof A.tasks)[number]);
+      }
+      log(a, "milestones_created", { count: tasks.length });
+      return tasks.length;
+    },
+
     // ---------------------------------------------------------------- settings and go/no-go
     async settings() {
       await signedIn();
@@ -412,7 +464,7 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       const role = A.members.find((m) => m.userId === actor.userId)?.role;
       if (role !== "admin") throw new ApiError(403, "Only a workspace admin can change these settings");
       if (patch.fiscalYearStartMonth !== undefined && !(patch.fiscalYearStartMonth >= 1 && patch.fiscalYearStartMonth <= 12)) throw invalid("fiscalYearStartMonth", "Choose a month");
-      if (patch.goNoGoWeights && GO_CRITERIA.some((c) => !(Number.isInteger(patch.goNoGoWeights![c]) && patch.goNoGoWeights![c] >= 0 && patch.goNoGoWeights![c] <= 5))) throw invalid("goNoGoWeights", "Each weight is a whole number from 0 to 5");
+      if (patch.goNoGoWeights && (GO_CRITERIA.some((c) => !(Number.isInteger(patch.goNoGoWeights![c]) && patch.goNoGoWeights![c] >= 0 && patch.goNoGoWeights![c] <= WEIGHT_MAX)) || GO_CRITERIA.every((c) => patch.goNoGoWeights![c] === 0))) throw invalid("settings.goNoGoWeights", `Each weight is a whole number from 0 to ${WEIGHT_MAX}, and at least one is above zero`);
       wk.settings = { ...wk.settings, ...patch, goNoGoWeights: { ...wk.settings.goNoGoWeights, ...(patch.goNoGoWeights ?? {}) } };
       return clone(wk.settings);
     },
@@ -424,14 +476,17 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       if (a.stage !== "deciding") throw new ApiError(409, "Go/no-go is decided at the Deciding stage");
       if (GO_CRITERIA.some((c) => !(input.scores[c] >= 1 && input.scores[c] <= 5))) throw invalid("scores", "Score each line from 1 to 5");
       if (input.decision === "go" && input.eligibility === "fail") throw invalid("decision", "An application that fails eligibility cannot be a go");
-      const to = input.decision === "go" ? input.nextStage : "not_pursuing";
-      if (!to || !TRANSITIONS[a.stage].includes(to)) throw invalid("nextStage", "Choose where the application goes next");
-      const { total, max } = goNoGoTotal(input.scores, wk.settings.goNoGoWeights);
-      a.goNoGo = { eligibility: input.eligibility, scores: { ...input.scores }, weights: { ...wk.settings.goNoGoWeights }, total, max, decision: input.decision, decidedBy: actor.userId, decidedAt: now(), reason: input.reason?.trim() || null };
+      const to = input.decision === "go" ? input.to : "not_pursuing";
+      if (!to || !TRANSITIONS[a.stage].includes(to)) throw invalid("to", "Choose where the application goes next");
+      // As the Worker: the weighted mean of the four scores, 1 to 5, to two decimals.
+      const w = wk.settings.goNoGoWeights;
+      const weight = GO_CRITERIA.reduce((n, c) => n + w[c], 0);
+      const total = Math.round((GO_CRITERIA.reduce((n, c) => n + input.scores[c] * w[c], 0) / weight) * 100) / 100;
+      a.goNoGo = { eligibility: input.eligibility, scores: { ...input.scores }, weights: { ...w }, total, max: 5, decision: input.decision, decidedBy: actor.userId, decidedAt: now(), reason: input.reason?.trim() || null };
       const from = a.stage;
       a.previousStage = from;
       a.stage = to;
-      log(a, "go_no_go_decided", { decision: input.decision, total, max });
+      log(a, "go_no_go_decided", { decision: input.decision, total });
       log(a, "stage_changed", { from, to });
       return viewApp(a);
     },
@@ -440,18 +495,16 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     async comments(id, qid) {
       await signedIn();
       appOf(id);
-      return clone(wk.threads.find((t) => t.applicationId === id && t.questionId === qid)?.messages ?? []);
+      return clone(wk.comments.filter((c) => c.applicationId === id && c.questionId === qid).map(({ applicationId: _a, ...c }) => c));
     },
-    async addComment(id, qid, body) {
+    async addComment(qid, body) {
       await signedIn();
-      const a = appOf(id);
-      if (!a.questions.some((q) => q.id === qid)) throw notFound("Question");
+      const { app } = questionOf(qid);
       if (!body.trim()) throw invalid("body", "Write the comment first");
       if (body.length > 5000) throw invalid("body", "Keep a comment to 5,000 characters");
-      let t = wk.threads.find((x) => x.applicationId === id && x.questionId === qid);
-      if (!t) wk.threads.push((t = { id: `thr_${uuid()}`, applicationId: id, questionId: qid, messages: [] }));
-      const m: QuestionComment = { id: uuid(), threadId: t.id, authorUserId: actor.userId, body: body.trim(), createdAt: now() };
-      t.messages.push(m);
+      const m: QuestionComment = { id: uuid(), questionId: qid, authorUserId: actor.userId, body: body.trim(), createdAt: now() };
+      wk.comments.push({ ...m, applicationId: app.id });
+      log(app, "question_commented", { questionId: qid });
       return clone(m);
     },
 
@@ -477,52 +530,81 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       const a = appOf(id);
       writable(a);
       if (a.stage !== "awarded") throw new ApiError(409, "Obligations belong to an awarded grant");
+      if (a.closedOutAt) throw new ApiError(409, "This award is closed out");
       checkInput(input);
-      const made = input.series ? ((sid) => seriesDates(input.series!.from, input.series!.until, input.series!.everyMonths).map((d) => make(id, input, d, sid)))(`srs_${uuid()}`) : [make(id, input, input.dueOn ?? null, null)];
-      wk.obligations.push(...made);
-      log(a, "obligation_added", { count: made.length, kind: input.kind });
-      return made.map(view);
+      if (input.series) {
+        const sr = { everyMonths: input.series.everyMonths, startOn: input.series.startOn, endOn: input.series.endOn || a.grantEnd || "" };
+        checkSeries(sr);
+        const sid = `srs_${uuid()}`;
+        wk.series.push({ id: sid, applicationId: id, ...sr });
+        const dates = seriesDates(sr.startOn, sr.endOn, sr.everyMonths);
+        // As the Worker: each instance is titled "X (n of N)".
+        const made = dates.map((d, i) => make(id, { ...input, title: `${input.title.trim()} (${i + 1} of ${dates.length})` }, d, sid));
+        wk.obligations.push(...made);
+        log(a, "obligation_added", { count: made.length, kind: input.kind, seriesId: sid });
+        return made.map(view);
+      }
+      if (input.kind === "report" && !input.dueOn) throw invalid("dueOn", "Give the report its due date");
+      const one = make(id, input, input.dueOn ?? null, null);
+      wk.obligations.push(one);
+      log(a, "obligation_added", { count: 1, kind: input.kind });
+      return [view(one)];
     },
-    async updateObligation(oid, patch) {
+    async updateObligation(oid, patch: ObligationPatch) {
       await signedIn();
       const o = obligationOf(oid);
       const a = appOf(o.outsideApplicationId);
       writable(a);
       if (patch.title !== undefined && !patch.title.trim()) throw invalid("title", "Give it a title");
-      if (patch.status) {
-        const allowed: Record<Obligation["kind"], Obligation["status"][]> = { report: ["upcoming", "done", "missed"], condition: ["upcoming", "done", "missed"], payment_expected: ["upcoming", "received", "missed"], payment_received: ["received"] };
-        // A submitted report that was marked done can go back to submitted; nothing else sets it but submit.
-        if (!allowed[o.kind].includes(patch.status) && !(o.kind === "report" && patch.status === "submitted" && o.submittedAt)) throw new ApiError(409, "That status does not apply to this obligation");
-      }
-      const { scope, series, ...fields } = patch;
-      if (scope === "series" && o.seriesId) {
-        // Past or touched instances stay as they are; future untouched ones take the change.
-        const all = wk.obligations.filter((x) => x.seriesId === o.seriesId);
-        const future = all.filter((x) => !x.touched && (x.dueOn ?? "") >= today());
-        if (series) {
-          checkInput({ kind: o.kind, title: fields.title ?? o.title, series });
-          const kept = all.filter((x) => !future.includes(x));
-          wk.obligations = wk.obligations.filter((x) => !future.includes(x));
-          const taken = new Set(kept.map((x) => x.dueOn));
-          const made = seriesDates(series.from, series.until, series.everyMonths)
-            .filter((d) => d >= today() && !taken.has(d))
-            .slice(0, SERIES_MAX - kept.length)
-            .map((d) => make(a.id, { kind: o.kind, title: fields.title ?? o.title, notes: fields.notes ?? o.notes, amount: fields.amount ?? o.amount }, d, o.seriesId));
-          wk.obligations.push(...made);
-        } else for (const x of future) Object.assign(x, { ...(fields.title !== undefined ? { title: fields.title.trim() } : {}), ...(fields.notes !== undefined ? { notes: fields.notes } : {}), ...(fields.amount !== undefined ? { amount: fields.amount } : {}), updatedAt: now() });
-        log(a, "obligation_series_changed", { seriesId: o.seriesId });
-        return wk.obligations.filter((x) => x.seriesId === o.seriesId).sort((x, y) => (x.dueOn ?? "").localeCompare(y.dueOn ?? "")).map(view);
-      }
-      Object.assign(o, { ...fields, ...(fields.title !== undefined ? { title: fields.title.trim() } : {}), touched: true, updatedAt: now() });
-      if (patch.status) log(a, "obligation_status_changed", { obligationId: o.id, to: patch.status });
-      return [view(o)];
+      Object.assign(o, { ...patch, ...(patch.title !== undefined ? { title: patch.title.trim() } : {}), touched: true, updatedAt: now() });
+      log(a, "obligation_changed", { obligationId: o.id });
+      return view(o);
+    },
+    async setObligationStatus(oid, input) {
+      await signedIn();
+      const o = obligationOf(oid);
+      const a = appOf(o.outsideApplicationId);
+      writable(a);
+      if (input.to === "submitted") throw new ApiError(409, "Mark a report submitted with its date instead");
+      const from = view(o).status;
+      if (!movesFrom(o.kind, from).includes(input.to)) throw new ApiError(409, `This ${o.kind.replace(/_/g, " ")} is ${from}; it cannot become ${input.to}`);
+      if (input.amount && input.to !== "received") throw invalid("amount", "An amount goes only with a payment received");
+      if (input.to === "received" && !input.amount && !o.amount) throw invalid("amount", "Enter the amount received");
+      const completedOn = input.to === "done" || input.to === "received" ? (input.completedOn ?? today()) : null;
+      if (completedOn && completedOn > today()) throw invalid("completedOn", "The date cannot be in the future");
+      Object.assign(o, { status: input.to, completedOn, ...(input.amount ? { amount: input.amount } : {}), touched: true, updatedAt: now() });
+      log(a, "obligation_status_changed", { obligationId: o.id, from, to: input.to });
+      return view(o);
+    },
+    async updateSeries(sid, patch) {
+      await signedIn();
+      const sr = wk.series.find((x) => x.id === sid);
+      if (!sr) throw notFound("Series");
+      const a = appOf(sr.applicationId);
+      writable(a);
+      const next = { ...sr, ...(patch.everyMonths !== undefined ? { everyMonths: patch.everyMonths } : {}), ...(patch.startOn ? { startOn: patch.startOn } : {}), ...(patch.endOn ? { endOn: patch.endOn } : {}) };
+      checkSeries(next);
+      // Past, edited or acted-on instances stay as they are; only future, untouched ones are replaced.
+      const all = wk.obligations.filter((x) => x.seriesId === sid);
+      const future = all.filter((x) => !x.touched && (x.dueOn ?? "") >= today());
+      const kept = all.filter((x) => !future.includes(x));
+      const sample = all[0]!;
+      const base = (patch.title ?? sample.title).replace(/ \(\d+ of \d+\)$/, "");
+      const taken = new Set(kept.map((x) => x.dueOn));
+      const dates = seriesDates(next.startOn, next.endOn, next.everyMonths).filter((d) => d >= today() && !taken.has(d)).slice(0, SERIES_MAX - kept.length);
+      wk.obligations = wk.obligations.filter((x) => !future.includes(x));
+      const made = dates.map((d) => make(a.id, { kind: sample.kind, title: base, notes: patch.notes !== undefined ? patch.notes : sample.notes, amount: patch.amount !== undefined ? patch.amount : sample.amount }, d, sid));
+      wk.obligations.push(...made);
+      Object.assign(sr, next);
+      log(a, "obligation_series_changed", { seriesId: sid, replaced: future.length, added: made.length, kept: kept.length });
+      return { replaced: future.length, added: made.length, kept: kept.length };
     },
     async deleteObligation(oid) {
       await signedIn();
       const o = obligationOf(oid);
       const a = appOf(o.outsideApplicationId);
       writable(a);
-      if (o.status === "submitted") throw new ApiError(409, "A submitted report is kept for your records");
+      if (o.kind === "report" && (o.status === "submitted" || o.status === "done")) throw new ApiError(409, "A submitted report is kept for your records");
       wk.obligations.splice(wk.obligations.indexOf(o), 1);
       a.questions = a.questions.filter((q) => q.obligationId !== oid);
       log(a, "obligation_removed", { obligationId: oid });
@@ -533,28 +615,51 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       const a = appOf(o.outsideApplicationId);
       writable(a);
       if (o.kind !== "report") throw new ApiError(409, "Only a report is submitted");
+      if (!movesFrom(o.kind, view(o).status).length && o.status === "submitted") throw new ApiError(409, "This report is already recorded as submitted");
       if (o.status === "submitted") throw new ApiError(409, "This report is already recorded as submitted");
       if (!input.submittedAt) throw invalid("submittedAt", "Enter the date you submitted");
-      if (input.submittedAt > today()) throw invalid("submittedAt", "The submission date cannot be in the future");
+      if (input.submittedAt.slice(0, 10) > today()) throw invalid("submittedAt", "The submission date cannot be in the future");
       const qs = a.questions.filter((q) => q.obligationId === oid).sort((x, y) => x.position - y.position);
       const lines = [`${o.title} - as submitted`, `${a.title} · ${a.funderName}`, `Submitted ${input.submittedAt}${input.confirmationRef ? `, confirmation ${input.confirmationRef}` : ""}`, "", ...qs.flatMap((q, i) => [`${i + 1}. ${q.prompt}`, latest(q)?.body || "(no answer)", ""])];
       const doc = await storeFile(`${o.title} ${o.dueOn ?? ""} - as submitted.pdf`.replace(/\s+/g, " "), "application/pdf", textPdf(lines));
       a.documents.push(doc);
-      Object.assign(o, { status: "submitted", submittedAt: input.submittedAt, confirmationRef: input.confirmationRef?.trim() || null, documentId: doc.id, snapshotSha256: doc.sha256, touched: true, updatedAt: now() });
+      Object.assign(o, { status: "submitted", submittedAt: input.submittedAt.slice(0, 10), confirmationRef: input.confirmationRef?.trim() || null, documentId: doc.id, snapshotSha256: doc.sha256, touched: true, updatedAt: now() });
       log(a, "obligation_submitted", { obligationId: oid, submittedAt: input.submittedAt });
       return view(o);
     },
-    async priorReportAnswers(q) {
+    async reportQuestions(oid) {
       await signedIn();
-      const needle = q?.trim().toLowerCase();
+      const o = obligationOf(oid);
+      if (o.kind !== "report") throw new ApiError(409, "Only a report has questions");
+      return appOf(o.outsideApplicationId)
+        .questions.filter((q) => q.obligationId === oid)
+        .sort((x, y) => x.position - y.position)
+        .map((q) => {
+          const { versions: _v, ...rest } = q;
+          return clone({ ...rest, answer: latest(q) });
+        });
+    },
+    async addReportQuestions(oid, questions) {
+      await signedIn();
+      const o = obligationOf(oid);
+      if (o.kind !== "report") throw new ApiError(409, "Only a report has questions");
+      if (o.status === "submitted" || o.status === "done") throw new ApiError(409, "This report is already submitted");
+      return outsideApi.addQuestions(o.outsideApplicationId, questions.map((q) => ({ ...q, phase: "report", obligationId: oid })));
+    },
+    async priorReportAnswers(oid, f = {}) {
+      await signedIn();
+      obligationOf(oid);
+      const needle = f.q?.trim().toLowerCase();
       const out: PriorReportAnswer[] = [];
       for (const a of O.applications)
         for (const x of a.questions) {
-          const o = x.obligationId ? wk.obligations.find((k) => k.id === x.obligationId) : null;
+          // Answers to other reports' questions; the report being written is left out.
+          if (!x.obligationId || x.obligationId === oid) continue;
+          const o = wk.obligations.find((k) => k.id === x.obligationId);
           const v = latest(x);
-          if (!o || !v?.body.trim() || !(o.status === "submitted" || o.status === "done")) continue;
+          if (!o || !v?.body.trim()) continue;
           if (needle && !`${x.prompt} ${v.body}`.toLowerCase().includes(needle)) continue;
-          out.push({ answerId: v.id, questionId: x.id, prompt: x.prompt, body: v.body, applicationId: a.id, applicationTitle: a.title, funderName: a.funderName, obligationTitle: o.title, submittedAt: o.submittedAt });
+          out.push({ answerId: v.id, questionId: x.id, prompt: x.prompt, body: v.body, applicationTitle: a.title, funderName: a.funderName, obligationTitle: o.title, submittedAt: o.submittedAt });
         }
       return clone(out.sort((x, y) => (y.submittedAt ?? "").localeCompare(x.submittedAt ?? "")));
     },
@@ -571,14 +676,16 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       return viewApp(a);
     },
 
-    async createAlert(query) {
+    async nextCycleAlert(id) {
       await signedIn();
-      const q = query.trim();
-      if (!q) throw invalid("query", "Say what the alert should watch for");
-      const existing = opts.full.alerts.find((a) => a.query.toLowerCase() === q.toLowerCase());
+      const a = appOf(id);
+      if (a.stage !== "declined") throw invalid("stage", "An alert for the next cycle is set on a declined application");
+      const q = (a.programName ?? a.title).trim();
+      const existing = opts.full.alerts.find((x) => x.query.toLowerCase() === q.toLowerCase());
       if (existing) return clone(existing);
       const alert = { id: uuid(), query: q, createdAt: now() };
       opts.full.alerts.unshift(alert);
+      log(a, "next_cycle_alert_set", { alertId: alert.id });
       return clone(alert);
     },
 

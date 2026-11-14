@@ -9,8 +9,8 @@ import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, problemFor } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
-import { blockedFilename, DOC_TYPE_LABELS, DOC_TYPES, expiryState, VAULT_WARNING, type DocType } from "../../../lib/writeKeep.ts";
-import { MAX_UPLOAD_BYTES, toBase64 } from "./shared.tsx";
+import { blockedFilename, DOC_TYPE_LABELS, DOC_TYPES, expiryState, VAULT_MAX_BYTES, VAULT_WARNING, type DocType } from "../../../lib/writeKeep.ts";
+import { toBase64 } from "./shared.tsx";
 
 /** "Expires in 21 days", "Expired Nov 5, 2026", "Current until …", "No expiry": always an icon and words. */
 export function ExpiryBadge({ expiresOn, now = new Date() }: { expiresOn: string | null | undefined; now?: Date }) {
@@ -82,7 +82,7 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
                 setFile(null);
                 if (!f) return;
                 if (blockedFilename(f.name)) return setProblem(`${f.name} looks like bank or tax paperwork, so it was not added. ${VAULT_WARNING}`);
-                if (f.size > MAX_UPLOAD_BYTES) return setProblem(`${f.name} is larger than 10 MB. Upload a smaller file.`);
+                if (f.size > VAULT_MAX_BYTES) return setProblem(`${f.name} is larger than 25 MB. Upload a smaller file.`);
                 setFile(f);
               }}
             />

@@ -9,14 +9,14 @@ import { Banknote, Check, ClipboardList, FileText, Hash, Pencil, Plus, Repeat, S
 import type { ApplicantMember, MyOrganization } from "../../../api/applicant.ts";
 import type { AssistStatus } from "../../../api/applicantFull.ts";
 import type { OutsideDetail } from "../../../api/outside.ts";
-import { useOutsideMutation } from "../../../api/outsideHooks.ts";
-import type { LibraryAnswer, Obligation, ObligationInput, ObligationKind, ObligationPatch, SeriesInput } from "../../../api/writeKeep.ts";
-import { useWKMutation } from "../../../api/writeKeepHooks.ts";
+import type { LibraryAnswer, Obligation, ObligationInput, ObligationKind, ObligationPatch, ObligationStatus, SeriesInput, SeriesPatch, StatusInput } from "../../../api/writeKeep.ts";
+import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
+import { Loaded } from "../../../components/applicant.tsx";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner, Field, problemFor } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
-import { SERIES_MAX, seriesDates } from "../../../lib/writeKeep.ts";
+import { addMonths, movesFrom, SERIES_MAX, seriesDates } from "../../../lib/writeKeep.ts";
 import { DocumentRow } from "./ChecklistTab.tsx";
 import { PasteQuestionsDialog, QuestionCard } from "./QuestionsTab.tsx";
 import { DeadlineText, dollarsOf, moneyFrom, moneyText } from "./shared.tsx";
@@ -42,80 +42,93 @@ function Head({ id, title, sub, onClose }: { id: string; title: string; sub?: st
 
 // ------------------------------------------------------------------------------------ series
 
-/** "Just once" or "every N months", with the dates it would make. */
-function SeriesFields({ repeat, setRepeat, series, setSeries, idPrefix }: { repeat: boolean; setRepeat: (v: boolean) => void; series: SeriesInput; setSeries: (s: SeriesInput) => void; idPrefix: string }) {
-  const dates = repeat ? seriesDates(series.from, series.until, series.everyMonths, SERIES_MAX + 1) : [];
+/** "Just once" or "every N months from the first one until the end", with the dates it would make. */
+function SeriesFields({ repeat, setRepeat, series, setSeries, idPrefix, offerOnce = true }: { repeat: boolean; setRepeat: (v: boolean) => void; series: SeriesInput; setSeries: (s: SeriesInput) => void; idPrefix: string; offerOnce?: boolean }) {
+  const dates = repeat ? seriesDates(series.startOn, series.endOn, series.everyMonths, SERIES_MAX + 1) : [];
   return (
     <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
       <legend className="lbl">How often</legend>
-      <div className="row" style={{ gap: "16px", flexWrap: "wrap", fontSize: "14px" }}>
-        <label className="row" style={{ gap: "6px" }}>
-          <input type="radio" name={`${idPrefix}-rep`} checked={!repeat} onChange={() => setRepeat(false)} />
-          Just once
-        </label>
-        <label className="row" style={{ gap: "6px" }}>
-          <input type="radio" name={`${idPrefix}-rep`} checked={repeat} onChange={() => setRepeat(true)} />
-          Repeats
-        </label>
-      </div>
+      {offerOnce && (
+        <div className="row" style={{ gap: "16px", flexWrap: "wrap", fontSize: "14px" }}>
+          <label className="row" style={{ gap: "6px" }}>
+            <input type="radio" name={`${idPrefix}-rep`} checked={!repeat} onChange={() => setRepeat(false)} />
+            Just once
+          </label>
+          <label className="row" style={{ gap: "6px" }}>
+            <input type="radio" name={`${idPrefix}-rep`} checked={repeat} onChange={() => setRepeat(true)} />
+            Repeats
+          </label>
+        </div>
+      )}
       {repeat && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
             <Field id={`${idPrefix}-every`} label="Every (months)">
               <input id={`${idPrefix}-every`} className="inp" inputMode="numeric" value={series.everyMonths || ""} onChange={(e) => setSeries({ ...series, everyMonths: Number.parseInt(e.target.value, 10) || 0 })} />
             </Field>
-            <Field id={`${idPrefix}-from`} label="Counting from">
-              <input id={`${idPrefix}-from`} type="date" className="inp" value={series.from} onChange={(e) => setSeries({ ...series, from: e.target.value })} />
+            <Field id={`${idPrefix}-start`} label="First one due">
+              <input id={`${idPrefix}-start`} type="date" className="inp" value={series.startOn} onChange={(e) => setSeries({ ...series, startOn: e.target.value })} />
             </Field>
-            <Field id={`${idPrefix}-until`} label="Until">
-              <input id={`${idPrefix}-until`} type="date" className="inp" value={series.until} onChange={(e) => setSeries({ ...series, until: e.target.value })} />
+            <Field id={`${idPrefix}-end`} label="Until">
+              <input id={`${idPrefix}-end`} type="date" className="inp" value={series.endOn} onChange={(e) => setSeries({ ...series, endOn: e.target.value })} />
             </Field>
           </div>
           <span className={dates.length > SERIES_MAX ? "err-msg" : "help"} role={dates.length > SERIES_MAX ? "alert" : undefined}>
             {dates.length > SERIES_MAX
               ? `That makes more than ${SERIES_MAX}. Choose a longer gap or an earlier end.`
               : dates.length === 0
-                ? "No date falls between the start and the end yet."
-                : `Makes ${dates.length}: ${dates.slice(0, 4).map(formatDate).join(", ")}${dates.length > 4 ? ", …" : ""}. The first is ${series.everyMonths} month${series.everyMonths === 1 ? "" : "s"} after the start.`}
+                ? "Choose the first date and an end on or after it."
+                : `Makes ${dates.length}: ${dates.slice(0, 4).map(formatDate).join(", ")}${dates.length > 4 ? ", …" : ""}.`}
           </span>
         </>
       )}
     </fieldset>
   );
 }
-const seriesOk = (repeat: boolean, s: SeriesInput) => !repeat || (s.everyMonths >= 1 && s.everyMonths <= 24 && seriesDates(s.from, s.until, s.everyMonths, SERIES_MAX + 1).length >= 1 && seriesDates(s.from, s.until, s.everyMonths, SERIES_MAX + 1).length <= SERIES_MAX);
+const seriesOk = (repeat: boolean, s: SeriesInput) => {
+  if (!repeat) return true;
+  const n = seriesDates(s.startOn, s.endOn, s.everyMonths, SERIES_MAX + 1).length;
+  return s.everyMonths >= 1 && s.everyMonths <= 24 && n >= 1 && n <= SERIES_MAX;
+};
 
 // ------------------------------------------------------------------------------------ add / edit
 
-export function ObligationDialog({ app, obligation, onClose, onDone }: { app: OutsideDetail; obligation?: Obligation; onClose: () => void; onDone: (n: number) => void }) {
+export function ObligationDialog({ app, obligation, onClose, onDone }: { app: OutsideDetail; obligation?: Obligation; onClose: () => void; onDone: (message: string) => void }) {
   const editing = !!obligation;
   const [kind, setKind] = useState<ObligationKind>(obligation?.kind ?? "report");
-  const [title, setTitle] = useState(obligation?.title ?? "");
+  const [title, setTitle] = useState(obligation ? obligation.title.replace(/ \(\d+ of \d+\)$/, "") : "");
   const [dueOn, setDueOn] = useState(obligation?.dueOn ?? "");
   const [amount, setAmount] = useState(dollarsOf(obligation?.amount));
   const [notes, setNotes] = useState(obligation?.notes ?? "");
   const [repeat, setRepeat] = useState(false);
   const [scope, setScope] = useState<"one" | "series">("one");
-  const [series, setSeries] = useState<SeriesInput>({ everyMonths: 6, from: app.grantStart ?? today(), until: app.grantEnd ?? "" });
+  // A first report six months into the grant, every six months until the grant ends.
+  const [series, setSeries] = useState<SeriesInput>(() => ({ everyMonths: 6, startOn: obligation?.dueOn ?? addMonths(app.grantStart ?? today(), 6), endOn: app.grantEnd ?? "" }));
   const money = moneyFrom(amount, app.currency);
   const payment = kind === "payment_expected" || kind === "payment_received";
   const create = useWKMutation((api, input: ObligationInput) => api.createObligation(app.id, input));
   const update = useWKMutation((api, patch: ObligationPatch) => api.updateObligation(obligation!.id, patch));
-  const busy = create.state === "saving" || update.state === "saving";
-  const error = create.error ?? update.error;
+  const updateSeries = useWKMutation((api, patch: SeriesPatch) => api.updateSeries(obligation!.seriesId!, patch));
+  const busy = create.state === "saving" || update.state === "saving" || updateSeries.state === "saving";
+  const error = create.error ?? update.error ?? updateSeries.error;
   const amountBad = payment && (!amount.trim() || !money);
   const changeSeries = editing && !!obligation!.seriesId && scope === "series";
   const ready = !!title.trim() && !amountBad && (editing ? (changeSeries ? seriesOk(repeat, series) : true) : seriesOk(repeat, series) && (repeat || !!dueOn || kind === "condition"));
   const submit = async () => {
+    if (changeSeries) {
+      const patch: SeriesPatch = { title: title.trim(), notes: notes.trim() || null, ...(payment ? { amount: money } : {}), ...(repeat ? series : {}) };
+      const r = await updateSeries.run(patch);
+      if (r) onDone(`Series changed: ${r.replaced} later ${r.replaced === 1 ? "one" : "ones"} replaced by ${r.added}, ${r.kept} kept as ${r.kept === 1 ? "it was" : "they were"}`);
+      return;
+    }
     if (editing) {
-      const patch: ObligationPatch = { title: title.trim(), notes: notes.trim() || null, ...(payment ? { amount: money } : {}), ...(changeSeries ? { scope: "series", ...(repeat ? { series } : {}) } : { dueOn: dueOn || null }) };
-      const r = await update.run(patch);
-      if (r) onDone(r.length);
+      const r = await update.run({ title: title.trim(), notes: notes.trim() || null, dueOn: dueOn || null, ...(payment ? { amount: money } : {}) });
+      if (r) onDone("Saved");
       return;
     }
     const input: ObligationInput = { kind, title: title.trim(), ...(notes.trim() ? { notes: notes.trim() } : {}), ...(payment && money ? { amount: money } : {}), ...(repeat ? { series } : { dueOn: dueOn || null }) };
     const r = await create.run(input);
-    if (r) onDone(r.length);
+    if (r) onDone(r.length === 1 ? "Added" : `${r.length} added`);
   };
   return (
     <Dialog open onClose={onClose} labelledBy="obl-title">
@@ -147,7 +160,7 @@ export function ObligationDialog({ app, obligation, onClose, onDone }: { app: Ou
             </label>
             <label className="row small" style={{ gap: "6px" }}>
               <input type="radio" name="obl-scope" checked={scope === "series"} onChange={() => setScope("series")} />
-              This and every later one in the series not yet acted on
+              The whole series: later ones not yet edited or acted on are replaced
             </label>
           </fieldset>
         )}
@@ -156,8 +169,15 @@ export function ObligationDialog({ app, obligation, onClose, onDone }: { app: Ou
             <input id="obl-due" type="date" className="inp" value={dueOn} onChange={(e) => setDueOn(e.target.value)} />
           </Field>
         )}
-        {(!editing || changeSeries) && <SeriesFields repeat={repeat} setRepeat={setRepeat} series={series} setSeries={setSeries} idPrefix="obl" />}
-        {changeSeries && !repeat && <p className="small muted">The title, notes and amount change on every later one. Choose “Repeats” to re-plan their dates.</p>}
+        {!editing && <SeriesFields repeat={repeat} setRepeat={setRepeat} series={series} setSeries={setSeries} idPrefix="obl" />}
+        {changeSeries && (
+          <label className="row small" style={{ gap: "6px" }}>
+            <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
+            Re-plan the dates too
+          </label>
+        )}
+        {changeSeries && repeat && <SeriesFields repeat series={series} setSeries={setSeries} setRepeat={setRepeat} idPrefix="obl" offerOnce={false} />}
+        {changeSeries && !repeat && <p className="small muted">The title, notes and amount change on every later one not yet edited or acted on.</p>}
         <Field id="obl-notes" label="Notes">
           <textarea id="obl-notes" className="ta" style={{ minHeight: "56px" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
@@ -233,15 +253,26 @@ export function ReportQuestions({
 }) {
   const [prompt, setPrompt] = useState("");
   const [pasting, setPasting] = useState(false);
-  const add = useOutsideMutation((api, p: string) => api.addQuestions(app.id, [{ prompt: p, phase: "report", obligationId: obligation.id }]));
-  const questions = app.questions.filter((q) => q.obligationId === obligation.id);
+  // A report's questions are kept on the report (the application's own list leaves them out).
+  const list = useWKQuery((api) => api.reportQuestions(obligation.id), [obligation.id]);
+  const add = useWKMutation((api, p: string) => api.addReportQuestions(obligation.id, [{ prompt: p, phase: "report" }]));
+  const changed = () => {
+    list.reload();
+    onChanged();
+  };
   const readOnly = obligation.status === "submitted" || obligation.status === "done" || !!app.archivedAt;
   return (
     <section aria-label={`Questions for ${obligation.title}`} style={{ display: "flex", flexDirection: "column", gap: "12px", paddingTop: "4px" }}>
-      {questions.length === 0 && <p className="small muted">No questions yet. Paste the funder’s report questions, or add them one at a time.</p>}
-      {questions.map((q, i) => (
-        <QuestionCard key={q.id} q={q} n={i + 1} applicationId={app.id} members={members} answers={library} org={org} readOnly={readOnly} assist={assist} onAssistUsed={onAssistUsed} canApprove={canApprove} onChanged={onChanged} />
-      ))}
+      <Loaded query={list} label="Loading the report’s questions">
+        {(questions) => (
+          <>
+            {questions.length === 0 && <p className="small muted">No questions yet. Paste the funder’s report questions, or add them one at a time.</p>}
+            {questions.map((q, i) => (
+              <QuestionCard key={q.id} q={q} n={i + 1} applicationId={app.id} reportOf={obligation.id} members={members} answers={library} org={org} readOnly={readOnly} assist={assist} onAssistUsed={onAssistUsed} canApprove={canApprove} onChanged={changed} />
+            ))}
+          </>
+        )}
+      </Loaded>
       {!readOnly && (
         <form
           className="row"
@@ -251,7 +282,7 @@ export function ReportQuestions({
             if (!prompt.trim()) return;
             if (await add.run(prompt.trim())) {
               setPrompt("");
-              onChanged();
+              changed();
             }
           }}
         >
@@ -279,7 +310,7 @@ export function ReportQuestions({
           onClose={() => setPasting(false)}
           onSaved={() => {
             setPasting(false);
-            onChanged();
+            changed();
           }}
         />
       )}
@@ -313,16 +344,18 @@ export function ObligationRow({
   const [confirm, setConfirm] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [received, setReceived] = useState({ date: today(), amount: dollarsOf(o.amount) });
-  const patch = useWKMutation((api, p: ObligationPatch) => api.updateObligation(o.id, p));
+  const patch = useWKMutation((api, input: StatusInput) => api.setObligationStatus(o.id, input));
   const remove = useWKMutation(async (api) => {
     await api.deleteObligation(o.id);
     return true;
   });
-  const run = async (p: ObligationPatch) => (await patch.run(p)) && onChanged();
+  const run = async (input: StatusInput) => (await patch.run(input)) && onChanged();
+  // The moves the server allows from here (or the workflow's own edges when it does not say).
+  const allowed: ObligationStatus[] = o.allowedStatuses ?? movesFrom(o.kind, o.status);
+  const can = (to: ObligationStatus) => allowed.includes(to);
   const doc = app.documents.find((d) => d.id === o.documentId);
-  const questions = app.questions.filter((q) => q.obligationId === o.id);
-  const answered = questions.filter((q) => q.answer?.body.trim()).length;
   const settled = o.status === "done" || o.status === "received";
+  const kept = o.kind === "report" && (o.status === "submitted" || o.status === "done");
   const money = moneyFrom(received.amount, app.currency);
   return (
     <li className="card" aria-label={`${o.title}${o.dueOn ? `, ${formatDate(o.dueOn)}` : ""}`} style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -340,7 +373,6 @@ export function ObligationRow({
                 · <Repeat className="ic ic-sm" aria-hidden="true" /> Repeats
               </span>
             )}
-            {o.kind === "report" && questions.length > 0 ? ` · ${answered} of ${questions.length} answered` : ""}
           </span>
         </div>
         <span className="small">{o.dueOn ? settled || o.status === "submitted" ? formatDate(o.dueOn) : <DeadlineText date={o.dueOn} /> : <span className="muted">No date</span>}</span>
@@ -383,35 +415,35 @@ export function ObligationRow({
               Mark submitted
             </button>
           )}
-          {((o.kind === "report" && o.status === "submitted") || (o.kind === "condition" && !settled)) && (
-            <button type="button" className="btn btn-sm btn-secondary" disabled={patch.state === "saving"} onClick={() => void run({ status: "done" })}>
+          {can("done") && (
+            <button type="button" className="btn btn-sm btn-secondary" disabled={patch.state === "saving"} onClick={() => void run({ to: "done" })}>
               <Check className="ic" aria-hidden="true" />
               {o.kind === "report" ? "Mark done (the funder accepted it)" : "Mark done"}
             </button>
           )}
-          {o.kind === "payment_expected" && !settled && !receiving && (
+          {o.kind === "payment_expected" && can("received") && !receiving && (
             <button type="button" className="btn btn-sm btn-secondary" onClick={() => setReceiving(true)}>
               <Banknote className="ic" aria-hidden="true" />
               Record it received
             </button>
           )}
-          {!settled && o.status !== "submitted" && o.status !== "missed" && o.kind !== "payment_received" && (
-            <button type="button" className="btn btn-sm btn-ghost" disabled={patch.state === "saving"} onClick={() => void run({ status: "missed" })}>
+          {can("missed") && (
+            <button type="button" className="btn btn-sm btn-ghost" disabled={patch.state === "saving"} onClick={() => void run({ to: "missed" })}>
               Missed
             </button>
           )}
-          {(settled || o.status === "missed") && o.kind !== "payment_received" && o.status !== "submitted" && (
-            <button type="button" className="btn btn-sm btn-ghost" disabled={patch.state === "saving"} onClick={() => void run({ status: o.kind === "report" && o.submittedAt ? "submitted" : "upcoming" })}>
-              Reopen
+          {(settled || o.status === "submitted") && can("due") && (
+            <button type="button" className="btn btn-sm btn-ghost" disabled={patch.state === "saving"} onClick={() => void run({ to: "due" })}>
+              {o.kind === "report" ? "Not accepted: still due" : "Reopen"}
             </button>
           )}
-          {o.status !== "submitted" && (
+          {!kept && (
             <button type="button" className="btn btn-sm btn-ghost" aria-haspopup="dialog" aria-label={`Edit ${o.title}`} onClick={onEdit}>
               <Pencil className="ic" aria-hidden="true" />
               Edit
             </button>
           )}
-          {o.status !== "submitted" &&
+          {!kept &&
             (confirm ? (
               <>
                 <button type="button" className="btn btn-sm btn-danger" onClick={async () => (await remove.run()) && onChanged()}>
@@ -435,7 +467,7 @@ export function ObligationRow({
           style={{ gap: "8px", flexWrap: "wrap", alignItems: "flex-end" }}
           onSubmit={async (e) => {
             e.preventDefault();
-            if (money && (await patch.run({ status: "received", dueOn: received.date, amount: money }))) {
+            if (money && (await patch.run({ to: "received", completedOn: received.date, amount: money }))) {
               setReceiving(false);
               onChanged();
             }

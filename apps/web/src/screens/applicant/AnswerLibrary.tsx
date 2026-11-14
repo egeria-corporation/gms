@@ -18,7 +18,7 @@ import { AdaptPanel } from "./answerAdapt.tsx";
 import { StaleBadge } from "./outside/writeFaster.tsx";
 
 /** When the answer was last checked, the short, medium and long versions, and its tags. */
-function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: () => void }) {
+function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: (saved: LibraryAnswer | null) => void }) {
   const [variants, setVariants] = useState<Variants>(answer.variants ?? {});
   const [tags, setTags] = useState((answer.tags ?? []).join(", "));
   const verify = useWKMutation((api) => api.verifyAnswer(answer.id));
@@ -44,7 +44,8 @@ function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: 
             className="btn btn-sm btn-secondary"
             disabled={verify.state === "saving"}
             onClick={async () => {
-              if (await verify.run()) onChanged();
+              const saved = await verify.run();
+              if (saved) onChanged(saved);
             }}
           >
             <CalendarCheck className="ic" aria-hidden="true" />
@@ -73,7 +74,9 @@ function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: 
           className="btn btn-primary"
           disabled={!dirty || save.state === "saving"}
           onClick={async () => {
-            if (await save.run()) onChanged();
+            // On the API this saves a new version of the answer, under a new id.
+            const saved = await save.run();
+            if (saved) onChanged(saved);
           }}
         >
           Save versions and tags
@@ -251,7 +254,14 @@ export default function AnswerLibrary() {
                         }}
                       />
                     )}
-                    {selected !== "new" && current ? <KeepCurrent key={`${current.id}-${current.lastVerifiedAt ?? ""}`} answer={current} onChanged={query.reload} /> : null}
+                    {selected !== "new" && current ? <KeepCurrent
+                        key={`${current.id}-${current.lastVerifiedAt ?? ""}`}
+                        answer={current}
+                        onChanged={(saved) => {
+                          if (saved?.id) setSelected(saved.id);
+                          query.reload();
+                        }}
+                      /> : null}
                     {selected !== "new" && current ? <AdaptPanel key={current.id} answer={current} /> : null}
                   </div>
                 </div>

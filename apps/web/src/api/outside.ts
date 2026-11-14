@@ -206,8 +206,6 @@ export type OutsidePatch = Partial<{
   askByYear: YearAmount[];
   ownerUserId: string | null;
   customFields: Record<string, string | number | boolean | null>;
-  requiredDocuments: RequiredDocument[];
-  awardLetterDocumentId: string | null;
 }>;
 
 /**
@@ -402,7 +400,8 @@ export interface OutsideApi {
   answerHistory(questionId: string): Promise<OutsideAnswer[]>;
   exportApplication(id: string, format: "txt" | "md" | "pdf"): Promise<ExportFile>;
 
-  uploadDocument(id: string, input: AttachmentInput): Promise<AppDocument>;
+  /** `docType: "award_letter"` marks the award letter of an outside award. */
+  uploadDocument(id: string, input: AttachmentInput & { docType?: "award_letter" }): Promise<AppDocument>;
   documentFile(id: string, documentId: string): Promise<ExportFile>;
   createTask(id: string, input: { title: string; dueAt?: string | null; assigneeUserId?: string | null }): Promise<Task>;
 
@@ -550,14 +549,16 @@ export const requiredOf = (v: unknown): RequiredDocument[] =>
         const d = obj(x);
         const label = str(d.label);
         if (!label) return [];
-        const documentId = str(d.documentId);
+        // The API sends the attached vault document itself; a client-side record its id.
+        const documentId = str(d.documentId) ?? str(obj(d.document).id);
         const status = str(d.status);
         return [{ label, documentId, status: (status && REQUIRED_STATUSES.has(status) ? status : documentId ? "attached" : "needed") as RequiredDocStatus }];
       })
     : [];
 
 export function goNoGoOf(v: unknown): GoNoGo | null {
-  const g = obj(v);
+  // The API sends {enabled, weights, labels, scorecard}; the scorecard is the decision.
+  const g = obj(v).scorecard !== undefined ? obj(obj(v).scorecard) : obj(v);
   const decision = str(g.decision);
   if (decision !== "go" && decision !== "no_go") return null;
   const scores = obj(g.scores);

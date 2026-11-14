@@ -206,7 +206,7 @@ export function AiUseNote({ questions }: { questions: OutsideQuestion[] }) {
 export function CommentsPanel({ applicationId, question, n, members, readOnly }: { applicationId: string; question: OutsideQuestion; n: number; members: ApplicantMember[]; readOnly: boolean }) {
   const list = useWKQuery((api) => api.comments(applicationId, question.id), [applicationId, question.id]);
   const [body, setBody] = useState("");
-  const add = useWKMutation((api, text: string) => api.addComment(applicationId, question.id, text));
+  const add = useWKMutation((api, text: string) => api.addComment(question.id, text));
   const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? "A teammate";
   return (
     <section aria-label={`Comments on question ${n}`} style={{ borderTop: "1px solid var(--og-gray-100)", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -268,10 +268,11 @@ export const CommentsButton = ({ open, onToggle }: { open: boolean; onToggle: ()
 // ------------------------------------------------------------------------------------ reuse
 
 /** Earlier report answers in this workspace; choosing one saves it as a new version marked as reused. */
-export function ReuseDialog({ question, onInsert, onClose, busy, error }: { question: OutsideQuestion; onInsert: (a: PriorReportAnswer) => void; onClose: () => void; busy: boolean; error: unknown }) {
+export function ReuseDialog({ question, obligationId, onInsert, onClose, busy, error }: { question: OutsideQuestion; obligationId: string; onInsert: (a: PriorReportAnswer) => void; onClose: () => void; busy: boolean; error: unknown }) {
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
-  const list = useWKQuery((api) => api.priorReportAnswers(search), [search]);
+  // Answers to other reports' questions, the most relevant to this question first.
+  const list = useWKQuery((api) => api.priorReportAnswers(obligationId, { questionId: question.id, ...(search ? { q: search } : {}) }), [obligationId, question.id, search]);
   return (
     <Dialog open onClose={onClose} labelledBy="reuse-title" size="lg">
       <div className="hd">
@@ -305,13 +306,13 @@ export function ReuseDialog({ question, onInsert, onClose, busy, error }: { ques
         <Loaded query={list} label="Loading earlier reports">
           {(rows) =>
             rows.length === 0 ? (
-              <p className="muted">No earlier report answers{search ? " match that" : " yet"}. Answers appear here once a report is recorded as submitted.</p>
+              <p className="muted">No earlier report answers{search ? " match that" : " yet"}. Answers to other reports’ questions appear here.</p>
             ) : (
               <ol aria-label="Earlier report answers" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {rows.map((r) => (
                   <li key={r.answerId} className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span className="small muted">
-                      {r.applicationTitle} · {r.funderName}
+                      {[r.applicationTitle, r.funderName].filter(Boolean).join(" · ")}
                       {r.obligationTitle ? ` · ${r.obligationTitle}` : ""}
                       {r.submittedAt ? ` · submitted ${formatDate(r.submittedAt)}` : ""}
                     </span>

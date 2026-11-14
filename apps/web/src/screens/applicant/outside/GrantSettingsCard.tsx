@@ -8,7 +8,7 @@ import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { useCurrentWorkspace } from "../../../app/workspace.tsx";
 import { Loaded } from "../../../components/applicant.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
-import { CRITERION_LABELS, GO_CRITERIA, MONTHS, type Criterion } from "../../../lib/writeKeep.ts";
+import { CRITERION_LABELS, GO_CRITERIA, MONTHS, WEIGHT_MAX, type Criterion } from "../../../lib/writeKeep.ts";
 
 function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
   const [base, setBase] = useState(initial);
@@ -16,7 +16,7 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
   const [weights, setWeights] = useState<Record<Criterion, string>>(() => Object.fromEntries(GO_CRITERIA.map((c) => [c, String(initial.goNoGoWeights[c])])) as Record<Criterion, string>);
   const save = useWKMutation((api, next: Partial<GrantSettings>) => api.saveSettings(next));
   const parsed = Object.fromEntries(GO_CRITERIA.map((c) => [c, Number(weights[c])])) as Record<Criterion, number>;
-  const badWeight = GO_CRITERIA.some((c) => !(Number.isInteger(parsed[c]) && parsed[c] >= 0 && parsed[c] <= 5) || weights[c].trim() === "");
+  const badWeight = GO_CRITERIA.some((c) => !(Number.isInteger(parsed[c]) && parsed[c] >= 0 && parsed[c] <= WEIGHT_MAX) || weights[c].trim() === "") || GO_CRITERIA.every((c) => parsed[c] === 0);
   const dirty = form.goNoGoEnabled !== base.goNoGoEnabled || form.fiscalYearStartMonth !== base.fiscalYearStartMonth || GO_CRITERIA.some((c) => parsed[c] !== base.goNoGoWeights[c]);
   return (
     <>
@@ -33,7 +33,7 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
         {form.goNoGoEnabled && (
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              Weights, 0 to 5
+              Weights, 0 to {WEIGHT_MAX}
             </legend>
             {GO_CRITERIA.map((c) => (
               <Field key={c} id={`gs-w-${c}`} label={CRITERION_LABELS[c].label}>
@@ -42,7 +42,7 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
             ))}
             {badWeight && (
               <span className="err-msg" role="alert" style={{ gridColumn: "1 / -1" }}>
-                Each weight is a whole number from 0 to 5.
+                Each weight is a whole number from 0 to {WEIGHT_MAX}, and at least one is above zero.
               </span>
             )}
           </fieldset>

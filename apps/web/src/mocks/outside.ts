@@ -384,7 +384,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
   };
   const tasksOf = (id: string): Task[] => A.tasks.filter((t) => t.subjectType === "outside_application" && t.subjectId === id);
   const viewDetail = (a: MockRecord): OutsideDetail =>
-    clone({ ...viewApp(a), questions: [...a.questions].sort((x, y) => x.position - y.position).map(viewQuestion), documents: a.documents, tasks: tasksOf(a.id), activity: a.activity });
+    // As the Worker: report questions belong to their obligation, not the application's list.
+    clone({ ...viewApp(a), questions: own(a).sort((x, y) => x.position - y.position).map(viewQuestion), documents: a.documents, tasks: tasksOf(a.id), activity: a.activity });
   const listItem = (a: MockRecord): OutsideListItem =>
     toListItem({ ...viewApp(a), questionCounts: { total: own(a).length, approved: own(a).filter((q) => q.status === "approved").length } });
 
@@ -707,6 +708,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       let doc: AppDocument;
       if ("contentBase64" in input) doc = await storeFile(input.name, input.mime, fromBase64(input.contentBase64));
       else doc = { id: `doc_${uuid()}`, name: input.name, mime: input.mime, size: input.size, sha256: input.sha256, source: "passport_locker", passportDocumentId: input.passportDocumentId, scanStatus: "not_scanned", uploadedAt: now() };
+      // The award letter of an outside award is a document typed so (v1.7).
+      if (input.docType === "award_letter") doc = { ...doc, docType: "award_letter" } as AppDocument;
       a.documents.push(doc);
       a.updatedAt = now();
       return clone(doc);

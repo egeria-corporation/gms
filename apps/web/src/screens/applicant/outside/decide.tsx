@@ -15,6 +15,8 @@ import { formatDate } from "../../../lib/format.ts";
 import { CRITERION_LABELS, GO_CRITERIA, goNoGoTotal, type Criterion } from "../../../lib/writeKeep.ts";
 
 const SCORE_WORDS = ["", "Poor", "Weak", "Fair", "Good", "Strong"];
+/** The weighted mean of the scores, out of 5. */
+const scoreText = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 
 function GoNoGoSummary({ app, members }: { app: OutsideApplication; members: ApplicantMember[] }) {
   const g = app.goNoGo!;
@@ -51,10 +53,7 @@ function GoNoGoSummary({ app, members }: { app: OutsideApplication; members: App
             </div>
           ))}
           <dt>Score</dt>
-          <dd className="b">
-            {g.total}
-            {g.max ? ` of ${g.max}` : ""}
-          </dd>
+          <dd className="b">{scoreText(g.total)} of 5</dd>
           {g.reason && (
             <>
               <dt>Why</dt>
@@ -79,7 +78,7 @@ export function GoNoGoCard({ detail, settings, members, readOnly, onDone }: { de
   const { total, max, complete } = goNoGoTotal(scores, weights);
   const ready = complete && eligibility !== "";
   const run = async (decision: "go" | "no_go", nextStage?: "loi" | "drafting") => {
-    const a = await decide.run({ eligibility: eligibility as "pass" | "fail", scores: scores as Record<Criterion, number>, decision, ...(reason.trim() ? { reason: reason.trim() } : {}), ...(nextStage ? { nextStage } : {}) });
+    const a = await decide.run({ eligibility: eligibility as "pass" | "fail", scores: scores as Record<Criterion, number>, decision, ...(reason.trim() ? { reason: reason.trim() } : {}), ...(nextStage ? { to: nextStage } : {}) });
     if (a) onDone(a, decision === "go" ? `Go. Moved to ${nextStage === "loi" ? "Letter of inquiry" : "Drafting"}.` : "No-go. Moved to Not pursuing.");
   };
   return (
@@ -89,11 +88,11 @@ export function GoNoGoCard({ detail, settings, members, readOnly, onDone }: { de
           <h2 id="gng-h" style={{ fontSize: "18px" }}>
             Go or no-go?
           </h2>
-          <p className="small muted">Score this opportunity before you spend time on it. The weights are your workspace’s, set in Settings.</p>
+          <p className="small muted">Score this opportunity before you spend time on it. The score is the weighted average of the four lines, out of 5; the weights are your workspace’s, set in Settings.</p>
         </div>
         <span className="tag row" style={{ gap: "6px", whiteSpace: "nowrap", flex: "none" }} aria-live="polite">
           <Gauge className="ic ic-sm" aria-hidden="true" />
-          Score {total} of {max}
+          Score {complete ? scoreText(total) : "—"} of {max}
         </span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -153,7 +152,7 @@ export function GoNoGoCard({ detail, settings, members, readOnly, onDone }: { de
 /** After a decline: when to try again, the reminder that goes that day, and an alert on the program. */
 export function NextCycleCard({ detail }: { detail: OutsideDetail }) {
   const query = (detail.programName ?? detail.title).trim();
-  const make = useWKMutation((api) => api.createAlert(query));
+  const make = useWKMutation((api) => api.nextCycleAlert(detail.id));
   const [made, setMade] = useState<string | null>(null);
   if (detail.stage !== "declined") return null;
   return (
@@ -174,7 +173,7 @@ export function NextCycleCard({ detail }: { detail: OutsideDetail }) {
           disabled={!query || make.state === "saving"}
           onClick={async () => {
             const a = await make.run();
-            if (a) setMade(a.query);
+            if (a) setMade(a.query || query);
           }}
         >
           <BellPlus className="ic" aria-hidden="true" />

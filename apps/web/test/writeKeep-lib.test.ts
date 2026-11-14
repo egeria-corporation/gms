@@ -98,17 +98,18 @@ describe("the checklist", () => {
 
 describe("go/no-go", () => {
   it("weights each 1-5 score and says when every line is scored", () => {
-    expect(goNoGoTotal({ fit: 5, capacity: 4, effort: 3, relationship: 2 }, DEFAULT_WEIGHTS)).toEqual({ total: 31, max: 40, complete: true });
-    expect(goNoGoTotal({ fit: 5 }, DEFAULT_WEIGHTS)).toEqual({ total: 15, max: 40, complete: false });
-    expect(goNoGoTotal({ fit: 5, capacity: 5, effort: 5, relationship: 5 }, { fit: 0, capacity: 1, effort: 1, relationship: 0 })).toEqual({ total: 10, max: 10, complete: true });
+    // The weighted mean, out of 5, as the API records it: (5·3 + 4·2 + 3·2 + 2·1) / 8 = 3.875.
+    expect(goNoGoTotal({ fit: 5, capacity: 4, effort: 3, relationship: 2 }, DEFAULT_WEIGHTS)).toEqual({ total: 3.9, max: 5, complete: true });
+    expect(goNoGoTotal({ fit: 5 }, DEFAULT_WEIGHTS)).toEqual({ total: 5, max: 5, complete: false });
+    expect(goNoGoTotal({ fit: 1, capacity: 5, effort: 5, relationship: 1 }, { fit: 0, capacity: 1, effort: 1, relationship: 0 })).toEqual({ total: 5, max: 5, complete: true });
   });
 });
 
 describe("obligation series", () => {
-  it("starts N months after the start, keeps the day (or the month's last), and stops at the end", () => {
-    expect(seriesDates("2027-01-31", "2027-12-31", 3)).toEqual(["2027-04-30", "2027-07-31", "2027-10-31"]);
-    expect(seriesDates("2027-01-15", "2027-07-15", 6)).toEqual(["2027-07-15"]);
-    expect(seriesDates("2027-01-15", "2027-07-14", 6)).toEqual([]);
+  it("starts on the first date, keeps the day (or the month's last), and stops at the end", () => {
+    expect(seriesDates("2027-01-31", "2027-12-31", 3)).toEqual(["2027-01-31", "2027-04-30", "2027-07-31", "2027-10-31"]);
+    expect(seriesDates("2027-01-15", "2027-07-15", 6)).toEqual(["2027-01-15", "2027-07-15"]);
+    expect(seriesDates("2027-01-15", "2027-07-14", 6)).toEqual(["2027-01-15"]);
     expect(seriesDates("2027-01-15", "2026-01-01", 1)).toEqual([]);
     expect(seriesDates("2027-01-15", "2037-01-15", 0)).toEqual([]);
   });

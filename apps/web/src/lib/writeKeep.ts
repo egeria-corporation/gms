@@ -74,6 +74,8 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
 /** What the upload dialog says, and what a refused file name is told. */
 export const VAULT_WARNING =
   "Do not upload bank letters, voided checks, ACH or direct deposit forms, W-9s, or anything that shows a person's identity numbers. Bank details are handled only in Passport.";
+/** As the API: a vault document is at most 25 MB. */
+export const VAULT_MAX_BYTES = 25 * 1_048_576;
 /** File names that look like bank or tax-identity paperwork are refused before anything is sent. */
 export const BLOCKED_FILENAME = /(?<![a-z])(bank|ach|void(?:ed)?|routing|w-?9)(?![a-z])/i;
 export const blockedFilename = (name: string) => BLOCKED_FILENAME.test(name);
@@ -133,6 +135,13 @@ export const MILESTONES = [
   { key: "review", title: "Team review", offsetDays: -7 },
   { key: "final", title: "Final version ready", offsetDays: -2 },
 ] as const;
+/** The same day N months later (or that month's last day). */
+export function addMonths(iso: string, n: number): string {
+  const start = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + n, 1));
+  d.setUTCDate(Math.min(start.getUTCDate(), new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()));
+  return d.toISOString().slice(0, 10);
+}
 export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 export const milestonesFor = (fullDue: string): { key: string; title: string; dueOn: string }[] => MILESTONES.map((m) => ({ key: m.key, title: m.title, dueOn: addDays(fullDue, m.offsetDays) }));
 
@@ -147,39 +156,60 @@ export const CRITERION_LABELS: Record<Criterion, { label: string; help: string }
   relationship: { label: "Relationship with the funder", help: "How well you know the funder and its staff." },
 };
 export const DEFAULT_WEIGHTS: Record<Criterion, number> = { fit: 3, capacity: 2, effort: 2, relationship: 1 };
+/** As the API: each weight is a whole number from 0 to this, and at least one is above zero. */
+export const WEIGHT_MAX = 10;
 export type Scores = Record<Criterion, number>;
 
-/** Each criterion's 1-5 score times its weight, against the most it could be. */
-export function goNoGoTotal(scores: Partial<Scores>, weights: Record<Criterion, number>): { total: number; max: number; complete: boolean } {
-  let total = 0;
-  let max = 0;
+/**
+ * The weighted mean of the 1-5 scores, to one decimal (as the API records it), out of 5. Scored
+ * lines only until every line is scored.
+ */
+export function goNoGoTotal(scores: Partial<Scores>, weights: Record<Criterion, number>): { total: number; max: 5; complete: boolean } {
+  let sum = 0;
+  let weight = 0;
   let complete = true;
   for (const c of GO_CRITERIA) {
     const w = Math.max(0, weights[c] ?? 0);
-    max += 5 * w;
     const s = scores[c];
-    if (typeof s === "number" && s >= 1 && s <= 5) total += s * w;
-    else complete = false;
+    if (typeof s === "number" && s >= 1 && s <= 5) {
+      sum += s * w;
+      weight += w;
+    } else complete = false;
   }
-  return { total, max, complete };
+  return { total: weight ? Math.round((sum / weight) * 10) / 10 : 0, max: 5, complete };
 }
 
 // ------------------------------------------------------------------------------------ obligations
 
+export type ObligationKindName = "report" | "payment_expected" | "payment_received" | "condition";
+export type ObligationStatusName = "upcoming" | "due" | "submitted" | "received" | "done" | "missed";
+/**
+ * Where each kind's status may move, as @gms/workflow's OBLIGATION_EDGES (v1.7.0). `submitted` is
+ * reached only by marking a report submitted. The API sends `allowedStatuses`; this is the fallback.
+ */
+export const OBLIGATION_EDGES: Record<ObligationKindName, Partial<Record<ObligationStatusName, readonly ObligationStatusName[]>>> = {
+  report: { upcoming: ["due", "submitted", "missed"], due: ["submitted", "missed"], missed: ["submitted"], submitted: ["done", "due"], done: ["submitted"] },
+  payment_expected: { upcoming: ["due", "received", "missed"], due: ["received", "missed"], missed: ["received"], received: ["due"] },
+  payment_received: { received: [] },
+  condition: { upcoming: ["due", "done", "missed"], due: ["done", "missed"], missed: ["done"], done: ["due"] },
+};
+/** The statuses a person may move an obligation to (not submitted: that has its own route). */
+export const movesFrom = (kind: ObligationKindName, status: ObligationStatusName): ObligationStatusName[] => (OBLIGATION_EDGES[kind][status] ?? []).filter((s) => s !== "submitted");
+
 /** A series makes at most this many obligations. */
 export const SERIES_MAX = 60;
-/** The dates of "every N months from start until end": the first falls N months after the start. */
-export function seriesDates(from: string, until: string, everyMonths: number, max = SERIES_MAX): string[] {
-  if (!(everyMonths >= 1) || !from || !until || until < from) return [];
-  const start = new Date(`${from.slice(0, 10)}T00:00:00Z`);
+/** The dates of "every N months from the first until the end" (as the API: the first is the start date itself). */
+export function seriesDates(startOn: string, endOn: string, everyMonths: number, max = SERIES_MAX): string[] {
+  if (!(everyMonths >= 1) || !startOn || !endOn || endOn < startOn) return [];
+  const start = new Date(`${startOn.slice(0, 10)}T00:00:00Z`);
   const out: string[] = [];
-  for (let i = 1; out.length < max; i++) {
+  for (let i = 0; out.length < max; i++) {
     const d = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i * everyMonths, 1));
     // The same day of the month, or the month's last day when it is shorter.
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
     d.setUTCDate(Math.min(start.getUTCDate(), last));
     const iso = d.toISOString().slice(0, 10);
-    if (iso > until.slice(0, 10)) break;
+    if (iso > endOn.slice(0, 10)) break;
     out.push(iso);
   }
   return out;

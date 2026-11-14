@@ -9,7 +9,7 @@ import { useFullQuery } from "../../../api/applicantFullHooks.ts";
 import type { OutsideDetail } from "../../../api/outside.ts";
 import { useOutsideMutation } from "../../../api/outsideHooks.ts";
 import type { VaultDocument } from "../../../api/writeKeep.ts";
-import { useWKQuery } from "../../../api/writeKeepHooks.ts";
+import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
 import { openBlob } from "../../../lib/browser.ts";
@@ -64,10 +64,7 @@ function Deadlines({ detail, readOnly, onChanged }: { detail: OutsideDetail; rea
 function MilestonesOffer({ detail, onChanged }: { detail: OutsideDetail; onChanged: () => void }) {
   const [rows, setRows] = useState(() => (detail.fullDue ? milestonesFor(detail.fullDue) : []));
   const [dismissed, setDismissed] = useState(false);
-  const create = useOutsideMutation(async (api, list: { title: string; dueOn: string }[]) => {
-    for (const r of list) await api.createTask(detail.id, { title: r.title, dueAt: `${r.dueOn}T00:00:00Z` });
-    return list.length;
-  });
+  const create = useWKMutation((api, list: { title: string; dueOn: string }[]) => api.createMilestones(detail.id, list));
   const titles = new Set(detail.tasks.map((t) => t.title.toLowerCase()));
   const planned = MILESTONES.some((m) => titles.has(m.title.toLowerCase()));
   if (!detail.fullDue || planned || dismissed) return null;
@@ -123,13 +120,14 @@ function MilestonesOffer({ detail, onChanged }: { detail: OutsideDetail; onChang
 function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDetail; readOnly: boolean; onChanged: () => void }) {
   const vault = useWKQuery((api) => api.vault(), []);
   const [label, setLabel] = useState("");
-  const save = useOutsideMutation((api, next: RequiredDocument[]) => api.update(detail.id, { requiredDocuments: next }));
+  const save = useWKMutation((api, next: RequiredDocument[]) => api.setRequiredDocuments(detail.id, next));
+  const use = useWKMutation((api, label: string, documentId: string | null) => api.useFromVault(detail.id, label, documentId));
   const list = detail.requiredDocuments;
   const docs: VaultDocument[] = vault.status === "ready" ? vault.data : [];
-  const attachments = detail.documents.filter((d) => d.id !== detail.snapshotDocumentId);
-  const nameOf = (id: string | null) => docs.find((d) => d.id === id)?.name ?? attachments.find((d) => d.id === id)?.name ?? "A document";
+  const nameOf = (id: string | null) => docs.find((d) => d.id === id)?.name ?? "A document";
   const set = async (next: RequiredDocument[]) => (await save.run(next)) && onChanged();
   const patchAt = (i: number, p: Partial<RequiredDocument>) => void set(list.map((d, j) => (j === i ? { ...d, ...p } : d)));
+  const attach = async (d: RequiredDocument, documentId: string | null) => (await use.run(d.label, documentId)) && onChanged();
   const met = list.filter((d) => d.status !== "needed").length;
   return (
     <section className="card" aria-labelledby="ock-req">
@@ -138,7 +136,7 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
           <h2 id="ock-req" style={{ fontSize: "18px" }}>
             Required documents
           </h2>
-          <p className="small muted">{list.length ? `${met} of ${list.length} ready` : "What the funder asks you to attach. Use a document from your vault, or one attached here."}</p>
+          <p className="small muted">{list.length ? `${met} of ${list.length} ready` : "What the funder asks you to attach. Use a document from your vault for each."}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -162,18 +160,18 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                   </div>
                   {d.status === "attached" && d.documentId && (
                     <span className="small row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      {vaultDoc ? "From your vault:" : "Attached:"} <span className="b">{nameOf(d.documentId)}</span>
+                      From your vault: <span className="b">{nameOf(d.documentId)}</span>
                       {vaultDoc && <ExpiryBadge expiresOn={vaultDoc.expiresOn} />}
                     </span>
                   )}
                   {!readOnly && d.status !== "attached" && (
                     <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                       {matches[0] && (
-                        <button type="button" className="btn btn-sm btn-secondary" disabled={save.state === "saving"} onClick={() => patchAt(i, { documentId: matches[0]!.id, status: "attached" })}>
+                        <button type="button" className="btn btn-sm btn-secondary" disabled={use.state === "saving"} onClick={() => void attach(d, matches[0]!.id)}>
                           Use from vault: {matches[0].name}
                         </button>
                       )}
-                      {(others.length > 0 || matches.length > 1 || attachments.length > 0) && (
+                      {(others.length > 0 || matches.length > 1) && (
                         <>
                           <label className="sr" htmlFor={`req-pick-${i}`}>
                             Another document for {d.label}
@@ -183,27 +181,14 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                             className="sel"
                             style={{ maxWidth: "260px", height: "30px" }}
                             value=""
-                            onChange={(e) => e.target.value && patchAt(i, { documentId: e.target.value, status: "attached" })}
+                            onChange={(e) => e.target.value && void attach(d, e.target.value)}
                           >
-                            <option value="">{matches[0] ? "Or choose another…" : "Choose a document…"}</option>
-                            {docs.length > 0 && (
-                              <optgroup label="Your vault">
-                                {[...matches.slice(1), ...others].map((v) => (
-                                  <option key={v.id} value={v.id}>
-                                    {v.name} ({DOC_TYPE_LABELS[v.docType]})
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {attachments.length > 0 && (
-                              <optgroup label="Attached to this application">
-                                {attachments.map((a) => (
-                                  <option key={a.id} value={a.id}>
-                                    {a.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
+                            <option value="">{matches[0] ? "Or choose another from your vault…" : "Choose one from your vault…"}</option>
+                            {[...matches.slice(1), ...others].map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name} ({DOC_TYPE_LABELS[v.docType]})
+                              </option>
+                            ))}
                           </select>
                         </>
                       )}
@@ -216,11 +201,11 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                           Needed after all
                         </button>
                       )}
-                      {!matches[0] && d.status === "needed" && docs.length === 0 && <span className="small muted">Nothing in your vault yet.</span>}
+                      {!matches[0] && d.status === "needed" && docs.length === 0 && <span className="small muted">Nothing in your vault yet. Add it under Organization, Documents.</span>}
                     </div>
                   )}
                   {!readOnly && d.status === "attached" && (
-                    <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => patchAt(i, { status: "needed", documentId: null })}>
+                    <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} disabled={use.state === "saving"} onClick={() => void attach(d, null)}>
                       Change
                     </button>
                   )}
@@ -256,6 +241,7 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
         )}
         {vault.status === "error" ? <ErrorBanner error={vault.error} title="Your vault could not be read" /> : null}
         {save.error ? <ErrorBanner error={save.error} title="The checklist was not saved" /> : null}
+        {use.error ? <ErrorBanner error={use.error} title="The document was not used" /> : null}
       </div>
     </section>
   );
@@ -291,9 +277,9 @@ export function DocumentRow({ doc, applicationId, note }: { doc: AppDocument; ap
 }
 
 /** Uploads one file to the application; resolves the stored document. */
-export function useUpload(applicationId: string) {
+export function useUpload(applicationId: string, docType?: "award_letter") {
   const [tooBig, setTooBig] = useState<string | null>(null);
-  const upload = useOutsideMutation(async (api, file: File) => api.uploadDocument(applicationId, { name: file.name, mime: file.type || "application/octet-stream", contentBase64: await toBase64(file) }));
+  const upload = useOutsideMutation(async (api, file: File) => api.uploadDocument(applicationId, { name: file.name, mime: file.type || "application/octet-stream", contentBase64: await toBase64(file), ...(docType ? { docType } : {}) }));
   const run = async (file: File | undefined) => {
     setTooBig(null);
     if (!file) return undefined;

@@ -6,7 +6,7 @@
 // refuses bank-like names, go/no-go moves by the machine, approval is for an admin or the owner,
 // series stop at 60 and re-plan only future untouched ones, closeout needs everything settled.
 import { describe, expect, it } from "vitest";
-import { createHttpOutsideApi } from "../src/api/outside.ts";
+import { createHttpOutsideApi, toApplication } from "../src/api/outside.ts";
 import { createHttpWriteKeepApi, libraryWithMeta, toDraft, toObligation, toSummary } from "../src/api/writeKeep.ts";
 import { seedApplicantStore, APPLICANT_IDS } from "../src/mocks/applicant.ts";
 import { seedFullStore } from "../src/mocks/applicantFull.ts";
@@ -25,69 +25,130 @@ function recorder(reply: (method: string, path: string) => unknown = () => ({}))
 }
 
 describe("the HTTP client", () => {
-  it("sends each call to its route with its body, as the screens make it", async () => {
-    const { calls, fetch } = recorder((method, path) => (path.startsWith("/gms/threads?") ? [{ id: "thr_1", fieldRef: "oqn_1", messages: [] }] : method === "POST" && path.includes("/obligations") ? [{ id: "obl_1" }] : { id: "x" }));
+  it("sends each call to the API document's route with its body, as the screens make it", async () => {
+    const { calls, fetch } = recorder((method, path) =>
+      path === "/gms/my/awarded-funding"
+        ? { items: [{ kind: "gms_award", id: "awd_1" }, { kind: "outside_award", id: "oap_9", title: "Clinics", funderName: "Cedar", currency: "USD", awardedAmount: { amount: "60000.00", currency: "USD" } }] }
+        : path === "/gms/outside-awards/oap_9"
+          ? { obligations: [{ id: "o1", kind: "report", title: "Report (1 of 2)", dueOn: "2027-06-01", status: "upcoming" }], payments: { received: { amount: "30000.00", currency: "USD" } } }
+          : path.endsWith("/obligations") && method === "POST"
+            ? { series: { id: "s1" }, obligations: [{ id: "o1" }, { id: "o2" }] }
+            : path.endsWith("/obligations")
+              ? { obligations: [{ id: "o1", snapshot: { documentId: "doc_1", sha256: "a".repeat(64) }, allowedStatuses: ["done", "due"] }], series: [], payments: {}, closeout: {} }
+              : path === "/gms/vault"
+                ? { documents: [{ id: "v1", name: "Audit.pdf", docType: "audit", expiry: { expiresOn: "2027-06-30" } }], types: [], never: "" }
+                : path === "/gms/workspaces/ws_1"
+                  ? method === "GET"
+                    ? { settings: { goNoGoEnabled: true, fiscalYearStartMonth: 7 } }
+                    : { workspace: { settings: { goNoGoEnabled: true, goNoGoWeights: { fit: 4, capacity: 2, effort: 2, relationship: 1 } } }, warnings: [] }
+                  : path.includes("required-documents")
+                    ? [{ label: "Audit", docType: "audit", status: "attached", document: { id: "v1" }, matches: [] }]
+                    : { id: "x" },
+    );
     const api = createHttpWriteKeepApi({ baseUrl: "https://api.test", token: async () => "t", workspaceId: () => "ws_1", fetch });
     await api.draftAnswer("oqn_1");
     await api.readGuidelines("oap_1", "Guidelines");
     await api.uploadGuidelines("oap_1", { name: "g.pdf", mime: "application/pdf", contentBase64: "JVBERg==" });
     await api.verifyAnswer("ans_1");
     await api.updateAnswerMeta("ans_1", { variants: { short: "S" }, tags: ["health"] });
+    expect(await api.vault()).toMatchObject([{ id: "v1", docType: "audit", expiresOn: "2027-06-30" }]);
     await api.uploadVault({ name: "Audit.pdf", mime: "application/pdf", contentBase64: "JVBERg==", docType: "audit", expiresOn: "2027-06-30" });
     await api.updateVault("vdc_1", { expiresOn: null });
-    await api.saveSettings({ goNoGoEnabled: true });
-    await api.decideGoNoGo("oap_1", { eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "go", nextStage: "drafting" });
-    await api.addComment("oap_1", "oqn_1", "Looks good");
-    await api.createObligation("oap_1", { kind: "report", title: "Report", series: { everyMonths: 6, from: "2027-01-01", until: "2028-01-01" } });
-    await api.updateObligation("obl_1", { title: "Report", scope: "series" });
+    expect(await api.setRequiredDocuments("oap_1", [{ label: "Audit", documentId: "v1", status: "attached" }, { label: "Budget", documentId: null, status: "not_needed" }])).toEqual([{ label: "Audit", documentId: "v1", status: "attached" }]);
+    await api.useFromVault("oap_1", "Audit", "v1");
+    await api.createMilestones("oap_1", [{ title: "First draft due", dueOn: "2027-02-15" }]);
+    expect(await api.settings()).toMatchObject({ goNoGoEnabled: true, fiscalYearStartMonth: 7, goNoGoWeights: { fit: 3 } });
+    expect(await api.saveSettings({ goNoGoEnabled: true })).toMatchObject({ goNoGoWeights: { fit: 4 } });
+    await api.decideGoNoGo("oap_1", { eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "go", to: "drafting" });
+    await api.comments("oap_1", "oqn_1");
+    await api.addComment("oqn_1", "Looks good");
+    expect(await api.createObligation("oap_1", { kind: "report", title: "Report", series: { everyMonths: 6, startOn: "2027-01-01", endOn: "2028-01-01" } })).toHaveLength(2);
+    expect((await api.obligations("oap_1"))[0]).toMatchObject({ documentId: "doc_1", snapshotSha256: "a".repeat(64), allowedStatuses: ["done", "due"] });
+    await api.updateObligation("obl_1", { title: "Report" });
+    await api.setObligationStatus("obl_1", { to: "received", completedOn: "2027-03-01", amount: { amount: "100.00", currency: "USD" } });
+    await api.updateSeries("srs_1", { everyMonths: 3 });
     await api.submitObligation("obl_1", { submittedAt: "2027-07-01", confirmationRef: "R1" });
+    await api.reportQuestions("obl_1");
+    await api.addReportQuestions("obl_1", [{ prompt: "Progress?" }]);
+    await api.priorReportAnswers("obl_1", { questionId: "oqn_2", q: "clinics" });
     await api.closeOut("oap_1");
-    await api.createAlert("Community Clinics");
+    await api.nextCycleAlert("oap_1");
+    expect(await api.outsideAwards()).toEqual([{ id: "oap_9", title: "Clinics", funderName: "Cedar", awardedAmount: { amount: "60000.00", currency: "USD" }, receivedAmount: { amount: "30000.00", currency: "USD" }, grantStart: null, grantEnd: null, closedOutAt: null, nextDue: { title: "Report (1 of 2)", dueOn: "2027-06-01" } }]);
+    await api.fundingSummary();
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       "POST /gms/outside-questions/oqn_1/draft",
       "POST /gms/outside-applications/oap_1/questions/parse",
       "POST /gms/outside-applications/oap_1/guidelines",
       "POST /gms/my/answers/ans_1/verify",
       "PATCH /gms/my/answers/ans_1",
-      "POST /gms/vault/documents",
-      "PATCH /gms/vault/documents/vdc_1",
-      "PATCH /gms/my/grant-settings",
+      "GET /gms/vault",
+      "POST /gms/vault",
+      "PATCH /gms/vault/vdc_1",
+      "PUT /gms/outside-applications/oap_1/required-documents",
+      "POST /gms/outside-applications/oap_1/required-documents/use-from-vault",
+      "POST /gms/outside-applications/oap_1/milestones",
+      "GET /gms/workspaces/ws_1",
+      "PATCH /gms/workspaces/ws_1",
       "POST /gms/outside-applications/oap_1/go-no-go",
-      "GET /gms/threads?subjectType=outside_application&subjectId=oap_1",
-      "POST /gms/threads/thr_1/messages",
+      "GET /gms/outside-applications/oap_1/comments?questionId=oqn_1",
+      "POST /gms/outside-questions/oqn_1/comments",
       "POST /gms/outside-applications/oap_1/obligations",
+      "GET /gms/outside-applications/oap_1/obligations",
       "PATCH /gms/outside-obligations/obl_1",
+      "POST /gms/outside-obligations/obl_1/status",
+      "PATCH /gms/outside-obligation-series/srs_1",
       "POST /gms/outside-obligations/obl_1/submit",
+      "GET /gms/outside-obligations/obl_1/questions",
+      "POST /gms/outside-obligations/obl_1/questions",
+      "GET /gms/outside-obligations/obl_1/reuse?questionId=oqn_2&q=clinics",
       "POST /gms/outside-applications/oap_1/close-out",
-      "POST /gms/discover/alerts",
+      "POST /gms/outside-applications/oap_1/next-cycle-alert",
+      "GET /gms/my/awarded-funding",
+      "GET /gms/outside-awards/oap_9",
+      "GET /gms/funding-summary",
     ]);
-    expect(calls[1]!.body).toEqual({ text: "Guidelines", mode: "ai" });
-    expect(calls[8]!.body).toEqual({ eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "go", nextStage: "drafting" });
-    expect(calls[11]!.body).toEqual({ kind: "report", title: "Report", series: { everyMonths: 6, from: "2027-01-01", until: "2028-01-01" } });
-    expect(calls[15]!.body).toEqual({ name: "Community Clinics", query: "Community Clinics" });
+    const body = (i: number) => calls[i]!.body;
+    expect(body(1)).toEqual({ text: "Guidelines", mode: "ai" });
+    expect(body(8)).toEqual({ items: [{ label: "Audit", documentId: "v1" }, { label: "Budget", status: "not_needed", documentId: null }] });
+    expect(body(9)).toEqual({ label: "Audit", documentId: "v1" });
+    expect(body(10)).toEqual({ tasks: [{ title: "First draft due", dueOn: "2027-02-15" }] });
+    expect(body(12)).toEqual({ settings: { goNoGoEnabled: true } });
+    expect(body(13)).toEqual({ eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "go", to: "drafting" });
+    expect(body(15)).toEqual({ body: "Looks good" });
+    expect(body(16)).toEqual({ kind: "report", title: "Report", series: { everyMonths: 6, startOn: "2027-01-01", endOn: "2028-01-01" } });
+    expect(body(19)).toEqual({ to: "received", completedOn: "2027-03-01", amount: { amount: "100.00", currency: "USD" } });
+    expect(body(23)).toEqual({ questions: [{ prompt: "Progress?" }] });
   });
 
-  it("opens a question's comment thread only when the first comment is posted", async () => {
-    const { calls, fetch } = recorder((method, path) => (path.startsWith("/gms/threads?") ? [] : { id: "thr_9", body: "Hi", author: "user:u1", createdAt: "2027-01-01T00:00:00Z" }));
-    const api = createHttpWriteKeepApi({ baseUrl: "https://api.test", token: async () => null, workspaceId: () => null, fetch });
-    expect(await api.comments("oap_1", "oqn_1")).toEqual([]);
-    const c = await api.addComment("oap_1", "oqn_1", "Hi");
-    expect(c.authorUserId).toBe("u1");
-    expect(calls.map((x) => `${x.method} ${x.path}`)).toEqual(["GET /gms/threads?subjectType=outside_application&subjectId=oap_1", "GET /gms/threads?subjectType=outside_application&subjectId=oap_1", "POST /gms/threads", "POST /gms/threads/thr_9/messages"]);
-    expect(calls[2]!.body).toEqual({ subjectType: "outside_application", subjectId: "oap_1", fieldRef: "oqn_1", visibility: "internal" });
+  it("reads the funding summary's per-currency amounts and fetches its exports", async () => {
+    const { calls, fetch } = recorder(() => ({ fiscalYearStartMonth: 7, years: [{ fiscalYear: 2027, label: "FY 2027 (Jul 2026 to Jun 2027)", submitted: 3, decided: 2, awarded: 1, declined: 1, winRate: 0.5, asked: [{ amount: "10.00", currency: "CAD" }, { amount: "90000.00", currency: "USD" }], awardedAmount: [{ amount: "40000.00", currency: "USD" }] }] }));
+    const api = createHttpWriteKeepApi({ baseUrl: "https://api.test", token: async () => "t", workspaceId: () => "ws_1", fetch });
+    expect((await api.fundingSummary()).years[0]).toMatchObject({ label: "FY 2027 (Jul 2026 to Jun 2027)", winRate: 0.5, asked: { amount: "90000.00", currency: "USD" }, awardedAmount: { amount: "40000.00" } });
+    await api.exportSummary("pdf").catch(() => undefined);
+    expect(calls[1]!.path).toBe("/gms/funding-summary/export?format=pdf");
   });
 
-  it("saves accepted AI text and reused report text with their provenance", async () => {
+  it("saves accepted AI text, reused report text and the award letter with their marks", async () => {
     const { calls, fetch } = recorder(() => ({ id: "v1", version: 1, body: "x", provenance: "assist", counts: { words: 1, chars: 1, charsNoSpaces: 1 } }));
     const api = createHttpOutsideApi({ baseUrl: "https://api.test", token: async () => "t", workspaceId: () => "ws", fetch });
     await api.putAnswer("oqn_1", { body: "x", provenance: "assist" });
     await api.putAnswer("oqn_1", { body: "y", provenance: "prior_submission", sourceAnswerId: "v0" });
-    await api.update("oap_1", { requiredDocuments: [{ label: "Audit", documentId: "vdc_1", status: "attached" }], awardLetterDocumentId: "doc_1" });
+    await api.uploadDocument("oap_1", { name: "Award.pdf", mime: "application/pdf", contentBase64: "JVBERg==", docType: "award_letter" });
     expect(calls.map((c) => c.body)).toEqual([
       { body: "x", provenance: "assist" },
       { body: "y", provenance: "prior_submission", sourceAnswerId: "v0" },
-      { requiredDocuments: [{ label: "Audit", documentId: "vdc_1", status: "attached" }], awardLetterDocumentId: "doc_1" },
+      { name: "Award.pdf", mime: "application/pdf", contentBase64: "JVBERg==", docType: "award_letter" },
     ]);
+  });
+
+  it("reads the API's go/no-go and required documents on an outside application", () => {
+    const a = toApplication({ id: "oap_1", goNoGo: { enabled: true, weights: { fit: 3 }, labels: {}, scorecard: { scores: { eligibility: "pass", fit: 4, capacity: 4, effort: 4, relationship: 4 }, weights: { fit: 3, capacity: 2, effort: 2, relationship: 1 }, total: 4, decision: "go", decidedBy: "u1", decidedAt: "2027-01-01T00:00:00Z", reason: null, to: "drafting" } }, requiredDocuments: [{ label: "Audit", status: "attached", document: { id: "v1" } }, { label: "Budget", status: "needed", document: null }] });
+    expect(a.goNoGo).toMatchObject({ eligibility: "pass", scores: { fit: 4 }, total: 4, decision: "go" });
+    expect(a.requiredDocuments).toEqual([
+      { label: "Audit", documentId: "v1", status: "attached" },
+      { label: "Budget", documentId: null, status: "needed" },
+    ]);
+    expect(toApplication({ id: "oap_2", goNoGo: { enabled: false, weights: {}, labels: {}, scorecard: null } }).goNoGo).toBeNull();
   });
 
   it("reads the small variations a first server could answer with", () => {
@@ -142,7 +203,9 @@ describe("the mock follows the contract", () => {
     const up = await m.wk.uploadGuidelines(OUTSIDE_IDS.meadow, { name: "rfp.txt", mime: "text/plain", contentBase64: btoa("1. How will you measure success?") });
     expect(up.questions.map((q) => q.prompt)).toEqual(["How will you measure success?"]);
     expect(m.outsideStore.applications.find((a) => a.id === OUTSIDE_IDS.meadow)!.documents.map((d) => (d as { docType?: string }).docType)).toEqual(["funder_guidelines"]);
-    await expect(m.wk.uploadGuidelines(OUTSIDE_IDS.meadow, { name: "rfp.docx", mime: "application/msword", contentBase64: "AA==" })).rejects.toMatchObject({ status: 422 });
+    await expect(m.wk.uploadGuidelines(OUTSIDE_IDS.meadow, { name: "rfp.docx", mime: "application/msword" as never, contentBase64: "AA==" })).rejects.toMatchObject({ status: 422 });
+    const off = mocks();
+    await expect(off.wk.readGuidelines(OUTSIDE_IDS.meadow, "1. Why?")).rejects.toMatchObject({ status: 404 });
   });
 
   it("keeps bank paperwork out of the vault", async () => {
@@ -156,12 +219,15 @@ describe("the mock follows the contract", () => {
   it("decides go/no-go at Deciding only, when switched on, through the machine", async () => {
     const m = mocks();
     const scores = { fit: 4, capacity: 4, effort: 4, relationship: 4 };
-    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go", nextStage: "drafting" })).rejects.toMatchObject({ status: 409 });
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 409 });
     await m.wk.saveSettings({ goNoGoEnabled: true });
-    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "fail", scores, decision: "go", nextStage: "drafting" })).rejects.toMatchObject({ status: 422 });
-    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.northwind, { eligibility: "pass", scores, decision: "go", nextStage: "drafting" })).rejects.toMatchObject({ status: 409 });
-    const a = await m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "no_go", reason: "Too small" });
-    expect(a).toMatchObject({ stage: "not_pursuing", goNoGo: { decision: "no_go", total: 32, max: 40, reason: "Too small" } });
+    await expect(m.wk.saveSettings({ goNoGoWeights: { fit: 0, capacity: 0, effort: 0, relationship: 0 } })).rejects.toMatchObject({ status: 422 });
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "fail", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 422 });
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go" })).rejects.toMatchObject({ status: 422 });
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.northwind, { eligibility: "pass", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 409 });
+    const a = await m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "no_go", reason: "Too small" });
+    // As the API: the weighted mean of the scores, 1 to 5, to two decimals.
+    expect(a).toMatchObject({ stage: "not_pursuing", goNoGo: { decision: "no_go", total: 3.88, reason: "Too small" } });
   });
 
   it("lets only an admin or the owner approve an answer, and ledgers every status change", async () => {
@@ -178,36 +244,75 @@ describe("the mock follows the contract", () => {
 
   it("makes at most 60 in a series, and a series edit re-plans only future untouched ones", async () => {
     const m = mocks();
-    await expect(m.wk.createObligation(OUTSIDE_IDS.cedar, { kind: "report", title: "Monthly", series: { everyMonths: 1, from: day(0), until: day(2000) } })).rejects.toMatchObject({ status: 422 });
+    await expect(m.wk.createObligation(OUTSIDE_IDS.cedar, { kind: "report", title: "Monthly", series: { everyMonths: 1, startOn: day(0), endOn: day(2000) } })).rejects.toMatchObject({ status: 422 });
     await expect(m.wk.createObligation(OUTSIDE_IDS.northwind, { kind: "report", title: "Report", dueOn: day(10) })).rejects.toMatchObject({ status: 409 });
-    const before = await m.wk.obligations(OUTSIDE_IDS.cedar);
-    const series = before.filter((o) => o.seriesId === WK_IDS.seriesReports);
+    const made = await m.wk.createObligation(OUTSIDE_IDS.cedar, { kind: "condition", title: "Site visit", series: { everyMonths: 12, startOn: day(30), endOn: day(400) } });
+    expect(made.map((o) => o.title)).toEqual(["Site visit (1 of 2)", "Site visit (2 of 2)"]);
+    const series = (await m.wk.obligations(OUTSIDE_IDS.cedar)).filter((o) => o.seriesId === WK_IDS.seriesReports);
     expect(series.map((o) => o.status)).toEqual(["submitted", "upcoming", "upcoming"]);
-    const changed = await m.wk.updateObligation(WK_IDS.oblReport2, { title: "Annual report", scope: "series" });
-    expect(changed.map((o) => o.title)).toEqual(["Progress report", "Annual report", "Annual report"]);
-    // Re-planned every 3 months: the submitted one stays, the future ones are replaced.
-    const replanned = await m.wk.updateObligation(WK_IDS.oblReport2, { scope: "series", series: { everyMonths: 3, from: day(0), until: day(200) } });
-    expect(replanned[0]!.id).toBe(WK_IDS.oblReport1);
-    expect(replanned.slice(1).map((o) => o.title).every((t) => t === "Annual report")).toBe(true);
-    expect(replanned).toHaveLength(1 + 2);
+    // An edited instance is kept as it is.
+    await m.wk.updateObligation(WK_IDS.oblReport3, { notes: "Ask for an extension" });
+    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { title: "Annual report" })).toEqual({ replaced: 1, added: 2, kept: 2 });
+    const after = (await m.wk.obligations(OUTSIDE_IDS.cedar)).filter((o) => o.seriesId === WK_IDS.seriesReports);
+    expect(after.find((o) => o.id === WK_IDS.oblReport1)!.title).toBe("Progress report");
+    expect(after.find((o) => o.id === WK_IDS.oblReport3)!.title).toBe("Progress report");
+    expect(after.filter((o) => o.title === "Annual report")).toHaveLength(2);
+    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { everyMonths: 3, startOn: day(0), endOn: day(200) })).toEqual({ replaced: 2, added: 3, kept: 2 });
   });
 
-  it("records a report as submitted with its PDF and fingerprint, offers its answers for reuse, and closes out only when everything is settled", async () => {
+  it("moves an obligation only along its kind's edges", async () => {
     const m = mocks();
+    await expect(m.wk.setObligationStatus(WK_IDS.oblReport2, { to: "done" })).rejects.toMatchObject({ status: 409 });
+    await expect(m.wk.setObligationStatus(WK_IDS.oblReport2, { to: "submitted" })).rejects.toMatchObject({ status: 409 });
+    const paid = await m.wk.setObligationStatus(WK_IDS.oblExpected2, { to: "received", completedOn: day(-1), amount: { amount: "29500.00", currency: "USD" } });
+    expect(paid).toMatchObject({ status: "received", completedOn: day(-1), amount: { amount: "29500.00" }, allowedStatuses: ["due"] });
+    expect((await m.wk.obligations(OUTSIDE_IDS.cedar)).find((o) => o.id === WK_IDS.oblReport1)!.allowedStatuses).toEqual(["done", "due"]);
+  });
+
+  it("keeps report questions on the report, offers other reports' answers, records the submission, and closes out only when everything is settled", async () => {
+    const m = mocks();
+    // The application's own question list leaves report questions out, as the API does.
+    expect((await m.outside.get(OUTSIDE_IDS.cedar)).questions).toEqual([]);
+    expect((await m.wk.reportQuestions(WK_IDS.oblReport1)).map((q) => q.prompt)).toEqual(["Describe the progress made in the first six months.", "What challenges did you meet, and how did you respond?"]);
+    const [q] = await m.wk.addReportQuestions(WK_IDS.oblReport2, [{ prompt: "Describe the progress made this year." }]);
+    expect(q).toMatchObject({ phase: "report", obligationId: WK_IDS.oblReport2 });
     await expect(m.wk.closeOut(OUTSIDE_IDS.cedar)).rejects.toMatchObject({ status: 409 });
-    const prior = await m.wk.priorReportAnswers("school clinics");
+    const prior = await m.wk.priorReportAnswers(WK_IDS.oblReport2, { q: "school clinics" });
     expect(prior.map((p) => p.prompt)).toEqual(["Describe the progress made in the first six months."]);
+    expect(await m.wk.priorReportAnswers(WK_IDS.oblReport1)).toEqual([]);
+    await m.outside.putAnswer(q!.id, { body: prior[0]!.body, provenance: "prior_submission", sourceAnswerId: prior[0]!.answerId });
     await expect(m.wk.submitObligation(WK_IDS.oblReport2, { submittedAt: day(1) })).rejects.toMatchObject({ status: 422 });
     const r = await m.wk.submitObligation(WK_IDS.oblReport2, { submittedAt: day(0), confirmationRef: "R2" });
     expect(r).toMatchObject({ status: "submitted", confirmationRef: "R2" });
     expect(r.snapshotSha256).toMatch(/^[0-9a-f]{64}$/);
     for (const o of await m.wk.obligations(OUTSIDE_IDS.cedar)) {
-      if (o.kind === "payment_expected") await m.wk.updateObligation(o.id, { status: "received" });
-      else if (o.kind !== "payment_received") await m.wk.updateObligation(o.id, { status: "done" });
+      if (o.kind === "payment_expected") await m.wk.setObligationStatus(o.id, { to: "received" });
+      else if (o.kind === "report" && o.status !== "submitted") await m.wk.deleteObligation(o.id);
+      else if (o.kind !== "payment_received") await m.wk.setObligationStatus(o.id, { to: "done" });
     }
     const awards = await m.wk.outsideAwards();
     expect(awards.find((a) => a.id === OUTSIDE_IDS.cedar)).toMatchObject({ receivedAmount: { amount: "60000.00" }, nextDue: null });
     expect((await m.wk.closeOut(OUTSIDE_IDS.cedar)).closedOutAt).toBeTruthy();
+  });
+
+  it("keeps the checklist, the milestones, comments and the next-cycle alert", async () => {
+    const m = mocks();
+    await m.wk.setRequiredDocuments(OUTSIDE_IDS.meadow, [{ label: "Audit", documentId: null, status: "needed" }, { label: "Budget", documentId: null, status: "not_needed" }]);
+    await expect(m.wk.setRequiredDocuments(OUTSIDE_IDS.meadow, [{ label: "Audit", documentId: null, status: "needed" }, { label: "audit", documentId: null, status: "needed" }])).rejects.toMatchObject({ status: 422 });
+    expect(await m.wk.useFromVault(OUTSIDE_IDS.meadow, "audit", WK_IDS.vaultAudit)).toEqual([
+      { label: "Audit", documentId: WK_IDS.vaultAudit, status: "attached" },
+      { label: "Budget", documentId: null, status: "not_needed" },
+    ]);
+    await m.wk.deleteVault(WK_IDS.vaultAudit);
+    expect(m.outsideStore.applications.find((a) => a.id === OUTSIDE_IDS.meadow)!.requiredDocuments[0]).toMatchObject({ status: "needed", documentId: null });
+    expect(await m.wk.createMilestones(OUTSIDE_IDS.meadow, [{ title: "First draft due", dueOn: day(31) }])).toBe(1);
+    expect((await m.outside.get(OUTSIDE_IDS.meadow)).tasks.map((t) => t.title)).toEqual(["First draft due"]);
+    await m.wk.addComment(NW_Q1, "Check the figure");
+    expect((await m.wk.comments(OUTSIDE_IDS.northwind, NW_Q1)).map((c) => c.body)).toEqual(["Check the figure"]);
+    await expect(m.wk.nextCycleAlert(OUTSIDE_IDS.northwind)).rejects.toMatchObject({ status: 422 });
+    const alert = await m.wk.nextCycleAlert(OUTSIDE_IDS.lakeshore);
+    expect(alert.query).toBe("Community Clinics");
+    expect((await m.wk.nextCycleAlert(OUTSIDE_IDS.lakeshore)).id).toBe(alert.id);
   });
 
   it("counts the funding summary by fiscal year, with the win rate", async () => {

@@ -11,6 +11,7 @@ import { useFullMutation, useFullQuery } from "../../../api/applicantFullHooks.t
 import type { AnswerInput, LimitKind, OutsideAnswer, OutsideDetail, OutsideQuestion, QuestionInput, QuestionPhase, QuestionStatus } from "../../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../../api/outsideHooks.ts";
 import type { LibraryAnswer } from "../../../api/writeKeep.ts";
+import { useWriteKeepApi } from "../../../api/writeKeepHooks.ts";
 import { useServices } from "../../../app/services.tsx";
 import { useCurrentWorkspace } from "../../../app/workspace.tsx";
 import { CopyButton } from "../../../components/CopyButton.tsx";
@@ -174,9 +175,11 @@ export function PasteQuestionsDialog({
   const [docs, setDocs] = useState<{ label: string; keep: boolean }[]>([]);
   const [kept, setKept] = useState<string | null>(null);
   const parse = useOutsideMutation((api, t: string) => api.parseQuestions(applicationId, t));
+  const wk = useWriteKeepApi();
   const save = useOutsideMutation(async (api, qs: QuestionInput[], labels: string[]) => {
-    const made = qs.length ? await api.addQuestions(applicationId, qs) : [];
-    if (labels.length) await api.update(applicationId, { requiredDocuments: mergeRequired(requiredDocuments, labels) });
+    // Report questions are kept on their report; the application's on the application.
+    const made = !qs.length ? [] : obligationId ? await wk.addReportQuestions(obligationId, qs) : await api.addQuestions(applicationId, qs);
+    if (labels.length) await wk.setRequiredDocuments(applicationId, mergeRequired(requiredDocuments, labels));
     return made;
   });
   const keep = proposed?.filter((q) => q.keep && q.prompt.trim()) ?? [];
@@ -333,7 +336,7 @@ export function PasteQuestionsDialog({
               disabled={(keep.length === 0 && keepDocs.length === 0) || save.state === "saving"}
               onClick={async () => {
                 const made = await save.run(
-                  keep.map((q) => ({ prompt: q.prompt.trim(), phase: obligationId ? "report" : q.phase, limitKind: q.limitKind ?? null, limitValue: q.limitKind && q.limitValue ? q.limitValue : null, ...(obligationId ? { obligationId } : {}) })),
+                  keep.map((q) => ({ prompt: q.prompt.trim(), phase: obligationId ? "report" : q.phase, limitKind: q.limitKind ?? null, limitValue: q.limitKind && q.limitValue ? q.limitValue : null })),
                   keepDocs,
                 );
                 if (made) onSaved(made.length, keepDocs.length);
@@ -648,10 +651,13 @@ export function QuestionCard({
   onAssistUsed,
   canApprove,
   onChanged,
+  reportOf = null,
 }: {
   q: OutsideQuestion;
   n: number;
   applicationId: string;
+  /** A report question: the report obligation it belongs to (offers reuse from earlier reports). */
+  reportOf?: string | null;
   members: ApplicantMember[];
   answers: LibraryAnswer[];
   org: MyOrganization | null;
@@ -862,7 +868,7 @@ export function QuestionCard({
               Fit to limit
             </button>
           )}
-          {!readOnly && q.phase === "report" && (
+          {!readOnly && reportOf && (
             <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("reuse")}>
               <FileClock className="ic" aria-hidden="true" />
               Reuse from an earlier report
@@ -905,9 +911,10 @@ export function QuestionCard({
         {remove.error ? <ErrorBanner error={remove.error} title="The question was not deleted" /> : null}
       </div>
       {dialog === "library" && <LibraryDialog answers={answers} question={q} busy={put.state === "saving"} error={put.error} onClose={() => setDialog(null)} onInsert={(a, t) => void insertLibrary(a, t)} />}
-      {dialog === "reuse" && (
+      {dialog === "reuse" && reportOf && (
         <ReuseDialog
           question={q}
+          obligationId={reportOf}
           busy={put.state === "saving"}
           error={put.error}
           onClose={() => setDialog(null)}

@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Write faster, and win and keep it (v1.6.0 + v1.7.0), for an applicant workspace: AI drafts from
 // the organization's own library, AI reading a funder's guidelines, library freshness and variants,
-// the document vault, go/no-go, question comments, outside awards and their obligations, reports
-// reusing earlier answers, payments received, closeout and the funding summary. All of it is the
-// applicant workspace's private record.
+// the document vault, required documents, go/no-go, question comments, milestones, outside awards
+// and their obligations, reports reusing earlier answers, payments received, closeout, the next
+// cycle and the funding summary. All of it is the applicant workspace's private record.
 //
 // `createHttpWriteKeepApi` calls the GMS Worker; `createMockWriteKeepApi` (mocks/writeKeep.ts)
-// implements the same interface in the browser. The shapes are written by hand against the
-// write-and-keep contract while the API is built in parallel; the normalizers accept the small
-// variations a first server could answer with (money as Money or minor units, a bare list or one
-// wrapped in `data`/`items`).
+// implements the same interface in the browser. The routes follow the API document (api/keep.tsp);
+// the normalizers accept the small variations a server could answer with (money as Money or minor
+// units or a per-currency list, a bare list or one wrapped in `data`/`items`/a named key).
 import type { AppDocument, Answer } from "./applicant.ts";
 import { ApiError } from "./client.ts";
-import { moneyOf, toApplication, type ExportFile, type Money, type OutsideApplication } from "./outside.ts";
+import { moneyOf, toApplication, toQuestion, type ExportFile, type Money, type OutsideApplication, type OutsideQuestion, type QuestionInput } from "./outside.ts";
 import type { ParsedQuestion, TextCounts } from "../lib/outside.ts";
-import { DEFAULT_WEIGHTS, DOC_TYPES, GO_CRITERIA, type Criterion, type DocType, type Scores, type Variants } from "../lib/writeKeep.ts";
+import { DEFAULT_WEIGHTS, DOC_TYPES, GO_CRITERIA, type Criterion, type DocType, type RequiredDocument, type Scores, type Variants } from "../lib/writeKeep.ts";
 
 // ------------------------------------------------------------------------------------ shapes
 
@@ -84,12 +83,12 @@ export interface GoNoGoInput {
   decision: "go" | "no_go";
   reason?: string;
   /** Go only: where the application moves next. */
-  nextStage?: "loi" | "drafting";
+  to?: "loi" | "drafting";
 }
 
 export interface QuestionComment {
   id: string;
-  threadId: string;
+  questionId: string | null;
   authorUserId: string | null;
   body: string;
   createdAt: string;
@@ -102,6 +101,7 @@ export interface Obligation {
   outsideApplicationId: string;
   kind: ObligationKind;
   title: string;
+  /** When it is due; for a payment received, the date it arrived. */
   dueOn: string | null;
   /** Payments only. */
   amount: Money | null;
@@ -110,17 +110,21 @@ export interface Obligation {
   notes: string | null;
   submittedAt: string | null;
   confirmationRef: string | null;
-  /** The "as submitted" PDF of a report, or a document kept with the obligation. */
+  /** The "as submitted" PDF of a report. */
   documentId: string | null;
   snapshotSha256: string | null;
+  /** When it was done or received. */
+  completedOn: string | null;
+  /** The statuses a person may move it to, when the server says (submitted has its own route). */
+  allowedStatuses: ObligationStatus[] | null;
   createdAt: string;
   updatedAt: string;
 }
-/** "Every N months from the start until the end"; the first falls N months after the start. */
+/** "Every N months from the first one until the end" (the first is `startOn` itself). */
 export interface SeriesInput {
   everyMonths: number;
-  from: string;
-  until: string;
+  startOn: string;
+  endOn: string;
 }
 export interface ObligationInput {
   kind: ObligationKind;
@@ -130,11 +134,15 @@ export interface ObligationInput {
   notes?: string | null;
   series?: SeriesInput;
 }
-export type ObligationPatch = Partial<{ title: string; dueOn: string | null; amount: Money | null; notes: string | null; status: ObligationStatus }> & {
-  /** "series" changes every future, untouched obligation in the series, regenerated from `series` when given. */
-  scope?: "one" | "series";
-  series?: SeriesInput;
-};
+export type ObligationPatch = Partial<{ title: string; dueOn: string | null; amount: Money | null; notes: string | null }>;
+export interface StatusInput {
+  to: ObligationStatus;
+  /** When it was done or received (today by default). */
+  completedOn?: string;
+  /** A payment expected that came in: the amount received. */
+  amount?: Money;
+}
+export type SeriesPatch = Partial<{ title: string; everyMonths: number; startOn: string; endOn: string; amount: Money | null; notes: string | null }>;
 
 /** An answer from an earlier report in this workspace, offered for reuse. */
 export interface PriorReportAnswer {
@@ -142,9 +150,8 @@ export interface PriorReportAnswer {
   questionId: string;
   prompt: string;
   body: string;
-  applicationId: string;
-  applicationTitle: string;
-  funderName: string;
+  applicationTitle: string | null;
+  funderName: string | null;
   obligationTitle: string | null;
   submittedAt: string | null;
 }
@@ -154,6 +161,7 @@ export interface OutsideAward {
   title: string;
   funderName: string;
   awardedAmount: Money | null;
+  /** Null when the server did not say. */
   receivedAmount: Money | null;
   grantStart: string | null;
   grantEnd: string | null;
@@ -186,37 +194,49 @@ export interface WriteKeepApi {
   /** Reads pasted guidelines (60,000 characters at most). Saves nothing. */
   readGuidelines(applicationId: string, text: string): Promise<GuidelinesRead>;
   /** Keeps an uploaded PDF or text file on the application and reads it. The questions are not saved. */
-  uploadGuidelines(applicationId: string, file: { name: string; mime: string; contentBase64: string }): Promise<GuidelinesRead>;
+  uploadGuidelines(applicationId: string, file: { name: string; mime: "application/pdf" | "text/plain"; contentBase64: string }): Promise<GuidelinesRead>;
   /** The answer library with when each answer was last verified, its variants and tags. */
   library(): Promise<LibraryAnswer[]>;
   verifyAnswer(answerId: string): Promise<LibraryAnswer>;
+  /** Saves new variants or tags (on the server, as a new version of the answer). */
   updateAnswerMeta(answerId: string, patch: Partial<Pick<LibraryMeta, "variants" | "tags">>): Promise<LibraryAnswer>;
   vault(): Promise<VaultDocument[]>;
   uploadVault(input: VaultUpload): Promise<VaultDocument>;
   updateVault(id: string, patch: Partial<Pick<VaultDocument, "docType" | "expiresOn" | "name">>): Promise<VaultDocument>;
   deleteVault(id: string): Promise<void>;
   vaultFile(id: string): Promise<ExportFile>;
+  /** Replaces the application's required documents. */
+  setRequiredDocuments(applicationId: string, list: RequiredDocument[]): Promise<RequiredDocument[]>;
+  /** "Use from vault": a vault document meets one required document (null takes it off). */
+  useFromVault(applicationId: string, label: string, documentId: string | null): Promise<RequiredDocument[]>;
+  /** Creates the milestone tasks the person confirmed. */
+  createMilestones(applicationId: string, tasks: { title: string; dueOn: string; assigneeUserId?: string | null }[]): Promise<number>;
   settings(): Promise<GrantSettings>;
   saveSettings(patch: Partial<GrantSettings>): Promise<GrantSettings>;
   /** Records go (to a letter of inquiry or drafting) or no-go (not pursuing), through the workflow. */
   decideGoNoGo(applicationId: string, input: GoNoGoInput): Promise<OutsideApplication>;
   comments(applicationId: string, questionId: string): Promise<QuestionComment[]>;
-  addComment(applicationId: string, questionId: string, body: string): Promise<QuestionComment>;
+  addComment(questionId: string, body: string): Promise<QuestionComment>;
 
   // ---- v1.7 win and keep it
   outsideAwards(): Promise<OutsideAward[]>;
   obligations(applicationId: string): Promise<Obligation[]>;
   /** One obligation, or every instance of a series. */
   createObligation(applicationId: string, input: ObligationInput): Promise<Obligation[]>;
-  /** Answers every obligation the change touched. */
-  updateObligation(obligationId: string, patch: ObligationPatch): Promise<Obligation[]>;
+  updateObligation(obligationId: string, patch: ObligationPatch): Promise<Obligation>;
+  setObligationStatus(obligationId: string, input: StatusInput): Promise<Obligation>;
+  /** Changes a series: only future, untouched instances are replaced. */
+  updateSeries(seriesId: string, patch: SeriesPatch): Promise<{ replaced: number; added: number; kept: number }>;
   deleteObligation(obligationId: string): Promise<void>;
   /** Records a report the person submitted to the funder; keeps an "as submitted" PDF with its fingerprint. */
   submitObligation(obligationId: string, input: { submittedAt: string; confirmationRef?: string }): Promise<Obligation>;
-  priorReportAnswers(q?: string): Promise<PriorReportAnswer[]>;
+  reportQuestions(obligationId: string): Promise<OutsideQuestion[]>;
+  addReportQuestions(obligationId: string, questions: QuestionInput[]): Promise<OutsideQuestion[]>;
+  /** Answers to other reports' questions in the workspace, for a question of this report. */
+  priorReportAnswers(obligationId: string, filter?: { questionId?: string; q?: string }): Promise<PriorReportAnswer[]>;
   closeOut(applicationId: string): Promise<OutsideApplication>;
-  /** "Get an alert when it reopens": a funding alert on the GMS's own alerts service (never OpenGrants' API). */
-  createAlert(query: string): Promise<{ id: string; query: string; createdAt: string }>;
+  /** "Get an alert when it reopens": a funding alert on the program, on the GMS's own alerts service (never OpenGrants' API). */
+  nextCycleAlert(applicationId: string): Promise<{ id: string; query: string; createdAt: string }>;
   fundingSummary(): Promise<FundingSummary>;
   exportSummary(format: "csv" | "pdf"): Promise<ExportFile>;
 }
@@ -243,10 +263,17 @@ const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.flatMap((x) => (typeof x === "string" && x.trim() ? [x.trim()] : str(obj(x).label) ? [str(obj(x).label)!] : [])) : []);
 const day = (v: unknown) => str(v)?.slice(0, 10) ?? null;
+/** A list from a bare array, or the first array under one of `keys`. */
+const listOf = (data: unknown, ...keys: string[]): unknown[] => {
+  if (Array.isArray(data)) return data;
+  for (const k of keys) if (Array.isArray(obj(data)[k])) return obj(data)[k] as unknown[];
+  return [];
+};
 
 export function toDraft(raw: unknown): AnswerDraft {
   const r = obj(raw);
   const c = obj(r.counts);
+  const used = Array.isArray(r.usedAnswers) ? r.usedAnswers.map(obj) : [];
   return {
     draft: typeof r.draft === "string" ? r.draft : typeof r.text === "string" ? r.text : "",
     usedAnswerIds: strs(r.usedAnswerIds),
@@ -255,7 +282,8 @@ export function toDraft(raw: unknown): AnswerDraft {
       if (typeof f === "string") return f.trim() ? [{ answerId: null, figure: f.trim(), lastVerifiedAt: null }] : [];
       const x = obj(f);
       const figure = str(x.figure) ?? str(x.text) ?? str(x.value);
-      return figure ? [{ answerId: str(x.answerId), figure, lastVerifiedAt: str(x.lastVerifiedAt) }] : [];
+      const answerId = str(x.answerId);
+      return figure ? [{ answerId, figure, lastVerifiedAt: str(x.lastVerifiedAt) ?? str(used.find((u) => u.id === answerId)?.lastVerifiedAt) }] : [];
     }),
     counts: { words: num(c.words) ?? 0, chars: num(c.chars) ?? 0, charsNoSpaces: num(c.charsNoSpaces) ?? 0 },
     overLimit: r.overLimit === true,
@@ -290,7 +318,7 @@ export function toVault(raw: unknown): VaultDocument {
     size: num(r.size) ?? 0,
     sha256: str(r.sha256),
     docType: (t && DOC_TYPE_SET.has(t) ? t : "other") as DocType,
-    expiresOn: day(r.expiresOn),
+    expiresOn: day(r.expiresOn) ?? day(obj(r.expiry).expiresOn),
     uploadedAt: str(r.uploadedAt) ?? str(r.createdAt) ?? "",
   };
 }
@@ -312,6 +340,7 @@ export function toObligation(raw: unknown): Obligation {
   const r = obj(raw);
   const kind = str(r.kind);
   const status = str(r.status);
+  const snapshot = obj(r.snapshot);
   return {
     id: String(r.id),
     outsideApplicationId: String(r.outsideApplicationId ?? ""),
@@ -324,40 +353,47 @@ export function toObligation(raw: unknown): Obligation {
     notes: str(r.notes),
     submittedAt: day(r.submittedAt),
     confirmationRef: str(r.confirmationRef),
-    documentId: str(r.documentId),
-    snapshotSha256: str(r.snapshotSha256),
+    documentId: str(snapshot.documentId) ?? str(r.documentId),
+    snapshotSha256: str(snapshot.sha256) ?? str(r.snapshotSha256),
+    completedOn: day(r.completedOn),
+    allowedStatuses: Array.isArray(r.allowedStatuses) ? (r.allowedStatuses.filter((s) => typeof s === "string" && STATUSES.has(s)) as ObligationStatus[]) : null,
     createdAt: str(r.createdAt) ?? "",
     updatedAt: str(r.updatedAt) ?? "",
   };
 }
 
-export function toComment(raw: unknown, threadId: string): QuestionComment {
+export function toComment(raw: unknown): QuestionComment {
   const r = obj(raw);
   const author = str(r.author);
-  return { id: String(r.id), threadId, authorUserId: str(r.authorUserId) ?? (author?.match(/^user:([^/]+)/)?.[1] ?? null), body: typeof r.body === "string" ? r.body : "", createdAt: str(r.createdAt) ?? "" };
+  return { id: String(r.id), questionId: str(r.questionId), authorUserId: str(r.authorUserId) ?? (author?.match(/^user:([^/]+)/)?.[1] ?? null), body: typeof r.body === "string" ? r.body : "", createdAt: str(r.createdAt) ?? "" };
 }
 
-export function toAward(raw: unknown): OutsideAward {
+export function toPrior(raw: unknown): PriorReportAnswer {
   const r = obj(raw);
-  const currency = str(r.currency) ?? "USD";
-  const next = obj(r.nextDue);
   return {
-    id: String(r.id),
-    title: str(r.title) ?? "",
-    funderName: str(r.funderName) ?? "",
-    awardedAmount: moneyOf(r.awardedAmount, r.awardedAmountMinor, currency),
-    receivedAmount: moneyOf(r.receivedAmount, r.receivedAmountMinor, currency),
-    grantStart: day(r.grantStart),
-    grantEnd: day(r.grantEnd),
-    closedOutAt: str(r.closedOutAt),
-    nextDue: str(next.title) && day(next.dueOn) ? { title: str(next.title)!, dueOn: day(next.dueOn)! } : null,
+    answerId: String(r.answerId),
+    questionId: String(r.questionId ?? ""),
+    prompt: str(r.prompt) ?? "",
+    body: typeof r.body === "string" ? r.body : "",
+    applicationTitle: str(r.applicationTitle),
+    funderName: str(r.funderName),
+    obligationTitle: str(r.obligationTitle),
+    submittedAt: day(r.submittedAt),
   };
+}
+
+/** One currency's amount from Money, minor units, or a per-currency list of Money. */
+function moneyIn(v: unknown, minor: unknown, currency: string): Money {
+  if (Array.isArray(v)) {
+    const list = v.map((x) => moneyOf(x, null, currency)).filter((m): m is Money => !!m);
+    return list.find((m) => m.currency === currency) ?? list[0] ?? { amount: "0.00", currency };
+  }
+  return moneyOf(v, minor, currency) ?? { amount: "0.00", currency };
 }
 
 export function toSummary(raw: unknown): FundingSummary {
   const r = obj(raw);
   const currency = str(r.currency) ?? "USD";
-  const money = (v: unknown, minor: unknown) => moneyOf(v, minor, currency) ?? { amount: "0.00", currency };
   return {
     fiscalYearStartMonth: num(r.fiscalYearStartMonth) ?? 1,
     currency,
@@ -373,12 +409,23 @@ export function toSummary(raw: unknown): FundingSummary {
         awarded,
         declined: num(x.declined) ?? 0,
         winRate: num(x.winRate) ?? (decided ? awarded / decided : null),
-        asked: money(x.asked, x.askedMinor),
-        awardedAmount: money(x.awardedAmount, x.awardedMinor),
+        asked: moneyIn(x.asked, x.askedMinor, currency),
+        awardedAmount: moneyIn(x.awardedAmount, x.awardedMinor, currency),
       };
     }),
   };
 }
+
+/** The server's required documents ({label, status, document}) or the client's ({label, status, documentId}). */
+export const toRequired = (v: unknown): RequiredDocument[] =>
+  listOf(v, "items", "requiredDocuments").flatMap((x) => {
+    const d = obj(x);
+    const label = str(d.label);
+    if (!label) return [];
+    const documentId = str(d.documentId) ?? str(obj(d.document).id);
+    const status = d.status === "not_needed" ? "not_needed" : documentId || d.status === "attached" ? "attached" : "needed";
+    return [{ label, documentId, status }];
+  });
 
 // ------------------------------------------------------------------------------------ HTTP
 
@@ -412,13 +459,8 @@ export function createHttpWriteKeepApi(opts: HttpWriteKeepOptions): WriteKeepApi
   async function call<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
     const res = await send(method, path, body);
     if (res.status === 204) return undefined as T;
-    const json = (await res.json().catch(() => ({}))) as { data?: T };
-    return json.data as T;
-  }
-  async function list(path: string): Promise<unknown[]> {
-    const res = await send("GET", path);
-    const json = (await res.json().catch(() => ({}))) as { data?: unknown; items?: unknown[] };
-    return json.items ?? (Array.isArray(json.data) ? json.data : Array.isArray(obj(json.data).items) ? (obj(json.data).items as unknown[]) : []);
+    const json = (await res.json().catch(() => ({}))) as { data?: T; items?: T };
+    return (json.data ?? json.items) as T;
   }
   async function file(path: string, fallback: string): Promise<ExportFile> {
     const res = await send("GET", path);
@@ -428,55 +470,88 @@ export function createHttpWriteKeepApi(opts: HttpWriteKeepOptions): WriteKeepApi
   const e = encodeURIComponent;
   const oa = (id: string) => `/gms/outside-applications/${e(id)}`;
   const ob = (id: string) => `/gms/outside-obligations/${e(id)}`;
-  const rows = (data: unknown): unknown[] => (Array.isArray(data) ? data : Array.isArray(obj(data).obligations) ? (obj(data).obligations as unknown[]) : Array.isArray(obj(data).items) ? (obj(data).items as unknown[]) : [obj(data)]);
+  const ws = () => {
+    const id = opts.workspaceId();
+    if (!id) throw new ApiError(400, "Open a workspace first");
+    return `/gms/workspaces/${e(id)}`;
+  };
+  // A required document as the API takes it: attached by naming the document, otherwise needed or not needed.
+  const requiredInput = (list: RequiredDocument[]) => ({ items: list.map((d) => (d.status === "attached" && d.documentId ? { label: d.label, documentId: d.documentId } : { label: d.label, status: d.status === "not_needed" ? "not_needed" : "needed", documentId: null })) });
 
-  /** The internal thread that holds one question's comments, found by its field reference. */
-  async function threadFor(applicationId: string, questionId: string, create: boolean): Promise<{ id: string; messages: unknown[] } | null> {
-    const threads = (await list(`/gms/threads?subjectType=outside_application&subjectId=${e(applicationId)}`)).map(obj);
-    const found = threads.find((t) => t.fieldRef === questionId);
-    if (found) return { id: String(found.id), messages: Array.isArray(found.messages) ? found.messages : [] };
-    if (!create) return null;
-    const made = obj(await call("POST", "/gms/threads", { subjectType: "outside_application", subjectId: applicationId, fieldRef: questionId, visibility: "internal" }));
-    return { id: String(made.id), messages: [] };
-  }
-
-  return {
+  const api: WriteKeepApi = {
     draftAnswer: async (qid) => toDraft(await call("POST", `/gms/outside-questions/${e(qid)}/draft`, {})),
     readGuidelines: async (id, text) => toGuidelines(await call("POST", `${oa(id)}/questions/parse`, { text, mode: "ai" })),
     uploadGuidelines: async (id, f) => toGuidelines(await call("POST", `${oa(id)}/guidelines`, f)),
-    library: async () => (await list("/gms/my/answers")) as LibraryAnswer[],
+    library: async () => listOf(await call("GET", "/gms/my/answers"), "answers", "items") as LibraryAnswer[],
     verifyAnswer: (id) => call("POST", `/gms/my/answers/${e(id)}/verify`, {}),
     updateAnswerMeta: (id, patch) => call("PATCH", `/gms/my/answers/${e(id)}`, patch),
-    vault: async () => (await list("/gms/vault/documents")).map(toVault),
-    uploadVault: async (input) => toVault(await call("POST", "/gms/vault/documents", input)),
-    updateVault: async (id, patch) => toVault(await call("PATCH", `/gms/vault/documents/${e(id)}`, patch)),
-    deleteVault: async (id) => void (await call("DELETE", `/gms/vault/documents/${e(id)}`)),
-    vaultFile: (id) => file(`/gms/vault/documents/${e(id)}/file`, "document"),
-    settings: async () => toSettings(await call("GET", "/gms/my/grant-settings")),
-    saveSettings: async (patch) => toSettings(await call("PATCH", "/gms/my/grant-settings", patch)),
+    vault: async () => listOf(await call("GET", "/gms/vault"), "documents", "items").map(toVault),
+    uploadVault: async (input) => toVault(await call("POST", "/gms/vault", { name: input.name, mime: input.mime, contentBase64: input.contentBase64, docType: input.docType, ...(input.expiresOn ? { expiresOn: input.expiresOn } : {}) })),
+    updateVault: async (id, patch) => toVault(await call("PATCH", `/gms/vault/${e(id)}`, patch)),
+    deleteVault: async (id) => void (await call("DELETE", `/gms/vault/${e(id)}`)),
+    vaultFile: (id) => file(`/gms/vault/${e(id)}/file`, "document"),
+    setRequiredDocuments: async (id, list) => toRequired(await call("PUT", `${oa(id)}/required-documents`, requiredInput(list))),
+    useFromVault: async (id, label, documentId) => toRequired(await call("POST", `${oa(id)}/required-documents/use-from-vault`, { label, documentId })),
+    createMilestones: async (id, tasks) => listOf(await call("POST", `${oa(id)}/milestones`, { tasks }), "tasks", "items").length,
+    settings: async () => toSettings(obj(await call("GET", ws())).settings),
+    saveSettings: async (patch) => {
+      const data = obj(await call("PATCH", ws(), { settings: patch }));
+      return toSettings(obj(obj(data.workspace ?? data).settings));
+    },
     decideGoNoGo: async (id, input) => toApplication(await call("POST", `${oa(id)}/go-no-go`, input)),
-    comments: async (id, qid) => {
-      const t = await threadFor(id, qid, false);
-      return t ? t.messages.map((m) => toComment(m, t.id)) : [];
-    },
-    addComment: async (id, qid, body) => {
-      const t = (await threadFor(id, qid, true))!;
-      return toComment(await call("POST", `/gms/threads/${e(t.id)}/messages`, { body }), t.id);
-    },
+    comments: async (id, qid) => listOf(await call("GET", `${oa(id)}/comments?questionId=${e(qid)}`), "comments", "items").map(toComment),
+    addComment: async (qid, body) => toComment(await call("POST", `/gms/outside-questions/${e(qid)}/comments`, { body })),
 
-    outsideAwards: async () => (await list("/gms/outside-awards")).map(toAward),
-    obligations: async (id) => (await list(`${oa(id)}/obligations`)).map(toObligation),
-    createObligation: async (id, input) => rows(await call("POST", `${oa(id)}/obligations`, input)).map(toObligation),
-    updateObligation: async (oid, patch) => rows(await call("PATCH", ob(oid), patch)).map(toObligation),
+    outsideAwards: async () => {
+      const items = listOf(await call("GET", "/gms/my/awarded-funding"), "items").map(obj).filter((x) => x.kind === "outside_award");
+      // Payments received and what is next come from each award's page.
+      return Promise.all(
+        items.map(async (x) => {
+          const page = obj(await call("GET", `/gms/outside-awards/${e(String(x.id))}`).catch(() => ({})));
+          const currency = str(x.currency) ?? str(page.currency) ?? "USD";
+          const obligations = listOf(page.obligations).map(toObligation);
+          const next = obligations.filter((o) => o.dueOn && !["done", "received", "submitted"].includes(o.status)).sort((a, b) => a.dueOn!.localeCompare(b.dueOn!))[0];
+          const payments = obj(page.payments);
+          return {
+            id: String(x.id),
+            title: str(x.title) ?? "",
+            funderName: str(x.funderName) ?? "",
+            awardedAmount: moneyOf(x.awardedAmount, x.awardedAmountMinor, currency),
+            receivedAmount: payments.received ? moneyOf(payments.received, null, currency) : null,
+            grantStart: day(x.grantStart),
+            grantEnd: day(x.grantEnd),
+            closedOutAt: str(x.closedOutAt),
+            nextDue: next ? { title: next.title, dueOn: next.dueOn! } : null,
+          } satisfies OutsideAward;
+        }),
+      );
+    },
+    obligations: async (id) => listOf(await call("GET", `${oa(id)}/obligations`), "obligations", "items").map(toObligation),
+    createObligation: async (id, input) => {
+      const data = await call("POST", `${oa(id)}/obligations`, input);
+      return (Array.isArray(obj(data).obligations) || Array.isArray(data) ? listOf(data, "obligations") : [data]).map(toObligation);
+    },
+    updateObligation: async (oid, patch) => toObligation(await call("PATCH", ob(oid), patch)),
+    setObligationStatus: async (oid, input) => toObligation(await call("POST", `${ob(oid)}/status`, input)),
+    updateSeries: async (sid, patch) => {
+      const r = obj(await call("PATCH", `/gms/outside-obligation-series/${e(sid)}`, patch));
+      return { replaced: num(r.replaced) ?? 0, added: num(r.added) ?? 0, kept: num(r.kept) ?? 0 };
+    },
     deleteObligation: async (oid) => void (await call("DELETE", ob(oid))),
     submitObligation: async (oid, input) => toObligation(await call("POST", `${ob(oid)}/submit`, input)),
-    priorReportAnswers: async (q) => (await list(`/gms/outside-report-answers${q?.trim() ? `?q=${e(q.trim())}` : ""}`)) as PriorReportAnswer[],
+    reportQuestions: async (oid) => listOf(await call("GET", `${ob(oid)}/questions`), "questions").map((q) => toQuestion(q)),
+    addReportQuestions: async (oid, questions) => listOf(await call("POST", `${ob(oid)}/questions`, { questions }), "questions").map((q) => toQuestion(q)),
+    priorReportAnswers: async (oid, f = {}) => {
+      const qs = [f.questionId ? `questionId=${e(f.questionId)}` : null, f.q?.trim() ? `q=${e(f.q.trim())}` : null].filter(Boolean).join("&");
+      return listOf(await call("GET", `${ob(oid)}/reuse${qs ? `?${qs}` : ""}`), "items").map(toPrior);
+    },
     closeOut: async (id) => toApplication(await call("POST", `${oa(id)}/close-out`, {})),
-    createAlert: async (query) => {
-      const r = obj(await call("POST", "/gms/discover/alerts", { name: query.trim().slice(0, 120), query: query.trim() }));
-      return { id: String(r.id), query: str(r.query) ?? query.trim(), createdAt: str(r.createdAt) ?? "" };
+    nextCycleAlert: async (id) => {
+      const r = obj(await call("POST", `${oa(id)}/next-cycle-alert`, {}));
+      return { id: String(r.id), query: str(r.query) ?? str(r.name) ?? "", createdAt: str(r.createdAt) ?? "" };
     },
     fundingSummary: async () => toSummary(await call("GET", "/gms/funding-summary")),
-    exportSummary: (format) => file(`/gms/funding-summary/export.${format}`, `funding-summary.${format}`),
+    exportSummary: (format) => file(`/gms/funding-summary/export?format=${format}`, `funding-summary.${format}`),
   };
+  return api;
 }

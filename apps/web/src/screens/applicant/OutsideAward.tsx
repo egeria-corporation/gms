@@ -11,7 +11,7 @@ import type { ApplicantApi } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { useFullQuery } from "../../api/applicantFullHooks.ts";
 import { minorOf, type OutsideApi } from "../../api/outside.ts";
-import { useOutsideMutation, useOutsideQuery } from "../../api/outsideHooks.ts";
+import { useOutsideQuery } from "../../api/outsideHooks.ts";
 import { libraryWithMeta, type Obligation, type ObligationInput, type WriteKeepApi } from "../../api/writeKeep.ts";
 import { useWKMutation, useWriteKeepApi } from "../../api/writeKeepHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -75,7 +75,7 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
                   {o.title}
                 </span>
                 <span>
-                  {formatDate(o.dueOn)} · <span className="b">{moneyText(o.amount)}</span>
+                  {formatDate(o.completedOn ?? o.dueOn)} · <span className="b">{moneyText(o.amount)}</span>
                 </span>
               </li>
             ))}
@@ -131,8 +131,8 @@ export default function OutsideAward() {
   const [open, setOpen] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const close = useWKMutation((api) => api.closeOut(outsideId));
-  const letter = useUpload(outsideId);
-  const pinLetter = useOutsideMutation((api, documentId: string) => api.update(outsideId, { awardLetterDocumentId: documentId }));
+  // The award letter is a document of the application typed "award_letter"; the latest one counts.
+  const letter = useUpload(outsideId, "award_letter");
   const owner = query.status === "ready" ? query.data.detail.owner?.userId : null;
   const canApprove = useCanApprove(owner);
   const changed = (message?: string) => {
@@ -161,7 +161,7 @@ export default function OutsideAward() {
               const receivedMinor = obligations.filter((o) => isPayment(o) && o.status === "received").reduce((n, o) => n + (minorOf(o.amount) ?? 0), 0);
               const duties = obligations.filter((o) => o.kind !== "payment_received");
               const allSettled = obligations.every((o) => o.status === "done" || o.status === "received");
-              const awardLetter = detail.documents.find((d) => d.id === detail.awardLetterDocumentId);
+              const awardLetter = [...detail.documents].reverse().find((d) => (d as { docType?: string | null }).docType === "award_letter" || d.id === detail.awardLetterDocumentId);
               const period = detail.grantStart && detail.grantEnd ? `${formatDate(detail.grantStart)} – ${formatDate(detail.grantEnd)}` : detail.grantStart ? `from ${formatDate(detail.grantStart)}` : null;
               return (
                 <>
@@ -273,7 +273,7 @@ export default function OutsideAward() {
                         {!readOnly && (
                           <label className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start", cursor: "pointer" }}>
                             <Upload className="ic" aria-hidden="true" />
-                            {letter.state === "saving" || pinLetter.state === "saving" ? "Uploading…" : awardLetter ? "Replace the award letter" : "Upload the award letter"}
+                            {letter.state === "saving" ? "Uploading…" : awardLetter ? "Replace the award letter" : "Upload the award letter"}
                             <input
                               type="file"
                               className="sr"
@@ -281,14 +281,13 @@ export default function OutsideAward() {
                               onChange={async (e) => {
                                 const doc = await letter.run(e.target.files?.[0]);
                                 e.target.value = "";
-                                if (doc && (await pinLetter.run(doc.id))) changed("Award letter kept");
+                                if (doc) changed("Award letter kept");
                               }}
                             />
                           </label>
                         )}
                         {letter.tooBig && <p className="err-msg" role="alert">{letter.tooBig}</p>}
                         {letter.error ? <ErrorBanner error={letter.error} title="The letter was not uploaded" /> : null}
-                        {pinLetter.error ? <ErrorBanner error={pinLetter.error} title="The letter was not kept with the award" /> : null}
                       </div>
                     </section>
                   </div>
@@ -341,8 +340,8 @@ export default function OutsideAward() {
 
                   <PaymentsReceived appId={detail.id} currency={detail.currency} awardedMinor={awardedMinor} obligations={obligations} readOnly={readOnly} onChanged={() => changed("Payment recorded")} />
 
-                  {dialog === "add" && <ObligationDialog app={detail} onClose={() => setDialog(null)} onDone={(n) => changed(n === 1 ? "Added" : `${n} added`)} />}
-                  {dialog && typeof dialog === "object" && "edit" in dialog && <ObligationDialog app={detail} obligation={dialog.edit} onClose={() => setDialog(null)} onDone={(n) => changed(n > 1 ? `${n} in the series changed` : "Saved")} />}
+                  {dialog === "add" && <ObligationDialog app={detail} onClose={() => setDialog(null)} onDone={changed} />}
+                  {dialog && typeof dialog === "object" && "edit" in dialog && <ObligationDialog app={detail} obligation={dialog.edit} onClose={() => setDialog(null)} onDone={changed} />}
                   {dialog && typeof dialog === "object" && "submit" in dialog && <SubmitReportDialog obligation={dialog.submit} onClose={() => setDialog(null)} onDone={() => changed("Report marked submitted. The “as submitted” copy is kept with it.")} />}
                 </>
               );

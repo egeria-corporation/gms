@@ -157,7 +157,7 @@ describe("go/no-go", () => {
     expect(within(card).getByRole("button", { name: "Go: start the application" })).toBeDisabled();
     await userEvent.click(within(card).getByRole("button", { name: "No-go: not pursuing" }));
     expect(await screen.findByText("No-go. Moved to Not pursuing.")).toBeInTheDocument();
-    expect(await screen.findByRole("region", { name: "Go/no-go" })).toHaveTextContent("16 of 40");
+    expect(await screen.findByRole("region", { name: "Go/no-go" })).toHaveTextContent("2.0 of 5");
   });
 });
 

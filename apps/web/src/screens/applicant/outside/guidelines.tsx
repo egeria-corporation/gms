@@ -21,7 +21,7 @@ export function GuidelinesReader({ applicationId, assist, onRead }: { applicatio
   const [file, setFile] = useState<File | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const read = useWKMutation(async (api) => {
-    if (file) return api.uploadGuidelines(applicationId, { name: file.name, mime: file.type || (/\.pdf$/i.test(file.name) ? "application/pdf" : "text/plain"), contentBase64: await toBase64(file) });
+    if (file) return api.uploadGuidelines(applicationId, { name: file.name, mime: /\.pdf$/i.test(file.name) ? "application/pdf" : "text/plain", contentBase64: await toBase64(file) });
     return api.readGuidelines(applicationId, text);
   });
   const spent = quotaSpent(assist.quota);
