@@ -13,7 +13,7 @@ import { ApiError } from "../src/api/client.ts";
 import { createHttpOutsideApi, type OutsideApi, type OutsideQuestion } from "../src/api/outside.ts";
 import { createHttpWriteKeepApi, libraryWithMeta, type Obligation, type WriteKeepApi } from "../src/api/writeKeep.ts";
 import { countText } from "../src/lib/outside.ts";
-import { bestVariant, isStale, movesFrom, variantChoices } from "../src/lib/writeKeep.ts";
+import { bestVariant, isStale, milestonesFor, movesFrom, variantChoices } from "../src/lib/writeKeep.ts";
 import { createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
 import { createMockApplicantFullApi, seedFullStore } from "../src/mocks/applicantFull.ts";
 import { demoSession } from "../src/mocks/auth.ts";
@@ -383,18 +383,23 @@ describe.each([
   });
 
   it("milestones: the offered tasks are created on confirm and show on the checklist", async () => {
-    const n = await b.wk.createMilestones(id, [
-      { title: "Draft due", dueOn: "2027-06-01" },
-      { title: "Review", dueOn: "2027-06-08" },
-      { title: "Final", dueOn: "2027-06-13" },
+    // The checklist works the offer back from the full deadline (-14, -7, -2 days), as the API's own offer does.
+    const offer = milestonesFor("2027-06-15");
+    expect(offer.map((m) => [m.key, m.dueOn])).toEqual([
+      ["draft", "2027-06-01"],
+      ["review", "2027-06-08"],
+      ["final", "2027-06-13"],
     ]);
+    if (b.raw) {
+      const r = await b.raw("GET", `/gms/outside-applications/${id}/milestones`);
+      expect(r.status).toBe(200);
+      expect((r.data as { fullDue: string; tasks: { key: string; dueOn: string }[] }).tasks.map((t) => [t.key, t.dueOn])).toEqual(offer.map((m) => [m.key, m.dueOn]));
+    }
+    const n = await b.wk.createMilestones(id, offer.map((m) => ({ title: m.title, dueOn: m.dueOn })));
     expect(n).toBe(3);
-    const tasks = (await b.outside.get(id)).tasks.filter((t) => ["Draft due", "Review", "Final"].includes(t.title));
-    expect(tasks.map((t) => [t.title, t.dueAt?.slice(0, 10)])).toEqual([
-      ["Draft due", "2027-06-01"],
-      ["Review", "2027-06-08"],
-      ["Final", "2027-06-13"],
-    ]);
+    const titles: string[] = offer.map((m) => m.title);
+    const tasks = (await b.outside.get(id)).tasks.filter((t) => titles.includes(t.title));
+    expect(tasks.map((t) => [t.title, t.dueAt?.slice(0, 10)])).toEqual(offer.map((m) => [m.title, m.dueOn]));
   });
 
   it("team writing: comments per question, and an admin approves", async () => {
