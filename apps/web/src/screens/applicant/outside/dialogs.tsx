@@ -288,7 +288,7 @@ function PreviewView({ p }: { p: ConsultingPreview }) {
             {p.answers.map((a, i) => (
               <li key={i}>
                 <div className="b">{a.prompt}</div>
-                <div style={{ whiteSpace: "pre-wrap" }}>{a.body}</div>
+                {a.body ? <div style={{ whiteSpace: "pre-wrap" }}>{a.body}</div> : <div className="muted">No answer yet: the question goes without one.</div>}
               </li>
             ))}
           </ol>

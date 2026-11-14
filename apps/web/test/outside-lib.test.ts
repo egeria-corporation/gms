@@ -304,7 +304,9 @@ describe("the mock follows the contract's rules", () => {
     const plain = await api.consultingPreview(OUTSIDE_IDS.northwind, who);
     expect(plain).toMatchObject({ to: CONSULTING_REQUEST_TO, replyTo: who.contactEmail, subject: "Consulting request: Family Navigation Expansion (Alder Creek Family Services)", answers: null, questionCount: 3 });
     const withAnswers = await api.consultingPreview(OUTSIDE_IDS.northwind, { ...who, includeAnswers: true });
-    expect(withAnswers.answers?.length).toBe(2);
+    // Every question goes, as the Worker sends it; the one not answered yet with an empty answer.
+    expect(withAnswers.answers?.length).toBe(3);
+    expect(withAnswers.answers?.filter((a) => a.body !== "").length).toBe(2);
     for (let i = 0; i < 3; i++) await api.sendConsulting(OUTSIDE_IDS.northwind, who);
     await expect(api.sendConsulting(OUTSIDE_IDS.northwind, who)).rejects.toMatchObject({ status: 429 });
     expect(api.store.consulting).toHaveLength(3);
