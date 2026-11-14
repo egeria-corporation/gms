@@ -1,15 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Fixes from tester feedback (v1.3.2): switches that flip at once and lists that stay on screen
-// while they refresh.
+// while they refresh, and "Awarded funding" in place of "My grants".
 import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import type { ApplicationStatusView } from "../src/api/applicant.ts";
+import { provideApplicantFullApi } from "../src/api/applicantFullHooks.ts";
+import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
+import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
+import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
 import { useApiQuery } from "../src/api/hooks.ts";
+import { provideLaunchApi } from "../src/api/launchHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, ServicesProvider, type Services } from "../src/app/services.tsx";
+import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
+import { createMockApplicantFullApi, seedFullStore } from "../src/mocks/applicantFull.ts";
+import { createMockApplicantMoreApi, seedMoreStore } from "../src/mocks/applicantMore.ts";
 import { demoSession } from "../src/mocks/auth.ts";
+import { createMockLaunchApi, seedLaunchStore } from "../src/mocks/launch.ts";
+import { DecisionSection } from "../src/screens/applicant/statusExtras.tsx";
+import { viewport } from "./setup.ts";
 
 /** A promise the test settles by hand. */
 function deferred<T>() {
@@ -158,5 +170,78 @@ describe("Human gates", () => {
     const alert = card().getByRole("alert");
     expect(alert).toHaveTextContent("“Request a revision” did not change. The switch is back where it was.");
     expect(alert).toHaveTextContent("The server could not be reached.");
+  });
+});
+
+/** An applicant at Alder Creek, with every applicant port on the mocks. */
+function applicant(path: string) {
+  const services = createMockServices({ session: demoSession() });
+  const store = seedApplicantStore();
+  const more = seedMoreStore(store);
+  const full = seedFullStore(store);
+  const launch = seedLaunchStore();
+  const session = () => services.auth.getSession();
+  provideMockApplicantStore(services, store);
+  provideApplicantApi(services, createMockApplicantApi({ session, store }));
+  provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more }));
+  provideApplicantFullApi(services, createMockApplicantFullApi({ session, store, full }));
+  provideLaunchApi(services, createMockLaunchApi({ session, store: launch }), launch);
+  provideRealtime(services, createRealtimeHub());
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <App services={services} />
+    </MemoryRouter>,
+  );
+}
+
+describe("Awarded funding (was My grants)", () => {
+  const A = "/w/alder-creek";
+  afterEach(() => {
+    viewport.phone = false;
+  });
+
+  it("names the page, its title and the rail link Awarded funding, at the same address", async () => {
+    applicant(`${A}/grants`);
+    expect(await screen.findByRole("heading", { level: 1, name: "Awarded funding" })).toBeInTheDocument();
+    const rail = screen.getByRole("navigation", { name: "Applicant workspace" });
+    const link = within(rail).getByRole("link", { name: "Awarded funding" });
+    expect(link).toHaveAttribute("href", `${A}/grants`);
+    expect(link).toHaveAttribute("aria-current", "page");
+    await waitFor(() => expect(document.title).toMatch(/^Awarded funding — /));
+    expect(document.body).not.toHaveTextContent(/My grants/i);
+  });
+
+  it("uses Awarded funding in a grant's breadcrumb and on the reports page", async () => {
+    const grant = applicant(`${A}/grants/awd_${APPLICANT_IDS.awardClinic}`);
+    const crumbs = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByRole("link", { name: "Awarded funding" })).toHaveAttribute("href", `${A}/grants`);
+    expect(within(screen.getByRole("navigation", { name: "Applicant workspace" })).getByRole("link", { name: "Awarded funding" })).toHaveAttribute("aria-current", "page");
+    grant.unmount();
+
+    applicant(`${A}/reports`);
+    const main = await screen.findByRole("main");
+    expect(await within(main).findByRole("link", { name: "Awarded funding" })).toHaveAttribute("href", `${A}/grants`);
+    expect(document.body).not.toHaveTextContent(/My grants/i);
+  });
+
+  it("on a phone, the page is titled Awarded funding and its tab says Awards", async () => {
+    viewport.phone = true;
+    applicant(`${A}/grants`);
+    const tabs = await screen.findByRole("navigation", { name: "Primary" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Awarded funding" })).toBeInTheDocument();
+    const tab = within(tabs).getByRole("link", { name: "Awards" });
+    expect(tab).toHaveAttribute("href", `${A}/grants`);
+    expect(tab).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).queryByRole("link", { name: "Grants" })).toBeNull();
+  });
+
+  it("an accepted decision points to Awarded funding", () => {
+    const status = { status: "accepted", timeline: [{ id: "e1", type: "accept", fromStatus: "under_review", toStatus: "accepted", fromStage: null, toStage: null, at: "2027-06-12T17:00:00Z", message: null }] } as unknown as ApplicationStatusView;
+    render(
+      <MemoryRouter>
+        <DecisionSection status={status} funder="Riverbend Community Foundation" base={A} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/The award and its agreement are under Awarded funding\./)).toBeInTheDocument();
   });
 });
