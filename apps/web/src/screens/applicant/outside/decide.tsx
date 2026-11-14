@@ -91,7 +91,7 @@ export function GoNoGoCard({ detail, settings, members, readOnly, onDone }: { de
           </h2>
           <p className="small muted">Score this opportunity before you spend time on it. The weights are your workspace’s, set in Settings.</p>
         </div>
-        <span className="tag row" style={{ gap: "6px" }} aria-live="polite">
+        <span className="tag row" style={{ gap: "6px", whiteSpace: "nowrap", flex: "none" }} aria-live="polite">
           <Gauge className="ic ic-sm" aria-hidden="true" />
           Score {total} of {max}
         </span>
