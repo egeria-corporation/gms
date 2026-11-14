@@ -32,15 +32,14 @@ export default function Opportunities() {
       numeric: true,
       cell: (o) => (
         <span className="row" style={{ justifyContent: "flex-end", gap: "6px" }}>
-          {data.status === "ready" && publishedNotTaking(o, data.data.competitions) ? (
+          {data.status === "ready" && publishedNotTaking(o, data.data.competitions) && (
             <Link to={`${base}/opportunities/${o.id}/edit#applications`} className="btn btn-sm btn-primary" aria-label={`Set up applications for ${o.title}`}>
               Set up applications
             </Link>
-          ) : (
-            <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary" aria-label={`Competition for ${o.title}`}>
-              Competition
-            </Link>
           )}
+          <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary" aria-label={`Competition for ${o.title}`}>
+            Competition
+          </Link>
           {o.published && (
             <Link to={`/f/${ws.handle}/o/${o.slug}`} className="btn btn-sm btn-ghost" aria-label={`Public page of ${o.title}`}>
               Public page
