@@ -206,10 +206,10 @@ export default function GrantOffered() {
                     r.kind === "gms" ? (
                       <StatusBadge kind="award" status={r.w.status} />
                     ) : (
-                      <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                         <StatusBadge kind="outside" status="awarded" label={r.o.closedOutAt ? "Closed out" : undefined} />
                         {r.o.nextDue && !r.o.closedOutAt && (
-                          <span className="small muted">
+                          <span className="small muted" style={{ whiteSpace: "normal", maxWidth: "220px" }}>
                             Next: {r.o.nextDue.title}, {formatDate(r.o.nextDue.dueOn)}
                           </span>
                         )}

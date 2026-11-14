@@ -869,6 +869,7 @@ export function QuestionCard({
             </button>
           )}
           <CopyButton value={draft} what={`the answer to question ${n}`} className="btn btn-sm btn-ghost" />
+          <CommentsButton open={comments} onToggle={() => setComments((v) => !v)} />
           {q.answer && (
             <button type="button" className="btn btn-sm btn-ghost" aria-haspopup="dialog" onClick={() => setDialog("history")}>
               <Clock className="ic" aria-hidden="true" />
@@ -898,9 +899,6 @@ export function QuestionCard({
           />
         )}
         {fit && <FitToLimit question={q} answers={answers} onClose={() => setFit(false)} onUse={(t) => setDraft(t)} />}
-        <div className="row" style={{ gap: "8px" }}>
-          <CommentsButton open={comments} onToggle={() => setComments((v) => !v)} />
-        </div>
         {comments && <CommentsPanel applicationId={applicationId} question={q} n={n} members={members} readOnly={readOnly} />}
         {put.error && dialog !== "library" && dialog !== "reuse" ? <ErrorBanner error={put.error} title="The answer was not saved" /> : null}
         {patch.error ? <ErrorBanner error={patch.error} title="The question was not changed" /> : null}

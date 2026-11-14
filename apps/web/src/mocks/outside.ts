@@ -167,6 +167,10 @@ export function seedOutsideStore(): OutsideStore {
         fullDue: day(23),
         internalDue: day(16),
         customFields: { "Program officer": "Ruth Calloway" },
+        requiredDocuments: [
+          { label: "IRS determination letter", documentId: null, status: "needed" },
+          { label: "Most recent audit", documentId: null, status: "needed" },
+        ],
         questions: [
           question("oqn_d3000000-0000-7000-8000-000000000001", 1, "Describe the need your project addresses and who it serves. (250 words)", { limitKind: "words", limitValue: 250, status: "draft", assigneeUserId: I.maria, versions: answered("oqn_d3000000-0000-7000-8000-000000000001", "Families in the Alder Creek valley travel more than forty minutes to reach a clinic. Many miss appointments because of the distance.", 2) }),
           question("oqn_d3000000-0000-7000-8000-000000000002", 2, "How will you measure success? Maximum 1,500 characters including spaces.", { limitKind: "chars", limitValue: 1500, assigneeUserId: I.jamal }),

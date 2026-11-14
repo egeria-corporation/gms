@@ -11,12 +11,13 @@ import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
 import { CRITERION_LABELS, GO_CRITERIA, MONTHS, type Criterion } from "../../../lib/writeKeep.ts";
 
 function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
+  const [base, setBase] = useState(initial);
   const [form, setForm] = useState(initial);
   const [weights, setWeights] = useState<Record<Criterion, string>>(() => Object.fromEntries(GO_CRITERIA.map((c) => [c, String(initial.goNoGoWeights[c])])) as Record<Criterion, string>);
   const save = useWKMutation((api, next: Partial<GrantSettings>) => api.saveSettings(next));
   const parsed = Object.fromEntries(GO_CRITERIA.map((c) => [c, Number(weights[c])])) as Record<Criterion, number>;
   const badWeight = GO_CRITERIA.some((c) => !(Number.isInteger(parsed[c]) && parsed[c] >= 0 && parsed[c] <= 5) || weights[c].trim() === "");
-  const dirty = form.goNoGoEnabled !== initial.goNoGoEnabled || form.fiscalYearStartMonth !== initial.fiscalYearStartMonth || GO_CRITERIA.some((c) => parsed[c] !== initial.goNoGoWeights[c]);
+  const dirty = form.goNoGoEnabled !== base.goNoGoEnabled || form.fiscalYearStartMonth !== base.fiscalYearStartMonth || GO_CRITERIA.some((c) => parsed[c] !== base.goNoGoWeights[c]);
   return (
     <>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -66,7 +67,10 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
             disabled={!dirty || badWeight || save.state === "saving"}
             onClick={async () => {
               const next = await save.run({ goNoGoEnabled: form.goNoGoEnabled, fiscalYearStartMonth: form.fiscalYearStartMonth, goNoGoWeights: parsed });
-              if (next) setForm(next);
+              if (next) {
+                setBase(next);
+                setForm(next);
+              }
             }}
           >
             {save.state === "saving" ? "Saving…" : "Save"}

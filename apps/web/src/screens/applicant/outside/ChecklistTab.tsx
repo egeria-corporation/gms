@@ -150,7 +150,7 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
               const others = docs.filter((v) => !matches.includes(v));
               const vaultDoc = docs.find((v) => v.id === d.documentId);
               return (
-                <li key={`${d.label}-${i}`} style={{ display: "flex", flexDirection: "column", gap: "6px", paddingBottom: "10px", borderBottom: "1px solid var(--og-gray-100)" }}>
+                <li key={`${d.label}-${i}`} aria-label={d.label} style={{ display: "flex", flexDirection: "column", gap: "6px", paddingBottom: "10px", borderBottom: "1px solid var(--og-gray-100)" }}>
                   <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                     <span className="b">{d.label}</span>
                     <StatusBadge kind="requiredDocument" status={d.status} />

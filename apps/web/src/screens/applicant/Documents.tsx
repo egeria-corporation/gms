@@ -5,7 +5,7 @@
 // person's identity numbers are refused. The vault is never read by AI.
 import { useState } from "react";
 import { Link } from "react-router";
-import { FolderLock, Lock, Pencil, Plus, Trash, X } from "lucide-react";
+import { FileText, FolderLock, Lock, Pencil, Plus, Trash, X } from "lucide-react";
 import type { VaultDocument } from "../../api/writeKeep.ts";
 import { useWKMutation, useWKQuery } from "../../api/writeKeepHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -17,7 +17,7 @@ import { openBlob } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
 import { DOC_TYPE_LABELS, DOC_TYPES, EXPIRY_WARN_DAYS, expiryState, type DocType } from "../../lib/writeKeep.ts";
 import { ExpiryBadge, VaultUploadDialog } from "./outside/keep.tsx";
-import { fileKind, sizeText } from "./outside/shared.tsx";
+import { sizeText } from "./outside/shared.tsx";
 
 function EditDialog({ doc, onClose, onDone }: { doc: VaultDocument; onClose: () => void; onDone: () => void }) {
   const [docType, setDocType] = useState<DocType>(doc.docType);
@@ -87,9 +87,7 @@ export default function Documents() {
       sort: (d) => d.name.toLowerCase(),
       cell: (d) => (
         <div className="row" style={{ gap: "10px" }}>
-          <span className={`ft ${fileKind(d.name) ? `ft-${fileKind(d.name)}` : ""}`} aria-hidden="true" style={{ flex: "none" }}>
-            {(fileKind(d.name) || "file").toUpperCase()}
-          </span>
+          <FileText className="ic" aria-hidden="true" style={{ flex: "none" }} />
           <div className="ent">
             <button type="button" className="nm" style={{ background: "none", border: 0, padding: 0, font: "inherit", fontWeight: 700, color: "var(--og-teal-dark)", cursor: "pointer", textAlign: "left" }} onClick={() => void open.run(d)} aria-label={`Open ${d.name}`}>
               {d.name}

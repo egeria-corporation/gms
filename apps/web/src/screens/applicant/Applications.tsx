@@ -159,7 +159,9 @@ function Board({ rows, lanes }: { rows: Row[]; lanes: Lane[] }) {
 export function deadlinesOf(rows: Row[]): { id: string; date: string; what: string; row: Row }[] {
   return rows.flatMap((r) => {
     if (["submitted", "awarded", "declined", "closed"].includes(r.lane)) return [];
-    if (r.outside) return (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).flatMap((k) => (r.outside!.deadlines[k] ? [{ id: `${r.key}:${k}`, date: r.outside!.deadlines[k]!, what: DEADLINE_LABELS[k], row: r }] : []));
+    // Past the letter of inquiry (invited or drafting), its deadline is behind the application, not due.
+    const pastLoi = r.lane === "invited" || r.lane === "drafting";
+    if (r.outside) return (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).flatMap((k) => (r.outside!.deadlines[k] && !(k === "loiDue" && pastLoi) ? [{ id: `${r.key}:${k}`, date: r.outside!.deadlines[k]!, what: DEADLINE_LABELS[k], row: r }] : []));
     return r.deadline ? [{ id: `${r.key}:next`, date: r.deadline, what: r.item.kind === "gms_application" ? "Stage closes" : "Deadline", row: r }] : [];
   });
 }

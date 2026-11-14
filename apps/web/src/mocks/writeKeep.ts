@@ -149,7 +149,9 @@ const REQUIRED_DOCS: Array<[RegExp, string]> = [
 function readText(text: string): Omit<GuidelinesRead, "document"> {
   const requiredDocuments = REQUIRED_DOCS.filter(([re]) => re.test(text)).map(([, label]) => label);
   // Lines that only list attachments are documents, not questions.
-  const questions = parseQuestions(text).filter((q) => !REQUIRED_DOCS.some(([re]) => re.test(q.prompt) && !/[?]/.test(q.prompt) && !q.limitKind && q.prompt.length < 90));
+  // and a title or an instruction line is not a question: keep what asks something or sets a limit.
+  const asks = (p: string) => /[?]/.test(p) || /^(describe|explain|list|tell|share|provide|outline|summari[sz]e|discuss|identify|what|how|why|who|when|where|which)\b/i.test(p);
+  const questions = parseQuestions(text).filter((q) => (asks(q.prompt) || !!q.limitKind) && !REQUIRED_DOCS.some(([re]) => re.test(q.prompt) && !/[?]/.test(q.prompt) && !q.limitKind && q.prompt.length < 90));
   return { questions, requiredDocuments };
 }
 /** Text drawn in a simple PDF (strings shown with Tj), enough for the mock's own and plain PDFs. */
