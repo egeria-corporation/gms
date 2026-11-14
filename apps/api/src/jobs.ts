@@ -7,7 +7,7 @@ import { archiveDay, GENESIS_HASH, type ArchiveBucket } from "@gms/ledger";
 import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
 import { deliverDue } from "@gms/webhooks";
-import { DOCUMENT_EXPIRING_TEMPLATE, DOCUMENT_EXPIRY_OFFSETS, documentExpiringEmail, OBLIGATION_REMINDER_OFFSETS, OUTSIDE_OBLIGATION_TEMPLATE, outsideObligationEmail, OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
+import { DOCUMENT_EXPIRING_TEMPLATE, DOCUMENT_EXPIRY_OFFSETS, documentExpiringEmail, OBLIGATION_REMINDER_OFFSETS, OUTSIDE_NEXT_CYCLE_TEMPLATE, OUTSIDE_OBLIGATION_TEMPLATE, outsideNextCycleEmail, outsideObligationEmail, OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
 import { NO_AGREEMENT_REQUIRED, OBLIGATION_STATUSES, obligationMoveRefusal, type ObligationKind, type ObligationStatus } from "@gms/workflow";
 import { scopesForRole } from "./auth/scopes.ts";
 import { exportBundle, importBundle } from "./services/analytics.ts";
@@ -345,7 +345,28 @@ export async function sendObligationReminders(base: BaseContext): Promise<{ made
   return { madeDue, checked: due.length, reminded, sent, failed };
 }
 
+/**
+ * The next-cycle reminder: on the date a person gave when recording a decline (`next_cycle_on`),
+ * email the application's owner (template `outside_next_cycle`). Daily; one send per application
+ * and date. Archived applications, and ones reopened since, are skipped.
+ */
+export async function sendNextCycleReminders(base: BaseContext): Promise<{ checked: number; reminded: number; sent: number; failed: number }> {
+  const today = dayFrom(base.now(), 0);
+  const rows = await base.repos.table("outside_applications").find({ next_cycle_on: today, stage: "declined", archived_at: null }, { limit: 5000 });
+  let reminded = 0;
+  let sent = 0;
+  const failed = await each(rows, async (row) => {
+    const ws = await base.repos.table("workspaces").one({ id: row.workspace_id });
+    if (!ws || ws.kind !== "applicant" || !row.owner_user_id || !row.next_cycle_on) return;
+    const mail = outsideNextCycleEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, programName: row.program_name, nextCycleOn: row.next_cycle_on, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_next_cycle", subject: mail.subject, text: mail.text, html: mail.html, userIds: [row.owner_user_id], roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_NEXT_CYCLE_TEMPLATE}:${row.id}:${row.next_cycle_on}` });
+    reminded++;
+    sent += out.sent;
+  });
+  return { checked: rows.length, reminded, sent, failed };
+}
+
 /** The daily write-faster and keep-it reminders, in one job: vault expiry warnings, obligations and next cycles. */
 export async function sendKeepReminders(base: BaseContext): Promise<Record<string, unknown>> {
-  return { documents: await sendDocumentExpiryWarnings(base), obligations: await sendObligationReminders(base) };
+  return { documents: await sendDocumentExpiryWarnings(base), obligations: await sendObligationReminders(base), nextCycles: await sendNextCycleReminders(base) };
 }

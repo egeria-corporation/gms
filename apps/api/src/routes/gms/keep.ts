@@ -68,3 +68,9 @@ const seriesId = (c: C) => bareUuid(c.req.param("sid"), "Series");
 keepRoutes.patch("/outside-obligation-series/:sid", async (c) => c.json(ok(await obligations.updateSeries(await svc(c), seriesId(c), parse(obligations.seriesPatch, await jsonBody(c))))));
 keepRoutes.delete("/outside-obligation-series/:sid", async (c) => c.json(ok(await obligations.deleteSeries(await svc(c), seriesId(c)))));
 keepRoutes.get("/my/awarded-funding", async (c) => c.json(ok(await obligations.awardedFunding(await svc(c)))));
+
+// ---- the next cycle ----
+keepRoutes.post("/outside-applications/:id/next-cycle-alert", async (c) => {
+  const out = await team.nextCycleAlert(await svc(c), oaId(c));
+  return c.json(out.created ? created(out.alert) : ok(out.alert, "Already set"), out.created ? 201 : 200);
+});

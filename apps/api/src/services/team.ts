@@ -4,9 +4,10 @@
 // deadline, and a month grid of deadlines. Every stage change runs through the
 // `outside_application` machine; every question status change is ledgered.
 import { GO_TARGETS, type GoTarget } from "@gms/workflow";
-import { cleanText } from "@gms/notify";
+import { cleanLine, cleanText } from "@gms/notify";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { createAlert, listAlerts } from "./applicant-insights.ts";
 import { audit, required, type ServiceContext } from "./context.ts";
 import { assertMember, deadlinesOf, loadOutside, loadQuestion, outsideWorkspace, transitionOutsideRow, writable, getOutside } from "./outside.ts";
 import type { Row } from "./repos/types.ts";
@@ -178,3 +179,20 @@ export async function pipelineCalendar(ctx: ServiceContext, query: z.output<type
   return { month: query.month, firstWeekday: new Date(`${first}T00:00:00Z`).getUTCDay(), days };
 }
 
+
+// ------------------------------------------------------------------------------------ the next cycle
+
+/**
+ * "Get an alert when it reopens": a funding alert on the program name (or the title) through the
+ * GMS's own alerts service, not OpenGrants' API. Asking again returns the same alert.
+ */
+export async function nextCycleAlert(ctx: ServiceContext, id: string) {
+  const { row } = await loadOutside(ctx, id, "applications:read");
+  const query = cleanLine(row.program_name ?? row.title).slice(0, 300);
+  const name = cleanLine(`Reopens: ${query}`).slice(0, 120);
+  const existing = (await listAlerts(ctx)).find((a) => a.name === name);
+  if (existing) return { created: false, alert: existing };
+  const alert = await createAlert(ctx, { name, query, frequency: "weekly" });
+  await audit(ctx, "outside_application.alert_created", "outside_application", row.id, { alertId: alert.id });
+  return { created: true, alert };
+}
