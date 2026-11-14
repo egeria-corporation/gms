@@ -77,6 +77,8 @@ OPENGRANTS_API_URL = "https://ops.opengrants.io/functions/v1"
 # The assistant is on for launch (owner decision); it stays inactive until ANTHROPIC_API_KEY is set as a secret.
 ASSISTANT_ENABLED = "true"
 ASSISTANT_MODEL = "claude-sonnet-5-5"
+# Owner decision 2026-11-14 (roadmap D4): 100 AI calls per workspace per month on the hosted site.
+ASSISTANT_MONTHLY_QUOTA = "100"
 # Passport serves the funder award routes since 2026-11-10, so accepted awards are mirrored.
 PASSPORT_AWARD_WRITE = "true"
 # Launch runs without facilitated payments: tranches are recorded after being paid outside the GMS.
