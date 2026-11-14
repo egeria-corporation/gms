@@ -243,18 +243,20 @@ describe("CSV import and export", () => {
   const csv = ["Grant,Funder,Stage,Deadline,Ask,Submitted,How,Awarded", "Capacity 2026,Cascade Trust,Awarded,2026-03-01,\"$20,000\",2026-02-20,portal,\"$15,000\"", "Bad row,,Paid,03/32/2026,lots,,,", "Summer camp,Pine Fund,prospect,6/1/2027,5000,,,"].join("\n");
   const mapping = { title: "Grant", funderName: "Funder", stage: "Stage", fullDue: "Deadline", askAmount: "Ask", submittedAt: "Submitted", submissionMethod: "How", awardedAmount: "Awarded" };
 
+  type Row = { row: number; ok: boolean; problems: { field?: string; message: string }[]; values: Record<string, string>; normalized: Record<string, unknown> };
   it("previews rows with their problems and writes nothing on a dry run", async () => {
-    const out = await data<{ dryRun: boolean; rows: number; valid: number; failed: number; created: number; results: { line: number; ok: boolean; problems: string[]; values: Record<string, unknown> }[] }>(s.applicant, "POST", "/gms/outside-applications/import", { csv, mapping });
-    expect(out).toMatchObject({ dryRun: true, rows: 3, valid: 2, failed: 1, created: 0 });
-    expect(out.results[0]).toMatchObject({ line: 2, ok: true, values: { title: "Capacity 2026", stage: "awarded", askAmount: { amount: "20000.00" }, awardedAmount: { amount: "15000.00" }, submittedAt: "2026-02-20", submissionMethod: "portal" } });
-    expect(out.results[1]!.problems).toEqual(expect.arrayContaining(["No funder", '"Paid" is not a stage', "fullDue is not a date (use YYYY-MM-DD)", "The ask is not an amount"]));
-    expect(out.results[2]).toMatchObject({ ok: true, values: { stage: "prospect", fullDue: "2027-06-01" } });
+    const out = await data<{ dryRun: boolean; rows: Row[]; created: unknown[]; summary: { rows: number; valid: number; failed: number; created: number } }>(s.applicant, "POST", "/gms/outside-applications/import", { csv, mapping });
+    expect(out).toMatchObject({ dryRun: true, created: [], summary: { rows: 3, valid: 2, failed: 1, created: 0 } });
+    expect(out.rows[0]).toMatchObject({ row: 2, ok: true, values: { title: "Capacity 2026", stage: "Awarded", askAmount: "$20,000" }, normalized: { title: "Capacity 2026", stage: "awarded", askAmount: { amount: "20000.00" }, awardedAmount: { amount: "15000.00" }, submittedAt: "2026-02-20", submissionMethod: "portal" } });
+    expect(out.rows[1]!.problems).toEqual(expect.arrayContaining([{ field: "funderName", message: "No funder" }, { field: "stage", message: '"Paid" is not a stage' }, { field: "fullDue", message: "fullDue is not a date (use YYYY-MM-DD)" }, { field: "askAmount", message: "The ask is not an amount" }]));
+    expect(out.rows[2]).toMatchObject({ ok: true, normalized: { stage: "prospect", fullDue: "2027-06-01" } });
     expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT, source: "import" })).toBe(0);
   });
 
-  it("imports the valid rows and reports the rest", async () => {
-    const out = await data<{ created: number; failed: number }>(s.applicant, "POST", "/gms/outside-applications/import", { csv, mapping, dryRun: false });
-    expect(out).toMatchObject({ created: 2, failed: 1 });
+  it("imports the valid rows, returns them as list items and reports the rest", async () => {
+    const out = await data<{ created: { id: string; title: string; source: string }[]; summary: { created: number; failed: number } }>(s.applicant, "POST", "/gms/outside-applications/import", { csv, mapping, dryRun: false });
+    expect(out.summary).toMatchObject({ created: 2, failed: 1 });
+    expect(out.created.map((c) => [c.title, c.source]).sort()).toEqual([["Capacity 2026", "import"], ["Summer camp", "import"]]);
     const rows = await h.repos.table("outside_applications").find({ workspace_id: WS_APPLICANT, source: "import" });
     expect(rows.map((r) => [r.title, r.stage, r.awarded_amount_minor, r.submission_method]).sort()).toEqual([["Capacity 2026", "awarded", 1_500_000, "portal"], ["Summer camp", "prospect", null, null]]);
   });
@@ -310,8 +312,8 @@ describe("discovery", () => {
     expect(saved.outsideApplicationId).toBeTruthy();
     const again = await data<{ outsideApplicationId: string }>(s.applicant, "POST", "/gms/discover/saved", { source: "opengrants", externalId: "og-1", title: "Rural Health Access Fund" });
     expect(again.outsideApplicationId).toBe(saved.outsideApplicationId);
-    const prospect = await data<{ stage: string; source: string; funderName: string; deadlines: { full: string } }>(s.applicant, "GET", `/gms/outside-applications/${saved.outsideApplicationId}`);
-    expect(prospect).toMatchObject({ stage: "prospect", source: "opengrants", funderName: "Northwind Family Foundation", deadlines: { full: "2027-06-01" } });
+    const prospect = await data<{ stage: string; source: string; funderName: string; deadlines: { fullDue: string } }>(s.applicant, "GET", `/gms/outside-applications/${saved.outsideApplicationId}`);
+    expect(prospect).toMatchObject({ stage: "prospect", source: "opengrants", funderName: "Northwind Family Foundation", deadlines: { fullDue: "2027-06-01" } });
     await data(s.applicant, "POST", "/gms/discover/alerts", { name: "Rural health", query: "rural health", frequency: "weekly" });
     const list = await data<{ source: string }[]>(s.applicant, "GET", "/gms/discover/saved");
     expect(list.map((x) => x.source)).toEqual(["opengrants"]);
@@ -362,12 +364,87 @@ describe("tasks and documents about an outside application", () => {
   it("uploads, lists and downloads a checklist file, and uses it as the receipt", async () => {
     const doc = await data<{ id: string; sha256: string }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "receipt.txt", mime: "text/plain", contentBase64: btoa("Confirmation NW-0412") });
     expect(await data<{ id: string }[]>(s.applicant, "GET", `/gms/outside-applications/${oaId}/documents`)).toEqual([expect.objectContaining({ id: doc.id })]);
-    const file = await h.request(`/gms/outside-applications/${oaId}/documents/${doc.id}/content`, { headers: s.applicant });
+    const file = await h.request(`/gms/outside-applications/${oaId}/documents/${doc.id}/file`, { headers: s.applicant });
     expect(await file.text()).toBe("Confirmation NW-0412");
     const sub = await data<{ submission: { receiptDocumentId: string } }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/submit`, { submittedAt: "2027-04-15", method: "email", receiptDocumentId: doc.id });
     expect(sub.submission.receiptDocumentId).toBe(doc.id);
     const stored = await h.repos.table("documents").find({ subject_type: "outside_application", subject_id: oaId });
     expect(stored.every((d) => d.workspace_id === WS_APPLICANT && d.owner_workspace_id === WS_APPLICANT)).toBe(true);
-    expect((await s.call(other, "GET", `/gms/outside-applications/${oaId}/documents/${doc.id}/content`)).status).toBe(404);
+    expect((await s.call(other, "GET", `/gms/outside-applications/${oaId}/documents/${doc.id}/file`)).status).toBe(404);
+  });
+});
+
+describe("what the web client reads (R3b)", () => {
+  it("documents: upload (25 MB at most), pin a locker file, list and open files, the as-submitted PDF too; members only", async () => {
+    const up = await data<{ id: string; passportDocumentId: string | null; scanStatus: string; source: string }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "letter.txt", mime: "text/plain", contentBase64: btoa("Support letter") });
+    expect(up).toMatchObject({ source: "upload", passportDocumentId: null, scanStatus: "not_scanned" });
+    const pinned = await data<{ source: string; passportDocumentId: string }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "audit.pdf", mime: "application/pdf", passportDocumentId: "doc-123", size: 2048, sha256: "a".repeat(64) });
+    expect(pinned).toMatchObject({ source: "passport_locker", passportDocumentId: "doc-123" });
+    const big = btoa("x".repeat(25 * 1024 * 1024 + 3));
+    expect((await s.call(s.applicant, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "big.bin", mime: "application/octet-stream", contentBase64: big })).status).toBe(413);
+    const sub = await data<{ snapshotDocumentId: string; snapshotSha256: string }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/submit`, { submittedAt: "2027-04-15", method: "portal" });
+    const listed = await data<{ id: string }[]>(s.applicant, "GET", `/gms/outside-applications/${oaId}/documents`);
+    expect(listed.map((d) => d.id)).toEqual(expect.arrayContaining([up.id, sub.snapshotDocumentId]));
+    const pdf = await h.request(`/gms/outside-applications/${oaId}/documents/${sub.snapshotDocumentId}/file`, { headers: s.applicant });
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("Content-Type")).toBe("application/pdf");
+    expect((await h.request(`/gms/outside-applications/${oaId}/documents/${up.id}/file`, { headers: s.applicant })).status).toBe(200);
+    expect((await s.call(other, "GET", `/gms/outside-applications/${oaId}/documents`)).status).toBe(404);
+    expect((await s.call(other, "POST", `/gms/outside-applications/${oaId}/documents`, { name: "x.txt", mime: "text/plain", contentBase64: btoa("x") })).status).toBe(404);
+    expect((await s.call(consultant, "GET", `/gms/outside-applications/${oaId}/documents/${up.id}/file`)).status).toBe(403);
+    expect((await s.call(s.funder, "GET", `/gms/outside-applications/${oaId}/documents`)).status).toBe(403);
+  });
+
+  it("list items carry source and sourceRef; deadlines are loiDue, fullDue and internalDue", async () => {
+    await data(s.applicant, "POST", "/gms/outside-applications", { source: "opengrants", sourceRef: "og-1", title: "Rural Health Access Fund", funderName: "Northwind", stage: "prospect" });
+    const items = await data<{ source: string; sourceRef: string | null; deadlines: Record<string, unknown> }[]>(s.applicant, "GET", "/gms/outside-applications");
+    expect(items.map((i) => [i.source, i.sourceRef]).sort()).toEqual([["manual", null], ["opengrants", "og-1"]]);
+    expect(items.find((i) => i.source === "manual")!.deadlines).toEqual({ loiDue: "2027-04-20", fullDue: "2027-05-01", internalDue: "2027-04-25", rolling: false });
+  });
+
+  it("the detail carries its activity, newest first, with ids, stages and dates only", async () => {
+    await data(s.applicant, "POST", `/gms/outside-applications/${oaId}/submit`, { submittedAt: "2027-04-15", method: "portal", confirmationRef: "SECRET-REF-1" });
+    await data(s.applicant, "POST", `/gms/outside-applications/${oaId}/consulting-request`, { message: "Private message to OpenGrants" });
+    await data(s.applicant, "POST", `/gms/outside-applications/${oaId}/decision`, { outcome: "awarded", awardedAmount: { amount: "40000.00", currency: "USD" }, notes: "Private notes" });
+    const detail = await data<{ activity: { id: string; type: string; at: string; actor: string; data: Record<string, unknown> }[]; submittedAt: string; awardedAmount: { amount: string }; decisionNotes: string; snapshotSha256: string }>(s.applicant, "GET", `/gms/outside-applications/${oaId}`);
+    expect(detail.activity.map((a) => a.type)).toEqual(["outside_application.decided", "outside_application.consulting_requested", "outside_application.submitted", "outside_application.created"]);
+    expect(detail.activity[0]).toMatchObject({ actor: `user:${USER_APPLICANT}`, data: { from: "submitted", to: "awarded", decidedAt: expect.any(String) } });
+    expect(Object.keys(detail.activity[1]!.data).sort()).toEqual(["requestId", "sentAt"]);
+    expect(JSON.stringify(detail.activity)).not.toMatch(/46 miles|SECRET-REF|Private|40000|ana\.ruiz|a…@/);
+    // The submission and the decision are also flat on the detail, as the web reads them.
+    expect(detail).toMatchObject({ submittedAt: "2027-04-15T12:00:00.000Z", awardedAmount: { amount: "40000.00" }, decisionNotes: "Private notes" });
+    expect(detail.snapshotSha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("answers and questions carry ids and flat limits; amounts by year accept minor units", async () => {
+    const [q] = await data<{ id: string; limitKind: string | null; limitValue: number | null }[]>(s.applicant, "POST", `/gms/outside-applications/${oaId}/questions`, { questions: [{ prompt: "Plan?", limitKind: "chars_no_spaces", limitValue: 900 }] });
+    expect(q).toMatchObject({ limitKind: "chars_no_spaces", limitValue: 900 });
+    const saved = await data<{ id: string; questionId: string; createdAt: string; createdBy: string }>(s.applicant, "PUT", `/gms/outside-questions/${q!.id}/answer`, { body: "A plan." });
+    expect(saved).toMatchObject({ id: expect.any(String), questionId: q!.id, createdBy: USER_APPLICANT });
+    const edited = await data<{ askByYear: { year: number; amountMinor: number; amount: { amount: string } }[] }>(s.applicant, "PATCH", `/gms/outside-applications/${oaId}`, { askByYear: [{ year: 2027, amountMinor: 2_500_000 }, { year: 2028, amount: { amount: "25000.00", currency: "USD" } }] });
+    expect(edited.askByYear).toEqual([{ year: 2027, amountMinor: 2_500_000, amount: { amount: "25000.00", currency: "USD" } }, { year: 2028, amountMinor: 2_500_000, amount: { amount: "25000.00", currency: "USD" } }]);
+  });
+
+  it("tasks: subjectType outside_application in the caller's own workspace only", async () => {
+    const t = await data<{ subjectType: string; subjectId: string }>(s.applicant, "POST", "/gms/tasks", { title: "Get the board letter", subjectType: "outside_application", subjectId: oaId });
+    expect(t).toMatchObject({ subjectType: "outside_application", subjectId: oaId });
+    expect((await s.call(other, "POST", "/gms/tasks", { title: "x", subjectType: "outside_application", subjectId: oaId })).status).toBe(404);
+    expect((await s.call(s.funder, "POST", "/gms/tasks", { title: "x", subjectType: "outside_application", subjectId: oaId })).status).toBe(403);
+    expect((await s.call(s.applicant, "POST", "/gms/tasks", { title: "x", subjectType: "outside_application" })).status).toBe(400);
+    expect((await data<{ tasks: { subjectType: string; title: string }[] }>(s.applicant, "GET", `/gms/outside-applications/${oaId}`)).tasks).toEqual([expect.objectContaining({ title: "Get the board letter", subjectType: "outside_application" })]);
+  });
+
+  it("notification preferences take the outside_deadline key", async () => {
+    const r = await s.call<{ data: { channels: Record<string, { email: boolean }> } }>(s.applicant, "PUT", "/gms/me/notification-preferences", { digest: "weekly", channels: { outside_deadline: { inApp: true, email: false } } });
+    expect(r.status).toBe(200);
+    expect(r.body.data.channels.outside_deadline).toEqual({ inApp: true, email: false });
+    expect(r.body.data.channels.application).toEqual({ inApp: true, email: true });
+  });
+
+  it("the consulting preview lists each fact, and sending says where it went", async () => {
+    const p = await data<Record<string, unknown>>(s.applicant, "POST", `/gms/outside-applications/${oaId}/consulting-request/preview`, { contactName: "Ana Ruiz", contactEmail: "ana.ruiz@aldercreekfs.example", includeAnswers: true });
+    expect(p).toMatchObject({ organization: "Alder Creek Family Services", contactName: "Ana Ruiz", contactEmail: "ana.ruiz@aldercreekfs.example", title: "Rural clinics 2027", funder: "Northwind Family Foundation", stage: "drafting", questionCount: 2, deadlines: { loiDue: "2027-04-20", fullDue: "2027-05-01" }, ask: { amount: "50000.00", currency: "USD" }, listingUrl: "https://northwind.example/grants", portalUrl: "https://portal.northwind.example", answersTruncated: false });
+    expect(p.answers).toEqual([{ prompt: "Describe the need.", body: "Families travel 46 miles to reach a clinic." }, { prompt: "Who is served?", body: "" }]);
+    expect(await data(s.applicant, "POST", `/gms/outside-applications/${oaId}/consulting-request`, { contactName: "Ana Ruiz", contactEmail: "ana.ruiz@aldercreekfs.example" })).toMatchObject({ to: "hello@agents.opengrants.io", replyTo: "ana.ruiz@aldercreekfs.example", sentAt: expect.any(String) });
   });
 });

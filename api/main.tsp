@@ -2,6 +2,7 @@ import "@typespec/http";
 import "@typespec/versioning";
 import "@common-grants/core";
 import "./routes.tsp";
+import "./outside.tsp";
 
 using TypeSpec.Http;
 

@@ -77,7 +77,8 @@ const paragraph = (max: number) => z.string().transform(cleanText).pipe(z.string
 const webUrl = z.string().trim().max(2000).pipe(z.url({ protocol: /^https?$/ }));
 const isoDate = z.iso.date();
 export const moneyInput = z.object({ amount: z.string().regex(/^\d{1,13}(\.\d{1,3})?$/, "A decimal amount, e.g. 25000.00"), currency: z.string().regex(/^[A-Z]{3}$/).default("USD") }).strict();
-const byYearInput = z.array(z.object({ year: z.number().int().min(1900).max(2999), amount: moneyInput }).strict()).max(20);
+/** By year: `{ year, amount }` with Money, or `{ year, amountMinor }` (the web's form) in the application's currency. */
+const byYearInput = z.array(z.union([z.object({ year: z.number().int().min(1900).max(2999), amount: moneyInput }).strict(), z.object({ year: z.number().int().min(1900).max(2999), amountMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict()])).max(20);
 /** Custom field names that would hold bank or identity data are refused: the GMS never keeps those. */
 const SENSITIVE_KEY = /(rout(ing)?[\s_-]*(no|num|number)|acc(oun)?t[\s_-]*(no|num|number)|iban|swift|\bs\.?s\.?n\b|ssn|social[\s_-]*sec|birth|\bdob\b|tax[\s_-]*id|gov(ernment)?[\s_-]*id|passport[\s_-]*(no|num|number)|driver|password|passcode)/i;
 const customFieldsInput = z
@@ -95,6 +96,7 @@ const minorOf = (m: { amount: string; currency: string }) => {
 };
 const yearsOf = (rows: z.output<typeof byYearInput>, currency: string) =>
   rows.map((r) => {
+    if ("amountMinor" in r) return { year: r.year, amountMinor: r.amountMinor };
     if (r.amount.currency !== currency) throw new ApiError(422, "currency_mismatch", `Every amount on an application is in ${currency}`);
     return { year: r.year, amountMinor: minorOf(r.amount) };
   });
@@ -102,10 +104,10 @@ const yearsOf = (rows: z.output<typeof byYearInput>, currency: string) =>
 // ------------------------------------------------------------------------------------ views
 
 const money = (minor: number | null, currency: string): Money | null => (minor === null ? null : toMoney(minor, currency));
-const yearsView = (v: unknown, currency: string) => (Array.isArray(v) ? (v as { year: number; amountMinor: number }[]).map((r) => ({ year: r.year, amount: toMoney(r.amountMinor, currency) })) : []);
+const yearsView = (v: unknown, currency: string) => (Array.isArray(v) ? (v as { year: number; amountMinor: number }[]).map((r) => ({ year: r.year, amountMinor: r.amountMinor, amount: toMoney(r.amountMinor, currency) })) : []);
 
 export function deadlinesOf(row: Pick<Oa, "loi_due" | "full_due" | "internal_due" | "rolling">) {
-  return { loi: row.loi_due, full: row.full_due, internal: row.internal_due, rolling: row.rolling };
+  return { loiDue: row.loi_due, fullDue: row.full_due, internalDue: row.internal_due, rolling: row.rolling };
 }
 
 /** The next open deadline from today (UTC), or the latest past one when all have passed. */
@@ -135,11 +137,13 @@ function listItem(ctx: ServiceContext, row: Oa, counts: { total: number; approve
     stage: row.stage,
     stageLabel: stageLabel(row.stage),
     source: row.source,
+    sourceRef: row.source_ref,
     deadlines: deadlinesOf(row),
     nextDeadline: nextDeadlineOf(row, ctx.now().toISOString().slice(0, 10)),
     askAmount: money(row.ask_amount_minor, row.currency),
     owner: person(names, row.owner_user_id),
     archived: row.archived_at !== null,
+    archivedAt: row.archived_at,
     questionCounts: counts,
     updatedAt: row.updated_at,
   };
@@ -162,7 +166,7 @@ const limitText = (q: Question) => (q.limit_kind && q.limit_value ? `${q.limit_v
 
 function answerView(a: Answer, q: Question) {
   const counts = countText(a.body);
-  return { version: a.version, body: a.body, provenance: a.provenance, libraryAnswerId: a.library_answer_id, counts, overLimit: isOverLimit(counts, { kind: (q.limit_kind as LimitKind | null) ?? null, value: q.limit_value }), savedBy: a.created_by, savedAt: a.created_at };
+  return { id: a.id, questionId: a.question_id, version: a.version, body: a.body, provenance: a.provenance, libraryAnswerId: a.library_answer_id, counts, overLimit: isOverLimit(counts, { kind: (q.limit_kind as LimitKind | null) ?? null, value: q.limit_value }), createdBy: a.created_by, createdAt: a.created_at, savedBy: a.created_by, savedAt: a.created_at };
 }
 
 const questionView = (q: Question, latest: Answer | null) => ({
@@ -174,6 +178,8 @@ const questionView = (q: Question, latest: Answer | null) => ({
   prompt: q.prompt,
   guidance: q.guidance,
   limit: limitOf(q),
+  limitKind: q.limit_kind,
+  limitValue: q.limit_value,
   required: q.required,
   assigneeUserId: q.assignee_user_id,
   status: q.status,
@@ -192,15 +198,31 @@ async function questionsWithAnswers(ctx: ServiceContext, row: Oa) {
 const PHASE_ORDER = { loi: 0, full: 1, report: 2 } as Record<string, number>;
 const byOrder = (a: Question, b: Question) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position || a.created_at.localeCompare(b.created_at);
 
-const docView = (d: Row<"documents">) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, source: d.passport_document_id ? "passport_locker" : "upload", uploadedAt: d.created_at });
-const taskView = (t: Row<"tasks">) => ({ id: t.id, title: t.title, assigneeUserId: t.assignee_user_id, dueAt: t.due_at, doneAt: t.done_at, createdAt: t.created_at });
+/** As the built-in attachments show a document (`Models.Document`). */
+const docView = (d: Row<"documents">) => ({ id: d.id, name: d.name, mime: d.mime, size: d.size, sha256: d.sha256, source: d.passport_document_id ? "passport_locker" : "upload", passportDocumentId: d.passport_document_id, scanStatus: d.scan_status, uploadedAt: d.created_at });
+/** As `/gms/tasks` shows a task (`Models.Task`). */
+const taskView = (t: Row<"tasks">) => ({ id: t.id, subjectType: t.subject_type, subjectId: t.subject_id, title: t.title, assigneeUserId: t.assignee_user_id, dueAt: t.due_at, doneAt: t.done_at, createdAt: t.created_at });
+
+/** Ledger data keys an application's activity may show: ids, stages and dates. Never answer text, amounts or addresses. */
+const ACTIVITY_KEYS = new Set(["from", "to", "stage", "archived", "archivedAt", "submittedAt", "decidedAt", "snapshotDocumentId", "requestId", "sentAt", "source", "migration"]);
+/** The newest activity entries shown on an application. */
+const ACTIVITY_LIMIT = 200;
+
+/** The application's ledger events, newest first: `{ id, type, at, actor, data }` with ids, stages and dates only. */
+async function activityOf(ctx: ServiceContext, row: Oa) {
+  const q = { workspaceId: row.workspace_id, subjectType: "outside_application", subjectId: row.id };
+  const total = await ctx.ledger.count(q);
+  const events = await ctx.ledger.list({ ...q, offset: Math.max(0, total - ACTIVITY_LIMIT), limit: ACTIVITY_LIMIT });
+  return events.reverse().map((e) => ({ id: e.id, type: e.eventType, at: e.occurredAt, actor: e.actor, data: Object.fromEntries(Object.entries(e.data ?? {}).filter(([k]) => ACTIVITY_KEYS.has(k))) }));
+}
 
 async function detailView(ctx: ServiceContext, row: Oa) {
-  const [qa, docs, tasks, record] = await Promise.all([
+  const [qa, docs, tasks, record, activity] = await Promise.all([
     questionsWithAnswers(ctx, row),
     ctx.repos.table("documents").find({ workspace_id: row.workspace_id, subject_type: "outside_application", subject_id: row.id }, { orderBy: "created_at" }),
     ctx.repos.table("tasks").find({ workspace_id: row.workspace_id, subject_type: "outside_application", subject_id: row.id }, { orderBy: "created_at" }),
     row.funder_record_id ? ctx.repos.table("funder_records").one({ id: row.funder_record_id, workspace_id: row.workspace_id }) : Promise.resolve(null),
+    activityOf(ctx, row),
   ]);
   const names = await namesOf(ctx, [row.owner_user_id]);
   const counts = { total: qa.length, approved: qa.filter((x) => x.q.status === "approved").length };
@@ -214,6 +236,20 @@ async function detailView(ctx: ServiceContext, row: Oa) {
     portalUrl: row.portal_url,
     currency: row.currency,
     askByYear: yearsView(row.ask_by_year, row.currency),
+    // The submission and the decision, flat (as the web reads them) and grouped.
+    submittedAt: row.submitted_at,
+    submissionMethod: row.submission_method,
+    confirmationRef: row.confirmation_ref,
+    receiptDocumentId: row.receipt_document_id,
+    snapshotDocumentId: row.snapshot_document_id,
+    snapshotSha256: row.snapshot_sha256,
+    decidedAt: row.decided_at,
+    awardedAmount: money(row.awarded_amount_minor, row.currency),
+    awardByYear: yearsView(row.award_by_year, row.currency),
+    grantStart: row.grant_start,
+    grantEnd: row.grant_end,
+    decisionNotes: row.decision_notes,
+    nextCycleOn: row.next_cycle_on,
     submission: row.submitted_at
       ? { submittedAt: row.submitted_at, method: row.submission_method, methodLabel: METHOD_LABEL[row.submission_method ?? ""] ?? null, confirmationRef: row.confirmation_ref, receiptDocumentId: row.receipt_document_id, snapshot: row.snapshot_document_id ? { documentId: row.snapshot_document_id, sha256: row.snapshot_sha256 } : null }
       : null,
@@ -227,6 +263,7 @@ async function detailView(ctx: ServiceContext, row: Oa) {
     questions: qa.map(({ q, latest }) => questionView(q, latest)),
     documents: docs.map(docView),
     tasks: tasks.map(taskView),
+    activity,
   };
 }
 
@@ -749,6 +786,8 @@ export async function exportOutside(ctx: ServiceContext, id: string, format: Exp
 
 export const documentInput = z.union([
   z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), contentBase64: z.string().min(1) }).strict(),
+  // A Passport locker file referenced with its details, as built-in attachments accept; the GMS keeps no copy.
+  z.object({ name: z.string().trim().min(1).max(300), mime: z.string().min(3).max(120), passportDocumentId: z.string().min(1).max(200), size: z.number().int().min(0), sha256: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
   // A file already in the Passport locker, by id: name, type and hash come from the locker.
   z.object({ passportDocumentId: z.string().min(1).max(200) }).strict(),
 ]);
@@ -759,7 +798,9 @@ export async function attachOutsideDocument(ctx: ServiceContext, id: string, inp
   writable(row);
   const base = { workspace_id: ws.id, owner_workspace_id: ws.id, subject_type: "outside_application", subject_id: row.id, uploaded_by: ctx.actor.userId };
   let doc: Row<"documents">;
-  if ("passportDocumentId" in input) {
+  if ("passportDocumentId" in input && "sha256" in input) {
+    doc = await ctx.repos.table("documents").insert({ ...base, name: input.name, mime: input.mime, size: input.size, sha256: input.sha256, storage: "supabase", path: `passport:${input.passportDocumentId}`, passport_document_id: input.passportDocumentId });
+  } else if ("passportDocumentId" in input) {
     const found = (await listMyDocuments(ctx)).find((d) => d.id === input.passportDocumentId);
     if (!found) throw notFound("Passport locker document");
     if (!found.sha256) throw new ApiError(422, "document_not_attachable", "This locker document has no recorded hash, so it cannot be attached. Upload the file instead");
@@ -836,7 +877,9 @@ function csvAmount(v: string | undefined, currency: string): number | null | und
   }
 }
 
-type ImportPreview = { line: number; ok: boolean; problems: string[]; values: Record<string, unknown>; id?: string };
+type Problem = { field?: ImportField | "mapping"; message: string };
+/** One CSV row as the preview shows it: what was read (`values`), how it will be saved (`normalized`) and what is wrong. */
+type ImportPreview = { row: number; ok: boolean; problems: Problem[]; values: Partial<Record<ImportField, string>>; normalized: Record<string, unknown>; id?: string };
 
 /** Import outside applications from a CSV (max 500 rows). A dry run (the default) previews each row and its problems and writes nothing. */
 export async function importOutsideCsv(ctx: ServiceContext, input: z.output<typeof importInput>) {
@@ -850,38 +893,40 @@ export async function importOutsideCsv(ctx: ServiceContext, input: z.output<type
   const records = await ctx.repos.table("funder_records").find({ workspace_id: ws.id });
   const results: ImportPreview[] = [];
   let created = 0;
+  const made: Oa[] = [];
   for (const r of m.rows) {
     const v = r.values;
-    const problems: string[] = [];
+    const problems: Problem[] = [];
+    const problem = (field: ImportField, message: string) => void problems.push({ field, message });
     const currency = (v.currency ?? "USD").toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) problems.push("The currency is not a three-letter code");
+    if (!/^[A-Z]{3}$/.test(currency)) problem("currency", "The currency is not a three-letter code");
     const title = v.title ? cleanLine(v.title).slice(0, 300) : "";
     const funderName = v.funderName ? cleanLine(v.funderName).slice(0, 200) : "";
-    if (!title) problems.push("No title");
-    if (!funderName) problems.push("No funder");
+    if (!title) problem("title", "No title");
+    if (!funderName) problem("funderName", "No funder");
     const stage = v.stage ? STAGE_WORDS[v.stage.trim().toLowerCase().replace(/_/g, " ")] ?? STAGE_WORDS[v.stage.trim().toLowerCase()] : "drafting";
-    if (!stage) problems.push(`"${v.stage}" is not a stage`);
+    if (!stage) problem("stage", `"${v.stage}" is not a stage`);
     const dates = { loiDue: csvDate(v.loiDue), fullDue: csvDate(v.fullDue), internalDue: csvDate(v.internalDue), submittedAt: csvDate(v.submittedAt), grantStart: csvDate(v.grantStart), grantEnd: csvDate(v.grantEnd) };
-    for (const [k, d] of Object.entries(dates)) if (d === null) problems.push(`${k} is not a date (use YYYY-MM-DD)`);
+    for (const [k, d] of Object.entries(dates)) if (d === null) problem(k as ImportField, `${k} is not a date (use YYYY-MM-DD)`);
     const ask = csvAmount(v.askAmount, currency);
     const awarded = csvAmount(v.awardedAmount, currency);
-    if (ask === null) problems.push("The ask is not an amount");
-    if (awarded === null) problems.push("The awarded amount is not an amount");
+    if (ask === null) problem("askAmount", "The ask is not an amount");
+    if (awarded === null) problem("awardedAmount", "The awarded amount is not an amount");
     const method = v.submissionMethod ? METHOD_WORDS[v.submissionMethod.trim().toLowerCase()] : undefined;
-    if (v.submissionMethod && !method) problems.push(`"${v.submissionMethod}" is not a way of submitting (portal, email, mail, grants.gov, other)`);
+    if (v.submissionMethod && !method) problem("submissionMethod", `"${v.submissionMethod}" is not a way of submitting (portal, email, mail, grants.gov, other)`);
     const pastSubmit = stage === "submitted" || stage === "awarded" || (stage === "declined" && !!dates.submittedAt) || (stage === "withdrawn" && !!dates.submittedAt);
-    if ((stage === "submitted" || stage === "awarded") && (!dates.submittedAt || !method)) problems.push("A submitted application needs the date submitted and how it was sent");
-    if (stage === "awarded" && (awarded === undefined || awarded === null)) problems.push("An awarded application needs the amount awarded");
+    if ((stage === "submitted" || stage === "awarded") && (!dates.submittedAt || !method)) problem("submittedAt", "A submitted application needs the date submitted and how it was sent");
+    if (stage === "awarded" && (awarded === undefined || awarded === null)) problem("awardedAmount", "An awarded application needs the amount awarded");
     const urls: Record<string, string | null> = {};
     for (const k of ["listingUrl", "portalUrl"] as const) {
       if (v[k] === undefined) continue;
       const ok = webUrl.safeParse(v[k]);
-      if (!ok.success) problems.push(`${k} is not a web address`);
+      if (!ok.success) problem(k, `${k} is not a web address`);
       else urls[k] = ok.data;
     }
     const values = { title, funderName, programName: v.programName ? cleanLine(v.programName).slice(0, 300) : null, stage, currency, ...dates, rolling: /^(y|yes|true|1)$/i.test(v.rolling ?? ""), askAmount: typeof ask === "number" ? toMoney(ask, currency) : null, awardedAmount: typeof awarded === "number" ? toMoney(awarded, currency) : null, submissionMethod: method ?? null, confirmationRef: v.confirmationRef ? cleanLine(v.confirmationRef).slice(0, 200) : null, ...urls };
     if (problems.length || input.dryRun) {
-      results.push({ line: r.line, ok: problems.length === 0, problems, values });
+      results.push({ row: r.line, ok: problems.length === 0, problems, values: v, normalized: values });
       continue;
     }
     const decided = stage === "awarded" || stage === "declined";
@@ -916,9 +961,19 @@ export async function importOutsideCsv(ctx: ServiceContext, input: z.output<type
     );
     await audit(ctx, "outside_application.created", "outside_application", row.id, { source: "import", stage: row.stage });
     created++;
-    results.push({ line: r.line, ok: true, problems: [], values, id: row.id });
+    results.push({ row: r.line, ok: true, problems: [], values: v, normalized: values, id: row.id });
+    made.push(row);
   }
-  return { dryRun: input.dryRun, rows: m.rows.length, valid: results.filter((x) => x.ok).length, created, failed: results.filter((x) => !x.ok).length, unknownColumns: unknown, refusedColumns: m.refusedColumns, results };
+  const counts = await questionCounts(ctx, ws.id, made.map((r) => r.id));
+  const names = await namesOf(ctx, made.map((r) => r.owner_user_id));
+  return {
+    dryRun: input.dryRun,
+    rows: results,
+    created: made.map((r) => listItem(ctx, r, counts.get(r.id)!, names)),
+    summary: { rows: m.rows.length, valid: results.filter((x) => x.ok).length, created, failed: results.filter((x) => !x.ok).length },
+    unknownColumns: unknown,
+    refusedColumns: m.refusedColumns,
+  };
 }
 
 const EXPORT_HEADER = ["id", "title", "funderName", "programName", "stage", "loiDue", "fullDue", "internalDue", "rolling", "askAmount", "currency", "listingUrl", "portalUrl", "submittedAt", "submissionMethod", "confirmationRef", "awardedAmount", "grantStart", "grantEnd", "decidedAt", "nextCycleOn", "archived", "source", "updatedAt"] as const;

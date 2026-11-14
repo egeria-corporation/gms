@@ -4,14 +4,15 @@
 // through the notify/Resend path to CONSULTING_REQUEST_TO (on by default on every install), with
 // replies going to the person. Human only: there is no MCP tool, and an agent's token is refused.
 // Limits: 3 per application and 10 per workspace per rolling 24 hours, counted atomically.
-import { CONSULTING_REQUEST_TO, cleanLine, cleanText, consultingRequestEmail, type ConsultingRequestContent } from "@gms/notify";
+import { CONSULTING_ANSWERS_MAX, CONSULTING_REQUEST_TO, cleanLine, cleanText, consultingRequestEmail, type ConsultingRequestContent } from "@gms/notify";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import type { RpcLike } from "../lib/rate-limit.ts";
 import { maskEmail } from "./award-invitations.ts";
 import { audit, type ServiceContext } from "./context.ts";
 import { printMoney } from "./awards.ts";
-import { loadOutside, requirePerson, stageLabel } from "./outside.ts";
+import { toMoney } from "@gms/protocol";
+import { deadlinesOf, loadOutside, requirePerson, stageLabel } from "./outside.ts";
 import type { Repos } from "./repos/types.ts";
 
 /** The send limits; one place to relax them. */
@@ -146,7 +147,7 @@ async function contentFor(ctx: ServiceContext, id: string, input: z.output<typeo
     answers,
   };
   const fields: ConsultingField[] = ["organization", "requester", "title", "funder", "deadlines", "ask", "links", "stage", "questionCount", ...(content.message ? (["message"] as const) : []), ...(answers ? (["answers"] as const) : [])];
-  return { ws, row, content, fields };
+  return { ws, row, content, fields, ask: row.ask_amount_minor === null ? null : toMoney(row.ask_amount_minor, row.currency) };
 }
 
 const recipient = (ctx: ServiceContext) => ctx.config.consultingRequestTo?.trim() || CONSULTING_REQUEST_TO;
@@ -154,10 +155,34 @@ const recipient = (ctx: ServiceContext) => ctx.config.consultingRequestTo?.trim(
 /** Exactly what would be sent, and to whom. Nothing is sent or counted. */
 export async function previewConsultingRequest(ctx: ServiceContext, id: string, input: z.output<typeof consultingInput>) {
   requirePerson(ctx, "Asking for consulting help");
-  const { content, fields } = await contentFor(ctx, id, input);
+  const { row, content, fields, ask } = await contentFor(ctx, id, input);
   await assertRole(ctx);
   const mail = consultingRequestEmail(content);
-  return { to: recipient(ctx), replyTo: content.requester.email, subject: mail.subject, text: mail.text, content, fieldsSent: fields };
+  const answersText = content.answers ? content.answers.map((a, i) => `${i + 1}. ${a.prompt}\n${a.answer}`).join("\n\n") : "";
+  // The same facts, one per field, as the confirmation dialog shows them; `text` is the email itself.
+  return {
+    to: recipient(ctx),
+    replyTo: content.requester.email,
+    subject: mail.subject,
+    text: mail.text,
+    organization: content.organization,
+    contactName: content.requester.name,
+    contactEmail: content.requester.email,
+    title: content.title,
+    funder: content.funder,
+    deadlines: deadlinesOf(row),
+    ask,
+    listingUrl: row.listing_url,
+    portalUrl: row.portal_url,
+    stage: row.stage,
+    stageLabel: content.stage,
+    questionCount: content.questionCount,
+    message: content.message,
+    answers: content.answers ? content.answers.map((a) => ({ prompt: a.prompt, body: a.answer })) : null,
+    answersTruncated: answersText.length > CONSULTING_ANSWERS_MAX,
+    content,
+    fieldsSent: fields,
+  };
 }
 
 async function assertRole(ctx: ServiceContext) {
@@ -189,5 +214,5 @@ export async function sendConsultingRequest(ctx: ServiceContext, id: string, inp
   const at = ctx.now().toISOString();
   await store.markSent(claim.requestId, at);
   await audit(ctx, "outside_application.consulting_requested", "outside_application", row.id, { requestId: claim.requestId, contactEmail: masked, fieldsSent: fields, sentAt: at });
-  return { sent: true, requestId: claim.requestId, sentAt: at, replyTo: content.requester.email, message: `OpenGrants consulting can start right away. The team will reply to ${content.requester.email}.` };
+  return { sent: true, requestId: claim.requestId, sentAt: at, to: recipient(ctx), replyTo: content.requester.email, message: `OpenGrants consulting can start right away. The team will reply to ${content.requester.email}.` };
 }

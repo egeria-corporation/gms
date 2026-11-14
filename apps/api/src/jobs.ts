@@ -223,7 +223,7 @@ const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]>
 /**
  * Outside application deadlines (letter of inquiry, full, internal) 14, 7 and 2 days ahead and on
  * the day: email the application's owner and the people assigned to questions not yet approved,
- * honouring each one's preferences for application email (`outside_deadline`). Runs once a day; the
+ * with the `outside_deadline` template, honouring each one's `outside_deadline` email preference. Runs once a day; the
  * idempotency key names the application, deadline, date and offset, so a re-run that day sends
  * nothing twice. Archived and closed applications are skipped.
  */
@@ -250,7 +250,7 @@ export async function sendOutsideReminders(base: BaseContext): Promise<{ checked
     const people = [...new Set([row.owner_user_id, ...open.map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
     if (!people.length) return;
     const mail = outsideDeadlineEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, kind, dueOn: date, daysLeft: days, openQuestions: open.length, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
-    const out = await mailMembers(base, { workspaceId: ws.id, category: "application", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_deadline", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
     reminded++;
     sent += out.sent;
   });

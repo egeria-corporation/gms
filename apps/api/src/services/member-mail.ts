@@ -108,7 +108,7 @@ export async function sendDigests(base: BaseContext, cadence: "daily" | "weekly"
       const prefs = normalizePreferences(m.notification_preferences as never);
       const items = (await deriveFor(base, m, ws)).filter((n) => n.at > since && prefs.channels[n.category].email);
       // The weekly digest also lists the outside applications' deadlines of the next 14 days (apply anywhere).
-      const upcoming = cadence === "weekly" && ws.kind === "applicant" && OUTSIDE_ROLES.includes(m.role) && prefs.channels.application.email ? await upcomingOutsideDeadlines(base, ws.id, now, 14) : [];
+      const upcoming = cadence === "weekly" && ws.kind === "applicant" && OUTSIDE_ROLES.includes(m.role) && prefs.channels.outside_deadline.email ? await upcomingOutsideDeadlines(base, ws.id, now, 14) : [];
       if (!items.length && !upcoming.length) {
         out.empty++;
         continue;

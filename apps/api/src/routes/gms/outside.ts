@@ -87,7 +87,7 @@ outsideRoutes.get("/outside-applications/:id/snapshot.pdf", async (c) => {
 });
 outsideRoutes.get("/outside-applications/:id/documents", async (c) => c.json(ok(await outside.listOutsideDocuments(await svc(c), oaId(c)))));
 outsideRoutes.post("/outside-applications/:id/documents", async (c) => c.json(created(await outside.attachOutsideDocument(await svc(c), oaId(c), parse(outside.documentInput, await jsonBody(c)))), 201));
-outsideRoutes.get("/outside-applications/:id/documents/:docId/content", async (c) => {
+outsideRoutes.get("/outside-applications/:id/documents/:docId/file", async (c) => {
   const f = await outside.outsideDocumentFile(await svc(c), oaId(c), bareUuid(c.req.param("docId"), "Document"));
   return new Response(f.bytes as Uint8Array<ArrayBuffer>, { status: 200, headers: { "Content-Type": f.mime, "Content-Disposition": `attachment; filename="${f.filename}"`, "Content-Length": String(f.bytes.byteLength), "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store" } });
 });

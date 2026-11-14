@@ -45,8 +45,8 @@ describe("outside deadline reminders", () => {
     expect(h.mailer.sent).toHaveLength(4);
   });
 
-  it("honours a person who turned application email off, and skips the days between", async () => {
-    await prefs(USER_APPLICANT_EDITOR, { digest: "immediate", channels: { application: { inApp: true, email: false } } });
+  it("honours a person who turned deadline email off, and skips the days between", async () => {
+    await prefs(USER_APPLICANT_EDITOR, { digest: "immediate", channels: { outside_deadline: { inApp: true, email: false } } });
     await sendOutsideReminders(base());
     expect(new Set(h.mailer.sent.map((m) => m.to[0]))).toEqual(new Set(["maria.santos@aldercreek.example"]));
     h.mailer.sent.length = 0;
@@ -79,8 +79,8 @@ describe("weekly digest", () => {
     expect(mail.text).not.toContain(inDays(30));
   });
 
-  it("leaves the deadlines out for a member who turned application email off", async () => {
-    await prefs(USER_APPLICANT, { digest: "weekly", channels: { application: { inApp: true, email: false } } });
+  it("leaves the deadlines out for a member who turned deadline email off", async () => {
+    await prefs(USER_APPLICANT, { digest: "weekly", channels: { outside_deadline: { inApp: true, email: false } } });
     await sendDigests(base(), "weekly");
     expect(h.mailer.sent.filter((m) => m.to[0] === "maria.santos@aldercreek.example").every((m) => !m.text.includes("Deadlines in the next 14 days"))).toBe(true);
   });
