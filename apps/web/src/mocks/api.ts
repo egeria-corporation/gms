@@ -516,8 +516,9 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
         }
         const opens = opp.keyDates.postDate?.date;
         const closes = opp.keyDates.closeDate?.date;
-        if (!first.opens && opens) first.opens = `${opens}T00:00:00Z`;
-        if (!first.closes && closes) first.closes = `${closes}T23:59:59Z`;
+        const inOrder = (a: string | null | undefined, b: string | null | undefined) => !a || !b || Date.parse(a) < Date.parse(b);
+        if (!first.opens && opens && inOrder(`${opens}T00:00:00Z`, first.closes)) first.opens = `${opens}T00:00:00Z`;
+        if (!first.closes && closes && inOrder(first.opens, `${closes}T23:59:59Z`)) first.closes = `${closes}T23:59:59Z`;
         if (first.requiresSubmission && !Object.keys(first.forms).length) {
           const title = starterFormTitle(opp.title);
           const versions = w.forms.filter((f) => f.title === title);

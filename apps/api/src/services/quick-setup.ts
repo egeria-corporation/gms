@@ -122,8 +122,8 @@ const stageInputOf = (s: StageJson): z.output<typeof stagesInput>["stages"][numb
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
- * The starter form this opportunity already has: one quick setup made earlier (found by its title)
- * whose latest version is published, or an untouched first draft of it. Null when there is none.
+ * The starter form this opportunity already has: one quick setup made earlier (found by its title),
+ * at its latest published version, or an untouched first draft of it. Null when there is none.
  */
 async function existingStarterForm(ctx: ServiceContext, workspaceId: string, title: string): Promise<{ id: string; version: number; draft: boolean } | null> {
   const rows = await ctx.repos.table("forms").find({ workspace_id: workspaceId, title });
@@ -180,8 +180,10 @@ export async function quickSetupCompetition(ctx: ServiceContext, opportunityUuid
     }
     const opens = dayOf(opp.key_dates, "postDate");
     const closes = dayOf(opp.key_dates, "closeDate");
-    if (!first.opens && opens) first.opens = `${opens}T00:00:00Z`;
-    if (!first.closes && closes) first.closes = `${closes}T23:59:59Z`;
+    // A date is filled in only where it is missing, and never so that the stage closes before it opens.
+    const inOrder = (a: string | null | undefined, b: string | null | undefined) => !a || !b || Date.parse(a) < Date.parse(b);
+    if (!first.opens && opens && inOrder(`${opens}T00:00:00Z`, first.closes)) first.opens = `${opens}T00:00:00Z`;
+    if (!first.closes && closes && inOrder(first.opens, `${closes}T23:59:59Z`)) first.closes = `${closes}T23:59:59Z`;
 
     if (first.requiresSubmission && !Object.keys(first.forms).length) {
       const title = starterFormTitle(opp.title);

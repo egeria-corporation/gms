@@ -126,6 +126,19 @@ describe("quick setup", () => {
     expect(out.rubric).not.toBeNull();
   });
 
+  it("never fills in a date that would make the funder's stage close before it opens", async () => {
+    const h = await harness();
+    const officer = await as(h, USER_OFFICER);
+    const opp = await published(h, officer);
+    const comp = await data<{ id: string }>(await h.request("/gms/competitions", json(officer, { opportunityId: opp.id, title: "Early round" })));
+    // The funder's stage closes before the opportunity's opening date.
+    await h.request(`/gms/competitions/${comp.id}/stages`, json(officer, { stages: [{ key: "early", label: "Early round", forms: {}, closes: "2027-03-15T23:59:59Z" }] }, "PUT"));
+    const res = await quickSetup(h, officer, opp.id);
+    expect(res.status).toBe(200);
+    const out = await data<Setup>(res);
+    expect(out.competition.stages[0]).toMatchObject({ opens: null, closes: "2027-03-15T23:59:59Z" });
+  });
+
   it("leaves opening refused while a checklist item fails, with a link to fix it", async () => {
     const h = await harness();
     const officer = await as(h, USER_OFFICER);
