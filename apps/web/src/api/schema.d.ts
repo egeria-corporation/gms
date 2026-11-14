@@ -3449,6 +3449,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/opportunities/{id}/quick-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Quick setup: makes, as editable drafts, a one-stage competition dated from the opportunity's
+         *     open and close dates, a starter application form (published and pinned) and a starter rubric.
+         *     Keeps what the funder set and reuses what an earlier run made. Does not open the competition.
+         */
+        post: operations["Opportunities_quickSetup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/org-changes": {
         parameters: {
             query?: never;
@@ -14076,6 +14097,33 @@ export interface components {
         "Models.QuestionPhase": "loi" | "full" | "report";
         /** @enum {string} */
         "Models.QuestionStatus": "empty" | "draft" | "ready" | "approved";
+        /** @description `POST /gms/opportunities/{id}/quick-setup`: what quick setup made or reused, and the launch checklist. */
+        "Models.QuickSetupResult": {
+            /** @description The opportunity's competition: newly made, or the draft (or open) one it already had */
+            competition: components["schemas"]["Models.GmsCompetition"];
+            /** @description The form pinned to the first stage; null when that stage takes no submission */
+            form: {
+                id: components["schemas"]["Models.PrefixedId"];
+                /** Format: int32 */
+                version: number;
+                title: string;
+            } | null;
+            /** @description The rubric on the first stage; null when that stage records no decision */
+            rubric: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: int32 */
+                version: number;
+                name: string;
+            } | null;
+            /** @description What this run made; false means it was there already and was reused */
+            created: {
+                competition: boolean;
+                form: boolean;
+                rubric: boolean;
+            };
+            /** @description The unchanged launch checklist. Opening is a separate call */
+            checklist: components["schemas"]["Models.Readiness"];
+        };
         "Models.Ranking": {
             competitionId: components["schemas"]["Models.PrefixedId"];
             stage: string;
@@ -28470,6 +28518,80 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.GmsOpportunity"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Opportunities_quickSetup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.QuickSetupResult"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };

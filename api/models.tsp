@@ -574,6 +574,36 @@ model GmsCompetitionInput {
   acceptedApplicantTypes?: string[];
 }
 
+/** `POST /gms/opportunities/{id}/quick-setup`: what quick setup made or reused, and the launch checklist. */
+model QuickSetupResult {
+  /** The opportunity's competition: newly made, or the draft (or open) one it already had */
+  competition: GmsCompetition;
+
+  /** The form pinned to the first stage; null when that stage takes no submission */
+  form: {
+    id: PrefixedId;
+    version: int32;
+    title: string;
+  } | null;
+
+  /** The rubric on the first stage; null when that stage records no decision */
+  rubric: {
+    id: CommonGrants.Types.uuid;
+    version: int32;
+    name: string;
+  } | null;
+
+  /** What this run made; false means it was there already and was reused */
+  created: {
+    competition: boolean;
+    form: boolean;
+    rubric: boolean;
+  };
+
+  /** The unchanged launch checklist. Opening is a separate call */
+  checklist: Readiness;
+}
+
 /** `PUT /gms/competitions/{id}/stages`. Allowed only while the competition is a draft. */
 model StagesInput {
   stages: Stage[];

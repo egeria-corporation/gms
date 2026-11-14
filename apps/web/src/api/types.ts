@@ -249,6 +249,18 @@ export interface Checklist {
   items: ChecklistItem[];
 }
 
+/** `POST /gms/opportunities/{id}/quick-setup`: what quick setup made or reused, and the launch checklist. */
+export interface QuickSetupResult {
+  competition: Competition;
+  /** The form pinned to the first stage; null when that stage takes no submission. */
+  form: { id: string; version: number; title: string } | null;
+  /** The rubric on the first stage; null when that stage records no decision. */
+  rubric: { id: string; version: number; name: string } | null;
+  /** What this run made; false means it was there already and was reused. */
+  created: { competition: boolean; form: boolean; rubric: boolean };
+  checklist: Checklist;
+}
+
 export type FormPurpose = components["schemas"]["Models.FormPurpose"];
 
 export interface FormSummary {

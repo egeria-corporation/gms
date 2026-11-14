@@ -14,6 +14,7 @@ const ROWS: readonly Row[] = [
   r("PATCH", "/gms/opportunities/:id", "update_opportunity"),
   r("POST", "/gms/opportunities/:id/publish", "publish_opportunity"),
   r("POST", "/gms/competitions", "create_competition"),
+  r("POST", "/gms/opportunities/:id/quick-setup", "quick_setup_competition"),
   r("PUT", "/gms/competitions/:id/forms", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/stages", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/rubric", "set_rubric"),

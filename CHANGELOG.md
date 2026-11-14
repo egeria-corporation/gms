@@ -42,6 +42,45 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 - The jobs Worker runs a new daily job at 14:30 UTC (`outside-deadlines`) on the existing cron.
 - Recording a submission keeps a PDF copy, so it needs the `ATTACHMENTS` file storage binding.
 
+## v1.4.0
+
+### Added
+
+- An **Applications** step in the opportunity builder, after Publish. It shows the launch checklist
+  (stage, published form, dates, rubric, eligibility rules, CommonGrants) with a link to fix each
+  item that fails, and an **Open for applications** button that opens the competition only when
+  every item passes, exactly as the Competition screen does.
+- **Quick setup**, one button on that step. It makes, as drafts you can edit: a one-stage
+  competition using the opportunity's opening and closing dates; a starter application form
+  (project title, summary, amount requested, how the funds will be used, expected outcomes, a
+  budget upload and a contact), published and pinned to the stage; and a starter rubric (alignment
+  with the opportunity, feasibility, budget and community impact, each scored 1 to 5). It keeps
+  anything already set, and running it again reuses what it made. The same action is
+  `POST /gms/opportunities/{id}/quick-setup` and the MCP tool `quick_setup_competition`; both need
+  `competitions:write`, `forms:write` and `reviews:write`, and a workspace that requires approval
+  for creating competitions or forms, pinning forms or setting rubrics holds quick setup too.
+
+### Changed
+
+- The public opportunity page shows **Apply** only while a competition is open. Otherwise it says
+  "Not taking applications yet", and a signed-in applicant can **Save** the opportunity to Find
+  funding.
+- An opportunity that is published but has no open competition shows "Published, not taking
+  applications" in the Opportunities list and the builder header, with a link to set up
+  applications, and the Dashboard lists it as a task.
+
+### Fixed
+
+- The opportunity builder no longer ticks a step the funder has not opened (for example "Who can
+  apply", whose 501(c)(3) default is valid). Every step of an opportunity saved before counts as
+  visited.
+
+### Upgrade notes
+
+- No database migrations and no setting changes. Opportunities already published without a
+  competition now say so; open the Applications step and use Quick setup to start taking
+  applications.
+
 ## v1.3.2
 
 ### Fixed

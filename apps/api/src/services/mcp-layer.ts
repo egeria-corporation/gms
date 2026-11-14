@@ -28,6 +28,7 @@ import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
+import * as quickSetup from "./quick-setup.ts";
 import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
 import * as templates from "./templates.ts";
@@ -89,6 +90,7 @@ const IMPLEMENTED: Impl = {
   publishOpportunity: (ctx, i) => opportunities.publishOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   listCompetitions: (ctx, i) => competitions.listCompetitions(ctx, i.opportunityId ? { opportunityId: uuidOf("opportunity", i.opportunityId, "Opportunity") } : {}),
   getCompetition: (ctx, i) => competitions.getCompetition(ctx, uuidOf("competition", i.competitionId, "Competition")),
+  quickSetupCompetition: (ctx, i) => quickSetup.quickSetupCompetition(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   listForms: (ctx, i) => (i.library ? forms.listLibrary(ctx, paged(i)) : forms.listForms(ctx, paged(i), { purpose: i.purpose })),
   getForm: (ctx, i) => forms.getForm(ctx, frm(i.formId), i.version),
 
