@@ -10,19 +10,37 @@ export type Query<T> = QueryState<T> & {
   reload: () => void;
   /** Replace the loaded value without a round trip (after a write that returned the new record). */
   set: (data: T) => void;
+  /**
+   * True while `reload()` fetches again with the current data still shown. Optional so the other
+   * query hooks, which keep their data anyway, satisfy the same type.
+   */
+  refreshing?: boolean;
 };
 
-/** Runs `load` on mount and whenever `deps` change. A stale response never overwrites a newer one. */
+type Loaded<T> = QueryState<T> & { refreshing?: boolean };
+
+/**
+ * Runs `load` on mount and whenever `deps` change. A stale response never overwrites a newer one.
+ * The first load and a change of `deps` show the loading state. `reload()` keeps the current data on
+ * screen and sets `refreshing` until the new data arrives, so a list does not flash empty after a
+ * write. A failed load shows the error, as before; a reload from the error state loads afresh.
+ */
 export function useApiQuery<T>(load: (api: GmsApi) => Promise<T>, deps: DependencyList): Query<T> {
   const { api } = useServices();
-  const [state, setState] = useState<QueryState<T>>({ status: "loading" });
+  const [state, setState] = useState<Loaded<T>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const loader = useRef(load);
   loader.current = load;
+  // The inputs of the last load: when only `attempt` moved, this run is a reload.
+  const inputs = useRef<readonly unknown[] | null>(null);
 
   useEffect(() => {
     let live = true;
-    setState({ status: "loading" });
+    const now = [api, ...deps];
+    const prev = inputs.current;
+    const sameInputs = prev !== null && prev.length === now.length && prev.every((v, i) => Object.is(v, now[i]));
+    inputs.current = now;
+    setState((s) => (sameInputs && s.status === "ready" ? { status: "ready", data: s.data, refreshing: true } : { status: "loading" }));
     loader.current(api).then(
       (data) => live && setState({ status: "ready", data }),
       (error: unknown) => live && setState({ status: "error", error }),
@@ -34,7 +52,7 @@ export function useApiQuery<T>(load: (api: GmsApi) => Promise<T>, deps: Dependen
 
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
   const set = useCallback((data: T) => setState({ status: "ready", data }), []);
-  return { ...state, reload, set };
+  return { ...state, refreshing: state.refreshing === true, reload, set };
 }
 
 export interface Mutation<A extends unknown[], R> {
