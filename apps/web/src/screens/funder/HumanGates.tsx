@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Human gates: the agent tools that create an approval request instead of acting. The default
-// gates are locked on; a workspace can add gates to other tools and never remove one.
+// gates are locked on; a workspace can add gates to other tools and never remove one. A switch
+// flips at once and the save follows; if the save fails the switch goes back and says why.
+import { useState } from "react";
 import { Circle, Info, Lock } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { useAppConfig } from "../../api/launchHooks.ts";
@@ -29,12 +31,23 @@ export function HumanGates() {
   const ws = useWorkspace("funder");
   const record = useApiQuery((api) => api.workspaceRecord(ws.id), [ws.id]);
   const save = useApiMutation((api, gatedTools: string[]) => api.updateWorkspace(ws.id, { settings: { ...(record.data?.settings ?? {}), gatedTools } }));
-  const extra = ((record.data?.settings as { gatedTools?: unknown } | undefined)?.gatedTools as string[] | undefined) ?? [];
+  const saved = ((record.data?.settings as { gatedTools?: unknown } | undefined)?.gatedTools as string[] | undefined) ?? [];
+  // The switches as the person just set them, shown while the save is in flight.
+  const [pending, setPending] = useState<string[] | null>(null);
+  // The gate whose change did not save, named in the message under the heading.
+  const [failed, setFailed] = useState<string | null>(null);
+  const extra = pending ?? saved;
 
   async function toggle(tool: string) {
     const next = extra.includes(tool) ? extra.filter((t) => t !== tool) : [...extra, tool];
-    if (await save.run(next)) record.reload();
+    setFailed(null);
+    setPending(next);
+    const out = await save.run(next);
+    if (out) record.set(out.workspace);
+    else setFailed(tool);
+    setPending(null);
   }
+  const failedLabel = failed === null ? null : (OPTIONAL.find(([t]) => t === failed)?.[1] ?? failed);
 
   return (
     <section className="card" id="gates" aria-labelledby="gates-h">
@@ -48,7 +61,7 @@ export function HumanGates() {
       <div className="card-b" style={{ paddingTop: "8px" }}>
         {record.status === "loading" && <Loading label="Loading gates" />}
         {record.status === "error" && <ErrorBanner error={record.error} onRetry={record.reload} />}
-        {save.error !== null && <ErrorBanner error={save.error} />}
+        {save.error !== null && <ErrorBanner error={save.error} title={failedLabel ? `“${failedLabel}” did not change. The switch is back where it was.` : undefined} />}
         {record.status === "ready" && (
           <div className="rc">
             {LOCKED.map(([tool, label, text]) => [tool, label, tool === "release_tranche" && !facilitatedPayments ? "Payments through Passport are not switched on for this install; recording a payment made elsewhere is done by a person" : text] as const).map(([tool, label, why]) => (
@@ -74,7 +87,7 @@ export function HumanGates() {
                       <span className="mono">{tool}</span> · {why}
                     </div>
                   </div>
-                  <button type="button" className={on ? "tog on" : "tog"} role="switch" aria-checked={on} aria-label={`${label} requires approval`} disabled={save.state === "saving"} onClick={() => toggle(tool)}></button>
+                  <button type="button" className={on ? "tog on" : "tog"} role="switch" aria-checked={on} aria-label={`${label} requires approval`} disabled={save.state === "saving"} onClick={() => void toggle(tool)}></button>
                 </div>
               );
             })}

@@ -90,7 +90,7 @@ test("review to award", async ({ app: page }) => {
 
   await test.step("the applicant accepts the offer and signs", async () => {
     await switchWorkspace(page, "Alder Creek Family Services");
-    await page.getByRole("navigation", { name: "Applicant workspace" }).getByRole("link", { name: "My grants" }).click();
+    await page.getByRole("navigation", { name: "Applicant workspace" }).getByRole("link", { name: "Awarded funding" }).click();
     await expect(page.getByRole("heading", { level: 2, name: "Mobile Health Navigation for Rural Families" })).toBeVisible();
     await page.getByLabel("Your full legal name").fill("Maria Santos");
     await page.getByRole("button", { name: "Accept award" }).click();
