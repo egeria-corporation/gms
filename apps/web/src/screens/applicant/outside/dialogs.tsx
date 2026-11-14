@@ -240,7 +240,7 @@ function PreviewView({ p }: { p: ConsultingPreview }) {
   const dates = (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).filter((k) => p.deadlines[k]);
   return (
     <section aria-label="What will be sent" style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--og-gray-50)" }}>
-      <dl className="kv" style={{ fontSize: "14px" }}>
+      <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere" }}>
         <dt>To</dt>
         <dd>{p.to}</dd>
         <dt>Replies go to</dt>

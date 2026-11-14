@@ -21,6 +21,7 @@ export const EVENTS: { key: string; label: string; detail: string }[] = [
   { key: "agreement", label: "Agreements", detail: "Sent for signature, countersigned, executed" },
   { key: "payment", label: "Payments", detail: "Sent, settled or paused; bank name and last four only" },
   { key: "requirement", label: "Report reminders", detail: "A requirement is coming due or overdue" },
+  { key: "outside_deadline", label: "Application deadlines", detail: "Applications you track here: 14, 7 and 2 days before a deadline, and on the day" },
   { key: "submission", label: "Report reviews", detail: "A report was accepted or returned with comments" },
   { key: "organization", label: "Organization and consent", detail: "Passport record changes, funders asking to read more" },
   { key: "approval", label: "Approvals", detail: "An agent is waiting for your decision" },

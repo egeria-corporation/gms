@@ -5,7 +5,7 @@
 // typed details; a spreadsheet can be imported, and everything exported.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { Archive, Download, FileText, Kanban, LayoutList, Plus, Search, Upload } from "lucide-react";
+import { Archive, FileText, Kanban, LayoutList, Plus, Search, Upload } from "lucide-react";
 import type { ApplicantMember } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { useAppConfig } from "../../api/launchHooks.ts";
@@ -37,6 +37,8 @@ export const LANE_LABELS: Record<Lane, string> = {
   declined: "Declined",
   closed: "Withdrawn or not pursuing",
 };
+/** Always on the board; the other lanes appear once something is in them. */
+const CORE_LANES: ReadonlySet<Lane> = new Set(["prospect", "drafting", "submitted", "awarded"]);
 const GMS_LANE: Record<string, Lane> = {
   draft: "drafting",
   revision_requested: "drafting",
@@ -302,7 +304,6 @@ export default function Applications() {
                 <option value="csv">Spreadsheet (CSV)</option>
                 <option value="json">Data (JSON)</option>
               </select>
-              <Download className="ic" aria-hidden="true" style={{ alignSelf: "center" }} />
             </div>
           </div>
           {note && <Notice tone="ok" title={note} />}
@@ -389,7 +390,7 @@ export default function Applications() {
                     </EmptyState>
                   </div>
                 ) : view === "board" ? (
-                  <Board rows={filtered} lanes={LANES.filter((l) => (l !== "declined" && l !== "closed") || filtered.some((r) => r.lane === l) || lane === l)} />
+                  <Board rows={filtered} lanes={LANES.filter((l) => CORE_LANES.has(l) || filtered.some((r) => r.lane === l) || lane === l)} />
                 ) : (
                   <DataTable
                     label="Applications"

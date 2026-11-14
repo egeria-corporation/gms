@@ -4,7 +4,7 @@
 // Each answer is written here with live counts against the funder's limit, can start from the
 // answer library or an organization fact, and every save is a new version.
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, Download, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
+import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
 import type { Answer, ApplicantMember, MyOrganization } from "../../../api/applicant.ts";
 import type { AdaptedDraft } from "../../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../../api/applicantFullHooks.ts";
@@ -754,7 +754,6 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
                 <option value="md">Markdown (.md)</option>
                 <option value="pdf">PDF</option>
               </select>
-              <Download className="ic" aria-hidden="true" />
             </span>
           )}
         </div>
