@@ -162,14 +162,15 @@ const IMPLEMENTED: Impl = {
   getPassportReadiness: (ctx) => org.getMyReadiness(ctx),
   findCompetitions: async (ctx, i) => {
     const needle = i.search?.toLowerCase();
-    const all = (await applicant.discoverCompetitions(ctx)).filter((c) => (!needle || `${c.opportunity.title} ${c.opportunity.description}`.toLowerCase().includes(needle)) && (!i.eligibleOnly || c.eligibility.eligible === true));
+    // Open competitions only: an opportunity not taking applications yet has nothing to start or check.
+    const all = (await applicant.discoverCompetitions(ctx)).filter((c) => c.acceptingApplications && (!needle || `${c.opportunity.title} ${c.opportunity.description}`.toLowerCase().includes(needle)) && (!i.eligibleOnly || c.eligibility?.eligible === true));
     const p = paged(i);
     return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
   },
   checkEligibility: async (ctx, i) => {
     const id = uuidOf("competition", i.competitionId, "Competition");
     const found = (await applicant.discoverCompetitions(ctx)).find((c) => c.competitionId === id);
-    if (!found) throw new ServiceError("not_found", "No open competition with that id.");
+    if (!found?.eligibility) throw new ServiceError("not_found", "No open competition with that id.");
     return found.eligibility;
   },
   searchOpenGrants: (ctx, i) => applicant.openGrants(ctx, "search", i),

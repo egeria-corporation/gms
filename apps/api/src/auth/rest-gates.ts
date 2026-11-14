@@ -63,6 +63,13 @@ const ROWS: readonly Row[] = [
   r("POST", "/gms/my/answers", "save_answer"),
   r("PATCH", "/gms/my/answers/:id", "save_answer"),
   r("POST", "/gms/threads/:id/messages", "reply"),
+  // Apply anywhere
+  r("POST", "/gms/outside-applications", "create_outside_application"),
+  r("POST", "/gms/outside-applications/:id/questions", "add_outside_questions"),
+  r("PUT", "/gms/outside-questions/:id/answer", "put_outside_answer"),
+  r("POST", "/gms/outside-applications/:id/stage", "set_outside_stage"),
+  r("POST", "/gms/outside-applications/:id/submit", "record_outside_submission"),
+  r("POST", "/gms/outside-applications/:id/decision", "record_outside_decision"),
 ];
 
 /** The MCP tool a REST call stands for, or null for reads and routes no tool covers. */
