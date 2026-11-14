@@ -34,14 +34,23 @@ type Tool = "summarize" | "compare_rubric" | "draft_letter" | "adapt_answer";
 
 const disabled = () => new ApiError(404, "assistant_disabled", "The drafting assistant is not enabled on this server");
 
-function limitOf(settings: unknown): number {
-  const n = (settings as { assistMonthlyQuota?: unknown } | null)?.assistMonthlyQuota;
-  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : DEFAULT_MONTHLY_QUOTA;
+/** ASSISTANT_MONTHLY_QUOTA as a whole number of calls, or null (then the default applies). */
+export function monthlyQuotaOf(raw: string | undefined | null): number | null {
+  const t = raw?.trim();
+  if (!t || !/^\d{1,7}$/.test(t)) return null;
+  return Number(t);
 }
 
-async function quota(ctx: ServiceContext, ws: ServiceWorkspace) {
+/** A workspace's own limit (`settings.assistMonthlyQuota`, server-set), else the server's, else the default. */
+function limitOf(settings: unknown, server: number | null | undefined): number {
+  const n = (settings as { assistMonthlyQuota?: unknown } | null)?.assistMonthlyQuota;
+  if (typeof n === "number" && Number.isInteger(n) && n >= 0) return n;
+  return typeof server === "number" && Number.isInteger(server) && server >= 0 ? server : DEFAULT_MONTHLY_QUOTA;
+}
+
+export async function quota(ctx: ServiceContext, ws: ServiceWorkspace) {
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  const limit = limitOf(row.settings);
+  const limit = limitOf(row.settings, ctx.config.assistantMonthlyQuota);
   const since = monthStart(ctx.now()).toISOString();
   // Newest first, one more than the limit: enough to know whether the month is spent.
   const recent = await ctx.repos.table("assist_calls").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false, limit: limit + 1 });

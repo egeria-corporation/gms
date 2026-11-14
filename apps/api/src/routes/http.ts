@@ -8,6 +8,7 @@ import { trimSlash } from "../env.ts";
 import { restTool, workspaceGates } from "../auth/rest-gates.ts";
 import { forbidden } from "../auth/verify.ts";
 import { badRequest, notFound, parsePagination } from "../lib/errors.ts";
+import { monthlyQuotaOf } from "../services/assist.ts";
 import { makeActor, type ServiceConfig, type ServiceContext } from "../services/context.ts";
 import type { PublicContext } from "../services/public.ts";
 
@@ -28,6 +29,7 @@ export function config(c: C): ServiceConfig {
     passportAwardWrite: c.env.PASSPORT_AWARD_WRITE === "true",
     assistantEnabled: c.env.ASSISTANT_ENABLED === "true",
     assistantModel: c.env.ASSISTANT_MODEL?.trim() || null,
+    assistantMonthlyQuota: monthlyQuotaOf(c.env.ASSISTANT_MONTHLY_QUOTA),
     facilitatedPayments: c.env.PAYMENTS_FACILITATED === "true",
     applicantPayeeRead: c.env.PASSPORT_APPLICANT_PAYEE_READ !== "false",
     webhookSecretKey: c.env.WEBHOOK_SECRET_KEY ?? null,

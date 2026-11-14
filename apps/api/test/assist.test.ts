@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The drafting assistant: off by default, drafts only, quota and call log, applicant text as data.
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { USER_OFFICER, WS_APPLICANT, WS_FUNDER, harness, type Harness } from "./helpers.ts";
 import { scenario, type Scenario } from "./scenario.ts";
@@ -109,7 +110,34 @@ describe("assistant on", () => {
     expect((await s.call(s.funder, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(200);
   });
 
+  it("takes the monthly quota from ASSISTANT_MONTHLY_QUOTA, a workspace's own limit first", async () => {
+    type Status = { data: { monthlyQuota: number; quota: { limit: number; remaining: number } } };
+    expect((await s.call<Status>(s.funder, "GET", "/gms/assist/status")).body.data.monthlyQuota).toBe(40);
+    h.env.ASSISTANT_MONTHLY_QUOTA = "100";
+    expect((await s.call<Status>(s.funder, "GET", "/gms/assist/status")).body.data).toMatchObject({ monthlyQuota: 100, quota: { limit: 100, remaining: 100 } });
+    h.env.ASSISTANT_MONTHLY_QUOTA = "a lot";
+    expect((await s.call<Status>(s.funder, "GET", "/gms/assist/status")).body.data.monthlyQuota).toBe(40);
+    h.env.ASSISTANT_MONTHLY_QUOTA = "2";
+    h.llmAnswer.value = SUMMARY;
+    expect((await s.call(s.funder, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(200);
+    expect((await s.call(s.funder, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(200);
+    expect((await s.call(s.funder, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(429);
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: { assistMonthlyQuota: 3 } });
+    expect((await s.call(s.funder, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(200);
+  });
+
   it("does not let an applicant summarize a funder's inbox", async () => {
     expect((await s.call(s.applicant, "POST", "/gms/assist/summarize", { applicationId: appId })).status).toBe(403);
+  });
+});
+
+describe("hosted site", () => {
+  it("turns the assistant on in production with 100 calls a month (it stays off without ANTHROPIC_API_KEY)", () => {
+    const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+    const production = toml.split("[env.production.vars]")[1]!.split(/^\[/m)[0]!;
+    expect(production).toMatch(/^ASSISTANT_ENABLED = "true"$/m);
+    expect(production).toMatch(/^ASSISTANT_MONTHLY_QUOTA = "100"$/m);
+    // The key is a secret, never a variable.
+    expect(production).not.toMatch(/^ANTHROPIC_API_KEY\s*=/m);
   });
 });

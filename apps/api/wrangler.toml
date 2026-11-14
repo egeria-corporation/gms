@@ -129,7 +129,10 @@ PASSPORT_BASE_URL = "https://passport.opengrants.io"
 PASSPORT_WEB_URL = "https://app.passport.opengrants.io"
 PASSPORT_ISSUER = "https://passport.opengrants.io"
 OPENGRANTS_API_URL = "https://ops.opengrants.io/functions/v1"
-ASSISTANT_ENABLED = "false"
+# The assistant is on (owner decision D4, 2026-11-14) with 100 calls per workspace per month. It stays
+# inactive until ANTHROPIC_API_KEY is set as a secret.
+ASSISTANT_ENABLED = "true"
+ASSISTANT_MONTHLY_QUOTA = "100"
 # Launch runs without facilitated payments: tranches are recorded after being paid outside the GMS.
 PAYMENTS_FACILITATED = "false"
 
