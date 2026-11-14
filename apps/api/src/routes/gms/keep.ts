@@ -7,9 +7,10 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../app.ts";
 import { authenticate } from "../../auth/middleware.ts";
-import { created, ok } from "../../lib/errors.ts";
+import { badRequest, created, ok } from "../../lib/errors.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
+import * as summary from "../../services/funding-summary.ts";
 import * as obligations from "../../services/obligations.ts";
 import * as outside from "../../services/outside.ts";
 import * as team from "../../services/team.ts";
@@ -73,4 +74,13 @@ keepRoutes.get("/my/awarded-funding", async (c) => c.json(ok(await obligations.a
 keepRoutes.post("/outside-applications/:id/next-cycle-alert", async (c) => {
   const out = await team.nextCycleAlert(await svc(c), oaId(c));
   return c.json(out.created ? created(out.alert) : ok(out.alert, "Already set"), out.created ? 201 : 200);
+});
+
+// ---- the funding summary ----
+keepRoutes.get("/funding-summary", async (c) => c.json(ok(await summary.fundingSummary(await svc(c)))));
+keepRoutes.get("/funding-summary/export", async (c) => {
+  const format = c.req.query("format") ?? "csv";
+  if (format !== "csv" && format !== "pdf") throw badRequest("format must be csv or pdf", [{ code: "invalid_parameter", field: "format" }]);
+  const out = await summary.exportFundingSummary(await svc(c), format);
+  return new Response(out.body as BodyInit, { status: 200, headers: { "Content-Type": out.contentType, "Content-Disposition": `attachment; filename="${out.filename}"`, "Cache-Control": "private, no-store" } });
 });

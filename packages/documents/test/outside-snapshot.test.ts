@@ -39,3 +39,16 @@ describe("renderOutsideSnapshot", () => {
     expect(pdf.byteLength).toBeGreaterThan(500);
   });
 });
+
+describe("funding summary PDF", () => {
+  it("fits the board summary on one page, five years at most, the same bytes for the same input", async () => {
+    const { renderFundingSummary, FUNDING_SUMMARY_PDF_YEARS } = await import("../src/index.ts");
+    const years = Array.from({ length: 8 }, (_, i) => ({ label: `FY ${2027 - i}`, submitted: 10, decided: 8, awarded: 4, declined: 4, winRate: "50%", asked: "USD 500,000.00", awardedAmount: "USD 200,000.00" }));
+    const input = { organization: "Alder Creek Family Services", fiscalYearStarts: "July", generatedAt: "2027-04-16T17:00:00.000Z", years, note: "What is counted." };
+    const a = await renderFundingSummary(input);
+    const text = new TextDecoder("latin1").decode(a);
+    expect((text.match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length).toBe(1);
+    expect(FUNDING_SUMMARY_PDF_YEARS).toBe(5);
+    expect(Buffer.from(await renderFundingSummary(input)).equals(Buffer.from(a))).toBe(true);
+  });
+});
