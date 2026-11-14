@@ -434,7 +434,7 @@ export function ObligationRow({
           )}
           {(settled || o.status === "submitted") && can("due") && (
             <button type="button" className="btn btn-sm btn-ghost" disabled={patch.state === "saving"} onClick={() => void run({ to: "due" })}>
-              {o.kind === "report" ? "Not accepted: still due" : "Reopen"}
+              {o.kind === "report" ? "The funder sent it back" : "Reopen"}
             </button>
           )}
           {!kept && (
