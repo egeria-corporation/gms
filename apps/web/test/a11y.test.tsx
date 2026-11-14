@@ -17,6 +17,7 @@ import { createMockApplicantMoreApi, MORE_IDS, seedMoreStore } from "../src/mock
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 import { MONEY_IDS } from "../src/mocks/funderMoney.ts";
+import { OUTSIDE_IDS } from "../src/mocks/outside.ts";
 import { IDS } from "../src/mocks/store.ts";
 import { viewport } from "./setup.ts";
 
@@ -46,6 +47,13 @@ const APPLICANT = [
   `${A}/team`,
   `${A}/funders`,
   `${A}/settings`,
+  `${A}/applications?view=board`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=checklist`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=notes`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=activity`,
+  `${A}/outside/${OUTSIDE_IDS.pinecrest}?tab=submission`,
+  `${A}/funders/${OUTSIDE_IDS.recNorthwind}`,
 ];
 const F = "/w/riverbend";
 const FUNDER = [

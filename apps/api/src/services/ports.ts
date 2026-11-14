@@ -37,6 +37,8 @@ export type OpenGrantsTool = "search" | "match" | "eligibility" | "alerts";
 
 export interface OpenGrantsClient {
   call(tool: OpenGrantsTool, args: Record<string, unknown>, org: OrgSearchContext): Promise<{ items: OpenGrantsListing[]; raw?: unknown }>;
+  /** One listing by its id (`GET /grants-api/{id}`); null when OpenGrants has no such listing. */
+  get?(id: string): Promise<OpenGrantsListing | null>;
 }
 
 export class OpenGrantsUnavailableError extends Error {
@@ -49,14 +51,22 @@ export class OpenGrantsUnavailableError extends Error {
   }
 }
 
-/** Fixed answers for tests and for installs without an OpenGrants key. */
+/**
+ * Fixed answers for tests and for installs without an OpenGrants key. It refuses what the REST
+ * client refuses (eligibility checks and alerts, which OpenGrants offers only in its MCP and web
+ * app), so a test cannot pass on a flow the real API does not serve.
+ */
 export class FixtureOpenGrantsClient implements OpenGrantsClient {
   readonly calls: { tool: OpenGrantsTool; args: Record<string, unknown>; org: OrgSearchContext }[] = [];
   constructor(private readonly listings: OpenGrantsListing[] = []) {}
   async call(tool: OpenGrantsTool, args: Record<string, unknown>, org: OrgSearchContext) {
     this.calls.push({ tool, args, org });
+    if (tool !== "search" && tool !== "match") throw new OpenGrantsUnsupportedError(tool);
     const q = typeof args.query === "string" ? args.query.toLowerCase() : "";
     return { items: this.listings.filter((l) => !q || `${l.title} ${l.summary ?? ""}`.toLowerCase().includes(q)) };
+  }
+  async get(id: string) {
+    return this.listings.find((l) => l.id === id) ?? null;
   }
 }
 
@@ -163,6 +173,23 @@ export class RestOpenGrantsClient implements OpenGrantsClient {
       return { items: rows.map(matchListing).filter((l) => l.id !== ""), raw: body };
     }
     throw new OpenGrantsUnsupportedError(tool);
+  }
+
+  /** `GET /grants-api/{id}` (listed in https://ops.opengrants.io/openapi.json as "Get a grant by ID"; the id is a UUID). */
+  async get(id: string): Promise<OpenGrantsListing | null> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+    let body: Record<string, unknown>;
+    try {
+      body = await this.request(`/grants-api/${encodeURIComponent(id.toLowerCase())}`);
+    } catch (e) {
+      if (e instanceof OpenGrantsUnavailableError && e.status === 404) return null;
+      throw e;
+    }
+    // The document does not describe the body: accept the grant itself or wrapped in `data`/`grant`/`result`.
+    const wrapped = [body.data, body.grant, body.result].find((v) => v && typeof v === "object" && !Array.isArray(v)) as Record<string, unknown> | undefined;
+    const grant = wrapped ?? body;
+    const l = searchListing(grant);
+    return l.id ? l : null;
   }
 }
 

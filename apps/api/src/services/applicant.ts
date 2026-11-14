@@ -9,7 +9,9 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, access, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { cleanLine, cleanText } from "@gms/notify";
 import { listMyDocuments } from "./organization.ts";
+import { OUTSIDE_ROLES, createOutside } from "./outside.ts";
 import { orgFacts } from "./profile.ts";
 import { OpenGrantsProfileError, OpenGrantsUnavailableError, OpenGrantsUnsupportedError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
@@ -206,9 +208,14 @@ async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
   const appIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { applicationId?: string }[] | null) ?? []).map((u) => u.applicationId).filter((x): x is string => typeof x === "string")))];
   const apps = appIds.length ? await ctx.repos.table("applications").find({ id: appIds }) : [];
   const funders = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.workspace_id))] }) : [];
+  // Uses in outside applications (apply anywhere), read in the answers' own workspace only.
+  const outsideIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { outsideApplicationId?: string }[] | null) ?? []).map((u) => u.outsideApplicationId).filter((x): x is string => typeof x === "string")))];
+  const outsideApps = outsideIds.length && rows[0] ? await ctx.repos.table("outside_applications").find({ id: outsideIds, workspace_id: rows[0].workspace_id }) : [];
   return rows.map((r) => {
     const v = answerView(r);
     const usedIn = ((r.used_in as unknown as Record<string, unknown>[] | null) ?? []).map((u) => {
+      const outside = typeof u.outsideApplicationId === "string" ? outsideApps.find((a) => a.id === u.outsideApplicationId) : undefined;
+      if (outside) return { ...u, applicationTitle: outside.title, funderName: outside.funder_name };
       const app = apps.find((a) => a.id === u.applicationId);
       return { ...u, applicationTitle: app?.title ?? null, funderName: (app && funders.find((f) => f.id === app.workspace_id)?.display_name) ?? null };
     });
@@ -303,6 +310,26 @@ export async function discoverCompetitions(ctx: ServiceContext) {
       eligibility: { eligible: eligibility.eligible, results: eligibility.results },
       application: started ? { id: apiId("application", started.id), status: started.status } : null,
       url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
+      acceptingApplications: true,
+    });
+  }
+  // Published, listed opportunities with no open competition (owner decision D10): shown so they
+  // can be saved, labelled as not taking applications yet. No eligibility is run for them.
+  const openOpportunities = new Set(open.map((c) => c.opportunity_id));
+  const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 500 })).filter((o) => !openOpportunities.has(o.id) && (o.publish as Record<string, unknown> | null)?.publicPage !== false);
+  const funders = published.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(published.map((o) => o.workspace_id))] }) : [];
+  for (const opp of published) {
+    const funder = funders.find((f) => f.id === opp.workspace_id);
+    out.push({
+      competitionId: null,
+      opportunity: { id: apiId("opportunity", opp.id), slug: opp.slug, title: opp.title, description: opp.description, funding: opp.funding },
+      funder: { name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+      stage: null,
+      forms: 0,
+      eligibility: null,
+      application: null,
+      url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
+      acceptingApplications: false,
     });
   }
   return out;
@@ -311,7 +338,10 @@ export async function discoverCompetitions(ctx: ServiceContext) {
 const CACHE_TTL_MS = 15 * 60 * 1000;
 /** Per-isolate result cache: OpenGrants answers for one org and query are reused for 15 minutes. */
 const cache = new Map<string, { at: number; value: { items: OpenGrantsListing[] } }>();
-export const clearDiscoveryCache = () => cache.clear();
+export const clearDiscoveryCache = () => {
+  cache.clear();
+  listingCache.clear();
+};
 
 export const openGrantsInput = z.record(z.string(), z.unknown());
 
@@ -342,7 +372,8 @@ export async function openGrants(ctx: ServiceContext, tool: OpenGrantsTool, args
   return { results, cached };
 }
 
-async function matchGmsOpportunity(ctx: ServiceContext, l: OpenGrantsListing) {
+/** A listing that points back at a GMS opportunity: its id, and its open competition if any. */
+export async function matchGmsOpportunity(ctx: Pick<ServiceContext, "repos" | "config">, l: OpenGrantsListing) {
   for (const candidate of [l.source, l.url]) {
     if (typeof candidate !== "string") continue;
     const page = new RegExp(`^${ctx.config.webBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/f/([a-z0-9-]+)/o/([a-z0-9-]+)`).exec(candidate);
@@ -360,6 +391,33 @@ async function matchGmsOpportunity(ctx: ServiceContext, l: OpenGrantsListing) {
   return null;
 }
 
+const listingCache = new Map<string, { at: number; value: OpenGrantsListing | null }>();
+
+/**
+ * One OpenGrants listing for the Details dialog, through the REST port's `GET /grants-api/{id}`.
+ * 404 `not_found` when OpenGrants has no such listing; 404 `not_available` when this server's
+ * OpenGrants connection cannot read one listing (the web then shows the search result it holds).
+ */
+export async function openGrantsListing(ctx: ServiceContext, listingId: string) {
+  await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  const port = ctx.ports.openGrants;
+  if (!port?.get) throw new ApiError(404, "not_available", "Listing details are not available from this server");
+  const now = ctx.now().getTime();
+  const hit = listingCache.get(listingId);
+  let listing = hit && now - hit.at < CACHE_TTL_MS ? hit.value : undefined;
+  if (listing === undefined) {
+    try {
+      listing = await port.get(listingId);
+    } catch (e) {
+      if (e instanceof OpenGrantsUnavailableError) throw new ApiError(503, "opengrants_unavailable", "OpenGrants can't be reached right now");
+      throw e;
+    }
+    listingCache.set(listingId, { at: now, value: listing });
+  }
+  if (!listing) throw notFound("Listing");
+  return { ...listing, gms: await matchGmsOpportunity(ctx, listing) };
+}
+
 export const saveListingInput = z.object({ source: z.enum(["gms", "opengrants"]), externalId: z.string().min(1).max(300), title: z.string().trim().min(1).max(500), url: z.url().optional(), listing: z.record(z.string(), z.unknown()).default({}) }).strict();
 
 export async function saveListing(ctx: ServiceContext, input: z.output<typeof saveListingInput>) {
@@ -367,10 +425,35 @@ export async function saveListing(ctx: ServiceContext, input: z.output<typeof sa
   const gms = await matchGmsOpportunity(ctx, { id: input.externalId, title: input.title, url: input.url, source: typeof input.listing.source === "string" ? input.listing.source : undefined });
   const existing = await ctx.repos.table("discover_saved").one({ workspace_id: ws.id, source: input.source, external_id: input.externalId });
   const row = existing ?? (await ctx.repos.table("discover_saved").insert({ workspace_id: ws.id, source: input.source, external_id: input.externalId, title: input.title, url: input.url ?? null, listing: input.listing as Row<"discover_saved">["listing"], gms_opportunity_id: gms ? gms.opportunityId.replace(/^opp_/, "") : null, saved_by: ctx.actor.userId }));
-  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at };
+  // A saved OpenGrants listing is a prospect (apply anywhere), as migration 0029 made of the ones saved before.
+  // A funding alert kept as a saved row by older clients (`alert:<query>`) is not a listing.
+  const prospect = input.source === "opengrants" && !input.externalId.startsWith("alert:") ? await savedProspect(ctx, ws.id, input) : null;
+  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at, outsideApplicationId: prospect };
+}
+
+/** The prospect tracking an OpenGrants listing, made when the listing is first saved; its id. */
+async function savedProspect(ctx: ServiceContext, workspaceId: string, input: z.output<typeof saveListingInput>): Promise<string | null> {
+  const found = await ctx.repos.table("outside_applications").one({ workspace_id: workspaceId, source: "opengrants", source_ref: input.externalId });
+  if (found) return found.id;
+  // Only people who may write applications start tracking one; others still save the listing.
+  if (!ctx.scopes.includes("applications:write") || (ctx.workspace?.role && !OUTSIDE_ROLES.includes(ctx.workspace.role))) return null;
+  const text = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? cleanLine(v).slice(0, n) : undefined);
+  const listing = { funder: text(input.listing.funder, 200), amount: text(input.listing.amount, 200), deadline: text(input.listing.deadline, 100), summary: typeof input.listing.summary === "string" ? cleanText(input.listing.summary).slice(0, 2000) || undefined : undefined, url: input.url };
+  const made = await createOutside(ctx, {
+    source: "opengrants",
+    sourceRef: input.externalId,
+    listing: Object.fromEntries(Object.entries(listing).filter(([, v]) => v !== undefined)),
+    title: cleanLine(input.title).slice(0, 300) || "Saved listing",
+    funderName: listing.funder ?? "Funder not named",
+    ...(input.url ? { listingUrl: input.url } : {}),
+    ...(listing.deadline && /^\d{4}-\d{2}-\d{2}$/.test(listing.deadline) ? { fullDue: listing.deadline } : {}),
+    stage: "prospect",
+  });
+  return made.application.id;
 }
 
 export async function listSaved(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
-  return (await ctx.repos.table("discover_saved").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false })).map((r) => ({ id: r.id, source: r.source, externalId: r.external_id, title: r.title, url: r.url, gmsOpportunityId: r.gms_opportunity_id ? apiId("opportunity", r.gms_opportunity_id) : null, savedAt: r.created_at }));
+  // Funding alerts are kept in the same table with their own listing (`/discover/alerts`); they are not saved listings.
+  return (await ctx.repos.table("discover_saved").find({ workspace_id: ws.id, source: ["gms", "opengrants"] }, { orderBy: "created_at", ascending: false })).map((r) => ({ id: r.id, source: r.source, externalId: r.external_id, title: r.title, url: r.url, gmsOpportunityId: r.gms_opportunity_id ? apiId("opportunity", r.gms_opportunity_id) : null, savedAt: r.created_at }));
 }

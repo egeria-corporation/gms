@@ -83,8 +83,11 @@ describe.each([
     expect(c!.opportunity.title).toBeTruthy();
     expect(c!.funder.name).toBeTruthy();
     expect(c!.funder.handle).toBeTruthy();
-    expect([true, false, "unknown"]).toContain(c!.eligibility.eligible);
-    expect(Array.isArray(c!.eligibility.results)).toBe(true);
+    // An open competition is taking applications and carries this organization's eligibility.
+    expect(c!.acceptingApplications).toBe(true);
+    expect(c!.eligibility).not.toBeNull();
+    expect([true, false, "unknown"]).toContain(c!.eligibility!.eligible);
+    expect(Array.isArray(c!.eligibility!.results)).toBe(true);
     expect(c!.application).toBeNull();
     expect(c!.stage?.label).toBeTruthy();
   });

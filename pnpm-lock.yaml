@@ -74,6 +74,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/importers':
+        specifier: workspace:*
+        version: link:../../packages/importers
       '@gms/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger

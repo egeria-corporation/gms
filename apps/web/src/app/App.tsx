@@ -70,6 +70,8 @@ const AReports = lazy(() => import("../screens/applicant/Reports.tsx"));
 const AAnswerLibrary = lazy(() => import("../screens/applicant/AnswerLibrary.tsx"));
 const ATeamAccess = lazy(() => import("../screens/applicant/TeamAccess.tsx"));
 const AFunders = lazy(() => import("../screens/applicant/Funders.tsx"));
+const AFunderRecord = lazy(() => import("../screens/applicant/FunderRecord.tsx"));
+const AOutsideApplication = lazy(() => import("../screens/applicant/OutsideApplication.tsx"));
 const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
 const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
 const AOrganizationPhone = lazy(() => import("../screens/applicant/phone/OrganizationPhone.tsx"));
@@ -265,6 +267,9 @@ function AppRoutes() {
             <Route path="library" element={a(<AAnswerLibrary />)} />
             <Route path="team" element={a(<ATeamAccess />)} />
             <Route path="funders" element={a(<AFunders />)} />
+            {/* Applications to funders outside this GMS, and the applicant's own record of each funder. */}
+            <Route path="funders/:recordId" element={a(<AFunderRecord />)} />
+            <Route path="outside/:outsideId" element={a(<AOutsideApplication />)} />
           </Route>
         </Route>
 

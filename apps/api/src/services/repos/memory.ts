@@ -92,6 +92,47 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   inbound_events: () => ({ payload: {}, processed_at: null, error: null }),
   reminder_sends: () => ({ email_message_id: null }),
   ledger_archives: () => ({ events: 0, first_event: null, last_event: null, prev_sha256: null }),
+  funder_records: () => ({ website: null, notes: null, contacts: [], portal_url: null, portal_login_holder: null, created_by: null }),
+  outside_applications: () => ({
+    program_name: null,
+    funder_record_id: null,
+    funder_name: null,
+    source: "manual",
+    source_ref: null,
+    listing: {},
+    listing_url: null,
+    portal_url: null,
+    stage: "drafting",
+    previous_stage: null,
+    currency: "USD",
+    ask_amount_minor: null,
+    ask_by_year: [],
+    loi_due: null,
+    full_due: null,
+    internal_due: null,
+    rolling: false,
+    submitted_at: null,
+    submission_method: null,
+    confirmation_ref: null,
+    receipt_document_id: null,
+    snapshot_document_id: null,
+    snapshot_sha256: null,
+    decided_at: null,
+    awarded_amount_minor: null,
+    award_by_year: [],
+    grant_start: null,
+    grant_end: null,
+    decision_notes: null,
+    next_cycle_on: null,
+    owner_user_id: null,
+    custom_fields: {},
+    archived_at: null,
+    created_by: null,
+  }),
+  outside_questions: () => ({ phase: "full", section: null, position: 0, guidance: null, limit_kind: null, limit_value: null, required: false, assignee_user_id: null, status: "empty" }),
+  outside_answers: () => ({ body: "", library_answer_id: null, created_by: null }),
+  calendar_feeds: () => ({ created_by: null, rotated_at: null }),
+  consulting_requests: () => ({ sent_at: null, fields_sent: [] }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -116,6 +157,10 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   connector_accounts: [{ columns: ["workspace_id", "provider"] }],
   ledger_archives: [{ columns: ["day"] }],
   grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
+  outside_answers: [{ columns: ["question_id", "version"] }],
+  calendar_feeds: [{ columns: ["workspace_id"] }, { columns: ["token_sha256"] }],
+  // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
+  // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
 
 /**
@@ -142,6 +187,10 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   amendments: { award_id: "awards", child_award_id: "awards" },
   bank_transactions: { matched_tranche_id: "tranches" },
   award_invitations: { award_id: "awards" },
+  outside_applications: { funder_record_id: "funder_records", receipt_document_id: "documents", snapshot_document_id: "documents" },
+  outside_questions: { outside_application_id: "outside_applications" },
+  outside_answers: { question_id: "outside_questions", library_answer_id: "answers" },
+  consulting_requests: { outside_application_id: "outside_applications" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

@@ -8,6 +8,7 @@ import { apiId } from "../lib/ids.ts";
 import { access } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { mailMembers } from "./member-mail.ts";
+import { loadOutside } from "./outside.ts";
 import type { Row } from "./repos/types.ts";
 
 type Thread = Row<"threads">;
@@ -108,7 +109,7 @@ export async function listTasks(ctx: ServiceContext, filter: { open?: boolean; m
   return rows.filter((t) => !filter.open || !t.done_at).map(taskView);
 }
 
-export const taskInput = z.object({ title: z.string().trim().min(1).max(300), subjectType: z.enum(["application", "award", "requirement"]).optional(), subjectId: z.uuid().optional(), assigneeUserId: z.uuid().nullable().optional(), dueAt: z.iso.datetime().nullable().optional() }).strict();
+export const taskInput = z.object({ title: z.string().trim().min(1).max(300), subjectType: z.enum(["application", "award", "requirement", "outside_application"]).optional(), subjectId: z.uuid().optional(), assigneeUserId: z.uuid().nullable().optional(), dueAt: z.iso.datetime().nullable().optional() }).strict();
 export const taskPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), assigneeUserId: z.uuid().nullable().optional(), dueAt: z.iso.datetime().nullable().optional(), done: z.boolean().optional() }).strict();
 
 async function assertAssignee(ctx: ServiceContext, workspaceId: string, userId: string | null | undefined) {
@@ -118,6 +119,11 @@ async function assertAssignee(ctx: ServiceContext, workspaceId: string, userId: 
 export async function createTask(ctx: ServiceContext, input: z.output<typeof taskInput>) {
   const ws = await authorize(ctx, { scope: "messages:write" });
   await assertAssignee(ctx, ws.id, input.assigneeUserId);
+  // A task on an outside application is the applicant's own: the application must be in this workspace, and visible to the caller.
+  if (input.subjectType === "outside_application") {
+    if (!input.subjectId) throw new ApiError(400, "bad_request", "Name the outside application", [{ code: "invalid_field", field: "subjectId" }]);
+    await loadOutside(ctx, input.subjectId, "applications:write");
+  }
   return taskView(await ctx.repos.table("tasks").insert({ workspace_id: ws.id, title: input.title, subject_type: input.subjectType ?? null, subject_id: input.subjectId ?? null, assignee_user_id: input.assigneeUserId ?? null, due_at: input.dueAt ?? null, created_by: ctx.actor.userId }));
 }
 

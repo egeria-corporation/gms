@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Funders this organization has a relationship with on the GMS: anyone it has applied to.
+// Funders this organization has a relationship with: its own records of every funder it tracks
+// (on this GMS or not), then the funders on the GMS it has applied to.
 import { Link } from "react-router";
 import { Clock, ExternalLink, Landmark, Search } from "lucide-react";
 import type { ApplicantApi, MyFunder } from "../../api/applicant.ts";
@@ -15,6 +16,7 @@ import type { ApplicantFullApi } from "../../api/applicantFull.ts";
 import { useFullApi } from "../../api/applicantFullHooks.ts";
 import type { ApplicantMoreApi, MyRequirement } from "../../api/applicantMore.ts";
 import { useMoreApi } from "../../api/applicantMoreHooks.ts";
+import { FunderRecordsCard } from "./outside/FunderRecordsCard.tsx";
 
 const load = async (api: ApplicantApi, more: ApplicantMoreApi, full: ApplicantFullApi) => {
   const [funders, applications, awards, consents, requirements] = await Promise.all([api.funders(), api.applications(), api.awards(), api.consents(), more.requirements().catch(() => [] as MyRequirement[])]);
@@ -105,6 +107,8 @@ export default function Funders() {
                       </Link>
                     </div>
                   </div>
+                  <FunderRecordsCard base={base} />
+                  <h2 style={{ fontSize: "18px" }}>Funders on this GMS</h2>
                   <DataTable
                     label="Funders"
                     columns={columns}

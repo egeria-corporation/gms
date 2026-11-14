@@ -48,6 +48,8 @@ export interface Env {
   RESEND_INBOUND_SECRET?: string;
   /** Domain of the inbound reply address; defaults to the domain of RESEND_FROM. */
   RESEND_INBOUND_DOMAIN?: string;
+  /** Where consulting requests from outside applications go (default hello@agents.opengrants.io; on on every install). */
+  CONSULTING_REQUEST_TO?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;

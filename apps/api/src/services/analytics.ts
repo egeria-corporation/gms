@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Analytics, exports and imports (build spec §9.2, §10.13). Paid amounts are always the values
 // last read from Passport (`funding.disbursedAmount`); the GMS never sums payments itself.
+import { parseCsv } from "@gms/importers";
 import { toMoney } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -284,35 +285,8 @@ async function exportApplicantBundle(ctx: ServiceContext, opts: { inline?: boole
 
 // ------------------------------------------------------------------------------------ CSV import
 
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (quoted) {
-      if (ch === '"' && text[i + 1] === '"') {
-        cell += '"';
-        i++;
-      } else if (ch === '"') quoted = false;
-      else cell += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      row.push(cell);
-      cell = "";
-      if (row.some((c) => c !== "")) rows.push(row);
-      row = [];
-    } else cell += ch;
-  }
-  row.push(cell);
-  if (row.some((c) => c !== "")) rows.push(row);
-  return rows;
-}
+// The reader lives in @gms/importers; re-exported for callers of this module.
+export { parseCsv };
 
 const TARGETS = ["recipientName", "recipientEin", "title", "awardedAmount", "awardDate", "startDate", "endDate", "status", "programName"] as const;
 export const importInput = z

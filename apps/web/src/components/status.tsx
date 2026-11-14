@@ -3,13 +3,17 @@
 // never carried by color alone. The map covers every status in `@gms/workflow` plus the Phase 1
 // design objects (opportunity, competition, form version).
 import {
+  Award,
   BadgeCheck,
   Ban,
+  Bookmark,
   Calendar,
   Check,
   CircleCheck,
+  CircleDashed,
   CircleMinus,
   CirclePause,
+  CircleQuestionMark,
   CircleX,
   ClipboardCheck,
   Clock,
@@ -19,6 +23,7 @@ import {
   Lock,
   LogOut,
   Mail,
+  MailOpen,
   PenLine,
   Pencil,
   RotateCcw,
@@ -124,6 +129,25 @@ export const STATUS = {
   form: {
     draft: look(Pencil, "Draft", "neutral"),
     published: look(Lock, "Published", "ok"),
+  },
+  // An application to a funder outside this GMS: the applicant's own record of where it stands.
+  outside: {
+    prospect: look(Bookmark, "Prospect", "neutral"),
+    deciding: look(CircleQuestionMark, "Deciding", "neutral"),
+    loi: look(Mail, "Letter of inquiry", "info"),
+    invited: look(MailOpen, "Invited to apply", "prog"),
+    drafting: look(Pencil, "Drafting", "info"),
+    submitted: look(Send, "Submitted", "prog"),
+    awarded: look(Award, "Awarded", "ok"),
+    declined: look(CircleX, "Declined", "dng"),
+    withdrawn: look(LogOut, "Withdrawn", "neutral"),
+    not_pursuing: look(CircleMinus, "Not pursuing", "neutral"),
+  },
+  outsideQuestion: {
+    empty: look(CircleDashed, "Not started", "neutral"),
+    draft: look(Pencil, "Draft", "info"),
+    ready: look(Eye, "Ready for review", "prog"),
+    approved: look(CircleCheck, "Approved", "ok"),
   },
 } as const;
 
