@@ -314,9 +314,12 @@ describe("discovery", () => {
     expect(again.outsideApplicationId).toBe(saved.outsideApplicationId);
     const prospect = await data<{ stage: string; source: string; funderName: string; deadlines: { fullDue: string } }>(s.applicant, "GET", `/gms/outside-applications/${saved.outsideApplicationId}`);
     expect(prospect).toMatchObject({ stage: "prospect", source: "opengrants", funderName: "Northwind Family Foundation", deadlines: { fullDue: "2027-06-01" } });
+    // An older client's alert kept as a saved OpenGrants row is not a listing: no prospect.
+    expect((await data<{ outsideApplicationId: string | null }>(s.applicant, "POST", "/gms/discover/saved", { source: "opengrants", externalId: "alert:rural clinics", title: "rural clinics" })).outsideApplicationId).toBeNull();
+    expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT, source_ref: "alert:rural clinics" })).toBe(0);
     await data(s.applicant, "POST", "/gms/discover/alerts", { name: "Rural health", query: "rural health", frequency: "weekly" });
     const list = await data<{ source: string }[]>(s.applicant, "GET", "/gms/discover/saved");
-    expect(list.map((x) => x.source)).toEqual(["opengrants"]);
+    expect(list.map((x) => x.source)).toEqual(["opengrants", "opengrants"]);
   });
 
   it("refuses OpenGrants alerts and eligibility as the REST client does", async () => {

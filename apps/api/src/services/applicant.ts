@@ -426,7 +426,8 @@ export async function saveListing(ctx: ServiceContext, input: z.output<typeof sa
   const existing = await ctx.repos.table("discover_saved").one({ workspace_id: ws.id, source: input.source, external_id: input.externalId });
   const row = existing ?? (await ctx.repos.table("discover_saved").insert({ workspace_id: ws.id, source: input.source, external_id: input.externalId, title: input.title, url: input.url ?? null, listing: input.listing as Row<"discover_saved">["listing"], gms_opportunity_id: gms ? gms.opportunityId.replace(/^opp_/, "") : null, saved_by: ctx.actor.userId }));
   // A saved OpenGrants listing is a prospect (apply anywhere), as migration 0029 made of the ones saved before.
-  const prospect = input.source === "opengrants" ? await savedProspect(ctx, ws.id, input) : null;
+  // A funding alert kept as a saved row by older clients (`alert:<query>`) is not a listing.
+  const prospect = input.source === "opengrants" && !input.externalId.startsWith("alert:") ? await savedProspect(ctx, ws.id, input) : null;
   return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at, outsideApplicationId: prospect };
 }
 

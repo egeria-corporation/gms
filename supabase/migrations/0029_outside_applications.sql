@@ -32,8 +32,8 @@
 --   * THIS ADDS ROWS: every `discover_saved` row with source 'opengrants' in an applicant workspace
 --     is copied into `outside_applications` as a prospect (stage 'prospect', source 'opengrants',
 --     its title, link and listing), with one `outside_application.created` ledger row each
---     (actor system:migration). The saved rows stay as they are; 'gms' and 'alert' rows are not
---     copied. Running the copy again adds nothing (a unique index on the listing id per workspace).
+--     (actor system:migration). The saved rows stay as they are; 'gms' and 'alert' rows, and
+--     OpenGrants rows that hold a funding alert (`alert:` ids), are not copied. Running the copy again adds nothing (a unique index on the listing id per workspace).
 -- No existing row is changed or removed.
 
 -- ---------------------------------------------------------------------------------------------
@@ -510,6 +510,8 @@ begin
       from public.discover_saved s
       join public.workspaces w on w.id = s.workspace_id and w.kind = 'applicant'
      where s.source = 'opengrants'
+       -- A funding alert some clients kept as a saved OpenGrants row (`alert:<query>`) is not a listing.
+       and s.external_id not like 'alert:%'
        and pg_catalog.length(s.external_id) between 1 and 300
     on conflict (workspace_id, source_ref) where source = 'opengrants' do nothing
     returning id, workspace_id

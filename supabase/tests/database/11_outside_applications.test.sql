@@ -270,9 +270,10 @@ insert into public.discover_saved (workspace_id, source, external_id, title, url
   ('11000000-0000-7000-8000-000000000002', 'opengrants', 'og-41', 'Rural Health Access Fund', 'https://opengrants.example/grants/og-41', '{"funder":"Northwind","amount":"$25,000","deadline":"2027-06-01","summary":"Clinics"}'),
   ('11000000-0000-7000-8000-000000000002', 'opengrants', 'og-42', 'Bad date listing', null, '{"deadline":"2027-02-30"}'),
   ('11000000-0000-7000-8000-000000000002', 'gms', 'opp-1', 'A GMS listing', null, '{}'),
-  ('11000000-0000-7000-8000-000000000002', 'alert', 'alert-1', 'An alert', null, '{}');
+  ('11000000-0000-7000-8000-000000000002', 'alert', 'alert-1', 'An alert', null, '{}'),
+  ('11000000-0000-7000-8000-000000000002', 'opengrants', 'alert:rural clinics', 'rural clinics', null, '{}');
 set local role service_role;
-select is(gms.copy_saved_listings_to_prospects(), 2, 'the copy makes one prospect per saved OpenGrants listing (gms and alert rows stay saved only)');
+select is(gms.copy_saved_listings_to_prospects(), 2, 'the copy makes one prospect per saved OpenGrants listing (gms rows, alert rows and alert: ids stay saved only)');
 select is(gms.copy_saved_listings_to_prospects(), 0, 'running the copy again makes nothing');
 select is(
   (select row(stage, source, funder_name, listing_url, full_due::text, listing ->> 'amount')::text from public.outside_applications where workspace_id = '11000000-0000-7000-8000-000000000002' and source_ref = 'og-41'),
@@ -280,7 +281,7 @@ select is(
   'a prospect carries the listing''s title, funder, link, deadline and snapshot'
 );
 select is((select full_due from public.outside_applications where source_ref = 'og-42'), null::date, 'a listing deadline that is not a date is kept in the snapshot only');
-select is((select count(*)::int from public.discover_saved where workspace_id = '11000000-0000-7000-8000-000000000002'), 4, 'saved rows stay in place');
+select is((select count(*)::int from public.discover_saved where workspace_id = '11000000-0000-7000-8000-000000000002'), 5, 'saved rows stay in place');
 select is((select count(*)::int from public.ledger_events where event_type = 'outside_application.created' and actor = 'system:migration' and workspace_id = '11000000-0000-7000-8000-000000000002'), 2, 'each copied prospect is ledgered once');
 
 select * from finish();
