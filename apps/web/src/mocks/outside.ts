@@ -344,12 +344,13 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
   };
 
   const CLOSED = new Set<OutsideStage>(["awarded", "declined", "withdrawn", "not_pursuing"]);
+  const REOPEN_FALLBACK: Readonly<Record<string, OutsideStage>> = { awarded: "submitted", declined: "submitted", withdrawn: "drafting", not_pursuing: "prospect" };
   const pipelineItems = (): PipelineItem[] => {
     const gms = A.applications.map((x): PipelineItem => {
       const c = A.competitions.find((k) => k.id === x.competitionId);
       const stage = c?.stages.find((s) => s.key === x.stage);
       const editable = x.status === "draft" || x.status === "revision_requested";
-      return { kind: "gms_application", id: `app_${x.uuid}`, title: x.title, funderName: A.funders[x.funderWorkspaceId]?.name ?? null, status: x.status, nextDeadline: editable ? (stage?.closes ?? null) : null, url: `/applications/app_${x.uuid}${editable ? "/edit" : ""}` };
+      return { kind: "gms_application", id: `app_${x.uuid}`, title: x.title, funderName: A.funders[x.funderWorkspaceId]?.name ?? null, status: x.status, nextDeadline: editable ? (stage?.closes?.slice(0, 10) ?? null) : null, url: `/applications/app_${x.uuid}${editable ? "/edit" : ""}` };
     });
     const saved = A.saved
       .filter((s) => s.source === "gms" && !s.externalId.startsWith("alert:"))
@@ -392,11 +393,11 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
     let truncated = false;
     const answers = input.includeAnswers
       ? [...a.questions]
-          .sort((x, y) => x.position - y.position)
+          .sort((x, y) => x.phase.localeCompare(y.phase) || x.position - y.position)
           .flatMap((q) => {
+            // As the Worker sends it: every question, an unanswered one with an empty answer.
             const body = latest(q)?.body ?? "";
-            if (!body) return [];
-            if (budget <= 0) {
+            if (budget <= 0 && body) {
               truncated = true;
               return [];
             }
@@ -510,6 +511,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       if (!TRANSITIONS[a.stage].includes("submitted")) throw new ApiError(409, "Only an application being drafted can be marked submitted");
       if (!input.submittedAt) throw invalid("submittedAt", "Enter the date you submitted");
       if (!input.method) throw invalid("method", "Choose how you submitted");
+      // As the Worker: the person records a submission already made, so never one dated after today.
+      if (input.submittedAt.slice(0, 10) > now().slice(0, 10)) throw invalid("submittedAt", "The submission date cannot be in the future");
       const lines = [
         `${a.title} - as submitted`,
         `Funder: ${a.funderName}`,
@@ -550,10 +553,13 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       await signedIn();
       const a = appOf(id);
       writable(a);
-      if (!CLOSED.has(a.stage) || !a.previousStage) throw new ApiError(409, "Only a decided or closed application can be reopened");
+      if (!CLOSED.has(a.stage)) throw new ApiError(409, "Only a decided or closed application can be reopened");
       const from = a.stage;
-      a.stage = a.previousStage;
+      // As the Worker's machine: back to the earlier open stage (or the fallback for the closed one),
+      // and a reopened decision is no longer a decision.
+      a.stage = a.previousStage && !CLOSED.has(a.previousStage) ? a.previousStage : (REOPEN_FALLBACK[from] ?? "drafting");
       a.previousStage = from;
+      if (from === "awarded" || from === "declined") Object.assign(a, { decidedAt: null, awardedAmount: null, awardByYear: [], grantStart: null, grantEnd: null });
       log(a, "reopened", { from, to: a.stage });
       return viewApp(a);
     },
@@ -679,6 +685,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       const at = now();
       const r = { id: `fdr_${uuid()}`, name: input.name.trim(), website: input.website ?? null, notes: input.notes ?? null, contacts: input.contacts ?? [], portalUrl: input.portalUrl ?? null, portalLoginHolder: input.portalLoginHolder ?? null, createdAt: at, updatedAt: at };
       store.funderRecords.push(r);
+      // As the Worker: outside applications already naming this funder are linked to the new record.
+      for (const a of store.applications) if (!a.funderRecordId && a.funderName && a.funderName.trim().toLowerCase() === r.name.toLowerCase()) a.funderRecordId = r.id;
       return funderView(r);
     },
     async updateFunderRecord(id, patch) {
@@ -701,7 +709,7 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       const token = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
       store.calendarFeed = { token, createdAt: now() };
       const origin = opts.origin ?? globalThis.location?.origin ?? "https://gms.opengrants.io";
-      return { url: `${origin}/cal/${token}.ics` };
+      return { url: `${origin}/gms/cal/${token}.ics` };
     },
     async deleteCalendarFeed() {
       await signedIn();
