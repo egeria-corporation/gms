@@ -8,9 +8,9 @@
 // here by a plain word-overlap score, the organization's profile facts, and a funder's guidelines
 // the person pasted or uploaded for this purpose. Never a vault document, an attachment, a
 // receipt or any other file of the organization.
-import { draftAnswer, isStale, looksLikePdf, MAX_DRAFT_LIBRARY_ANSWERS, MAX_GUIDELINES_BYTES, MAX_GUIDELINES_PAGES, MAX_GUIDELINES_TEXT, pdfPageCount, pickLibraryAnswers, readGuidelines, type GuidelinesReading, type GuidelinesSource, type LimitKind, type OrganizationFacts } from "@gms/assist";
+import { draftAnswer, isStale, relevanceScore, looksLikePdf, MAX_DRAFT_LIBRARY_ANSWERS, MAX_GUIDELINES_BYTES, MAX_GUIDELINES_PAGES, MAX_GUIDELINES_TEXT, pdfPageCount, pickLibraryAnswers, readGuidelines, type GuidelinesReading, type GuidelinesSource, type LimitKind, type OrganizationFacts } from "@gms/assist";
 import { sha256Hex } from "@gms/documents";
-import { countFor, countText, type QuestionPhase } from "@gms/forms";
+import { bestVariant, countFor, countText, type QuestionPhase, type VariantKey } from "@gms/forms";
 import { cleanLine, cleanText } from "@gms/notify";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
@@ -55,6 +55,28 @@ export async function latestLibrary(ctx: ServiceContext, workspaceId: string) {
   const latest = new Map<string, Row<"answers">>();
   for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r);
   return [...latest.values()];
+}
+
+// ------------------------------------------------------------------------------------ insert from the library
+
+/**
+ * The library for one question: every answer, most relevant first, each with the version (the
+ * answer, or its short, medium or long variant) that best fits the question's limit.
+ */
+export async function librarySuggestions(ctx: ServiceContext, qid: string) {
+  const { ws, q } = await loadQuestion(ctx, qid, "applications:read");
+  await authorize(ctx, { scope: "library:read", kind: "applicant" });
+  const limit = limitOf(q);
+  const today = ctx.now().toISOString().slice(0, 10);
+  const prompt = `${q.prompt}\n${q.guidance ?? ""}`;
+  return (await latestLibrary(ctx, ws.id))
+    .map((a) => ({ a, relevance: Math.round(relevanceScore(prompt, a) * 1000) / 1000 }))
+    .sort((x, y) => y.relevance - x.relevance || x.a.title.localeCompare(y.a.title))
+    .slice(0, 100)
+    .map(({ a, relevance }) => {
+      const best = bestVariant({ body: a.body, variants: a.variants as Partial<Record<VariantKey, string>> }, limit);
+      return { id: a.id, key: a.key, title: a.title, version: a.version, tags: a.tags, relevance, lastVerifiedAt: a.last_verified_at, stale: isStale(a.last_verified_at, today), suggested: { variant: best.key, text: best.text, fits: best.fits, counts: countText(best.text) } };
+    });
 }
 
 // ------------------------------------------------------------------------------------ draft an answer

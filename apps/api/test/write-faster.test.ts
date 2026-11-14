@@ -230,3 +230,47 @@ describe("the assistant never sees the vault", () => {
     expect(h.llm.requests.flatMap((r) => r.documents ?? []).map((d) => d.title)).toEqual(["g.pdf"]);
   });
 });
+
+describe("the answer library: verified, variants, tags", () => {
+  type Lib = { id: string; key: string; version: number; body: string; variants: Record<string, string>; variantWords: Record<string, number>; tags: string[]; lastVerifiedAt: string | null; verification: { state: string; stale: boolean } };
+
+  it("creates with variants and tags, marks verified, and shows stale after 12 months", async () => {
+    const made = await data<Lib>(s.applicant, "POST", "/gms/my/answers", { title: "Our history", body: "Founded in 2009 in the valley.", variants: { short: "Founded 2009.", long: "Founded in 2009 by parents in the valley, we have grown to three counties." }, tags: ["history", "History", " org "] });
+    expect(made).toMatchObject({ variants: { short: "Founded 2009." }, variantWords: { short: 2 }, tags: ["history", "org"], lastVerifiedAt: null, verification: { state: "never", stale: true } });
+    const verified = await data<Lib>(s.applicant, "POST", `/gms/my/answers/${made.id}/verify`);
+    expect(verified).toMatchObject({ id: made.id, version: 1, lastVerifiedAt: h.clock.now.toISOString(), verification: { state: "verified", stale: false } });
+    expect(h.ledger.events.filter((e) => e.eventType === "answer.verified")).toHaveLength(1);
+    expect((await data<Lib[]>(s.applicant, "GET", "/gms/my/answers?stale=true")).map((a) => a.key)).not.toContain(made.key);
+    // Verified a year and a day ago: stale.
+    const longAgo = new Date(h.clock.now.getTime() - 367 * 86_400_000).toISOString();
+    await h.repos.table("answers").update({ id: made.id }, { last_verified_at: longAgo });
+    const later = (await data<Lib[]>(s.applicant, "GET", "/gms/my/answers?stale=true")).find((a) => a.key === made.key)!;
+    expect(later.verification).toEqual({ state: "stale", lastVerifiedAt: longAgo, stale: true });
+    expect((await data<Lib[]>(s.applicant, "GET", "/gms/my/answers?tag=HISTORY")).map((a) => a.key)).toEqual([made.key]);
+  });
+
+  it("keeps variants, tags and the verified date on a new version, but new text is unverified until said", async () => {
+    const made = await data<Lib>(s.applicant, "POST", "/gms/my/answers", { title: "Budget", body: "Our budget is $1.2 million.", tags: ["finance"], verified: true });
+    expect(made.verification.state).toBe("verified");
+    const retitled = await data<Lib>(s.applicant, "PATCH", `/gms/my/answers/${made.id}`, { title: "Annual budget", variants: { medium: "Our annual budget is $1.2 million." } });
+    expect(retitled).toMatchObject({ version: 2, tags: ["finance"], variants: { medium: "Our annual budget is $1.2 million." }, verification: { state: "verified" } });
+    const rewritten = await data<Lib>(s.applicant, "PATCH", `/gms/my/answers/${retitled.id}`, { body: "Our budget is $1.4 million.", variants: { medium: null } });
+    expect(rewritten).toMatchObject({ version: 3, variants: {}, lastVerifiedAt: null, verification: { state: "never" } });
+    const checked = await data<Lib>(s.applicant, "PATCH", `/gms/my/answers/${rewritten.id}`, { body: "Our budget is $1.5 million.", verified: true });
+    expect(checked.verification.state).toBe("verified");
+    expect((await s.call(s.applicant, "POST", "/gms/my/answers", { title: "Too many", tags: Array.from({ length: 21 }, (_, i) => `t${i}`) })).status).toBe(400);
+    expect((await s.call(s.applicant, "POST", "/gms/my/answers", { title: "Bad variant", variants: { tiny: "x" } })).status).toBe(400);
+  });
+
+  it("offers each answer for a question with the variant that best fits its limit", async () => {
+    await h.repos.table("answers").insert({ workspace_id: WS_APPLICANT, key: "need-long", title: "Need for families", body: Array.from({ length: 200 }, () => "families").join(" "), variants: { short: "Families travel 46 miles for care.", medium: Array.from({ length: 100 }, () => "families").join(" ") } });
+    const list = await data<{ key: string; relevance: number; stale: boolean; suggested: { variant: string; fits: boolean; counts: { words: number } } }[]>(s.applicant, "GET", `/gms/outside-questions/${qid}/library`);
+    const pick = list.find((a) => a.key === "need-long")!;
+    expect(pick.suggested).toMatchObject({ variant: "short", fits: true, counts: { words: 6 } });
+    // Most relevant first; the unrelated audit answer last.
+    expect(list.at(-1)!.key).toBe("audit");
+    expect(list[0]!.relevance).toBeGreaterThan(0);
+    // A funder sees none of it.
+    expect((await s.call(s.funder, "GET", `/gms/outside-questions/${qid}/library`)).status).toBe(403);
+  });
+});

@@ -102,6 +102,7 @@ outsideRoutes.post("/outside-applications/:id/questions/parse", async (c) => {
   return c.json(ok(await outside.parseQuestionText(await svc(c), oaId(c), input)));
 });
 outsideRoutes.post("/outside-applications/:id/guidelines", async (c) => c.json(ok(await drafting.uploadGuidelines(await svc(c), oaId(c), parse(drafting.guidelinesInput, await jsonBody(c))))));
+outsideRoutes.get("/outside-questions/:qid/library", async (c) => c.json(ok(await drafting.librarySuggestions(await svc(c), qId(c)))));
 outsideRoutes.post("/outside-questions/:qid/draft", async (c) => {
   parse(drafting.draftInput, await jsonBody(c));
   return c.json(ok(await drafting.draftOutsideAnswer(await svc(c), qId(c))));
