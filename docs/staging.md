@@ -116,7 +116,7 @@ order: the database first, then the API, the jobs Worker and the web app.
 
 - `https://gms.opengrants.io/health` answers 200.
 - `https://gms.opengrants.io/openapi.json` lists the release's new routes.
-- `https://gms-staging.opengrants.io/` redirects (301) to `https://gms.opengrants.io/`. The Worker
+- `https://gms-staging.opengrants.io/` redirects permanently (308, keeping the path) to `https://gms.opengrants.io/`. The Worker
   `gms-web-staging` shows both hostnames under its custom domains.
 - The landing page, a public opportunity page and the sign-in page load in a browser with no page
   errors. The only expected console error is the Cloudflare beacon (see Known limits).
