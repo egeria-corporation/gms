@@ -111,6 +111,8 @@ export interface ApplicantStore {
   members: ApplicantMember[];
   forms: FormDefinition[];
   competitions: CompetitionInfo[];
+  /** Published opportunities with no open competition (apply anywhere, D10). */
+  listed?: { opportunityId: string; slug: string; title: string; description: string; funding: Record<string, unknown>; funderWorkspaceId: string }[];
   funders: Record<string, { name: string; handle: string; brand: { accent: string; onAccent: string } }>;
   applications: AppRecord[];
   comments: Record<string, Comment[]>;
@@ -260,6 +262,17 @@ export function seedApplicantStore(): ApplicantStore {
           eligible: "unknown",
           results: [rule("Provides housing services", "unknown", "Your Passport record does not say; a program officer will review this")],
         }),
+      },
+    ],
+    // Published and listed, with no competition open yet: shown as "Not taking applications yet".
+    listed: [
+      {
+        opportunityId: "50000000-0000-7000-8000-000000000021",
+        slug: "youth-mental-health-2028",
+        title: "Youth Mental Health Partnerships 2028",
+        description: "School-linked counseling and peer support programs in Cascade County.",
+        funding: usd(25000, 75000),
+        funderWorkspaceId: I.cascade,
       },
     ],
     applications: [
@@ -853,7 +866,22 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
 
     async discover() {
       await signedIn();
-      return store.competitions.map((c): DiscoverCompetition => {
+      // Opportunities not taking applications yet come after the open ones, with no eligibility run.
+      const notOpen = (store.listed ?? []).map((o) => {
+        const funder = store.funders[o.funderWorkspaceId];
+        return {
+          competitionId: null,
+          acceptingApplications: false,
+          opportunity: { id: `opp_${o.opportunityId}`, slug: o.slug, title: o.title, description: o.description, funding: o.funding },
+          funder: { name: funder?.name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+          stage: null,
+          forms: 0,
+          eligibility: { eligible: "unknown", results: [] },
+          application: null,
+          url: funder ? `/f/${funder.handle}/o/${o.slug}` : null,
+        } as unknown as DiscoverCompetition;
+      });
+      return [...store.competitions.map((c): DiscoverCompetition => {
         const funder = store.funders[c.funderWorkspaceId];
         const first = c.stages[0];
         const started = store.applications.find((a) => a.competitionId === c.id && a.status !== "withdrawn");
@@ -866,8 +894,9 @@ export function createMockApplicantApi(opts: MockApplicantOptions): ApplicantApi
           eligibility: c.eligibility(store.organization),
           application: started ? { id: `app_${started.uuid}`, status: started.status } : null,
           url: funder ? `/f/${funder.handle}/o/${c.slug}` : null,
-        };
-      });
+          acceptingApplications: true,
+        } as DiscoverCompetition;
+      }), ...notOpen];
     },
     async saved() {
       await signedIn();

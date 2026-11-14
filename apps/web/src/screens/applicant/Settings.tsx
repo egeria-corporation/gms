@@ -11,6 +11,7 @@ import { Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
 import { DangerZone, ExportsCard, TokensCard } from "./settingsCards.tsx";
+import { CalendarFeedCard } from "./outside/CalendarFeedCard.tsx";
 
 /** The events an applicant workspace produces, in the order people meet them. */
 export const EVENTS: { key: string; label: string; detail: string }[] = [
@@ -20,6 +21,7 @@ export const EVENTS: { key: string; label: string; detail: string }[] = [
   { key: "agreement", label: "Agreements", detail: "Sent for signature, countersigned, executed" },
   { key: "payment", label: "Payments", detail: "Sent, settled or paused; bank name and last four only" },
   { key: "requirement", label: "Report reminders", detail: "A requirement is coming due or overdue" },
+  { key: "outside_deadline", label: "Application deadlines", detail: "Applications you track here: 14, 7 and 2 days before a deadline, and on the day" },
   { key: "submission", label: "Report reviews", detail: "A report was accepted or returned with comments" },
   { key: "organization", label: "Organization and consent", detail: "Passport record changes, funders asking to read more" },
   { key: "approval", label: "Approvals", detail: "An agent is waiting for your decision" },
@@ -139,6 +141,7 @@ export default function Settings() {
               </Loaded>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <CalendarFeedCard />
               <TokensCard base={base} />
               <ExportsCard handle={ws.handle} />
               <DangerZone workspaceId={ws.id} name={ws.name} />
