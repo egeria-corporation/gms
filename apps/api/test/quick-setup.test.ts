@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Quick setup (v1.4.0): from a published opportunity to one that can open for applications, through
 // the same services as the screens. Reuse on a second run, the launch checklist unchanged, gates held.
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Ajv } from "ajv";
+import addFormats from "ajv-formats";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
 
@@ -216,5 +221,25 @@ describe("quick_setup_competition over MCP", () => {
     const held = await call(h, token, { opportunityId: other.id });
     expect(JSON.stringify(held.structuredContent)).toContain("pending_approval");
     expect(await h.repos.table("competitions").find({ opportunity_id: other.id.replace(/^opp_/, "") })).toHaveLength(0);
+  });
+});
+
+const SPEC = fileURLToPath(new URL("../../../api/tsp-output/@typespec/openapi3/openapi.GMS.yaml", import.meta.url));
+const withoutExamples = (node: unknown): unknown =>
+  Array.isArray(node) ? node.map(withoutExamples) : node === null || typeof node !== "object" ? node : Object.fromEntries(Object.entries(node).filter(([k]) => k !== "example" && k !== "examples").map(([k, v]) => [k, withoutExamples(v)]));
+
+describe.skipIf(!existsSync(SPEC))("quick setup contract", () => {
+  it("answers in the shape the compiled API document describes", async () => {
+    const ajv = new Ajv({ strict: false, allErrors: true, validateFormats: true });
+    (addFormats as unknown as (a: Ajv) => void)(ajv);
+    ajv.addSchema({ $id: "openapi", ...(withoutExamples(parse(readFileSync(SPEC, "utf8"))) as object) });
+    const validate = ajv.compile({ $ref: "openapi#/paths/~1gms~1opportunities~1{id}~1quick-setup/post/responses/200/content/application~1json/schema" });
+    const h = await harness();
+    const officer = await as(h, USER_OFFICER);
+    const opp = await published(h, officer);
+    const body = (await (await quickSetup(h, officer, opp.id)).json()) as unknown;
+    expect(validate({ status: 200, message: "Success", data: { competition: null } })).toBe(false);
+    validate(body);
+    expect(validate.errors ?? []).toEqual([]);
   });
 });
