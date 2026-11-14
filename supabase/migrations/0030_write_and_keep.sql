@@ -16,7 +16,7 @@
 --     (default {}), each with a check that existing rows pass by their defaults.
 --   * documents: adds doc_type and expires_on (both null on every existing row) and a check on
 --     them. A vault document is subject_type 'vault', owned by and kept in one applicant workspace,
---     of one of the vault types (never a bank letter, a voided check or anything with an SSN: there
+--     of one of the vault types (never a bank letter, a voided check or a person's identity number: there
 --     is no type for those). 'funder_guidelines' and 'award_letter' mark documents of an outside
 --     application. Every existing row has doc_type null and no row has subject_type 'vault', so
 --     every existing row passes. An index finds vault documents by expiry.
