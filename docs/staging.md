@@ -1,103 +1,163 @@
 # The hosted GMS: gms.opengrants.io
 
-**2026-11-11:** `gms.opengrants.io` now points at the Workers and database described below (the owner chose this over a second set). `gms-staging.opengrants.io` permanently redirects to it. The Worker, bucket, queue and Supabase project names keep their `staging` suffix. The demo data was removed from the database; the five global templates were kept. There is no separate staging environment: every deploy goes to real users.
+`gms.opengrants.io` runs on the Workers, database and storage below. Their names keep a `staging`
+suffix from before the address moved on 2026-11-11, and the API Worker is the `[env.staging]` block
+of `apps/api/wrangler.toml`. There is no separate staging environment: every deploy reaches real users.
 
-The rest of this page was written when the address was `gms-staging.opengrants.io`; read that name as `gms.opengrants.io`, and add `--redirect-from gms-staging.opengrants.io` to the front Worker build.
-
-Deployed 2026-11-10 from a Claude Code cloud session. Production (`gms.opengrants.io`) is not deployed.
+**Last deployed:** v1.6.0 on 2026-11-14, with database migrations 0001–0030.
 
 | Piece | Where |
 |---|---|
-| Web + API origin | `https://gms-staging.opengrants.io` (custom domain on the Worker `gms-web-staging`) |
-| API Worker | `gms-api-staging` (reached through a service binding from `gms-web-staging`) |
-| Jobs Worker | `gms-jobs-staging` (crons and the `gms-events-staging` queue consumer) |
-| Database and auth | Supabase project `gms-staging` (`xjgyeotefkjqhiusuuan`, us-east-1), migrations 0001–0015 and `supabase/seed.sql` applied |
-| Storage | R2 `gms-attachments-staging`, `gms-ledger-archive-staging`, `gms-exports-staging`; KV `gms-staging-RATE_LIMIT`; queues `gms-events-staging`, `gms-events-dlq-staging` |
-| Passport | Points at `https://passport.opengrants.io`, redeployed from `main` on 2026-11-10 (API and jobs Workers, migration 0052). No GMS client is registered there yet, so Passport consent, prefill and payments do not work |
-| Email | Resend domain `gms-staging.opengrants.io`, verified. A sending-only key (`gms-staging`) is set on both Workers; Supabase Auth sends sign-in codes through Resend SMTP with its own key (`gms-staging-auth-smtp`), from `noreply@gms-staging.opengrants.io` |
+| Web + API origin | `https://gms.opengrants.io`, a custom domain on the Worker `gms-web-staging`. `https://gms-staging.opengrants.io` is a second custom domain on the same Worker and redirects permanently to it |
+| API Worker | `gms-api-staging`, reached through a service binding from `gms-web-staging` |
+| Jobs Worker | `gms-jobs-staging`: crons and the `gms-events-staging` queue consumer |
+| Database and auth | Supabase project `gms-staging` (`xjgyeotefkjqhiusuuan`, us-east-1). Applied migrations are recorded in `supabase_migrations.schema_migrations` |
+| Storage | R2 `gms-attachments-staging` (`ATTACHMENTS`), `gms-ledger-archive-staging`, `gms-exports-staging` (`EXPORTS`, which also holds `site/openapi.json`); KV `gms-staging-RATE_LIMIT`; queues `gms-events-staging`, `gms-events-dlq-staging` |
+| Passport | `https://passport.opengrants.io` and `https://app.passport.opengrants.io`. The GMS client is registered, and accepted awards are mirrored (`PASSPORT_AWARD_WRITE=true`) |
+| Email | Resend, from `noreply@gms.opengrants.io`. Supabase Auth sends sign-in codes through Resend SMTP with its own key |
+| Assistant | On, model `claude-sonnet-5-5`, 100 uses per workspace per month (`ASSISTANT_MONTHLY_QUOTA`) |
+| Feedback | Userback widget, switched on by `VITE_USERBACK_TOKEN` at build time |
 
-## How this differs from the production layout
+## Why the layout differs from the production layout
 
-The deploy token available to the session could not upload Workers static assets or edit zone
-routes, so staging uses a generated front Worker instead of the two-Worker route layout:
+The deploy token available to a Claude Code cloud session cannot upload Workers static assets or
+edit zone routes. The hosted site therefore uses a generated front Worker instead of the two-Worker
+route layout:
 
 - `scripts/build-front-worker.mjs` embeds `apps/web/dist` in a Worker script and forwards the API
   path prefixes to the API Worker over a service binding. One custom domain gives both the same origin.
-- The API Worker is deployed without its static-asset binding; `/openapi.json` is served from the
-  exports bucket (`site/openapi.json`).
+- The API Worker is deployed without its static-asset binding, so `/openapi.json` is served from the
+  exports bucket (`site/openapi.json`). Every deploy must upload it (step 6 below).
 
-With a token that has **Workers Routes: Edit** on the zone and a deploy run outside the session
+With a token that has **Workers Routes: Edit** on the zone, and a deploy run outside the session
 proxy (for example GitHub Actions), `wrangler deploy --env staging` in `apps/api` and `apps/web`
 deploys the production layout instead.
 
-## Redeploy
+## Deploy a release
 
-```bash
-pnpm spec:compile && pnpm --filter @gms/api build:openapi
-```
+Run from a clean checkout of the release tag. From a cloud session, set `CLOUDFLARE_API_TOKEN` (the
+proxy supplies the real token) and `CLOUDFLARE_ACCOUNT_ID` for every `wrangler` command. Keep the
+order: the database first, then the API, the jobs Worker and the web app.
 
-Deploy the API without the asset binding (copy `apps/api/wrangler.toml` without its `[assets]`
-block to `apps/api/wrangler.session.toml`):
+1. Check out the tag and install.
 
-```bash
-pnpm --filter @gms/api exec wrangler deploy --env staging --config wrangler.session.toml
-```
+   ```bash
+   git checkout vX.Y.Z && pnpm install --frozen-lockfile
+   ```
 
-```bash
-pnpm --filter @gms/jobs exec wrangler deploy --env staging
-```
+2. Read the release's **Upgrade notes** in `CHANGELOG.md`: new migrations, settings, secrets and
+   bindings.
 
-Build the web app with the staging origins and the project's anon key, then the front Worker:
+3. Apply each new migration, in order, before deploying the API. Find the last applied one:
 
-```bash
-VITE_USE_MOCKS=false VITE_API_BASE_URL=https://gms-staging.opengrants.io VITE_SUPABASE_URL=https://xjgyeotefkjqhiusuuan.supabase.co VITE_SUPABASE_ANON_KEY=<anon key> VITE_PASSPORT_BASE_URL=https://passport.opengrants.io pnpm --filter @gms/web build
-```
+   ```sql
+   select version from supabase_migrations.schema_migrations order by version desc limit 1;
+   ```
 
-```bash
-node scripts/build-front-worker.mjs --name gms-web-staging --host gms-staging.opengrants.io --api gms-api-staging
-```
+   Run each newer file in one transaction, with its history row (Supabase SQL editor, or the
+   Management API `POST /v1/projects/xjgyeotefkjqhiusuuan/database/query`):
 
-```bash
-pnpm --filter @gms/web exec wrangler deploy --config .front-worker/wrangler.toml
-```
+   ```sql
+   begin;
+   -- the whole of supabase/migrations/00NN_name.sql
+   insert into supabase_migrations.schema_migrations (version, name) values ('00NN', 'name');
+   commit;
+   ```
 
-## Secrets set
+4. Compile the API description.
 
-API: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `OAUTH_KID`,
-`OAUTH_SIGNING_KEY_JWK`, `CREDENTIALS_ENCRYPTION_KEY`, `WEBHOOK_SECRET_KEY`. Jobs: the Supabase pair
-and the two encryption keys. The generated keys exist only in Cloudflare; they were not saved anywhere else.
+   ```bash
+   pnpm spec:compile && pnpm --filter @gms/api build:openapi
+   ```
 
-Also set on both: `RESEND_API_KEY`, `RESEND_FROM` (`noreply@gms-staging.opengrants.io`). API only:
-`COMPOSIO_GOOGLE_AUTH_CONFIG_ID` (kept as a secret, as Passport does, so it stays out of the repository).
+5. Deploy the API without its asset binding.
 
-Staging switches (`apps/api/wrangler.toml`): assistant on with `claude-sonnet-5-5` (inactive until
-`ANTHROPIC_API_KEY` is set), `PAYMENTS_FACILITATED=false`, `PASSPORT_AWARD_WRITE=true`.
+   ```bash
+   cd apps/api && sed -e '/^\[assets\]$/,/^run_worker_first = true$/d' wrangler.toml > wrangler.session.toml
+   ```
 
-Not set yet: `PASSPORT_GMS_CLIENT_ID`, `PASSPORT_GMS_CLIENT_SECRET`, `PASSPORT_WEBHOOK_SECRET`,
-`RESEND_INBOUND_SECRET`, `COMPOSIO_API_KEY`, `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`.
+   ```bash
+   pnpm exec wrangler deploy --config wrangler.session.toml --env staging && rm wrangler.session.toml
+   ```
+
+6. Publish the API description. Skip this and `/openapi.json` keeps describing the previous release.
+
+   ```bash
+   pnpm exec wrangler r2 object put gms-exports-staging/site/openapi.json --file public/openapi.json --content-type application/json --remote
+   ```
+
+7. Deploy the jobs Worker (from the repository root).
+
+   ```bash
+   pnpm --filter @gms/jobs exec wrangler deploy --env staging
+   ```
+
+8. Build the web app. Both keys are public values that the live bundle already carries. The anon
+   key is in the Supabase project's API settings; the Userback access token is in the Userback
+   project's settings.
+
+   ```bash
+   VITE_USE_MOCKS=false VITE_API_BASE_URL=https://gms.opengrants.io VITE_SUPABASE_URL=https://xjgyeotefkjqhiusuuan.supabase.co VITE_SUPABASE_ANON_KEY=<anon key> VITE_PASSPORT_BASE_URL=https://passport.opengrants.io VITE_PASSPORT_WEB_URL=https://app.passport.opengrants.io VITE_USERBACK_TOKEN=<Userback access token> pnpm --filter @gms/web build
+   ```
+
+9. Build and deploy the front Worker. **Always pass `--redirect-from`.** `wrangler deploy` replaces
+   the Worker's custom domains with exactly the ones in the generated config, so leaving it out
+   detaches `gms-staging.opengrants.io` and the old address stops working.
+
+   ```bash
+   node scripts/build-front-worker.mjs --name gms-web-staging --host gms.opengrants.io --redirect-from gms-staging.opengrants.io --api gms-api-staging
+   ```
+
+   ```bash
+   pnpm --filter @gms/web exec wrangler deploy --config .front-worker/wrangler.toml
+   ```
+
+## Check after a deploy
+
+- `https://gms.opengrants.io/health` answers 200.
+- `https://gms.opengrants.io/openapi.json` lists the release's new routes.
+- `https://gms-staging.opengrants.io/` redirects (301) to `https://gms.opengrants.io/`. The Worker
+  `gms-web-staging` shows both hostnames under its custom domains.
+- The landing page, a public opportunity page and the sign-in page load in a browser with no page
+  errors. The only expected console error is the Cloudflare beacon (see Known limits).
+- The latest row of `supabase_migrations.schema_migrations` is the release's last migration.
+
+## Settings and secrets
+
+**Settings** (`[env.staging.vars]` in `apps/api/wrangler.toml`):
+- the URLs above;
+- `ASSISTANT_ENABLED=true`, `ASSISTANT_MODEL=claude-sonnet-5-5` and `ASSISTANT_MONTHLY_QUOTA=100`;
+- `PASSPORT_AWARD_WRITE=true` and `PAYMENTS_FACILITATED=false`.
+
+`CONSULTING_REQUEST_TO` is not set, so consulting requests go to `hello@agents.opengrants.io`.
+
+**Secrets** (names only; values live in Cloudflare):
+- **API:**
+  - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY`;
+  - `OAUTH_KID` and `OAUTH_SIGNING_KEY_JWK`;
+  - `CREDENTIALS_ENCRYPTION_KEY` and `WEBHOOK_SECRET_KEY`;
+  - `RESEND_API_KEY` and `RESEND_FROM`;
+  - `PASSPORT_GMS_CLIENT_ID` and `PASSPORT_GMS_CLIENT_SECRET`;
+  - `ANTHROPIC_API_KEY`, `OPENGRANTS_API_KEY`, `COMPOSIO_API_KEY` and `COMPOSIO_GOOGLE_AUTH_CONFIG_ID`.
+- **Jobs:**
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
+  - `CREDENTIALS_ENCRYPTION_KEY` and `WEBHOOK_SECRET_KEY`;
+  - `RESEND_API_KEY` and `RESEND_FROM`;
+  - `PASSPORT_GMS_CLIENT_ID` and `PASSPORT_GMS_CLIENT_SECRET`.
+
+**Not set:** `PASSPORT_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET`.
 
 ## Sign in with Passport
 
-Added 2026-11-11 (not deployed with this note). Going live needs, in this order:
+Live. The GMS client at Passport (`OpenGrants GMS`, owned by Egeria Corporation) has the sign-in
+redirect URIs `https://gms.opengrants.io/gms/passport/signin/callback` and
+`https://gms-staging.opengrants.io/gms/passport/signin/callback`. Accounts keep no password
+(migration `0017`).
 
-1. Passport deployed with OpenID Connect (its migration `0055`).
-2. The GMS client at Passport (`OpenGrants GMS`, owned by Egeria Corporation) given the sign-in
-   redirect URIs `https://gms.opengrants.io/gms/passport/signin/callback` and
-   `https://gms-staging.opengrants.io/gms/passport/signin/callback`.
-3. GMS migrations `0016` and `0017` applied, then the API and web app redeployed. `0017` adds two
-   triggers on `auth.users` (no account keeps a password; nothing set before an email was proven
-   survives the proof) and clears any password already stored.
+When the person has set it up, Passport's authenticator serves as the second step (migration `0018`).
+`PASSPORT_ISSUER` is `https://passport.opengrants.io`, which is what Passport signs with.
 
-Passport's authenticator as the second step (migration `0018`, not deployed with this note):
-apply `0018`, then redeploy the API and the web app together. The web app calls
-`POST /gms/passport/signin/second-step` right after it redeems the sign-in; an older API answers
-404 and the person is simply asked for this app's own second step.
+## Known limits
 
-`PASSPORT_ISSUER` is not set on staging; the issuer defaults to `PASSPORT_BASE_URL`
-(`https://passport.opengrants.io`), which is what Passport signs with.
-
-## Known limits on staging
-
-- Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks;
-  it shows as a console error and is otherwise harmless.
-- The seeded demo people use `.example` addresses and cannot sign in.
+- Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks. It
+  shows as a console error and is otherwise harmless.
