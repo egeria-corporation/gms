@@ -12731,7 +12731,7 @@ export interface components {
             id: components["schemas"]["CommonGrants.Types.uuid"];
             type: string;
             /** @enum {string} */
-            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "outside_deadline";
+            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent";
             title: string;
             subjectType: string | null;
             subjectId: string | null;
@@ -12964,7 +12964,11 @@ export interface components {
         "Models.NotificationPreferences": {
             /** @enum {string} */
             digest: "immediate" | "daily" | "weekly" | "off";
-            /** @description Category → channels. Every category is present in responses; missing ones default to on. */
+            /**
+             * @description Category → channels. Every category is present in responses; missing ones default to on.
+             *     Besides the notification categories, `outside_deadline` sets the outside application deadline
+             *     reminders (no notification carries that category).
+             */
             channels: {
                 [key: string]: components["schemas"]["Models.NotificationChannel"];
             };

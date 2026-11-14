@@ -967,7 +967,7 @@ model MemberNotification {
   read: boolean;
 }
 
-alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "outside_deadline";
+alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent";
 
 model NotificationList {
   unread: int32;
@@ -989,7 +989,10 @@ model NotificationChannel {
 model NotificationPreferences {
   digest: "immediate" | "daily" | "weekly" | "off";
 
-  /** Category → channels. Every category is present in responses; missing ones default to on. */
+  /** Category → channels. Every category is present in responses; missing ones default to on.
+   * Besides the notification categories, `outside_deadline` sets the outside application deadline
+   * reminders (no notification carries that category).
+   */
   channels: Record<NotificationChannel>;
 }
 
