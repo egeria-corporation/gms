@@ -253,14 +253,14 @@ describe("the mock follows the contract", () => {
     expect(series.map((o) => o.status)).toEqual(["submitted", "upcoming", "upcoming"]);
     // An edited instance is kept as it is.
     await m.wk.updateObligation(WK_IDS.oblReport3, { notes: "Ask for an extension" });
-    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { title: "Annual report" })).toEqual({ replaced: 1, added: 2, kept: 2 });
+    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { title: "Annual report" })).toEqual({ replaced: 1, added: 1, kept: 2 });
     const after = (await m.wk.obligations(OUTSIDE_IDS.cedar)).filter((o) => o.seriesId === WK_IDS.seriesReports);
-    expect(after.find((o) => o.id === WK_IDS.oblReport1)!.title).toBe("Progress report");
-    expect(after.find((o) => o.id === WK_IDS.oblReport3)!.title).toBe("Progress report");
+    expect(after.find((o) => o.id === WK_IDS.oblReport1)!.title).toBe("Progress report (1 of 3)");
+    expect(after.find((o) => o.id === WK_IDS.oblReport3)!.title).toBe("Progress report (3 of 3)");
     // As the API: new instances are numbered by their place among the series' dates.
-    expect(after.filter((o) => o.title.startsWith("Annual report")).map((o) => o.title)).toEqual(["Annual report (2 of 4)", "Annual report (4 of 4)"]);
+    expect(after.filter((o) => o.title.startsWith("Annual report")).map((o) => o.title)).toEqual(["Annual report (2 of 3)"]);
     // As the API: only dates after today are added (today's would already be due).
-    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { everyMonths: 3, startOn: day(0), endOn: day(200) })).toEqual({ replaced: 2, added: 2, kept: 2 });
+    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { everyMonths: 3, startOn: day(0), endOn: day(200) })).toEqual({ replaced: 1, added: 2, kept: 2 });
   });
 
   it("moves an obligation only along its kind's edges", async () => {

@@ -102,15 +102,15 @@ export function seedWriteKeepStore(): WriteKeepStore {
     ],
     settings: { goNoGoEnabled: false, goNoGoWeights: { ...DEFAULT_WEIGHTS }, fiscalYearStartMonth: 1 },
     obligations: [
-      obligation({ id: WK_IDS.oblReport1, kind: "report", title: "Progress report", dueOn: day(-38), status: "submitted", seriesId: WK_IDS.seriesReports, submittedAt: day(-40), confirmationRef: "CVCF-R1", touched: true }),
-      obligation({ id: WK_IDS.oblReport2, kind: "report", title: "Progress report", dueOn: addMonths(day(-38), 6), status: "upcoming", seriesId: WK_IDS.seriesReports }),
-      obligation({ id: WK_IDS.oblReport3, kind: "report", title: "Progress report", dueOn: addMonths(day(-38), 12), status: "upcoming", seriesId: WK_IDS.seriesReports }),
+      obligation({ id: WK_IDS.oblReport1, kind: "report", title: "Progress report (1 of 3)", dueOn: day(-38), status: "submitted", seriesId: WK_IDS.seriesReports, submittedAt: day(-40), confirmationRef: "CVCF-R1", touched: true }),
+      obligation({ id: WK_IDS.oblReport2, kind: "report", title: "Progress report (2 of 3)", dueOn: addMonths(day(-38), 6), status: "upcoming", seriesId: WK_IDS.seriesReports }),
+      obligation({ id: WK_IDS.oblReport3, kind: "report", title: "Progress report (3 of 3)", dueOn: addMonths(day(-38), 12), status: "upcoming", seriesId: WK_IDS.seriesReports }),
       obligation({ id: WK_IDS.oblPaid1, kind: "payment_received", title: "First payment", dueOn: day(-210), amount: { amount: "30000.00", currency: "USD" }, status: "received", touched: true }),
       obligation({ id: WK_IDS.oblExpected2, kind: "payment_expected", title: "Second payment", dueOn: day(220), amount: { amount: "30000.00", currency: "USD" }, status: "upcoming" }),
       obligation({ id: WK_IDS.oblCondition, kind: "condition", title: "Thank the funder in the annual report", dueOn: day(90), status: "upcoming" }),
     ],
-    // Every six months from the first report; the last one falls after these three.
-    series: [{ id: WK_IDS.seriesReports, applicationId: OUTSIDE_IDS.cedar, everyMonths: 6, startOn: day(-38), endOn: addMonths(day(-38), 18) }],
+    // Every six months from the first report, three in all (numbered as the API numbers them).
+    series: [{ id: WK_IDS.seriesReports, applicationId: OUTSIDE_IDS.cedar, everyMonths: 6, startOn: day(-38), endOn: addMonths(day(-38), 12) }],
     comments: [],
     library: {
       need: { lastVerifiedAt: "2025-08-12T00:00:00Z", variants: { short: "Families in the Alder Creek valley travel more than forty minutes to reach a clinic, and many miss care because of the distance." }, tags: ["health", "rural"] },
