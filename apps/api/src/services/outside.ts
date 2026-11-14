@@ -80,7 +80,7 @@ export const moneyInput = z.object({ amount: z.string().regex(/^\d{1,13}(\.\d{1,
 /** By year: `{ year, amount }` with Money, or `{ year, amountMinor }` (the web's form) in the application's currency. */
 const byYearInput = z.array(z.union([z.object({ year: z.number().int().min(1900).max(2999), amount: moneyInput }).strict(), z.object({ year: z.number().int().min(1900).max(2999), amountMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict()])).max(20);
 /** Custom field names that would hold bank or identity data are refused: the GMS never keeps those. */
-const SENSITIVE_KEY = /(rout(ing)?[\s_-]*(no|num|number)|acc(oun)?t[\s_-]*(no|num|number)|iban|swift|\bs\.?s\.?n\b|ssn|social[\s_-]*sec|birth|\bdob\b|tax[\s_-]*id|gov(ernment)?[\s_-]*id|passport[\s_-]*(no|num|number)|driver|password|passcode)/i;
+const SENSITIVE_KEY = /(rout(ing)?[\s_-]*(no|num|number)|acc(oun)?t[\s_-]*(no|num|number)|iban|swift|\bs\.?s\.?n\b|s{2}n|social[\s_-]*sec|birth|\bdob\b|tax[\s_-]*id|gov(ernment)?[\s_-]*id|passport[\s_-]*(no|num|number)|driver|password|passcode)/i;
 const customFieldsInput = z
   .record(z.string().trim().min(1).max(100), z.union([z.string().max(2000), z.number(), z.boolean(), z.null()]))
   .refine((o) => Object.keys(o).length <= 30, "At most 30 custom fields")
