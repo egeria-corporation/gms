@@ -112,6 +112,13 @@ describe("registry", () => {
     expect(registry.describe("funder", { additionalGatedTools: ["accept_org_change"] }).find((t) => t.name === "accept_org_change")?.annotations.gated).toBe(true);
     expect(plain.find((t) => t.name === "release_tranche")?.annotations.alwaysHuman).toBe(true);
   });
+
+  it("holds quick setup when a workspace gates any tool it stands for", () => {
+    const quick = (policy?: { additionalGatedTools: string[] }) => registry.describe("funder", policy).find((t) => t.name === "quick_setup_competition")?.annotations.gated;
+    expect(quick()).toBe(false);
+    for (const part of ["create_competition", "create_form", "set_stage_forms", "set_rubric", "quick_setup_competition"]) expect(quick({ additionalGatedTools: [part] }), part).toBe(true);
+    expect(quick({ additionalGatedTools: ["accept_org_change"] })).toBe(false);
+  });
 });
 
 describe("dispatch", () => {
