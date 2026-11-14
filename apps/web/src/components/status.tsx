@@ -149,6 +149,21 @@ export const STATUS = {
     ready: look(Eye, "Ready for review", "prog"),
     approved: look(CircleCheck, "Approved", "ok"),
   },
+  // A document the funder asks for, on an outside application's checklist.
+  requiredDocument: {
+    needed: look(CircleDashed, "Needed", "warn"),
+    attached: look(CircleCheck, "Ready", "ok"),
+    not_needed: look(CircleMinus, "Not needed", "neutral"),
+  },
+  // What an outside award asks of the organization: reports, conditions, payments.
+  obligation: {
+    upcoming: look(Clock, "Upcoming", "neutral"),
+    due: look(Hourglass, "Due soon", "warn"),
+    submitted: look(Send, "Submitted", "prog"),
+    received: look(CircleCheck, "Received", "ok"),
+    done: look(Check, "Done", "done"),
+    missed: look(TriangleExclamationPoint, "Missed", "dng"),
+  },
 } as const;
 
 export type StatusKind = keyof typeof STATUS;

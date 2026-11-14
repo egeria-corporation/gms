@@ -5,7 +5,7 @@
 // typed details; a spreadsheet can be imported, and everything exported.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { Archive, FileText, Kanban, LayoutList, Plus, Search, Upload } from "lucide-react";
+import { Archive, CalendarDays, FileText, Kanban, LayoutList, Plus, Search, Upload } from "lucide-react";
 import type { ApplicantMember } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { useAppConfig } from "../../api/launchHooks.ts";
@@ -14,14 +14,15 @@ import { useOutsideMutation, useOutsideQuery } from "../../api/outsideHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Loaded } from "../../components/applicant.tsx";
+import { RequirementsCalendar, type CalendarItem } from "../../components/RequirementsCalendar.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, Notice, type Column } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
-import { daysUntil } from "../../lib/format.ts";
+import { daysUntil, formatDate } from "../../lib/format.ts";
 import { ImportDialog } from "./outside/ImportDialog.tsx";
 import { NewApplicationDialog } from "./outside/NewApplicationDialog.tsx";
-import { DeadlineText, moneyText, nextDeadline } from "./outside/shared.tsx";
+import { DEADLINE_LABELS, DeadlineText, moneyText, nextDeadline } from "./outside/shared.tsx";
 
 /** Board columns. Built-in applications are placed by their status; withdrawn and not pursuing share "Closed". */
 export const LANES = ["prospect", "deciding", "loi", "invited", "drafting", "submitted", "awarded", "declined", "closed"] as const;
@@ -154,6 +155,66 @@ function Board({ rows, lanes }: { rows: Row[]; lanes: Lane[] }) {
   );
 }
 
+/** Every deadline still to meet: an outside application's letter of inquiry, full and internal dates, a built-in application's stage close. */
+export function deadlinesOf(rows: Row[]): { id: string; date: string; what: string; row: Row }[] {
+  return rows.flatMap((r) => {
+    if (["submitted", "awarded", "declined", "closed"].includes(r.lane)) return [];
+    // Past the letter of inquiry (invited or drafting), its deadline is behind the application, not due.
+    const pastLoi = r.lane === "invited" || r.lane === "drafting";
+    if (r.outside) return (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).flatMap((k) => (r.outside!.deadlines[k] && !(k === "loiDue" && pastLoi) ? [{ id: `${r.key}:${k}`, date: r.outside!.deadlines[k]!, what: DEADLINE_LABELS[k], row: r }] : []));
+    return r.deadline ? [{ id: `${r.key}:next`, date: r.deadline, what: r.item.kind === "gms_application" ? "Stage closes" : "Deadline", row: r }] : [];
+  });
+}
+
+/** The pipeline as a month of deadlines; a day with something due lists what, and the list below follows the day chosen. */
+function CalendarView({ rows }: { rows: Row[] }) {
+  const [day, setDay] = useState<string | null>(null);
+  const all = deadlinesOf(rows).sort((a, b) => a.date.localeCompare(b.date));
+  const items: CalendarItem[] = all.map((d) => {
+    const n = daysUntil(d.date) ?? 0;
+    return { id: d.id, date: d.date, label: `${d.what}: ${d.row.item.title}`, tone: n < 0 ? "overdue" : n <= 7 ? "due" : "scheduled" };
+  });
+  const shown = day ? all.filter((d) => d.date.slice(0, 10) === day) : all.filter((d) => (daysUntil(d.date) ?? -1) >= 0).slice(0, 12);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
+      <RequirementsCalendar items={items} selectedDay={day} onSelectDay={setDay} legend={["overdue", "due", "scheduled"]} label="deadlines" />
+      <section className="card" aria-labelledby="cal-list-h">
+        <div className="card-h">
+          <h2 id="cal-list-h" style={{ fontSize: "16px" }}>
+            {day ? `Due ${formatDate(day)}` : "Coming up"}
+          </h2>
+          {day && (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDay(null)}>
+              Show all coming up
+            </button>
+          )}
+        </div>
+        <div className="card-b">
+          {shown.length === 0 ? (
+            <p className="muted">{day ? "Nothing due that day." : "No deadlines ahead."}</p>
+          ) : (
+            <ul aria-label="Deadlines" style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
+              {shown.map((d) => (
+                <li key={d.id} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <Link to={d.row.href} className="b">
+                    {d.row.item.title}
+                  </Link>
+                  <span className="small muted">
+                    {d.what} · {d.row.item.funderName ?? ""}
+                  </span>
+                  <span className="small">
+                    <DeadlineText date={d.date} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function Archived({ base }: { base: string }) {
   const query = useOutsideQuery((api) => api.list({ archived: true }), []);
   return (
@@ -205,10 +266,11 @@ export default function Applications() {
     [ws.id, applicant],
   );
   const [params, setParams] = useSearchParams();
-  const view = params.get("view") === "board" ? "board" : "list";
-  const setView = (v: "list" | "board") => {
+  const asked = params.get("view");
+  const view = asked === "board" || asked === "calendar" ? asked : "list";
+  const setView = (v: "list" | "board" | "calendar") => {
     const next = new URLSearchParams(params);
-    if (v === "board") next.set("view", "board");
+    if (v !== "list") next.set("view", v);
     else next.delete("view");
     setParams(next, { replace: true });
   };
@@ -319,6 +381,10 @@ export default function Applications() {
                 <Kanban className="ic ic-sm" aria-hidden="true" />
                 Board
               </button>
+              <button type="button" className={view === "calendar" ? "on" : undefined} aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>
+                <CalendarDays className="ic ic-sm" aria-hidden="true" />
+                Calendar
+              </button>
             </div>
             <div className="inp-icon" style={{ flex: "1 1 200px", maxWidth: "280px" }}>
               <Search className="ic" aria-hidden="true" />
@@ -389,6 +455,8 @@ export default function Applications() {
                       Track an application to any funder here, or start one on this GMS from Find funding.
                     </EmptyState>
                   </div>
+                ) : view === "calendar" ? (
+                  <CalendarView rows={filtered} />
                 ) : view === "board" ? (
                   <Board rows={filtered} lanes={LANES.filter((l) => CORE_LANES.has(l) || filtered.some((r) => r.lane === l) || lane === l)} />
                 ) : (

@@ -12,6 +12,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
 import { DangerZone, ExportsCard, TokensCard } from "./settingsCards.tsx";
 import { CalendarFeedCard } from "./outside/CalendarFeedCard.tsx";
+import { GrantSettingsCard } from "./outside/GrantSettingsCard.tsx";
 
 /** The events an applicant workspace produces, in the order people meet them. */
 export const EVENTS: { key: string; label: string; detail: string }[] = [
@@ -22,6 +23,9 @@ export const EVENTS: { key: string; label: string; detail: string }[] = [
   { key: "payment", label: "Payments", detail: "Sent, settled or paused; bank name and last four only" },
   { key: "requirement", label: "Report reminders", detail: "A requirement is coming due or overdue" },
   { key: "outside_deadline", label: "Application deadlines", detail: "Applications you track here: 14, 7 and 2 days before a deadline, and on the day" },
+  { key: "outside_obligation_due", label: "Grant reports and conditions", detail: "Outside awards: 30, 14 and 7 days before, on the day, and 3 and 14 days after if not done" },
+  { key: "outside_next_cycle", label: "Next cycle", detail: "The day a funder that said no opens its next cycle" },
+  { key: "document_expiring", label: "Documents expiring", detail: "A document in your vault expires within 30 days" },
   { key: "submission", label: "Report reviews", detail: "A report was accepted or returned with comments" },
   { key: "organization", label: "Organization and consent", detail: "Passport record changes, funders asking to read more" },
   { key: "approval", label: "Approvals", detail: "An agent is waiting for your decision" },
@@ -141,6 +145,7 @@ export default function Settings() {
               </Loaded>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <GrantSettingsCard />
               <CalendarFeedCard />
               <TokensCard base={base} />
               <ExportsCard handle={ws.handle} />

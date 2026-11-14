@@ -20,7 +20,11 @@ test("funder opens applications with quick setup", async ({ app: page }) => {
     await page.getByRole("button", { name: "Publish as open" }).click();
     await expect(page.getByText(/Published · live at/)).toBeVisible();
     await expect(page.getByText("Published, not taking applications").first()).toBeVisible();
-    await expect(page.getByText("Not taking applications yet")).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Applicants can find this opportunity but cannot apply." })).toContainText("Not taking applications yet");
+    // The live preview card says what the public page says: no Apply yet.
+    const card = page.getByRole("region", { name: "Live preview · public card" });
+    await expect(card).toContainText("Not taking applications yet");
+    await expect(card.getByText("Apply", { exact: true })).toHaveCount(0);
   });
 
   await test.step("quick setup, then the checklist passes and applications open", async () => {
@@ -31,6 +35,7 @@ test("funder opens applications with quick setup", async ({ app: page }) => {
     await expect(page.getByText("7 of 7 checks pass")).toBeVisible();
     await page.getByRole("button", { name: "Open for applications" }).click();
     await expect(page.getByText("Taking applications")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Live preview · public card" }).getByText("Apply", { exact: true })).toBeVisible();
   });
 
   await test.step("the public page offers Apply", async () => {

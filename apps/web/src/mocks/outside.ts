@@ -39,10 +39,10 @@ const clone = <T>(v: T): T => structuredClone(v);
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
 const invalid = (field: string, message: string) => new ApiError(422, message, [{ field, message }]);
 
-interface MockQuestion extends Omit<OutsideQuestion, "answer"> {
+export interface MockQuestion extends Omit<OutsideQuestion, "answer"> {
   versions: OutsideAnswer[];
 }
-interface MockRecord extends OutsideApplication {
+export interface MockRecord extends OutsideApplication {
   questions: MockQuestion[];
   documents: AppDocument[];
   activity: OutsideEvent[];
@@ -65,11 +65,15 @@ export const OUTSIDE_IDS = {
   larkspur: "oap_d1000000-0000-7000-8000-000000000002",
   pinecrest: "oap_d1000000-0000-7000-8000-000000000003",
   harvest: "oap_d1000000-0000-7000-8000-000000000004",
+  /** Awarded, with obligations (v1.7). */
+  cedar: "oap_d1000000-0000-7000-8000-000000000005",
+  /** Declined, with a next cycle. */
+  lakeshore: "oap_d1000000-0000-7000-8000-000000000006",
+  /** Deciding whether to apply (go/no-go). */
+  meadow: "oap_d1000000-0000-7000-8000-000000000007",
   recNorthwind: "fdr_d2000000-0000-7000-8000-000000000001",
   recPinecrest: "fdr_d2000000-0000-7000-8000-000000000002",
 } as const;
-
-const day = (offset: number, from = new Date()) => new Date(from.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
 
 function record(over: Partial<MockRecord> & Pick<MockRecord, "id" | "title" | "funderName" | "stage">): MockRecord {
   const at = "2026-10-01T15:00:00Z";
@@ -107,6 +111,10 @@ function record(over: Partial<MockRecord> & Pick<MockRecord, "id" | "title" | "f
     archivedAt: null,
     createdAt: at,
     updatedAt: at,
+    requiredDocuments: [],
+    goNoGo: null,
+    closedOutAt: null,
+    awardLetterDocumentId: null,
     questions: [],
     documents: [],
     activity: [{ id: `${over.id}-created`, type: "outside_application.created", at, actor: `user:${APPLICANT_IDS.maria}`, data: { stage: over.stage } }],
@@ -126,9 +134,13 @@ const question = (id: string, position: number, prompt: string, over: Partial<Mo
   required: true,
   assigneeUserId: null,
   status: "empty",
+  obligationId: null,
   versions: [],
   ...over,
 });
+
+export const day = (offset: number, from = new Date()) => new Date(from.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
+export { question as mockQuestion };
 
 export function seedOutsideStore(): OutsideStore {
   const I = APPLICANT_IDS;
@@ -155,6 +167,10 @@ export function seedOutsideStore(): OutsideStore {
         fullDue: day(23),
         internalDue: day(16),
         customFields: { "Program officer": "Ruth Calloway" },
+        requiredDocuments: [
+          { label: "IRS determination letter", documentId: null, status: "needed" },
+          { label: "Most recent audit", documentId: null, status: "needed" },
+        ],
         questions: [
           question("oqn_d3000000-0000-7000-8000-000000000001", 1, "Describe the need your project addresses and who it serves. (250 words)", { limitKind: "words", limitValue: 250, status: "draft", assigneeUserId: I.maria, versions: answered("oqn_d3000000-0000-7000-8000-000000000001", "Families in the Alder Creek valley travel more than forty minutes to reach a clinic. Many miss appointments because of the distance.", 2) }),
           question("oqn_d3000000-0000-7000-8000-000000000002", 2, "How will you measure success? Maximum 1,500 characters including spaces.", { limitKind: "chars", limitValue: 1500, assigneeUserId: I.jamal }),
@@ -183,6 +199,51 @@ export function seedOutsideStore(): OutsideStore {
         owner: { userId: I.jamal, name: "Jamal Reed" },
       }),
       record({ id: OUTSIDE_IDS.harvest, title: "Winter Pantry Support", funderName: "Harvest Table Fund", stage: "loi", loiDue: day(6), askAmount: { amount: "15000.00", currency: "USD" }, owner: { userId: I.jamal, name: "Jamal Reed" } }),
+      record({
+        id: OUTSIDE_IDS.cedar,
+        title: "School-Based Health Clinics",
+        programName: "Healthy Schools",
+        funderName: "Cedar Valley Community Fund",
+        stage: "awarded",
+        previousStage: "submitted",
+        askAmount: { amount: "60000.00", currency: "USD" },
+        fullDue: day(-300),
+        submittedAt: day(-305),
+        submissionMethod: "portal",
+        confirmationRef: "CVCF-1182",
+        decidedAt: `${day(-250)}T16:00:00Z`,
+        awardedAmount: { amount: "60000.00", currency: "USD" },
+        awardByYear: [
+          { year: Number(day(-220).slice(0, 4)), amountMinor: 3000000 },
+          { year: Number(day(-220).slice(0, 4)) + 1, amountMinor: 3000000 },
+        ],
+        grantStart: day(-220),
+        grantEnd: day(510),
+        questions: [
+          question("oqn_d3000000-0000-7000-8000-000000000011", 1, "Describe the progress made in the first six months.", { phase: "report", obligationId: "obl_d5000000-0000-7000-8000-000000000001", limitKind: "words", limitValue: 300, status: "approved", versions: answered("oqn_d3000000-0000-7000-8000-000000000011", "Both school clinics opened in the first term. Nurses saw 412 students, and 37 families were referred to a medical home.") }),
+          question("oqn_d3000000-0000-7000-8000-000000000012", 2, "What challenges did you meet, and how did you respond?", { phase: "report", obligationId: "obl_d5000000-0000-7000-8000-000000000001", status: "approved", versions: answered("oqn_d3000000-0000-7000-8000-000000000012", "Consent forms came back slowly. We moved them into the enrollment packet and doubled the return rate.") }),
+        ],
+        activity: [
+          { id: "oev-c1", type: "outside_application.submitted", at: `${day(-305)}T16:00:00Z`, actor: `user:${I.maria}`, data: { method: "portal" } },
+          { id: "oev-c2", type: "outside_application.decided", at: `${day(-250)}T16:00:00Z`, actor: `user:${I.maria}`, data: { outcome: "awarded" } },
+        ],
+      }),
+      record({
+        id: OUTSIDE_IDS.lakeshore,
+        title: "Community Clinics Initiative",
+        programName: "Community Clinics",
+        funderName: "Lakeshore Health Fund",
+        stage: "declined",
+        previousStage: "submitted",
+        askAmount: { amount: "75000.00", currency: "USD" },
+        submittedAt: day(-70),
+        submissionMethod: "email",
+        decidedAt: `${day(-20)}T16:00:00Z`,
+        decisionNotes: "The panel funded projects further along. They encouraged us to apply again next cycle.",
+        nextCycleOn: day(75),
+        owner: { userId: I.jamal, name: "Jamal Reed" },
+      }),
+      record({ id: OUTSIDE_IDS.meadow, title: "Senior Ride Program", funderName: "Meadowlark Foundation", stage: "deciding", previousStage: "prospect", fullDue: day(45), askAmount: { amount: "30000.00", currency: "USD" } }),
     ],
     funderRecords: [
       {
@@ -311,6 +372,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
   };
   const memberName = (userId: string | null | undefined) => A.members.find((m) => m.userId === userId)?.name ?? null;
   const latest = (q: MockQuestion) => q.versions[q.versions.length - 1] ?? null;
+  /** The application's own questions; report questions belong to their obligation. */
+  const own = (a: MockRecord) => a.questions.filter((q) => !q.obligationId);
   const viewQuestion = (q: MockQuestion): OutsideQuestion => {
     const { versions: _v, ...rest } = q;
     return clone({ ...rest, answer: latest(q) });
@@ -321,9 +384,10 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
   };
   const tasksOf = (id: string): Task[] => A.tasks.filter((t) => t.subjectType === "outside_application" && t.subjectId === id);
   const viewDetail = (a: MockRecord): OutsideDetail =>
-    clone({ ...viewApp(a), questions: [...a.questions].sort((x, y) => x.position - y.position).map(viewQuestion), documents: a.documents, tasks: tasksOf(a.id), activity: a.activity });
+    // As the Worker: report questions belong to their obligation, not the application's list.
+    clone({ ...viewApp(a), questions: own(a).sort((x, y) => x.position - y.position).map(viewQuestion), documents: a.documents, tasks: tasksOf(a.id), activity: a.activity });
   const listItem = (a: MockRecord): OutsideListItem =>
-    toListItem({ ...viewApp(a), questionCounts: { total: a.questions.length, approved: a.questions.filter((q) => q.status === "approved").length } });
+    toListItem({ ...viewApp(a), questionCounts: { total: own(a).length, approved: own(a).filter((q) => q.status === "approved").length } });
 
   const storeFile = async (name: string, mime: string, bytes: Uint8Array): Promise<AppDocument> => {
     const doc: AppDocument = { id: `doc_${uuid()}`, name, mime, size: bytes.length, sha256: await sha256(bytes), source: "upload", passportDocumentId: null, scanStatus: "clean", uploadedAt: now() };
@@ -335,7 +399,7 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
     const lines: string[] = [];
     const h = (t: string) => (format === "md" ? `# ${t}` : t.toUpperCase());
     lines.push(h(a.title), `${a.funderName}${a.programName ? ` · ${a.programName}` : ""}`, "");
-    [...a.questions]
+    [...own(a)]
       .sort((x, y) => x.position - y.position)
       .forEach((q, i) => {
         lines.push(format === "md" ? `## ${i + 1}. ${q.prompt}` : `${i + 1}. ${q.prompt}`, "", latest(q)?.body || "(no answer yet)", "");
@@ -389,24 +453,10 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
   const previewOf = (a: MockRecord, input: { contactName: string; contactEmail: string; message?: string; includeAnswers?: boolean }): ConsultingPreview => {
     if (!input.contactName.trim()) throw invalid("contactName", "Enter your name");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.contactEmail.trim())) throw invalid("contactEmail", "Enter a full email address");
-    let budget = ANSWERS_CAP;
-    let truncated = false;
-    const answers = input.includeAnswers
-      ? [...a.questions]
-          .sort((x, y) => x.phase.localeCompare(y.phase) || x.position - y.position)
-          .flatMap((q) => {
-            // As the Worker sends it: every question, an unanswered one with an empty answer.
-            const body = latest(q)?.body ?? "";
-            if (budget <= 0 && body) {
-              truncated = true;
-              return [];
-            }
-            const cut = body.slice(0, budget);
-            if (cut.length < body.length) truncated = true;
-            budget -= cut.length;
-            return [{ prompt: q.prompt, body: cut }];
-          })
-      : null;
+    // As the Worker sends it: every question in full (an unanswered one with an empty answer), and
+    // whether the email, which numbers them and cuts the whole at 20,000 characters, will be cut.
+    const answers = input.includeAnswers ? [...own(a)].sort((x, y) => x.phase.localeCompare(y.phase) || x.position - y.position).map((q) => ({ prompt: q.prompt, body: latest(q)?.body ?? "" })) : null;
+    const truncated = !!answers && answers.map((x, i) => `${i + 1}. ${x.prompt}\n${x.body.trim() || "(no answer yet)"}`).join("\n\n").length > ANSWERS_CAP;
     const organization = A.organization.displayName ?? "Your organization";
     return {
       to: CONSULTING_REQUEST_TO,
@@ -422,7 +472,7 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       listingUrl: a.listingUrl,
       portalUrl: a.portalUrl,
       stage: a.stage,
-      questionCount: a.questions.length,
+      questionCount: own(a).length,
       message: input.message?.trim() || null,
       answers,
       answersTruncated: truncated,
@@ -518,7 +568,7 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
         `Funder: ${a.funderName}`,
         `Submitted ${input.submittedAt} by ${input.method.replace("_", ".")}${input.confirmationRef ? `, confirmation ${input.confirmationRef}` : ""}`,
         "",
-        ...[...a.questions].sort((x, y) => x.position - y.position).flatMap((q, i) => [`${i + 1}. ${q.prompt}`, latest(q)?.body || "(no answer)", ""]),
+        ...[...own(a)].sort((x, y) => x.position - y.position).flatMap((q, i) => [`${i + 1}. ${q.prompt}`, latest(q)?.body || "(no answer)", ""]),
       ];
       const doc = await storeFile(`${a.title} - as submitted.pdf`, "application/pdf", textPdf(lines));
       a.documents.push(doc);
@@ -585,7 +635,7 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       if (questions.length === 0 || questions.some((q) => !q.prompt?.trim())) throw invalid("prompt", "Each question needs its text");
       let pos = Math.max(0, ...a.questions.map((q) => q.position));
       const made = questions.map((q) =>
-        question(`oqn_${uuid()}`, ++pos, q.prompt.trim(), { phase: q.phase ?? "full", section: q.section ?? null, guidance: q.guidance ?? null, limitKind: q.limitKind ?? null, limitValue: q.limitValue ?? null, required: q.required ?? true, assigneeUserId: q.assigneeUserId ?? null }),
+        question(`oqn_${uuid()}`, ++pos, q.prompt.trim(), { phase: q.obligationId ? "report" : (q.phase ?? "full"), section: q.section ?? null, guidance: q.guidance ?? null, limitKind: q.limitKind ?? null, limitValue: q.limitValue ?? null, required: q.required ?? true, assigneeUserId: q.assigneeUserId ?? null, obligationId: q.obligationId ?? null }),
       );
       a.questions.push(...made);
       a.updatedAt = now();
@@ -596,8 +646,15 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       const { app, q } = questionOf(qid);
       writable(app);
       if (patch.prompt !== undefined && !patch.prompt.trim()) throw invalid("prompt", "The question needs its text");
+      const from = q.status;
+      if (patch.status === "approved" && from !== "approved") {
+        // As the Worker: approving is for a workspace admin or the application's owner.
+        const role = A.members.find((m) => m.userId === actor.userId)?.role;
+        if (role !== "admin" && app.owner?.userId !== actor.userId) throw new ApiError(403, "Only a workspace admin or the application's owner can approve an answer");
+      }
       Object.assign(q, patch);
       app.updatedAt = now();
+      if (patch.status && patch.status !== from) log(app, "question_status_changed", { questionId: q.id, from, to: patch.status });
       return viewQuestion(q);
     },
     async deleteQuestion(qid) {
@@ -618,7 +675,13 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       writable(app);
       const lib: Answer | undefined = input.libraryAnswerId ? A.answers.find((x) => x.id === input.libraryAnswerId) : undefined;
       if (input.libraryAnswerId && !lib) throw notFound("Library answer");
-      const v: OutsideAnswer = { id: uuid(), questionId: qid, version: (latest(q)?.version ?? 0) + 1, body: input.body, provenance: lib ? "library" : "user", libraryAnswerId: lib?.id ?? null, createdBy: actor.userId, createdAt: now() };
+      if (input.provenance === "prior_submission") {
+        // Reuse needs an answer from an earlier report in this workspace.
+        const source = store.applications.flatMap((x) => x.questions).flatMap((x) => (x.obligationId ? x.versions : [])).find((x) => x.id === input.sourceAnswerId);
+        if (!source) throw invalid("sourceAnswerId", "Choose an answer from an earlier report");
+      }
+      const provenance = lib ? "library" : input.provenance === "assist" ? "assist" : input.provenance === "prior_submission" ? "prior_submission" : "user";
+      const v: OutsideAnswer = { id: uuid(), questionId: qid, version: (latest(q)?.version ?? 0) + 1, body: input.body, provenance, libraryAnswerId: lib?.id ?? null, createdBy: actor.userId, createdAt: now() };
       q.versions.push(v);
       if (q.status === "empty" && input.body.trim()) q.status = "draft";
       if (lib) (lib.usedIn as unknown as unknown[]).push({ outsideApplicationId: app.id, questionId: qid, version: lib.version, insertedAt: v.createdAt });
@@ -645,6 +708,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       let doc: AppDocument;
       if ("contentBase64" in input) doc = await storeFile(input.name, input.mime, fromBase64(input.contentBase64));
       else doc = { id: `doc_${uuid()}`, name: input.name, mime: input.mime, size: input.size, sha256: input.sha256, source: "passport_locker", passportDocumentId: input.passportDocumentId, scanStatus: "not_scanned", uploadedAt: now() };
+      // The award letter of an outside award is a document typed so (v1.7).
+      if (input.docType === "award_letter") doc = { ...doc, docType: "award_letter" } as AppDocument;
       a.documents.push(doc);
       a.updatedAt = now();
       return clone(doc);
