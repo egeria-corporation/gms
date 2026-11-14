@@ -29,7 +29,7 @@ import type {
 } from "../api/writeKeep.ts";
 import type { Session } from "../auth/types.ts";
 import { countFor, countText, isOverLimit, parseQuestions, TRANSITIONS, type LimitKind } from "../lib/outside.ts";
-import { addMonths, blockedFilename, DEFAULT_WEIGHTS, DOC_TYPES, fiscalYearLabel, fiscalYearOf, GO_CRITERIA, isStale, movesFrom, SERIES_MAX, seriesDates, VAULT_MAX_BYTES, VAULT_WARNING, WEIGHT_MAX, type RequiredDocument, type Variants } from "../lib/writeKeep.ts";
+import { addMonths, blockedFilename, DEFAULT_WEIGHTS, DOC_TYPES, fiscalYearLabel, fiscalYearOf, fiscalYearRange, GO_CRITERIA, isStale, movesFrom, SERIES_MAX, seriesDates, VAULT_MAX_BYTES, VAULT_WARNING, WEIGHT_MAX, type RequiredDocument, type VariantTexts } from "../lib/writeKeep.ts";
 import { APPLICANT_IDS, type ApplicantStore } from "./applicant.ts";
 import type { FullStore } from "./applicantFull.ts";
 import { createMockOutsideApi, day, OUTSIDE_IDS, textPdf, type MockQuestion, type MockRecord, type OutsideStore } from "./outside.ts";
@@ -37,6 +37,8 @@ import { createMockOutsideApi, day, OUTSIDE_IDS, textPdf, type MockQuestion, typ
 const clone = <T>(v: T): T => structuredClone(v);
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
 const invalid = (field: string, message: string) => new ApiError(422, message, [{ field, message }]);
+/** The Worker answers 400 when the request itself is malformed (its input check), 422 when it is well formed but refused. */
+const badRequest = (field: string, message: string) => new ApiError(400, message, [{ field, message }]);
 /** As the Worker: pasted guidelines and uploaded files the assistant may read, at most. */
 export const GUIDELINES_LIMITS = { chars: 60_000, bytes: 10 * 1_048_576, pages: 50 };
 
@@ -58,7 +60,7 @@ export interface WriteKeepStore {
   series: MockSeries[];
   comments: (QuestionComment & { applicationId: string })[];
   /** Library fields this release adds, by answer key (a new version keeps them). */
-  library: Record<string, { lastVerifiedAt: string | null; variants: Variants; tags: string[] }>;
+  library: Record<string, { lastVerifiedAt: string | null; variants: VariantTexts; tags: string[] }>;
 }
 
 export const WK_IDS = {
@@ -226,7 +228,8 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
   function spendAssist() {
     if (!opts.full.assist.enabled) throw new ApiError(404, "The assistant is not switched on for this workspace");
     const q = opts.full.assist.quota;
-    if (q && q.limit !== undefined && (q.used ?? 0) >= q.limit) throw new ApiError(429, `This workspace has used its ${q.limit} AI drafts for the month.`);
+    // As the Worker words it.
+    if (q && q.limit !== undefined && (q.used ?? 0) >= q.limit) throw new ApiError(429, `This workspace has used the assistant ${q.limit} times this month, its monthly limit.${q.resetsAt ? ` The count resets on ${q.resetsAt.slice(0, 10)}` : ""}`);
     if (q) opts.full.assist.quota = { ...q, used: (q.used ?? 0) + 1, ...(q.limit !== undefined ? { remaining: Math.max(0, q.limit - (q.used ?? 0) - 1) } : {}) };
   }
 
@@ -237,13 +240,11 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     return doc;
   };
 
-  // What an obligation reads as now: "due" within two weeks of its date while still upcoming (the
-  // Worker's daily job does the same), with the moves its kind allows from there.
+  // An obligation as stored, with the moves its kind allows from there. As on the Worker, a status
+  // changes only by a move (the daily job makes an upcoming one due on its date; the mock has no job).
   const view = (o: MockObligation): Obligation => {
     const { touched: _t, ...rest } = o;
-    const soon = o.status === "upcoming" && !!o.dueOn && Date.parse(`${o.dueOn}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`) <= 14 * 86_400_000;
-    const status = soon ? "due" : o.status;
-    return clone({ ...rest, status, allowedStatuses: movesFrom(o.kind, status) });
+    return clone({ ...rest, allowedStatuses: movesFrom(o.kind, o.status) });
   };
   const obligationOf = (id: string) => {
     const o = wk.obligations.find((x) => x.id === id);
@@ -287,6 +288,63 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     updatedAt: now(),
     touched: input.kind === "payment_received",
   });
+
+  type SourceCounts = { submitted: number; awarded: number };
+  /** The funding summary by fiscal year, and how many of each year's came from outside or this GMS (for the CSV). */
+  function summarize(): { summary: FundingSummary; bySource: Map<number, { outside: SourceCounts; gms: SourceCounts }> } {
+    const start = wk.settings.fiscalYearStartMonth;
+    const years = new Map<number, FundingYear>();
+    const bySource = new Map<number, { outside: SourceCounts; gms: SourceCounts }>();
+    const year = (iso: string) => {
+      const fy = fiscalYearOf(iso, start);
+      let y = years.get(fy);
+      if (!y) {
+        years.set(fy, (y = { fiscalYear: fy, label: fiscalYearLabel(fy, start), submitted: 0, decided: 0, awarded: 0, declined: 0, winRate: null, asked: money(0), awardedAmount: money(0) }));
+        bySource.set(fy, { outside: { submitted: 0, awarded: 0 }, gms: { submitted: 0, awarded: 0 } });
+      }
+      return { y, by: bySource.get(fy)! };
+    };
+    const add = (m: Money, minor: number | null) => ({ ...m, amount: ((minorOf(m)! + (minor ?? 0)) / 100).toFixed(2) });
+    for (const a of O.applications.filter((x) => !x.archivedAt)) {
+      if (a.submittedAt) {
+        const { y, by } = year(a.submittedAt);
+        y.submitted++;
+        by.outside.submitted++;
+        y.asked = add(y.asked, minorOf(a.askAmount));
+      }
+      if (a.decidedAt && (a.stage === "awarded" || a.stage === "declined")) {
+        const { y, by } = year(a.decidedAt);
+        y.decided++;
+        if (a.stage === "awarded") {
+          y.awarded++;
+          by.outside.awarded++;
+          y.awardedAmount = add(y.awardedAmount, minorOf(a.awardedAmount));
+        } else y.declined++;
+      }
+    }
+    for (const x of A.applications) {
+      if (x.submittedAt) {
+        const { y, by } = year(x.submittedAt);
+        y.submitted++;
+        by.gms.submitted++;
+      }
+      if (x.status === "declined") {
+        const { y } = year(x.updatedAt);
+        y.decided++;
+        y.declined++;
+      }
+    }
+    for (const w of A.awards.filter((x) => x.status !== "cancelled")) {
+      const { y, by } = year(w.createdAt);
+      y.decided++;
+      y.awarded++;
+      by.gms.awarded++;
+      y.awardedAmount = add(y.awardedAmount, w.awardedAmountMinor ?? 0);
+    }
+    // As the Worker: the win rate to three decimals, the latest year first.
+    const summary: FundingSummary = { fiscalYearStartMonth: start, currency: "USD", years: [...years.values()].map((y) => ({ ...y, winRate: y.decided ? Math.round((y.awarded / y.decided) * 1000) / 1000 : null })).sort((x, y) => y.fiscalYear - x.fiscalYear) };
+    return { summary, bySource };
+  }
 
   const api: WriteKeepApi = {
     // ---------------------------------------------------------------- drafting
@@ -337,6 +395,7 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       const bytes = fromBase64(f.contentBase64);
       const pdf = f.mime === "application/pdf" || /\.pdf$/i.test(f.name);
       if (!pdf && !(f.mime.startsWith("text/") || /\.txt$/i.test(f.name))) throw invalid("file", "Upload a PDF or a plain text file");
+      if (blockedFilename(f.name)) throw invalid("name", VAULT_WARNING);
       if (bytes.length > GUIDELINES_LIMITS.bytes) throw invalid("file", "Upload a file of 10 MB or less");
       if (pdf && (new TextDecoder("latin1").decode(bytes).match(/\/Type\s*\/Page\b/g)?.length ?? 0) > GUIDELINES_LIMITS.pages) throw invalid("file", "Upload guidelines of 50 pages or fewer");
       spendAssist();
@@ -365,9 +424,16 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       await signedIn();
       const a = A.answers.find((x) => x.id === id);
       if (!a) throw notFound("Answer");
-      if (patch.tags && (patch.tags.length > 20 || patch.tags.some((t) => t.length > 40))) throw invalid("tags", "Keep to 20 tags of 40 characters or fewer");
-      const variants = patch.variants ? Object.fromEntries(Object.entries(patch.variants).map(([k, v]) => [k, v?.trim() ? v : null])) : undefined;
-      wk.library[a.key] = { ...meta(a), ...(variants ? { variants: { ...meta(a).variants, ...variants } } : {}), ...(patch.tags ? { tags: patch.tags.map((t) => t.trim()).filter(Boolean) } : {}) };
+      if (patch.tags && (patch.tags.length > 20 || patch.tags.some((t) => t.trim().length > 50))) throw invalid("tags", "Keep to 20 tags of 50 characters or fewer");
+      // As the API: a variant set to null or "" is removed; the first spelling of a tag is kept.
+      const variants = { ...meta(a).variants };
+      for (const [k, v] of Object.entries(patch.variants ?? {}) as [keyof VariantTexts, string | null | undefined][]) {
+        if (v === undefined) continue;
+        if (v?.trim()) variants[k] = v;
+        else delete variants[k];
+      }
+      const tags = patch.tags?.map((t) => t.trim()).filter((t, i, all) => t && all.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i);
+      wk.library[a.key] = { ...meta(a), variants, ...(tags ? { tags } : {}) };
       return libraryView(a);
     },
 
@@ -474,10 +540,10 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       writable(a);
       if (!wk.settings.goNoGoEnabled) throw new ApiError(409, "Go/no-go is not switched on for this workspace");
       if (a.stage !== "deciding") throw new ApiError(409, "Go/no-go is decided at the Deciding stage");
-      if (GO_CRITERIA.some((c) => !(input.scores[c] >= 1 && input.scores[c] <= 5))) throw invalid("scores", "Score each line from 1 to 5");
-      if (input.decision === "go" && input.eligibility === "fail") throw invalid("decision", "An application that fails eligibility cannot be a go");
+      if (GO_CRITERIA.some((c) => !(input.scores[c] >= 1 && input.scores[c] <= 5))) throw badRequest("scores", "Score each line from 1 to 5");
+      if (input.decision === "go" && input.eligibility === "fail") throw badRequest("decision", "An application that fails eligibility cannot be a go");
       const to = input.decision === "go" ? input.to : "not_pursuing";
-      if (!to || !TRANSITIONS[a.stage].includes(to)) throw invalid("to", "Choose where the application goes next");
+      if (!to || !TRANSITIONS[a.stage].includes(to)) throw badRequest("to", "Choose where the application goes next");
       // As the Worker: the weighted mean of the four scores, 1 to 5, to two decimals.
       const w = wk.settings.goNoGoWeights;
       const weight = GO_CRITERIA.reduce((n, c) => n + w[c], 0);
@@ -586,14 +652,18 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
       checkSeries(next);
       // Past, edited or acted-on instances stay as they are; only future, untouched ones are replaced.
       const all = wk.obligations.filter((x) => x.seriesId === sid);
-      const future = all.filter((x) => !x.touched && (x.dueOn ?? "") >= today());
+      const future = all.filter((x) => !x.touched && x.status === "upcoming" && !!x.dueOn && x.dueOn > today() && !O.applications.some((app) => app.questions.some((q) => q.obligationId === x.id)));
       const kept = all.filter((x) => !future.includes(x));
       const sample = all[0]!;
       const base = (patch.title ?? sample.title).replace(/ \(\d+ of \d+\)$/, "");
       const taken = new Set(kept.map((x) => x.dueOn));
-      const dates = seriesDates(next.startOn, next.endOn, next.everyMonths).filter((d) => d >= today() && !taken.has(d)).slice(0, SERIES_MAX - kept.length);
+      const planned = seriesDates(next.startOn, next.endOn, next.everyMonths);
+      const dates = planned.filter((d) => d > today() && !taken.has(d));
+      if (kept.length + dates.length > SERIES_MAX) throw invalid("series", `A series can make at most ${SERIES_MAX} obligations`);
       wk.obligations = wk.obligations.filter((x) => !future.includes(x));
-      const made = dates.map((d) => make(a.id, { kind: sample.kind, title: base, notes: patch.notes !== undefined ? patch.notes : sample.notes, amount: patch.amount !== undefined ? patch.amount : sample.amount }, d, sid));
+      // As the Worker: each new instance is numbered by its place among the series' dates.
+      const titled = (d: string) => (planned.length > 1 ? `${base} (${planned.indexOf(d) + 1} of ${planned.length})` : base);
+      const made = dates.map((d) => make(a.id, { kind: sample.kind, title: titled(d), notes: patch.notes !== undefined ? patch.notes : sample.notes, amount: patch.amount !== undefined ? patch.amount : sample.amount }, d, sid));
       wk.obligations.push(...made);
       Object.assign(sr, next);
       log(a, "obligation_series_changed", { seriesId: sid, replaced: future.length, added: made.length, kept: kept.length });
@@ -692,56 +762,26 @@ export function createMockWriteKeepApi(opts: MockWriteKeepOptions): WriteKeepApi
     // ---------------------------------------------------------------- funding summary
     async fundingSummary() {
       await signedIn();
-      const start = wk.settings.fiscalYearStartMonth;
-      const years = new Map<number, FundingYear>();
-      const year = (iso: string) => {
-        const fy = fiscalYearOf(iso, start);
-        let y = years.get(fy);
-        if (!y) years.set(fy, (y = { fiscalYear: fy, label: fiscalYearLabel(fy, start), submitted: 0, decided: 0, awarded: 0, declined: 0, winRate: null, asked: money(0), awardedAmount: money(0) }));
-        return y;
-      };
-      const add = (m: Money, minor: number | null) => ({ ...m, amount: ((minorOf(m)! + (minor ?? 0)) / 100).toFixed(2) });
-      for (const a of O.applications.filter((x) => !x.archivedAt)) {
-        if (a.submittedAt) {
-          const y = year(a.submittedAt);
-          y.submitted++;
-          y.asked = add(y.asked, minorOf(a.askAmount));
-        }
-        if (a.decidedAt && (a.stage === "awarded" || a.stage === "declined")) {
-          const y = year(a.decidedAt);
-          y.decided++;
-          if (a.stage === "awarded") {
-            y.awarded++;
-            y.awardedAmount = add(y.awardedAmount, minorOf(a.awardedAmount));
-          } else y.declined++;
-        }
-      }
-      for (const x of A.applications) {
-        if (x.submittedAt) year(x.submittedAt).submitted++;
-        if (x.status === "declined") {
-          const y = year(x.updatedAt);
-          y.decided++;
-          y.declined++;
-        }
-      }
-      for (const w of A.awards.filter((x) => x.status !== "cancelled")) {
-        const y = year(w.createdAt);
-        y.decided++;
-        y.awarded++;
-        y.awardedAmount = add(y.awardedAmount, w.awardedAmountMinor ?? 0);
-      }
-      const out: FundingSummary = { fiscalYearStartMonth: start, currency: "USD", years: [...years.values()].map((y) => ({ ...y, winRate: y.decided ? y.awarded / y.decided : null })).sort((x, y) => y.fiscalYear - x.fiscalYear) };
-      return clone(out);
+      return clone(summarize().summary);
     },
     async exportSummary(format) {
-      const s = await api.fundingSummary();
+      await signedIn();
+      const { summary: s, bySource } = summarize();
       const pct = (r: number | null) => (r === null ? "" : `${Math.round(r * 100)}%`);
+      // As the Worker prints amounts: "USD 60,000.00", or "None".
+      const printed = (m: Money) => (minorOf(m) ? `${m.currency} ${Number(m.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "None");
       if (format === "csv") {
-        const head = "Fiscal year,Submitted,Decided,Awarded,Declined,Win rate,Asked,Awarded amount";
-        const rows = s.years.map((y) => [y.label, y.submitted, y.decided, y.awarded, y.declined, pct(y.winRate), y.asked.amount, y.awardedAmount.amount].map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","));
-        return { filename: "funding-summary.csv", blob: new Blob([[head, ...rows].join("\r\n")], { type: "text/csv" }) };
+        // The Worker's columns, one row per fiscal year.
+        const head = "fiscal_year,label,start,end,submitted,decided,awarded,declined,win_rate,asked,awarded_amount,outside_submitted,outside_awarded,gms_submitted,gms_awarded";
+        const cell = (c: unknown) => (/[",\r\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c));
+        const rows = s.years.map((y) => {
+          const range = fiscalYearRange(y.fiscalYear, s.fiscalYearStartMonth);
+          const by = bySource.get(y.fiscalYear)!;
+          return [y.fiscalYear, y.label, range.start, range.end, y.submitted, y.decided, y.awarded, y.declined, y.winRate === null ? "" : y.winRate.toFixed(3), printed(y.asked), printed(y.awardedAmount), by.outside.submitted, by.outside.awarded, by.gms.submitted, by.gms.awarded].map(cell).join(",");
+        });
+        return { filename: "funding-summary.csv", blob: new Blob([[head, ...rows].join("\r\n") + "\r\n"], { type: "text/csv" }) };
       }
-      const lines = [`${A.organization.displayName ?? "Funding"} - funding summary`, "", ...s.years.flatMap((y) => [`${y.label}: ${y.submitted} submitted, ${y.decided} decided, ${y.awarded} awarded, ${y.declined} declined, win rate ${pct(y.winRate) || "-"}`, `  Asked $${y.asked.amount}, awarded $${y.awardedAmount.amount}`, ""])];
+      const lines = [`${A.organization.displayName ?? "Funding"} - funding summary`, "", ...s.years.flatMap((y) => [`${y.label}: ${y.submitted} submitted, ${y.decided} decided, ${y.awarded} awarded, ${y.declined} declined, win rate ${pct(y.winRate) || "None decided"}`, `  Asked ${printed(y.asked)}, awarded ${printed(y.awardedAmount)}`, ""])];
       return { filename: "funding-summary.pdf", blob: new Blob([textPdf(lines) as BlobPart], { type: "application/pdf" }) };
     },
   };

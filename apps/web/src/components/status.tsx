@@ -158,7 +158,7 @@ export const STATUS = {
   // What an outside award asks of the organization: reports, conditions, payments.
   obligation: {
     upcoming: look(Clock, "Upcoming", "neutral"),
-    due: look(Hourglass, "Due soon", "warn"),
+    due: look(Hourglass, "Due", "warn"),
     submitted: look(Send, "Submitted", "prog"),
     received: look(CircleCheck, "Received", "ok"),
     done: look(Check, "Done", "done"),

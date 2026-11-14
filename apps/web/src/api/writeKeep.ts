@@ -13,7 +13,7 @@ import type { AppDocument, Answer } from "./applicant.ts";
 import { ApiError } from "./client.ts";
 import { moneyOf, toApplication, toQuestion, type ExportFile, type Money, type OutsideApplication, type OutsideQuestion, type QuestionInput } from "./outside.ts";
 import type { ParsedQuestion, TextCounts } from "../lib/outside.ts";
-import { DEFAULT_WEIGHTS, DOC_TYPES, GO_CRITERIA, type Criterion, type DocType, type RequiredDocument, type Scores, type Variants } from "../lib/writeKeep.ts";
+import { DEFAULT_WEIGHTS, DOC_TYPES, GO_CRITERIA, type Criterion, type DocType, type RequiredDocument, type Scores, type Variants, type VariantTexts } from "../lib/writeKeep.ts";
 
 // ------------------------------------------------------------------------------------ shapes
 
@@ -46,7 +46,7 @@ export interface GuidelinesRead {
 
 export interface LibraryMeta {
   lastVerifiedAt: string | null;
-  variants: Variants;
+  variants: VariantTexts;
   tags: string[];
 }
 /** A library answer with the v1.6 fields, read when the server sends them. */
@@ -199,7 +199,7 @@ export interface WriteKeepApi {
   library(): Promise<LibraryAnswer[]>;
   verifyAnswer(answerId: string): Promise<LibraryAnswer>;
   /** Saves new variants or tags (on the server, as a new version of the answer). */
-  updateAnswerMeta(answerId: string, patch: Partial<Pick<LibraryMeta, "variants" | "tags">>): Promise<LibraryAnswer>;
+  updateAnswerMeta(answerId: string, patch: { variants?: Variants; tags?: string[] }): Promise<LibraryAnswer>;
   vault(): Promise<VaultDocument[]>;
   uploadVault(input: VaultUpload): Promise<VaultDocument>;
   updateVault(id: string, patch: Partial<Pick<VaultDocument, "docType" | "expiresOn" | "name">>): Promise<VaultDocument>;
@@ -528,7 +528,9 @@ export function createHttpWriteKeepApi(opts: HttpWriteKeepOptions): WriteKeepApi
     },
     obligations: async (id) => listOf(await call("GET", `${oa(id)}/obligations`), "obligations", "items").map(toObligation),
     createObligation: async (id, input) => {
-      const data = await call("POST", `${oa(id)}/obligations`, input);
+      // The API takes a missing date, amount or note as "none" and refuses null on create (a condition may have no date).
+      const body = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== null && v !== undefined));
+      const data = await call("POST", `${oa(id)}/obligations`, body);
       return (Array.isArray(obj(data).obligations) || Array.isArray(data) ? listOf(data, "obligations") : [data]).map(toObligation);
     },
     updateObligation: async (oid, patch) => toObligation(await call("PATCH", ob(oid), patch)),

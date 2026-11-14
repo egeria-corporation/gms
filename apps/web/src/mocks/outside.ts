@@ -28,6 +28,7 @@ import type { Session } from "../auth/types.ts";
 import { parseCsv } from "../lib/csv.ts";
 import { parseDollars } from "../lib/format.ts";
 import { countText, isOverLimit, OUTSIDE_STAGES, parseQuestions, plainMoves, STAGE_LABELS, TRANSITIONS, type OutsideStage } from "../lib/outside.ts";
+import { blockedFilename, VAULT_WARNING } from "../lib/writeKeep.ts";
 import { APPLICANT_IDS, type ApplicantStore } from "./applicant.ts";
 
 /** Where consulting requests go on every install unless the server is told otherwise. */
@@ -705,6 +706,8 @@ export function createMockOutsideApi(opts: MockOutsideOptions): OutsideApi & { s
       await signedIn();
       const a = appOf(id);
       writable(a);
+      // As the Worker: a name like a bank or tax form is refused (the vault's rule).
+      if (blockedFilename(input.name)) throw invalid("name", VAULT_WARNING);
       let doc: AppDocument;
       if ("contentBase64" in input) doc = await storeFile(input.name, input.mime, fromBase64(input.contentBase64));
       else doc = { id: `doc_${uuid()}`, name: input.name, mime: input.mime, size: input.size, sha256: input.sha256, source: "passport_locker", passportDocumentId: input.passportDocumentId, scanStatus: "not_scanned", uploadedAt: now() };

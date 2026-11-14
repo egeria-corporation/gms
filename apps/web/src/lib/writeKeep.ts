@@ -4,6 +4,7 @@
 // expiry and filename refusals, the checklist's required documents, internal milestones, the
 // go/no-go scorecard, obligation series, fiscal years and the consulting email's answer cut. The
 // API stays the authority on every rule; this lets the screens draw and warn without a round trip.
+import { OBLIGATION_EDGES, type ObligationKind, type ObligationStatus } from "@gms/workflow";
 import { countFor, countText, type LimitKind, type TextCounts } from "./outside.ts";
 
 // ------------------------------------------------------------------------------------ library
@@ -25,7 +26,10 @@ export const VARIANT_KEYS: readonly VariantKey[] = ["short", "medium", "long"];
 /** About how long each variant is meant to be, in words. */
 export const VARIANT_WORDS: Record<VariantKey, number> = { short: 50, medium: 150, long: 500 };
 export const VARIANT_LABELS: Record<VariantKey | "full", string> = { short: "Short version", medium: "Medium version", long: "Long version", full: "Full answer" };
+/** Variants as a save sends them: a variant set to null or "" is removed. */
 export type Variants = Partial<Record<VariantKey, string | null>>;
+/** Variants as the API answers them: only those the answer has. */
+export type VariantTexts = Partial<Record<VariantKey, string>>;
 
 export interface VariantChoice {
   key: VariantKey | "full";
@@ -76,9 +80,12 @@ export const VAULT_WARNING =
   "Do not upload bank letters, voided checks, ACH or direct deposit forms, W-9s, or anything that shows a person's identity numbers. Bank details are handled only in Passport.";
 /** As the API: a vault document is at most 25 MB. */
 export const VAULT_MAX_BYTES = 25 * 1_048_576;
-/** File names that look like bank or tax-identity paperwork are refused before anything is sent. */
-export const BLOCKED_FILENAME = /(?<![a-z])(bank|ach|void(?:ed)?|routing|w-?9)(?![a-z])/i;
-export const blockedFilename = (name: string) => BLOCKED_FILENAME.test(name);
+/**
+ * File names that look like bank or tax-identity paperwork are refused before anything is sent. The
+ * same pattern as the API's (apps/api/src/services/vault.ts), so the browser refuses what the server would.
+ */
+export const BLOCKED_FILENAME = /(^|[^a-z0-9])(bank(s|ing)?|ach|void(ed)?|routing|w[-_. ]?9|s{2}n)(?=[^a-z0-9]|$)/i;
+export const blockedFilename = (name: string) => BLOCKED_FILENAME.test(name.normalize("NFKC"));
 
 /** A vault document warns this many days before it expires. */
 export const EXPIRY_WARN_DAYS = 30;
@@ -161,7 +168,7 @@ export const WEIGHT_MAX = 10;
 export type Scores = Record<Criterion, number>;
 
 /**
- * The weighted mean of the 1-5 scores, to one decimal (as the API records it), out of 5. Scored
+ * The weighted mean of the 1-5 scores, to two decimals (as the API records it), out of 5. Scored
  * lines only until every line is scored.
  */
 export function goNoGoTotal(scores: Partial<Scores>, weights: Record<Criterion, number>): { total: number; max: 5; complete: boolean } {
@@ -176,23 +183,19 @@ export function goNoGoTotal(scores: Partial<Scores>, weights: Record<Criterion, 
       weight += w;
     } else complete = false;
   }
-  return { total: weight ? Math.round((sum / weight) * 10) / 10 : 0, max: 5, complete };
+  return { total: weight ? Math.round((sum / weight) * 100) / 100 : 0, max: 5, complete };
 }
 
 // ------------------------------------------------------------------------------------ obligations
 
-export type ObligationKindName = "report" | "payment_expected" | "payment_received" | "condition";
-export type ObligationStatusName = "upcoming" | "due" | "submitted" | "received" | "done" | "missed";
+export type ObligationKindName = ObligationKind;
+export type ObligationStatusName = ObligationStatus;
 /**
- * Where each kind's status may move, as @gms/workflow's OBLIGATION_EDGES (v1.7.0). `submitted` is
- * reached only by marking a report submitted. The API sends `allowedStatuses`; this is the fallback.
+ * Where each kind's status may move: @gms/workflow's own edges (v1.7.0), the guard the API runs.
+ * `submitted` is reached only by marking a report submitted. The API sends `allowedStatuses`; this
+ * is the fallback.
  */
-export const OBLIGATION_EDGES: Record<ObligationKindName, Partial<Record<ObligationStatusName, readonly ObligationStatusName[]>>> = {
-  report: { upcoming: ["due", "submitted", "missed"], due: ["submitted", "missed"], missed: ["submitted"], submitted: ["done", "due"], done: ["submitted"] },
-  payment_expected: { upcoming: ["due", "received", "missed"], due: ["received", "missed"], missed: ["received"], received: ["due"] },
-  payment_received: { received: [] },
-  condition: { upcoming: ["due", "done", "missed"], due: ["done", "missed"], missed: ["done"], done: ["due"] },
-};
+export { OBLIGATION_EDGES };
 /** The statuses a person may move an obligation to (not submitted: that has its own route). */
 export const movesFrom = (kind: ObligationKindName, status: ObligationStatusName): ObligationStatusName[] => (OBLIGATION_EDGES[kind][status] ?? []).filter((s) => s !== "submitted");
 
@@ -229,6 +232,13 @@ export function fiscalYearLabel(fy: number, startMonth: number): string {
   if (startMonth <= 1) return `FY ${fy}`;
   const short = (m: number) => MONTHS[m - 1]!.slice(0, 3);
   return `FY ${fy} (${short(startMonth)} ${fy - 1} to ${short(startMonth - 1)} ${fy})`;
+}
+/** The first and last day of a fiscal year (YYYY-MM-DD), as the API's export prints them. */
+export function fiscalYearRange(fy: number, startMonth: number): { start: string; end: string } {
+  const month = startMonth >= 1 && startMonth <= 12 ? startMonth : 1;
+  const start = `${month === 1 ? fy : fy - 1}-${String(month).padStart(2, "0")}-01`;
+  const end = new Date(Date.UTC(fy, month === 1 ? 12 : month - 1, 0)).toISOString().slice(0, 10);
+  return { start, end };
 }
 
 // ------------------------------------------------------------------------------------ drafts

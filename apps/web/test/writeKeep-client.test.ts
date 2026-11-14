@@ -222,8 +222,9 @@ describe("the mock follows the contract", () => {
     await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 409 });
     await m.wk.saveSettings({ goNoGoEnabled: true });
     await expect(m.wk.saveSettings({ goNoGoWeights: { fit: 0, capacity: 0, effort: 0, relationship: 0 } })).rejects.toMatchObject({ status: 422 });
-    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "fail", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 422 });
-    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go" })).rejects.toMatchObject({ status: 422 });
+    // As the API's input check: a go that fails eligibility, or names no next step, is a bad request.
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "fail", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 400 });
+    await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores, decision: "go" })).rejects.toMatchObject({ status: 400 });
     await expect(m.wk.decideGoNoGo(OUTSIDE_IDS.northwind, { eligibility: "pass", scores, decision: "go", to: "drafting" })).rejects.toMatchObject({ status: 409 });
     const a = await m.wk.decideGoNoGo(OUTSIDE_IDS.meadow, { eligibility: "pass", scores: { fit: 5, capacity: 4, effort: 3, relationship: 2 }, decision: "no_go", reason: "Too small" });
     // As the API: the weighted mean of the scores, 1 to 5, to two decimals.
@@ -256,8 +257,10 @@ describe("the mock follows the contract", () => {
     const after = (await m.wk.obligations(OUTSIDE_IDS.cedar)).filter((o) => o.seriesId === WK_IDS.seriesReports);
     expect(after.find((o) => o.id === WK_IDS.oblReport1)!.title).toBe("Progress report");
     expect(after.find((o) => o.id === WK_IDS.oblReport3)!.title).toBe("Progress report");
-    expect(after.filter((o) => o.title === "Annual report")).toHaveLength(2);
-    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { everyMonths: 3, startOn: day(0), endOn: day(200) })).toEqual({ replaced: 2, added: 3, kept: 2 });
+    // As the API: new instances are numbered by their place among the series' dates.
+    expect(after.filter((o) => o.title.startsWith("Annual report")).map((o) => o.title)).toEqual(["Annual report (2 of 4)", "Annual report (4 of 4)"]);
+    // As the API: only dates after today are added (today's would already be due).
+    expect(await m.wk.updateSeries(WK_IDS.seriesReports, { everyMonths: 3, startOn: day(0), endOn: day(200) })).toEqual({ replaced: 2, added: 2, kept: 2 });
   });
 
   it("moves an obligation only along its kind's edges", async () => {
@@ -320,10 +323,10 @@ describe("the mock follows the contract", () => {
     const s = await m.wk.fundingSummary();
     const total = s.years.reduce((n, y) => ({ decided: n.decided + y.decided, awarded: n.awarded + y.awarded }), { decided: 0, awarded: 0 });
     expect(total.awarded).toBeGreaterThan(0);
-    for (const y of s.years) expect(y.winRate).toBe(y.decided ? y.awarded / y.decided : null);
+    for (const y of s.years) expect(y.winRate).toBe(y.decided ? Math.round((y.awarded / y.decided) * 1000) / 1000 : null);
     await m.wk.saveSettings({ fiscalYearStartMonth: 7 });
     expect((await m.wk.fundingSummary()).years[0]!.label).toMatch(/^FY \d{4} \(Jul \d{4} to Jun \d{4}\)$/);
     const csv = await (await m.wk.exportSummary("csv")).blob.text();
-    expect(csv.split("\r\n")[0]).toBe("Fiscal year,Submitted,Decided,Awarded,Declined,Win rate,Asked,Awarded amount");
+    expect(csv.split("\r\n")[0]).toBe("fiscal_year,label,start,end,submitted,decided,awarded,declined,win_rate,asked,awarded_amount,outside_submitted,outside_awarded,gms_submitted,gms_awarded");
   });
 });

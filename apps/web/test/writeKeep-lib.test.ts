@@ -99,7 +99,7 @@ describe("the checklist", () => {
 describe("go/no-go", () => {
   it("weights each 1-5 score and says when every line is scored", () => {
     // The weighted mean, out of 5, as the API records it: (5·3 + 4·2 + 3·2 + 2·1) / 8 = 3.875.
-    expect(goNoGoTotal({ fit: 5, capacity: 4, effort: 3, relationship: 2 }, DEFAULT_WEIGHTS)).toEqual({ total: 3.9, max: 5, complete: true });
+    expect(goNoGoTotal({ fit: 5, capacity: 4, effort: 3, relationship: 2 }, DEFAULT_WEIGHTS)).toEqual({ total: 3.88, max: 5, complete: true });
     expect(goNoGoTotal({ fit: 5 }, DEFAULT_WEIGHTS)).toEqual({ total: 5, max: 5, complete: false });
     expect(goNoGoTotal({ fit: 1, capacity: 5, effort: 5, relationship: 1 }, { fit: 0, capacity: 1, effort: 1, relationship: 0 })).toEqual({ total: 5, max: 5, complete: true });
   });

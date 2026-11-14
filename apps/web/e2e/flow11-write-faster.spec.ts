@@ -39,7 +39,7 @@ test("write faster as a team, with the assistant on", async ({ app: page }) => {
     for (const [label, n] of [["Fit with our work", 5], ["Capacity to do it", 4], ["Effort against the amount", 3], ["Relationship with the funder", 2]] as const) {
       await card.getByRole("radio", { name: new RegExp(`^${label}: ${n},`) }).check();
     }
-    await expect(card.getByText("Score 3.9 of 5")).toBeVisible();
+    await expect(card.getByText("Score 3.88 of 5")).toBeVisible();
     await card.getByLabel("Why (optional)").fill("Close fit with our rides program; the funder knows our work.");
     await card.getByRole("button", { name: "Go: start the application" }).click();
     await expect(page.getByText("Go. Moved to Drafting.")).toBeVisible();
