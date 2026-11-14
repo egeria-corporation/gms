@@ -15,7 +15,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { ApplicationsStep } from "./ApplicationsStep.tsx";
-import { competitionOf, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
+import { competitionOf, offersApply, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
 import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
@@ -150,7 +150,8 @@ function toInput(d: Draft): OpportunityInput {
   };
 }
 
-function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; onAccent: string } }) {
+/** The public card as applicants will see it: Apply only when the public page offers it, else "Not taking applications yet". */
+export function PreviewCard({ draft, brand, apply, closed = false }: { draft: Draft; brand: { accent: string; onAccent: string }; apply: boolean; closed?: boolean }) {
   const input = toInput(draft);
   const count = formatAwardCount(input.funding);
   return (
@@ -172,9 +173,16 @@ function PreviewCard({ draft, brand }: { draft: Draft; brand: { accent: string; 
               {count && <span>{count}</span>}
               <span>{draft.types.map(applicantTypeLabel).join(", ") || "No applicant types chosen"}</span>
             </div>
-            <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }} aria-hidden="true">
-              Apply
-            </span>
+            {apply ? (
+              <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }} aria-hidden="true">
+                Apply
+              </span>
+            ) : !closed ? (
+              <span className="bdg bdg-neutral" style={{ alignSelf: "flex-start" }}>
+                <Clock className="ic" aria-hidden="true" />
+                Not taking applications yet
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -546,7 +554,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
         </section>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: "0" }}>
-          <PreviewCard draft={draft} brand={ws.brand} />
+          <PreviewCard draft={draft} brand={ws.brand} apply={offersApply(opportunity, competitions)} closed={opportunity?.status === "closed"} />
           {step === "who" && <EligibilityDryRun rows={draft.rows} />}
         </div>
       </div>

@@ -105,9 +105,12 @@ export type Database = {
           created_at: string;
           id: string;
           key: string;
+          last_verified_at: string | null;
+          tags: string[];
           title: string;
           updated_at: string;
           used_in: Json;
+          variants: Json;
           version: number;
           workspace_id: string;
         };
@@ -116,9 +119,12 @@ export type Database = {
           created_at?: string;
           id?: string;
           key: string;
+          last_verified_at?: string | null;
+          tags?: string[];
           title: string;
           updated_at?: string;
           used_in?: Json;
+          variants?: Json;
           version?: number;
           workspace_id: string;
         };
@@ -127,9 +133,12 @@ export type Database = {
           created_at?: string;
           id?: string;
           key?: string;
+          last_verified_at?: string | null;
+          tags?: string[];
           title?: string;
           updated_at?: string;
           used_in?: Json;
+          variants?: Json;
           version?: number;
           workspace_id?: string;
         };
@@ -1017,6 +1026,8 @@ export type Database = {
       documents: {
         Row: {
           created_at: string;
+          doc_type: string | null;
+          expires_on: string | null;
           id: string;
           mime: string;
           name: string;
@@ -1035,6 +1046,8 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          doc_type?: string | null;
+          expires_on?: string | null;
           id?: string;
           mime: string;
           name: string;
@@ -1053,6 +1066,8 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          doc_type?: string | null;
+          expires_on?: string | null;
           id?: string;
           mime?: string;
           name?: string;
@@ -1810,6 +1825,7 @@ export type Database = {
           ask_by_year: Json;
           award_by_year: Json;
           awarded_amount_minor: number | null;
+          closed_out_at: string | null;
           confirmation_ref: string | null;
           created_at: string;
           created_by: string | null;
@@ -1820,6 +1836,7 @@ export type Database = {
           full_due: string | null;
           funder_name: string | null;
           funder_record_id: string | null;
+          go_no_go: Json | null;
           grant_end: string | null;
           grant_start: string | null;
           id: string;
@@ -1833,6 +1850,7 @@ export type Database = {
           previous_stage: string | null;
           program_name: string | null;
           receipt_document_id: string | null;
+          required_documents: Json;
           rolling: boolean;
           snapshot_document_id: string | null;
           snapshot_sha256: string | null;
@@ -1851,6 +1869,7 @@ export type Database = {
           ask_by_year?: Json;
           award_by_year?: Json;
           awarded_amount_minor?: number | null;
+          closed_out_at?: string | null;
           confirmation_ref?: string | null;
           created_at?: string;
           created_by?: string | null;
@@ -1861,6 +1880,7 @@ export type Database = {
           full_due?: string | null;
           funder_name?: string | null;
           funder_record_id?: string | null;
+          go_no_go?: Json | null;
           grant_end?: string | null;
           grant_start?: string | null;
           id?: string;
@@ -1874,6 +1894,7 @@ export type Database = {
           previous_stage?: string | null;
           program_name?: string | null;
           receipt_document_id?: string | null;
+          required_documents?: Json;
           rolling?: boolean;
           snapshot_document_id?: string | null;
           snapshot_sha256?: string | null;
@@ -1892,6 +1913,7 @@ export type Database = {
           ask_by_year?: Json;
           award_by_year?: Json;
           awarded_amount_minor?: number | null;
+          closed_out_at?: string | null;
           confirmation_ref?: string | null;
           created_at?: string;
           created_by?: string | null;
@@ -1902,6 +1924,7 @@ export type Database = {
           full_due?: string | null;
           funder_name?: string | null;
           funder_record_id?: string | null;
+          go_no_go?: Json | null;
           grant_end?: string | null;
           grant_start?: string | null;
           id?: string;
@@ -1915,6 +1938,7 @@ export type Database = {
           previous_stage?: string | null;
           program_name?: string | null;
           receipt_document_id?: string | null;
+          required_documents?: Json;
           rolling?: boolean;
           snapshot_document_id?: string | null;
           snapshot_sha256?: string | null;
@@ -1922,6 +1946,120 @@ export type Database = {
           source_ref?: string | null;
           stage?: string;
           submission_method?: string | null;
+          submitted_at?: string | null;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      outside_obligation_series: {
+        Row: {
+          amount_minor: number | null;
+          created_at: string;
+          created_by: string | null;
+          end_on: string;
+          every_months: number;
+          id: string;
+          kind: string;
+          notes: string | null;
+          outside_application_id: string;
+          start_on: string;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          amount_minor?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          end_on: string;
+          every_months: number;
+          id?: string;
+          kind: string;
+          notes?: string | null;
+          outside_application_id: string;
+          start_on: string;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          amount_minor?: number | null;
+          created_at?: string;
+          created_by?: string | null;
+          end_on?: string;
+          every_months?: number;
+          id?: string;
+          kind?: string;
+          notes?: string | null;
+          outside_application_id?: string;
+          start_on?: string;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      outside_obligations: {
+        Row: {
+          amount_minor: number | null;
+          completed_on: string | null;
+          confirmation_ref: string | null;
+          created_at: string;
+          created_by: string | null;
+          customized: boolean;
+          document_id: string | null;
+          due_on: string | null;
+          id: string;
+          kind: string;
+          notes: string | null;
+          outside_application_id: string;
+          series_id: string | null;
+          snapshot_sha256: string | null;
+          status: string;
+          submitted_at: string | null;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          amount_minor?: number | null;
+          completed_on?: string | null;
+          confirmation_ref?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          customized?: boolean;
+          document_id?: string | null;
+          due_on?: string | null;
+          id?: string;
+          kind: string;
+          notes?: string | null;
+          outside_application_id: string;
+          series_id?: string | null;
+          snapshot_sha256?: string | null;
+          status?: string;
+          submitted_at?: string | null;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          amount_minor?: number | null;
+          completed_on?: string | null;
+          confirmation_ref?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          customized?: boolean;
+          document_id?: string | null;
+          due_on?: string | null;
+          id?: string;
+          kind?: string;
+          notes?: string | null;
+          outside_application_id?: string;
+          series_id?: string | null;
+          snapshot_sha256?: string | null;
+          status?: string;
           submitted_at?: string | null;
           title?: string;
           updated_at?: string;
@@ -1937,6 +2075,7 @@ export type Database = {
           id: string;
           limit_kind: string | null;
           limit_value: number | null;
+          obligation_id: string | null;
           outside_application_id: string;
           phase: string;
           position: number;
@@ -1954,6 +2093,7 @@ export type Database = {
           id?: string;
           limit_kind?: string | null;
           limit_value?: number | null;
+          obligation_id?: string | null;
           outside_application_id: string;
           phase?: string;
           position?: number;
@@ -1971,6 +2111,7 @@ export type Database = {
           id?: string;
           limit_kind?: string | null;
           limit_value?: number | null;
+          obligation_id?: string | null;
           outside_application_id?: string;
           phase?: string;
           position?: number;
@@ -2906,4 +3047,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];

@@ -13,7 +13,9 @@ const WINDOW = 200;
 const MAX_READ_IDS = 500;
 /** Ledger events worth a person's attention, by first segment. Routine bookkeeping stays in the ledger. */
 // `outside_deadline`: reminders of outside applications' deadlines (apply anywhere); no ledger event maps to it.
-export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline"] as const;
+// `document_expiring`, `outside_obligation_due` and `outside_next_cycle` (v1.6.0, v1.7.0): the vault's expiry warning,
+// an outside award's report and condition reminders and a declined application's next-cycle reminder; no ledger event maps to them.
+export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline", "document_expiring", "outside_obligation_due", "outside_next_cycle"] as const;
 export type Category = (typeof CATEGORIES)[number];
 const CATEGORY_OF: Record<string, Category> = {
   application: "application", decision: "decision", award: "award", agreement: "agreement", amendment: "award",

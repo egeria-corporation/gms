@@ -53,6 +53,8 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;
+  /** Assistant calls per workspace per calendar month (default 40; the hosted site sets 100). */
+  ASSISTANT_MONTHLY_QUOTA?: string;
 
   /** Static assets of this Worker (the compiled OpenAPI document). */
   ASSETS?: Fetcher;

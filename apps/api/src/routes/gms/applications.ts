@@ -153,7 +153,8 @@ applicationRoutes.get("/my/applications/:id/attachments", async (c) => c.json(ok
 applicationRoutes.post("/my/applications/:id/attachments", async (c) => c.json(created(await applicant.attachDocument(await svc(c), appId(c), parse(applicant.attachmentInput, await jsonBody(c)))), 201));
 
 // ---- answer library ----
-applicationRoutes.get("/my/answers", async (c) => c.json(ok(await applicant.listAnswers(await svc(c)))));
+applicationRoutes.get("/my/answers", async (c) => c.json(ok(await applicant.listAnswers(await svc(c), parse(applicant.answerListQuery, { tag: c.req.query("tag"), stale: c.req.query("stale") })))));
+applicationRoutes.post("/my/answers/:answerId/verify", async (c) => c.json(ok(await applicant.verifyAnswer(await svc(c), bareUuid(c.req.param("answerId"), "Answer")))));
 applicationRoutes.post("/my/answers", async (c) => c.json(created(await applicant.createAnswer(await svc(c), parse(applicant.answerInput, await jsonBody(c)))), 201));
 applicationRoutes.patch("/my/answers/:answerId", async (c) => c.json(ok(await applicant.updateAnswer(await svc(c), bareUuid(c.req.param("answerId"), "Answer"), parse(applicant.answerPatch, await jsonBody(c))))));
 

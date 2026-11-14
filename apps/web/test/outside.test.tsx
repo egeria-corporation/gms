@@ -178,7 +178,8 @@ describe("the outside application screen", () => {
     expect(within(dialog).queryByRole("region", { name: "What will be sent" })).not.toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Preview what will be sent" }));
     expect(await within(dialog).findByText(/Your current answers \(3\)/)).toBeInTheDocument();
-    expect(within(dialog).getByText("No answer yet: the question goes without one.")).toBeInTheDocument();
+    // As the email carries it: an unanswered question goes with "(no answer yet)".
+    expect(within(dialog).getByText("(no answer yet)")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Send the request" }));
     expect(await within(dialog).findByText("OpenGrants consulting can start right away. The team will reply to maria@aldercreek.example.")).toBeInTheDocument();
     expect(o.outside.consulting).toHaveLength(1);

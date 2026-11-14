@@ -30,18 +30,27 @@ import { getApplicationDetail } from "./inbox.ts";
 import { authHeaderOf } from "./integrations.ts";
 import { getTemplate } from "./templates.ts";
 
-type Tool = "summarize" | "compare_rubric" | "draft_letter" | "adapt_answer";
+type Tool = "summarize" | "compare_rubric" | "draft_letter" | "adapt_answer" | "draft_answer" | "parse_guidelines";
 
 const disabled = () => new ApiError(404, "assistant_disabled", "The drafting assistant is not enabled on this server");
 
-function limitOf(settings: unknown): number {
-  const n = (settings as { assistMonthlyQuota?: unknown } | null)?.assistMonthlyQuota;
-  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : DEFAULT_MONTHLY_QUOTA;
+/** ASSISTANT_MONTHLY_QUOTA as a whole number of calls, or null (then the default applies). */
+export function monthlyQuotaOf(raw: string | undefined | null): number | null {
+  const t = raw?.trim();
+  if (!t || !/^\d{1,7}$/.test(t)) return null;
+  return Number(t);
 }
 
-async function quota(ctx: ServiceContext, ws: ServiceWorkspace) {
+/** A workspace's own limit (`settings.assistMonthlyQuota`, server-set), else the server's, else the default. */
+function limitOf(settings: unknown, server: number | null | undefined): number {
+  const n = (settings as { assistMonthlyQuota?: unknown } | null)?.assistMonthlyQuota;
+  if (typeof n === "number" && Number.isInteger(n) && n >= 0) return n;
+  return typeof server === "number" && Number.isInteger(server) && server >= 0 ? server : DEFAULT_MONTHLY_QUOTA;
+}
+
+export async function quota(ctx: ServiceContext, ws: ServiceWorkspace) {
   const row = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  const limit = limitOf(row.settings);
+  const limit = limitOf(row.settings, ctx.config.assistantMonthlyQuota);
   const since = monthStart(ctx.now()).toISOString();
   // Newest first, one more than the limit: enough to know whether the month is spent.
   const recent = await ctx.repos.table("assist_calls").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false, limit: limit + 1 });
@@ -60,22 +69,40 @@ export async function assistStatus(ctx: ServiceContext) {
   return { enabled, model: enabled ? (ctx.config.assistantModel ?? DEFAULT_ASSISTANT_MODEL) : null, monthlyQuota: q?.limit ?? null, used: q?.used ?? null, quota: q };
 }
 
-/** Flag, quota, one model call, log. The caller has already been authorized for the material. */
-async function run<T>(ctx: ServiceContext, ws: ServiceWorkspace, tool: Tool, subject: string | null, call: (llm: LlmClient) => Promise<{ draft: true; output: T; usage: AssistUsage }>) {
+/**
+ * Flag, quota, the model call(s), log: one `assist_calls` row per model call, so a draft that took
+ * a second call to fit its limit counts twice (the quota is of calls, owner decision D4). The
+ * caller has already been authorized for the material; `remaining` tells it how many calls the
+ * month still allows.
+ */
+export async function runAssist<T>(
+  ctx: ServiceContext,
+  ws: ServiceWorkspace,
+  tool: Tool,
+  subject: string | null,
+  call: (llm: LlmClient, remaining: number) => Promise<{ draft: true; output: T; usage: AssistUsage; calls?: AssistUsage[] }>,
+) {
   const llm = ctx.config.assistantEnabled ? ctx.ports.llm : undefined;
   if (!llm) throw disabled();
   const before = await quota(ctx, ws);
-  if (before.remaining <= 0) throw new ApiError(429, "assist_quota_exhausted", `This workspace has used its ${before.limit} assistant drafts for the month. The count resets on ${before.resetsAt.slice(0, 10)}`);
+  if (before.remaining <= 0) throw new ApiError(429, "assist_quota_exhausted", `This workspace has used the assistant ${before.limit} times this month, its monthly limit. The count resets on ${before.resetsAt.slice(0, 10)}`);
   let result;
   try {
-    result = await call(llm);
+    result = await call(llm, before.remaining);
   } catch (e) {
     if (e instanceof AssistDeclinedError) throw new ApiError(422, "assistant_declined", "The assistant declined to draft this. Nothing was changed");
     if (e instanceof AssistUnavailableError) throw new ApiError(e.retryable ? 503 : 502, "assistant_unavailable", e.message);
     throw e;
   }
-  await ctx.repos.table("assist_calls").insert({ workspace_id: ws.id, user_id: ctx.actor.userId, tool, tokens_in: result.usage.tokensIn, tokens_out: result.usage.tokensOut, subject });
-  return { draft: true as const, tool, ...result.output, model: result.usage.model, quota: quotaState(before.used + 1, before.limit, ctx.now()) };
+  const calls = result.calls?.length ? result.calls : [result.usage];
+  for (const u of calls) await ctx.repos.table("assist_calls").insert({ workspace_id: ws.id, user_id: ctx.actor.userId, tool, tokens_in: u.tokensIn, tokens_out: u.tokensOut, subject });
+  return { output: result.output, model: result.usage.model, calls: calls.length, quota: quotaState(before.used + calls.length, before.limit, ctx.now()) };
+}
+
+/** One call whose output fields sit beside `draft: true`, as the first four tools answer. */
+async function run<T>(ctx: ServiceContext, ws: ServiceWorkspace, tool: Tool, subject: string | null, call: (llm: LlmClient) => Promise<{ draft: true; output: T; usage: AssistUsage }>) {
+  const r = await runAssist(ctx, ws, tool, subject, (llm) => call(llm));
+  return { draft: true as const, tool, ...r.output, model: r.model, quota: r.quota };
 }
 
 // ------------------------------------------------------------------------------------ material

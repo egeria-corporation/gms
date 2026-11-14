@@ -2,7 +2,8 @@
 // Applicant workflow beyond the protocol routes: the applications list and status timeline,
 // section assignments, field comments, attachments, withdrawing, the answer library, and finding
 // funding (open competitions here, and OpenGrants through its hosted MCP).
-import { parsePointer, setAt, type JsonObject } from "@gms/forms";
+import { isStale } from "@gms/assist";
+import { parsePointer, setAt, type JsonObject, type VariantKey } from "@gms/forms";
 import { readPath } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -195,10 +196,63 @@ export async function attachDocument(ctx: ServiceContext, appId: string, input: 
 
 // ------------------------------------------------------------------------------------ answer library
 
-const answerView = (a: Row<"answers">) => ({ id: a.id, key: a.key, title: a.title, body: a.body, version: a.version, usedIn: a.used_in, words: a.body.trim() ? a.body.trim().split(/\s+/).length : 0, updatedAt: a.updated_at });
+const wordsIn = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+type Variants = Partial<Record<VariantKey, string>>;
+const variantsOf = (a: Row<"answers">): Variants => {
+  const v = (a.variants ?? {}) as Record<string, unknown>;
+  return Object.fromEntries((["short", "medium", "long"] as const).filter((k) => typeof v[k] === "string").map((k) => [k, v[k] as string]));
+};
+
+/** Whether a library answer's facts were checked in the last 12 months: `verified`, `stale` (checked longer ago) or `never`. */
+export function verificationOf(a: Pick<Row<"answers">, "last_verified_at">, now: Date) {
+  const today = now.toISOString().slice(0, 10);
+  const state = !a.last_verified_at ? ("never" as const) : isStale(a.last_verified_at, today) ? ("stale" as const) : ("verified" as const);
+  return { state, lastVerifiedAt: a.last_verified_at, stale: state !== "verified" };
+}
+
+const answerView = (a: Row<"answers">, now: Date) => {
+  const variants = variantsOf(a);
+  return {
+    id: a.id,
+    key: a.key,
+    title: a.title,
+    body: a.body,
+    version: a.version,
+    usedIn: a.used_in,
+    words: wordsIn(a.body),
+    variants,
+    variantWords: Object.fromEntries(Object.entries(variants).map(([k, t]) => [k, wordsIn(t)])),
+    tags: a.tags,
+    lastVerifiedAt: a.last_verified_at,
+    verification: verificationOf(a, now),
+    updatedAt: a.updated_at,
+  };
+};
 const KEY = /^[a-z0-9][a-z0-9_.-]{0,98}$/;
-export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default("") }).strict();
-export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional() }).strict();
+const variantText = z.string().max(20_000).transform((t) => t.replace(/\r\n?/g, "\n"));
+/** Shorter and longer versions; `null` (or an empty string) removes one. */
+const variantsInput = z.object({ short: variantText.nullable().optional(), medium: variantText.nullable().optional(), long: variantText.nullable().optional() }).strict();
+const tagsInput = z
+  .array(z.string().transform(cleanLine).pipe(z.string().min(1).max(50)))
+  .max(20)
+  // The first spelling of a tag is kept; later ones that differ only in case are dropped.
+  .transform((tags) => tags.filter((t, i) => tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i));
+export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default(""), variants: variantsInput.optional(), tags: tagsInput.optional(), verified: z.boolean().optional() }).strict();
+/** `verified: true` marks the saved text as checked now. An edit of the text that does not say so leaves it unverified. */
+export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional(), variants: variantsInput.optional(), tags: tagsInput.optional(), verified: z.boolean().optional() }).strict();
+export const answerListQuery = z.object({ tag: z.string().trim().min(1).max(50).optional(), stale: z.enum(["true", "false"]).optional() }).strict();
+
+const mergeVariants = (current: Variants, patch: z.output<typeof variantsInput> | undefined): Variants => {
+  if (!patch) return current;
+  const out: Variants = { ...current };
+  for (const k of ["short", "medium", "long"] as const) {
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (v === null || !v.trim()) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+};
 
 /**
  * Answers as the library shows them: each use names the application and the funder, so a person
@@ -212,7 +266,7 @@ async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
   const outsideIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { outsideApplicationId?: string }[] | null) ?? []).map((u) => u.outsideApplicationId).filter((x): x is string => typeof x === "string")))];
   const outsideApps = outsideIds.length && rows[0] ? await ctx.repos.table("outside_applications").find({ id: outsideIds, workspace_id: rows[0].workspace_id }) : [];
   return rows.map((r) => {
-    const v = answerView(r);
+    const v = answerView(r, ctx.now());
     const usedIn = ((r.used_in as unknown as Record<string, unknown>[] | null) ?? []).map((u) => {
       const outside = typeof u.outsideApplicationId === "string" ? outsideApps.find((a) => a.id === u.outsideApplicationId) : undefined;
       if (outside) return { ...u, applicationTitle: outside.title, funderName: outside.funder_name };
@@ -223,29 +277,68 @@ async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
   });
 }
 
-/** The latest version of each answer. */
-export async function listAnswers(ctx: ServiceContext) {
+/** The latest version of each answer, optionally only those with a tag, or only the stale ones. */
+export async function listAnswers(ctx: ServiceContext, query: z.output<typeof answerListQuery> = {}) {
   const ws = await authorize(ctx, { scope: "library:read", kind: "applicant" });
   const rows = await ctx.repos.table("answers").find({ workspace_id: ws.id }, { orderBy: "version", ascending: false });
   const latest = new Map<string, Row<"answers">>();
   for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r);
-  return answerViews(ctx, [...latest.values()].sort((a, b) => a.title.localeCompare(b.title)));
+  let list = [...latest.values()];
+  if (query.tag) list = list.filter((a) => a.tags.some((t) => t.toLowerCase() === query.tag!.toLowerCase()));
+  if (query.stale) list = list.filter((a) => verificationOf(a, ctx.now()).stale === (query.stale === "true"));
+  return answerViews(ctx, list.sort((a, b) => a.title.localeCompare(b.title)));
 }
 
 export async function createAnswer(ctx: ServiceContext, input: z.output<typeof answerInput>) {
   const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
   const key = input.key ?? (input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "answer");
-  const row = await guardWrite("An answer with this key", () => ctx.repos.table("answers").insert({ workspace_id: ws.id, key, title: input.title, body: input.body }));
-  return answerView(row);
+  const row = await guardWrite("An answer with this key", () =>
+    ctx.repos.table("answers").insert({ workspace_id: ws.id, key, title: input.title, body: input.body, variants: mergeVariants({}, input.variants) as Row<"answers">["variants"], tags: input.tags ?? [], last_verified_at: input.verified ? ctx.now().toISOString() : null }),
+  );
+  if (input.verified) await audit(ctx, "answer.verified", "answer", row.id, { key: row.key, version: row.version });
+  return answerView(row, ctx.now());
 }
 
-/** Editing an answer saves a new version; applications that used the old one keep what they inserted. */
+/**
+ * Editing an answer saves a new version; applications that used the old one keep what they
+ * inserted. Variants and tags carry over unless changed. The verification date carries over only
+ * when the text is unchanged: new text is unverified until a person says it is checked.
+ */
 export async function updateAnswer(ctx: ServiceContext, answerId: string, input: z.output<typeof answerPatch>) {
   const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
   const current = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
   const versions = await ctx.repos.table("answers").find({ workspace_id: ws.id, key: current.key }, { orderBy: "version", ascending: false, limit: 1 });
-  const next = await ctx.repos.table("answers").insert({ workspace_id: ws.id, key: current.key, title: input.title ?? current.title, body: input.body ?? current.body, version: (versions[0]?.version ?? current.version) + 1, used_in: current.used_in });
+  const body = input.body ?? current.body;
+  const verifiedAt = input.verified ? ctx.now().toISOString() : body === current.body && input.verified !== false ? current.last_verified_at : null;
+  const next = await guardWrite("This answer", () =>
+    ctx.repos.table("answers").insert({
+      workspace_id: ws.id,
+      key: current.key,
+      title: input.title ?? current.title,
+      body,
+      version: (versions[0]?.version ?? current.version) + 1,
+      used_in: current.used_in,
+      variants: mergeVariants(variantsOf(current), input.variants) as Row<"answers">["variants"],
+      tags: input.tags ?? current.tags,
+      last_verified_at: verifiedAt,
+    }),
+  );
+  if (input.verified) await audit(ctx, "answer.verified", "answer", next.id, { key: next.key, version: next.version });
   return (await answerViews(ctx, [next]))[0]!;
+}
+
+/**
+ * "Mark as verified": a person confirms the answer's facts are current. Recorded on the latest
+ * version without making a new one (the text has not changed), and ledgered.
+ */
+export async function verifyAnswer(ctx: ServiceContext, answerId: string) {
+  const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
+  const named = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
+  const latest = (await ctx.repos.table("answers").find({ workspace_id: ws.id, key: named.key }, { orderBy: "version", ascending: false, limit: 1 }))[0]!;
+  const at = ctx.now().toISOString();
+  const [saved] = await ctx.repos.table("answers").update({ id: latest.id, workspace_id: ws.id }, { last_verified_at: at });
+  await audit(ctx, "answer.verified", "answer", latest.id, { key: latest.key, version: latest.version });
+  return (await answerViews(ctx, [saved ?? latest]))[0]!;
 }
 
 type Use = { applicationId: string; formId: string; path: string; version: number; insertedAt: string };

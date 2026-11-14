@@ -44,6 +44,16 @@ export interface FullStore {
   documents: Record<string, PublicDocument[]>;
 }
 
+/**
+ * The assistant is off in mock mode, as on an install without a model key. A browser test or a demo
+ * turns it on before the app loads (`window.__GMS_MOCK_ASSIST__ = true`), with 100 drafts a month.
+ */
+export function mockAssist(): AssistStatus {
+  if ((globalThis as { __GMS_MOCK_ASSIST__?: unknown }).__GMS_MOCK_ASSIST__ !== true) return { enabled: false, quota: null };
+  const d = new Date();
+  return { enabled: true, quota: { used: 12, limit: 100, remaining: 88, resetsAt: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString() } };
+}
+
 export function seedFullStore(store: ApplicantStore): FullStore {
   return {
     tokens: [
@@ -62,7 +72,7 @@ export function seedFullStore(store: ApplicantStore): FullStore {
     },
     destination: { state: "ok", bankName: "River City Credit Union", last4: "4821", status: "active", level: "L3", pendingChange: false, freezeUntil: null, manageUrl: store.organization.editUrl ?? null, reason: null },
     alerts: [{ id: F.alertHealth, query: "rural health navigation", createdAt: "2027-03-14T16:00:00Z" }],
-    assist: { enabled: false, quota: null },
+    assist: mockAssist(),
     left: [],
     extras: {
       riverbend: {

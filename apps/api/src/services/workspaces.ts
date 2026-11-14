@@ -49,6 +49,11 @@ export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
   },
   applicant: {
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+    // v1.6.0: the go/no-go scorecard on the Deciding stage, and its weights (defaults 3, 2, 2, 1).
+    goNoGoEnabled: z.boolean(),
+    goNoGoWeights: z.object({ fit: z.number().int().min(0).max(10), capacity: z.number().int().min(0).max(10), effort: z.number().int().min(0).max(10), relationship: z.number().int().min(0).max(10) }).strict().refine((w) => w.fit + w.capacity + w.effort + w.relationship > 0, "At least one weight is above zero"),
+    // v1.7.0: the month the organization's fiscal year starts (1 = January), for the funding summary.
+    fiscalYearStartMonth: z.number().int().min(1).max(12),
   },
 };
 

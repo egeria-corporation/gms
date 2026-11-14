@@ -8,7 +8,7 @@
 // - The system prompt is the cacheable prefix; applicant text only ever appears in the user turn.
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { AssistDeclinedError, AssistUnavailableError, type LlmClient, type LlmRequest, type LlmResult } from "./llm.ts";
+import { AssistDeclinedError, AssistUnavailableError, type LlmClient, type LlmDocument, type LlmRequest, type LlmResult } from "./llm.ts";
 
 /** Used when ASSISTANT_MODEL is not set. */
 export const DEFAULT_ASSISTANT_MODEL = "claude-opus-5-5";
@@ -20,6 +20,14 @@ export interface AnthropicLlmOptions {
   effort?: "low" | "medium" | "high";
   /** Injected in tests; the platform `fetch` otherwise. */
   fetch?: typeof fetch;
+}
+
+/** A document content block: a PDF as base64, or plain text. Citations stay off (they cannot be combined with structured output). */
+function documentBlock(d: LlmDocument) {
+  const title = d.title ? { title: d.title.slice(0, 200) } : {};
+  return d.kind === "pdf"
+    ? { type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data: d.base64 }, ...title }
+    : { type: "document" as const, source: { type: "text" as const, media_type: "text/plain" as const, data: d.text }, ...title };
 }
 
 export class AnthropicLlmClient implements LlmClient {
@@ -44,7 +52,7 @@ export class AnthropicLlmClient implements LlmClient {
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content: request.user }],
+        messages: [{ role: "user", content: request.documents?.length ? [...request.documents.map(documentBlock), { type: "text" as const, text: request.user }] : request.user }],
         output_config: { effort: this.effort, format: betaZodOutputFormat(request.schema) },
       });
     } catch (e) {

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
-  "description": "Anthropic API wrapper: summarize, compare-to-rubric, draft-letter, adapt-answer",
+  "description": "Anthropic API wrapper: summarize, compare-to-rubric, draft-letter, adapt-answer, draft-answer, read-guidelines",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

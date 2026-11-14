@@ -4,12 +4,16 @@
 // Each answer is written here with live counts against the funder's limit, can start from the
 // answer library or an organization fact, and every save is a new version.
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
-import type { Answer, ApplicantMember, MyOrganization } from "../../../api/applicant.ts";
-import type { AdaptedDraft } from "../../../api/applicantFull.ts";
+import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, FileClock, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
+import type { ApplicantMember, MyOrganization } from "../../../api/applicant.ts";
+import type { AdaptedDraft, AssistStatus } from "../../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../../api/applicantFullHooks.ts";
-import type { LimitKind, OutsideAnswer, OutsideDetail, OutsideQuestion, QuestionInput, QuestionPhase, QuestionStatus } from "../../../api/outside.ts";
+import type { AnswerInput, LimitKind, OutsideAnswer, OutsideDetail, OutsideQuestion, QuestionInput, QuestionPhase, QuestionStatus } from "../../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../../api/outsideHooks.ts";
+import type { LibraryAnswer } from "../../../api/writeKeep.ts";
+import { useWriteKeepApi } from "../../../api/writeKeepHooks.ts";
+import { useServices } from "../../../app/services.tsx";
+import { useCurrentWorkspace } from "../../../app/workspace.tsx";
 import { CopyButton } from "../../../components/CopyButton.tsx";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { Loaded, timeAgo } from "../../../components/applicant.tsx";
@@ -18,7 +22,10 @@ import { EmptyState, ErrorBanner, Field, Notice, SaveNote } from "../../../compo
 import { quotaSpent, QuotaSpentNote } from "../../../components/launch.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
 import { countFor, countText, isOverLimit, LIMIT_UNITS, limitPhrase, type ParsedQuestion, type TextCounts } from "../../../lib/outside.ts";
+import { bestVariant, canApprove as mayApprove, mergeRequired, variantChoices, type RequiredDocument } from "../../../lib/writeKeep.ts";
+import { GuidelinesReader } from "./guidelines.tsx";
 import { orgFacts } from "./shared.tsx";
+import { AiUseNote, CommentsButton, CommentsPanel, DraftPanel, ReuseDialog, StaleBadge } from "./writeFaster.tsx";
 
 export const PHASE_LABELS: Record<QuestionPhase, string> = { loi: "Letter of inquiry", full: "Full application", report: "Report" };
 const STATUS_OPTIONS: { value: QuestionStatus; label: string }[] = [
@@ -145,12 +152,39 @@ function QuestionForm({ initial, onSave, onCancel, saving, submitLabel }: { init
 
 // ------------------------------------------------------------------------------------ paste
 
-export function PasteQuestionsDialog({ applicationId, onClose, onSaved }: { applicationId: string; onClose: () => void; onSaved: (n: number) => void }) {
+export function PasteQuestionsDialog({
+  applicationId,
+  onClose,
+  onSaved,
+  assist = null,
+  requiredDocuments = [],
+  obligationId = null,
+}: {
+  applicationId: string;
+  onClose: () => void;
+  onSaved: (n: number, documents?: number) => void;
+  /** The assistant's status: "Read the funder's guidelines" is offered only when it is on. */
+  assist?: AssistStatus | null;
+  requiredDocuments?: RequiredDocument[];
+  /** Report questions: saved on this report obligation. */
+  obligationId?: string | null;
+}) {
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<"text" | "ai">("text");
   const [proposed, setProposed] = useState<(ParsedQuestion & { keep: boolean })[] | null>(null);
+  const [docs, setDocs] = useState<{ label: string; keep: boolean }[]>([]);
+  const [kept, setKept] = useState<string | null>(null);
   const parse = useOutsideMutation((api, t: string) => api.parseQuestions(applicationId, t));
-  const save = useOutsideMutation((api, qs: QuestionInput[]) => api.addQuestions(applicationId, qs));
+  const wk = useWriteKeepApi();
+  const save = useOutsideMutation(async (api, qs: QuestionInput[], labels: string[]) => {
+    // Report questions are kept on their report; the application's on the application.
+    const made = !qs.length ? [] : obligationId ? await wk.addReportQuestions(obligationId, qs) : await api.addQuestions(applicationId, qs);
+    if (labels.length) await wk.setRequiredDocuments(applicationId, mergeRequired(requiredDocuments, labels));
+    return made;
+  });
   const keep = proposed?.filter((q) => q.keep && q.prompt.trim()) ?? [];
+  const keepDocs = docs.filter((d) => d.keep).map((d) => d.label);
+  const aiOn = !!assist?.enabled && !obligationId;
   const update = (i: number, patch: Partial<ParsedQuestion & { keep: boolean }>) => setProposed((p) => p && p.map((q, j) => (j === i ? { ...q, ...patch } : q)));
   return (
     <Dialog open onClose={onClose} labelledBy="paste-q-title" size="lg">
@@ -159,18 +193,46 @@ export function PasteQuestionsDialog({ applicationId, onClose, onSaved }: { appl
           <h3 id="paste-q-title" style={{ fontSize: "16px" }}>
             Paste the funder’s questions
           </h3>
-          <p className="small muted">{proposed ? "Check each question and its limit. Nothing is saved until you save them." : "Paste the questions from the funder’s guidelines or portal. Numbered lists and blank lines are split into questions, and limits such as “250 words” are picked up."}</p>
+          <p className="small muted">
+            {proposed
+              ? "Check each question and its limit. Nothing is saved until you save them."
+              : mode === "ai"
+                ? "The assistant reads the funder’s guidelines and finds the questions, their limits and the documents the funder asks for."
+                : "Paste the questions from the funder’s guidelines or portal. Numbered lists and blank lines are split into questions, and limits such as “250 words” are picked up."}
+          </p>
         </div>
         <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
-        {!proposed ? (
+        {!proposed && aiOn && (
+          <div className="seg" role="group" aria-label="How to find the questions">
+            <button type="button" className={mode === "text" ? "on" : undefined} aria-pressed={mode === "text"} onClick={() => setMode("text")}>
+              <ClipboardList className="ic ic-sm" aria-hidden="true" />
+              Paste the questions
+            </button>
+            <button type="button" className={mode === "ai" ? "on" : undefined} aria-pressed={mode === "ai"} onClick={() => setMode("ai")}>
+              <Sparkles className="ic ic-sm" aria-hidden="true" />
+              Read the funder’s guidelines
+            </button>
+          </div>
+        )}
+        {!proposed && mode === "ai" && aiOn ? (
+          <GuidelinesReader
+            applicationId={applicationId}
+            assist={assist!}
+            onRead={(r) => {
+              setProposed(r.questions.map((q) => ({ ...q, keep: true })));
+              setDocs(r.requiredDocuments.map((label) => ({ label, keep: true })));
+              setKept(r.document ? r.document.name : null);
+            }}
+          />
+        ) : !proposed ? (
           <Field id="paste-q-text" label="Questions">
             <textarea id="paste-q-text" className="ta" style={{ minHeight: "220px" }} value={text} onChange={(e) => setText(e.target.value)} placeholder={"1. Describe the need your project addresses. (250 words)\n2. How will you measure success? Maximum 1,500 characters."} />
           </Field>
-        ) : proposed.length === 0 ? (
+        ) : proposed.length === 0 && docs.length === 0 ? (
           <Notice tone="neu" title="No questions were found in that text">
             Go back and paste the questions themselves, one per line or numbered.
           </Notice>
@@ -236,25 +298,51 @@ export function PasteQuestionsDialog({ applicationId, onClose, onSaved }: { appl
             ))}
           </ol>
         )}
+        {proposed && kept && <p className="small muted">The guidelines file, {kept}, is kept with this application’s attachments.</p>}
+        {proposed && docs.length > 0 && (
+          <fieldset className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px", margin: 0 }}>
+            <legend className="small b" style={{ padding: "0 4px" }}>
+              Documents the funder asks for
+            </legend>
+            {docs.map((d, i) => (
+              <label key={d.label} className="row small" style={{ gap: "8px" }}>
+                <input type="checkbox" checked={d.keep} onChange={(e) => setDocs(docs.map((x, j) => (j === i ? { ...x, keep: e.target.checked } : x)))} />
+                {d.label}
+              </label>
+            ))}
+            <span className="help">Kept ones go on the Checklist tab, where you can use a document from your vault.</span>
+          </fieldset>
+        )}
         {parse.error ? <ErrorBanner error={parse.error} title="The questions could not be read" /> : null}
         {save.error ? <ErrorBanner error={save.error} title="The questions were not saved" /> : null}
       </div>
       <div className="ft">
         {proposed ? (
           <>
-            <button className="btn btn-secondary" type="button" onClick={() => setProposed(null)}>
-              Back to the text
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => {
+                setProposed(null);
+                setDocs([]);
+                setKept(null);
+              }}
+            >
+              {mode === "ai" ? "Back to the guidelines" : "Back to the text"}
             </button>
             <button
               className="btn btn-primary"
               type="button"
-              disabled={keep.length === 0 || save.state === "saving"}
+              disabled={(keep.length === 0 && keepDocs.length === 0) || save.state === "saving"}
               onClick={async () => {
-                const made = await save.run(keep.map((q) => ({ prompt: q.prompt.trim(), phase: q.phase, limitKind: q.limitKind ?? null, limitValue: q.limitKind && q.limitValue ? q.limitValue : null })));
-                if (made) onSaved(made.length);
+                const made = await save.run(
+                  keep.map((q) => ({ prompt: q.prompt.trim(), phase: obligationId ? "report" : q.phase, limitKind: q.limitKind ?? null, limitValue: q.limitKind && q.limitValue ? q.limitValue : null })),
+                  keepDocs,
+                );
+                if (made) onSaved(made.length, keepDocs.length);
               }}
             >
-              {save.state === "saving" ? "Saving…" : `Save ${keep.length} question${keep.length === 1 ? "" : "s"}`}
+              {save.state === "saving" ? "Saving…" : saveLabel(keep.length, keepDocs.length)}
             </button>
           </>
         ) : (
@@ -262,17 +350,22 @@ export function PasteQuestionsDialog({ applicationId, onClose, onSaved }: { appl
             <button className="btn btn-secondary" type="button" onClick={onClose}>
               Cancel
             </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!text.trim() || parse.state === "saving"}
-              onClick={async () => {
-                const found = await parse.run(text);
-                if (found) setProposed(found.map((q) => ({ ...q, keep: true })));
-              }}
-            >
-              {parse.state === "saving" ? "Reading…" : "Find the questions"}
-            </button>
+            {(mode === "text" || !aiOn) && (
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={!text.trim() || parse.state === "saving"}
+                onClick={async () => {
+                  const found = await parse.run(text);
+                  if (found) {
+                    setProposed(found.map((q) => ({ ...q, phase: obligationId ? "report" : q.phase, keep: true })));
+                    setDocs([]);
+                  }
+                }}
+              >
+                {parse.state === "saving" ? "Reading…" : "Find the questions"}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -280,11 +373,18 @@ export function PasteQuestionsDialog({ applicationId, onClose, onSaved }: { appl
   );
 }
 
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const saveLabel = (q: number, d: number) => (d === 0 ? `Save ${plural(q, "question")}` : q === 0 ? `Save ${plural(d, "document")}` : `Save ${plural(q, "question")} and ${plural(d, "document")}`);
+
 // ------------------------------------------------------------------------------------ inserts
 
-function LibraryDialog({ answers, onInsert, onClose, busy, error }: { answers: Answer[]; onInsert: (a: Answer) => void; onClose: () => void; busy: boolean; error: unknown }) {
+function LibraryDialog({ answers, question, onInsert, onClose, busy, error }: { answers: LibraryAnswer[]; question: OutsideQuestion; onInsert: (a: LibraryAnswer, text: string) => void; onClose: () => void; busy: boolean; error: unknown }) {
   const [id, setId] = useState(answers[0]?.id ?? "");
   const answer = answers.find((a) => a.id === id);
+  const choices = answer ? variantChoices(answer) : [];
+  const best = bestVariant(choices, question.limitKind, question.limitValue);
+  const [picked, setPicked] = useState<string | null>(null);
+  const choice = choices.find((c) => c.key === picked) ?? best;
   return (
     <Dialog open onClose={onClose} labelledBy="olib-title">
       <div className="hd">
@@ -300,7 +400,15 @@ function LibraryDialog({ answers, onInsert, onClose, busy, error }: { answers: A
       </div>
       <div className="bd">
         <Field id="olib-answer" label="Library answer">
-          <select id="olib-answer" className="sel" value={id} onChange={(e) => setId(e.target.value)}>
+          <select
+            id="olib-answer"
+            className="sel"
+            value={id}
+            onChange={(e) => {
+              setId(e.target.value);
+              setPicked(null);
+            }}
+          >
             {answers.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.title} · v{a.version} · {a.words} words
@@ -309,8 +417,25 @@ function LibraryDialog({ answers, onInsert, onClose, busy, error }: { answers: A
           </select>
         </Field>
         {answer && (
+          <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
+            <StaleBadge lastVerifiedAt={answer.lastVerifiedAt} />
+          </div>
+        )}
+        {choices.length > 1 && choice && (
+          <Field id="olib-variant" label="Version" help={question.limitKind && question.limitValue ? `${best?.label ?? "This version"} fits best within ${limitPhrase(question.limitKind, question.limitValue)}.` : undefined}>
+            <select id="olib-variant" className="sel" value={choice.key} onChange={(e) => setPicked(e.target.value)}>
+              {choices.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label} · {c.counts.words} words
+                  {question.limitKind && question.limitValue && countFor(c.counts, question.limitKind) > question.limitValue ? " · over the limit" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {choice && (
           <p className="small" style={{ maxHeight: "160px", overflow: "auto", whiteSpace: "pre-wrap" }}>
-            {answer.body}
+            {choice.text}
           </p>
         )}
         {error ? <ErrorBanner error={error} title="The answer was not inserted" /> : null}
@@ -319,7 +444,7 @@ function LibraryDialog({ answers, onInsert, onClose, busy, error }: { answers: A
         <button className="btn btn-secondary" type="button" onClick={onClose}>
           Cancel
         </button>
-        <button className="btn btn-primary" type="button" disabled={!answer || busy} onClick={() => answer && onInsert(answer)}>
+        <button className="btn btn-primary" type="button" disabled={!answer || !choice || busy} onClick={() => answer && choice && onInsert(answer, choice.text)}>
           {busy ? "Inserting…" : "Insert"}
         </button>
       </div>
@@ -373,8 +498,18 @@ function FactDialog({ org, onInsert, onClose }: { org: MyOrganization | null; on
   );
 }
 
-const provenanceTag = (p: string) =>
-  p === "library" ? (
+export const provenanceTag = (p: string) =>
+  p === "assist" ? (
+    <span className="prov prov-agent">
+      <Sparkles className="ic" aria-hidden="true" />
+      Drafted with AI
+    </span>
+  ) : p === "prior_submission" ? (
+    <span className="prov prov-report">
+      <FileClock className="ic" aria-hidden="true" />
+      From an earlier report
+    </span>
+  ) : p === "library" ? (
     <span className="prov prov-library">
       <BookOpen className="ic" aria-hidden="true" />
       From library
@@ -437,7 +572,7 @@ function HistoryDialog({ question, onUse, onClose, nameOf }: { question: Outside
 }
 
 /** "Fit to limit": the assistant adapts a library answer to this question and its limit. A draft only. */
-function FitToLimit({ question, answers, onUse, onClose }: { question: OutsideQuestion; answers: Answer[]; onUse: (text: string) => void; onClose: () => void }) {
+function FitToLimit({ question, answers, onUse, onClose }: { question: OutsideQuestion; answers: LibraryAnswer[]; onUse: (text: string) => void; onClose: () => void }) {
   const status = useFullQuery((api) => api.assistStatus(), []);
   const [answerId, setAnswerId] = useState(question.answer?.libraryAnswerId ?? answers[0]?.id ?? "");
   const [draft, setDraft] = useState<AdaptedDraft | null>(null);
@@ -504,16 +639,50 @@ function FitToLimit({ question, answers, onUse, onClose }: { question: OutsideQu
 
 // ------------------------------------------------------------------------------------ one question
 
-function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged }: { q: OutsideQuestion; n: number; members: ApplicantMember[]; answers: Answer[]; org: MyOrganization | null; readOnly: boolean; assist: boolean; onChanged: () => void }) {
+export function QuestionCard({
+  q,
+  n,
+  applicationId,
+  members,
+  answers,
+  org,
+  readOnly,
+  assist,
+  onAssistUsed,
+  canApprove,
+  onChanged,
+  reportOf = null,
+}: {
+  q: OutsideQuestion;
+  n: number;
+  applicationId: string;
+  /** A report question: the report obligation it belongs to (offers reuse from earlier reports). */
+  reportOf?: string | null;
+  members: ApplicantMember[];
+  answers: LibraryAnswer[];
+  org: MyOrganization | null;
+  readOnly: boolean;
+  /** The assistant's status; null or off hides every AI action. */
+  assist: AssistStatus | null;
+  onAssistUsed: () => void;
+  /** A workspace admin or the application's owner (the API checks the same). */
+  canApprove: boolean;
+  onChanged: () => void;
+}) {
   const saved = q.answer?.body ?? "";
   const [draft, setDraft] = useState(saved);
-  const [dialog, setDialog] = useState<null | "library" | "fact" | "history">(null);
+  const [dialog, setDialog] = useState<null | "library" | "fact" | "history" | "reuse">(null);
   const [editing, setEditing] = useState(false);
   const [fit, setFit] = useState(false);
+  const [ai, setAi] = useState(false);
+  const [comments, setComments] = useState(false);
+  // The editor holds AI text (put there from the draft panel): it is saved marked as drafted with AI.
+  const [fromAi, setFromAi] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cursor = useRef<number | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
-  const put = useOutsideMutation((api, body: string, libraryAnswerId?: string) => api.putAnswer(q.id, { body, ...(libraryAnswerId ? { libraryAnswerId } : {}) }));
+  const assistOn = !!assist?.enabled;
+  const put = useOutsideMutation((api, input: AnswerInput) => api.putAnswer(q.id, input));
   const patch = useOutsideMutation((api, p: Parameters<typeof api.updateQuestion>[1]) => api.updateQuestion(q.id, p));
   const remove = useOutsideMutation(async (api) => {
     await api.deleteQuestion(q.id);
@@ -525,14 +694,27 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
   const headId = `oq-${q.id}-h`;
 
   const save = async () => {
-    const r = await put.run(draft);
-    if (r) onChanged();
-  };
-  const insertLibrary = async (a: Answer) => {
-    const r = await put.run(a.body, a.id);
+    const r = await put.run({ body: draft, ...(fromAi ? { provenance: "assist" as const } : {}) });
     if (r) {
-      setDraft(a.body);
+      setFromAi(false);
+      onChanged();
+    }
+  };
+  const insertLibrary = async (a: LibraryAnswer, text: string) => {
+    const r = await put.run({ body: text, libraryAnswerId: a.id });
+    if (r) {
+      setDraft(text);
+      setFromAi(false);
       setDialog(null);
+      onChanged();
+    }
+  };
+  const acceptAi = async (text: string) => {
+    const r = await put.run({ body: text, provenance: "assist" });
+    if (r) {
+      setDraft(text);
+      setFromAi(false);
+      setAi(false);
       onChanged();
     }
   };
@@ -595,13 +777,27 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
           <label className="sr" htmlFor={`oq-status-${q.id}`}>
             Status of question {n}
           </label>
-          <select id={`oq-status-${q.id}`} className="sel" style={{ maxWidth: "180px", height: "30px" }} disabled={readOnly} value={q.status} onChange={async (e) => (await patch.run({ status: e.target.value as QuestionStatus })) && onChanged()}>
+          <select
+            id={`oq-status-${q.id}`}
+            className="sel"
+            style={{ maxWidth: "180px", height: "30px" }}
+            disabled={readOnly || (q.status === "approved" && !canApprove)}
+            value={q.status}
+            aria-describedby={canApprove ? undefined : `oq-approve-${q.id}`}
+            onChange={async (e) => (await patch.run({ status: e.target.value as QuestionStatus })) && onChanged()}
+          >
             {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
+              <option key={o.value} value={o.value} disabled={o.value === "approved" && !canApprove}>
                 {o.label}
+                {o.value === "approved" && !canApprove ? " (admin or owner)" : ""}
               </option>
             ))}
           </select>
+          {!canApprove && !readOnly && (
+            <span id={`oq-approve-${q.id}`} className="small muted">
+              A workspace admin or the application’s owner approves answers.
+            </span>
+          )}
           {!readOnly && (
             <span className="row" style={{ gap: "4px", marginLeft: "auto" }}>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(true)} aria-label={`Edit question ${n}`}>
@@ -660,13 +856,26 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
               Insert a fact
             </button>
           )}
-          {!readOnly && assist && answers.length > 0 && (
+          {!readOnly && assistOn && (
+            <button type="button" className="btn btn-sm btn-secondary" aria-expanded={ai} onClick={() => setAi((v) => !v)}>
+              <Sparkles className="ic" aria-hidden="true" />
+              Draft with AI
+            </button>
+          )}
+          {!readOnly && assistOn && answers.length > 0 && (
             <button type="button" className="btn btn-sm btn-secondary" aria-expanded={fit} onClick={() => setFit((v) => !v)}>
               <Sparkles className="ic" aria-hidden="true" />
               Fit to limit
             </button>
           )}
+          {!readOnly && reportOf && (
+            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("reuse")}>
+              <FileClock className="ic" aria-hidden="true" />
+              Reuse from an earlier report
+            </button>
+          )}
           <CopyButton value={draft} what={`the answer to question ${n}`} className="btn btn-sm btn-ghost" />
+          <CommentsButton open={comments} onToggle={() => setComments((v) => !v)} />
           {q.answer && (
             <button type="button" className="btn btn-sm btn-ghost" aria-haspopup="dialog" onClick={() => setDialog("history")}>
               <Clock className="ic" aria-hidden="true" />
@@ -674,16 +883,50 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
             </button>
           )}
           <span className="row" style={{ gap: "8px", marginLeft: "auto" }}>
-            {dirty ? <span className="small muted">Unsaved changes</span> : q.answer ? provenanceTag(q.answer.provenance) : null}
+            {dirty ? <span className="small muted">{fromAi ? "Unsaved AI draft" : "Unsaved changes"}</span> : q.answer ? provenanceTag(q.answer.provenance) : null}
             <SaveNote state={put.state === "saved" && !dirty ? "saved" : "idle"} savedText={`Saved as version ${q.answer?.version ?? 1}`} />
           </span>
         </div>
+        {ai && assist && (
+          <DraftPanel
+            question={q}
+            library={answers}
+            status={assist}
+            onStatusChange={onAssistUsed}
+            accepting={put.state === "saving"}
+            onClose={() => setAi(false)}
+            onAccept={(t) => void acceptAi(t)}
+            onEdit={(t) => {
+              setDraft(t);
+              setFromAi(true);
+              setAi(false);
+              requestAnimationFrame(() => area.current?.focus());
+            }}
+          />
+        )}
         {fit && <FitToLimit question={q} answers={answers} onClose={() => setFit(false)} onUse={(t) => setDraft(t)} />}
-        {put.error && dialog !== "library" ? <ErrorBanner error={put.error} title="The answer was not saved" /> : null}
+        {comments && <CommentsPanel applicationId={applicationId} question={q} n={n} members={members} readOnly={readOnly} />}
+        {put.error && dialog !== "library" && dialog !== "reuse" ? <ErrorBanner error={put.error} title="The answer was not saved" /> : null}
         {patch.error ? <ErrorBanner error={patch.error} title="The question was not changed" /> : null}
         {remove.error ? <ErrorBanner error={remove.error} title="The question was not deleted" /> : null}
       </div>
-      {dialog === "library" && <LibraryDialog answers={answers} busy={put.state === "saving"} error={put.error} onClose={() => setDialog(null)} onInsert={(a) => void insertLibrary(a)} />}
+      {dialog === "library" && <LibraryDialog answers={answers} question={q} busy={put.state === "saving"} error={put.error} onClose={() => setDialog(null)} onInsert={(a, t) => void insertLibrary(a, t)} />}
+      {dialog === "reuse" && reportOf && (
+        <ReuseDialog
+          question={q}
+          obligationId={reportOf}
+          busy={put.state === "saving"}
+          error={put.error}
+          onClose={() => setDialog(null)}
+          onInsert={async (prior) => {
+            if (await put.run({ body: prior.body, provenance: "prior_submission", sourceAnswerId: prior.answerId })) {
+              setDraft(prior.body);
+              setDialog(null);
+              onChanged();
+            }
+          }}
+        />
+      )}
       {dialog === "fact" && <FactDialog org={org} onClose={() => setDialog(null)} onInsert={insertAtCursor} />}
       {dialog === "history" && (
         <HistoryDialog
@@ -692,6 +935,7 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
           onClose={() => setDialog(null)}
           onUse={(body) => {
             setDraft(body);
+            setFromAi(false);
             setDialog(null);
           }}
         />
@@ -702,7 +946,14 @@ function QuestionCard({ q, n, members, answers, org, readOnly, assist, onChanged
 
 // ------------------------------------------------------------------------------------ the tab
 
-export function QuestionsTab({ detail, members, answers, org, readOnly, onChanged }: { detail: OutsideDetail; members: ApplicantMember[]; answers: Answer[]; org: MyOrganization | null; readOnly: boolean; onChanged: () => void }) {
+/** Whether the signed-in person may approve answers on this application: a workspace admin, or its owner. */
+export function useCanApprove(ownerUserId: string | null | undefined): boolean {
+  const ws = useCurrentWorkspace();
+  const { meState } = useServices();
+  return mayApprove(ws?.member.role ?? null, meState.status === "ready" ? meState.me.userId : null, ownerUserId);
+}
+
+export function QuestionsTab({ detail, members, answers, org, readOnly, onChanged }: { detail: OutsideDetail; members: ApplicantMember[]; answers: LibraryAnswer[]; org: MyOrganization | null; readOnly: boolean; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -713,8 +964,10 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
     return true;
   });
   const assist = useFullQuery((api) => api.assistStatus(), []);
-  const assistOn = assist.status === "ready" && assist.data.enabled;
-  const questions = detail.questions;
+  const assistStatus = assist.status === "ready" ? assist.data : null;
+  const canApprove = useCanApprove(detail.owner?.userId);
+  // Report questions are written on their report, under Awarded funding.
+  const questions = detail.questions.filter((q) => !q.obligationId);
   const approved = questions.filter((q) => q.status === "approved").length;
 
   return (
@@ -763,6 +1016,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           Write each answer below; counts follow the funder’s limits as you type.
         </Notice>
       )}
+      <AiUseNote questions={questions} />
       {exp.error ? <ErrorBanner error={exp.error} title="The download did not start" /> : null}
       {adding && (
         <QuestionForm
@@ -795,15 +1049,18 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           </EmptyState>
         </div>
       ) : (
-        questions.map((q, i) => <QuestionCard key={q.id} q={q} n={i + 1} members={members} answers={answers} org={org} readOnly={readOnly} assist={assistOn} onChanged={onChanged} />)
+        questions.map((q, i) => <QuestionCard key={q.id} q={q} n={i + 1} applicationId={detail.id} members={members} answers={answers} org={org} readOnly={readOnly} assist={assistStatus} onAssistUsed={assist.reload} canApprove={canApprove} onChanged={onChanged} />)
       )}
       {pasting && (
         <PasteQuestionsDialog
           applicationId={detail.id}
+          assist={assistStatus}
+          requiredDocuments={detail.requiredDocuments}
           onClose={() => setPasting(false)}
-          onSaved={(n) => {
+          onSaved={(n, docs = 0) => {
             setPasting(false);
-            setNote(`${n} question${n === 1 ? "" : "s"} added`);
+            setNote([n || !docs ? `${n} question${n === 1 ? "" : "s"} added` : null, docs ? `${docs} document${docs === 1 ? "" : "s"} added to the checklist` : null].filter(Boolean).join(" · "));
+            assist.reload();
             onChanged();
           }}
         />

@@ -21,7 +21,8 @@ select tables_are(
     'webhook_subscriptions', 'webhook_deliveries', 'inbound_events', 'assist_calls',
     'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
     'workspace_creation_counts', 'award_invitations', 'award_invitation_sends',
-    'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests'
+    'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests',
+    'outside_obligation_series', 'outside_obligations'
   ],
   'public schema has exactly the GMS tables'
 );

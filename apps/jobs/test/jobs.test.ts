@@ -32,6 +32,7 @@ describe("jobs worker", () => {
     expect(at("2027-04-14T02:30:00Z")).toEqual([...EVERY, ...QUARTER, "org-changes", "ledger-archive"]);
     expect(at("2027-04-14T03:30:00Z")).not.toContain("ledger-archive");
     expect(at("2027-04-14T14:30:00Z")).toEqual([...EVERY, ...QUARTER, "outside-deadlines"]);
+    expect(at("2027-04-14T14:35:00Z")).toEqual([...EVERY, "keep-reminders"]);
     expect(at("2027-04-14T15:00:00Z")).toEqual([...EVERY, ...QUARTER, "passport", "digest-daily"]);
     expect(at("2027-04-14T16:00:00Z")).not.toContain("digest-daily");
     expect(at("2027-04-19T15:05:00Z")).toEqual([...EVERY, "digest-weekly"]); // a Monday
@@ -48,14 +49,14 @@ describe("jobs worker", () => {
       for (const j of due) counts.set(j, (counts.get(j) ?? 0) + 1);
     }
     // 2027-04-12 is a Monday through Sunday the 18th: 7 days.
-    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7 });
+    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7, "keep-reminders": 7 });
   });
 
   it("runs every job against an empty database without failing", async () => {
     const b = base();
     const all = new Set<JobName>();
     for (let t = Date.UTC(2027, 3, 19); t < Date.UTC(2027, 3, 20); t += 5 * 60_000) for (const j of jobsDue(new Date(t))) all.add(j);
-    expect(all.size).toBe(11);
+    expect(all.size).toBe(12);
     for (const name of all) {
       const out = await runJob(name, b, {});
       expect(out, name).toBeTypeOf("object");

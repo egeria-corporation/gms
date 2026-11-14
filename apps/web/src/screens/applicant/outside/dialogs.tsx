@@ -2,7 +2,7 @@
 // The three things only a person records for an outside application: that they submitted it on
 // the funder's site, what the funder decided, and a request for consulting help from OpenGrants.
 import { useState } from "react";
-import { CircleCheck, Send, X } from "lucide-react";
+import { CircleCheck, Scissors, Send, X } from "lucide-react";
 import type { ConsultingPreview, DecisionInput, OutsideApplication, OutsideDetail, SubmissionMethod, YearAmount } from "../../../api/outside.ts";
 import { minorOf } from "../../../api/outside.ts";
 import { useOutsideMutation } from "../../../api/outsideHooks.ts";
@@ -10,6 +10,7 @@ import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, Notice, problemFor } from "../../../components/ui.tsx";
 import { formatDate, parseDollars } from "../../../lib/format.ts";
 import { decisionOutcomes, STAGE_LABELS, type DecisionOutcome } from "../../../lib/outside.ts";
+import { answersAsSent, CONSULTING_ANSWERS_MAX } from "../../../lib/writeKeep.ts";
 import { useUpload } from "./ChecklistTab.tsx";
 import { DEADLINE_LABELS, METHOD_LABELS, moneyFrom, moneyText } from "./shared.tsx";
 
@@ -236,6 +237,44 @@ export function DecisionDialog({ app, onClose, onDone }: { app: OutsideApplicati
 
 // ------------------------------------------------------------------------------------ consulting
 
+/**
+ * The answers exactly as the email carries them: numbered, "(no answer yet)" for an empty one, and
+ * past 20,000 characters in all cut at the same character, with the cut marked and the questions
+ * left out counted.
+ */
+export function SentAnswers({ answers }: { answers: { prompt: string; body: string }[] }) {
+  const sent = answersAsSent(answers);
+  return (
+    <details>
+      <summary className="small b">
+        Your current answers ({sent.items.length}
+        {sent.omitted ? ` of ${answers.length}` : ""}){sent.truncated ? `, cut at ${CONSULTING_ANSWERS_MAX.toLocaleString("en-US")} characters` : ""}
+      </summary>
+      <ol style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", fontSize: "13px", maxHeight: "200px", overflow: "auto", listStyle: "none", padding: 0 }}>
+        {sent.items.map((a) => (
+          <li key={a.n}>
+            <div className="b">
+              {a.n}. {a.prompt}
+            </div>
+            {a.body && <div style={{ whiteSpace: "pre-wrap" }}>{a.body}</div>}
+            {a.cut && (
+              <div className="row small" role="note" style={{ gap: "6px", marginTop: "4px", color: "var(--s-warn-fg)", fontWeight: 700 }}>
+                <Scissors className="ic ic-sm" aria-hidden="true" />
+                The email stops here, at {CONSULTING_ANSWERS_MAX.toLocaleString("en-US")} characters.
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      {sent.omitted > 0 && (
+        <p className="small muted" style={{ marginTop: "6px" }}>
+          {sent.omitted} more question{sent.omitted === 1 ? " is" : "s are"} not in the email. The team can ask you for the rest.
+        </p>
+      )}
+    </details>
+  );
+}
+
 function PreviewView({ p }: { p: ConsultingPreview }) {
   const dates = (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).filter((k) => p.deadlines[k]);
   return (
@@ -281,21 +320,7 @@ function PreviewView({ p }: { p: ConsultingPreview }) {
         <dd style={{ whiteSpace: "pre-wrap" }}>{p.message ?? "—"}</dd>
       </dl>
       <p className="small">The email says your organization wants consulting support to start right away.</p>
-      {p.answers ? (
-        <details>
-          <summary className="small b">Your current answers ({p.answers.length}){p.answersTruncated ? ", shortened to 20,000 characters" : ""}</summary>
-          <ol style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", fontSize: "13px", maxHeight: "200px", overflow: "auto" }}>
-            {p.answers.map((a, i) => (
-              <li key={i}>
-                <div className="b">{a.prompt}</div>
-                {a.body ? <div style={{ whiteSpace: "pre-wrap" }}>{a.body}</div> : <div className="muted">No answer yet: the question goes without one.</div>}
-              </li>
-            ))}
-          </ol>
-        </details>
-      ) : (
-        <p className="small muted">No answer text is sent.</p>
-      )}
+      {p.answers ? <SentAnswers answers={p.answers} /> : <p className="small muted">No answer text is sent.</p>}
     </section>
   );
 }

@@ -13,10 +13,20 @@ export function competitionOf(opportunityId: string, competitions: readonly Comp
 
 export const takingApplications = (opportunityId: string, competitions: readonly Competition[]) => competitions.some((c) => c.opportunityId === opportunityId && c.status === "open");
 
+/**
+ * Whether the public page offers Apply, by its own rule (public/OpportunityPage `takingApplications`
+ * with APPLY_NEEDS_OPEN_OPPORTUNITY): published, open (not forecasted, not closed), and a
+ * competition open. The builder's preview card follows it, so it never shows Apply the page lacks.
+ */
+export const offersApply = (o: Pick<Opportunity, "id" | "published" | "status"> | undefined, competitions: readonly Competition[] | undefined) =>
+  !!o && !!competitions && o.published && o.status === "open" && takingApplications(o.id, competitions);
+
 /** Published as open, but no competition is open: applicants can find it and cannot apply. */
 export const publishedNotTaking = (o: Opportunity, competitions: readonly Competition[]) => o.published && o.status === "open" && !takingApplications(o.id, competitions);
 
 export const NOT_TAKING_LABEL = "Published, not taking applications";
+/** A forecasted opportunity is published to show what is coming; it takes no applications by design. */
+export const FORECASTED_LABEL = "Forecasted, not taking applications yet";
 
 /**
  * The opportunity's status badge, icon and label. `competitions` undefined (still loading) shows

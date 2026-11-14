@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Competition, Opportunity, QuickSetupResult } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, ReadinessChecklist } from "../../components/ui.tsx";
+import { FORECASTED_LABEL, NOT_TAKING_LABEL } from "./applicationsStatus.tsx";
 
 function madeSummary(r: QuickSetupResult): { title: string; detail: string } {
   const made = [r.created.competition && "a one-stage competition", r.created.form && "the application form", r.created.rubric && "the rubric"].filter((x): x is string => !!x);
@@ -50,6 +51,17 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
     }
   };
 
+  if (competition?.status === "open" && opportunity.status === "forecasted") {
+    return (
+      <div className="bnr bnr-warn" role="status">
+        <CirclePause className="ic" aria-hidden="true" />
+        <div>
+          <div className="t">{FORECASTED_LABEL}</div>
+          <div className="d">{competition.title} is open, but the opportunity is published as forecasted, so the public page does not offer Apply. Publish it as open to take applications.</div>
+        </div>
+      </div>
+    );
+  }
   if (competition?.status === "open") {
     return (
       <>
@@ -82,8 +94,12 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
         <div className="bnr bnr-warn" role="status">
           <CirclePause className="ic" aria-hidden="true" />
           <div>
-            <div className="t">Published, not taking applications</div>
-            <div className="d">Applicants can find this opportunity but cannot apply until a competition is open.</div>
+            <div className="t">{opportunity.status === "forecasted" ? FORECASTED_LABEL : NOT_TAKING_LABEL}</div>
+            <div className="d">
+              {opportunity.status === "forecasted"
+                ? "Applicants can see what is coming but cannot apply. Publish it as open and open a competition to take applications."
+                : "Applicants can find this opportunity but cannot apply until a competition is open."}
+            </div>
           </div>
         </div>
       )}

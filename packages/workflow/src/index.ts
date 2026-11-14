@@ -8,3 +8,4 @@ export * from "./tranche.ts";
 export * from "./requirement.ts";
 export * from "./effects.ts";
 export * from "./outside.ts";
+export * from "./obligations.ts";

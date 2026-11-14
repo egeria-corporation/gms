@@ -13,6 +13,7 @@ import { LevelBadge } from "../../components/status.tsx";
 import { ErrorBanner, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { AccessCard, ConnectedAppsCard, LockerCard, RepresentativesCard } from "./organizationExtras.tsx";
+import { VaultCard } from "./outside/keep.tsx";
 
 interface OrgData {
   org: MyOrganization;
@@ -206,6 +207,7 @@ export default function Organization() {
                           <Value label="NTEE code" value={text(at(profile, "commonApp.irs.ntee"))} source={src("/commonApp/irs/ntee")} editUrl={org.editUrl} />
                         </div>
                       </section>
+                      <VaultCard base={base} />
                       <LockerCard editUrl={org.editUrl} />
                       <AccessCard consents={consents} base={base} onChanged={query.reload} />
                     </div>

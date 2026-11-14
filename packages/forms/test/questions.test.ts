@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The deterministic question parse and the answer counts (apply anywhere).
 import { describe, expect, it } from "vitest";
-import { countText, detectLimit, isOverLimit, parseQuestions } from "../src/index.ts";
+import { bestVariant, countText, detectLimit, isOverLimit, parseQuestions, PROVENANCE_SOURCES } from "../src/index.ts";
 
 describe("countText", () => {
   it("counts words, characters and characters without spaces", () => {
@@ -90,5 +90,22 @@ describe("parseQuestions", () => {
   it("is deterministic", () => {
     const text = "1. A (100 words)\n2. B\n\n3. C 2,500 characters";
     expect(parseQuestions(text)).toEqual(parseQuestions(text));
+  });
+});
+
+describe("bestVariant", () => {
+  const answer = { body: Array.from({ length: 300 }, () => "w").join(" "), variants: { short: Array.from({ length: 45 }, () => "s").join(" "), medium: Array.from({ length: 140 }, () => "m").join(" ") } };
+  it("offers the longest version within the limit", () => {
+    expect(bestVariant(answer, { kind: "words", value: 150 })).toMatchObject({ key: "medium", fits: true });
+    expect(bestVariant(answer, { kind: "words", value: 60 })).toMatchObject({ key: "short", fits: true });
+    expect(bestVariant(answer, { kind: "words", value: 500 })).toMatchObject({ key: "body", fits: true });
+  });
+  it("offers the shortest when none fits, and the answer itself without a limit", () => {
+    expect(bestVariant(answer, { kind: "words", value: 10 })).toMatchObject({ key: "short", fits: false });
+    expect(bestVariant(answer, null)).toMatchObject({ key: "body", fits: true });
+    expect(bestVariant({ body: "abc", variants: { short: "  " } }, { kind: "chars", value: 2 })).toMatchObject({ key: "body", fits: false });
+  });
+  it("knows the assist provenance", () => {
+    expect(PROVENANCE_SOURCES).toContain("assist");
   });
 });

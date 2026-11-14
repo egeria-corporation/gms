@@ -198,3 +198,52 @@ export async function renderOutsideSnapshot(input: OutsideSnapshotInput, meta: {
   });
   return renderPdf({ title: `As submitted: ${input.title}`, header: input.organization, footer: meta.reference, createdAt: input.submittedAt, blocks });
 }
+
+// ------------------------------------------------------------------------------------ funding summary
+
+export interface FundingSummaryYear {
+  /** e.g. "FY 2027 (Jul 2026 to Jun 2027)". */
+  label: string;
+  submitted: number;
+  decided: number;
+  awarded: number;
+  declined: number;
+  /** e.g. "60%", or "None decided". */
+  winRate: string;
+  /** Printed, e.g. "USD 150,000.00"; several currencies joined. */
+  asked: string;
+  awardedAmount: string;
+}
+
+export interface FundingSummaryInput {
+  organization: string;
+  /** e.g. "January". */
+  fiscalYearStarts: string;
+  /** ISO timestamp the summary was made; also the PDF's date. */
+  generatedAt: string;
+  years: FundingSummaryYear[];
+  /** The note under the figures (what is counted). */
+  note: string;
+}
+
+/** At most this many fiscal years on the one-page board summary (most recent first). */
+export const FUNDING_SUMMARY_PDF_YEARS = 5;
+
+/** The one-page funding summary for the board: applications, decisions, win rate and amounts by fiscal year. */
+export async function renderFundingSummary(input: FundingSummaryInput): Promise<Uint8Array> {
+  const years = input.years.slice(0, FUNDING_SUMMARY_PDF_YEARS);
+  const blocks: Block[] = [
+    { type: "heading", level: 1, text: "Funding summary" },
+    { type: "fields", rows: [["Organization", input.organization], ["Fiscal year starts", input.fiscalYearStarts], ["Prepared (UTC)", input.generatedAt.slice(0, 10)]] },
+  ];
+  if (!years.length) blocks.push({ type: "paragraph", text: "No applications were submitted or decided yet." });
+  else blocks.push({ type: "heading", level: 2, text: "By fiscal year" });
+  // One compact entry per year keeps five years on one page.
+  for (const y of years) {
+    blocks.push({ type: "heading", level: 3, text: y.label });
+    blocks.push({ type: "paragraph", text: `${y.submitted} submitted. ${y.decided} decided: ${y.awarded} awarded, ${y.declined} declined. Win rate: ${y.winRate}.` });
+    blocks.push({ type: "paragraph", text: `Asked: ${y.asked}. Awarded: ${y.awardedAmount}.` });
+  }
+  blocks.push({ type: "rule" }, { type: "paragraph", text: input.note });
+  return renderPdf({ title: "Funding summary", header: input.organization, footer: "Funding summary from OpenGrants GMS", createdAt: input.generatedAt, blocks });
+}

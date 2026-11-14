@@ -78,6 +78,8 @@ export interface ServiceConfig {
   facilitatedPayments?: boolean;
   /** ASSISTANT_MODEL when set; the assistant package's default applies otherwise. */
   assistantModel?: string | null;
+  /** ASSISTANT_MONTHLY_QUOTA: assistant calls per workspace per month; DEFAULT_MONTHLY_QUOTA (40) when not set. */
+  assistantMonthlyQuota?: number | null;
   /** CONSULTING_REQUEST_TO: where "Get help writing this" requests go; `CONSULTING_REQUEST_TO` of @gms/notify when not set. */
   consultingRequestTo?: string | null;
 }

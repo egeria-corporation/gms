@@ -67,8 +67,8 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   threads: () => ({ funder_workspace_id: null, applicant_workspace_id: null, visibility: "shared", title: null }),
   messages: () => ({ author_user_id: null, attachments: [], email_message_id: null, field_ref: null, resolved_at: null, resolved_by: null }),
   tasks: () => ({ subject_type: null, subject_id: null, assignee_user_id: null, due_at: null, done_at: null, created_by: null }),
-  documents: () => ({ subject_type: null, subject_id: null, passport_document_id: null, scan_status: "not_scanned", uploaded_by: null }),
-  answers: () => ({ body: "", version: 1, used_in: [] }),
+  documents: () => ({ subject_type: null, subject_id: null, passport_document_id: null, scan_status: "not_scanned", uploaded_by: null, doc_type: null, expires_on: null }),
+  answers: () => ({ body: "", version: 1, used_in: [], last_verified_at: null, variants: {}, tags: [] }),
   discover_saved: () => ({ url: null, listing: {}, gms_opportunity_id: null, saved_by: null }),
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
@@ -128,11 +128,16 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
     custom_fields: {},
     archived_at: null,
     created_by: null,
+    required_documents: [],
+    go_no_go: null,
+    closed_out_at: null,
   }),
-  outside_questions: () => ({ phase: "full", section: null, position: 0, guidance: null, limit_kind: null, limit_value: null, required: false, assignee_user_id: null, status: "empty" }),
+  outside_questions: () => ({ phase: "full", section: null, position: 0, guidance: null, limit_kind: null, limit_value: null, required: false, assignee_user_id: null, status: "empty", obligation_id: null }),
   outside_answers: () => ({ body: "", library_answer_id: null, created_by: null }),
   calendar_feeds: () => ({ created_by: null, rotated_at: null }),
   consulting_requests: () => ({ sent_at: null, fields_sent: [] }),
+  outside_obligation_series: () => ({ amount_minor: null, notes: null, created_by: null }),
+  outside_obligations: () => ({ due_on: null, amount_minor: null, status: "upcoming", series_id: null, customized: false, notes: null, submitted_at: null, confirmation_ref: null, document_id: null, snapshot_sha256: null, completed_on: null, created_by: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -188,9 +193,11 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   bank_transactions: { matched_tranche_id: "tranches" },
   award_invitations: { award_id: "awards" },
   outside_applications: { funder_record_id: "funder_records", receipt_document_id: "documents", snapshot_document_id: "documents" },
-  outside_questions: { outside_application_id: "outside_applications" },
+  outside_questions: { outside_application_id: "outside_applications", obligation_id: "outside_obligations" },
   outside_answers: { question_id: "outside_questions", library_answer_id: "answers" },
   consulting_requests: { outside_application_id: "outside_applications" },
+  outside_obligation_series: { outside_application_id: "outside_applications" },
+  outside_obligations: { outside_application_id: "outside_applications", series_id: "outside_obligation_series", document_id: "documents" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

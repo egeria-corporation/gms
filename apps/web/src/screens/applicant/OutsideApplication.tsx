@@ -4,19 +4,23 @@
 // be ready, where and how it was submitted, notes, and who did what.
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { Archive, ArchiveArrowUp, HandHelping, Pencil, RotateCcw, Scale, Send } from "lucide-react";
+import { Archive, ArchiveArrowUp, Award, HandHelping, Pencil, RotateCcw, Scale, Send } from "lucide-react";
 import type { ApplicantApi } from "../../api/applicant.ts";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import type { OutsideApi, OutsideApplication as OutsideRecord } from "../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../api/outsideHooks.ts";
+import { libraryWithMeta, type WriteKeepApi } from "../../api/writeKeep.ts";
+import { useWriteKeepApi } from "../../api/writeKeepHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { isNotFound, Loaded } from "../../components/applicant.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, Notice, PageHeader, TabPanel, Tabs } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
 import { canMarkSubmitted, canReopen, decisionOutcomes, MOVE_LABELS, plainMoves, STAGE_LABELS, type OutsideStage } from "../../lib/outside.ts";
 import { ChecklistTab } from "./outside/ChecklistTab.tsx";
+import { GoNoGoCard, NextCycleCard } from "./outside/decide.tsx";
 import { ConsultingDialog, DecisionDialog, MarkSubmittedDialog } from "./outside/dialogs.tsx";
 import { QuestionsTab } from "./outside/QuestionsTab.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, StageBadge } from "./outside/shared.tsx";
@@ -25,16 +29,18 @@ import { ActivityTab, EditDetailsDialog, NotesTab, SubmissionTab } from "./outsi
 type Tab = "questions" | "checklist" | "submission" | "notes" | "activity";
 const TABS: Tab[] = ["questions", "checklist", "submission", "notes", "activity"];
 
-const load = async (api: OutsideApi, applicant: ApplicantApi, id: string) => {
+const load = async (api: OutsideApi, applicant: ApplicantApi, wk: WriteKeepApi, id: string) => {
   const detail = await api.get(id);
-  const [record, records, members, answers, org] = await Promise.all([
+  const [record, records, members, answers, org, settings] = await Promise.all([
     detail.funderRecordId ? api.funderRecord(detail.funderRecordId).catch(() => null) : Promise.resolve(null),
     api.funderRecords().catch(() => []),
     applicant.members().catch(() => []),
-    applicant.answers().catch(() => []),
+    // The library with when each answer was last verified and its variants.
+    libraryWithMeta(() => applicant.answers(), wk).catch(() => []),
     applicant.organization().catch(() => null),
+    wk.settings().catch(() => null),
   ]);
-  return { detail, record, records, members, answers, org };
+  return { detail, record, records, members, answers, org, settings };
 };
 
 export default function OutsideApplication() {
@@ -43,8 +49,9 @@ export default function OutsideApplication() {
   const { outsideId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const applicant = useApplicantApi();
+  const wk = useWriteKeepApi();
   const { meState } = useServices();
-  const query = useOutsideQuery((api) => load(api, applicant, outsideId), [outsideId, applicant]);
+  const query = useOutsideQuery((api) => load(api, applicant, wk, outsideId), [outsideId, applicant, wk]);
   const asked = params.get("tab") as Tab | null;
   const [tab, setTabState] = useState<Tab>(asked && TABS.includes(asked) ? asked : "questions");
   const setTab = (t: Tab) => {
@@ -75,7 +82,7 @@ export default function OutsideApplication() {
       <ApplicantShell active="Applications">
         <main className="main">
           <Loaded query={query} label="Opening the application">
-            {({ detail, record, records, members, answers, org }) => {
+            {({ detail, record, records, members, answers, org, settings }) => {
               const archived = !!detail.archivedAt;
               const moves = archived ? [] : plainMoves(detail.stage);
               const outcomes = archived ? [] : decisionOutcomes(detail.stage);
@@ -206,13 +213,27 @@ export default function OutsideApplication() {
                     </Notice>
                   )}
                   {[move.error, reopen.error, archive.error].map((e, i) => (e ? <ErrorBanner key={i} error={e} title="That change was not made" /> : null))}
+                  <NextCycleCard detail={detail} />
+                  <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={archived} onDone={(a, message) => after(a, message)} />
+                  {detail.stage === "awarded" && (
+                    <div className="bnr bnr-ok" role="region" aria-label="Awarded">
+                      <Award className="ic" aria-hidden="true" />
+                      <div className="grow">
+                        <div className="t">{detail.closedOutAt ? `Closed out on ${formatDate(detail.closedOutAt)}` : "Awarded. Keep track of what the grant asks of you."}</div>
+                        <div className="d">Reports, conditions and payments received are kept on the award, under Awarded funding.</div>
+                      </div>
+                      <Link to={`${base}/grants/outside/${detail.id}`} className="btn btn-sm btn-secondary act">
+                        Open the award
+                      </Link>
+                    </div>
+                  )}
                   <Tabs<Tab>
                     label="Application sections"
                     idPrefix="oa"
                     active={tab}
                     onChange={setTab}
                     tabs={[
-                      { key: "questions", label: "Questions", count: detail.questions.length },
+                      { key: "questions", label: "Questions", count: detail.questions.filter((q) => !q.obligationId).length },
                       { key: "checklist", label: "Checklist", count: detail.tasks.filter((t) => !t.doneAt).length || undefined },
                       { key: "submission", label: "Submission" },
                       { key: "notes", label: "Notes" },
