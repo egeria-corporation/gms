@@ -142,7 +142,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `send_communication` | `communications:write` | Approval | Send a templated email to applicants or grantees through Resend. |
 | `get_approval` | any | — | Get the status of an approval request created by a gated tool: pending, approved, rejected, executed (with the result) or failed. |
 
-#### Outside applications, writing faster and keeping awards (v1.5.0 to v1.7.0)
+#### Outside applications, writing faster and keeping awards (v1.5.0 and v1.6.0)
 
 Outside applications are the applicant's own records of applications to any funder. These tools
 call the same services as `/gms/outside-*`, `/gms/vault`, `/gms/funding-summary` and

@@ -3,38 +3,14 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
-## v1.7.0
-
-### Added
-
-- **Win and keep it.** Awarded funding lists your outside awards next to awards made on this GMS,
-  each labelled "Outside award" or "On this GMS". An outside award has its own page: the amount per
-  year, the grant period, the award letter, what you owe the funder, and payments received.
-- Obligations of an outside award: reports, expected payments, payments received and conditions,
-  once or repeating every few months until the grant ends (up to 60). Changing a repeating
-  obligation updates only future ones you have not touched.
-- Reports are written in the same editor as applications, can reuse text from an earlier report,
-  and are marked submitted with the date, the confirmation and a PDF of what was sent.
-- Payments received are amounts and dates only, with the total received against the amount awarded.
-  No money moves through the GMS and no bank details are kept.
-- Reminders before and after a report or condition is due, and "Close out this award" once
-  everything is done or received.
-- When a funder declines, a reminder on the date its next round may open, and "Get an alert when it
-  reopens".
-- A funding summary by fiscal year: applications submitted, decided, awarded and declined, the win
-  rate and the amounts asked and awarded, with a CSV export and a one-page PDF for your board. Set
-  the month your fiscal year starts in Settings.
-- Agents get the same capabilities through MCP; recording a report's submission always waits for a
-  person.
-
 ## v1.6.0
 
-### Added
+### Write faster as a team
 
-- **Write faster as a team.** The assistant drafts an answer to a funder's question from your own
-  answer library and your organization's profile, and nothing else. It never makes up facts: what it
-  does not know is left as [placeholders], it keeps to the word or character limit, and it flags any
-  figure taken from an answer nobody has checked in a year. Nothing is saved until you accept it,
+- The assistant drafts an answer to a funder's question from your own answer library and your
+  organization's profile, and nothing else. It never makes up facts: what it does not know is left
+  as [placeholders], it keeps to the word or character limit, and it flags any figure taken from an
+  answer nobody has checked in a year. Nothing is saved until you accept it,
   and each application shows which answers the assistant helped write.
 - The assistant can read a funder's guidelines, pasted or uploaded as a PDF or text file, and
   propose the questions, their limits and phase, the deadlines and the documents to attach, for you
@@ -52,7 +28,53 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 - An optional go/no-go scorecard for the Deciding stage, switched on in Settings.
 - Only a workspace admin or the application's owner approves an answer. Comments per question, a
   month calendar of deadlines, and milestone tasks offered when a full deadline is set.
-- Agents get the same capabilities through MCP; drafts never save anything.
+
+### Win and keep it
+
+- Awarded funding lists your outside awards next to awards made on this GMS, each labelled
+  "Outside award" or "On this GMS". An outside award has its own page: the amount per
+  year, the grant period, the award letter, what you owe the funder, and payments received.
+- Obligations of an outside award: reports, expected payments, payments received and conditions,
+  once or repeating every few months until the grant ends (up to 60). Changing a repeating
+  obligation updates only future ones you have not touched.
+- Reports are written in the same editor as applications, can reuse text from an earlier report,
+  and are marked submitted with the date, the confirmation and a PDF of what was sent.
+- Payments received are amounts and dates only, with the total received against the amount awarded.
+  No money moves through the GMS and no bank details are kept.
+- Reminders before and after a report or condition is due, and "Close out this award" once
+  everything is done or received.
+- When a funder declines, a reminder on the date its next round may open, and "Get an alert when it
+  reopens".
+- A funding summary by fiscal year: applications submitted, decided, awarded and declined, the win
+  rate and the amounts asked and awarded, with a CSV export and a one-page PDF for your board. Set
+  the month your fiscal year starts in Settings.
+
+### Both
+
+- Agents get the same capabilities through MCP. Drafts never save anything, and recording a
+  report's submission always waits for a person.
+- Everything here is the applicant organization's own record, visible only to its own team.
+
+### Upgrade notes
+
+- **Database migration `0030_write_and_keep.sql`.** Run it before deploying the API. It adds
+  columns, all empty or defaulted, to answers (last checked, versions, tags), documents (type and
+  expiry), outside applications (required documents, go/no-go, closeout) and outside questions (the
+  report they belong to); widens three checks (answer provenance, assistant uses, comment threads);
+  and adds two tables for the obligations of outside awards and their repeating series, with
+  row-level security keeping them to the applicant workspace's own members. It changes, removes and
+  copies no existing row, and needs no backfill.
+- New optional setting `ASSISTANT_MONTHLY_QUOTA` (API Worker): assistant uses per workspace per
+  month, default 40. The hosted site sets `ASSISTANT_ENABLED = "true"` and
+  `ASSISTANT_MONTHLY_QUOTA = "100"`. The assistant stays off without `ANTHROPIC_API_KEY`, and the
+  screens then hide its actions.
+- The jobs Worker runs a new daily job at 14:35 UTC (`keep-reminders`) on the existing cron:
+  document expiry warnings, obligation reminders and next-cycle reminders. They need outbound mail
+  (`RESEND_API_KEY`, `RESEND_FROM`). New notification settings, on by default: "Documents
+  expiring", "Grant reports and conditions" and "Next cycle" (categories `document_expiring`,
+  `outside_obligation_due`, `outside_next_cycle`).
+- The document vault, uploaded guidelines and the PDF kept when a report is marked submitted use the
+  `ATTACHMENTS` file storage binding.
 
 ## v1.5.0
 
