@@ -313,22 +313,27 @@ export default function Competition() {
                   icon={Layers}
                   title="No competition yet"
                   actions={
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={create.state === "saving"}
-                      onClick={async () => {
-                        if (await create.run(opportunity)) {
-                          data.reload();
-                          setEditing(true);
-                        }
-                      }}
-                    >
-                      Set up the competition
-                    </button>
+                    <>
+                      <Link to={`${base}/opportunities/${opportunity.id}/edit#applications`} className="btn btn-primary">
+                        Quick setup
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={create.state === "saving"}
+                        onClick={async () => {
+                          if (await create.run(opportunity)) {
+                            data.reload();
+                            setEditing(true);
+                          }
+                        }}
+                      >
+                        Set up the competition
+                      </button>
+                    </>
                   }
                 >
-                  A competition is how {opportunity.title} takes applications: its stages, the form for each stage and the rubric reviewers score against.
+                  A competition is how {opportunity.title} takes applications: its stages, the form for each stage and the rubric reviewers score against. Quick setup makes a one-stage competition with a starter form and rubric you can edit.
                 </EmptyState>
               </div>
             )}

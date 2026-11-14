@@ -10,6 +10,7 @@ import {
   awardStatus,
   competitionId,
   formId,
+  isoDate,
   jsonObject,
   paging,
   requirementId,
@@ -20,6 +21,9 @@ import {
 } from "./shared.ts";
 
 const answerId = uuid("Answer library entry id");
+const outsideApplicationId = uuid("Outside application id");
+const outsideStage = z.enum(["prospect", "deciding", "loi", "invited", "drafting", "submitted", "awarded", "declined", "withdrawn", "not_pursuing"]);
+const decimalMoney = z.object({ amount: z.string().regex(/^\d{1,13}(\.\d{1,3})?$/).describe("Decimal amount, e.g. 25000.00"), currency: z.string().regex(/^[A-Z]{3}$/).default("USD") }).describe("The applicant's own record of an amount; no money moves");
 const threadId = uuid("Thread id");
 const documentRef = z
   .union([z.object({ documentId: uuid("GMS document id") }), z.object({ passportDocumentId: z.string().min(1).describe("Reference into the Passport locker; nothing is copied") })])
@@ -60,6 +64,60 @@ export const APPLICANT_TOOLS = {
   list_answers: tool("listAnswers", "library:read", "List the answer library.", z.object({ search: z.string().max(200).optional(), ...paging })),
   save_answer: tool("saveAnswer", "library:write", "Save a new answer, or a new version of an existing one.", z.object({ answerId: answerId.optional(), key: z.string().regex(/^[a-z0-9-]{2,60}$/).optional(), title: z.string().min(1).max(200), body: z.string().min(1).max(50000) })),
   adapt_answer: tool("adaptAnswer", "assist", "Draft an adaptation of a library answer to a question and its limits. Returns a draft; saves nothing.", z.object({ answerId, question: z.string().min(1).max(2000), maxWords: z.number().int().positive().max(10000).optional(), maxCharacters: z.number().int().positive().max(100000).optional() })),
+
+  // ---- apply anywhere: outside applications (the applicant's own records of applications to any funder) ----
+  list_outside_applications: tool("listOutsideApplications", "applications:read", "List this workspace's outside applications: applications to funders anywhere, tracked here. Private to the workspace.", z.object({ stage: z.array(outsideStage).optional(), search: z.string().max(200).optional(), archived: z.boolean().default(false), ...paging })),
+  get_outside_application: tool("getOutsideApplication", "applications:read", "Get one outside application with its questions, latest answers (with word and character counts), documents and tasks.", z.object({ outsideApplicationId })),
+  create_outside_application: tool(
+    "createOutsideApplication",
+    "applications:write",
+    "Start tracking an application to any funder. With source opengrants and the listing id, an application already tracking that listing is returned instead of a duplicate.",
+    z.object({
+      title: z.string().min(1).max(300),
+      funderName: z.string().min(1).max(200),
+      programName: z.string().max(300).optional(),
+      source: z.enum(["manual", "opengrants", "link"]).default("manual"),
+      sourceRef: z.string().min(1).max(300).optional().describe("The OpenGrants listing id, with source opengrants"),
+      listingUrl: z.string().url().max(2000).optional(),
+      portalUrl: z.string().url().max(2000).optional(),
+      loiDue: isoDate.optional(),
+      fullDue: isoDate.optional(),
+      internalDue: isoDate.optional(),
+      rolling: z.boolean().optional(),
+      askAmount: decimalMoney.optional(),
+      stage: z.enum(["prospect", "drafting"]).default("drafting"),
+    }),
+  ),
+  add_outside_questions: tool("addOutsideQuestions", "applications:write", "Add a funder's questions from pasted text: the text is split on numbering and blank lines, and limits such as \"(250 words)\" or \"1,500 characters\" are read. Returns the questions made.", z.object({ outsideApplicationId, text: z.string().min(1).max(100_000), phase: z.enum(["loi", "full", "report"]).default("full") })),
+  put_outside_answer: tool("putOutsideAnswer", "applications:write", "Save an answer to an outside question as a new version, marked as written by this agent (or from the library when libraryAnswerId is given). Returns word and character counts and whether it is over the limit.", z.object({ questionId: uuid("Outside question id"), body: z.string().max(100_000), libraryAnswerId: answerId.optional() })),
+  set_outside_stage: tool("setOutsideStage", "applications:write", "Move an outside application to another stage: prospect, deciding, letter of inquiry, invited, drafting, withdrawn or not pursuing. Submissions and decisions are recorded with their own tools.", z.object({ outsideApplicationId, to: z.enum(["prospect", "deciding", "loi", "invited", "drafting", "withdrawn", "not_pursuing"]) })),
+  record_outside_submission: tool("recordOutsideSubmission", "applications:write", "Record that the application was submitted to the funder (the GMS never submits anything): the date, how, and the confirmation. Keeps an as-submitted PDF of the answers. Always waits for a person's approval.", z.object({ outsideApplicationId, submittedAt: z.string().min(10).max(40).describe("RFC 3339 timestamp or YYYY-MM-DD"), method: z.enum(["portal", "email", "mail", "grants_gov", "other"]), confirmationRef: z.string().max(200).optional() }), { gated: true }),
+  record_outside_decision: tool(
+    "recordOutsideDecision",
+    "applications:write",
+    "Record the funder's decision on an outside application: awarded (with the amount), declined or withdrawn. Always waits for a person's approval.",
+    z.object({ outsideApplicationId, outcome: z.enum(["awarded", "declined", "withdrawn"]), awardedAmount: decimalMoney.optional(), grantStart: isoDate.optional(), grantEnd: isoDate.optional(), notes: z.string().max(5000).optional(), nextCycleOn: isoDate.optional() }),
+    { gated: true },
+  ),
+
+  // ---- write faster (v1.6.0): drafts save nothing; a person accepts the text through the answer save ----
+  draft_outside_answer: tool("draftOutsideAnswer", "assist", "Draft an answer to an outside application's question from the organization's own library answers and profile facts. Unknown facts come back as [placeholders], figures from answers not verified in 12 months are flagged. Returns text only and saves nothing; save it with put_outside_answer.", z.object({ questionId: uuid("Outside question id") })),
+  read_funder_guidelines: tool("readFunderGuidelines", "assist", "Read a funder's guidelines (pasted text, up to 60,000 characters) into proposed questions with limits and phase, deadlines and required documents. Saves nothing; add the questions with add_outside_questions after review.", z.object({ outsideApplicationId, text: z.string().min(1).max(60_000), phase: z.enum(["loi", "full"]).default("full") })),
+  library_for_question: tool("libraryForQuestion", "library:read", "List the answer library for one outside question, most relevant first, each with the version (short, medium, long or full) that best fits the question's limit and whether it is stale.", z.object({ questionId: uuid("Outside question id") })),
+  verify_answer: tool("verifyAnswer", "library:write", "Mark a library answer as verified: a person confirmed its facts are current. Answers not verified for 12 months show as stale.", z.object({ answerId })),
+  list_vault_documents: tool("listVaultDocuments", "org:read", "List the organization's document vault (IRS letter, audit, financials, board list, budget, annual report, logo, other) with expiry. The assistant never reads these documents.", z.object({ docType: z.enum(["irs_letter", "audit", "financials", "board_list", "budget", "annual_report", "logo", "other"]).optional() })),
+  use_vault_document: tool("useVaultDocument", "applications:write", "Attach a vault document to one of an outside application's required documents (by its label), or take it off with documentId null.", z.object({ outsideApplicationId, label: z.string().min(1).max(200), documentId: uuid("Vault document id").nullable() })),
+  decide_go_no_go: tool("decideGoNoGo", "applications:write", "Record the go/no-go scorecard of a deciding outside application (eligibility pass/fail; fit, capacity, effort vs. amount and relationship 1-5) and move it: go to loi or drafting, no-go to not pursuing. Needs the workspace's scorecard switched on.", z.object({ outsideApplicationId, eligibility: z.enum(["pass", "fail"]), scores: z.object({ fit: z.number().int().min(1).max(5), capacity: z.number().int().min(1).max(5), effort: z.number().int().min(1).max(5), relationship: z.number().int().min(1).max(5) }), decision: z.enum(["go", "no_go"]), to: z.enum(["loi", "drafting"]).optional(), reason: z.string().max(2000).optional() })),
+  comment_on_question: tool("commentOnQuestion", "applications:write", "Comment on an outside application's question, in the team's internal thread.", z.object({ questionId: uuid("Outside question id"), body: z.string().min(1).max(5000) })),
+  create_milestones: tool("createMilestones", "applications:write", "Create internal milestone tasks (for example draft, review, final) with due dates on an outside application.", z.object({ outsideApplicationId, tasks: z.array(z.object({ title: z.string().min(1).max(300), dueOn: isoDate, assigneeUserId: uuid("Member user id").nullable().optional() })).min(1).max(10) })),
+  // ---- win and keep it (v1.7.0) ----
+  get_outside_award: tool("getOutsideAward", "applications:read", "Get an awarded outside application: amount per year, grant period, award letter, obligations, and payments received against the amount awarded.", z.object({ outsideApplicationId })),
+  add_obligation: tool("addObligation", "applications:write", "Add an obligation to an outside award: a report, an expected payment, a payment received (amount and date only) or a condition, once or as a series every N months until the grant ends (at most 60).", z.object({ outsideApplicationId, kind: z.enum(["report", "payment_expected", "payment_received", "condition"]), title: z.string().min(1).max(300), dueOn: isoDate.optional(), amount: decimalMoney.optional(), notes: z.string().max(5000).optional(), series: z.object({ everyMonths: z.number().int().min(1).max(24), startOn: isoDate, endOn: isoDate.optional() }).optional() })),
+  set_obligation_status: tool("setObligationStatus", "applications:write", "Move an obligation: due, done, received (a payment: the date and the amount that came in), missed, or back. A report is marked submitted with record_report_submission.", z.object({ obligationId: uuid("Obligation id"), to: z.enum(["upcoming", "due", "received", "done", "missed"]), completedOn: isoDate.optional(), amount: decimalMoney.optional() })),
+  record_report_submission: tool("recordReportSubmission", "applications:write", "Record that a report was submitted to the funder (elsewhere): the date and the confirmation. Keeps an as-submitted PDF of its answers. Always waits for a person's approval.", z.object({ obligationId: uuid("Obligation id"), submittedAt: z.string().min(10).max(40).describe("RFC 3339 timestamp or YYYY-MM-DD"), confirmationRef: z.string().max(200).optional() }), { gated: true }),
+  close_out_award: tool("closeOutAward", "applications:write", "Close out an outside award once every obligation is done or received. The stage stays awarded.", z.object({ outsideApplicationId })),
+  get_funding_summary: tool("getFundingSummary", "applications:read", "Get the funding summary: outside and built-in applications by fiscal year (submitted, decided, awarded, declined), the win rate, and amounts asked and awarded.", z.object({})),
+  alert_on_next_cycle: tool("alertOnNextCycle", "discovery", "Set a funding alert on an outside application's program name, to hear when the funder reopens.", z.object({ outsideApplicationId })),
 
   list_messages: tool("listMessages", "messages:read", "List message threads with funders, or the messages of one thread.", z.object({ threadId: threadId.optional(), applicationId: applicationId.optional(), awardId: awardId.optional(), ...paging })),
   reply: tool("replyToThread", "messages:write", "Reply in a thread shared with a funder.", z.object({ threadId, body: z.string().min(1).max(10000), attachments: z.array(documentRef).max(10).default([]) })),

@@ -7,7 +7,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../../app.ts";
 import { authenticate, requireUser } from "../../auth/middleware.ts";
-import { created, ok, pageInfo, paginated } from "../../lib/errors.ts";
+import { created, notFound, ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid, uuidOf } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
 import * as notifications from "../../services/notifications.ts";
@@ -153,7 +153,8 @@ applicationRoutes.get("/my/applications/:id/attachments", async (c) => c.json(ok
 applicationRoutes.post("/my/applications/:id/attachments", async (c) => c.json(created(await applicant.attachDocument(await svc(c), appId(c), parse(applicant.attachmentInput, await jsonBody(c)))), 201));
 
 // ---- answer library ----
-applicationRoutes.get("/my/answers", async (c) => c.json(ok(await applicant.listAnswers(await svc(c)))));
+applicationRoutes.get("/my/answers", async (c) => c.json(ok(await applicant.listAnswers(await svc(c), parse(applicant.answerListQuery, { tag: c.req.query("tag"), stale: c.req.query("stale") })))));
+applicationRoutes.post("/my/answers/:answerId/verify", async (c) => c.json(ok(await applicant.verifyAnswer(await svc(c), bareUuid(c.req.param("answerId"), "Answer")))));
 applicationRoutes.post("/my/answers", async (c) => c.json(created(await applicant.createAnswer(await svc(c), parse(applicant.answerInput, await jsonBody(c)))), 201));
 applicationRoutes.patch("/my/answers/:answerId", async (c) => c.json(ok(await applicant.updateAnswer(await svc(c), bareUuid(c.req.param("answerId"), "Answer"), parse(applicant.answerPatch, await jsonBody(c))))));
 
@@ -161,6 +162,11 @@ applicationRoutes.patch("/my/answers/:answerId", async (c) => c.json(ok(await ap
 applicationRoutes.get("/discover/competitions", async (c) => c.json(ok(await applicant.discoverCompetitions(await svc(c)))));
 applicationRoutes.get("/discover/saved", async (c) => c.json(ok(await applicant.listSaved(await svc(c)))));
 applicationRoutes.post("/discover/saved", async (c) => c.json(created(await applicant.saveListing(await svc(c), parse(applicant.saveListingInput, await jsonBody(c)))), 201));
+applicationRoutes.get("/discover/opengrants/:listingId", async (c) => {
+  const id = c.req.param("listingId");
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id) || ["search", "match", "eligibility", "alerts"].includes(id)) throw notFound("Listing");
+  return c.json(ok(await applicant.openGrantsListing(await svc(c), id)));
+});
 for (const tool of ["search", "match", "eligibility", "alerts"] as OpenGrantsTool[]) {
   applicationRoutes.post(`/discover/opengrants/${tool}`, async (c) => c.json(ok(await applicant.openGrants(await svc(c), tool, parse(applicant.openGrantsInput, await jsonBody(c))))));
 }

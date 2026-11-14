@@ -4,11 +4,20 @@
 // with the assistant turned off.
 import type { z } from "zod";
 
+/**
+ * A file the model reads as a document input, ahead of the user turn's text. Only a funder's
+ * guidelines the person uploaded are ever sent this way (owner decision D5); never the
+ * organization's own documents.
+ */
+export type LlmDocument = { kind: "pdf"; base64: string; title?: string } | { kind: "text"; text: string; title?: string };
+
 export interface LlmRequest<T> {
   /** Stable instructions (cacheable). Never contains applicant text. */
   system: string;
   /** The task and its labelled data. */
   user: string;
+  /** Files sent as document inputs before `user` (a PDF as base64, or plain text). */
+  documents?: LlmDocument[];
   schema: z.ZodType<T>;
   maxTokens?: number;
 }

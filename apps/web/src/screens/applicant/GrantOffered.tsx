@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// My grants: every award on record, and for the open one the offer, acceptance and the grant
+// Awarded funding: every award on record, and for the open one the offer, acceptance and the grant
 // agreement with click-to-sign. Signing is a human gate: the Sign button needs the typed legal
 // name and the attestation, and the server refuses agent tokens.
 import { useState } from "react";
@@ -8,6 +8,9 @@ import { Award as AwardIcon, Check, Clock, Globe, Hash, Lock, Mail, PenLine, Use
 import type { Agreement, ApplicantApi, Award, AwardDetail } from "../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
 import { useLaunchQuery } from "../../api/launchHooks.ts";
+import { minorOf } from "../../api/outside.ts";
+import type { OutsideAward } from "../../api/writeKeep.ts";
+import { useWKQuery } from "../../api/writeKeepHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, isNotFound, Loaded } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -31,6 +34,14 @@ async function load(api: ApplicantApi, awardId: string | undefined): Promise<Gra
   const agreement = award?.agreement ? await api.agreement(award.agreement.id) : null;
   return { awards, award, agreement };
 }
+
+/** One row of Awarded funding: an award on this GMS, or one the organization records from a funder elsewhere. */
+type GrantRow = { kind: "gms"; key: string; w: Award } | { kind: "outside"; key: string; o: OutsideAward };
+const rowFunder = (r: GrantRow) => (r.kind === "gms" ? r.w.funder.name : r.o.funderName);
+const rowTitle = (r: GrantRow) => (r.kind === "gms" ? r.w.title : r.o.title);
+const rowAwarded = (r: GrantRow) => (r.kind === "gms" ? r.w.awardedAmountMinor : minorOf(r.o.awardedAmount));
+const rowReceived = (r: GrantRow) => (r.kind === "gms" ? (r.w.disbursedAmountMinor ?? 0) : (minorOf(r.o.receivedAmount) ?? 0));
+const rowCurrency = (r: GrantRow) => (r.kind === "gms" ? r.w.currency : (r.o.awardedAmount?.currency ?? "USD"));
 
 const AGREEMENT_STEPS = ["draft", "sent", "signed_by_grantee", "countersigned", "executed"] as const;
 const AGREEMENT_LABELS: Record<(typeof AGREEMENT_STEPS)[number], string> = { draft: "Draft", sent: "Sent", signed_by_grantee: "Signed by grantee", countersigned: "Countersigned", executed: "Executed" };
@@ -147,6 +158,9 @@ export default function GrantOffered() {
   const navigate = useNavigate();
   const { awardId } = useParams();
   const query = useApplicantQuery((api) => load(api, awardId), [awardId, ws.id]);
+  // Awards from funders outside this GMS, listed beside the built-in ones (v1.7).
+  const outside = useWKQuery((api) => api.outsideAwards().catch(() => [] as OutsideAward[]), [ws.id]);
+  const outsideAwards = outside.status === "ready" ? outside.data : [];
   const [signing, setSigning] = useState(false);
   // Where Passport lists verified representatives, the person accepting types their legal name and it must match one.
   const reps = useLaunchQuery((api) => api.representatives(), [ws.id]);
@@ -157,29 +171,51 @@ export default function GrantOffered() {
 
   return (
     <>
-      <title>{`My grants — ${ws.name}`}</title>
-      <ApplicantShell active="My grants">
+      <title>{`Awarded funding — ${ws.name}`}</title>
+      <ApplicantShell active="Awarded funding">
         <main className="main">
           <Loaded query={query} label="Loading your grants">
             {({ awards, award, agreement }) => {
-              const total = awards.reduce((n, w) => n + (w.awardedAmountMinor ?? 0), 0);
-              const received = awards.reduce((n, w) => n + (w.disbursedAmountMinor ?? 0), 0);
-              const columns: Column<Award>[] = [
-                { key: "funder", header: "Funder", cell: (w) => <FunderChip name={w.funder.name} accent={accentOf(w.funder.brand)} />, sort: (w) => w.funder.name },
+              const rows: GrantRow[] = [...awards.map((w): GrantRow => ({ kind: "gms", key: `gms:${w.id}`, w })), ...outsideAwards.map((o): GrantRow => ({ kind: "outside", key: `outside:${o.id}`, o }))];
+              const total = rows.reduce((n, r) => n + (rowAwarded(r) ?? 0), 0);
+              const received = rows.reduce((n, r) => n + rowReceived(r), 0);
+              const columns: Column<GrantRow>[] = [
+                { key: "funder", header: "Funder", cell: (r) => (r.kind === "gms" ? <FunderChip name={r.w.funder.name} accent={accentOf(r.w.funder.brand)} /> : <FunderChip name={r.o.funderName} accent={accentOf(undefined)} />), sort: rowFunder },
                 {
                   key: "title",
                   header: "Title",
-                  sort: (w) => w.title,
-                  cell: (w) => (
-                    <Link to={`${base}/grants/${w.id}/offer`} className="b">
-                      {w.title}
-                    </Link>
+                  sort: rowTitle,
+                  cell: (r) => (
+                    <div className="ent">
+                      <Link to={r.kind === "gms" ? `${base}/grants/${r.w.id}/offer` : `${base}/grants/outside/${r.o.id}`} className="nm">
+                        {rowTitle(r)}
+                      </Link>
+                      <span className="small">
+                        <span className="tag">{r.kind === "gms" ? "On this GMS" : "Outside award"}</span>
+                      </span>
+                    </div>
                   ),
                 },
-                { key: "awarded", header: "Awarded", numeric: true, cell: (w) => formatMinor(w.awardedAmountMinor, w.currency), sort: (w) => w.awardedAmountMinor },
-                { key: "received", header: "Received", numeric: true, cell: (w) => formatMinor(w.disbursedAmountMinor ?? 0, w.currency), sort: (w) => w.disbursedAmountMinor },
-                { key: "remaining", header: "Remaining", numeric: true, cell: (w) => formatMinor((w.awardedAmountMinor ?? 0) - (w.disbursedAmountMinor ?? 0), w.currency) },
-                { key: "status", header: "Status", cell: (w) => <StatusBadge kind="award" status={w.status} /> },
+                { key: "awarded", header: "Awarded", numeric: true, cell: (r) => formatMinor(rowAwarded(r), rowCurrency(r)), sort: rowAwarded },
+                { key: "received", header: "Received", numeric: true, cell: (r) => formatMinor(rowReceived(r), rowCurrency(r)), sort: rowReceived },
+                { key: "remaining", header: "Remaining", numeric: true, cell: (r) => formatMinor((rowAwarded(r) ?? 0) - rowReceived(r), rowCurrency(r)) },
+                {
+                  key: "status",
+                  header: "Status",
+                  cell: (r) =>
+                    r.kind === "gms" ? (
+                      <StatusBadge kind="award" status={r.w.status} />
+                    ) : (
+                      <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+                        <StatusBadge kind="outside" status="awarded" label={r.o.closedOutAt ? "Closed out" : undefined} />
+                        {r.o.nextDue && !r.o.closedOutAt && (
+                          <span className="small muted" style={{ whiteSpace: "normal", maxWidth: "220px" }}>
+                            Next: {r.o.nextDue.title}, {formatDate(r.o.nextDue.dueOn)}
+                          </span>
+                        )}
+                      </span>
+                    ),
+                },
               ];
               const step = agreement ? AGREEMENT_STEPS.indexOf(agreement.status as (typeof AGREEMENT_STEPS)[number]) : -1;
               const first = award?.tranches.find((t) => t.seq === 1);
@@ -187,11 +223,13 @@ export default function GrantOffered() {
                 <>
                   <div className="ph">
                     <div>
-                      <h1>My grants</h1>
+                      <h1>Awarded funding</h1>
                       <div className="meta">
                         <span>
-                          {awards.length} grant{awards.length === 1 ? "" : "s"} · {formatMinor(total)} awarded · {formatMinor(received)} received
+                          {rows.length} grant{rows.length === 1 ? "" : "s"} · {formatMinor(total)} awarded · {formatMinor(received)} received
                         </span>
+                        <span aria-hidden="true">·</span>
+                        <Link to={`${base}/summary`}>Funding summary</Link>
                       </div>
                     </div>
                   </div>
@@ -199,12 +237,12 @@ export default function GrantOffered() {
                   <DataTable
                     label="Grants"
                     columns={columns}
-                    rows={awards}
-                    rowKey={(w) => w.id}
-                    selectedKey={award?.id ?? null}
+                    rows={rows}
+                    rowKey={(r) => r.key}
+                    selectedKey={award ? `gms:${award.id}` : null}
                     empty={
                       <EmptyState icon={AwardIcon} title="No grants yet">
-                        An award appears here when a funder offers one.
+                        An award appears here when a funder on this GMS offers one, or when you record an award on an application to a funder anywhere else.
                       </EmptyState>
                     }
                   />

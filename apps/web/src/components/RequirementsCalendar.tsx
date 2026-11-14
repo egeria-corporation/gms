@@ -24,7 +24,23 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 const monthName = (y: number, m: number) => new Date(Date.UTC(y, m, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
-export function RequirementsCalendar({ items, today = new Date(), selectedDay, onSelectDay }: { items: CalendarItem[]; today?: Date; selectedDay?: string | null; onSelectDay?: (day: string | null) => void }) {
+export function RequirementsCalendar({
+  items,
+  today = new Date(),
+  selectedDay,
+  onSelectDay,
+  legend = Object.keys(TONES) as CalendarItem["tone"][],
+  label = "due dates",
+}: {
+  items: CalendarItem[];
+  today?: Date;
+  selectedDay?: string | null;
+  onSelectDay?: (day: string | null) => void;
+  /** The tones the legend names (all by default). */
+  legend?: CalendarItem["tone"][];
+  /** What the grid shows, for its accessible name ("due dates", "deadlines"). */
+  label?: string;
+}) {
   // Opens on the current month, or on the month of the next thing due when this month is empty.
   const [cursor, setCursor] = useState(() => {
     const thisMonth = today.toISOString().slice(0, 7);
@@ -74,7 +90,7 @@ export function RequirementsCalendar({ items, today = new Date(), selectedDay, o
         <span className="small muted">Today · {today.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div className="cal" role="group" aria-label={`${title} due dates`}>
+        <div className="cal" role="group" aria-label={`${title} ${label}`}>
           {WEEKDAYS.map((w) => (
             <div key={w} className="wd" aria-hidden="true">
               {w}
@@ -117,7 +133,7 @@ export function RequirementsCalendar({ items, today = new Date(), selectedDay, o
           })}
         </div>
         <div className="row wrap small muted" style={{ gap: "12px" }}>
-          {(Object.keys(TONES) as CalendarItem["tone"][]).map((t) => (
+          {legend.map((t) => (
             <span key={t} className="row" style={{ gap: "5px" }}>
               <i aria-hidden="true" style={{ width: "8px", height: "8px", borderRadius: "50%", background: TONES[t].color, display: "inline-block" }}></i>
               {TONES[t].label}

@@ -2,14 +2,17 @@
 // Applicant workflow beyond the protocol routes: the applications list and status timeline,
 // section assignments, field comments, attachments, withdrawing, the answer library, and finding
 // funding (open competitions here, and OpenGrants through its hosted MCP).
-import { parsePointer, setAt, type JsonObject } from "@gms/forms";
+import { isStale } from "@gms/assist";
+import { parsePointer, setAt, type JsonObject, type VariantKey } from "@gms/forms";
 import { readPath } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { type App, access, responsesOf, revisionOf, runRules, stageForms, stagesOf, transitionApp, writeFormResponse } from "./apply.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { cleanLine, cleanText } from "@gms/notify";
 import { listMyDocuments } from "./organization.ts";
+import { OUTSIDE_ROLES, createOutside } from "./outside.ts";
 import { orgFacts } from "./profile.ts";
 import { OpenGrantsProfileError, OpenGrantsUnavailableError, OpenGrantsUnsupportedError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
@@ -193,10 +196,63 @@ export async function attachDocument(ctx: ServiceContext, appId: string, input: 
 
 // ------------------------------------------------------------------------------------ answer library
 
-const answerView = (a: Row<"answers">) => ({ id: a.id, key: a.key, title: a.title, body: a.body, version: a.version, usedIn: a.used_in, words: a.body.trim() ? a.body.trim().split(/\s+/).length : 0, updatedAt: a.updated_at });
+const wordsIn = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+type Variants = Partial<Record<VariantKey, string>>;
+const variantsOf = (a: Row<"answers">): Variants => {
+  const v = (a.variants ?? {}) as Record<string, unknown>;
+  return Object.fromEntries((["short", "medium", "long"] as const).filter((k) => typeof v[k] === "string").map((k) => [k, v[k] as string]));
+};
+
+/** Whether a library answer's facts were checked in the last 12 months: `verified`, `stale` (checked longer ago) or `never`. */
+export function verificationOf(a: Pick<Row<"answers">, "last_verified_at">, now: Date) {
+  const today = now.toISOString().slice(0, 10);
+  const state = !a.last_verified_at ? ("never" as const) : isStale(a.last_verified_at, today) ? ("stale" as const) : ("verified" as const);
+  return { state, lastVerifiedAt: a.last_verified_at, stale: state !== "verified" };
+}
+
+const answerView = (a: Row<"answers">, now: Date) => {
+  const variants = variantsOf(a);
+  return {
+    id: a.id,
+    key: a.key,
+    title: a.title,
+    body: a.body,
+    version: a.version,
+    usedIn: a.used_in,
+    words: wordsIn(a.body),
+    variants,
+    variantWords: Object.fromEntries(Object.entries(variants).map(([k, t]) => [k, wordsIn(t)])),
+    tags: a.tags,
+    lastVerifiedAt: a.last_verified_at,
+    verification: verificationOf(a, now),
+    updatedAt: a.updated_at,
+  };
+};
 const KEY = /^[a-z0-9][a-z0-9_.-]{0,98}$/;
-export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default("") }).strict();
-export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional() }).strict();
+const variantText = z.string().max(20_000).transform((t) => t.replace(/\r\n?/g, "\n"));
+/** Shorter and longer versions; `null` (or an empty string) removes one. */
+const variantsInput = z.object({ short: variantText.nullable().optional(), medium: variantText.nullable().optional(), long: variantText.nullable().optional() }).strict();
+const tagsInput = z
+  .array(z.string().transform(cleanLine).pipe(z.string().min(1).max(50)))
+  .max(20)
+  // The first spelling of a tag is kept; later ones that differ only in case are dropped.
+  .transform((tags) => tags.filter((t, i) => tags.findIndex((u) => u.toLowerCase() === t.toLowerCase()) === i));
+export const answerInput = z.object({ key: z.string().regex(KEY).optional(), title: z.string().trim().min(1).max(300), body: z.string().max(50_000).default(""), variants: variantsInput.optional(), tags: tagsInput.optional(), verified: z.boolean().optional() }).strict();
+/** `verified: true` marks the saved text as checked now. An edit of the text that does not say so leaves it unverified. */
+export const answerPatch = z.object({ title: z.string().trim().min(1).max(300).optional(), body: z.string().max(50_000).optional(), variants: variantsInput.optional(), tags: tagsInput.optional(), verified: z.boolean().optional() }).strict();
+export const answerListQuery = z.object({ tag: z.string().trim().min(1).max(50).optional(), stale: z.enum(["true", "false"]).optional() }).strict();
+
+const mergeVariants = (current: Variants, patch: z.output<typeof variantsInput> | undefined): Variants => {
+  if (!patch) return current;
+  const out: Variants = { ...current };
+  for (const k of ["short", "medium", "long"] as const) {
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (v === null || !v.trim()) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+};
 
 /**
  * Answers as the library shows them: each use names the application and the funder, so a person
@@ -206,9 +262,14 @@ async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
   const appIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { applicationId?: string }[] | null) ?? []).map((u) => u.applicationId).filter((x): x is string => typeof x === "string")))];
   const apps = appIds.length ? await ctx.repos.table("applications").find({ id: appIds }) : [];
   const funders = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.workspace_id))] }) : [];
+  // Uses in outside applications (apply anywhere), read in the answers' own workspace only.
+  const outsideIds = [...new Set(rows.flatMap((r) => ((r.used_in as unknown as { outsideApplicationId?: string }[] | null) ?? []).map((u) => u.outsideApplicationId).filter((x): x is string => typeof x === "string")))];
+  const outsideApps = outsideIds.length && rows[0] ? await ctx.repos.table("outside_applications").find({ id: outsideIds, workspace_id: rows[0].workspace_id }) : [];
   return rows.map((r) => {
-    const v = answerView(r);
+    const v = answerView(r, ctx.now());
     const usedIn = ((r.used_in as unknown as Record<string, unknown>[] | null) ?? []).map((u) => {
+      const outside = typeof u.outsideApplicationId === "string" ? outsideApps.find((a) => a.id === u.outsideApplicationId) : undefined;
+      if (outside) return { ...u, applicationTitle: outside.title, funderName: outside.funder_name };
       const app = apps.find((a) => a.id === u.applicationId);
       return { ...u, applicationTitle: app?.title ?? null, funderName: (app && funders.find((f) => f.id === app.workspace_id)?.display_name) ?? null };
     });
@@ -216,29 +277,68 @@ async function answerViews(ctx: ServiceContext, rows: Row<"answers">[]) {
   });
 }
 
-/** The latest version of each answer. */
-export async function listAnswers(ctx: ServiceContext) {
+/** The latest version of each answer, optionally only those with a tag, or only the stale ones. */
+export async function listAnswers(ctx: ServiceContext, query: z.output<typeof answerListQuery> = {}) {
   const ws = await authorize(ctx, { scope: "library:read", kind: "applicant" });
   const rows = await ctx.repos.table("answers").find({ workspace_id: ws.id }, { orderBy: "version", ascending: false });
   const latest = new Map<string, Row<"answers">>();
   for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r);
-  return answerViews(ctx, [...latest.values()].sort((a, b) => a.title.localeCompare(b.title)));
+  let list = [...latest.values()];
+  if (query.tag) list = list.filter((a) => a.tags.some((t) => t.toLowerCase() === query.tag!.toLowerCase()));
+  if (query.stale) list = list.filter((a) => verificationOf(a, ctx.now()).stale === (query.stale === "true"));
+  return answerViews(ctx, list.sort((a, b) => a.title.localeCompare(b.title)));
 }
 
 export async function createAnswer(ctx: ServiceContext, input: z.output<typeof answerInput>) {
   const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
   const key = input.key ?? (input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "answer");
-  const row = await guardWrite("An answer with this key", () => ctx.repos.table("answers").insert({ workspace_id: ws.id, key, title: input.title, body: input.body }));
-  return answerView(row);
+  const row = await guardWrite("An answer with this key", () =>
+    ctx.repos.table("answers").insert({ workspace_id: ws.id, key, title: input.title, body: input.body, variants: mergeVariants({}, input.variants) as Row<"answers">["variants"], tags: input.tags ?? [], last_verified_at: input.verified ? ctx.now().toISOString() : null }),
+  );
+  if (input.verified) await audit(ctx, "answer.verified", "answer", row.id, { key: row.key, version: row.version });
+  return answerView(row, ctx.now());
 }
 
-/** Editing an answer saves a new version; applications that used the old one keep what they inserted. */
+/**
+ * Editing an answer saves a new version; applications that used the old one keep what they
+ * inserted. Variants and tags carry over unless changed. The verification date carries over only
+ * when the text is unchanged: new text is unverified until a person says it is checked.
+ */
 export async function updateAnswer(ctx: ServiceContext, answerId: string, input: z.output<typeof answerPatch>) {
   const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
   const current = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
   const versions = await ctx.repos.table("answers").find({ workspace_id: ws.id, key: current.key }, { orderBy: "version", ascending: false, limit: 1 });
-  const next = await ctx.repos.table("answers").insert({ workspace_id: ws.id, key: current.key, title: input.title ?? current.title, body: input.body ?? current.body, version: (versions[0]?.version ?? current.version) + 1, used_in: current.used_in });
+  const body = input.body ?? current.body;
+  const verifiedAt = input.verified ? ctx.now().toISOString() : body === current.body && input.verified !== false ? current.last_verified_at : null;
+  const next = await guardWrite("This answer", () =>
+    ctx.repos.table("answers").insert({
+      workspace_id: ws.id,
+      key: current.key,
+      title: input.title ?? current.title,
+      body,
+      version: (versions[0]?.version ?? current.version) + 1,
+      used_in: current.used_in,
+      variants: mergeVariants(variantsOf(current), input.variants) as Row<"answers">["variants"],
+      tags: input.tags ?? current.tags,
+      last_verified_at: verifiedAt,
+    }),
+  );
+  if (input.verified) await audit(ctx, "answer.verified", "answer", next.id, { key: next.key, version: next.version });
   return (await answerViews(ctx, [next]))[0]!;
+}
+
+/**
+ * "Mark as verified": a person confirms the answer's facts are current. Recorded on the latest
+ * version without making a new one (the text has not changed), and ledgered.
+ */
+export async function verifyAnswer(ctx: ServiceContext, answerId: string) {
+  const ws = await authorize(ctx, { scope: "library:write", kind: "applicant" });
+  const named = required(await ctx.repos.table("answers").one({ id: answerId, workspace_id: ws.id }), "Answer");
+  const latest = (await ctx.repos.table("answers").find({ workspace_id: ws.id, key: named.key }, { orderBy: "version", ascending: false, limit: 1 }))[0]!;
+  const at = ctx.now().toISOString();
+  const [saved] = await ctx.repos.table("answers").update({ id: latest.id, workspace_id: ws.id }, { last_verified_at: at });
+  await audit(ctx, "answer.verified", "answer", latest.id, { key: latest.key, version: latest.version });
+  return (await answerViews(ctx, [saved ?? latest]))[0]!;
 }
 
 type Use = { applicationId: string; formId: string; path: string; version: number; insertedAt: string };
@@ -303,6 +403,26 @@ export async function discoverCompetitions(ctx: ServiceContext) {
       eligibility: { eligible: eligibility.eligible, results: eligibility.results },
       application: started ? { id: apiId("application", started.id), status: started.status } : null,
       url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
+      acceptingApplications: true,
+    });
+  }
+  // Published, listed opportunities with no open competition (owner decision D10): shown so they
+  // can be saved, labelled as not taking applications yet. No eligibility is run for them.
+  const openOpportunities = new Set(open.map((c) => c.opportunity_id));
+  const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 500 })).filter((o) => !openOpportunities.has(o.id) && (o.publish as Record<string, unknown> | null)?.publicPage !== false);
+  const funders = published.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(published.map((o) => o.workspace_id))] }) : [];
+  for (const opp of published) {
+    const funder = funders.find((f) => f.id === opp.workspace_id);
+    out.push({
+      competitionId: null,
+      opportunity: { id: apiId("opportunity", opp.id), slug: opp.slug, title: opp.title, description: opp.description, funding: opp.funding },
+      funder: { name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+      stage: null,
+      forms: 0,
+      eligibility: null,
+      application: null,
+      url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
+      acceptingApplications: false,
     });
   }
   return out;
@@ -311,7 +431,10 @@ export async function discoverCompetitions(ctx: ServiceContext) {
 const CACHE_TTL_MS = 15 * 60 * 1000;
 /** Per-isolate result cache: OpenGrants answers for one org and query are reused for 15 minutes. */
 const cache = new Map<string, { at: number; value: { items: OpenGrantsListing[] } }>();
-export const clearDiscoveryCache = () => cache.clear();
+export const clearDiscoveryCache = () => {
+  cache.clear();
+  listingCache.clear();
+};
 
 export const openGrantsInput = z.record(z.string(), z.unknown());
 
@@ -342,7 +465,8 @@ export async function openGrants(ctx: ServiceContext, tool: OpenGrantsTool, args
   return { results, cached };
 }
 
-async function matchGmsOpportunity(ctx: ServiceContext, l: OpenGrantsListing) {
+/** A listing that points back at a GMS opportunity: its id, and its open competition if any. */
+export async function matchGmsOpportunity(ctx: Pick<ServiceContext, "repos" | "config">, l: OpenGrantsListing) {
   for (const candidate of [l.source, l.url]) {
     if (typeof candidate !== "string") continue;
     const page = new RegExp(`^${ctx.config.webBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/f/([a-z0-9-]+)/o/([a-z0-9-]+)`).exec(candidate);
@@ -360,6 +484,33 @@ async function matchGmsOpportunity(ctx: ServiceContext, l: OpenGrantsListing) {
   return null;
 }
 
+const listingCache = new Map<string, { at: number; value: OpenGrantsListing | null }>();
+
+/**
+ * One OpenGrants listing for the Details dialog, through the REST port's `GET /grants-api/{id}`.
+ * 404 `not_found` when OpenGrants has no such listing; 404 `not_available` when this server's
+ * OpenGrants connection cannot read one listing (the web then shows the search result it holds).
+ */
+export async function openGrantsListing(ctx: ServiceContext, listingId: string) {
+  await authorize(ctx, { scope: "discovery", kind: "applicant" });
+  const port = ctx.ports.openGrants;
+  if (!port?.get) throw new ApiError(404, "not_available", "Listing details are not available from this server");
+  const now = ctx.now().getTime();
+  const hit = listingCache.get(listingId);
+  let listing = hit && now - hit.at < CACHE_TTL_MS ? hit.value : undefined;
+  if (listing === undefined) {
+    try {
+      listing = await port.get(listingId);
+    } catch (e) {
+      if (e instanceof OpenGrantsUnavailableError) throw new ApiError(503, "opengrants_unavailable", "OpenGrants can't be reached right now");
+      throw e;
+    }
+    listingCache.set(listingId, { at: now, value: listing });
+  }
+  if (!listing) throw notFound("Listing");
+  return { ...listing, gms: await matchGmsOpportunity(ctx, listing) };
+}
+
 export const saveListingInput = z.object({ source: z.enum(["gms", "opengrants"]), externalId: z.string().min(1).max(300), title: z.string().trim().min(1).max(500), url: z.url().optional(), listing: z.record(z.string(), z.unknown()).default({}) }).strict();
 
 export async function saveListing(ctx: ServiceContext, input: z.output<typeof saveListingInput>) {
@@ -367,10 +518,35 @@ export async function saveListing(ctx: ServiceContext, input: z.output<typeof sa
   const gms = await matchGmsOpportunity(ctx, { id: input.externalId, title: input.title, url: input.url, source: typeof input.listing.source === "string" ? input.listing.source : undefined });
   const existing = await ctx.repos.table("discover_saved").one({ workspace_id: ws.id, source: input.source, external_id: input.externalId });
   const row = existing ?? (await ctx.repos.table("discover_saved").insert({ workspace_id: ws.id, source: input.source, external_id: input.externalId, title: input.title, url: input.url ?? null, listing: input.listing as Row<"discover_saved">["listing"], gms_opportunity_id: gms ? gms.opportunityId.replace(/^opp_/, "") : null, saved_by: ctx.actor.userId }));
-  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at };
+  // A saved OpenGrants listing is a prospect (apply anywhere), as migration 0029 made of the ones saved before.
+  // A funding alert kept as a saved row by older clients (`alert:<query>`) is not a listing.
+  const prospect = input.source === "opengrants" && !input.externalId.startsWith("alert:") ? await savedProspect(ctx, ws.id, input) : null;
+  return { id: row.id, source: row.source, externalId: row.external_id, title: row.title, url: row.url, gms, savedAt: row.created_at, outsideApplicationId: prospect };
+}
+
+/** The prospect tracking an OpenGrants listing, made when the listing is first saved; its id. */
+async function savedProspect(ctx: ServiceContext, workspaceId: string, input: z.output<typeof saveListingInput>): Promise<string | null> {
+  const found = await ctx.repos.table("outside_applications").one({ workspace_id: workspaceId, source: "opengrants", source_ref: input.externalId });
+  if (found) return found.id;
+  // Only people who may write applications start tracking one; others still save the listing.
+  if (!ctx.scopes.includes("applications:write") || (ctx.workspace?.role && !OUTSIDE_ROLES.includes(ctx.workspace.role))) return null;
+  const text = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? cleanLine(v).slice(0, n) : undefined);
+  const listing = { funder: text(input.listing.funder, 200), amount: text(input.listing.amount, 200), deadline: text(input.listing.deadline, 100), summary: typeof input.listing.summary === "string" ? cleanText(input.listing.summary).slice(0, 2000) || undefined : undefined, url: input.url };
+  const made = await createOutside(ctx, {
+    source: "opengrants",
+    sourceRef: input.externalId,
+    listing: Object.fromEntries(Object.entries(listing).filter(([, v]) => v !== undefined)),
+    title: cleanLine(input.title).slice(0, 300) || "Saved listing",
+    funderName: listing.funder ?? "Funder not named",
+    ...(input.url ? { listingUrl: input.url } : {}),
+    ...(listing.deadline && /^\d{4}-\d{2}-\d{2}$/.test(listing.deadline) ? { fullDue: listing.deadline } : {}),
+    stage: "prospect",
+  });
+  return made.application.id;
 }
 
 export async function listSaved(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
-  return (await ctx.repos.table("discover_saved").find({ workspace_id: ws.id }, { orderBy: "created_at", ascending: false })).map((r) => ({ id: r.id, source: r.source, externalId: r.external_id, title: r.title, url: r.url, gmsOpportunityId: r.gms_opportunity_id ? apiId("opportunity", r.gms_opportunity_id) : null, savedAt: r.created_at }));
+  // Funding alerts are kept in the same table with their own listing (`/discover/alerts`); they are not saved listings.
+  return (await ctx.repos.table("discover_saved").find({ workspace_id: ws.id, source: ["gms", "opengrants"] }, { orderBy: "created_at", ascending: false })).map((r) => ({ id: r.id, source: r.source, externalId: r.external_id, title: r.title, url: r.url, gmsOpportunityId: r.gms_opportunity_id ? apiId("opportunity", r.gms_opportunity_id) : null, savedAt: r.created_at }));
 }

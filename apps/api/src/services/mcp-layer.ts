@@ -6,7 +6,8 @@
 import { validateResponse, type JsonObject } from "@gms/forms";
 import { ServiceError, type Actor as McpActor, type Approval, type ApprovalStatus, type ApprovalStore, type ResourceKind, type ResourceReader, type ServiceLayer } from "@gms/mcp";
 import { ApiError } from "../lib/errors.ts";
-import { uuidOf } from "../lib/ids.ts";
+import { bareUuid, uuidOf } from "../lib/ids.ts";
+import type { z } from "zod";
 import * as applicant from "./applicant.ts";
 import * as assist from "./assist.ts";
 import * as apply from "./apply.ts";
@@ -18,17 +19,24 @@ import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
+import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
+import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
+import * as obligations from "./obligations.ts";
 import * as opportunities from "./opportunities.ts";
+import * as outside from "./outside.ts";
 import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
+import * as quickSetup from "./quick-setup.ts";
 import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
+import * as team from "./team.ts";
 import * as templates from "./templates.ts";
+import * as vault from "./vault.ts";
 import type { Repos, Row } from "./repos/types.ts";
 
 export type ContextBase = Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">;
@@ -68,6 +76,13 @@ const trn = (id: string) => uuidOf("tranche", id, "Tranche");
 const req = (id: string) => uuidOf("requirement", id, "Requirement");
 const sub = (id: string) => uuidOf("submission", id, "Submission");
 const LEVELS = ["L0", "L1", "L2", "L3"];
+const oa = (id: string) => bareUuid(id, "Outside application");
+/** A tool's input checked with the REST route's own schema, so both surfaces accept the same thing. */
+function input<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
+  const r = schema.safeParse(value);
+  if (!r.success) throw new ApiError(400, "bad_request", "The request is not valid", r.error.issues.map((x) => ({ code: "invalid_field", field: x.path.map(String).join("."), detail: x.message })));
+  return r.data;
+}
 
 type Impl = { [K in keyof ServiceLayer]?: (ctx: ServiceContext, input: Parameters<ServiceLayer[K]>[1]) => Promise<unknown> };
 
@@ -80,6 +95,7 @@ const IMPLEMENTED: Impl = {
   publishOpportunity: (ctx, i) => opportunities.publishOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   listCompetitions: (ctx, i) => competitions.listCompetitions(ctx, i.opportunityId ? { opportunityId: uuidOf("opportunity", i.opportunityId, "Opportunity") } : {}),
   getCompetition: (ctx, i) => competitions.getCompetition(ctx, uuidOf("competition", i.competitionId, "Competition")),
+  quickSetupCompetition: (ctx, i) => quickSetup.quickSetupCompetition(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   listForms: (ctx, i) => (i.library ? forms.listLibrary(ctx, paged(i)) : forms.listForms(ctx, paged(i), { purpose: i.purpose })),
   getForm: (ctx, i) => forms.getForm(ctx, frm(i.formId), i.version),
 
@@ -162,14 +178,15 @@ const IMPLEMENTED: Impl = {
   getPassportReadiness: (ctx) => org.getMyReadiness(ctx),
   findCompetitions: async (ctx, i) => {
     const needle = i.search?.toLowerCase();
-    const all = (await applicant.discoverCompetitions(ctx)).filter((c) => (!needle || `${c.opportunity.title} ${c.opportunity.description}`.toLowerCase().includes(needle)) && (!i.eligibleOnly || c.eligibility.eligible === true));
+    // Open competitions only: an opportunity not taking applications yet has nothing to start or check.
+    const all = (await applicant.discoverCompetitions(ctx)).filter((c) => c.acceptingApplications && (!needle || `${c.opportunity.title} ${c.opportunity.description}`.toLowerCase().includes(needle)) && (!i.eligibleOnly || c.eligibility?.eligible === true));
     const p = paged(i);
     return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
   },
   checkEligibility: async (ctx, i) => {
     const id = uuidOf("competition", i.competitionId, "Competition");
     const found = (await applicant.discoverCompetitions(ctx)).find((c) => c.competitionId === id);
-    if (!found) throw new ServiceError("not_found", "No open competition with that id.");
+    if (!found?.eligibility) throw new ServiceError("not_found", "No open competition with that id.");
     return found.eligibility;
   },
   searchOpenGrants: (ctx, i) => applicant.openGrants(ctx, "search", i),
@@ -227,6 +244,58 @@ const IMPLEMENTED: Impl = {
     return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
   },
   saveAnswer: (ctx, i) => (i.answerId ? applicant.updateAnswer(ctx, i.answerId, { title: i.title, body: i.body }) : applicant.createAnswer(ctx, { key: i.key, title: i.title, body: i.body })),
+  // ---- applicant: outside applications (apply anywhere), through the same services as the REST routes ----
+  listOutsideApplications: async (ctx, i) => {
+    const all = await outside.listOutside(ctx, { ...(i.stage?.length ? { stage: i.stage.join(",") } : {}), ...(i.search ? { q: i.search } : {}), archived: i.archived ? "true" : "false" });
+    const p = paged(i);
+    return { items: all.slice(p.offset, p.offset + p.pageSize), total: all.length };
+  },
+  getOutsideApplication: (ctx, i) => outside.getOutside(ctx, oa(i.outsideApplicationId)),
+  createOutsideApplication: (ctx, i) => outside.createOutside(ctx, input(outside.createInput, i)),
+  addOutsideQuestions: async (ctx, i) => {
+    const id = oa(i.outsideApplicationId);
+    const { questions } = await outside.parseQuestionText(ctx, id, { text: i.text, phase: i.phase });
+    if (!questions.length) throw new ServiceError("invalid_input", "No questions were found in the text.", [{ field: "text", message: "No questions found" }]);
+    return { questions: await outside.addQuestions(ctx, id, input(outside.questionsInput, { questions: questions.slice(0, 100) })) };
+  },
+  putOutsideAnswer: (ctx, i) => outside.putAnswer(ctx, bareUuid(i.questionId, "Question"), input(outside.answerInput, { body: i.body, ...(i.libraryAnswerId ? { libraryAnswerId: i.libraryAnswerId } : {}) })),
+  setOutsideStage: (ctx, i) => outside.setStage(ctx, oa(i.outsideApplicationId), { to: i.to }),
+  // Both gated for every agent: they run only after a person approved the call, as that person.
+  recordOutsideSubmission: (ctx, i) => outside.recordSubmission(ctx, oa(i.outsideApplicationId), input(outside.submitInput, { submittedAt: i.submittedAt, method: i.method, ...(i.confirmationRef ? { confirmationRef: i.confirmationRef } : {}) })),
+  recordOutsideDecision: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return outside.recordDecision(ctx, oa(outsideApplicationId), input(outside.decisionInput, rest));
+  },
+
+  // ---- write faster and keep it (v1.6.0, v1.7.0), through the same services as the REST routes ----
+  // Drafts save nothing: the agent (or person) saves accepted text with put_outside_answer.
+  draftOutsideAnswer: (ctx, i) => drafting.draftOutsideAnswer(ctx, bareUuid(i.questionId, "Question")),
+  readFunderGuidelines: (ctx, i) => drafting.parseGuidelinesText(ctx, oa(i.outsideApplicationId), i.text, i.phase),
+  libraryForQuestion: (ctx, i) => drafting.librarySuggestions(ctx, bareUuid(i.questionId, "Question")),
+  verifyAnswer: (ctx, i) => applicant.verifyAnswer(ctx, bareUuid(i.answerId, "Answer")),
+  listVaultDocuments: (ctx, i) => vault.listVault(ctx, i.docType ? { docType: i.docType } : {}),
+  useVaultDocument: (ctx, i) => vault.useFromVault(ctx, oa(i.outsideApplicationId), input(vault.useFromVaultInput, { label: i.label, documentId: i.documentId })),
+  decideGoNoGo: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return team.decideGoNoGo(ctx, oa(outsideApplicationId), input(team.goNoGoInput, rest));
+  },
+  commentOnQuestion: (ctx, i) => team.addQuestionComment(ctx, bareUuid(i.questionId, "Question"), input(team.commentInput, { body: i.body })),
+  createMilestones: (ctx, i) => team.createMilestones(ctx, oa(i.outsideApplicationId), input(team.milestonesInput, { tasks: i.tasks })),
+  getOutsideAward: (ctx, i) => obligations.getOutsideAward(ctx, oa(i.outsideApplicationId)),
+  addObligation: (ctx, i) => {
+    const { outsideApplicationId, ...rest } = i;
+    return obligations.createObligation(ctx, oa(outsideApplicationId), input(obligations.obligationInput, rest));
+  },
+  setObligationStatus: (ctx, i) => {
+    const { obligationId, ...rest } = i;
+    return obligations.setObligationStatus(ctx, bareUuid(obligationId, "Obligation"), input(obligations.statusInput, rest));
+  },
+  // Gated for every agent: it runs only after a person approved the call, as that person.
+  recordReportSubmission: (ctx, i) => obligations.submitReport(ctx, bareUuid(i.obligationId, "Obligation"), input(obligations.reportSubmitInput, { submittedAt: i.submittedAt, ...(i.confirmationRef ? { confirmationRef: i.confirmationRef } : {}) })),
+  closeOutAward: (ctx, i) => obligations.closeOut(ctx, oa(i.outsideApplicationId)),
+  getFundingSummary: (ctx) => summary.fundingSummary(ctx),
+  alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
+
   listMessages: async (ctx, i) => {
     if (!i.applicationId) throw new ServiceError("invalid_input", "Pass applicationId: threads are listed per application.", [{ field: "applicationId", message: "Required" }]);
     const threads = await collab.listThreads(ctx, { subjectType: "application", subjectId: app(i.applicationId) });

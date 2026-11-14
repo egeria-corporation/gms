@@ -3,7 +3,8 @@
 // and phone, checked with axe-core (pinned in package.json) for serious and critical violations.
 // jsdom has no layout, so color contrast and target size are checked in Chromium instead
 // (README, "Accessibility").
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,9 +15,12 @@ import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
 import { createMockApplicantMoreApi, MORE_IDS, seedMoreStore } from "../src/mocks/applicantMore.ts";
+import { fullStoreFor } from "../src/mocks/applicantFull.ts";
 import { demoSession } from "../src/mocks/auth.ts";
+import { mockWriteKeepStore } from "../src/api/writeKeepHooks.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 import { MONEY_IDS } from "../src/mocks/funderMoney.ts";
+import { OUTSIDE_IDS } from "../src/mocks/outside.ts";
 import { IDS } from "../src/mocks/store.ts";
 import { viewport } from "./setup.ts";
 
@@ -46,6 +50,21 @@ const APPLICANT = [
   `${A}/team`,
   `${A}/funders`,
   `${A}/settings`,
+  `${A}/applications?view=board`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=checklist`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=notes`,
+  `${A}/outside/${OUTSIDE_IDS.northwind}?tab=activity`,
+  `${A}/outside/${OUTSIDE_IDS.pinecrest}?tab=submission`,
+  `${A}/funders/${OUTSIDE_IDS.recNorthwind}`,
+  // Write faster, win and keep it (v1.6, v1.7).
+  `${A}/organization/documents`,
+  `${A}/summary`,
+  `${A}/grants/outside/${OUTSIDE_IDS.cedar}`,
+  `${A}/applications?view=calendar`,
+  `${A}/outside/${OUTSIDE_IDS.meadow}`,
+  `${A}/outside/${OUTSIDE_IDS.lakeshore}`,
+  `${A}/outside/${OUTSIDE_IDS.cedar}`,
 ];
 const F = "/w/riverbend";
 const FUNDER = [
@@ -83,7 +102,7 @@ const FUNDER = [
   "/onboarding/funder/brand",
 ];
 // The six screens with a dedicated 390px layout, plus the shared ones a phone reaches.
-const PHONE = [A, `${A}/organization`, `${A}/applications/${HEALTH}/edit`, `${A}/applications/${HEALTH}`, `${A}/grants/awd_${APPLICANT_IDS.awardClinic}`, `${A}/reports`, `${A}/reports?r=req_${MORE_IDS.reqMidYear}`, "/notifications", "/"];
+const PHONE = [`${A}/grants/outside/${OUTSIDE_IDS.cedar}`, `${A}/summary`, `${A}/organization/documents`, A, `${A}/organization`, `${A}/applications/${HEALTH}/edit`, `${A}/applications/${HEALTH}`, `${A}/grants/awd_${APPLICANT_IDS.awardClinic}`, `${A}/reports`, `${A}/reports?r=req_${MORE_IDS.reqMidYear}`, "/notifications", "/"];
 
 async function violations(path: string) {
   const services = createMockServices({ session: demoSession() });
@@ -122,5 +141,64 @@ describe("axe: no serious or critical violations", () => {
   it.each(PHONE)("phone %s", async (path) => {
     viewport.phone = true;
     expect(await violations(path)).toEqual([]);
+  });
+});
+
+/** Axe on the document as it stands (after the clicks a test made). */
+async function check() {
+  const result = await axe.run(document.body, {
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+    rules: { "color-contrast": { enabled: false }, "target-size": { enabled: false } },
+  });
+  return result.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id}: ${v.nodes.map((n) => n.html.slice(0, 120)).join(" | ")}`);
+}
+
+describe("axe: write faster and keep it, with the assistant on and the panels open", () => {
+  function mount(path: string) {
+    const services = createMockServices({ session: demoSession() });
+    const store = seedApplicantStore();
+    fullStoreFor(store).assist = { enabled: true, quota: { used: 3, limit: 100, remaining: 97 } };
+    provideMockApplicantStore(services, store);
+    mockWriteKeepStore(services).settings.goNoGoEnabled = true;
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <App services={services} />
+      </MemoryRouter>,
+    );
+  }
+  it("the AI draft panel with a draft, and comments", async () => {
+    mount(`${A}/outside/${OUTSIDE_IDS.northwind}`);
+    const q1 = await screen.findByRole("article", { name: /Describe the need/ });
+    await userEvent.click(await within(q1).findByRole("button", { name: "Draft with AI" }));
+    await userEvent.click(within(q1).getByRole("button", { name: "Write a draft" }));
+    await within(q1).findByRole("status", { name: "The draft" });
+    await userEvent.click(within(q1).getByRole("button", { name: "Comments" }));
+    await within(q1).findByText(/No comments yet/);
+    expect(await check()).toEqual([]);
+  });
+  it("reading the funder's guidelines", async () => {
+    mount(`${A}/outside/${OUTSIDE_IDS.northwind}`);
+    await userEvent.click((await screen.findAllByRole("button", { name: "Paste questions" }))[0]!);
+    await userEvent.click(screen.getByRole("button", { name: "Read the funder’s guidelines" }));
+    expect(await check()).toEqual([]);
+  });
+  it("the go/no-go scorecard", async () => {
+    mount(`${A}/outside/${OUTSIDE_IDS.meadow}`);
+    await screen.findByRole("region", { name: "Go or no-go?" });
+    expect(await check()).toEqual([]);
+  });
+  it("the obligation dialog with a series, and a report being written", async () => {
+    mount(`${A}/grants/outside/${OUTSIDE_IDS.cedar}`);
+    const rows = await screen.findAllByRole("button", { name: "Write the report" });
+    await userEvent.click(rows[0]!);
+    await screen.findByLabelText("Add a report question");
+    await userEvent.click(screen.getAllByRole("button", { name: "Add an obligation" })[0]!);
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Add an obligation" })).getByRole("radio", { name: "Repeats" }));
+    expect(await check()).toEqual([]);
+  });
+  it("the vault upload dialog", async () => {
+    mount(`${A}/organization/documents`);
+    await userEvent.click(await screen.findByRole("button", { name: "Add a document" }));
+    expect(await check()).toEqual([]);
   });
 });

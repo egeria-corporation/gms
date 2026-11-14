@@ -70,6 +70,11 @@ const AReports = lazy(() => import("../screens/applicant/Reports.tsx"));
 const AAnswerLibrary = lazy(() => import("../screens/applicant/AnswerLibrary.tsx"));
 const ATeamAccess = lazy(() => import("../screens/applicant/TeamAccess.tsx"));
 const AFunders = lazy(() => import("../screens/applicant/Funders.tsx"));
+const AFunderRecord = lazy(() => import("../screens/applicant/FunderRecord.tsx"));
+const AOutsideApplication = lazy(() => import("../screens/applicant/OutsideApplication.tsx"));
+const ADocuments = lazy(() => import("../screens/applicant/Documents.tsx"));
+const AOutsideAward = lazy(() => import("../screens/applicant/OutsideAward.tsx"));
+const AFundingSummary = lazy(() => import("../screens/applicant/FundingSummary.tsx"));
 const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
 const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
 const AOrganizationPhone = lazy(() => import("../screens/applicant/phone/OrganizationPhone.tsx"));
@@ -258,6 +263,7 @@ function AppRoutes() {
             <Route path="applications/:appId/edit" element={a(<Responsive desktop={<AEditor />} phone={<AEditorPhone />} />)} />
             <Route path="applications/:appId/edit/submit" element={a(<AEditorSubmit />)} />
             <Route path="applications/:appId/submitted" element={a(<AConfirmation />)} />
+            <Route path="grants/outside/:outsideId" element={a(<AOutsideAward />)} />
             <Route path="grants/:awardId" element={a(<Responsive desktop={<AGrantPayments />} phone={<AGrantPhone />} />)} />
             <Route path="grants" element={a(<AGrantOffered />)} />
             <Route path="grants/:awardId/offer" element={a(<AGrantOffered />)} />
@@ -265,6 +271,12 @@ function AppRoutes() {
             <Route path="library" element={a(<AAnswerLibrary />)} />
             <Route path="team" element={a(<ATeamAccess />)} />
             <Route path="funders" element={a(<AFunders />)} />
+            {/* Applications to funders outside this GMS, and the applicant's own record of each funder. */}
+            <Route path="funders/:recordId" element={a(<AFunderRecord />)} />
+            <Route path="outside/:outsideId" element={a(<AOutsideApplication />)} />
+            {/* Write faster, win and keep it: the document vault and the funding summary. */}
+            <Route path="organization/documents" element={a(<ADocuments />)} />
+            <Route path="summary" element={a(<AFundingSummary />)} />
           </Route>
         </Route>
 

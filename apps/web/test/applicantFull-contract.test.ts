@@ -16,6 +16,8 @@ interface Backend {
   workspaceId: string;
   funderHandle: string;
   slug: string;
+  /** Paths the HTTP client asked for (the real backend only). */
+  paths: string[];
 }
 
 async function realBackend(): Promise<Backend> {
@@ -27,21 +29,23 @@ async function realBackend(): Promise<Backend> {
   };
   await scn.scenario(h);
   const ws = (helpers as unknown as { WS_APPLICANT: string }).WS_APPLICANT;
+  const paths: string[] = [];
   const fetchInProcess: typeof fetch = async (input, init) => {
     const req = input instanceof Request ? input : new Request(input, init);
     const u = new URL(req.url);
+    paths.push(u.pathname);
     const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
     return h.request(u.pathname + u.search, { method: req.method, headers: req.headers, ...(body !== undefined ? { body } : {}) });
   };
   const full = createHttpApplicantFullApi({ baseUrl: helpers.BASE, token: () => h.session(scn.USER_APPLICANT, { aal: "aal2" }), workspaceId: () => ws, fetch: fetchInProcess });
   const page = (await (await fetchInProcess(`${helpers.BASE}/gms/public/funders/riverbend`)).json()) as { data: { opportunities: { slug: string }[] } };
-  return { full, workspaceId: ws, funderHandle: "riverbend", slug: page.data.opportunities[0]!.slug };
+  return { full, workspaceId: ws, funderHandle: "riverbend", slug: page.data.opportunities[0]!.slug, paths };
 }
 
 function mockBackend(): Backend {
   const store = seedApplicantStore();
   const full = createMockApplicantFullApi({ session: async () => demoSession(), store, full: seedFullStore(store) });
-  return { full, workspaceId: store.organization.workspaceId, funderHandle: "riverbend", slug: "community-health-2027" };
+  return { full, workspaceId: store.organization.workspaceId, funderHandle: "riverbend", slug: "community-health-2027", paths: [] };
 }
 
 const status = async (p: Promise<unknown>): Promise<number> => {
@@ -118,6 +122,11 @@ for (const [name, make] of [
       const alert = await b.full.createAlert("rural clinics");
       expect(alert.query).toBe("rural clinics");
       expect((await b.full.alerts()).some((a) => a.query === "rural clinics")).toBe(true);
+      // The GMS keeps it; OpenGrants, whose API takes no alerts, is not asked.
+      if (name.startsWith("the real")) {
+        expect(b.paths).toContain("/gms/discover/alerts");
+        expect(b.paths.some((p) => p.includes("/opengrants/"))).toBe(false);
+      }
     });
 
     it("reads what a funder publishes: past awards, questions and guideline documents", async () => {

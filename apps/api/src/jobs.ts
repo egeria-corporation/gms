@@ -7,12 +7,16 @@ import { archiveDay, GENESIS_HASH, type ArchiveBucket } from "@gms/ledger";
 import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
 import { deliverDue } from "@gms/webhooks";
-import { NO_AGREEMENT_REQUIRED } from "@gms/workflow";
+import { DOCUMENT_EXPIRING_TEMPLATE, DOCUMENT_EXPIRY_OFFSETS, documentExpiringEmail, OBLIGATION_REMINDER_OFFSETS, OUTSIDE_NEXT_CYCLE_TEMPLATE, OUTSIDE_OBLIGATION_TEMPLATE, outsideNextCycleEmail, outsideObligationEmail, OUTSIDE_DEADLINE_OFFSETS, OUTSIDE_DEADLINE_TEMPLATE, outsideDeadlineEmail } from "@gms/notify";
+import { NO_AGREEMENT_REQUIRED, OBLIGATION_STATUSES, obligationMoveRefusal, type ObligationKind, type ObligationStatus } from "@gms/workflow";
 import { scopesForRole } from "./auth/scopes.ts";
 import { exportBundle, importBundle } from "./services/analytics.ts";
 import { latestAgreement, retryAwardMirrors } from "./services/awards.ts";
-import { audit, systemContext, type BaseContext, type ServiceContext } from "./services/context.ts";
+import { audit, changeStatus, systemContext, type BaseContext, type ServiceContext } from "./services/context.ts";
 import { pollOrgChanges } from "./services/grantees.ts";
+import { mailMembers } from "./services/member-mail.ts";
+import { OUTSIDE_ROLES } from "./services/outside.ts";
+import { VAULT_TYPE_LABEL, type VaultType } from "./services/vault.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
@@ -206,4 +210,163 @@ export async function exportWorkspaceBundle(base: BaseContext, workspaceId: stri
 /** `gms import <dir> --workspace <id>`. */
 export async function importWorkspaceBundle(base: BaseContext, workspaceId: string, bundle: { gms?: unknown }) {
   return importBundle(await operatorContext(base, workspaceId), bundle);
+}
+
+// ------------------------------------------------------------------------------------ apply anywhere
+
+/** Stages in which each deadline still matters: a letter of inquiry before it is sent, the full application before submission. */
+const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]> = {
+  loi: ["prospect", "deciding", "loi"],
+  full: ["prospect", "deciding", "loi", "invited", "drafting"],
+  internal: ["prospect", "deciding", "loi", "invited", "drafting"],
+};
+
+/**
+ * Outside application deadlines (letter of inquiry, full, internal) 14, 7 and 2 days ahead and on
+ * the day: email the application's owner and the people assigned to questions not yet approved,
+ * with the `outside_deadline` template, honouring each one's `outside_deadline` email preference. Runs once a day; the
+ * idempotency key names the application, deadline, date and offset, so a re-run that day sends
+ * nothing twice. Archived and closed applications are skipped.
+ */
+export async function sendOutsideReminders(base: BaseContext): Promise<{ checked: number; reminded: number; sent: number; failed: number }> {
+  const now = base.now();
+  let checked = 0;
+  let reminded = 0;
+  let sent = 0;
+  const due: { row: Row<"outside_applications">; kind: "loi" | "full" | "internal"; date: string; days: number }[] = [];
+  for (const days of OUTSIDE_DEADLINE_OFFSETS) {
+    const date = new Date(now.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+    for (const kind of ["loi", "full", "internal"] as const) {
+      const column = kind === "loi" ? "loi_due" : kind === "full" ? "full_due" : "internal_due";
+      const rows = await base.repos.table("outside_applications").find({ [column]: date, archived_at: null, stage: [...OUTSIDE_REMINDABLE[kind]] } as never, { limit: 5000 });
+      for (const row of rows) due.push({ row, kind, date, days });
+    }
+  }
+  checked = due.length;
+  const failed = await each(due, async ({ row, kind, date, days }) => {
+    const ws = await base.repos.table("workspaces").one({ id: row.workspace_id });
+    if (!ws || ws.kind !== "applicant") return;
+    const questions = await base.repos.table("outside_questions").find({ workspace_id: row.workspace_id, outside_application_id: row.id, obligation_id: null });
+    const open = questions.filter((q) => q.status !== "approved");
+    const people = [...new Set([row.owner_user_id, ...open.map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
+    if (!people.length) return;
+    const mail = outsideDeadlineEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, kind, dueOn: date, daysLeft: days, openQuestions: open.length, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_deadline", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
+    reminded++;
+    sent += out.sent;
+  });
+  return { checked, reminded, sent, failed };
+}
+
+// ------------------------------------------------------------------------------------ write faster and keep it
+
+const dayFrom = (now: Date, days: number) => new Date(now.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * The vault's expiry warning: 30 days before a vault document expires, email the applicant
+ * workspace's admins and editors (template `document_expiring`, preference key of the same name).
+ * Daily; the idempotency key names the document, its expiry date and the offset.
+ */
+export async function sendDocumentExpiryWarnings(base: BaseContext): Promise<{ checked: number; warned: number; sent: number; failed: number }> {
+  const now = base.now();
+  const due: { doc: Row<"documents">; days: number }[] = [];
+  for (const days of DOCUMENT_EXPIRY_OFFSETS) {
+    for (const doc of await base.repos.table("documents").find({ subject_type: "vault", expires_on: dayFrom(now, days) }, { limit: 5000 })) due.push({ doc, days });
+  }
+  let warned = 0;
+  let sent = 0;
+  const failed = await each(due, async ({ doc, days }) => {
+    const ws = await base.repos.table("workspaces").one({ id: doc.workspace_id });
+    if (!ws || ws.kind !== "applicant" || !doc.expires_on) return;
+    const mail = documentExpiringEmail({ organization: ws.legal_name ?? ws.display_name, documentName: doc.name, typeLabel: VAULT_TYPE_LABEL[doc.doc_type as VaultType] ?? "Document", expiresOn: doc.expires_on, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/organization/documents` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "document_expiring", subject: mail.subject, text: mail.text, html: mail.html, roles: ["admin", "editor"], always: true, idempotencyKey: `${DOCUMENT_EXPIRING_TEMPLATE}:${doc.id}:${doc.expires_on}:${days}` });
+    warned++;
+    sent += out.sent;
+  });
+  return { checked: due.length, warned, sent, failed };
+}
+
+/** An award's obligations are live while it is awarded, not archived and not closed out. */
+const liveAward = (a: Row<"outside_applications"> | null): a is Row<"outside_applications"> => !!a && a.stage === "awarded" && !a.archived_at && !a.closed_out_at;
+
+/**
+ * Obligations of outside awards. First, an upcoming report, expected payment or condition whose
+ * date has come becomes due (guard → write → ledger, as system:keep-reminders). Then reminders
+ * for reports and conditions at 30, 14 and 7 days before, on the day, and 3 and 14 days after,
+ * while not submitted or done: to the award's owner and the people on the report's open questions
+ * (template `outside_obligation_due`). The idempotency key names the obligation, its date and the
+ * offset, so a re-run that day sends nothing twice.
+ */
+export async function sendObligationReminders(base: BaseContext): Promise<{ madeDue: number; checked: number; reminded: number; sent: number; failed: number }> {
+  const now = base.now();
+  const today = dayFrom(now, 0);
+  const awards = new Map<string, Row<"outside_applications"> | null>();
+  const awardOf = async (o: Row<"outside_obligations">) => {
+    if (!awards.has(o.outside_application_id)) awards.set(o.outside_application_id, await base.repos.table("outside_applications").one({ id: o.outside_application_id, workspace_id: o.workspace_id }));
+    return awards.get(o.outside_application_id) ?? null;
+  };
+  let madeDue = 0;
+  const upcoming = (await base.repos.table("outside_obligations").find({ status: "upcoming" }, { limit: 5000 })).filter((o) => !!o.due_on && o.due_on <= today && o.kind !== "payment_received");
+  let failed = await each(upcoming, async (o) => {
+    if (!liveAward(await awardOf(o)) || obligationMoveRefusal(o.kind as ObligationKind, "upcoming", "due")) return;
+    const ctx = systemContext(base, { job: "keep-reminders" }, { id: o.workspace_id, kind: "applicant" });
+    await changeStatus(ctx, {
+      event: "outside_obligation.status_changed",
+      subjectType: "outside_obligation",
+      subjectId: o.id,
+      current: o.status,
+      from: OBLIGATION_STATUSES,
+      to: "due",
+      write: async () => void (await base.repos.table("outside_obligations").update({ id: o.id, workspace_id: o.workspace_id, status: "upcoming" }, { status: "due" as ObligationStatus })),
+      data: { outsideApplicationId: o.outside_application_id, kind: o.kind },
+    });
+    madeDue++;
+  });
+  const due: { o: Row<"outside_obligations">; days: number }[] = [];
+  for (const days of OBLIGATION_REMINDER_OFFSETS) {
+    const rows = await base.repos.table("outside_obligations").find({ due_on: dayFrom(now, days), kind: ["report", "condition"], status: ["upcoming", "due", "missed"] }, { limit: 5000 });
+    for (const o of rows) due.push({ o, days });
+  }
+  let reminded = 0;
+  let sent = 0;
+  failed += await each(due, async ({ o, days }) => {
+    const award = await awardOf(o);
+    if (!liveAward(award)) return;
+    const ws = await base.repos.table("workspaces").one({ id: o.workspace_id });
+    if (!ws || ws.kind !== "applicant") return;
+    const questions = o.kind === "report" ? await base.repos.table("outside_questions").find({ workspace_id: o.workspace_id, obligation_id: o.id }) : [];
+    const people = [...new Set([award.owner_user_id, ...questions.filter((q) => q.status !== "approved").map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
+    if (!people.length) return;
+    const mail = outsideObligationEmail({ organization: ws.legal_name ?? ws.display_name, title: award.title, funder: award.funder_name, obligationTitle: o.title, kind: o.kind as "report" | "condition", dueOn: o.due_on!, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${award.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_obligation_due", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_OBLIGATION_TEMPLATE}:${o.id}:${o.due_on}:${days}` });
+    reminded++;
+    sent += out.sent;
+  });
+  return { madeDue, checked: due.length, reminded, sent, failed };
+}
+
+/**
+ * The next-cycle reminder: on the date a person gave when recording a decline (`next_cycle_on`),
+ * email the application's owner (template `outside_next_cycle`). Daily; one send per application
+ * and date. Archived applications, and ones reopened since, are skipped.
+ */
+export async function sendNextCycleReminders(base: BaseContext): Promise<{ checked: number; reminded: number; sent: number; failed: number }> {
+  const today = dayFrom(base.now(), 0);
+  const rows = await base.repos.table("outside_applications").find({ next_cycle_on: today, stage: "declined", archived_at: null }, { limit: 5000 });
+  let reminded = 0;
+  let sent = 0;
+  const failed = await each(rows, async (row) => {
+    const ws = await base.repos.table("workspaces").one({ id: row.workspace_id });
+    if (!ws || ws.kind !== "applicant" || !row.owner_user_id || !row.next_cycle_on) return;
+    const mail = outsideNextCycleEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, programName: row.program_name, nextCycleOn: row.next_cycle_on, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_next_cycle", subject: mail.subject, text: mail.text, html: mail.html, userIds: [row.owner_user_id], roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_NEXT_CYCLE_TEMPLATE}:${row.id}:${row.next_cycle_on}` });
+    reminded++;
+    sent += out.sent;
+  });
+  return { checked: rows.length, reminded, sent, failed };
+}
+
+/** The daily write-faster and keep-it reminders, in one job: vault expiry warnings, obligations and next cycles. */
+export async function sendKeepReminders(base: BaseContext): Promise<Record<string, unknown>> {
+  return { documents: await sendDocumentExpiryWarnings(base), obligations: await sendObligationReminders(base), nextCycles: await sendNextCycleReminders(base) };
 }

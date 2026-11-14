@@ -2,9 +2,12 @@
 // `/f/:handle/o/:slug` — a published opportunity in the funder's brand. Data comes from
 // `GET /gms/public/funders/{handle}/opportunities/{slug}`; the forms preview reads the
 // CommonGrants competition record. The page links its CommonGrants JSON as an alternate.
-import { useMemo } from "react";
+// Apply appears only while a competition is open; until then the page says it is not taking
+// applications, and a signed-in applicant can save it to come back to.
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { ArrowRight, BadgeCheck, Calendar, Check, ChevronDown, CircleCheck, CodeXml, Info, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bookmark, BookmarkCheck, Calendar, Check, ChevronDown, CircleCheck, Clock, CodeXml, Info, ShieldCheck } from "lucide-react";
+import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { collectControls, type FormDefinition } from "@gms/forms";
 import { ApiError } from "../../api/client.ts";
@@ -34,6 +37,64 @@ export function jsonLd(data: OpportunityPageData, pageUrl: string) {
     ...(o.funding.maxAwardAmount ? { amount: { "@type": "MonetaryAmount", currency: o.funding.maxAwardAmount.currency, minValue: o.funding.minAwardAmount?.amount, maxValue: o.funding.maxAwardAmount.amount } } : {}),
     ...(o.keyDates.closeDate?.date ? { applicationDeadline: o.keyDates.closeDate.date } : {}),
   };
+}
+
+/**
+ * Apply also needs the opportunity itself to be published as open (not forecasted). The stricter
+ * reading; set false to offer Apply whenever a competition is open on a published opportunity.
+ */
+export const APPLY_NEEDS_OPEN_OPPORTUNITY = true;
+
+/** Whether the page offers Apply: a competition is open, and the opportunity is open (see above). */
+export function takingApplications(data: Pick<OpportunityPageData, "opportunity" | "competitions">): boolean {
+  const status = data.opportunity.status;
+  if (status === "closed" || (APPLY_NEEDS_OPEN_OPPORTUNITY && status !== "open")) return false;
+  return data.competitions.some((c) => c.status === "open");
+}
+
+/** Save for later, for a signed-in person with an applicant workspace. It lands under Saved in Find funding. */
+function SaveButton({ workspaceId, opportunity, pageUrl }: { workspaceId: string; opportunity: { id: string; title: string }; pageUrl: string }) {
+  const api = useApplicantApi(workspaceId);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  useEffect(() => {
+    let live = true;
+    // Already saved: say so. A failed read leaves the button to try.
+    api.saved().then(
+      (rows) => live && rows.some((s) => s.source === "gms" && s.externalId === opportunity.id) && setState("saved"),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [api, opportunity.id]);
+  const already = state === "saved";
+  const url = /^https?:\/\//.test(pageUrl) ? pageUrl : `${window.location.origin}${pageUrl}`;
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        disabled={already || state === "saving"}
+        onClick={async () => {
+          setState("saving");
+          try {
+            await api.save({ source: "gms", externalId: opportunity.id, title: opportunity.title, url });
+            setState("saved");
+          } catch {
+            setState("failed");
+          }
+        }}
+      >
+        {already ? <BookmarkCheck className="ic" aria-hidden="true" /> : <Bookmark className="ic" aria-hidden="true" />}
+        {already ? "Saved" : "Save"}
+      </button>
+      {state === "failed" && (
+        <span className="small" role="alert">
+          It could not be saved. Try again.
+        </span>
+      )}
+    </>
+  );
 }
 
 type StageState = "done" | "on" | "todo";
@@ -105,9 +166,11 @@ function FormPreview({ form }: { form: CgForm }) {
 export default function OpportunityPage() {
   const passportFlags = usePassportFlags();
   const { handle = "", slug = "" } = useParams();
-  const { mock } = useServices();
+  const { mock, sessionState, meState } = useServices();
   const page = useApiQuery((api) => api.publicOpportunity(handle, slug), [handle, slug]);
-  const competitionId = page.status === "ready" ? page.data.competitions[0]?.id : undefined;
+  // The open competition when there is one; otherwise the first, for its stages and forms.
+  const shown = page.status === "ready" ? (page.data.competitions.find((c) => c.status === "open") ?? page.data.competitions[0]) : undefined;
+  const competitionId = shown?.id;
   const forms = useApiQuery(async (api) => (competitionId ? Object.values((await api.publicCompetition(competitionId)).forms.forms) : []), [competitionId]);
 
   if (page.status === "loading") return <PublicState title="Loading…" />;
@@ -126,7 +189,9 @@ export default function OpportunityPage() {
   const funderVerified = funder.verification ? funder.verification.source === "passport" : !!funder.verificationLevel;
   // Signed-out visitors are sent through sign-in by the route guard and come back to the apply entry.
   const applyPath = `/apply/${funder.handle}/${o.slug}`;
-  const competition = competitions[0];
+  const competition = shown ?? competitions[0];
+  const taking = takingApplications(data);
+  const applicantWs = sessionState.status === "signedIn" && meState.status === "ready" ? meState.me.workspaces.find((w) => w.kind === "applicant") : undefined;
   const dates = [o.keyDates.postDate, ...Object.values(o.keyDates.otherDates ?? {}), o.keyDates.closeDate].filter((d): d is NonNullable<typeof d> => !!d?.date).sort((a, b) => a.date!.localeCompare(b.date!));
   const awards = o.funding.minAwardCount && o.funding.maxAwardCount ? `${o.funding.minAwardCount} – ${o.funding.maxAwardCount}` : o.funding.estimatedAwardCount ? String(o.funding.estimatedAwardCount) : "—";
 
@@ -163,11 +228,20 @@ export default function OpportunityPage() {
                 <CodeXml className="ic" aria-hidden="true" />
                 View as CommonGrants JSON
               </a>
-              {o.status === "open" && (
+              {taking && (
                 <Link to={applyPath} className="btn btn-tenant btn-lg">
                   <ArrowRight className="ic" aria-hidden="true" />
                   Apply
                 </Link>
+              )}
+              {!taking && o.status !== "closed" && (
+                <>
+                  <span className="bdg bdg-neutral bdg-lg" role="status">
+                    <Clock className="ic" aria-hidden="true" />
+                    Not taking applications yet
+                  </span>
+                  {applicantWs && <SaveButton workspaceId={applicantWs.id} opportunity={o} pageUrl={data.links.page} />}
+                </>
               )}
             </div>
           </div>

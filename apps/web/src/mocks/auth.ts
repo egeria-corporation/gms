@@ -77,7 +77,7 @@ export function createMockAuth(opts: MockAuthOptions = {}): AuthClient {
     enrollTotp: async () => ({
       factorId: "mock-totp",
       secret: "QHX7-R2MP-4TLC-W9KD",
-      uri: "otpauth://totp/OpenGrants%20GMS?secret=QHX7R2MP4TLCW9KD",
+      uri: "otpauth://totp/OpenGrants?secret=QHX7R2MP4TLCW9KD",
     }),
     async verifyTotp(_factorId, code) {
       checkCode(code);

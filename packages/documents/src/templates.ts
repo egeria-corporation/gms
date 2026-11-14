@@ -129,3 +129,121 @@ export function printValue(value: unknown): string {
   if (typeof o.amount === "string" && typeof o.currency === "string") return `${o.currency} ${o.amount}`;
   return Object.entries(o).map(([k, v]) => `${k}: ${printValue(v)}`).join(", ");
 }
+
+export interface OutsideSnapshotQuestion {
+  phase: "loi" | "full" | "report";
+  section: string | null;
+  prompt: string;
+  /** e.g. "250 words"; null when the funder set none. */
+  limit: string | null;
+  /** The latest saved answer; empty when none was written. */
+  answer: string;
+  /** e.g. "212 words · 1,301 characters". */
+  counts: string;
+}
+
+export interface OutsideSnapshotInput {
+  title: string;
+  organization: string;
+  funder: string | null;
+  program: string | null;
+  /** ISO timestamp the person says it was submitted; also the PDF's date, so the bytes are stable. */
+  submittedAt: string;
+  method: string;
+  confirmationRef: string | null;
+  questions: OutsideSnapshotQuestion[];
+}
+
+const PHASE_TITLE: Record<OutsideSnapshotQuestion["phase"], string> = { loi: "Letter of inquiry", full: "Full application", report: "Report" };
+
+/**
+ * An outside application as submitted (apply anywhere): every question and its latest answer,
+ * for the applicant's own record. The GMS did not submit it; the person did, elsewhere. The same
+ * input gives the same bytes, so the stored SHA-256 can be checked by rendering again.
+ */
+export async function renderOutsideSnapshot(input: OutsideSnapshotInput, meta: { reference: string }): Promise<Uint8Array> {
+  const blocks: Block[] = [
+    { type: "heading", level: 1, text: input.title },
+    {
+      type: "fields",
+      rows: [
+        ["Organization", input.organization],
+        ["Funder", input.funder ?? "Not recorded"],
+        ...(input.program ? ([["Program", input.program]] as [string, string][]) : []),
+        ["Submitted (UTC)", input.submittedAt],
+        ["Submitted by", input.method],
+        ["Confirmation", input.confirmationRef ?? "None recorded"],
+      ],
+    },
+    { type: "paragraph", text: "A record of what was submitted, kept by the organization in OpenGrants GMS. The application was submitted to the funder directly, not through the GMS." },
+  ];
+  if (!input.questions.length) blocks.push({ type: "rule" }, { type: "paragraph", text: "No questions were recorded." });
+  let phase: OutsideSnapshotQuestion["phase"] | null = null;
+  let section: string | null = null;
+  input.questions.forEach((q, i) => {
+    if (q.phase !== phase) {
+      phase = q.phase;
+      section = null;
+      blocks.push({ type: "rule" }, { type: "heading", level: 2, text: PHASE_TITLE[q.phase] });
+    }
+    if (q.section && q.section !== section) {
+      section = q.section;
+      blocks.push({ type: "heading", level: 3, text: q.section });
+    }
+    blocks.push({ type: "paragraph", text: `${i + 1}. ${q.prompt}${q.limit ? ` (limit: ${q.limit})` : ""}` });
+    const paras = q.answer.replace(/\r\n?/g, "\n").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length) for (const p of paras) blocks.push({ type: "paragraph", text: p.replace(/\n/g, " ") });
+    else blocks.push({ type: "paragraph", text: "No answer." });
+    blocks.push({ type: "fields", rows: [["Length", q.counts]] });
+  });
+  return renderPdf({ title: `As submitted: ${input.title}`, header: input.organization, footer: meta.reference, createdAt: input.submittedAt, blocks });
+}
+
+// ------------------------------------------------------------------------------------ funding summary
+
+export interface FundingSummaryYear {
+  /** e.g. "FY 2027 (Jul 2026 to Jun 2027)". */
+  label: string;
+  submitted: number;
+  decided: number;
+  awarded: number;
+  declined: number;
+  /** e.g. "60%", or "None decided". */
+  winRate: string;
+  /** Printed, e.g. "USD 150,000.00"; several currencies joined. */
+  asked: string;
+  awardedAmount: string;
+}
+
+export interface FundingSummaryInput {
+  organization: string;
+  /** e.g. "January". */
+  fiscalYearStarts: string;
+  /** ISO timestamp the summary was made; also the PDF's date. */
+  generatedAt: string;
+  years: FundingSummaryYear[];
+  /** The note under the figures (what is counted). */
+  note: string;
+}
+
+/** At most this many fiscal years on the one-page board summary (most recent first). */
+export const FUNDING_SUMMARY_PDF_YEARS = 5;
+
+/** The one-page funding summary for the board: applications, decisions, win rate and amounts by fiscal year. */
+export async function renderFundingSummary(input: FundingSummaryInput): Promise<Uint8Array> {
+  const years = input.years.slice(0, FUNDING_SUMMARY_PDF_YEARS);
+  const blocks: Block[] = [
+    { type: "heading", level: 1, text: "Funding summary" },
+    { type: "fields", rows: [["Organization", input.organization], ["Fiscal year starts", input.fiscalYearStarts], ["Prepared (UTC)", input.generatedAt.slice(0, 10)]] },
+  ];
+  if (!years.length) blocks.push({ type: "paragraph", text: "No applications were submitted or decided yet." });
+  else blocks.push({ type: "heading", level: 2, text: "By fiscal year" });
+  // One compact entry per year keeps five years on one page.
+  for (const y of years) {
+    blocks.push({ type: "heading", level: 3, text: y.label });
+    blocks.push({ type: "paragraph", text: `${y.submitted} submitted. ${y.decided} decided: ${y.awarded} awarded, ${y.declined} declined. Win rate: ${y.winRate}.` });
+    blocks.push({ type: "paragraph", text: `Asked: ${y.asked}. Awarded: ${y.awardedAmount}.` });
+  }
+  blocks.push({ type: "rule" }, { type: "paragraph", text: input.note });
+  return renderPdf({ title: "Funding summary", header: input.organization, footer: "Funding summary from OpenGrants GMS", createdAt: input.generatedAt, blocks });
+}

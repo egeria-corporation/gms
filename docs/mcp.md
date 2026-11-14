@@ -43,6 +43,10 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `release_tranche` | Gated | **Never** |
 | `sign_agreement` | Gated | **Never** |
 | `accept_award` | Gated | **Never** |
+| `create_direct_award` | Gated | **Never** |
+| `record_outside_submission` | Gated | **Never** |
+| `record_outside_decision` | Gated | **Never** |
+| `record_report_submission` | Gated | **Never** |
 
 - Releasing money, signing an agreement and accepting an award always need a person, whatever the
   token grants and whatever the workspace configures. This is the stricter reading of the design
@@ -86,6 +90,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `list_competitions` | `competitions:read` | — | List competitions, optionally for one opportunity. |
 | `get_competition` | `competitions:read` | — | Get one competition with its stages, pinned forms and launch-check result. |
 | `create_competition` | `competitions:write` | — | Create a draft competition under an opportunity. One stage is the common case. |
+| `quick_setup_competition` | `competitions:write`, `competitions:read`, `forms:write`, `reviews:write` | — | Fill the gaps that keep an opportunity from taking applications: a one-stage competition on the opportunity's dates, a starter application form (published and pinned) and a starter rubric. Reuses what it made before and never overwrites stages the funder set; held when the workspace gates any action inside it. Opening stays `open_competition`. |
 | `set_stage_forms` | `competitions:write` | — | Pin form versions to a stage. On an open competition, pass migrate to re-validate in-progress responses. |
 | `set_rubric` | `competitions:write` | — | Set the rubric used to score a stage. |
 | `list_forms` | `forms:read` | — | List forms in the workspace, or the shared library. |
@@ -136,6 +141,40 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
 | `send_communication` | `communications:write` | Approval | Send a templated email to applicants or grantees through Resend. |
 | `get_approval` | any | — | Get the status of an approval request created by a gated tool: pending, approved, rejected, executed (with the result) or failed. |
+
+#### Outside applications, writing faster and keeping awards (v1.5.0 and v1.6.0)
+
+Outside applications are the applicant's own records of applications to any funder. These tools
+call the same services as `/gms/outside-*`, `/gms/vault`, `/gms/funding-summary` and
+`/gms/my/awarded-funding`. Drafts save nothing: accepted text is saved with `put_outside_answer`.
+There is no consulting-request tool and no vault upload tool, and no tool moves money.
+
+| Tool | Scope | Gate | What it does |
+|---|---|---|---|
+| `list_outside_applications` | `applications:read` | — | List the workspace's outside applications. |
+| `get_outside_application` | `applications:read` | — | One outside application with its questions, latest answers, documents, tasks, AI use note, required documents and go/no-go. |
+| `create_outside_application` | `applications:write` | — | Track an application to any funder. |
+| `add_outside_questions` | `applications:write` | — | Add a funder's questions from pasted text (deterministic parse). |
+| `put_outside_answer` | `applications:write` | — | Save an answer as a new version, marked as the agent's. |
+| `set_outside_stage` | `applications:write` | — | Plain stage moves. |
+| `record_outside_submission` | `applications:write` | Always a person | Record a submission made elsewhere, with an as-submitted PDF. |
+| `record_outside_decision` | `applications:write` | Always a person | Record the funder's decision. |
+| `draft_outside_answer` | `assist` | — | Draft an answer from the library and profile facts; returns text only, saves nothing. |
+| `read_funder_guidelines` | `assist` | — | Read pasted guidelines into proposed questions, deadlines and required documents; saves nothing. |
+| `library_for_question` | `library:read` | — | The library for one question, with the variant that best fits its limit. |
+| `verify_answer` | `library:write` | — | Mark a library answer as verified. |
+| `list_vault_documents` | `org:read` | — | List the document vault with expiry (never read by the assistant). |
+| `use_vault_document` | `applications:write` | — | Attach a vault document to a required document. |
+| `decide_go_no_go` | `applications:write` | — | Record the scorecard and move the application (go or no-go). |
+| `comment_on_question` | `applications:write` | — | Comment on a question in the team's internal thread. |
+| `create_milestones` | `applications:write` | — | Create milestone tasks with due dates. |
+| `get_outside_award` | `applications:read` | — | An outside award: amounts by year, period, award letter, obligations, payments received. |
+| `add_obligation` | `applications:write` | — | Add a report, expected payment, payment received (amount and date only) or condition, once or as a series. |
+| `set_obligation_status` | `applications:write` | — | Move an obligation (due, done, received, missed, or back). |
+| `record_report_submission` | `applications:write` | Always a person | Record a report submitted to the funder, with an as-submitted PDF. |
+| `close_out_award` | `applications:write` | — | Close out an award once every obligation is done or received. |
+| `get_funding_summary` | `applications:read` | — | Applications by fiscal year, win rate, asked and awarded. |
+| `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
 
 ### Applicant tools
 
@@ -213,9 +252,11 @@ Errors use one shape: `{ code, message, issues? }` with `code` one of `unknown_t
 
 ## Assistant tools
 
-`draft_letter`, `summarize_application`, `compare_to_rubric` (funder) and `adapt_answer` (applicant)
-call the same service as `/gms/assist/*`. They return drafts and save nothing. With the assistant
+`draft_letter`, `summarize_application`, `compare_to_rubric` (funder), and `adapt_answer`,
+`draft_outside_answer` and `read_funder_guidelines` (applicant) call the same services as
+`/gms/assist/*` and the outside application routes. They return drafts and save nothing. With the assistant
 off (`ASSISTANT_ENABLED` not `true`, or no model key) `summarize_application`, `compare_to_rubric`
 and `adapt_answer` answer `not_found`, and `draft_letter` returns the template rendered as is.
 `compare_to_rubric` without a `rubricId` uses the rubric of the stage the application is in. Calls
-count against the workspace's monthly quota like calls from the web app.
+count against the workspace's monthly quota (`ASSISTANT_MONTHLY_QUOTA`, 100 on the hosted site) like
+calls from the web app; a draft that took a second model call to fit its limit counts twice.

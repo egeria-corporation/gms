@@ -48,9 +48,13 @@ export interface Env {
   RESEND_INBOUND_SECRET?: string;
   /** Domain of the inbound reply address; defaults to the domain of RESEND_FROM. */
   RESEND_INBOUND_DOMAIN?: string;
+  /** Where consulting requests from outside applications go (default hello@agents.opengrants.io; on on every install). */
+  CONSULTING_REQUEST_TO?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;
+  /** Assistant calls per workspace per calendar month (default 40; the hosted site sets 100). */
+  ASSISTANT_MONTHLY_QUOTA?: string;
 
   /** Static assets of this Worker (the compiled OpenAPI document). */
   ASSETS?: Fetcher;

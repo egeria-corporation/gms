@@ -384,6 +384,14 @@ namespace GMS.Routes.Custom {
     /** The CommonGrants record as it would be published, without publishing. */
     @post @route("/opportunities/{id}/preview") @useAuth(GmsOAuth<["opportunities:read"]> | UserSession)
     op preview(@path id: GmsId): OkT<OpportunityPreview> | BadRequest | AuthErrors | NotFound;
+
+    /**
+     * Quick setup: makes, as editable drafts, a one-stage competition dated from the opportunity's
+     * open and close dates, a starter application form (published and pinned) and a starter rubric.
+     * Keeps what the funder set and reuses what an earlier run made. Does not open the competition.
+     */
+    @post @route("/opportunities/{id}/quick-setup") @useAuth(GmsOAuth<["competitions:write", "forms:write", "reviews:write"]> | UserSession)
+    op quickSetup(@path id: GmsId, @body body: {}): OkT<QuickSetupResult> | BadRequest | AuthErrors | NotFound | Conflict;
   }
 
   @tag("Competitions (GMS)")
@@ -1423,8 +1431,9 @@ namespace GMS.Routes.Custom {
     @post @route("/my/submissions/{id}/share") @useAuth(GmsOAuth<["requirements:write"]> | UserSession)
     op shareSubmission(@path id: GmsId, @body body: ShareSubmissionInput): CreatedT<ShareSubmissionResult> | BadRequest | AuthErrors | NotFound | Conflict;
 
+    /** `tag` keeps answers with that tag (ignoring case); `stale` keeps stale (`true`) or verified (`false`) ones. */
     @get @route("/my/answers") @useAuth(GmsOAuth<["library:read"]> | UserSession)
-    op listAnswers(...PageParams): PaginatedT<Answer> | AuthErrors;
+    op listAnswers(...PageParams, @query tag?: string, @query stale?: "true" | "false"): PaginatedT<Answer> | AuthErrors;
 
     @post @route("/my/answers") @useAuth(GmsOAuth<["library:write"]> | UserSession)
     op createAnswer(@body body: AnswerInput): CreatedT<Answer> | BadRequest | AuthErrors;

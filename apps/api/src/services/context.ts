@@ -3,6 +3,7 @@
 // calls a service function; a service function starts with `authorize(ctx, need)` and is the only
 // code that reads or writes data. One layer, one authorization check (CLAUDE.md).
 import type { CreationLimiter } from "../lib/rate-limit.ts";
+import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
@@ -77,6 +78,10 @@ export interface ServiceConfig {
   facilitatedPayments?: boolean;
   /** ASSISTANT_MODEL when set; the assistant package's default applies otherwise. */
   assistantModel?: string | null;
+  /** ASSISTANT_MONTHLY_QUOTA: assistant calls per workspace per month; DEFAULT_MONTHLY_QUOTA (40) when not set. */
+  assistantMonthlyQuota?: number | null;
+  /** CONSULTING_REQUEST_TO: where "Get help writing this" requests go; `CONSULTING_REQUEST_TO` of @gms/notify when not set. */
+  consultingRequestTo?: string | null;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
@@ -108,6 +113,8 @@ export interface ServicePorts {
   invitationLimiter?: InvitationLimiter;
   /** Creating and claiming a direct award, each in one transaction (Postgres); over the repositories otherwise. */
   directAwards?: DirectAwardStore;
+  /** Consulting requests counted and recorded in one step (Postgres); over the repositories for one isolate otherwise. */
+  consulting?: ConsultingStore;
 }
 
 export interface ServiceContext {

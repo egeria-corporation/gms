@@ -14,6 +14,7 @@ const ROWS: readonly Row[] = [
   r("PATCH", "/gms/opportunities/:id", "update_opportunity"),
   r("POST", "/gms/opportunities/:id/publish", "publish_opportunity"),
   r("POST", "/gms/competitions", "create_competition"),
+  r("POST", "/gms/opportunities/:id/quick-setup", "quick_setup_competition"),
   r("PUT", "/gms/competitions/:id/forms", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/stages", "set_stage_forms"),
   r("PUT", "/gms/competitions/:id/rubric", "set_rubric"),
@@ -63,6 +64,24 @@ const ROWS: readonly Row[] = [
   r("POST", "/gms/my/answers", "save_answer"),
   r("PATCH", "/gms/my/answers/:id", "save_answer"),
   r("POST", "/gms/threads/:id/messages", "reply"),
+  // Apply anywhere
+  r("POST", "/gms/outside-applications", "create_outside_application"),
+  r("POST", "/gms/outside-applications/:id/questions", "add_outside_questions"),
+  r("PUT", "/gms/outside-questions/:id/answer", "put_outside_answer"),
+  r("POST", "/gms/outside-applications/:id/stage", "set_outside_stage"),
+  r("POST", "/gms/outside-applications/:id/submit", "record_outside_submission"),
+  r("POST", "/gms/outside-applications/:id/decision", "record_outside_decision"),
+  // Write faster and keep it (drafts and reads have no gate entry: they change nothing)
+  r("POST", "/gms/my/answers/:id/verify", "verify_answer"),
+  r("POST", "/gms/outside-applications/:id/required-documents/use-from-vault", "use_vault_document"),
+  r("POST", "/gms/outside-applications/:id/go-no-go", "decide_go_no_go"),
+  r("POST", "/gms/outside-questions/:id/comments", "comment_on_question"),
+  r("POST", "/gms/outside-applications/:id/milestones", "create_milestones"),
+  r("POST", "/gms/outside-applications/:id/obligations", "add_obligation"),
+  r("POST", "/gms/outside-obligations/:id/status", "set_obligation_status"),
+  r("POST", "/gms/outside-obligations/:id/submit", "record_report_submission"),
+  r("POST", "/gms/outside-applications/:id/close-out", "close_out_award"),
+  r("POST", "/gms/outside-applications/:id/next-cycle-alert", "alert_on_next_cycle"),
 ];
 
 /** The MCP tool a REST call stands for, or null for reads and routes no tool covers. */

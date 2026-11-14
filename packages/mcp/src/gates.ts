@@ -15,13 +15,31 @@ export const DEFAULT_GATED_TOOLS = [
   "decline_application",
   // Giving an award directly emails a person outside the GMS under the funder's name.
   "create_direct_award",
+  // Apply anywhere: recording what a person did elsewhere (submitted to a funder, the funder's answer).
+  "record_outside_submission",
+  "record_outside_decision",
+  // Win and keep it: a report submitted to a funder elsewhere, recorded by a person.
+  "record_report_submission",
 ] as const;
 
 /** Gated for every agent, whatever the token grants and whatever a workspace configures. This is
  * the stricter reading of the design note "Signing is a human gate: agents can prepare an
  * agreement, never sign one": money leaving, legal signature and offer acceptance always need a
  * person. */
-export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche", "create_direct_award"] as const;
+export const NON_BYPASSABLE_TOOLS = ["sign_agreement", "accept_award", "release_tranche", "create_direct_award", "record_outside_submission", "record_outside_decision", "record_report_submission"] as const;
+
+/**
+ * Tools that do the work of several others. A gate on any of the parts holds the whole, so a
+ * workspace that gates, say, `create_form` cannot have a form made through quick setup instead.
+ */
+export const COMPOSITE_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  quick_setup_competition: ["create_competition", "create_form", "set_stage_forms", "set_rubric"],
+};
+
+/** The tool and the tools it stands for: what a gate on any of them holds. */
+export function gateNamesFor(tool: string): string[] {
+  return [tool, ...(COMPOSITE_TOOLS[tool] ?? [])];
+}
 
 export interface GatePolicy {
   /** Extra tools a workspace (settings) or an API client (`gated_tools`) wants gated. Overrides can
@@ -34,7 +52,7 @@ export function isNonBypassable(tool: string): boolean {
 }
 
 export function isGated(tool: string, policy: GatePolicy = {}): boolean {
-  return (DEFAULT_GATED_TOOLS as readonly string[]).includes(tool) || isNonBypassable(tool) || (policy.additionalGatedTools ?? []).includes(tool);
+  return gateNamesFor(tool).some((t) => (DEFAULT_GATED_TOOLS as readonly string[]).includes(t) || isNonBypassable(t) || (policy.additionalGatedTools ?? []).includes(t));
 }
 
 /** Whether this call must wait for a person. Humans in the UI (no client) are the approval. */
