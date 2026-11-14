@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Flow 9 — Apply anywhere. An OpenGrants listing for a funder outside this GMS → Details → Start
+// Flow 10 — Apply anywhere. An OpenGrants listing for a funder outside this GMS → Details → Start
 // application → paste the funder's questions (limits found in the text) → write, one answer from
 // the answer library → mark submitted on the funder's site → record the award → the pipeline shows
 // it as Awarded, in the list and on the board.
