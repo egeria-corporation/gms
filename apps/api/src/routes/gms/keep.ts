@@ -10,6 +10,8 @@ import { authenticate } from "../../auth/middleware.ts";
 import { created, ok } from "../../lib/errors.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
+import * as obligations from "../../services/obligations.ts";
+import * as outside from "../../services/outside.ts";
 import * as team from "../../services/team.ts";
 import * as vault from "../../services/vault.ts";
 import { jsonBody, svc } from "../http.ts";
@@ -17,7 +19,7 @@ import { jsonBody, svc } from "../http.ts";
 type C = Context<AppEnv>;
 export const keepRoutes = new Hono<AppEnv>();
 
-for (const prefix of ["vault", "outside-applications", "outside-questions", "outside-obligations", "outside-awards", "funding-summary", "pipeline"]) {
+for (const prefix of ["vault", "outside-applications", "outside-questions", "outside-obligations", "outside-obligation-series", "outside-awards", "funding-summary", "pipeline"]) {
   keepRoutes.use(`/${prefix}`, authenticate());
   keepRoutes.use(`/${prefix}/*`, authenticate());
 }
@@ -48,3 +50,21 @@ keepRoutes.post("/outside-applications/:id/comments/:commentId/resolve", async (
 keepRoutes.get("/outside-applications/:id/milestones", async (c) => c.json(ok(await team.milestoneOffer(await svc(c), oaId(c)))));
 keepRoutes.post("/outside-applications/:id/milestones", async (c) => c.json(created(await team.createMilestones(await svc(c), oaId(c), parse(team.milestonesInput, await jsonBody(c)))), 201));
 keepRoutes.get("/pipeline/calendar", async (c) => c.json(ok(await team.pipelineCalendar(await svc(c), parse(team.calendarQuery, { month: c.req.query("month") })))));
+
+// ---- outside awards: obligations, series, reports, payments received, closeout ----
+const obId = (c: C) => bareUuid(c.req.param("oid"), "Obligation");
+keepRoutes.get("/outside-applications/:id/obligations", async (c) => c.json(ok(await obligations.listObligations(await svc(c), oaId(c)))));
+keepRoutes.post("/outside-applications/:id/obligations", async (c) => c.json(created(await obligations.createObligation(await svc(c), oaId(c), parse(obligations.obligationInput, await jsonBody(c)))), 201));
+keepRoutes.post("/outside-applications/:id/close-out", async (c) => c.json(ok(await obligations.closeOut(await svc(c), oaId(c)))));
+keepRoutes.get("/outside-awards/:id", async (c) => c.json(ok(await obligations.getOutsideAward(await svc(c), oaId(c)))));
+keepRoutes.patch("/outside-obligations/:oid", async (c) => c.json(ok(await obligations.patchObligation(await svc(c), obId(c), parse(obligations.obligationPatch, await jsonBody(c))))));
+keepRoutes.delete("/outside-obligations/:oid", async (c) => c.json(ok(await obligations.deleteObligation(await svc(c), obId(c)))));
+keepRoutes.post("/outside-obligations/:oid/status", async (c) => c.json(ok(await obligations.setObligationStatus(await svc(c), obId(c), parse(obligations.statusInput, await jsonBody(c))))));
+keepRoutes.post("/outside-obligations/:oid/submit", async (c) => c.json(ok(await obligations.submitReport(await svc(c), obId(c), parse(obligations.reportSubmitInput, await jsonBody(c))))));
+keepRoutes.get("/outside-obligations/:oid/questions", async (c) => c.json(ok(await obligations.listReportQuestions(await svc(c), obId(c)))));
+keepRoutes.post("/outside-obligations/:oid/questions", async (c) => c.json(created(await obligations.addReportQuestions(await svc(c), obId(c), parse(outside.questionsInput, await jsonBody(c)))), 201));
+keepRoutes.get("/outside-obligations/:oid/reuse", async (c) => c.json(ok(await obligations.reuseCandidates(await svc(c), obId(c), parse(obligations.reuseQuery, { questionId: c.req.query("questionId"), q: c.req.query("q") })))));
+const seriesId = (c: C) => bareUuid(c.req.param("sid"), "Series");
+keepRoutes.patch("/outside-obligation-series/:sid", async (c) => c.json(ok(await obligations.updateSeries(await svc(c), seriesId(c), parse(obligations.seriesPatch, await jsonBody(c))))));
+keepRoutes.delete("/outside-obligation-series/:sid", async (c) => c.json(ok(await obligations.deleteSeries(await svc(c), seriesId(c)))));
+keepRoutes.get("/my/awarded-funding", async (c) => c.json(ok(await obligations.awardedFunding(await svc(c)))));

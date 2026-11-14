@@ -152,7 +152,8 @@ function listItem(ctx: ServiceContext, row: Oa, counts: { total: number; approve
 }
 
 async function questionCounts(ctx: ServiceContext, workspaceId: string, ids: string[]) {
-  const qs = ids.length ? await ctx.repos.table("outside_questions").find({ workspace_id: workspaceId, outside_application_id: ids }) : [];
+  // A report's own questions (v1.7.0) belong to its obligation, not to the application.
+  const qs = ids.length ? await ctx.repos.table("outside_questions").find({ workspace_id: workspaceId, outside_application_id: ids, obligation_id: null }) : [];
   const out = new Map<string, { total: number; approved: number }>();
   for (const id of ids) out.set(id, { total: 0, approved: 0 });
   for (const q of qs) {
@@ -190,8 +191,9 @@ export const questionView = (q: Question, latest: Answer | null) => ({
 });
 
 /** Questions of one application in order, each with its latest answer. */
-export async function questionsWithAnswers(ctx: ServiceContext, row: Oa) {
-  const qs = (await ctx.repos.table("outside_questions").find({ workspace_id: row.workspace_id, outside_application_id: row.id })).sort(byOrder);
+export async function questionsWithAnswers(ctx: ServiceContext, row: Oa, obligationId: string | null = null) {
+  // The application's own questions, or (with an obligation id) a report's. Never both at once.
+  const qs = (await ctx.repos.table("outside_questions").find({ workspace_id: row.workspace_id, outside_application_id: row.id, obligation_id: obligationId })).sort(byOrder);
   const answers = qs.length ? await ctx.repos.table("outside_answers").find({ workspace_id: row.workspace_id, question_id: qs.map((q) => q.id) }) : [];
   const latest = new Map<string, Answer>();
   for (const a of answers) if ((latest.get(a.question_id)?.version ?? 0) < a.version) latest.set(a.question_id, a);
@@ -598,11 +600,14 @@ export async function listQuestions(ctx: ServiceContext, id: string) {
   return (await questionsWithAnswers(ctx, row)).map(({ q, latest }) => questionView(q, latest));
 }
 
-/** Add questions (one, or a reviewed list from the paste flow), after the ones already there. */
-export async function addQuestions(ctx: ServiceContext, id: string, input: z.output<typeof questionsInput>) {
+/**
+ * Add questions (one, or a reviewed list from the paste flow), after the ones already there. With
+ * `obligationId` they are a report's own questions (phase report), written in the same editor.
+ */
+export async function addQuestions(ctx: ServiceContext, id: string, input: z.output<typeof questionsInput>, obligationId: string | null = null) {
   const { ws, row } = await loadOutside(ctx, id, "applications:write");
   writable(row);
-  const existing = await ctx.repos.table("outside_questions").find({ workspace_id: ws.id, outside_application_id: row.id });
+  const existing = await ctx.repos.table("outside_questions").find({ workspace_id: ws.id, outside_application_id: row.id, obligation_id: obligationId });
   if (existing.length + input.length > MAX_QUESTIONS_PER_APPLICATION) throw new ApiError(422, "too_many_questions", `An application holds at most ${MAX_QUESTIONS_PER_APPLICATION} questions`);
   for (const q of input) await assertMember(ctx, ws.id, q.assigneeUserId);
   let next = existing.reduce((m, q) => Math.max(m, q.position + 1), 0);
@@ -613,7 +618,8 @@ export async function addQuestions(ctx: ServiceContext, id: string, input: z.out
         ctx.repos.table("outside_questions").insert({
           workspace_id: ws.id,
           outside_application_id: row.id,
-          phase: q.phase ?? "full",
+          phase: obligationId ? "report" : (q.phase ?? "full"),
+          obligation_id: obligationId,
           section: q.section ?? null,
           position: q.position ?? next++,
           prompt: q.prompt,

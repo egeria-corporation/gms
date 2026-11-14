@@ -120,7 +120,7 @@ async function contentFor(ctx: ServiceContext, id: string, input: z.output<typeo
   const name = input.contactName ?? (who?.name ? cleanLine(who.name) : null);
   const email = input.contactEmail ?? who?.email ?? null;
   if (!name || !email) throw new ApiError(422, "contact_required", "Give the name and email address OpenGrants should reply to");
-  const qa = await ctx.repos.table("outside_questions").find({ workspace_id: ws.id, outside_application_id: row.id });
+  const qa = await ctx.repos.table("outside_questions").find({ workspace_id: ws.id, outside_application_id: row.id, obligation_id: null });
   let answers: { prompt: string; answer: string }[] | null = null;
   if (input.includeAnswers) {
     const versions = qa.length ? await ctx.repos.table("outside_answers").find({ workspace_id: ws.id, question_id: qa.map((q) => q.id) }) : [];
