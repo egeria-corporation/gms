@@ -109,6 +109,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `assign_reviewer` | `reviews:write` | — | Assign a reviewer to an application for a stage. Refused when a conflict of interest is on record. |
 | `get_scores` | `reviews:read` | — | Get submitted reviews and scores for an application. |
 | `rank_applications` | `reviews:read` | — | Rank a competition stage: mean, median, spread and reviewer count per application. |
+| `get_coi_policy` | `reviews:read` | — | Get the conflict-of-interest policy reviewers sign for a competition, and whether the person this token acts for has signed it. No tool signs it. |
+| `get_conflicts_register` | `reviews:read` | — | Get a competition's conflicts register: who signed and when, the conflicts declared, every recusal with its reason. Program staff only. |
 | `propose_decision` | `decisions:write` | — | Propose (not commit) decisions for applications. Proposals appear in the panel view. |
 | `commit_decisions` | `decisions:write` | Approval | Commit proposed decisions: creates awards in offered, queues letters. Refused when the program would be over-allocated. |
 | `list_awards` | `awards:read` | — | List awards by status, program or recipient. |
