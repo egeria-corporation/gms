@@ -18,7 +18,7 @@ import { z } from "zod";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { matchGmsOpportunity } from "./applicant.ts";
-import { audit, authorize, changeStatus, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, changeStatus, guardWrite, importsArePeoples, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { listMyDocuments } from "./organization.ts";
 import { goNoGoSettingsOf } from "./team.ts";
 import { refuseSensitiveFilename, requiredDocumentsView } from "./vault.ts";
@@ -1034,6 +1034,7 @@ export async function insertImportedOutside(ctx: ServiceContext, workspaceId: st
 
 /** Import outside applications from a CSV (max 500 rows). A dry run (the default) previews each row and its problems and writes nothing. */
 export async function importOutsideCsv(ctx: ServiceContext, input: z.output<typeof importInput>) {
+  importsArePeoples(ctx);
   const ws = await outsideWorkspace(ctx, "applications:write");
   const m = mapCsv<ImportField>(input.csv, input.mapping, { maxRows: MAX_IMPORT_ROWS });
   if (!m.header.length || !m.rows.length) throw new ApiError(422, "empty_csv", "The file has no data rows");

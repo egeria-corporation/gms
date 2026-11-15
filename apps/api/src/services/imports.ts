@@ -50,7 +50,7 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { awardImportContext, importedAwardRow, type AwardImportContext } from "./analytics.ts";
-import { audit, authorize, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, guardWrite, importsArePeoples, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { insertImportedOutside, OUTSIDE_ROLES } from "./outside.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 import { applyTrancheUpdate } from "./tranches.ts";
@@ -490,7 +490,7 @@ async function writeRow(ctx: ServiceContext, ws: ServiceWorkspace, run: Run, row
 export async function commitImport(ctx: ServiceContext, id: string) {
   // A person imports, on the import screen: agents and API clients may read the check, never commit
   // it, whatever their scopes (there is no MCP tool for it).
-  if (ctx.actor.kind !== "user") throw forbidden("human_only", "A person imports these rows, in the GMS. An agent or API client can read the check but not import it");
+  importsArePeoples(ctx);
   const { ws, run: loaded } = await loadRun(ctx, id);
   let run = loaded;
   const target = targetOf(run.target);

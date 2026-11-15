@@ -2,7 +2,8 @@
 // Imports and agents: an agent reads a check (dry run) a person made, through MCP
 // `get_import_preview` on the same service and authorization as the import screen, and sees the
 // reconciliation and the names of the columns left out, never their values. Importing the rows is
-// a person's: no MCP tool commits, and agent and API-client tokens are refused on the commit route.
+// a person's: no MCP tool commits, and agent and API-client tokens are refused on the commit route
+// and on the two older direct CSV imports, with the same error.
 import { beforeEach, describe, expect, it } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_ADMIN, WS_APPLICANT, WS_FUNDER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
@@ -66,6 +67,39 @@ describe("an agent and an applicant's import", () => {
     // The person imports it.
     expect((await commit(admin, runId)).status).toBe(200);
     expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT })).toBe(2);
+  });
+});
+
+describe("the two older direct CSV imports", () => {
+  const errorOf = async (res: Response) => ({ status: res.status, ...((await res.json()) as { errors: { code: string }[]; message: string }) });
+  const OUTSIDE = { csv: "title,funder\nImported grant,Elm Fund", mapping: { title: "title", funderName: "funder" }, dryRun: false };
+  const AWARDS = { csv: HISTORY, mapping: { recipientName: "Organization", title: "Grant", awardedAmount: "Amount" }, dryRun: false };
+  const outside = (headers: Record<string, string>) => h.request("/gms/outside-applications/import", { method: "POST", headers, body: JSON.stringify(OUTSIDE) });
+  const awards = (headers: Record<string, string>) => h.request("/gms/imports/csv", { method: "POST", headers, body: JSON.stringify(AWARDS) });
+
+  it("refuse agent and API-client tokens with the same error as the import wizard's commit, and a person imports", async () => {
+    const admin = await person(USER_APPLICANT_ADMIN, WS_APPLICANT);
+    const runId = await preview(admin, { target: "outside_applications", source: { kind: "csv", text: PIPELINE }, mapping: { title: "Grant", funderName: "Funder" } });
+    const applicantAgent = bearerJson(await agentToken(USER_APPLICANT_ADMIN, WS_APPLICANT, "applications:read applications:write"));
+    const funderAgent = bearerJson(await agentToken(USER_ADMIN, WS_FUNDER, "workspace:admin awards:read"));
+    const client = { Authorization: `Bearer ${await clientCredentialsToken(h, "workspace:admin")}`, "Content-Type": "application/json" };
+    // An API client of the applicant's workspace, holding the scope the route used to accept.
+    h.auth.clients.push({ ...h.auth.clients.find((c) => c.grantTypes.includes("client_credentials"))!, id: "applicant-sync", name: "Pipeline sync", workspaceId: WS_APPLICANT, allowedScopes: ["applications:read", "applications:write"] });
+    const applicantClient = bearerJson(await h.forge({ sub: "applicant-sync", client_id: "applicant-sync", scope: "applications:read applications:write", [WORKSPACE_CLAIM]: WS_APPLICANT, jti: `tok-imp-${++seq}` }));
+    const wizard = await errorOf(await commit(applicantAgent, runId));
+    const refusals = [await errorOf(await outside(applicantAgent)), await errorOf(await outside(applicantClient)), await errorOf(await awards(funderAgent)), await errorOf(await awards(client))];
+    for (const r of refusals) {
+      expect(r.status).toBe(403);
+      expect(r.errors[0]!.code, JSON.stringify(r)).toBe("human_only");
+      expect(r.message).toBe(wizard.message);
+    }
+    expect(wizard).toMatchObject({ status: 403, errors: [{ code: "human_only" }] });
+    expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT })).toBe(0);
+    expect(await h.repos.table("awards").count({ workspace_id: WS_FUNDER })).toBe(0);
+    // People still import.
+    expect((await outside(admin)).status).toBe(200);
+    expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT })).toBe(1);
+    expect((await awards(await person(USER_ADMIN, WS_FUNDER))).status).toBe(200);
   });
 });
 

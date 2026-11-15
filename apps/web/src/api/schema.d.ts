@@ -4220,7 +4220,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Import outside applications from a CSV (up to 500 rows). A dry run, the default, writes nothing. */
+        /** @description Import outside applications from a CSV (up to 500 rows). A dry run, the default, writes nothing. A signed-in person only: agent and API-client tokens get 403 `human_only`, as on the import wizard's commit. */
         post: operations["Outside_importCsv"];
         delete?: never;
         options?: never;

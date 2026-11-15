@@ -299,3 +299,13 @@ export const required = <T>(value: T | null | undefined, what: string): T => {
   if (value === null || value === undefined) throw notFound(what);
   return value;
 };
+
+/**
+ * Writing imported rows is a signed-in person's act, on every import route: the import wizard's
+ * commit and the two older direct CSV imports (`POST /gms/imports/csv`,
+ * `POST /gms/outside-applications/import`). Agents and API clients get the same 403 `human_only`,
+ * whatever their scopes.
+ */
+export function importsArePeoples(ctx: Pick<ServiceContext, "actor">): void {
+  if (ctx.actor.kind !== "user") throw forbidden("human_only", "A person imports these rows, in the GMS. An agent or API client can read the check but not import it");
+}
