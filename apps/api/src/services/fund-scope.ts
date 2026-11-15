@@ -20,7 +20,7 @@ import type { TableName } from "@gms/db";
 import type { LedgerEvent, LedgerQuery, LedgerStore } from "@gms/ledger";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
-import type { ServiceContext } from "./context.ts";
+import { fundScopeOf, type ServiceContext } from "./context.ts";
 import type { DirectAwardStore } from "./direct-award-store.ts";
 import type { FindOptions, Insert, Repos, Row, TableRepo, Update, Where } from "./repos/types.ts";
 
@@ -75,7 +75,8 @@ const RULES: { [T in TableName]: Rule } = {
   application_events: parent("application_id", "applications", "Application"),
   application_summaries: parent("application_id", "applications", "Application"),
   applications: parent("opportunity_id", "opportunities", "Opportunity"),
-  approvals: SUBJECT,
+  // An approval about a record of the funds, or one the advisor's own agent filed about no record.
+  approvals: { kind: "check", allowed: async (r, v) => (r.subject_id ? subjectInScope(v, r.subject_type, r.subject_id) : !!v.userId && typeof r.requested_by === "string" && (r.requested_by === `user:${v.userId}` || r.requested_by.startsWith(`user:${v.userId}/`))) },
   assist_calls: OPEN,
   award_invitation_sends: OPEN,
   award_invitations: parent("award_id", "awards", "Award"),
@@ -173,6 +174,8 @@ export class FundView {
     readonly base: Repos,
     readonly workspaceId: string,
     readonly fundIds: readonly string[],
+    /** The person the advisor is: their own approval requests stay theirs to read. */
+    readonly userId: string | null = null,
   ) {}
 
   set(key: SetKey): Promise<Set<string>> {
@@ -425,7 +428,7 @@ const SCOPED = Symbol("fund-scoped");
 export function scopeToFunds(ctx: ServiceContext, workspaceId: string, fundIds: readonly string[]): void {
   const marked = ctx as ServiceContext & { [SCOPED]?: string };
   if (marked[SCOPED] === workspaceId) return;
-  const view = new FundView(ctx.repos instanceof ScopedRepos ? ctx.repos.view.base : ctx.repos, workspaceId, fundIds);
+  const view = new FundView(ctx.repos instanceof ScopedRepos ? ctx.repos.view.base : ctx.repos, workspaceId, fundIds, ctx.actor.userId);
   ctx.repos = new ScopedRepos(view);
   ctx.ledger = new ScopedLedger(view, ctx.ledger);
   if (ctx.ports.directAwards) ctx.ports = { ...ctx.ports, directAwards: scopedDirectAwards(view, ctx.ports.directAwards) };
@@ -434,3 +437,53 @@ export function scopeToFunds(ctx: ServiceContext, workspaceId: string, fundIds: 
 
 /** Whether a context reads through a fund scope (tests, and the funds service's own answers). */
 export const isFundScoped = (ctx: Pick<ServiceContext, "repos">): boolean => ctx.repos instanceof ScopedRepos;
+
+/** Input fields that name a record, and the set the record must be in. */
+const INPUT_IDS: Record<string, { set: SetKey; what: string }> = {
+  fundId: { set: "funds", what: "Fund" },
+  programId: { set: "programs", what: "Program" },
+  opportunityId: { set: "opportunities", what: "Opportunity" },
+  competitionId: { set: "competitions", what: "Competition" },
+  applicationId: { set: "applications", what: "Application" },
+  awardId: { set: "awards", what: "Award" },
+  agreementId: { set: "agreements", what: "Agreement" },
+  trancheId: { set: "tranches", what: "Payment" },
+  requirementId: { set: "requirements", what: "Requirement" },
+  submissionId: { set: "submissions", what: "Submission" },
+  decisionId: { set: "decisions", what: "Decision" },
+};
+const UUID_IN = /([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})$/i;
+const bareOf = (v: string): string | null => {
+  const m = UUID_IN.exec(v);
+  if (!m) return null;
+  const hex = m[1]!.replace(/-/g, "").toLowerCase();
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+/**
+ * An agent's gated call becomes an approval request that a person runs later as themselves. For a
+ * fund advisor's agent the request is refused when its input names a record outside their funds
+ * (or, for a direct award, names no program), so no one is asked to approve work on another fund
+ * in that advisor's name. Called by the MCP approval store before it files the request.
+ */
+export async function assertApprovalInFundScope(repos: Repos, a: { workspaceId: string; side: string; tool: string; requestedBy: { userId: string }; input: unknown }): Promise<void> {
+  if (a.side !== "funder") return;
+  const m = await repos.table("workspace_members").one({ workspace_id: a.workspaceId, user_id: a.requestedBy.userId });
+  const funds = m ? fundScopeOf({ kind: "funder", role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null }) : null;
+  if (!funds) return;
+  const view = new FundView(repos, a.workspaceId, funds);
+  const named: [string, string][] = [];
+  const walk = (v: unknown, key: string) => {
+    if (Array.isArray(v)) v.forEach((x) => walk(x, key.replace(/Ids$/, "Id")));
+    else if (isPlain(v)) for (const [k, x] of Object.entries(v)) walk(x, k);
+    else if (typeof v === "string" && INPUT_IDS[key.replace(/Ids$/, "Id")]) named.push([key.replace(/Ids$/, "Id"), v]);
+  };
+  walk(a.input, "");
+  if (a.tool === "create_direct_award" && !named.some(([k]) => k === "programId")) throw new ApiError(422, "fund_required", "Choose a program in a fund you work on");
+  for (const [key, value] of named) {
+    const id = bareOf(value);
+    const rule = INPUT_IDS[key]!;
+    if (!id || !(await view.set(rule.set)).has(id)) throw notFound(rule.what);
+  }
+}
+const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);

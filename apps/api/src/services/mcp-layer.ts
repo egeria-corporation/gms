@@ -19,6 +19,7 @@ import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
+import { assertApprovalInFundScope } from "./fund-scope.ts";
 import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
 import * as summary from "./funding-summary.ts";
@@ -439,6 +440,8 @@ export class RepoApprovalStore implements ApprovalStore {
   constructor(private readonly repos: Repos) {}
 
   async create(a: Approval): Promise<void> {
+    // A fund advisor's agent files requests about its funds' records only (services/fund-scope.ts).
+    await assertApprovalInFundScope(this.repos, a);
     const id = approvalUuid(a.id);
     if (!id) throw new Error("Approval ids are apr_<uuid>");
     const input = a.input as Record<string, unknown> | null;
