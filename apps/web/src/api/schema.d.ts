@@ -2600,9 +2600,9 @@ export interface paths {
         /** @description Whether Fluxx or Zengine is connected for this funder workspace. A funder workspace admin, signed in. */
         get: operations["ImportAdapters_connection"];
         put?: never;
-        /** @description Connect Fluxx or Zengine with the funder's own credentials. Checked with one read first, then stored encrypted; never returned. Deleted when an import has read the source to its end and finished, on disconnect, when the source rejects them, or after a week unused. 422 `credentials_rejected`, `invalid_instance`; 503 `credentials_not_configured`, `connector_unavailable`. */
+        /** @description Connect Fluxx or Zengine with the funder's own credentials. A signed-in person only (403 `human_only` for agent and API-client tokens). Checked with one read first, then stored encrypted; never returned. Deleted when an import has read the source to its end and finished, on disconnect, when the source rejects them, or after a week unused. 422 `credentials_rejected`, `invalid_instance`; 503 `credentials_not_configured`, `connector_unavailable`. */
         post: operations["ImportAdapters_connect"];
-        /** @description Disconnect: the stored credentials are deleted. */
+        /** @description Disconnect: the stored credentials are deleted. A signed-in person only (403 `human_only`). */
         delete: operations["ImportAdapters_disconnect"];
         options?: never;
         head?: never;

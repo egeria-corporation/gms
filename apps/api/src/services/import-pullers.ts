@@ -11,6 +11,7 @@ import { ConnectorAuthError, ConnectorRateLimitedError, ConnectorUnavailableErro
 import { FLUXX, MAX_IMPORT_ROWS, tableFromRecords, ZENGINE, type SourceTable } from "@gms/importers";
 import { decryptSecret, encryptSecret } from "@gms/passport-client";
 import { z } from "zod";
+import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { audit, authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { Row } from "./repos/types.ts";
@@ -36,6 +37,10 @@ type Account = Row<"connector_accounts">;
 
 /** Who connects and uses a puller: a funder workspace's admin, signed in. The same check for every client. */
 const admin = (ctx: ServiceContext): Promise<ServiceWorkspace> => authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
+/** Giving the GMS (or taking away) credentials to another system changes access: a person does it, never an agent or API client. */
+const personOnly = (ctx: ServiceContext) => {
+  if (ctx.actor.kind !== "user") throw forbidden("human_only", "A person connects or disconnects a grants system, on the import screen");
+};
 
 const expired = (ctx: ServiceContext, a: Account) => ctx.now().getTime() - Math.max(Date.parse(a.updated_at), a.last_sync_at ? Date.parse(a.last_sync_at) : 0) > PULLER_CREDENTIAL_TTL_MS;
 
@@ -99,6 +104,7 @@ const rateLimited = (e: ConnectorRateLimitedError) => new ApiError(429, "source_
  * access token). Checked with one read first; stored encrypted; returned never.
  */
 export async function connectPuller(ctx: ServiceContext, provider: PullerProvider, input: z.output<typeof pullerConnectInput>) {
+  personOnly(ctx);
   const ws = await admin(ctx);
   if (!ctx.config.credentialsKey) throw new ApiError(503, "credentials_not_configured", "This server cannot store credentials (CREDENTIALS_ENCRYPTION_KEY is not set)");
   const pullers = pullersOf(ctx);
@@ -125,6 +131,7 @@ export async function connectPuller(ctx: ServiceContext, provider: PullerProvide
 }
 
 export async function disconnectPuller(ctx: ServiceContext, provider: PullerProvider) {
+  personOnly(ctx);
   const ws = await admin(ctx);
   if (!(await deleteCredentials(ctx, ws.id, provider, "disconnected"))) throw notFound("Connection");
   return view(provider, null, !!ctx.config.credentialsKey);

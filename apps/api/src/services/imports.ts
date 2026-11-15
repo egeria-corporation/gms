@@ -466,12 +466,13 @@ export async function getImportRun(ctx: ServiceContext, id: string) {
 /**
  * A checked import's outcome without its rows, for agents (MCP `get_import_preview`): what would be
  * created, skipped or needs a fix, the amounts by year, and the names of the columns left out as
- * bank or identity data. The same check as the import screen; importing the rows is a person's.
+ * bank or identity data, and which grants system's export it read (with where a Fluxx or Zengine
+ * pull continues). The same check as the import screen; importing the rows is a person's.
  */
 export async function importPreview(ctx: ServiceContext, id: string) {
   const { run } = await loadRun(ctx, id);
   const view = runView(ctx, run, await progressOf(ctx, run.id));
-  return { id: view.id, target: view.target, source: view.source, sourceLabel: view.sourceLabel, status: view.status, rowsTotal: view.rowsTotal, reconciliation: view.reconciliation, droppedColumns: view.dropped.map((d) => d.column), progress: view.progress, createdAt: view.createdAt, expiresAt: view.expiresAt };
+  return { id: view.id, target: view.target, source: view.source, sourceLabel: view.sourceLabel, status: view.status, rowsTotal: view.rowsTotal, reconciliation: view.reconciliation, droppedColumns: view.dropped.map((d) => d.column), progress: view.progress, createdAt: view.createdAt, expiresAt: view.expiresAt, adapter: view.adapter, nextPage: view.nextPage };
 }
 
 export async function listImportRuns(ctx: ServiceContext, target: TargetKey) {

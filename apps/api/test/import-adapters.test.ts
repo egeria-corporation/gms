@@ -9,7 +9,8 @@ import { FLUXX_COLUMNS } from "@gms/connectors";
 import { FLUXX_PULL_COLUMNS } from "@gms/importers";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
+import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
+import { CLIENT_AGENT, USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
 
 const USER_APPLICANT_ADMIN = "12121212-1212-4121-8121-121212121212";
 /** Made at run time; no file holds a value of this shape. */
@@ -111,6 +112,21 @@ describe("a grants system's export", () => {
     // Imported again: every row is skipped (imported, or never awarded).
     const again = await data<Preview>(funderAdmin, "POST", "/gms/imports/preview", { target: "award_history", source, adapter: "submittable", mapping: r.mapping });
     expect(again.run.reconciliation).toMatchObject({ create: 0, skip: 5 });
+  });
+
+  it("lets an agent read which system a check came from (MCP get_import_preview), and nothing more", async () => {
+    const r = await data<Read>(funderAdmin, "POST", "/gms/imports/read", { target: "award_history", source });
+    const p = await data<Preview>(funderAdmin, "POST", "/gms/imports/preview", { target: "award_history", source, adapter: "submittable", mapping: r.mapping });
+    const token = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "workspace:admin awards:read", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-adapters-1" });
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_import_preview", arguments: { importRunId: p.run.id } } }) });
+    const out = ((await res.json()) as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent;
+    expect(out).toMatchObject({ id: p.run.id, adapter: { key: "submittable", system: "Submittable" }, nextPage: null, droppedColumns: ["Bank acct", "Reference"], reconciliation: { create: 3, skip: 2 } });
+    // No tool connects a grants system or attaches its files: those are a person's, on the import screen.
+    const list = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) });
+    const names = ((await list.json()) as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name);
+    expect(names.filter((n) => /import|fluxx|zengine|connect/.test(n))).toEqual(["get_import_preview"]);
+    const connect = await h.request("/gms/imports/connections/fluxx", { method: "POST", headers: { Authorization: `Bearer ${token}`, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" }, body: JSON.stringify({ instanceUrl: "https://acme.fluxx.io", clientId: "x", clientSecret: "y" }) });
+    expect(connect.status).toBe(403);
   });
 
   it("records a Foundant GLM payment as paid elsewhere", async () => {
