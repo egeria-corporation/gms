@@ -23,6 +23,7 @@ import { ChecklistTab } from "./outside/ChecklistTab.tsx";
 import { GoNoGoCard, NextCycleCard } from "./outside/decide.tsx";
 import { ConsultingDialog, DecisionDialog, MarkSubmittedDialog } from "./outside/dialogs.tsx";
 import { QuestionsTab } from "./outside/QuestionsTab.tsx";
+import { SendToFunderButton } from "./outside/SendToFunder.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, StageBadge } from "./outside/shared.tsx";
 import { ActivityTab, EditDetailsDialog, NotesTab, SubmissionTab } from "./outside/tabs.tsx";
 
@@ -178,6 +179,7 @@ export default function OutsideApplication() {
                             </select>
                           </>
                         )}
+                        <SendToFunderButton applicationId={detail.id} />
                         <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("help")}>
                           <HandHelping className="ic" aria-hidden="true" />
                           Get help writing this
