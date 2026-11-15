@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { fundForProgram } from "./funds.ts";
 import type { Row } from "./repos/types.ts";
 
 export interface PageRequest {
@@ -21,6 +22,8 @@ export const programInput = z
     defaults: z.record(z.string(), z.unknown()).optional(),
     /** The staff member who owns the program; null clears it. Must be a member of the workspace. */
     ownerUserId: z.uuid().nullable().optional(),
+    /** The fund the program belongs to; the default fund when a new program names none. */
+    fundId: z.uuid().optional(),
   })
   .strict();
 
@@ -60,6 +63,7 @@ const programView = (p: Row<"programs">, owner: Owner = p.owner_user_id ? { user
   budgetCategories: budgetCategoriesOf(p),
   ownerUserId: p.owner_user_id,
   ownerName: owner?.name ?? null,
+  fundId: p.fund_id,
   owner,
   createdAt: p.created_at,
   updatedAt: p.updated_at,
@@ -74,6 +78,7 @@ function programColumns(i: z.output<typeof programPatch>) {
     ...(i.currency !== undefined ? { currency: i.currency } : {}),
     ...(i.defaults !== undefined ? { defaults: i.defaults as Row<"programs">["defaults"] } : {}),
     ...(i.ownerUserId !== undefined ? { owner_user_id: i.ownerUserId } : {}),
+    ...(i.fundId !== undefined ? { fund_id: i.fundId } : {}),
   };
 }
 
@@ -120,8 +125,9 @@ export async function putBudgetCategories(ctx: ServiceContext, id: string, input
 export async function createProgram(ctx: ServiceContext, input: z.output<typeof programInput>) {
   const ws = await authorize(ctx, { scope: "programs:write", kind: "funder" });
   await checkProgramInput(ctx, ws.id, input);
-  const row = await guardWrite("This program", () => ctx.repos.table("programs").insert({ workspace_id: ws.id, name: input.name, ...programColumns(input) }));
-  await audit(ctx, "program.created", "program", row.id, { name: row.name, budgetAmountMinor: row.budget_amount_minor, currency: row.currency });
+  const fund = await fundForProgram(ctx, ws.id, input.fundId);
+  const row = await guardWrite("This program", () => ctx.repos.table("programs").insert({ workspace_id: ws.id, name: input.name, ...programColumns(input), fund_id: fund.id }));
+  await audit(ctx, "program.created", "program", row.id, { name: row.name, budgetAmountMinor: row.budget_amount_minor, currency: row.currency, fundId: fund.id });
   return withOwner(ctx, row);
 }
 
@@ -129,9 +135,12 @@ export async function updateProgram(ctx: ServiceContext, id: string, input: z.ou
   const ws = await authorize(ctx, { scope: "programs:write", kind: "funder" });
   const before = required(await ctx.repos.table("programs").one({ id, workspace_id: ws.id }), "Program");
   await checkProgramInput(ctx, ws.id, input);
+  // A program moves only into a fund of this workspace the caller can see.
+  if (input.fundId !== undefined) await fundForProgram(ctx, ws.id, input.fundId);
   const [row] = await guardWrite("This program", () => ctx.repos.table("programs").update({ id, workspace_id: ws.id }, programColumns(input)));
   // The budget is money the allocator reads, so a change to it is always on the ledger with both values.
-  await audit(ctx, "program.updated", "program", id, { fields: Object.keys(input), ...(input.budgetAmountMinor !== undefined ? { budgetFromMinor: before.budget_amount_minor, budgetToMinor: input.budgetAmountMinor } : {}) });
+  // A move between funds changes who can see the program and everything under it: both funds are recorded.
+  await audit(ctx, "program.updated", "program", id, { fields: Object.keys(input), ...(input.budgetAmountMinor !== undefined ? { budgetFromMinor: before.budget_amount_minor, budgetToMinor: input.budgetAmountMinor } : {}), ...(input.fundId !== undefined && input.fundId !== before.fund_id ? { fundFrom: before.fund_id, fundTo: input.fundId } : {}) });
   return withOwner(ctx, row!);
 }
 
