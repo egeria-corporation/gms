@@ -150,6 +150,9 @@ export const FUNDER_TOOLS = {
   portfolio_summary: tool("portfolioSummary", "analytics:read", "Portfolio totals: awarded, disbursed, active awards, by program.", z.object({ fiscalYear: z.number().int().optional(), programId: programId.optional() })),
   cycle_metrics: tool("cycleMetrics", "analytics:read", "Cycle metrics for a competition: counts by stage, time in stage, approval rate.", z.object({ competitionId })),
   export_990pf_grant_list: tool("export990pfGrantList", "analytics:read", "Export the 990-PF Part XV grant list for a tax year.", z.object({ taxYear: z.number().int().min(2000).max(2100), format: z.enum(["csv", "json"]).default("csv") })),
+  // The report builder: read only. Saving and scheduling a view are done by a person in the GMS.
+  list_report_views: tool("listReportViews", "analytics:read", "List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule.", z.object({})),
+  run_report_view: tool("runReportView", "analytics:read", "Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set.", z.object({ viewId: z.string().min(1).max(80).describe("A view id from list_report_views: a UUID or starter-<key>") })),
 
   draft_letter: tool("draftLetter", "assist", "Draft a letter from a template. The draft is never sent by this tool.", z.object({ kind: letterContext, applicationId: applicationId.optional(), awardId: awardId.optional(), templateId: uuid("Template id").optional(), instructions: z.string().max(2000).optional() })),
   summarize_application: tool("summarizeApplication", "assist", "Summarize an application. Applicant text is quoted and labeled applicant-supplied.", z.object({ applicationId })),
