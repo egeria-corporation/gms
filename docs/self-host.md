@@ -210,7 +210,9 @@ pnpm --filter @gms/jobs exec wrangler deploy --env production
 ```
 
 Build the web app with your origins; the build writes `dist/_headers` with a Content-Security-Policy
-limited to those origins:
+limited to those origins. The apply widget under `/embed/` is the one path other sites may frame:
+its rule removes the app's policy and `X-Frame-Options` and sets `frame-ancestors *`; every other
+path keeps `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 
 ```bash
 VITE_USE_MOCKS=false VITE_API_BASE_URL=https://gms.example.org VITE_SUPABASE_URL=https://<ref>.supabase.co VITE_SUPABASE_ANON_KEY=<anon key> VITE_PASSPORT_BASE_URL=https://passport.example.org pnpm --filter @gms/web build
@@ -265,4 +267,8 @@ as `system:cli`.
 - Uploaded files are not virus-scanned (the scan hook is a stub).
 - Google Workspace (Composio) has no production implementation; OpenGrants discovery tool names and
   the Mercury response envelope are unverified. See `docs/connectors.md`.
+- Per-page titles, descriptions, share images (`/og/...`) and `robots.txt` for the public pages are
+  served by the front Worker (`scripts/build-front-worker.mjs`, the layout `docs/staging.md`
+  describes). The web Worker with static assets (`apps/web/wrangler.jsonc`) serves the pages with the
+  default meta, and the API still serves `/sitemap.xml`.
 - Upgrades: pull, `pnpm install`, re-run the bootstrap script, redeploy the three Workers.
