@@ -507,6 +507,10 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
     expect((await get(`/gms/awards/awd_${ids.awardA}`)).status).toBe(200);
     const awards = (await get("/gms/awards")).body.items as { id: string }[];
     expect(awards.map((a) => a.id)).toEqual([`awd_${ids.awardA}`]);
+    // Over MCP too: the advisor's agent lists the advisor's fund.
+    const listedFunds = tools.find((t) => t.name === "list_funds")!;
+    expect(listedFunds.isError).toBe(false);
+    expect(listedFunds.text).toContain("Riverside Arts Fund");
     // An unscoped program officer still sees both funds.
     const officerFunds = (await (await h.request("/gms/funds", { headers: s.funder })).json()) as { data: { scoped: boolean; items: unknown[] } };
     expect(officerFunds.data.scoped).toBe(false);

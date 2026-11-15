@@ -22,6 +22,7 @@ import { makeActor, type ServiceContext } from "./context.ts";
 import { assertApprovalInFundScope } from "./fund-scope.ts";
 import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
+import * as funds from "./funds.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as imports from "./imports.ts";
@@ -92,6 +93,7 @@ const IMPLEMENTED: Impl = {
   // ---- funder: design (reads) ----
   listPrograms: (ctx, i) => programs.listPrograms(ctx, paged(i)),
   getProgram: (ctx, i) => programs.getProgram(ctx, i.programId),
+  listFunds: (ctx) => funds.listFunds(ctx),
   listOpportunities: (ctx, i) => opportunities.listOpportunities(ctx, paged(i), { status: i.status, programId: i.programId }),
   getOpportunity: (ctx, i) => opportunities.getOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   publishOpportunity: (ctx, i) => opportunities.publishOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
