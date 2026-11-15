@@ -157,6 +157,8 @@ function bodyFor(key: string, ids: Ids, own: boolean): unknown {
     "patch /gms/workspaces/{id}/profile": { mission: "Changed." },
     "post /gms/discover/saved": { source: "gms", externalId: ids.comp, title: "Community Health Grants 2027" },
     "post /gms/tasks": { title: "A task", subjectType: "outside_application", subjectId: ids.otherOa },
+    "post /gms/imports/read": { target: "outside_applications", source: { kind: "csv", text: "Grant,Funder\nA,B" } },
+    "post /gms/imports/preview": { target: "outside_applications", source: { kind: "csv", text: "Grant,Funder\nA,B" }, mapping: { title: "Grant", funderName: "Funder" } },
     "post /gms/passport/consent/start": { workspaceId: WS_APPLICANT },
     // Funder routes: refused for the workspace kind, once the body passes.
     "post /gms/applications/{id}/assign": { userId: COWRITER },
@@ -198,6 +200,8 @@ function queryFor(key: string, ids: Ids): string {
     "get /gms/pipeline/calendar": "month=2027-05",
     "get /gms/threads": `subjectType=application&subjectId=${ids.app}`,
     "get /gms/assist/summary": `applicationId=${ids.app}`,
+    "get /gms/imports/runs": "target=outside_applications",
+    "get /gms/imports/sources": "target=outside_applications",
   };
   return q[key] ? `?${q[key]}` : "";
 }
@@ -223,6 +227,7 @@ interface Ids {
   form: string;
   comp: string;
   task: string;
+  importRun: string;
 }
 
 /** The values a path parameter takes: the draft's own ids (`own`) or the team's other records'. */
@@ -253,6 +258,7 @@ function paramsFor(path: string, ids: Ids): { own: boolean; values: Record<strin
     if (path.startsWith("/gms/my/answers/")) return ids.answer;
     if (path.startsWith("/gms/my/applications/") || path.startsWith("/gms/applications/")) return ids.app;
     if (path.startsWith("/gms/tasks/")) return ids.task;
+    if (path.startsWith("/gms/imports/runs/")) return ids.importRun;
     return NOWHERE;
   };
   const variant = (own: boolean) => ({
@@ -339,6 +345,7 @@ async function setUp() {
   await s.call(a, "PUT", `/common-grants/applications/${started.id}/forms/${s.uuid.loi}`, { response: { projectTitle: `${MARK} project` } });
   await s.call(a, "POST", `/gms/outside-applications/${other.id}/milestones`, { tasks: [{ title: `${MARK} draft due`, dueOn: "2027-05-18" }] });
   const tasks = await created<{ id: string }[]>(s.call(a, "GET", "/gms/tasks"));
+  const importRun = await created<{ run: { id: string } }>(s.call(a, "POST", "/gms/imports/preview", { target: "outside_applications", source: { kind: "csv", text: `Grant,Funder\n${MARK} imported grant,${MARK} Birch Fund`, fileName: `${MARK}.csv` }, mapping: { title: "Grant", funderName: "Funder" } }));
 
   // The admin invites the cowriter into the first draft's first question; they accept.
   await created(s.call(a, "POST", "/gms/draft-invitations", { email: COWRITER_EMAIL, draft: { kind: "outside_application", id: oa.id, questionId: q1!.id } }));
@@ -370,6 +377,7 @@ async function setUp() {
     form: s.uuid.loi,
     comp: s.uuid.comp,
     task: tasks[0]?.id ?? NOWHERE,
+    importRun: importRun.run.id,
   };
 }
 

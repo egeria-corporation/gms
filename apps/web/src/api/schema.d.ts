@@ -2688,7 +2688,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Import the next batch of a checked run; call again until `done`. Each row is written once, whoever calls. 410 `import_expired` for a check older than a day. */
+        /** @description Import the next batch of a checked run; call again until `done`. Each row is written once, whoever calls. 410 `import_expired` for a check older than a day. A signed-in person only: agent and API-client tokens get 403 `human_only` (they read the check with `getRun` or MCP `get_import_preview`). */
         post: operations["Imports_commit"];
         delete?: never;
         options?: never;

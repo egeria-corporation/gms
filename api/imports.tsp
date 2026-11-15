@@ -347,8 +347,8 @@ namespace GMS.Routes.Custom {
     @get @route("/imports/runs/{id}") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op getRun(@path id: CommonGrants.Types.uuid): OkT<ImportRunDetail> | AuthErrors | NotFound;
 
-    /** Import the next batch of a checked run; call again until `done`. Each row is written once, whoever calls. 410 `import_expired` for a check older than a day. */
-    @post @route("/imports/runs/{id}/commit") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
+    /** Import the next batch of a checked run; call again until `done`. Each row is written once, whoever calls. 410 `import_expired` for a check older than a day. A signed-in person only: agent and API-client tokens get 403 `human_only` (they read the check with `getRun` or MCP `get_import_preview`). */
+    @post @route("/imports/runs/{id}/commit") @useAuth(UserSession)
     op commit(@path id: CommonGrants.Types.uuid): OkT<ImportCommitted> | AuthErrors | NotFound | Gone;
   }
 }
