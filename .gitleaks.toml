@@ -26,4 +26,8 @@ regexes = [
   # Composio auth config id for staging: an identifier, not a credential. It was committed once in
   # apps/api/wrangler.toml and then moved to a Worker secret; this entry covers that one commit.
   '''^ac_fDKkT7ucr-hy$''',
+  # Made-up Airtable base and table ids for the import wizard's mock mode (apps/web/src/mocks/imports.ts).
+  # Airtable ids are identifiers, not credentials, and these two name nothing real.
+  '''^appMockBaseAbCdEf$''',
+  '''^tblMockTableAbCdE$''',
 ]
