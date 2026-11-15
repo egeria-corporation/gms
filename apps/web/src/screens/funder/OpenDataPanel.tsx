@@ -354,7 +354,7 @@ export function OpenDataPanel() {
               <div style={{ borderTop: "1px solid var(--og-gray-200)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
                 <form
                   className="row"
-                  style={{ alignItems: "flex-end", flexWrap: "wrap", gap: "10px" }}
+                  style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}
                   onSubmit={(e) => {
                     e.preventDefault();
                     const value = prefix.trim();
@@ -374,7 +374,7 @@ export function OpenDataPanel() {
                       <input className="inp mono" id={`${uid}-prefix`} value={prefix} placeholder="360G-" onChange={(e) => setPrefix(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={prefixError ? true : undefined} />
                     </Field>
                   </div>
-                  <button type="submit" className="btn btn-secondary btn-sm" disabled={busy !== null || prefix.trim() === savedPrefix}>
+                  <button type="submit" className="btn btn-secondary btn-sm" style={{ marginTop: "26px" }} disabled={busy !== null || prefix.trim() === savedPrefix}>
                     Save prefix
                   </button>
                 </form>
@@ -408,7 +408,7 @@ export function OpenDataPanel() {
                 </div>
 
                 {d.feedUrl && (
-                  <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap", gap: "10px" }}>
+                  <div className="row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
                     <div style={{ flex: "1 1 320px" }}>
                       <Field id={`${uid}-feed`} label="Public feed address" help="360Giving JSON, updated as your awards change. Give this address to 360Giving when you submit your data.">
                         <input className="inp mono" id={`${uid}-feed`} value={d.feedUrl} readOnly />
@@ -417,6 +417,7 @@ export function OpenDataPanel() {
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
+                      style={{ marginTop: "26px" }}
                       onClick={() =>
                         act("copy", async () => {
                           const copied = await copyText(d.feedUrl!);
