@@ -24,6 +24,7 @@ import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
+import { guestReviewRoutes } from "./gms/guest-review.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -133,8 +134,9 @@ gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
-// Send to the funder (C4).
+// Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
+gms.route("/", guestReviewRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
