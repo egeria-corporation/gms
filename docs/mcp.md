@@ -155,7 +155,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 Outside applications are the applicant's own records of applications to any funder. These tools
 call the same services as `/gms/outside-*`, `/gms/vault`, `/gms/funding-summary` and
 `/gms/my/awarded-funding`. Drafts save nothing: accepted text is saved with `put_outside_answer`.
-There is no consulting-request tool and no vault upload tool, and no tool moves money.
+There is no consulting-request tool and no vault upload tool, and no tool moves money. There is no
+migration-request tool either (the switch pages' "Request a free migration" is a person's).
 
 | Tool | Scope | Gate | What it does |
 |---|---|---|---|

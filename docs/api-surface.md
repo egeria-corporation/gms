@@ -442,6 +442,58 @@ Tests: `apps/web/test/front-worker.test.ts`, `apps/api/test/share-pages.test.ts`
 | `POST /gms/outside-applications/import`, `POST /gms/imports/csv` | Implemented | The older direct imports screen columns by header and by value as the wizard does; a field mapped to a dropped column counts as unmapped |
 | MCP `get_import_preview` | Implemented | Funder (`workspace:admin`) and applicant (`applications:write`) sides. A run's reconciliation, progress and dropped column names. No tool commits an import |
 
+## Reports, open data, single sign-on, switching and review (v1.8.0)
+
+Tests: `apps/api/test/report-builder.test.ts`, `contract-reports.test.ts`, `reports-mcp.test.ts`,
+`open-data.test.ts`, `sso.test.ts`, `redteam-sso.test.ts`, `migration-request.test.ts`,
+`review-parity.test.ts`, `gallery.test.ts`, `redteam-cowriter.test.ts`; database: migrations
+`0033_review_parity.sql` to `0036_template_gallery.sql`.
+
+### Report builder (`docs/reports.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/reports/data-sets` | Implemented | The five data sets and their whitelisted columns. Funder roles with `analytics:read`, plus each data set's own read scope |
+| `POST /gms/reports/preview`, `POST /gms/reports/export` | Implemented | The first 200 rows (or groups) of a definition; up to 50,000 rows as CSV, streamed, with `X-Report-Rows`, `X-Report-Total`, `X-Report-Truncated` and `Content-Disposition`, all readable by the web app (CORS expose list) |
+| `GET/POST /gms/report-views`, `GET/PATCH/DELETE /gms/report-views/{id}`, `POST …/run`, `GET …/export`, `GET …/recipients` | Implemented | Starter views and saved views; saving, changing and removing a view is a signed-in person's (`403 person_required`) and only the owner's (`not_owner`); an admin may remove a shared one |
+| `PUT/DELETE /gms/report-views/{id}/schedule` | Implemented | Weekly or monthly, the owner in person; recipients are members who may read the view (`422 recipient_not_allowed`). A recipient who switched off the `report` notification category's email still finds the file in the app |
+| `GET /gms/report-files`, `GET /gms/report-files/{id}/download` | Implemented | Files sent to the caller, kept 30 days (`410 file_expired`) |
+| MCP `list_report_views`, `run_report_view` | Implemented | Read only (`analytics:read`); no tool saves, shares or schedules |
+
+### Open data (`docs/open-data.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/open-data/summary` | Implemented | Funder `admin`, `program_officer`, `finance`, `auditor` (`analytics:read`). What an export of the period would hold and what it leaves out, with reasons |
+| `GET /gms/open-data/360giving.json`, `…/360giving.csv`, `…/commongrants.json` | Implemented | 360Giving 1.4.3 and CommonGrants v0.5.0 (the award projection is `projectAwardRow` in services/awards.ts, the same as `GET /common-grants/awards`). `X-Open-Data-Draft: true` without a registered prefix |
+| `PUT /gms/open-data/settings`, `PUT /gms/open-data/awards/{id}/confidential` | Implemented | A signed-in person only (`403 human_only`); the prefix and the feed switch are the admin's |
+| `GET /gms/open-data/{handle}/360giving.json` | Implemented | No token, any origin (in the central open CORS list, the feed path only). `404` until published |
+| MCP `open_data_summary` | Implemented | Counts only |
+
+### Single sign-on (`docs/sso.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/sso/settings` | Implemented | Funder admins; API clients with `workspace:admin` may read |
+| `POST /gms/sso/domains`, `DELETE /gms/sso/domains/{id}`, `POST /gms/sso/domains/{id}/check` | Implemented | A signed-in admin only (`403 human_only` for agents and API clients); no MCP tool |
+| `PUT /gms/sso/requirement` | Implemented | Turning it on needs an active domain and an admin signed in through that domain's own identity provider now (`409 sso_session_required`); turning it off is always allowed |
+| `POST /gms/sso/join` | Implemented | After an SSO sign-in, joins each workspace whose active domain matches the address and whose provider the session came through |
+| Any workspace route | Implemented | A session for an address on a required domain that did not come through that domain's provider gets `403 sso_required` on every workspace route (`redteam-sso.test.ts`, every GET of the document); connecting an agent needs the same. API clients and existing agent tokens are unaffected |
+
+### Switching (`docs/switching.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/migration-requests/form`, `POST /gms/migration-requests/preview`, `POST /gms/migration-requests` | Implemented | No token needed; a person's session is accepted; any other token `403 person_only`. The preview is exactly what is sent; numbers that look like bank or identity numbers are removed from the note (`stripSensitiveNumbers`, packages/importers). No MCP tool |
+| `/switch`, `/switch/{system}` | Served by the front Worker | Each page's title, description and Open Graph text from `seoFor()`; listed in the sitemap |
+
+### Review parity changes from the integration
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET/PUT /gms/competitions/{id}/coi-policy` | Implemented | `required` says whether reviewers sign before anything opens: on for new competitions, off for competitions that existed before migration 0033 until the funder turns it on. `PUT { required }` is a signed-in person's (`403 human_only`) |
+| `POST /gms/imports/csv`, `POST /gms/outside-applications/import` | Changed | A signed-in person only, like the import wizard's commit: agent and API-client tokens get `403 human_only` with the same message |
+
 ## Template gallery
 
 Approved items are public; the rest is a funder workspace's or a moderator's. Details, the stripping
