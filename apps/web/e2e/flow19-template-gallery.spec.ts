@@ -3,6 +3,7 @@
 // common application (the form renderer, read-only) → "Use this template" copies it into the
 // Riverbend funder workspace → the copy opens in the form builder as a draft of its own → the
 // gallery counts the use. A second flow previews the program kit's rubric and emails.
+import type { Page } from "@playwright/test";
 import { dialog, expect, start, test } from "./helpers.ts";
 
 test("browse the gallery, preview a template and copy it into a funder workspace", async ({ app: page }) => {
@@ -64,4 +65,4 @@ test("preview a program kit: forms, the rubric's criteria and the email text", a
   await expect(page.getByRole("region", { name: "Email: Decline" })).toContainText("Your application to {{funder.name}}");
 });
 
-const templates = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Templates" });
+const templates = (page: Page) => page.getByRole("list", { name: "Templates" });
