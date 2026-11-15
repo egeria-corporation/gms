@@ -33,7 +33,7 @@ type Award = Row<"awards">;
 
 /** Award statuses that are open data: the funder has committed the grant (accepted and later). Cancelled awards stay out. */
 export const OPEN_DATA_STATUSES: readonly string[] = ["accepted", "active", "suspended", "completed"];
-/** The most awards one export reads. */
+/** The most awards one export reads (the newest by creation). */
 export const EXPORT_LIMIT = 5000;
 /** The most awards a funder can mark confidential. */
 export const MAX_EXCLUDED = 5000;
@@ -173,7 +173,8 @@ function reasonFor(a: Award, w: Ws | null, confidential: ReadonlySet<string>): E
 
 /** The funder's awards in the range, each with the rule's answer; `years` lists every award year the funder has, newest first. */
 async function collectWithYears(ctx: PublicContext, funder: Ws, range: DateRange): Promise<{ items: Item[]; years: number[] }> {
-  const all = await ctx.repos.table("awards").find({ workspace_id: funder.id }, { orderBy: "created_at", ascending: true, limit: EXPORT_LIMIT });
+  // Newest first, so a funder over the limit loses its oldest awards, never its recent years.
+  const all = await ctx.repos.table("awards").find({ workspace_id: funder.id }, { orderBy: "created_at", ascending: false, limit: EXPORT_LIMIT });
   const years = [...new Set(all.map((a) => Number(awardDateOf(a).slice(0, 4))))].sort((x, y) => y - x);
   return { items: await judge(ctx, funder, all.filter((a) => within(awardDateOf(a), range))), years };
 }
