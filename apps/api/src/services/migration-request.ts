@@ -14,7 +14,8 @@
 // Nothing is stored: no table, no ledger row (there is no workspace). The email to OpenGrants is
 // the record. Numbers in the note that look like bank or identity numbers are removed first.
 import type { KvPort } from "@gms/mcp";
-import { CONSULTING_REQUEST_TO, MIGRATION_NOTE_MAX, cleanLine, cleanText, migrationConfirmationEmail, migrationRequestEmail, stripSensitiveNumbers, type Mailer, type MigrationRequestContent } from "@gms/notify";
+import { stripSensitiveNumbers } from "@gms/importers";
+import { CONSULTING_REQUEST_TO, MIGRATION_NOTE_MAX, cleanLine, cleanText, migrationConfirmationEmail, migrationRequestEmail, type Mailer, type MigrationRequestContent } from "@gms/notify";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";

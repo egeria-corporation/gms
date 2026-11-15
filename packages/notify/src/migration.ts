@@ -9,47 +9,9 @@ import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 /** The note is at most this long, as typed. */
 export const MIGRATION_NOTE_MAX = 2000;
-/** What a removed number reads as in the note. */
-export const SENSITIVE_NUMBER_MASK = "[number removed]";
-
-// The words the importers and the outside-application custom fields refuse as column or key names
-// (packages/importers/src/csv.ts `SENSITIVE_HEADER`, apps/api/src/services/outside.ts
-// `SENSITIVE_KEY`), here as words that come before a number in a sentence. A number of five or
-// more digits (a year alone is kept) up to 24 characters after one of them is removed, even when
-// written with slashes or dots. "Passport" is not one of the words: it is also the name of
-// OpenGrants Passport, and a passport number is long enough for the rule below. (The
-// abbreviations are spelled s{2}n and d.o.b so this file passes the sensitive-data gate.)
-const SENSITIVE_WORD_BEFORE_NUMBER = /\b(?:rout(?:ing)?|aba|acc(?:oun)?t|a\/c|iban|swift|bic|s{2}n|social[\s_-]*sec(?:urity)?|tin|itin|tax[\s_-]*id|taxpayer|gov(?:ernment)?[\s_-]*id|driver'?s?|licen[cs]e|birth|born|d\.?o\.?b)\b[^\d\n]{0,24}(\d(?:[ ./-]?\d){4,})/gi;
-// Three, two and four digits with the same separator: the shape of a US identity number.
-const IDENTITY_SHAPE = /(?<!\d)\d{3}([ -])\d{2}\1\d{4}(?!\d)/g;
-// Eight or more digits in a row, or grouped by single spaces or dashes: the shape of bank account
-// and routing codes, and of card numbers. An ISO date (2027-06-01) is kept.
-const LONG_NUMBER = /(?<!\d)\d(?:[ -]?\d){7,}(?!\d)/g;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Remove numbers that look like a bank account, routing or identity number from free text, and
- * say how many were removed. Errs on the side of removing: a long phone number written with
- * dashes goes too. Used on the migration request's note before it is previewed or sent.
- */
-export function stripSensitiveNumbers(text: string): { text: string; removed: number } {
-  let removed = 0;
-  const out = text
-    .replace(SENSITIVE_WORD_BEFORE_NUMBER, (match: string, digits: string) => {
-      removed++;
-      return match.slice(0, match.length - digits.length) + SENSITIVE_NUMBER_MASK;
-    })
-    .replace(IDENTITY_SHAPE, () => {
-      removed++;
-      return SENSITIVE_NUMBER_MASK;
-    })
-    .replace(LONG_NUMBER, (match: string) => {
-      if (ISO_DATE.test(match)) return match;
-      removed++;
-      return SENSITIVE_NUMBER_MASK;
-    });
-  return { text: out, removed };
-}
+// The note is cleaned before it reaches these templates: numbers that look like a bank or identity
+// number are removed by `stripSensitiveNumbers` in packages/importers/src/sensitive.ts, the same
+// words and shapes the importers screen columns with.
 
 /** The request as the person confirmed it: every value already a label or cleaned text. */
 export interface MigrationRequestContent {
@@ -62,7 +24,7 @@ export interface MigrationRequestContent {
   programs: string;
   pastAwards: string;
   timing: string;
-  /** The note after `stripSensitiveNumbers`; null when there is none. */
+  /** The note after `stripSensitiveNumbers` (@gms/importers); null when there is none. */
   note: string | null;
   /** How many numbers were removed from the note. */
   numbersRemoved: number;

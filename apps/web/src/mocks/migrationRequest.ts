@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The migration request in the browser (mock mode), with the API's rules: the same email text
 // (packages/notify/src/migration.ts), the same removal of numbers that look like bank or identity
-// numbers, the hidden field, the few seconds before a send, and 3 sends a day per email address
+// numbers (the one in @gms/importers, which the API uses too), the hidden field, the few seconds before a send, and 3 sends a day per email address
 // and 20 a day in all (one browser is one network). apps/web/test/switch-contract.test.ts holds it
 // to the real API. Nothing leaves the page: "sent" emails are kept in `sent`.
 import { ApiError } from "../api/client.ts";
 import type { MigrationRequestApi, MigrationRequestInput, MigrationRequestPreview } from "../api/migrationRequest.ts";
+import { stripSensitiveNumbers } from "@gms/importers";
 import { NOTE_MAX, PAST_AWARD_OPTIONS, PROGRAM_OPTIONS, SYSTEM_OPTIONS, TIMING_OPTIONS } from "../content/switch.ts";
 
 /** As the API's MIGRATION_REQUEST_LIMITS. */
 export const MOCK_MIGRATION_LIMITS = { perEmailPerDay: 3, perAddressPerDay: 20, minSecondsToSubmit: 3, formTokenHours: 24 } as const;
 /** As CONSULTING_REQUEST_TO in @gms/notify. */
 const TO = "hello@agents.opengrants.io";
-const MASK = "[number removed]";
 
-// ---- as @gms/notify (direct-award.ts cleanLine and cleanText, migration.ts stripSensitiveNumbers)
+// ---- as @gms/notify (direct-award.ts cleanLine and cleanText); the note is stripped by @gms/importers itself
 const cleanLine = (v: string) =>
   v
     .replace(/\p{Cf}+/gu, "")
@@ -30,27 +30,6 @@ const cleanText = (v: string) =>
     .replace(/[^\P{Cc}\n]+/gu, "")
     .replace(/[ ]+\n/g, "\n")
     .trim();
-const WORD_BEFORE_NUMBER = /\b(?:rout(?:ing)?|aba|acc(?:oun)?t|a\/c|iban|swift|bic|s{2}n|social[\s_-]*sec(?:urity)?|tin|itin|tax[\s_-]*id|taxpayer|gov(?:ernment)?[\s_-]*id|driver'?s?|licen[cs]e|birth|born|d\.?o\.?b)\b[^\d\n]{0,24}(\d(?:[ ./-]?\d){4,})/gi;
-const IDENTITY_SHAPE = /(?<!\d)\d{3}([ -])\d{2}\1\d{4}(?!\d)/g;
-const LONG_NUMBER = /(?<!\d)\d(?:[ -]?\d){7,}(?!\d)/g;
-export function stripSensitiveNumbers(text: string): { text: string; removed: number } {
-  let removed = 0;
-  const out = text
-    .replace(WORD_BEFORE_NUMBER, (match: string, digits: string) => {
-      removed++;
-      return match.slice(0, match.length - digits.length) + MASK;
-    })
-    .replace(IDENTITY_SHAPE, () => {
-      removed++;
-      return MASK;
-    })
-    .replace(LONG_NUMBER, (match: string) => {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(match)) return match;
-      removed++;
-      return MASK;
-    });
-  return { text: out, removed };
-}
 
 const PHRASE: Record<string, string> = { zengine: "Zengine", spreadsheets: "spreadsheets", other: "your current system" };
 const label = (options: readonly { value: string; label: string }[], value: string, field: string) => {
