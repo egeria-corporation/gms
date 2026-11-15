@@ -59,6 +59,14 @@ describe("invitations", () => {
     await waitFor(() => expect(where()).toBe("/w/riverbend"));
   });
 
+  it("a draft invitation's link pasted at /invitations/accept opens the draft, not the workspace home", async () => {
+    const services = createMockServices({ session: demoSession() });
+    const draft = { kind: "outside_application" as const, id: "out_1", questionId: "q_2", formId: null, section: null, assigned: true };
+    services.api.acceptInvitation = async () => ({ workspace: { handle: "alder-creek", kind: "applicant", name: "Alder Creek" }, role: "consultant", draft });
+    open("/invitations/accept?token=gms_inv_draftdraftdraft", services);
+    await waitFor(() => expect(where()).toBe("/w/alder-creek/outside/out_1?tab=questions&question=q_2"));
+  });
+
   it("someone signed out is sent to sign in and comes back to the same link", async () => {
     open("/invitations/accept?token=gms_inv_abcdefghij", createMockServices({ session: null }));
     await waitFor(() => expect(where()).toBe(`/signin?next=${encodeURIComponent("/invitations/accept?token=gms_inv_abcdefghij")}`));

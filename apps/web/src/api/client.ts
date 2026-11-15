@@ -41,6 +41,7 @@ import type {
 } from "./types.ts";
 import type { JsonObject } from "@gms/forms";
 import { createHttpFunderApi, type FunderApi } from "./funder.ts";
+import type { DraftLanding } from "./invites.ts";
 import { createHttpFunderMoneyApi, type FunderMoneyApi } from "./funderMoney.ts";
 import { createHttpFunderFullApi, type FunderFullApi } from "./funderFull.ts";
 import { createHttpDirectAwardsApi, type DirectAwardsApi } from "./directAwards.ts";
@@ -113,7 +114,8 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, Direct
   listMembers(workspaceId: string): Promise<Member[]>;
   createInvitation(workspaceId: string, input: InvitationInput): Promise<Invitation>;
   /** Join the workspace an invitation names. Rejects with a 404 ApiError when the invitation is used, expired or unknown. */
-  acceptInvitation(token: string): Promise<{ workspace: { handle: string; kind: WorkspaceKind; name: string }; role: string }>;
+  /** `draft` is set when the invitation was into a draft (api/invites.ts): the page then opens it. */
+  acceptInvitation(token: string): Promise<{ workspace: { handle: string; kind: WorkspaceKind; name: string }; role: string; draft?: DraftLanding | null }>;
   passportStatus(workspaceId: string): Promise<PassportStatus>;
   /** `passportOrgId` is needed the first time: the client is verified against that organization before the workspace carries it. */
   linkPassport(workspaceId: string, input: { clientId: string; clientSecret: string; passportOrgId?: string }): Promise<PassportStatus>;
@@ -321,8 +323,8 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     },
     createInvitation: (id, input) => call("POST", `/gms/workspaces/${e(id)}/invitations`, input),
     acceptInvitation: async (token) => {
-      const r = await call<{ workspace: { handle: string; kind: WorkspaceKind; displayName: string }; role: string }>("POST", "/gms/invitations/accept", { token });
-      return { workspace: { handle: r.workspace.handle, kind: r.workspace.kind, name: r.workspace.displayName }, role: r.role };
+      const r = await call<{ workspace: { handle: string; kind: WorkspaceKind; displayName: string }; role: string; draft?: DraftLanding | null }>("POST", "/gms/invitations/accept", { token });
+      return { workspace: { handle: r.workspace.handle, kind: r.workspace.kind, name: r.workspace.displayName }, role: r.role, draft: r.draft ?? null };
     },
     passportStatus: (id) => get(`/gms/workspaces/${e(id)}/passport/status`),
     linkPassport: (id, input) => call("POST", `/gms/workspaces/${e(id)}/passport/link`, input),
