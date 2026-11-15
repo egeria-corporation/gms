@@ -7,6 +7,8 @@
 // - WorkspaceApps: the funder's Google Workspace through Composio (Drive export, directory read).
 // - McpDirectory: lists the tools of a funder-registered MCP server; only read tools are allow-listed.
 // - SheetsSource, AirtableSource: import sources in connected apps through Composio, read-only (./tabular.ts).
+// - FluxxPuller, ZenginePuller: a funder's records read from the system it is leaving, with its own
+//   credentials, read-only (./pullers.ts).
 
 // ------------------------------------------------------------------------------------ bank feed
 
@@ -290,3 +292,4 @@ export function isRegistrableMcpUrl(url: string): boolean {
 
 export * from "./composio.ts";
 export * from "./tabular.ts";
+export * from "./pullers.ts";

@@ -1,0 +1,4 @@
+Application Id,Name,Program Name,Round Name,Status,Applicant First Name,Applicant Last Name,Applicant Email,Organization,Award Amount,Date Submitted,Driver license
+50001,Community garden beds,Neighborhood Grants,Round 1,Winner,Sam,Tate,sam@example.org,Garden Commons,2500,2025-02-01,
+50002,Street fair,Neighborhood Grants,Round 1,Disqualified,Uma,Vance,uma@example.org,Main Street Council,,2025-02-02,
+50003,Mural restoration,Neighborhood Grants,Round 1,Winner,Vic,Wu,vic@example.org,Old Town Arts,4000,2025-02-03,

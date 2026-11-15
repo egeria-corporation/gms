@@ -18,10 +18,26 @@
 // Sensitive data first: the source table is screened (packages/importers/src/sensitive.ts) before
 // a sample is shown, a mapping is suggested or a row is stored. A run keeps the dropped columns'
 // names only.
+//
+// Importer adapters (v1.8.0, packages/importers/src/adapters): grant history from another grants
+// system. A file from Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or
+// OpenWater is recognised by its header row (or named by the person) and gets that system's preset
+// mapping; the rows it says were never awarded are set aside. Fluxx and Zengine are read through
+// their APIs with the funder's own credentials (./import-pullers.ts), 5,000 rows a run, resuming
+// where the last run stopped. The screen still runs first on every table, whatever the adapter.
 import { airtableRefFrom, ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isAirtableTableId, SourceReadError, spreadsheetIdFrom } from "@gms/connectors";
 import {
+  ADAPTER_KEYS,
+  ADAPTERS,
+  adapterMapping,
+  adaptersFor,
+  adapterView,
   columnsFingerprint,
+  detectAdapter,
   DROP_REASON_TEXT,
+  FILE_ADAPTERS,
+  setAsideNotAwarded,
+  tableFromJson,
   MAX_IMPORT_ROWS,
   planImport,
   screenColumns,
@@ -33,8 +49,10 @@ import {
   TARGET_KEYS,
   TARGETS,
   withAlreadyImported,
+  type AdapterKey,
   type DroppedColumn,
   type HistoryRecord,
+  type ImportAdapter,
   type ImportTarget,
   type MoneyLine,
   type OutsideRecord,
@@ -51,6 +69,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { awardImportContext, importedAwardRow, type AwardImportContext } from "./analytics.ts";
 import { audit, authorize, guardWrite, importsArePeoples, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { deleteCredentials, pullerAdapter, pullerSources, pullSource } from "./import-pullers.ts";
 import { insertImportedOutside, OUTSIDE_ROLES } from "./outside.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 import { applyTrancheUpdate } from "./tranches.ts";
@@ -69,7 +88,7 @@ const KEYS_PER_LOOKUP = 150;
 type Run = Row<"import_runs">;
 type LogRow = Row<"import_rows">;
 
-const SOURCE_LABEL: Record<SourceKind, string> = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable" };
+const SOURCE_LABEL: Record<SourceKind, string> = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine" };
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 // ------------------------------------------------------------------------------------ input
@@ -80,13 +99,21 @@ export const sourceInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("xlsx"), base64: z.string().min(1).max(Math.ceil((MAX_XLSX_BYTES * 4) / 3) + 4), fileName, sheet: z.string().min(1).max(200).optional() }).strict(),
   z.object({ kind: z.literal("google_sheets"), url: z.string().trim().min(1).max(2000), sheet: z.string().min(1).max(200).optional() }).strict(),
   z.object({ kind: z.literal("airtable"), url: z.string().trim().min(1).max(2000), table: z.string().min(1).max(200).optional() }).strict(),
+  // An export in JSON (OpenWater gives one): an array of records.
+  z.object({ kind: z.literal("json"), text: z.string().min(1).max(5_000_000), fileName }).strict(),
+  // Read through the system's API with the funder's own credentials; `startPage` continues a source larger than one run.
+  z.object({ kind: z.literal("fluxx"), startPage: z.number().int().min(1).max(100_000).optional() }).strict(),
+  z.object({ kind: z.literal("zengine"), formId: z.string().regex(/^\d{1,12}$/), startPage: z.number().int().min(1).max(100_000).optional() }).strict(),
 ]);
 export const targetInput = z.enum(TARGET_KEYS as [TargetKey, ...TargetKey[]]);
-export const readInput = z.object({ target: targetInput, source: sourceInput }).strict();
+/** Which grants system's export this is (its preset mapping); omitted, the file is recognised by its header row when it can be. */
+export const adapterInput = z.enum(ADAPTER_KEYS as [AdapterKey, ...AdapterKey[]]);
+export const readInput = z.object({ target: targetInput, source: sourceInput, adapter: adapterInput.optional() }).strict();
 export const previewInput = z
   .object({
     target: targetInput,
     source: sourceInput,
+    adapter: adapterInput.optional(),
     /** Which column fills each field (field key → column header). */
     mapping: z.record(z.string().regex(/^[A-Za-z]{1,40}$/), z.string().max(300)),
     /** Remember this mapping for the next file with the same columns (or the same sheet or table). */
@@ -118,6 +145,9 @@ interface LoadedSource {
   sheet?: string;
   tables?: { id: string; name: string }[];
   tableId?: string;
+  /** Fluxx and Zengine: where the next run starts (null when read to the end), and how many records the source holds. */
+  nextPage?: number | null;
+  total?: number | null;
 }
 
 const NOT_CONNECTED: Record<"google_sheets" | "airtable", string> = { google_sheets: "Connect Google Sheets first", airtable: "Connect Airtable first" };
@@ -153,6 +183,11 @@ function fromBase64(b64: string): Uint8Array {
 async function loadSource(ctx: ServiceContext, wsId: string, src: z.output<typeof sourceInput>): Promise<LoadedSource> {
   try {
     if (src.kind === "csv") return { kind: "csv", table: tableFromCsv(src.text), label: src.fileName || "Pasted CSV", ref: null };
+    if (src.kind === "json") return { kind: "json", table: tableFromJson(src.text), label: src.fileName || "JSON export", ref: null };
+    if (src.kind === "fluxx" || src.kind === "zengine") {
+      const p = await pullSource(ctx, wsId, src);
+      return { kind: src.kind, table: p.table, label: p.label, ref: p.ref, nextPage: p.nextPage, total: p.total };
+    }
     if (src.kind === "xlsx") {
       const w = await readXlsx(fromBase64(src.base64), src.sheet ?? null);
       return { kind: "xlsx", table: w.table, label: `${src.fileName || "Workbook"} · ${w.sheet}`, ref: null, sheets: w.sheets, sheet: w.sheet };
@@ -190,7 +225,24 @@ const sourceView = (s: LoadedSource) => ({
   label: s.label,
   ...(s.sheets ? { sheets: s.sheets, sheet: s.sheet ?? null } : {}),
   ...(s.tables ? { tables: s.tables, table: s.tableId ?? null } : {}),
+  ...(s.kind === "fluxx" || s.kind === "zengine" ? { nextPage: s.nextPage ?? null, total: s.total ?? null } : {}),
 });
+
+/**
+ * The adapter a read or a check uses: Fluxx and Zengine their own; a file the one the person named,
+ * else the system its header row matches (grant history only), else none.
+ */
+function adapterFor(target: TargetKey, kind: SourceKind, named: AdapterKey | undefined, columns: readonly string[]): { adapter: ImportAdapter | null; detected: ReturnType<typeof detectAdapter> } {
+  if (kind === "fluxx" || kind === "zengine") {
+    if (named && named !== kind) throw new ApiError(422, "adapter_mismatch", `A ${SOURCE_LABEL[kind]} import is read as ${SOURCE_LABEL[kind]}`);
+    return { adapter: pullerAdapter(kind), detected: null };
+  }
+  if (named && ADAPTERS[named].via === "api") throw new ApiError(422, "adapter_mismatch", `${ADAPTERS[named].system} is read through its API, not from a file`);
+  if (named && !ADAPTERS[named].presets[target]) throw new ApiError(422, "adapter_not_for_target", `${ADAPTERS[named].system} exports are imported as a funder's grant history`);
+  const detected = target === "award_history" ? detectAdapter(columns, FILE_ADAPTERS) : null;
+  return { adapter: named ? ADAPTERS[named] : (detected?.adapter ?? null), detected };
+}
+const adapterRef = (a: ImportAdapter | null) => (a ? { key: a.key, system: a.system } : null);
 
 /** Which sources this workspace can import from, and whether the connected ones are connected. */
 export async function importSources(ctx: ServiceContext, target: TargetKey) {
@@ -199,17 +251,23 @@ export async function importSources(ctx: ServiceContext, target: TargetKey) {
   const connected = async (port: { status(id: string): Promise<{ connected: boolean }> } | undefined) => (port ? (await port.status(ws.id).catch(() => ({ connected: false }))).connected : false);
   const [sheets, airtable] = await Promise.all([connected(ctx.ports.sheets), connected(ctx.ports.airtable)]);
   const t = TARGETS[target] as unknown as ImportTarget;
+  // Fluxx and Zengine: grant history only, offered where the server can store credentials; only a
+  // signed-in admin connects or reads them.
+  const pullers = target === "award_history" && ctx.config.credentialsKey ? await pullerSources(ctx, ws.id) : [];
   return {
     target,
     maxRows: MAX_IMPORT_ROWS,
     maxXlsxBytes: MAX_XLSX_BYTES,
     fields: fieldsView(t),
+    /** The grants systems whose exports have a preset for this target (none for an applicant's applications). */
+    adapters: adaptersFor(target).map(adapterView),
     // A source that is not set up on this server is not listed at all.
     sources: [
       { kind: "csv" as const, label: SOURCE_LABEL.csv, connected: true, canConnect: false },
       { kind: "xlsx" as const, label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
       ...(ctx.ports.sheets ? [{ kind: "google_sheets" as const, label: SOURCE_LABEL.google_sheets, connected: sheets, canConnect }] : []),
       ...(ctx.ports.airtable ? [{ kind: "airtable" as const, label: SOURCE_LABEL.airtable, connected: airtable, canConnect }] : []),
+      ...pullers.map((p) => ({ kind: p.provider, label: p.label, connected: p.connected, canConnect: canConnect })),
     ],
   };
 }
@@ -238,15 +296,21 @@ export async function readImportSource(ctx: ServiceContext, input: z.output<type
   });
   const ref = src.ref ?? (await columnsFingerprint(columns.map((c) => c.name)));
   const saved = await savedMapping(ctx, ws.id, input.target, src.kind, ref);
+  const names = columns.map((c) => c.name);
+  const { adapter, detected } = adapterFor(input.target, src.kind, input.adapter, names);
+  const mapping = adapter ? adapterMapping(adapter, target, names, saved ? (saved.exact ? { exact: saved.mapping } : { similar: saved.mapping }) : {}) : suggestMapping(target, names, saved?.mapping ?? null);
   return {
     target: input.target,
     source: sourceView(src),
     rows: src.table.rows.length,
     columns,
     dropped: droppedView(screened.dropped),
-    mapping: suggestMapping(target, columns.map((c) => c.name), saved?.mapping ?? null),
+    mapping,
     savedMapping: saved ? (saved.exact ? ("this_source" as const) : ("similar_source" as const)) : null,
     fields: fieldsView(target),
+    /** The system whose preset filled the mapping, and the one the header row matched (it may differ from the one named). */
+    adapter: adapterRef(adapter),
+    detected: detected ? { ...adapterRef(detected.adapter)!, matched: detected.matched.slice(0, 20) } : null,
   };
 }
 
@@ -271,6 +335,8 @@ function runView(ctx: ServiceContext, r: Run, progress: Progress | null) {
     committedAt: r.committed_at,
     finishedAt: r.finished_at,
     expiresAt: r.expires_at,
+    adapter: r.adapter ? adapterRef(ADAPTERS[r.adapter as AdapterKey] ?? null) : null,
+    nextPage: r.source_next_page,
     ...(progress ? { progress } : {}),
   };
 }
@@ -319,6 +385,9 @@ export async function previewImport(ctx: ServiceContext, input: z.output<typeof 
   const target = TARGETS[input.target] as unknown as ImportTarget<string, unknown>;
   const src = await loadSource(ctx, ws.id, input.source);
   let plan = await planImport({ target, table: src.table, mapping: input.mapping, source: { kind: src.kind, ref: src.ref } });
+  // The same adapter as the read step (named, or recognised again from the screened columns).
+  const { adapter } = adapterFor(input.target, src.kind, input.adapter, plan.columns);
+  if (adapter) plan = setAsideNotAwarded(plan, src.table, adapter, target);
   if (plan.missingRequired.length) {
     const labels = plan.missingRequired.map((f) => target.fields.find((x) => x.key === f)?.label ?? f);
     throw new ApiError(422, "mapping_incomplete", `Choose a column for: ${labels.join(", ")}`, plan.missingRequired.map((f) => ({ code: "unmapped", field: f })));
@@ -348,6 +417,8 @@ export async function previewImport(ctx: ServiceContext, input: z.output<typeof 
       dropped_columns: plan.dropped as unknown as Run["dropped_columns"],
       reconciliation: plan.reconciliation as unknown as Run["reconciliation"],
       rows_total: plan.rows.length,
+      adapter: adapter?.key ?? null,
+      source_next_page: src.nextPage ?? null,
       created_by: ctx.actor.userId,
       expires_at: new Date(ctx.now().getTime() + PREVIEW_TTL_MS).toISOString(),
     }),
@@ -367,7 +438,7 @@ export async function previewImport(ctx: ServiceContext, input: z.output<typeof 
   }));
   for (let i = 0; i < log.length; i += ROWS_PER_INSERT) await guardWrite("This import", () => ctx.repos.table("import_rows").insertMany(log.slice(i, i + ROWS_PER_INSERT)));
   const rec = plan.reconciliation;
-  await audit(ctx, "import.checked", "import_run", run.id, { target: input.target, source: src.kind, rows: rec.rows, create: rec.create, skip: rec.skip, error: rec.error, droppedColumns: plan.dropped.map((d) => d.column) });
+  await audit(ctx, "import.checked", "import_run", run.id, { target: input.target, source: src.kind, ...(adapter ? { adapter: adapter.key } : {}), rows: rec.rows, create: rec.create, skip: rec.skip, error: rec.error, droppedColumns: plan.dropped.map((d) => d.column) });
   return {
     run: runView(ctx, run, { toWrite: rec.create, written: 0, skipped: rec.skip, failed: rec.error }),
     source: sourceView(src),
@@ -377,7 +448,7 @@ export async function previewImport(ctx: ServiceContext, input: z.output<typeof 
   };
 }
 
-async function loadRun(ctx: ServiceContext, id: string): Promise<{ ws: ServiceWorkspace; run: Run }> {
+export async function loadRun(ctx: ServiceContext, id: string): Promise<{ ws: ServiceWorkspace; run: Run }> {
   if (!ctx.workspace) throw forbidden("workspace_required", "Name a workspace for this action");
   const run = await ctx.repos.table("import_runs").one({ id, workspace_id: ctx.workspace.id });
   if (!run) throw notFound("Import run");
@@ -395,12 +466,13 @@ export async function getImportRun(ctx: ServiceContext, id: string) {
 /**
  * A checked import's outcome without its rows, for agents (MCP `get_import_preview`): what would be
  * created, skipped or needs a fix, the amounts by year, and the names of the columns left out as
- * bank or identity data. The same check as the import screen; importing the rows is a person's.
+ * bank or identity data, and which grants system's export it read (with where a Fluxx or Zengine
+ * pull continues). The same check as the import screen; importing the rows is a person's.
  */
 export async function importPreview(ctx: ServiceContext, id: string) {
   const { run } = await loadRun(ctx, id);
   const view = runView(ctx, run, await progressOf(ctx, run.id));
-  return { id: view.id, target: view.target, source: view.source, sourceLabel: view.sourceLabel, status: view.status, rowsTotal: view.rowsTotal, reconciliation: view.reconciliation, droppedColumns: view.dropped.map((d) => d.column), progress: view.progress, createdAt: view.createdAt, expiresAt: view.expiresAt };
+  return { id: view.id, target: view.target, source: view.source, sourceLabel: view.sourceLabel, status: view.status, rowsTotal: view.rowsTotal, reconciliation: view.reconciliation, droppedColumns: view.dropped.map((d) => d.column), progress: view.progress, createdAt: view.createdAt, expiresAt: view.expiresAt, adapter: view.adapter, nextPage: view.nextPage };
 }
 
 export async function listImportRuns(ctx: ServiceContext, target: TargetKey) {
@@ -516,6 +588,8 @@ export async function commitImport(ctx: ServiceContext, id: string) {
     if (finished) {
       run = finished;
       await audit(ctx, "import.finished", "import_run", run.id, { target, written: progress.written, skipped: progress.skipped, failed: progress.failed });
+      // Fluxx or Zengine read to its end: the funder's credentials are no longer needed, so they go.
+      if ((run.source === "fluxx" || run.source === "zengine") && run.source_next_page === null) await deleteCredentials(ctx, ws.id, run.source, "finished");
     }
   }
   return { run: runView(ctx, run, progress), done: progress.toWrite === 0, wrote };

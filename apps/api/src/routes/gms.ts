@@ -21,6 +21,7 @@ import { digestRoutes } from "./gms/digests.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { importRoutes } from "./gms/imports.ts";
+import { importAdapterRoutes } from "./gms/import-adapters.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
@@ -147,6 +148,7 @@ gms.route("/", grantRoutes);
 gms.route("/", reviewParityRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
+gms.route("/", importAdapterRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 // The switch pages' free migration request: no token needed, never an API or agent token.

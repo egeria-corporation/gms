@@ -7,7 +7,7 @@ import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
-import type { AirtableSource, BankFeed, McpDirectory, SheetsSource, WorkspaceApps } from "@gms/connectors";
+import type { AirtableSource, BankFeed, FluxxPuller, McpDirectory, SheetsSource, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
@@ -121,6 +121,8 @@ export interface ServicePorts {
   /** Import sources through Composio, read-only: Google Sheets and Airtable. */
   sheets?: SheetsSource;
   airtable?: AirtableSource;
+  /** Import pullers, read-only with the funder's own credentials: Fluxx and Zengine (one of each per isolate when not set). */
+  pullers?: { fluxx: FluxxPuller; zengine: ZenginePuller };
   /** Tool listing for funder-registered MCP servers. */
   mcpDirectory?: McpDirectory;
   /** Where export bundles and ledger archives are written. */

@@ -1745,6 +1745,7 @@ export type Database = {
       };
       import_runs: {
         Row: {
+          adapter: string | null;
           committed_at: string | null;
           committed_by: string | null;
           created_at: string;
@@ -1758,12 +1759,14 @@ export type Database = {
           rows_total: number;
           source: string;
           source_label: string | null;
+          source_next_page: number | null;
           source_ref: string | null;
           target: string;
           updated_at: string;
           workspace_id: string;
         };
         Insert: {
+          adapter?: string | null;
           committed_at?: string | null;
           committed_by?: string | null;
           created_at?: string;
@@ -1777,12 +1780,14 @@ export type Database = {
           rows_total: number;
           source: string;
           source_label?: string | null;
+          source_next_page?: number | null;
           source_ref?: string | null;
           target: string;
           updated_at?: string;
           workspace_id: string;
         };
         Update: {
+          adapter?: string | null;
           committed_at?: string | null;
           committed_by?: string | null;
           created_at?: string;
@@ -1796,6 +1801,7 @@ export type Database = {
           rows_total?: number;
           source?: string;
           source_label?: string | null;
+          source_next_page?: number | null;
           source_ref?: string | null;
           target?: string;
           updated_at?: string;

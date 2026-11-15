@@ -30,6 +30,15 @@ namespace GMS.Models {
     xlsx: "xlsx",
     googleSheets: "google_sheets",
     airtable: "airtable",
+
+    /** An export in JSON (OpenWater gives one), v1.8.0. */
+    json: "json",
+
+    /** Read through Fluxx's API with the funder's own credentials (grant history only), v1.8.0. */
+    fluxx: "fluxx",
+
+    /** Read through Zengine's API with the funder's own token (grant history only), v1.8.0. */
+    zengine: "zengine",
   }
 
   union ImportOutcome {
@@ -83,8 +92,11 @@ namespace GMS.Models {
     maxXlsxBytes: int32;
     fields: ImportField[];
 
-    /** CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them. */
+    /** CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them; Fluxx and Zengine for grant history where the server can store credentials. */
     sources: ImportSourceOption[];
+
+    /** The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.8.0. */
+    adapters: ImportAdapter[];
   }
 
   model ImportCsvSource {
@@ -134,16 +146,25 @@ namespace GMS.Models {
     xlsx: ImportXlsxSource,
     google_sheets: ImportSheetsSource,
     airtable: ImportAirtableSource,
+    json: ImportJsonSource,
+    fluxx: ImportFluxxSource,
+    zengine: ImportZengineSource,
   }
 
   model ImportReadInput {
     target: ImportTarget;
     source: ImportSource;
+
+    /** Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.8.0. */
+    adapter?: ImportAdapterKey;
   }
 
   model ImportPreviewInput {
     target: ImportTarget;
     source: ImportSource;
+
+    /** As for the read step: the system whose never-awarded rows are set aside. v1.8.0. */
+    adapter?: ImportAdapterKey;
 
     /** Field key → column header. Required fields must be mapped. */
     mapping: Record<string>;
@@ -168,6 +189,11 @@ namespace GMS.Models {
     }[];
 
     table?: string | null;
+
+    /** Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.8.0. */
+    nextPage?: int32 | null;
+
+    total?: int32 | null;
   }
 
   model DroppedColumn {
@@ -204,6 +230,12 @@ namespace GMS.Models {
     savedMapping: "this_source" | "similar_source" | null;
 
     fields: ImportField[];
+
+    /** The system whose preset filled the mapping (named, or recognised), or null. v1.8.0. */
+    adapter: ImportAdapterRef | null;
+
+    /** The system the header row matches, which may differ from the one named. v1.8.0. */
+    detected: ImportDetected | null;
   }
 
   model ImportProblem {
@@ -261,6 +293,13 @@ namespace GMS.Models {
     committedAt: utcDateTime | null;
     finishedAt: utcDateTime | null;
     expiresAt: utcDateTime;
+
+    /** The grants system whose export the run read, or null. v1.8.0. */
+    adapter: ImportAdapterRef | null;
+
+    /** Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.8.0. */
+    nextPage: int32 | null;
+
     progress?: ImportProgress;
   }
 
@@ -331,13 +370,13 @@ namespace GMS.Routes.Custom {
     @get @route("/imports/sources") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
     op sources(@query target: ImportTarget): OkT<ImportSources> | BadRequest | AuthErrors;
 
-    /** Read a source: its columns with sensitive ones dropped, sample values and a suggested mapping. Stores nothing. 409 `source_not_connected`; 422 `invalid_link`, `too_many_rows`, `source_not_readable`; 503 when the source is not set up or Composio cannot be reached. */
+    /** Read a source: its columns with sensitive ones dropped, sample values and a suggested mapping (a grants system's preset when its export is named or recognised). Stores nothing. 409 `source_not_connected`; 422 `invalid_link`, `too_many_rows`, `source_not_readable`, `adapter_not_for_target`, `adapter_mismatch`; 429 `source_rate_limited` (Fluxx or Zengine asked to wait); 503 when the source is not set up or cannot be reached. */
     @post @route("/imports/read") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op read(@body body: ImportReadInput): OkT<ImportRead> | BadRequest | AuthErrors | Conflict | Unprocessable | ServiceUnavailable;
+    op read(@body body: ImportReadInput): OkT<ImportRead> | BadRequest | AuthErrors | Conflict | Unprocessable | TooManyRequests | ServiceUnavailable;
 
-    /** Check every row (the dry run) and store the run: what will be created, skipped or in error, with totals by year. 422 `mapping_incomplete`. */
+    /** Check every row (the dry run) and store the run: what will be created, skipped or in error, with totals by year. A grants system's never-awarded rows are skipped with the reason. 422 `mapping_incomplete`; 429 `source_rate_limited`. */
     @post @route("/imports/preview") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
-    op preview(@body body: ImportPreviewInput): CreatedT<ImportPreview> | BadRequest | AuthErrors | Conflict | Unprocessable | ServiceUnavailable;
+    op preview(@body body: ImportPreviewInput): CreatedT<ImportPreview> | BadRequest | AuthErrors | Conflict | Unprocessable | TooManyRequests | ServiceUnavailable;
 
     /** The workspace's last 20 runs for a target. */
     @get @route("/imports/runs") @useAuth(GmsOAuth<["applications:write"]> | UserSession)

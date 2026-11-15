@@ -19,6 +19,7 @@ import "./funds.tsp";
 import "./send-package.tsp";
 import "./guest-review.tsp";
 import "./digests.tsp";
+import "./importer-adapters.tsp";
 
 using TypeSpec.Http;
 
