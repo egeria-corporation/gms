@@ -207,11 +207,13 @@ export async function funderPage(ctx: PublicContext, handle: string) {
 
 /**
  * Past awards on the funder page: the awards it lists (`isPubliclyListable`, services/award-sharing.ts),
- * with recipient name, title, amount (null when the funder hides amounts) and year. Null while the
- * funder does not list awards, so the page can omit the section.
+ * with recipient name, title, amount and year. Null while the funder does not list awards, so the
+ * page can omit the section. Also null while the funder hides amounts: the funder page's table has
+ * no way yet to show a hidden amount (it would read as $0); the grants-awarded page lists them.
  */
 async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
-  if (!listingSettingsOf(w).listAwards) return null;
+  const settings = listingSettingsOf(w);
+  if (!settings.listAwards || !settings.showAmounts) return null;
   return (await listedAwardsOf(ctx, w)).slice(0, 200).map((a) => ({ recipient: a.recipient.name, title: a.purpose, awardedAmount: a.amount, year: a.year, page: a.links.page }));
 }
 
