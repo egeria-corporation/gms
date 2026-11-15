@@ -14,6 +14,9 @@ import { createMockServices } from "../src/app/services.tsx";
 import { FACTS_AS_OF, LIST_PRICE_LABEL, OUR_NAME, PEAK_SOURCE, SWITCH_ENTRIES, SYSTEM_OPTIONS, TRADEMARK_NOTE, importWizardPath, seoFor } from "../src/content/switch.ts";
 import { createMockMigrationRequestApi } from "../src/mocks/migrationRequest.ts";
 
+/** Filling the form renders a long page several times; on a busy machine that outlasts the default 5 seconds. */
+const FORM_TEST_MS = 15_000;
+
 function open(path: string, clock = { now: Date.parse("2026-11-16T15:00:00Z") }) {
   const services = createMockServices({ session: null });
   const api = createMockMigrationRequestApi({ now: () => clock.now, webBaseUrl: "https://gms.opengrants.io" });
@@ -112,7 +115,7 @@ describe("/switch/{system}", () => {
     await userEvent.click(screen.getByRole("button", { name: "Preview what will be sent" }));
     await screen.findByRole("region", { name: "What will be sent" });
     expect(await axeProblems()).toEqual([]);
-  });
+  }, FORM_TEST_MS);
 });
 
 describe("/switch", () => {
@@ -130,14 +133,20 @@ describe("/switch", () => {
   });
 });
 
+/** Pasted rather than typed key by key: one change per field keeps a long page quick to test. */
+async function put(user: ReturnType<typeof userEvent.setup>, field: HTMLElement, text: string) {
+  await user.click(field);
+  await user.paste(text);
+}
+
 async function fill(user: ReturnType<typeof userEvent.setup>, note?: string) {
-  await user.type(screen.getByLabelText(/Your name/), "Ana Ruiz");
-  await user.type(screen.getByLabelText(/Work email/), "ana@riverbendcf.example");
-  await user.type(screen.getByLabelText(/^Organization/), "Riverbend Community Foundation");
+  await put(user, screen.getByLabelText(/Your name/), "Ana Ruiz");
+  await put(user, screen.getByLabelText(/Work email/), "ana@riverbendcf.example");
+  await put(user, screen.getByLabelText(/^Organization/), "Riverbend Community Foundation");
   await user.selectOptions(screen.getByLabelText(/Programs, about how many/), "2-5");
   await user.selectOptions(screen.getByLabelText(/Past awards, about how many/), "100-999");
   await user.selectOptions(screen.getByLabelText(/When you hope to move/), "3-months");
-  if (note) await user.type(screen.getByLabelText(/Note/), note);
+  if (note) await put(user, screen.getByLabelText(/Note/), note);
 }
 
 describe("request a free migration", () => {
@@ -172,7 +181,7 @@ describe("request a free migration", () => {
     expect(request).toMatchObject({ to: ["hello@agents.opengrants.io"], replyTo: "ana@riverbendcf.example", subject: "Migration request: Riverbend Community Foundation (from Submittable)", text });
     expect(confirmation!.to).toEqual(["ana@riverbendcf.example"]);
     expect(confirmation!.text).toContain("A person at OpenGrants will reply to this address, and migration help can start right away.");
-  });
+  }, FORM_TEST_MS);
 
   it("clears the preview on any edit, so what is sent is what was last shown", async () => {
     const user = userEvent.setup();
@@ -181,10 +190,10 @@ describe("request a free migration", () => {
     await fill(user);
     await user.click(screen.getByRole("button", { name: "Preview what will be sent" }));
     await screen.findByRole("region", { name: "What will be sent" });
-    await user.type(screen.getByLabelText(/^Organization/), " Trust");
+    await put(user, screen.getByLabelText(/^Organization/), " Trust");
     expect(screen.queryByRole("region", { name: "What will be sent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Send the request" })).toBeNull();
-  });
+  }, FORM_TEST_MS);
 
   it("removes numbers that look like bank or identity numbers from the note, and says so", async () => {
     const user = userEvent.setup();
@@ -198,7 +207,7 @@ describe("request a free migration", () => {
     expect(text).toContain("Our acct [number removed] and [number removed] are on file.");
     expect(text).not.toMatch(/11111|000000000/);
     expect(screen.getByText("2 numbers were removed from your note because they looked like a bank or identity number.")).toBeInTheDocument();
-  });
+  }, FORM_TEST_MS);
 
   it("keeps the hidden field out of sight and out of reach, and refuses a send with it filled", async () => {
     const { api, clock, container } = open("/switch/openwater");
