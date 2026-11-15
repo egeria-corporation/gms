@@ -4,3 +4,5 @@ export * from "./ranking.ts";
 export * from "./assign.ts";
 export * from "./visibility.ts";
 export * from "./allocator.ts";
+export * from "./anonymize.ts";
+export * from "./coi.ts";
