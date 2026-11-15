@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearDiscoveryCache } from "../src/services/applicant.ts";
 import { USER_ADMIN, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
 import { scenario, type Scenario } from "./scenario.ts";
+import { signCoiPolicy } from "./coi.ts";
 
 let h: Harness;
 let s: Scenario;
@@ -82,6 +83,7 @@ describe("application detail", () => {
   it("masks PII and hides the organization from an external reviewer, who sees only assigned applications", async () => {
     const reviewer = "77777777-7777-4777-8777-777777777777";
     await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: reviewer, role: "external_reviewer" });
+    await signCoiPolicy(h, WS_FUNDER, s.uuid.comp, [reviewer]);
     const who = { ...bearer(await h.session(reviewer)).headers, "X-GMS-Workspace": WS_FUNDER };
     expect((await s.call(who, "GET", `/gms/applications/${appId}`)).status).toBe(404);
     await h.repos.table("review_assignments").insert({ workspace_id: WS_FUNDER, application_id: appUuid, stage: "loi", reviewer_user_id: reviewer, rubric_id: "0190a000-0000-7000-8000-000000000aaa", rubric_version: 1 });

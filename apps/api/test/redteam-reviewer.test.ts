@@ -8,6 +8,7 @@ import { PII_MASK } from "@gms/forms";
 import { beforeEach, describe, expect, it } from "vitest";
 import { WS_APPLICANT, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
 import { scenario, type Scenario } from "./scenario.ts";
+import { signCoiPolicy } from "./coi.ts";
 
 const EXT = "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1";
 const REV = "e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2";
@@ -58,6 +59,8 @@ beforeEach(async () => {
   await h.repos.table("form_responses").insert({ workspace_id: WS_FUNDER, application_id: other, form_id: s.uuid.loi, form_version: 1, stage: "loi", response: { projectTitle: "Other", need: "Other applicant's personal details" } as never, status: "complete" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: EXT, role: "external_reviewer", scope: { competitionIds: [s.uuid.comp] } as never });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: REV, role: "reviewer" });
+  // Both have signed the competition's conflict-of-interest policy (the gate itself: review-parity.test.ts).
+  await signCoiPolicy(h, WS_FUNDER, s.uuid.comp, [EXT, REV]);
 });
 
 describe("a reviewer with no assignment", () => {

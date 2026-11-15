@@ -101,9 +101,9 @@ function patternOf(terms: IdentityTerms): RegExp | null {
   const parts: string[] = [];
   for (const d of terms.domains) {
     const host = `(?:[a-z0-9-]+\\.)*${escape(d)}`;
-    // An email at the domain, or the domain with any scheme, subdomain and path.
+    // An email at the domain, or the domain with any scheme, subdomain and path (not the punctuation after it).
     parts.push(`[\\p{L}\\p{N}._%+-]+@${host}${NOT_WORD_AFTER}`);
-    parts.push(`${NOT_HOST_BEFORE}(?:https?:\\/\\/)?${host}(?:\\/[^\\s)\\]"'<>]*)?${NOT_WORD_AFTER}`);
+    parts.push(`${NOT_HOST_BEFORE}(?:https?:\\/\\/)?${host}(?:\\/(?:[^\\s)\\]"'<>]*[^\\s)\\]"'<>.,;:!?])?)?${NOT_WORD_AFTER}`);
   }
   for (const n of terms.names) parts.push(`${NOT_WORD_BEFORE}${n.split(" ").map(escape).join("[\\s\\u00a0]+")}${NOT_WORD_AFTER}`);
   // An EIN as written, with or without its dash.

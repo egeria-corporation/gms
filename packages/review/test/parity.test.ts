@@ -66,6 +66,7 @@ describe("free-text redaction", () => {
   it("replaces the website, any page on it, and email addresses at its domain", () => {
     expect(redactText("See https://aldercreekfs.org/annual-report or www.aldercreekfs.org.", terms)).toBe(`See ${APPLICANT_PLACEHOLDER} or ${APPLICANT_PLACEHOLDER}.`);
     expect(redactText("Write to grants@aldercreekfs.org today", terms)).toBe(`Write to ${APPLICANT_PLACEHOLDER} today`);
+    expect(redactText("Read https://www.aldercreekfs.org/report, then call.", terms)).toBe(`Read ${APPLICANT_PLACEHOLDER}, then call.`);
     expect(redactText("Follow @aldercreekfs", terms)).toBe(`Follow @${APPLICANT_PLACEHOLDER}`);
   });
 

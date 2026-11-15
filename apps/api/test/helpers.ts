@@ -57,6 +57,7 @@ export interface Harness {
   llmAnswer: { value: unknown };
   /** Objects written to the EXPORTS bucket, by key. */
   exported: Map<string, string>;
+  exportFiles: MemoryFileStorage;
   /** Sign-in sessions as Supabase Auth would hold them. */
   sessions: MemorySessions;
   /** Names and emails of people, as the auth provider would answer. */
@@ -148,6 +149,7 @@ export async function harness(): Promise<Harness> {
   const llmAnswer: { value: unknown } = { value: {} };
   const llm = new FakeLlmClient(() => llmAnswer.value);
   const exported = new Map<string, string>();
+  const exportFiles = new MemoryFileStorage();
   const sessions = new MemorySessions();
   const directory = new MemoryUserDirectory();
   const identity = new MemoryIdentity();
@@ -166,7 +168,7 @@ export async function harness(): Promise<Harness> {
       return passport.fetch;
     },
     ports: () => {
-      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) }, exportFiles };
       for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
       return all;
     },
@@ -195,6 +197,7 @@ export async function harness(): Promise<Harness> {
     llm,
     llmAnswer,
     exported,
+    exportFiles,
     sessions,
     directory,
     identity,

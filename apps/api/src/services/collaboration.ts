@@ -9,6 +9,7 @@ import { access } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { mailMembers } from "./member-mail.ts";
 import { loadOutside } from "./outside.ts";
+import { NON_REVIEWER_ROLES } from "./review-privacy.ts";
 import type { Row } from "./repos/types.ts";
 
 type Thread = Row<"threads">;
@@ -74,6 +75,8 @@ async function notifyThread(ctx: ServiceContext, thread: Thread, ws: ServiceWork
     const link = app ? `${ctx.config.webBaseUrl}/w/${target.handle}/applications/${apiId("application", app.id)}` : `${ctx.config.webBaseUrl}/w/${target.handle}`;
     await mailMembers(ctx, {
       workspaceId,
+      // Reviewers cannot open threads, so they are never mailed one: the message would name the applicant.
+      ...(workspaceId === thread.funder_workspace_id ? { roles: NON_REVIEWER_ROLES } : {}),
       category: "application",
       subject: `New message${app?.title ? ` about ${app.title}` : ""} from ${sender?.display_name ?? "a collaborator"}`,
       text: message.body.slice(0, 2000),

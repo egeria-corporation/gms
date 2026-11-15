@@ -95,6 +95,8 @@ export interface ServicePorts {
   mcpDirectory?: McpDirectory;
   /** Where export bundles and ledger archives are written. */
   exports?: { put(key: string, body: string, contentType: string): Promise<void> };
+  /** Binary files in the same EXPORTS bucket, read back by their routes (board dockets). Never public. */
+  exportFiles?: FileStorage;
   storage?: FileStorage;
   openGrants?: OpenGrantsClient;
   /** Names and emails for member lists. */
