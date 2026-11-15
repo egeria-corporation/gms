@@ -137,6 +137,9 @@ namespace GMS.Models {
 
       /** An HTML snippet for the grantee's website: the badge, linked to the award page. */
       snippet: string;
+
+      /** The badge itself, as `/badge/{slug}.svg` serves it, for a preview that loads nothing. */
+      svg: string;
     };
     award: PublicAward;
   }

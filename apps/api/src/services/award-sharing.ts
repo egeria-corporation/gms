@@ -276,7 +276,8 @@ export interface ShareKit {
   /** Ready to edit: nothing is posted from the GMS. */
   posts: { linkedin: string; short: string; newsletter: string };
   links: { page: string; awards: string; image: string; badge: string };
-  badge: { verified: boolean; text: string; snippet: string };
+  /** `svg` is the badge itself, as /badge/{slug}.svg serves it, for a preview that loads nothing. */
+  badge: { verified: boolean; text: string; snippet: string; svg: string };
   award: PublicAward;
 }
 
@@ -322,7 +323,7 @@ export function buildShareKit(ctx: Pick<ServiceContext, "config">, award: Public
   return {
     posts,
     links: { page, awards, image: award.links.image, badge: award.links.badge },
-    badge: { verified, text, snippet: `<a href="${attr(page)}"><img src="${attr(award.links.badge)}" alt="${attr(verified ? `Funded by ${funderName}, verified` : `Funded by ${funderName}`)}" width="${size.width}" height="${size.height}"></a>` },
+    badge: { verified, text, svg: badgeSvg(funderName, verified), snippet: `<a href="${attr(page)}"><img src="${attr(award.links.badge)}" alt="${attr(verified ? `Funded by ${funderName}, verified` : `Funded by ${funderName}`)}" width="${size.width}" height="${size.height}"></a>` },
     award,
   };
 }

@@ -11703,6 +11703,8 @@ export interface components {
                 text: string;
                 /** @description An HTML snippet for the grantee's website: the badge, linked to the award page. */
                 snippet: string;
+                /** @description The badge itself, as `/badge/{slug}.svg` serves it, for a preview that loads nothing. */
+                svg: string;
             };
             award: components["schemas"]["Models.PublicAward"];
         };
