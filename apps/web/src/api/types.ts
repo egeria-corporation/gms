@@ -146,10 +146,12 @@ export interface Program {
   budgetAmountMinor: number | null;
   currency: string;
   defaults: Record<string, unknown>;
+  /** The fund the program belongs to (api/funds.ts); absent on a program made before funds, which is the default fund's. */
+  fundId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
-export type ProgramInput = Partial<Pick<Program, "description" | "fiscalYear" | "budgetAmountMinor" | "currency" | "defaults">> & { name: string };
+export type ProgramInput = Partial<Pick<Program, "description" | "fiscalYear" | "budgetAmountMinor" | "currency" | "defaults">> & { name: string; fundId?: string };
 
 export interface RubricCriterion {
   key: string;
@@ -338,6 +340,8 @@ export interface PublicOpportunityCard {
 export interface FunderPageData {
   funder: PublicFunder;
   opportunities: PublicOpportunityCard[];
+  /** The funder's funds with their published opportunities, when the server sends them (api/funds.ts). */
+  funds?: { name: string; slug: string; description: string | null; isDefault: boolean; opportunityIds: string[] }[];
 }
 export interface PublicStage {
   key: string;
@@ -357,7 +361,7 @@ export interface PublicCompetition {
 }
 export interface OpportunityPageData {
   funder: PublicFunder;
-  opportunity: PublicOpportunityCard & { publishedAt: string | null; eligibility: string[] };
+  opportunity: PublicOpportunityCard & { publishedAt: string | null; eligibility: string[]; fund?: { name: string; slug: string; isDefault: boolean } | null };
   competitions: PublicCompetition[];
   commonGrants: unknown;
   links: { json: string; page: string };

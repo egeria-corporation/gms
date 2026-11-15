@@ -15,6 +15,7 @@ import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { scopeToFunds } from "./fund-scope.ts";
 import type { FileStorage, IdentityPort, SecondStepPort, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
@@ -46,6 +47,20 @@ const named = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
  * route added later is closed to them until it says otherwise.
  */
 export const isOutsideCowriter = (ws: Pick<ServiceWorkspace, "role" | "memberScope">): boolean => ws.role === "consultant" && named(ws.memberScope?.outsideApplicationIds) && !named(ws.memberScope?.applicationIds);
+
+/**
+ * The funds a member may see, or null for all of them. A member of a funder workspace whose scope
+ * names `fundIds` (a fund advisor: a reviewer or program officer invited as "Advisor for {fund}")
+ * sees and acts only on those funds' programs and everything under them; admins, members without
+ * `fundIds` and workspace API clients (no role) see every fund. A `fundIds` that is not a list of
+ * ids scopes the member to nothing rather than to everything.
+ */
+export function fundScopeOf(ws: Pick<ServiceWorkspace, "kind" | "role" | "memberScope"> | null): readonly string[] | null {
+  if (!ws || ws.kind !== "funder" || ws.role === null || ws.role === "admin") return null;
+  const ids = ws.memberScope?.fundIds;
+  if (ids === undefined || ids === null) return null;
+  return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
+}
 
 export interface ServiceConfig {
   /** GMS_BASE_URL and WEB_BASE_URL, without trailing slashes. */
@@ -198,6 +213,9 @@ export async function authorize(ctx: ServiceContext, need: Need): Promise<Servic
 export async function authorize(ctx: ServiceContext, need: Need): Promise<ServiceWorkspace | null> {
   if (need.person && !ctx.actor.userId) throw forbidden("person_required", "This action must be taken by a signed-in person");
   const ws = ctx.workspace;
+  // A fund advisor's context reads and writes through their funds from here on (services/fund-scope.ts).
+  const funds = fundScopeOf(ws);
+  if (ws && funds) scopeToFunds(ctx, ws.id, funds);
   if (need.scope) {
     if (!ws) throw forbidden("workspace_required", "Name a workspace for this action");
     if (!ctx.scopes.includes(need.scope)) throw forbidden("insufficient_scope", `This action needs the ${need.scope} scope`, need.scope);

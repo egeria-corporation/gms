@@ -15,6 +15,7 @@ import { applicationRoutes } from "./gms/applications.ts";
 import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
+import { fundRoutes } from "./gms/funds.ts";
 import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
@@ -156,6 +157,8 @@ gms.route("/", galleryRoutes);
 // Award sharing (v1.8.0): the share panel, confidential and unlisted switches, listing settings.
 gms.route("/", awardSharingRoutes);
 gms.route("/", socialRoutes);
+// Funds (v1.8.0).
+gms.route("/", fundRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

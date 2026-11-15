@@ -13,7 +13,8 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, access_token_enc: null, access_token_expires_at: null, token_version: 0, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),
   consents: () => ({ scopes: [], granted_by: null, revoked_at: null }),
-  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {}, awards_confidential: false }),
+  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {}, awards_confidential: false, fund_id: null }),
+  funds: () => ({ description: null, brand: {}, budgets: [], is_default: false }),
   forms: () => ({
     version: 1,
     workspace_id: null,
@@ -196,6 +197,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   social_profiles: [{ columns: ["workspace_id"] }, { columns: ["zernio_profile_id"] }],
   social_accounts: [{ columns: ["zernio_id"] }],
   social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
+  // `funds (workspace_id) where is_default` is kept by services/funds.ts, which creates the default once.
+  funds: [{ columns: ["workspace_id", "slug"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -237,6 +240,7 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   // 0034 checks these with its own trigger (gms.report_rows_check).
   report_schedules: { view_id: "report_views" },
   report_files: { view_id: "report_views", schedule_id: "report_schedules" },
+  programs: { fund_id: "funds" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

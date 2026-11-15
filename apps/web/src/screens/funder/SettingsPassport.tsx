@@ -14,7 +14,7 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp" | "public-page" | "security" | "social";
+  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social";
 }) {
   const items = [
     {
@@ -23,6 +23,7 @@ export function SettingsNav({
       to: `${base}/settings/passport`,
     },
     { key: "public-page", label: "Public page", to: `${base}/settings/public-page` },
+    { key: "funds", label: "Funds", to: `${base}/settings/funds` },
     { key: "mcp", label: "Agents & MCP", to: `${base}/settings/mcp` },
     { key: "security", label: "Security · Single sign-on", to: `${base}/settings/security` },
     { key: "social", label: "Social accounts", to: `${base}/settings/social` },

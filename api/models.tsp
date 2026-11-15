@@ -407,6 +407,9 @@ model Program {
   ownerName?: string | null;
   owner?: ProgramOwner | null;
 
+  /** The fund the program belongs to (funds.tsp) */
+  fundId?: CommonGrants.Types.uuid | null;
+
   /** The funder's budget categories for awards under the program (`defaults.budgetCategories`) */
   budgetCategories?: string[];
 
@@ -430,6 +433,9 @@ model Program {
 model ProgramInput {
   /** Must be a member of the workspace (422 `owner_not_a_member`); null clears it */
   ownerUserId?: CommonGrants.Types.uuid | null;
+
+  /** The fund the program belongs to; the default fund when a new program names none. A fund advisor names one of their funds (422 `fund_required` when they have several) */
+  fundId?: CommonGrants.Types.uuid;
 
   name: string;
   description?: string | null;

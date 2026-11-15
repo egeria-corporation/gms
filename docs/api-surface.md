@@ -548,3 +548,18 @@ Every route answers 404 `social_not_configured` unless `ZERNIO_API_KEY` and `ZER
 | `GET /gms/social/posts?subjectType=&subjectId=` | Implemented | The reach report: the last 50 posts with status, per-account links and Zernio's counts (read at most every 30 minutes, ten Zernio calls per report), totals, and for a call `applicationsFromSocial` |
 | `POST /webhooks/zernio` | Implemented | `X-Zernio-Signature` (HMAC-SHA256 of the raw body) checked first (`401`); stored once by event id (`duplicate`); older than a day `400 stale`; applied only to the workspace whose profile it names. Account and post events |
 | MCP `list_social_posts` | Implemented | Funder (`analytics:read`, an opportunity or award or all) and applicant (`awards:read`, its awards). No tool posts, schedules or connects |
+
+## Funds (v1.9.0)
+
+Tests: `apps/api/test/funds.test.ts`, `redteam-funds.test.ts`; database: migration `0039_funds.sql`,
+`supabase/tests/database/14_funds.test.sql`. Model and rules: `docs/funds.md`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/funds`, `GET /gms/funds/{id}` | Implemented | `programs:read`. `{ items, scoped }`; each fund with `budgets`, `totals` (its budget per fiscal year beside its programs'), `programIds`; one fund adds `advisors` |
+| `POST /gms/funds`, `PATCH /gms/funds/{id}`, `PUT /gms/funds/{id}/budgets` | Implemented | Funder `admin`. Colours from the theme palette only; reserved addresses refused; budgets one per fiscal year, ledgered with both values |
+| `POST /gms/funds/{id}/advisors` | Implemented | Funder `admin`, a signed-in person. An invitation with `program_officer` or `reviewer` and `scope.fundIds`. No MCP tool |
+| `POST /gms/programs`, `PATCH /gms/programs/{id}` | Implemented | Add `fundId`. A program always has a fund (the default fund when none is named) |
+| `GET /gms/public/funders/{handle}/funds/{slug}` | Implemented | No token. The fund page: `funder`, `fund { name, slug, description, brand, isDefault }`, its published opportunity cards |
+| A fund advisor (a member whose scope names `fundIds`, not an admin) | Implemented | Every route and MCP tool reads and writes through their funds only (`fundScopeOf` in the one authorization path); other funds' records answer 404 |
+| MCP `list_funds` | Implemented | Funder `programs:read` |

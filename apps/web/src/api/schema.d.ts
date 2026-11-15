@@ -2692,6 +2692,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/funds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The funds the caller sees, the default first: each with its budget per fiscal year beside its programs'. A fund advisor sees their funds only (`scoped: true`). */
+        get: operations["Funds_list"];
+        put?: never;
+        /** @description Admins. 409 when the address is taken. */
+        post: operations["Funds_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/funds/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One fund with its programs' totals and its advisors. 404 for a fund outside the caller's scope. */
+        get: operations["Funds_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Admins. Changing the address changes the fund's public page link. */
+        patch: operations["Funds_update"];
+        trace?: never;
+    };
+    "/gms/funds/{id}/advisors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Admins, signed in: "Advisor for {fund}", an invitation with an existing role and a scope naming this fund. Changes who sees what, so there is no MCP tool for it. */
+        post: operations["Funds_inviteAdvisor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/funds/{id}/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Admins. The fund's own budget per fiscal year, both values on the ledger. */
+        put: operations["Funds_putBudgets"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/gallery": {
         parameters: {
             query?: never;
@@ -5363,6 +5433,26 @@ export interface paths {
          * @description Published data behind `/f/{handle}/awards/{slug}`. The same 404 for an award that does not exist and one that is not public. No token.
          */
         get: operations["PublicAwards_awardPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/funders/{handle}/funds/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fund public page data
+         * @description Published data behind `/f/{handle}/{fundSlug}`: the funder, the fund and its published opportunities. No token; published fields only.
+         */
+        get: operations["FundPages_fundPage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13999,6 +14089,172 @@ export interface components {
                 [key: string]: components["schemas"]["CommonGrants.Types.uuid"];
             };
         };
+        "Models.Fund": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            /** @description The fund's public address: `/f/{handle}/{slug}` */
+            slug: string;
+            description: string | null;
+            brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund */
+            isDefault: boolean;
+            budgets: components["schemas"]["Models.FundBudget"][];
+            totals: components["schemas"]["Models.FundYearTotal"][];
+            /** Format: int32 */
+            programCount: number;
+            programIds: components["schemas"]["CommonGrants.Types.uuid"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        "Models.FundAdvisor": {
+            userId: components["schemas"]["CommonGrants.Types.uuid"];
+            role: ("reviewer" | "program_officer") | string;
+            name: string | null;
+            email: string | null;
+        };
+        "Models.FundAdvisorInput": {
+            /** Format: email */
+            email: string;
+            /**
+             * @description An existing role; the invitation adds a scope naming this fund
+             * @enum {string}
+             */
+            role: "reviewer" | "program_officer";
+            /** Format: int32 */
+            expiresInDays?: number;
+        };
+        "Models.FundAdvisorInvitation": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            email: string;
+            role: string;
+            organization: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description Shown once, for the invitation link */
+            token: string;
+            emailed: boolean;
+            /** Format: uri */
+            acceptUrl: string;
+            fund: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string;
+            };
+        };
+        "Models.FundBrand": {
+            color: components["schemas"]["Models.FundColor"] | null;
+            /**
+             * Format: uri
+             * @description An https link to the fund's logo
+             */
+            logoUrl: string | null;
+        };
+        "Models.FundBrandInput": {
+            color?: components["schemas"]["Models.FundColor"] | null;
+            /** Format: uri */
+            logoUrl?: string | null;
+        };
+        /** @description The fund's own budget for one fiscal year. */
+        "Models.FundBudget": {
+            /** Format: int32 */
+            fiscalYear: number;
+            /**
+             * Format: int64
+             * @description Integer minor units of `currency`
+             */
+            amountMinor: number;
+            currency: string;
+        };
+        "Models.FundBudgetInput": {
+            /** Format: int32 */
+            fiscalYear: number;
+            /** Format: int64 */
+            amountMinor: number;
+            /** @description USD when absent */
+            currency?: string;
+        };
+        "Models.FundBudgetsInput": {
+            /** @description One per fiscal year; replaces the fund's budgets */
+            budgets: components["schemas"]["Models.FundBudgetInput"][];
+        };
+        /**
+         * @description The theme palette a fund's colour comes from. Never a hex value.
+         * @enum {string}
+         */
+        "Models.FundColor": "teal" | "blue" | "mint" | "navy" | "gray";
+        "Models.FundDetail": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            /** @description The fund's public address: `/f/{handle}/{slug}` */
+            slug: string;
+            description: string | null;
+            brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund */
+            isDefault: boolean;
+            budgets: components["schemas"]["Models.FundBudget"][];
+            totals: components["schemas"]["Models.FundYearTotal"][];
+            /** Format: int32 */
+            programCount: number;
+            programIds: components["schemas"]["CommonGrants.Types.uuid"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Members whose scope names this fund */
+            advisors: components["schemas"]["Models.FundAdvisor"][];
+        };
+        "Models.FundInput": {
+            name: string;
+            /** @description Lowercase letters, digits and hyphens; made from the name when absent. Words the funder's own pages use (`o`, `awards`, `embed`, …) are refused */
+            slug?: string;
+            /** @description At most 500 characters */
+            description?: string | null;
+            brand?: components["schemas"]["Models.FundBrandInput"];
+        };
+        "Models.FundList": {
+            items: components["schemas"]["Models.Fund"][];
+            /** @description True when the caller is a fund advisor and `items` holds only their funds */
+            scoped: boolean;
+        };
+        "Models.FundPage": {
+            funder: components["schemas"]["Models.PublicFunder"];
+            fund: components["schemas"]["Models.PublicFund"];
+            /** @description The fund's published opportunities */
+            opportunities: components["schemas"]["Models.PublicOpportunityCard"][];
+            open: components["schemas"]["Models.PublicOpportunityCard"][];
+            forecasted: components["schemas"]["Models.PublicOpportunityCard"][];
+        };
+        "Models.FundPatch": {
+            name?: string;
+            slug?: string;
+            description?: string | null;
+            brand?: components["schemas"]["Models.FundBrandInput"];
+        };
+        /** @description A fiscal year of a fund: its budget beside its programs' budgets for that year. */
+        "Models.FundYearTotal": {
+            /** Format: int32 */
+            fiscalYear: number;
+            currency: string;
+            /**
+             * Format: int64
+             * @description The fund's own budget; null when none is set for the year
+             */
+            budgetMinor: number | null;
+            /**
+             * Format: int64
+             * @description The budgets of the fund's programs in this fiscal year and currency
+             */
+            programsMinor: number;
+            /** Format: int32 */
+            programCount: number;
+            /**
+             * Format: int64
+             * @description `budgetMinor` less `programsMinor`; negative when the programs are budgeted past the fund; null without a fund budget
+             */
+            availableMinor: number | null;
+            over: boolean;
+        };
         /** @description Data for `/f/{handle}/awards`. */
         "Models.FunderAwardsPage": {
             funder: components["schemas"]["Models.PublicFunder"];
@@ -17418,6 +17674,8 @@ export interface components {
             ownerUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             ownerName?: string | null;
             owner?: components["schemas"]["Models.ProgramOwner"] | null;
+            /** @description The fund the program belongs to (funds.tsp) */
+            fundId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
             /** @description The funder's budget categories for awards under the program (`defaults.budgetCategories`) */
             budgetCategories?: string[];
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -17447,6 +17705,8 @@ export interface components {
         "Models.ProgramInput": {
             /** @description Must be a member of the workspace (422 `owner_not_a_member`); null clears it */
             ownerUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** @description The fund the program belongs to; the default fund when a new program names none. A fund advisor names one of their funds (422 `fund_required` when they have several) */
+            fundId?: components["schemas"]["CommonGrants.Types.uuid"];
             name: string;
             description?: string | null;
             /** Format: int32 */
@@ -17583,6 +17843,26 @@ export interface components {
                 closes: string | null;
                 requiresSubmission: boolean;
             }[];
+        };
+        /** @description What the public pages show of a fund: never its budgets or its advisors. */
+        "Models.PublicFund": {
+            name: string;
+            slug: string;
+            description: string | null;
+            brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund: the pages name no fund for it */
+            isDefault: boolean;
+        };
+        /** @description A fund as the funder page groups its opportunities (`FunderPage.funds`, when the server sends it). */
+        "Models.PublicFundSection": {
+            name: string;
+            slug: string;
+            description: string | null;
+            brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund: the pages name no fund for it */
+            isDefault: boolean;
+            /** @description The fund's published opportunities, by id */
+            opportunityIds: components["schemas"]["CommonGrants.Types.uuid"][];
         };
         /** @description What a funder shows publicly. */
         "Models.PublicFunder": {
@@ -30269,6 +30549,384 @@ export interface operations {
             };
         };
     };
+    Funds_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FundList"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Funds_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FundInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Fund"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Funds_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FundDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Funds_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FundPatch"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Fund"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Funds_inviteAdvisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FundAdvisorInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FundAdvisorInvitation"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Funds_putBudgets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FundBudgetsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Fund"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Gallery_listGallery: {
         parameters: {
             query?: {
@@ -40785,6 +41443,41 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.AwardPublicPage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    FundPages_fundPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FundPage"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };

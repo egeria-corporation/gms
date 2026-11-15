@@ -62,6 +62,7 @@ const mappingFunction = z
 export const FUNDER_TOOLS = {
   list_programs: tool("listPrograms", "programs:read", "List the workspace's programs with budget and fiscal year.", z.object({ fiscalYear: z.number().int().optional(), ...paging })),
   get_program: tool("getProgram", "programs:read", "Get one program, including its defaults (rubric, templates, requirement and reminder plans).", z.object({ programId })),
+  list_funds: tool("listFunds", "programs:read", "List the funds you can see, the default fund first, each with its budget per fiscal year beside its programs' budgets. A fund advisor sees their own funds only. Creating funds and inviting advisors is done by a workspace admin in the GMS.", z.object({})),
 
   list_opportunities: tool("listOpportunities", "opportunities:read", "List opportunities, optionally by status or program.", z.object({ status: z.enum(["forecasted", "open", "closed"]).optional(), programId: programId.optional(), search: z.string().max(200).optional(), ...paging })),
   get_opportunity: tool("getOpportunity", "opportunities:read", "Get one opportunity with its CommonGrants projection and eligibility rules.", z.object({ opportunityId })),

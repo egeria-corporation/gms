@@ -28,7 +28,8 @@ select tables_are(
     'workspace_sso_domains',
     'coi_policies', 'coi_signatures',
     'gallery_items', 'gallery_submissions',
-    'social_profiles', 'social_accounts', 'social_posts'
+    'social_profiles', 'social_accounts', 'social_posts',
+    'funds'
   ],
   'public schema has exactly the GMS tables'
 );

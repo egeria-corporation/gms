@@ -31,6 +31,8 @@ import { createMockFunderApi } from "./funder.ts";
 import { createMockFunderMoneyApi } from "./funderMoney.ts";
 import { createMockFunderFullApi } from "./funderFull.ts";
 import { createMockDirectAwardsApi } from "./directAwards.ts";
+import { createMockFundsApi } from "./funds.ts";
+import type { FundsApi } from "../api/funds.ts";
 import { STARTER_FORM, STARTER_RUBRIC, STARTER_STAGE, starterFormTitle, starterRubricName } from "./quickSetup.ts";
 import { assertMockSso } from "./sso.ts";
 
@@ -238,7 +240,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
   };
   const directAwards = createMockDirectAwardsApi({ ...funderCtx, me, applicantInfo }, { ...funderMocks, ...funderFull });
 
-  const api: GmsApi = {
+  const api: Omit<GmsApi, keyof FundsApi> = {
     me,
     claimPassportSecondStep,
     async workspace(handle) {
@@ -667,5 +669,6 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return clone(evaluate(parsed.rules, { org: input.org, profile: input.profile, applicant: input.applicant }));
     },
   };
-  return api;
+  // Funds (v1.8.0): funds, advisors and the public fund page, over these workspaces; the reads above narrowed to a fund advisor's funds.
+  return { ...api, ...createMockFundsApi({ ...funderCtx, me, store }, api) };
 }

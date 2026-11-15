@@ -21,6 +21,7 @@ import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPa
 import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
 import { dateTime } from "./shared.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
+import { useFundFilter } from "../../components/FundSwitcher.tsx";
 
 const STEPS: [Agreement["status"], string][] = [
   ["draft", "Draft"],
@@ -244,8 +245,11 @@ export default function AwardAgreement() {
   // Set by New award when the email could not be sent.
   const [mail, setMail] = useState<MailNote>((useLocation().state as { emailed?: boolean } | null)?.emailed === false ? "failed" : null);
   const { awardId } = useParams();
-  const awards = useApiQuery((api) => api.listAwards(), []);
+  const all = useApiQuery((api) => api.listAwards(), []);
   const programs = useApiQuery((api) => api.listPrograms(), []);
+  // The fund chosen in the switcher narrows the list to awards from its programs.
+  const fund = useFundFilter();
+  const awards = fund.current && all.status === "ready" ? { ...all, data: all.data.filter((a) => { const p = programs.data?.find((x) => x.id === a.programId); return !!p && fund.keepProgram(p); }) } : all;
   const current: AwardSummary | undefined = awards.data?.find((a) => a.id === awardId) ?? awards.data?.[0];
   const award = useApiQuery(async (api) => (current ? api.getAward(current.id) : null), [current?.id]);
   const [tab, setTab] = useAwardTab("agreement", current?.id, base);
@@ -292,13 +296,14 @@ export default function AwardAgreement() {
             meta={
               <span>
                 {awards.data?.length === 1 ? "1 award" : `${awards.data?.length ?? 0} awards`} · {formatMinor(total)} awarded
+                {fund.current ? ` · ${fund.current.name}` : ""}
               </span>
             }
           />
           {awards.status === "loading" && <Loading label="Loading awards" />}
           {awards.status === "error" && <ErrorBanner error={awards.error} onRetry={awards.reload} />}
           {awards.status === "ready" && awards.data.length === 0 && (
-            <EmptyState icon={AwardIcon} title="No awards yet">
+            <EmptyState icon={AwardIcon} title={fund.current ? `No awards in ${fund.current.name} yet` : "No awards yet"}>
               An award is created when a panel decision to approve is committed, or you can give one directly to an organization that has not applied.
             </EmptyState>
           )}

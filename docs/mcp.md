@@ -82,6 +82,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 |---|---|---|---|
 | `list_programs` | `programs:read` | — | List the workspace's programs with budget and fiscal year. |
 | `get_program` | `programs:read` | — | Get one program, including its defaults (rubric, templates, requirement and reminder plans). |
+| `list_funds` | `programs:read` | — | The funds the caller sees, the default first, each with its budget per fiscal year beside its programs' budgets. A fund advisor sees their own funds only; creating funds and inviting advisors is a person's work in the GMS. |
 | `list_opportunities` | `opportunities:read` | — | List opportunities, optionally by status or program. |
 | `get_opportunity` | `opportunities:read` | — | Get one opportunity with its CommonGrants projection and eligibility rules. |
 | `create_opportunity` | `opportunities:write` | — | Create a draft opportunity in a program. |
