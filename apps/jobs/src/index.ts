@@ -9,6 +9,7 @@ import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
 import { SupabaseWebhookStore } from "@gms/webhooks";
 import { createClient } from "@supabase/supabase-js";
+import { CONTENT_DIGESTS_JOB, contentDigestsDue, openGrantsPort, runContentDigests } from "./content-digests.ts";
 
 export interface Env {
   GMS_BASE_URL: string;
@@ -25,6 +26,9 @@ export interface Env {
   WEBHOOK_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  /** New matches in the content digests (the same names as the API Worker). */
+  OPENGRANTS_API_URL?: string;
+  OPENGRANTS_API_KEY?: string;
   LEDGER_ARCHIVE?: R2Bucket;
   EXPORTS?: R2Bucket;
 }
@@ -57,6 +61,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
     ports: {
       ...(env.RESEND_API_KEY ? { mailer: new ResendMailer(env.RESEND_API_KEY) } : {}),
       bank: new MercuryBankFeed(),
+      ...openGrantsPort(env),
       // Member addresses for notification email and digests.
       directory: new SupabaseUserDirectory(db as unknown as ConstructorParameters<typeof SupabaseUserDirectory>[0]),
       ...(exportsBucket ? { exports: { put: async (key: string, body: string, contentType: string) => void (await exportsBucket.put(key, body, { httpMetadata: { contentType } })) } } : {}),
@@ -67,7 +72,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
 /** The one Cron Trigger. Cloudflare's free plan allows 5 per account, so every schedule is derived from this tick. */
 export const CRON = "*/5 * * * *";
 
-export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders";
+export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | typeof CONTENT_DIGESTS_JOB;
 
 /**
  * The jobs that are due at a tick, by its scheduled time in UTC. Each job appears at most once, so a
@@ -81,6 +86,7 @@ export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requireme
  *   14:35 daily            keep-reminders (vault expiry, obligations of outside awards, next cycles)
  *   15:00 daily            digest-daily (8 AM Pacific in winter, 7 AM in summer)
  *   15:05 Mondays          digest-weekly
+ *   15:10 Mondays          content-digests (opt-in new matches, deadlines, funder activity)
  */
 export function jobsDue(at: Date): JobName[] {
   const m = at.getUTCMinutes();
@@ -94,6 +100,7 @@ export function jobsDue(at: Date): JobName[] {
   if (h === 14 && m === 35) due.push("keep-reminders");
   if (h === 15 && m === 0) due.push("digest-daily");
   if (h === 15 && m === 5 && at.getUTCDay() === 1) due.push("digest-weekly");
+  if (contentDigestsDue(at)) due.push(CONTENT_DIGESTS_JOB);
   return due;
 }
 
@@ -121,6 +128,8 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return sendOutsideReminders(base);
     case "keep-reminders":
       return sendKeepReminders(base);
+    case CONTENT_DIGESTS_JOB:
+      return runContentDigests(base);
     case "ledger-archive": {
       const bucket = env.LEDGER_ARCHIVE;
       if (!bucket) return { skipped: "LEDGER_ARCHIVE is not bound" };
