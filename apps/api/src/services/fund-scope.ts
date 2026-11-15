@@ -95,6 +95,10 @@ const RULES: { [T in TableName]: Rule } = {
   custom_mcp_servers: OPEN,
   decisions: parent("competition_id", "competitions", "Competition"),
   discover_saved: OPEN,
+  // 0041: a person's own digest choices and what was sent to them (match keys, never a record of a
+  // fund). What a digest says is built under the person's own fund scope (content-digests.ts).
+  digest_sends: OPEN,
+  digest_subscriptions: OPEN,
   documents: SUBJECT,
   form_responses: { kind: "check", allowed: async (r, v) => (r.application_id ? has(v, "applications", r.application_id) : has(v, "submissions", r.submission_id)) },
   forms: OPEN,

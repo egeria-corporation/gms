@@ -157,6 +157,9 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   social_accounts: () => ({ username: null, status: "active", connected_by: null, disconnected_at: null }),
   social_posts: () => ({ zernio_post_id: null, targets: [], status: "sending", scheduled_at: null, timezone: null, error: null, metrics: {}, metrics_at: null, sent_at: null }),
   package_sends: () => ({ sent_at: null }),
+  // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
+  digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
+  digest_sends: () => ({ item_keys: [], message_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -201,6 +204,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   // `funds (workspace_id) where is_default` is kept by services/funds.ts, which creates the default once.
   funds: [{ columns: ["workspace_id", "slug"] }],
   package_sends: [{ columns: ["outside_application_id", "day", "slot"] }],
+  digest_subscriptions: [{ columns: ["member_id"] }],
+  digest_sends: [{ columns: ["workspace_id", "user_id", "digest", "iso_week"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -245,6 +250,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   programs: { fund_id: "funds" },
   // 0040 checks this one with its own trigger (gms.package_sends_same_workspace).
   package_sends: { outside_application_id: "outside_applications" },
+  // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
+  digest_subscriptions: { member_id: "workspace_members" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

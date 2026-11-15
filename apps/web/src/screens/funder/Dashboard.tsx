@@ -10,6 +10,7 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Task } from "../../api/funder.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
+import { DigestPrompt } from "../../components/DigestPrompt.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { ActivityTimeline } from "../../components/ActivityTimeline.tsx";
@@ -95,6 +96,7 @@ export default function Dashboard() {
               </>
             }
           />
+          <DigestPrompt workspaceId={ws.id} digest="funder_activity" settingsTo="/notifications" />
 
           {firstRun ? (
             <div className="card">

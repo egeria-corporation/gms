@@ -30,7 +30,8 @@ select tables_are(
     'gallery_items', 'gallery_submissions',
     'social_profiles', 'social_accounts', 'social_posts',
     'funds',
-    'package_sends'
+    'package_sends',
+    'digest_subscriptions', 'digest_sends'
   ],
   'public schema has exactly the GMS tables'
 );

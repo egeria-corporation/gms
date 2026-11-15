@@ -38,6 +38,8 @@ describe("jobs worker", () => {
     expect(at("2027-04-19T15:05:00Z")).toEqual([...EVERY, "digest-weekly"]); // a Monday
     expect(at("2027-04-20T15:05:00Z")).toEqual(EVERY); // not a Monday
     expect(at("2027-04-19T16:05:00Z")).toEqual(EVERY);
+    expect(at("2027-04-19T15:10:00Z")).toEqual([...EVERY, "content-digests"]); // Mondays, after digest-weekly
+    expect(at("2027-04-20T15:10:00Z")).toEqual(EVERY);
   });
 
   it("ignores seconds, runs nothing twice in a tick, and covers a week with every job on its own schedule", () => {
@@ -49,14 +51,14 @@ describe("jobs worker", () => {
       for (const j of due) counts.set(j, (counts.get(j) ?? 0) + 1);
     }
     // 2027-04-12 is a Monday through Sunday the 18th: 7 days.
-    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7, "keep-reminders": 7 });
+    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7, "keep-reminders": 7, "content-digests": 1 });
   });
 
   it("runs every job against an empty database without failing", async () => {
     const b = base();
     const all = new Set<JobName>();
     for (let t = Date.UTC(2027, 3, 19); t < Date.UTC(2027, 3, 20); t += 5 * 60_000) for (const j of jobsDue(new Date(t))) all.add(j);
-    expect(all.size).toBe(12);
+    expect(all.size).toBe(13);
     for (const name of all) {
       const out = await runJob(name, b, {});
       expect(out, name).toBeTypeOf("object");

@@ -16,6 +16,7 @@ import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
 import * as awardSharing from "./award-sharing.ts";
 import * as collab from "./collaboration.ts";
+import * as digests from "./content-digests.ts";
 import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
@@ -317,6 +318,8 @@ const IMPLEMENTED: Impl = {
     const opp = (i as { opportunityId?: string }).opportunityId;
     return social.reachReport(ctx, opp ? { subjectType: "opportunity", subjectId: uuidOf("opportunity", opp, "Opportunity") } : i.awardId ? { subjectType: "award", subjectId: awd(i.awardId) } : {});
   },
+  // Content digests (v1.8.0): agents read the preview; turning one on or off is the person's (no tool).
+  getDigestPreview: (ctx, i) => digests.previewDigest(ctx, { digest: i.digest }),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
   // Send to the funder (C4): the package described, never emailed by an agent.
   getSendPackage: (ctx, i) => sendPackage.packageSummary(ctx, oa(i.outsideApplicationId)),

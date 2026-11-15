@@ -103,6 +103,9 @@ const PERSONAL_ROUTES = new Set([
   // and whether the person moderates the template gallery is about them, not the workspace.
   "post /gms/sso/join",
   "get /gms/gallery/moderation/me",
+  // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
+  "post /gms/digests/unsubscribe",
+  "get /gms/digests/unsubscribe",
 ]);
 
 /**

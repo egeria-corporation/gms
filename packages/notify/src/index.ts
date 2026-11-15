@@ -12,3 +12,4 @@ export * from "./powered-by.ts";
 export * from "./invite.ts";
 export * from "./migration.ts";
 export * from "./send-package.ts";
+export * from "./digests.ts";

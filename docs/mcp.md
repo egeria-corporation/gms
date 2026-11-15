@@ -145,6 +145,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `list_report_views` | `analytics:read` | — | List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule. |
 | `run_report_view` | `analytics:read` | — | Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set. |
 | `list_social_posts` | `analytics:read` | — | The social posts this workspace sent through Zernio, for one opportunity or award or all: each account's status and link, Zernio's counts, and for a call the applications started from a shared link. No tool posts, schedules or connects an account; only a person does, in the GMS (docs/social.md). |
+| `get_digest_preview` | `applications:read` | — | Read next Monday's opt-in "This week's activity" email for the signed-in person, as it would be written now (counts and links only). Nothing is sent. No tool turns a digest on or off; only the person does (`docs/digests.md`). |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
@@ -190,6 +191,7 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
 | `list_social_posts` | `awards:read` | — | The social posts this workspace sent through Zernio about its awards: each account's status and link and Zernio's counts. No tool posts, schedules or connects an account. |
 | `get_send_package` | `applications:read` | — | Describe the send-to-funder package: cover, questions in order, budget summary, attached files (this application's own and the vault documents used for its checklist), any answer that looks like a bank, card or identity number, and the PDF and ZIP download paths. No tool emails the package; only a person does, in the GMS. |
+| `get_digest_preview` | `applications:read` | — | Read next Monday's opt-in "New matches" or "Deadlines" email for the signed-in person, as it would be written now. Nothing is sent. No tool turns a digest on or off; only the person does (`docs/digests.md`). |
 
 ### Applicant tools
 
