@@ -195,7 +195,8 @@ export function seedStore(): Store {
       { userId: "10000000-0000-4000-8000-000000000002", role: "finance", email: "marcus.lee@riverbendcf.example" },
       { userId: "10000000-0000-4000-8000-000000000003", role: "reviewer", email: "priya.natarajan@riverbendcf.example" },
     ],
-    invitations: [],
+    // C4: a guest reviewer invited to one competition (flow 26 opens its link).
+    invitations: [{ id: "inv-guest-reviewer", email: "sam@newcomer.example", role: "external_reviewer", expiresAt: "2099-01-01T00:00:00.000Z", acceptUrl: "/invitations/accept?token=gms_inv_mock_guest_reviewer" }],
     passport: {
       linked: true,
       passportOrgId: "90000000-0000-7000-8000-000000000001",
@@ -302,7 +303,8 @@ export function seedStore(): Store {
     },
     profile: { mission: "Public health grants for community clinics and prevention programs in Cascade County.", website: "https://cascadecounty.example" },
     members: [{ userId: "10000000-0000-4000-8000-000000000001", role: "reviewer", email: "dana.ortiz@riverbendcf.example" }],
-    invitations: [],
+    // C4: a guest reviewer whose reviews here are all in (flow 26: the done screen).
+    invitations: [{ id: "inv-guest-done", email: "sam@newcomer.example", role: "external_reviewer", expiresAt: "2099-01-01T00:00:00.000Z", acceptUrl: "/invitations/accept?token=gms_inv_mock_guest_done" }],
     passport: { linked: false, passportOrgId: "90000000-0000-7000-8000-000000000002", check: { state: "fail", reason: "Connect Passport to pay. Awards still work without it" }, canDebit: null },
     programs: [],
     rubrics: [],

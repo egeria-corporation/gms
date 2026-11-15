@@ -78,6 +78,9 @@ const AOutsideApplication = lazy(() => import("../screens/applicant/OutsideAppli
 const ADocuments = lazy(() => import("../screens/applicant/Documents.tsx"));
 const AOutsideAward = lazy(() => import("../screens/applicant/OutsideAward.tsx"));
 const AFundingSummary = lazy(() => import("../screens/applicant/FundingSummary.tsx"));
+// C4: the guest reviewer's welcome and done screens.
+const FGuestReviewerWelcome = lazy(() => import("../screens/funder/GuestReviewerWelcome.tsx"));
+const FGuestReviewerDone = lazy(() => import("../screens/funder/GuestReviewerDone.tsx"));
 const ImportWizard = lazy(() => import("../screens/shared/ImportWizard.tsx"));
 const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
 const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
@@ -215,6 +218,9 @@ function AppRoutes() {
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />
           <Route path="/review/score/:appId" element={<FReviewerScoring />} />
+          {/* C4: a guest reviewer lands here from the invitation, and ends here after the last review. */}
+          <Route path="/review/welcome" element={<FGuestReviewerWelcome />} />
+          <Route path="/review/done" element={<FGuestReviewerDone />} />
 
           <Route path="/w/:ws" element={<WorkspaceLayout />}>
             <Route
