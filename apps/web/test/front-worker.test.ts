@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { headersFile } from "../build/headers.ts";
+import { contentSecurityPolicy, embedContentSecurityPolicy, headersFile } from "../build/headers.ts";
 import { DATA_TIMEOUT_MS } from "../src/edge/front.ts";
 import { DEFAULT_DESCRIPTION } from "../src/edge/meta.ts";
 import { decodePng, pngSize } from "../src/edge/og/png.ts";
@@ -20,6 +20,8 @@ import { loadApi, type ApiHarness } from "./api-harness.ts";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const fromWrangler = createRequire(realpathSync(join(web, "node_modules", "wrangler", "package.json")));
 const HOST = "gms.test";
+const API_ORIGIN = `https://${HOST}`;
+const SUPABASE = "https://supabase.test";
 
 interface Mf {
   dispatchFetch(url: string, init?: RequestInit): Promise<Response>;
@@ -79,7 +81,7 @@ beforeAll(async () => {
   h = await helpers.harness();
   await publishCalls(h, helpers.USER_ADMIN, helpers.WS_FUNDER);
 
-  // A built app: index.html, the card's fonts and images, one asset, and _headers with an embed rule.
+  // A built app: index.html, the card's fonts and images, one asset, and the _headers file the build writes.
   work = mkdtempSync(join(tmpdir(), "front-worker-"));
   const dist = join(work, "dist");
   for (const f of ["fonts/Ubuntu-Bold.ttf", "fonts/Lato-Regular.ttf", "fonts/Lato-Bold.ttf", "brand/opengrants-icon-color.png", "brand/og-preview.png"]) {
@@ -89,7 +91,7 @@ beforeAll(async () => {
   cpSync(join(web, "index.html"), join(dist, "index.html"));
   mkdirSync(join(dist, "assets"));
   writeFileSync(join(dist, "assets", "app-1234.js"), "console.log(1)");
-  writeFileSync(join(dist, "_headers"), `${headersFile(`https://${HOST}`, "https://supabase.test")}/embed/*\n  ! Content-Security-Policy\n  ! X-Frame-Options\n  Content-Security-Policy: default-src 'self'; frame-ancestors *\n`);
+  writeFileSync(join(dist, "_headers"), headersFile(API_ORIGIN, SUPABASE));
 
   const out = join(work, "out");
   execFileSync(process.execPath, [join(web, "..", "..", "scripts", "build-front-worker.mjs"), "--name", "front-test", "--host", HOST, "--api", "api-test", "--redirect-from", "old.gms.test", "--dist", dist, "--out", out], { stdio: "pipe" });
@@ -221,14 +223,35 @@ describe("front Worker: robots, sitemap, headers and forwarding", () => {
   });
 
   it("applies _headers rules to the requested path as Cloudflare does, removing with `!`", async () => {
-    const embed = await get("/embed/f/riverbend/o/open-call");
-    expect(embed.headers.get("Content-Security-Policy")).toBe("default-src 'self'; frame-ancestors *");
-    expect(embed.headers.get("X-Frame-Options")).toBeNull();
-    const page = await get("/f/riverbend");
-    expect(page.headers.get("X-Frame-Options")).toBe("DENY");
     expect((await get("/assets/app-1234.js")).headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
     expect((await get("/assets/missing.js")).status).toBe(404);
   });
+
+  it("lets any site frame the apply widget, and only the apply widget", async () => {
+    for (const method of ["GET", "HEAD"]) {
+      for (const path of ["/embed/f/riverbend/o/open-call", "/embed/f/riverbend/o/closed-call", "/embed/f/nobody/o/nothing"]) {
+        const res = await get(path, { method });
+        expect(res.status, path).toBe(200);
+        const csp = res.headers.get("Content-Security-Policy");
+        // One policy, the widget's: not the app's joined to it with a comma (both would be enforced).
+        expect(csp, path).toBe(embedContentSecurityPolicy(API_ORIGIN, SUPABASE));
+        expect(csp, path).toContain("frame-ancestors *");
+        expect(csp, path).not.toContain("frame-ancestors 'none'");
+        expect(res.headers.get("X-Frame-Options"), path).toBeNull();
+        // The rest of the app's headers still apply.
+        expect(res.headers.get("X-Content-Type-Options"), path).toBe("nosniff");
+        expect(res.headers.get("Referrer-Policy"), path).toBe("no-referrer");
+      }
+    }
+    const app = contentSecurityPolicy(API_ORIGIN, SUPABASE);
+    expect(app).toContain("frame-ancestors 'none'");
+    for (const path of ["/", "/f/riverbend", "/f/riverbend/o/open-call", "/w/abc/home", "/signin", "/embed", "/embedded/f/riverbend/o/open-call", "/preview/embed/f/riverbend/o/open-call", "/f/riverbend/embed/x", "/robots.txt", "/og/home.png", "/og/f/riverbend/o/open-call.png", "/assets/app-1234.js", "/brand/og-preview.png", "/index.html"]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("Content-Security-Policy"), path).toBe(app);
+      expect(res.headers.get("X-Frame-Options"), path).toBe("DENY");
+    }
+  }, 30_000);
 
   it("forwards the API's paths and redirects the old address", async () => {
     const res = await get("/gms/public/funders/riverbend");
