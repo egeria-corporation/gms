@@ -802,7 +802,7 @@ export function QuestionCard({
                     {m.name ?? m.email}
                   </option>
                 ))}
-                {onInvite && !readOnly && <InviteOptions list={invites} match={(d) => d.questionId === q.id} />}
+                {!readOnly && <InviteOptions list={invites} match={(d) => d.questionId === q.id} />}
               </select>
             </>
           )}
@@ -1070,7 +1070,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           Write and save your answers here, and mark them ready when they are. The team sets up the questions and approves the answers.
         </Notice>
       )}
-      {!cowriter && questions.length > 0 && <TeamNote canInvite={!readOnly && !!inviteList?.canInvite} onInvite={() => setInviting({ questionId: null })} />}
+      {!cowriter && <TeamNote canInvite={!readOnly && !!inviteList?.canInvite} onInvite={() => setInviting({ questionId: null })} />}
       {sent && <InviteSentNote sent={sent} onDone={() => setSent(null)} />}
       <AiUseNote questions={questions} />
       {exp.error ? <ErrorBanner error={exp.error} title="The download did not start" /> : null}
