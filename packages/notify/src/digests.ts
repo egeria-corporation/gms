@@ -104,7 +104,7 @@ export function newMatchesDigestEmail(f: NewMatchesFields): DigestEmail {
   for (const m of items) assertLink(m.link);
   const ws = cleanLine(f.workspace);
   const n = items.length;
-  const intro = `${n === 1 ? "Here is a new funding opportunity" : `Here are ${n} new funding opportunities`} that fit ${ws}. None of them was in an earlier email or is saved already.`;
+  const intro = `${n === 1 ? "Here is a new funding opportunity" : `Here are ${n} new funding opportunities`} that ${n === 1 ? "fits" : "fit"} ${ws}. ${n === 1 ? "It was not in an earlier email and is not saved yet." : "None of them was in an earlier email or is saved yet."}`;
   const detail = (m: DigestMatch) => [m.deadline ? `Deadline ${cleanLine(m.deadline)}` : null, m.amount ? cleanLine(m.amount) : null, m.source === "gms" ? "Open for applications here" : "From the OpenGrants index"].filter(Boolean).join(" · ");
   const head = (m: DigestMatch) => `${cleanLine(m.title)}${m.funder ? ` (${cleanLine(m.funder)})` : ""}`;
   const text = items.map((m, i) => `${i + 1}. ${head(m)}\n   ${detail(m)}\n   ${m.link}`);

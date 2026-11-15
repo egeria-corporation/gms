@@ -29,6 +29,7 @@ import { applyTrancheUpdate, toPaymentsTranche } from "./services/tranches.ts";
 export type { BaseContext } from "./services/context.ts";
 export { processInbound } from "./services/inbound.ts";
 export { sendDigests } from "./services/member-mail.ts";
+export { CONTENT_DIGEST_SCHEDULE, sendContentDigests } from "./services/content-digests.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";

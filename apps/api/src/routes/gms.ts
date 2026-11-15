@@ -15,6 +15,7 @@ import { applicationRoutes } from "./gms/applications.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
+import { digestRoutes } from "./gms/digests.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { importRoutes } from "./gms/imports.ts";
@@ -118,6 +119,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 gms.route("/public", publicPages);
 // The embeddable apply widget's data, also public.
 gms.route("/public", embedPages);
+// Opt-in content digests; their one-click unsubscribe needs no token, so they come before the routers below.
+gms.route("/", digestRoutes);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
 gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);
