@@ -14,7 +14,7 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp";
+  active: "passport" | "mcp" | "security";
 }) {
   const items = [
     {
@@ -23,6 +23,7 @@ export function SettingsNav({
       to: `${base}/settings/passport`,
     },
     { key: "mcp", label: "Agents & MCP", to: `${base}/settings/mcp` },
+    { key: "security", label: "Security · Single sign-on", to: `${base}/settings/security` },
   ] as const;
   return (
     <nav

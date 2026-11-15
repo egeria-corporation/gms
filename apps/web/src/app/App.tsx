@@ -55,6 +55,7 @@ const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
+const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -253,6 +254,7 @@ function AppRoutes() {
             <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
+            <Route path="settings/security" element={f(<FSettingsSecurity />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             <Route path="approvals" element={f(<FApprovals />)} />

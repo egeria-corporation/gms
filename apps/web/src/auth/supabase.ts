@@ -1,20 +1,37 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createClient, type Session as SupabaseSession, type SupabaseClient } from "@supabase/supabase-js";
+import { emailDomain } from "./sso.ts";
 import { AuthError, type AuthClient, type Session, type TotpEnrollment } from "./types.ts";
 
-function aalOf(token: string): "aal1" | "aal2" {
+function claimsOf(token: string): { aal?: unknown; amr?: unknown } {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { aal?: string };
-    return payload.aal === "aal2" ? "aal2" : "aal1";
+    return JSON.parse(atob(token.split(".")[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { aal?: unknown; amr?: unknown };
   } catch {
-    return "aal1";
+    return {};
   }
+}
+
+const aalOf = (claims: { aal?: unknown }): "aal1" | "aal2" => (claims.aal === "aal2" ? "aal2" : "aal1");
+
+/** The identity provider of the session's latest `sso/saml` sign-in (any position in `amr`: two-step verification may come first). */
+export function ssoProviderOf(amr: unknown): string | null {
+  if (!Array.isArray(amr)) return null;
+  for (const e of amr) {
+    const entry = (e ?? {}) as { method?: unknown; provider?: unknown };
+    if (entry.method === "sso/saml" && typeof entry.provider === "string") return entry.provider;
+  }
+  return null;
 }
 
 function toSession(s: SupabaseSession | null): Session | null {
   if (!s) return null;
-  return { userId: s.user.id, email: s.user.email ?? "", aal: aalOf(s.access_token), accessToken: s.access_token };
+  const claims = claimsOf(s.access_token);
+  const sso = ssoProviderOf(claims.amr);
+  return { userId: s.user.id, email: s.user.email ?? "", aal: aalOf(claims), accessToken: s.access_token, ...(sso ? { ssoProviderId: sso } : {}) };
 }
+
+/** Where single sign-on comes back to: the sign-in page, which the redirect allow list already holds for email links. */
+export const ssoRedirectTo = (origin: string) => `${origin}/signin`;
 
 function fail(error: { message: string; status?: number }): never {
   const code = error.status === 429 ? "rate_limited" : /expired|invalid|otp/i.test(error.message) ? "invalid_code" : "unknown";
@@ -80,6 +97,19 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
       const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
       if (error) fail(error);
       return current();
+    },
+    async signInWithSSO(workEmail) {
+      const domain = emailDomain(workEmail);
+      if (!domain) throw new AuthError("Enter your work email address.");
+      const { data, error } = await supabase.auth.signInWithSSO({ domain, options: { redirectTo: ssoRedirectTo(window.location.origin), skipBrowserRedirect: true } });
+      if (error) {
+        const code = (error as { code?: string }).code;
+        if (error.status === 404 || code === "sso_provider_not_found") throw new AuthError(`Single sign-on is not set up for ${domain}. Sign in with an email code instead, or ask your IT team.`, "no_sso");
+        if (code === "sso_provider_disabled") throw new AuthError(`Single sign-on for ${domain} is switched off right now. Sign in with an email code instead, or ask your IT team.`, "no_sso");
+        fail(error);
+      }
+      if (!data?.url) throw new AuthError("Single sign-on could not be started. Try again.", "unknown");
+      window.location.assign(data.url);
     },
     async signOut() {
       await supabase.auth.signOut();

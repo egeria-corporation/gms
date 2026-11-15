@@ -5,6 +5,7 @@ import { Navigate, useLocation, useParams } from "react-router";
 import { RefreshCw, TriangleExclamationPoint } from "lucide-react";
 import { ApiError, type Workspace, type WorkspaceKind } from "../api/client.ts";
 import { Busy, signInPath } from "../auth/RequireAuth.tsx";
+import { isSsoRequired } from "../auth/sso.ts";
 import { NotFound } from "../components/NotFound.tsx";
 import { useServices } from "./services.tsx";
 
@@ -13,7 +14,7 @@ export type { Workspace, WorkspaceKind };
 const WorkspaceContext = createContext<Workspace | null>(null);
 
 type Load =
-  { status: "loading" } | { status: "ready"; workspace: Workspace } | { status: "missing" } | { status: "error"; message: string };
+  { status: "loading" } | { status: "ready"; workspace: Workspace } | { status: "missing" } | { status: "sso" } | { status: "error"; message: string };
 
 /** Provides the workspace named by the `:ws` route param. Assumes a signed-in person (RequireAuth). */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -30,7 +31,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       (workspace) => live && setLoad({ status: "ready", workspace }),
       (error: unknown) => {
         if (!live) return;
-        if (error instanceof ApiError && (error.status === 404 || error.status === 403)) setLoad({ status: "missing" });
+        if (isSsoRequired(error)) setLoad({ status: "sso" });
+        else if (error instanceof ApiError && (error.status === 404 || error.status === 403)) setLoad({ status: "missing" });
         else setLoad({ status: "error", message: error instanceof Error ? error.message : "The workspace could not be loaded." });
       },
     );
@@ -45,6 +47,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return <Navigate to={signInPath(location.pathname + location.search + location.hash, "mfa")} replace />;
     }
   }
+  // The workspace requires single sign-on and this session did not come through it.
+  if (load.status === "sso") return <Navigate to={signInPath(location.pathname + location.search + location.hash, "sso")} replace />;
   if (load.status === "loading" || meState.status === "loading") return <Busy />;
   if (load.status === "missing") return <NotFound />;
   if (load.status === "error") {
