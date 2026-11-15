@@ -2,10 +2,13 @@
 // Review parity (v1.8.0): the competition's conflict-of-interest policy that every reviewer signs
 // before anything in the competition opens for them; the conflicts register; anonymized review
 // (one test per route a reviewer can reach); and the board docket PDF.
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { constants } from "node:zlib";
 import { APPLICANT_PLACEHOLDER, DEFAULT_COI_POLICY } from "@gms/review";
 import { beforeEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
 import { ALDER_ORG, scenario, type Scenario } from "./scenario.ts";
@@ -33,6 +36,7 @@ const ledger = (type: string) => h.ledger.events.filter((e) => e.eventType === t
 
 /** Anything that would say who applied, in any case: the names, the website and email domain, the EIN. */
 const IDENTITY = /alder|aldercreekfs|001234567|00-1234567|0193a1c0-0000-7000-8000-0000000000a1/i;
+const SPEC = fileURLToPath(new URL("../../../api/tsp-output/@typespec/openapi3/openapi.GMS.yaml", import.meta.url));
 const shows = (x: unknown) => IDENTITY.test(JSON.stringify(x));
 
 const NEED = "Alder Creek Family Services has run the valley's only clinic since 1998. Our annual report is at https://www.aldercreekfs.example/report, or write to info@aldercreekfs.example. EIN 00-1234567.";
@@ -432,6 +436,67 @@ describe("anonymized review", () => {
     // The resource reads through the same functions.
     const res = await h.request("/mcp", { method: "POST", headers: { ...bearer(agent).headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 99, method: "resources/read", params: { uri: `gms://application/${appA}` } }) });
     expect(shows(await res.json())).toBe(false);
+  });
+
+  it.skipIf(!existsSync(SPEC))("no route in the document says who applied: every GET, the v1.7.0 AI summary, invites and imports", async () => {
+    await anonymize();
+    h.env.ASSISTANT_ENABLED = "true";
+    // Staff write the shared AI summary first; theirs names the organization, as staff may see it.
+    h.llmAnswer.value = { summary: "Alder Creek Family Services runs the valley clinic.", strengths: [], openQuestions: [], quotes: [], fromExternalSystems: [], cautions: [] };
+    expect((await s.call(s.funder, "POST", "/gms/assist/summary", { applicationId: `app_${appA}` })).status).toBe(200);
+    h.llmAnswer.value = { summary: "A clinic outreach plan.", strengths: [], openQuestions: [], quotes: [], fromExternalSystems: [], cautions: [] };
+    const doc = parseYaml(readFileSync(SPEC, "utf8")) as { paths: Record<string, { get?: unknown }> };
+    const NOWHERE = "00000000-0000-4000-8000-00000000dead";
+    const idFor = (path: string) =>
+      path.startsWith("/gms/applications/") || path.startsWith("/gms/my/applications/") ? `app_${appA}` : path.startsWith("/gms/competitions/") ? s.compId : path.startsWith("/gms/review-assignments/") ? mine : path.startsWith("/gms/forms/") ? s.uuid.loi : path.startsWith("/gms/workspaces/") ? WS_FUNDER : NOWHERE;
+    const values = (path: string): Record<string, string> => ({ id: idFor(path), appId: appA, formId: s.uuid.loi, competitionId: s.compId, workspaceId: WS_FUNDER, applicantWorkspaceId: WS_APPLICANT, granteeId: WS_APPLICANT, userId: R1, handle: "riverbend", provider: "google_workspace", file: "nothing.ics" });
+    const QUERY: Record<string, string> = {
+      "/gms/assist/summary": `applicationId=app_${appA}`,
+      "/gms/threads": `subjectType=application&subjectId=app_${appA}`,
+      "/gms/reviews": `applicationId=app_${appA}`,
+      "/gms/draft-invitations": `kind=application&id=${appA}`,
+      "/gms/imports/runs": "target=award_history",
+      "/gms/imports/sources": "target=award_history",
+      "/gms/applications": "q=alder",
+      "/gms/pipeline/calendar": "month=2027-05",
+    };
+    const leaks: string[] = [];
+    let calls = 0;
+    for (const [path, item] of Object.entries(doc.paths)) {
+      if (!item.get || !(path.startsWith("/gms/") || path.startsWith("/common-grants/")) || path.startsWith("/gms/public/")) continue;
+      const url = path.replace(/\{(\w+)\}/g, (_m, p: string) => encodeURIComponent(values(path)[p] ?? NOWHERE)) + (QUERY[path] ? `?${QUERY[path]}` : "");
+      const res = await h.request(url, { headers: r1 });
+      calls++;
+      const text = await res.text();
+      if (IDENTITY.test(text)) leaks.push(`${res.status} GET ${url} ${text.slice(0, 200)}`);
+    }
+    expect(calls).toBeGreaterThan(150);
+    // The v1.7.0 and v1.8.0 writes a reviewer might try: the AI summary (their own version, never staff's),
+    // summarizing, inviting someone into a draft, importing, the docket and the report builder.
+    const posts: [string, unknown][] = [
+      ["/gms/assist/summary", { applicationId: `app_${appA}` }],
+      ["/gms/assist/summarize", { applicationId: `app_${appA}` }],
+      ["/gms/draft-invitations", { email: "friend@example.org", draft: { kind: "application", id: appA } }],
+      ["/gms/imports/read", { target: "award_history", source: { kind: "csv", text: "Organization,Grant\nAlder Creek Family Services,Vans" } }],
+      ["/gms/imports/preview", { target: "award_history", source: { kind: "csv", text: "Organization,Grant\nX,Y" }, mapping: { recipientName: "Organization", title: "Grant" } }],
+      [`/gms/competitions/${s.compId}/dockets`, {}],
+      ["/gms/reports/preview", { dataSet: "applications", columns: ["title", "organization"], filters: [], groupBy: [], aggregates: [], sort: [] }],
+      [`/common-grants/competitions/${s.compId}/applications/search`, {}],
+    ];
+    for (const [url, body] of posts) {
+      const res = await h.request(url, { method: "POST", headers: r1, body: JSON.stringify(body) });
+      const text = await res.text();
+      if (IDENTITY.test(text)) leaks.push(`${res.status} POST ${url} ${text.slice(0, 200)}`);
+      if (url === "/gms/assist/summary") expect(JSON.parse(text).data.summary.summary).toBe("A clinic outreach plan.");
+      if (url.includes("draft-invitations") || url.includes("/imports/") || url.includes("/dockets") || url.includes("/reports/")) expect([403, 404], url).toContain(res.status);
+    }
+    expect(leaks).toEqual([]);
+    // The check can see a leak: the same routes name the organization to staff, and the reviewer did read the application.
+    expect(IDENTITY.test(await (await h.request(`/gms/applications/app_${appA}`, { headers: s.funder })).text())).toBe(true);
+    expect(IDENTITY.test(await (await h.request(`/gms/assist/summary?applicationId=app_${appA}`, { headers: s.funder })).text())).toBe(true);
+    expect((await h.request(`/gms/applications/app_${appA}`, { headers: r1 })).status).toBe(200);
+    // What the model was given for the reviewer said nothing of who applied.
+    for (const prompt of h.llm.requests.slice(1)) expect(IDENTITY.test(prompt.system + prompt.user)).toBe(false);
   });
 
   it("an external reviewer is anonymized too, and codes are stable per competition", async () => {
