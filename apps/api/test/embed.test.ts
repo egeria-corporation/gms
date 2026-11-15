@@ -2,6 +2,7 @@
 // The embeddable apply widget's data and the funder's "Powered by" setting.
 import { describe, expect, it } from "vitest";
 import { USER_ADMIN, USER_OFFICER, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
+import { scenario } from "./scenario.ts";
 
 type H = Record<string, string>;
 const json = (h: H, body: unknown, method = "POST"): RequestInit => ({ method, headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -118,5 +119,46 @@ describe("the Powered by setting", () => {
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings: { contactEmail: "grants@riverbendcf.example", transparency: true } }, "PATCH"))).status).toBe(200);
     const [event] = await h.ledger.list({ workspaceId: WS_FUNDER, eventType: "workspace.updated" });
     expect(event!.data).toEqual({ fields: ["settings"], settings: { contactEmail: "changed", transparency: true } });
+  });
+});
+
+describe("the application receipt email", () => {
+  const COMPLETE = { projectTitle: "Mobile Health Navigation for Rural Families", requestedAmount: { amount: "150000.00", currency: "USD" }, need: "Families travel 46 miles to reach primary care." };
+  async function submitted(poweredBy?: boolean) {
+    const h = await harness();
+    const s = await scenario(h);
+    if (poweredBy !== undefined) expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(await as(h, USER_ADMIN), { settings: { poweredBy } }, "PATCH"))).status).toBe(200);
+    const started = await s.call<{ data: { id: string } }>(s.applicant, "POST", "/common-grants/applications/start", { competitionId: s.uuid.comp });
+    const uuid = started.body.data.id;
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${uuid}/forms/${s.uuid.loi}`, { response: COMPLETE });
+    expect((await s.call(s.applicant, "PUT", `/common-grants/applications/${uuid}/submit`)).status).toBe(200);
+    return { h, s, appId: `app_${uuid}` };
+  }
+
+  it("carries Powered by, linked to the landing page, by default", async () => {
+    const { h } = await submitted();
+    const [receipt] = h.mailer.sent;
+    expect(receipt!.subject).toContain("We received your application");
+    expect(receipt!.text).toContain("Powered by OpenGrants Grant Management System (https://app.gms.test/)");
+    expect(receipt!.html).toContain('Powered by <a href="https://app.gms.test/">OpenGrants Grant Management System</a>');
+  });
+
+  it("leaves it out when the funder turned it off", async () => {
+    const { h } = await submitted(false);
+    expect(h.mailer.sent).toHaveLength(1);
+    expect(h.mailer.sent[0]!.text).not.toContain("Powered by");
+    expect(h.mailer.sent[0]!.html).not.toContain("Powered by");
+  });
+
+  it.each([
+    ["revision request", "request-revision", { message: "Cite the county assessment." }],
+    ["decline", "decline", { rationale: "Outside this cycle's priorities." }],
+  ])("never adds it to a %s, even with the setting on", async (_name, action, body) => {
+    const { h, s, appId } = await submitted(true);
+    h.mailer.sent.length = 0;
+    expect((await s.call(s.funder, "POST", `/gms/applications/${appId}/${action}`, body)).status).toBe(200);
+    expect(h.mailer.sent).toHaveLength(1);
+    expect(h.mailer.sent[0]!.text).not.toContain("Powered by");
+    expect(h.mailer.sent[0]!.html).not.toContain("Powered by");
   });
 });

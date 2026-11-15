@@ -3,7 +3,7 @@
 // semantics, submit. These functions back the CommonGrants `/applications` routes and the applicant
 // MCP tools alike. Status changes go through the application machine in `@gms/workflow`.
 import { computeResponseStatus, extractSubmissionFields, maskForReviewer, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
-import { DEFAULT_TEMPLATES, renderEmail } from "@gms/notify";
+import { DEFAULT_TEMPLATES, renderEmail, withPoweredBy } from "@gms/notify";
 import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
 import { evaluate, parseRules, type Evaluation } from "@gms/rules";
 import { applicationCgStatus, applicationMachine, type ApplicationAction, type ApplicationContext, type ApplicationStatus } from "@gms/workflow";
@@ -12,6 +12,7 @@ import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { poweredByOf } from "./embed.ts";
 import { toDefinition } from "./forms.ts";
 import { applicantOptionsOf } from "./opportunities.ts";
 import { orgFacts, recipientEmails, verificationOf } from "./profile.ts";
@@ -247,12 +248,17 @@ export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: key
   return renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
 }
 
-export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | readonly string[] | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }): Promise<{ sent: boolean; reason?: string }> {
+/**
+ * `poweredBy` adds "Powered by OpenGrants Grant Management System" under the letter, and only the
+ * application receipt ever takes it (packages/notify `POWERED_BY_KINDS`); callers pass the
+ * funder's setting. Off unless passed.
+ */
+export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | readonly string[] | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }, opts: { poweredBy?: boolean } = {}): Promise<{ sent: boolean; reason?: string }> {
   if (!ctx.ports.mailer || !ctx.config.mailFrom) return { sent: false, reason: "Outbound mail is not configured" };
   const recipients = (typeof to === "string" ? [to] : [...(to ?? [])]).filter(Boolean);
   if (!recipients.length) return { sent: false, reason: "No email address is known for this organization" };
   try {
-    const rendered = await renderLetter(ctx, kind, fields, subject.workspaceId);
+    const rendered = withPoweredBy(kind, await renderLetter(ctx, kind, fields, subject.workspaceId), { enabled: opts.poweredBy === true, landingUrl: `${ctx.config.webBaseUrl}/` });
     const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: recipients, subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
     await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: id }, subject.workspaceId);
     return { sent: true };
@@ -489,6 +495,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
       links: { status: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/app_${submitted.id}` },
     },
     { type: "application", id: submitted.id, workspaceId: funder.id },
+    { poweredBy: poweredByOf(funder) },
   );
   return project(ctx, submitted);
 }
