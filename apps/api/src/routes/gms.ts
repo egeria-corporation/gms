@@ -18,6 +18,7 @@ import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { importRoutes } from "./gms/imports.ts";
+import { importAdapterRoutes } from "./gms/import-adapters.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
@@ -130,6 +131,7 @@ gms.route("/", approvalRoutes);
 gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
+gms.route("/", importAdapterRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 
