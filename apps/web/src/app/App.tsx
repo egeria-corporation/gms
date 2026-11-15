@@ -27,6 +27,10 @@ const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboar
 const ApplyEntry = lazy(() => import("../screens/public/ApplyEntry.tsx"));
 const Notifications = lazy(() => import("../screens/public/Notifications.tsx"));
 const AccountSettings = lazy(() => import("../screens/public/AccountSettings.tsx"));
+// The template gallery: public pages, and the moderators' queue.
+const Gallery = lazy(() => import("../screens/public/Gallery.tsx"));
+const GalleryItem = lazy(() => import("../screens/public/GalleryItem.tsx"));
+const GalleryModeration = lazy(() => import("../screens/public/GalleryModeration.tsx"));
 const FDashboard = lazy(() => import("../screens/funder/Dashboard.tsx"));
 const FPrograms = lazy(() => import("../screens/funder/Programs.tsx"));
 const FOpportunityBuilder = lazy(() => import("../screens/funder/OpportunityBuilder.tsx"));
@@ -190,6 +194,9 @@ function AppRoutes() {
         <Route path="/consent" element={<OAuthConsent />} />
         {/* An award invitation. Outside the guard so the token is lifted out of the address before any sign-in `next` is built. */}
         <Route path="/awards/claim" element={<ClaimAward />} />
+        {/* The template gallery: anyone browses and previews; copying asks for a sign-in. */}
+        <Route path="/templates" element={<Gallery />} />
+        <Route path="/templates/:slug" element={<GalleryItem />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -201,6 +208,7 @@ function AppRoutes() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />
+          <Route path="/gallery/moderation" element={<GalleryModeration />} />
 
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />

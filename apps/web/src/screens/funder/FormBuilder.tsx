@@ -15,6 +15,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNote } from "../../components/ui.tsx";
+import { ShareToGalleryButton } from "./ShareToGallery.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate } from "../../lib/format.ts";
 import {
@@ -421,6 +422,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
               <Clock className="ic" aria-hidden="true" />
               Version history
             </button>
+            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : "Publish the form first: the gallery shares a published version"} />}
             {readOnly ? (
               // A shared library form is copied from the Forms list, never versioned in place.
               !form.shared && (
