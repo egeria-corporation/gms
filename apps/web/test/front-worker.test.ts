@@ -120,7 +120,7 @@ describe("front Worker: public pages", () => {
     expect(res.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
     const html = await res.text();
     expect(html).toContain("<title>Open Call | Riverbend Community Foundation</title>");
-    expect(contentOf(html, 'name="description"')).toBe("Open for applications until Sep 30, 2099. Awards: $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
+    expect(contentOf(html, 'name="description"')).toBe("Open for applications until Sep 30, 2099. Awards of $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
     expect(html).toContain('<link rel="canonical" href="https://gms.test/f/riverbend/o/open-call" />');
     expect(contentOf(html, 'property="og:url"')).toBe("https://gms.test/f/riverbend/o/open-call");
     expect(contentOf(html, 'property="og:image"')).toMatch(/^https:\/\/gms\.test\/og\/f\/riverbend\/o\/open-call\.png\?v=[0-9a-z]+$/);

@@ -106,7 +106,7 @@ describe("page meta", () => {
   it("names an open call, its funder, amount and deadline, with its own card", () => {
     const m = opportunityMeta(oppPage(), ORIGIN, NOW);
     expect(m.title).toBe("Community Health Grants 2027 | Riverbend Community Foundation");
-    expect(m.description).toBe("Open for applications until Apr 30, 2027. Awards: $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
+    expect(m.description).toBe("Open for applications until Apr 30, 2027. Awards of $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
     expect(m.url).toBe(`${ORIGIN}/f/riverbend/o/community-health-2027`);
     expect(m.image).toMatch(/^https:\/\/gms\.opengrants\.io\/og\/f\/riverbend\/o\/community-health-2027\.png\?v=[0-9a-z]+$/);
     // The image address changes when what the card shows changes.
@@ -178,6 +178,7 @@ describe("structured data", () => {
   });
 
   it("gives only the amounts it knows, and no website for a funder not verified with Passport", () => {
+    expect(opportunityMeta(oppPage({ funding: { maxAwardAmount: money("10000") } }), ORIGIN, NOW).description).toContain(" Awards up to $10,000. ");
     const [onlyMax] = nodes(opportunityMeta(oppPage({ funding: { maxAwardAmount: money("10000") } }, unverified), ORIGIN, NOW));
     expect(onlyMax!.amount).toEqual({ "@type": "MonetaryAmount", currency: "USD", maxValue: 10000 });
     expect(onlyMax!.funder).toEqual({ "@type": "Organization", name: "Cascade County Fund" });

@@ -238,7 +238,7 @@ export function opportunityMeta(d: OpportunityPageData, origin: string, now: Dat
   };
   return {
     title: `${cleanText(o.title)} | ${cleanText(d.funder.name)}`,
-    description: clip([status.sentence, amount ? `Awards: ${amount}.` : "", o.description].filter(Boolean).join(" ")),
+    description: clip([status.sentence, amount ? `Awards ${/^(Up to|From) /.test(amount) ? amount.charAt(0).toLowerCase() + amount.slice(1) : `of ${amount}`}.` : "", o.description].filter(Boolean).join(" ")),
     url,
     image,
     imageAlt: [cleanText(o.title), cleanText(d.funder.name), amount, status.label].filter(Boolean).join(". "),
