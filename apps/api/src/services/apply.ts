@@ -16,6 +16,7 @@ import { poweredByOf } from "./powered-by.ts";
 import { toDefinition } from "./forms.ts";
 import { applicantOptionsOf } from "./opportunities.ts";
 import { orgFacts, recipientEmails, verificationOf } from "./profile.ts";
+import { anonymizedResponseFor, anonymityFor, signedOnly, titleFor } from "./review-privacy.ts";
 import type { Row } from "./repos/types.ts";
 
 export type App = Row<"applications">;
@@ -79,9 +80,10 @@ export async function reviewerApplicationIds(ctx: ServiceContext, ws: ServiceWor
   if (!ctx.actor.userId) return new Set();
   const mine = (await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, reviewer_user_id: ctx.actor.userId })).filter((a) => a.status !== "recused");
   const scoped = (ws.memberScope as { competitionIds?: unknown } | null | undefined)?.competitionIds;
-  if (!Array.isArray(scoped) || !mine.length) return new Set(mine.map((a) => a.application_id));
+  // Nothing in a competition opens before the reviewer has signed its conflict-of-interest policy (review-privacy.ts).
+  if (!Array.isArray(scoped) || !mine.length) return signedOnly(ctx, ws, new Set(mine.map((a) => a.application_id)));
   const apps = await ctx.repos.table("applications").find({ id: [...new Set(mine.map((a) => a.application_id))], workspace_id: ws.id });
-  return new Set(apps.filter((a) => (scoped as unknown[]).includes(a.competition_id)).map((a) => a.id));
+  return signedOnly(ctx, ws, new Set(apps.filter((a) => (scoped as unknown[]).includes(a.competition_id)).map((a) => a.id)));
 }
 
 /** A response as a reviewer may read it: hidden fields removed, personal data masked for external reviewers, no provenance. */
@@ -89,7 +91,9 @@ export async function reviewerResponse(ctx: ServiceContext, r: Resp, reviewer: R
   const form = await ctx.repos.table("forms").one({ id: r.form_id, version: r.form_version });
   // Without the form there are no field flags to apply: show nothing rather than everything.
   const m = form ? maskForReviewer(toDefinition(form), r.response as JsonObject, reviewer) : { response: {}, masked: [], removed: Object.keys((r.response as JsonObject) ?? {}).map((k) => `/${k}`) };
-  return { row: { ...r, response: m.response as Resp["response"], provenance: {} as Resp["provenance"], validation_errors: [] as unknown as Resp["validation_errors"], section_assignments: {} as Resp["section_assignments"] }, masked: [...m.masked, ...m.removed] };
+  // In a stage with anonymized review: identifying fields out, names and websites redacted, attachments renamed.
+  const anon = await anonymizedResponseFor(ctx, r.application_id, form ? toDefinition(form) : null, m.response as JsonObject);
+  return { row: { ...r, response: (anon?.response ?? m.response) as Resp["response"], provenance: {} as Resp["provenance"], validation_errors: [] as unknown as Resp["validation_errors"], section_assignments: {} as Resp["section_assignments"] }, masked: [...m.masked, ...m.removed, ...(anon?.hidden ?? [])] };
 }
 
 /** What the rules decided, without the values they found in the applicant's record. */
@@ -112,7 +116,9 @@ export async function project(ctx: ServiceContext, app: App, reviewer: ReviewerV
   }
   const masked: Resp[] = [];
   for (const r of rows) masked.push((await reviewerResponse(ctx, r, reviewer)).row);
-  const out = projectApplication({ application: appRow({ ...app, eligibility: outcomesOnly(app.eligibility) }), formResponses: masked.map(respRow) });
+  // Anonymized review: the title without the organization's names, and no attestation link (it names the organization).
+  const anonymized = !!(await anonymityFor(ctx, app.id));
+  const out = projectApplication({ application: appRow({ ...app, title: await titleFor(ctx, app), ...(anonymized ? { attestation_url: null } : {}), eligibility: outcomesOnly(app.eligibility) }), formResponses: masked.map(respRow) });
   const gms = (out.customFields as Record<string, { value?: Record<string, unknown> }> | undefined)?.gms?.value;
   if (gms) delete gms.applicantWorkspaceId;
   return out;

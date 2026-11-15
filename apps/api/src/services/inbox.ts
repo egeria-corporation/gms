@@ -15,6 +15,7 @@ import { apiId } from "../lib/ids.ts";
 import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { namesShared, orgFacts, selfDeclaredOf, verificationOf, verificationShared } from "./profile.ts";
+import { anonymizeDetail, anonymizeItems, rowsAsSeen } from "./review-privacy.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -87,9 +88,10 @@ export async function listApplications(ctx: ServiceContext, page: PageRequest, f
   const only = await visibleIds(ctx, ws);
   let rows = await ctx.repos.table("applications").find({ workspace_id: ws.id, ...(f.competitionId ? { competition_id: f.competitionId } : {}) }, { notNull: ["submitted_at"], limit: WINDOW });
   const needle = f.q?.trim().toLowerCase();
+  // Titles as the caller reads them (anonymized review), so searching or sorting cannot reveal a hidden name.
+  rows = await rowsAsSeen(ctx, rows.filter((a) => !only || only.has(a.id)));
   rows = rows.filter(
     (a) =>
-      (!only || only.has(a.id)) &&
       (!f.stage || a.stage === f.stage) &&
       (!f.status || f.status.split(",").includes(a.status)) &&
       (!f.eligibility || String(eligibleOf(a)) === f.eligibility) &&
@@ -112,7 +114,7 @@ export async function listApplications(ctx: ServiceContext, page: PageRequest, f
   const counts: Record<string, number> = {};
   for (const a of rows) counts[a.status] = (counts[a.status] ?? 0) + 1;
   return {
-    items: slice.map((a) => {
+    items: await anonymizeItems(ctx, slice.map((a) => {
       const r = review.get(a.id);
       return {
         ...summary(a, applicants.find((w) => w.id === a.applicant_workspace_id), consents.some((c) => c.applicant_workspace_id === a.applicant_workspace_id)),
@@ -122,7 +124,7 @@ export async function listApplications(ctx: ServiceContext, page: PageRequest, f
         daysInStage: r?.daysInStage ?? null,
         flagged: flagged(a),
       };
-    }),
+    })),
     total: rows.length,
     counts,
   };
@@ -206,7 +208,8 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
   const events = await ctx.repos.table("application_events").find({ application_id: app.id }, { orderBy: "created_at" });
   const facts = orgFacts(applicant);
   const fields = readPassportFields(facts.source === "passport" ? facts.org : null);
-  return {
+  // A reviewer in a stage with anonymized review never learns who applied (review-privacy.ts).
+  return anonymizeDetail(ctx, {
     ...summary(app, applicant, consented),
     attestationUrl: app.attestation_url,
     eligibilityResults: app.eligibility,
@@ -216,7 +219,7 @@ export async function getApplicationDetail(ctx: ServiceContext, appId: string) {
     organization: consented && !external ? { source: facts.source, projection: facts.source === "passport" ? facts.org : null, selfDeclared: facts.source === "self_declared" ? selfDeclaredOf(applicant) : null, level: verificationOf(applicant).level, verifiedAt: fields.verifiedAt, syncedAt: applicant.org_projection_at, levelChangedSinceSubmit: !!app.verification_level_at_submit && applicant.verification_level !== app.verification_level_at_submit } : null,
     formResponses: responses,
     timeline: events.map((e) => ({ id: e.id, type: e.type, fromStatus: e.from_status, toStatus: e.to_status, fromStage: e.from_stage, toStage: e.to_stage, payload: reviewer ? {} : eventPayload(e), revision: reviewer ? null : revisionOf(e), actor: e.actor, at: e.created_at })),
-  };
+  });
 }
 
 /** Re-run the opportunity's rules against the application as it stands (e.g. after an org change). */

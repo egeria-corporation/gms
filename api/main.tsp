@@ -11,6 +11,7 @@ import "./switch.tsp";
 import "./open-data.tsp";
 import "./reports.tsp";
 import "./sso.tsp";
+import "./review.tsp";
 
 using TypeSpec.Http;
 

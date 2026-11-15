@@ -750,6 +750,84 @@ export type Database = {
         };
         Relationships: [];
       };
+      coi_policies: {
+        Row: {
+          competition_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          is_default: boolean;
+          policy_text: string;
+          updated_at: string;
+          version: number;
+          workspace_id: string;
+        };
+        Insert: {
+          competition_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          is_default?: boolean;
+          policy_text: string;
+          updated_at?: string;
+          version: number;
+          workspace_id: string;
+        };
+        Update: {
+          competition_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          is_default?: boolean;
+          policy_text?: string;
+          updated_at?: string;
+          version?: number;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      coi_signatures: {
+        Row: {
+          competition_id: string;
+          created_at: string;
+          declared_org_ids: string[];
+          declared_orgs: Json;
+          id: string;
+          policy_version: number;
+          reviewer_user_id: string;
+          signed_at: string;
+          signed_name: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          competition_id: string;
+          created_at?: string;
+          declared_org_ids?: string[];
+          declared_orgs?: Json;
+          id?: string;
+          policy_version: number;
+          reviewer_user_id: string;
+          signed_at?: string;
+          signed_name: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          competition_id?: string;
+          created_at?: string;
+          declared_org_ids?: string[];
+          declared_orgs?: Json;
+          id?: string;
+          policy_version?: number;
+          reviewer_user_id?: string;
+          signed_at?: string;
+          signed_name?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       competitions: {
         Row: {
           accepted_applicant_types: string[];
@@ -3437,4 +3515,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];

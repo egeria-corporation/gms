@@ -128,6 +128,8 @@ const IMPLEMENTED: Impl = {
   assignReviewer: (ctx, i) => reviews.createAssignment(ctx, app(i.applicationId), { stage: i.stage, reviewerUserId: i.reviewerUserId, ...(i.dueAt ? { dueAt: i.dueAt } : {}) }),
   getScores: async (ctx, i) => ({ items: await reviews.listReviews(ctx, app(i.applicationId), i.stage) }),
   rankApplications: (ctx, i) => reviews.getRanking(ctx, cmp(i.competitionId), i.stage),
+  getCoiPolicy: (ctx, i) => reviews.getCoiPolicy(ctx, cmp(i.competitionId)),
+  getConflictsRegister: (ctx, i) => reviews.getConflictsRegister(ctx, cmp(i.competitionId)),
   proposeDecision: (ctx, i) => decisions.proposeDecisions(ctx, cmp(i.competitionId), i.decisions.map((d) => ({ applicationUuid: app(d.applicationId), outcome: d.outcome, ...(d.amountMinor !== undefined ? { amountMinor: d.amountMinor } : {}), conditions: d.conditions, ...(d.rationale ? { rationale: d.rationale } : {}) }))),
   // Gated: this runs only after a person approved the call, as that person.
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),

@@ -41,6 +41,14 @@ export type SentCommunication = S["Models.SentCommunication"];
 export type Approval = S["Models.Approval"];
 export type Thread = S["Models.Thread"];
 export type Task = S["Models.Task"];
+// Review parity (v1.8.0): the COI policy, the conflicts register, stage review settings, the board docket.
+export type CoiPolicy = S["Models.CoiPolicy"];
+export type CoiSigned = S["Models.CoiSigned"];
+export type DeclaredOrg = S["Models.DeclaredOrg"];
+export type ConflictsRegister = S["Models.ConflictsRegister"];
+export type ReviewSettings = S["Models.ReviewSettings"];
+export type StageReviewSettings = S["Models.StageReviewSettings"];
+export type Docket = S["Models.Docket"];
 
 export interface ApplicationFilter {
   competitionId?: string;
@@ -101,6 +109,18 @@ export interface FunderApi {
   updateAssignment(id: string, patch: ReviewAssignmentPatch): Promise<ReviewAssignment>;
   listReviews(applicationId: string, stage?: string): Promise<Review[]>;
   getRanking(competitionId: string, stage?: string): Promise<Ranking>;
+
+  // ---- review parity: the COI policy, the conflicts register, stage review settings, the docket ----
+  getCoiPolicy(competitionId: string): Promise<CoiPolicy>;
+  putCoiPolicy(competitionId: string, input: { text: string } | { useDefault: true }): Promise<CoiPolicy>;
+  /** The reviewer signs, in person. */
+  signCoiPolicy(competitionId: string, input: { policyVersion: number; signedName: string; agree: true; conflicts?: DeclaredOrg[] }): Promise<CoiSigned>;
+  getConflictsRegister(competitionId: string): Promise<ConflictsRegister>;
+  conflictsRegisterCsv(competitionId: string): Promise<Blob>;
+  getReviewSettings(competitionId: string): Promise<ReviewSettings>;
+  putReviewSettings(competitionId: string, input: { stage: string; anonymized?: boolean; reviewMode?: StageReviewSettings["reviewMode"]; panelOpen?: boolean }): Promise<ReviewSettings>;
+  createDocket(competitionId: string, input: { applicationIds?: string[]; stage?: string; includeFunderOnlyComments?: boolean }): Promise<Docket>;
+  docketPdf(competitionId: string, docketId: string): Promise<Blob>;
 
   // ---- decisions ----
   getAllocation(competitionId: string): Promise<Allocation>;
@@ -198,6 +218,16 @@ export function createHttpFunderApi(io: FunderHttpIo): FunderApi {
     updateAssignment: (id, patch) => data("PATCH", `/gms/review-assignments/${e(id)}`, patch),
     listReviews: (applicationId, stage) => data("GET", `/gms/reviews${q({ applicationId, stage })}`),
     getRanking: (competitionId, stage) => data("GET", `/gms/competitions/${e(competitionId)}/ranking${q({ stage })}`),
+
+    getCoiPolicy: (competitionId) => data("GET", `/gms/competitions/${e(competitionId)}/coi-policy`),
+    putCoiPolicy: (competitionId, input) => data("PUT", `/gms/competitions/${e(competitionId)}/coi-policy`, input),
+    signCoiPolicy: (competitionId, input) => data("POST", `/gms/competitions/${e(competitionId)}/coi-policy/sign`, input),
+    getConflictsRegister: (competitionId) => data("GET", `/gms/competitions/${e(competitionId)}/conflicts-register`),
+    conflictsRegisterCsv: async (competitionId) => (await send("GET", `/gms/competitions/${e(competitionId)}/conflicts-register.csv`)).blob(),
+    getReviewSettings: (competitionId) => data("GET", `/gms/competitions/${e(competitionId)}/review-settings`),
+    putReviewSettings: (competitionId, input) => data("PUT", `/gms/competitions/${e(competitionId)}/review-settings`, input),
+    createDocket: (competitionId, input) => data("POST", `/gms/competitions/${e(competitionId)}/dockets`, input),
+    docketPdf: async (competitionId, docketId) => (await send("GET", `/gms/competitions/${e(competitionId)}/dockets/${e(docketId)}`)).blob(),
 
     getAllocation: (competitionId) => data("GET", `/gms/competitions/${e(competitionId)}/allocation`),
     listDecisions: (filter = {}) => data("GET", `/gms/decisions${q(filter)}`),

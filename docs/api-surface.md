@@ -128,6 +128,11 @@ communications are **people only**: a client-credentials or delegated (agent) to
 | `PATCH /gms/review-assignments/{id}` | `reviews:write` | `action`: `declare_coi`, `save`, `submit`, `recuse`, `reschedule`. Scoring needs the COI declaration first |
 | `GET /gms/reviews?applicationId=` | `reviews:read` | Blind by default: a reviewer sees other reviews only once the stage's panel is open (`stages[].panelOpen`, `reviewMode`) |
 | `GET /gms/competitions/{id}/ranking?stage=` | `reviews:read` (staff, observer, auditor) | Mean, median, sample stdev, n, spread flag; recomputed on read |
+| `GET`, `PUT /gms/competitions/{id}/coi-policy` | `reviews:read` / `reviews:write` (staff) | The conflict-of-interest policy reviewers sign; a change is a new version (docs/reviews.md) |
+| `POST /gms/competitions/{id}/coi-policy/sign` | session only (the reviewer) | Typed name, the version read, declared organizations; 409 `policy_changed`; agents and API clients refused |
+| `GET /gms/competitions/{id}/conflicts-register`, `…/conflicts-register.csv` | `reviews:read` (staff, observer, auditor) | Signatures, declared conflicts with their matches, recusals with reasons |
+| `GET`, `PUT /gms/competitions/{id}/review-settings` | `reviews:read` / `reviews:write` (staff) | Per stage: `anonymized`, `reviewMode`, `panelOpen` |
+| `POST /gms/competitions/{id}/dockets`, `GET …/dockets/{docketId}` | `reviews:read` (admin, program officer) | The board docket PDF, kept in the EXPORTS bucket; 503 `exports_unavailable` without it |
 | `GET /gms/competitions/{id}/allocation` | `reviews:read` | Budget − committed awards − open proposals, in minor units |
 | `POST /gms/decisions/propose`, `GET /gms/decisions` | `decisions:write` / `reviews:read` | A new proposal replaces the application's open one |
 | `POST /gms/decisions/commit` | `decisions:write` (person) | 409 `over_allocation` unless an admin sends `override.reason`. Approve → award `offered`, agreement draft, schedule, requirements, letter |

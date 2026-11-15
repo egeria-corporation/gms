@@ -63,6 +63,9 @@ async function realBackend(): Promise<Backend> {
   const reviewer = httpApiFor(helpers, h, more.USER_OFFICER, "officer@riverbendcf.example");
   await api.workspace("riverbend");
   await reviewer.workspace("riverbend");
+  // Since v1.8.0 a reviewer signs the competition's conflict-of-interest policy before scoring.
+  const policy = await reviewer.getCoiPolicy(s.compId);
+  await reviewer.signCoiPolicy(s.compId, { policyVersion: policy.version, signedName: "Dana Ortiz", agree: true });
   return { api, reviewer, reviewerUserId: more.USER_OFFICER, adminUserId: helpers.USER_ADMIN, competitionId: s.compId, stage: "loi", applicationId: `app_${id}`, applicantName: "Alder Creek Family Services" };
 }
 

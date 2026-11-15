@@ -25,7 +25,8 @@ select tables_are(
     'outside_obligation_series', 'outside_obligations', 'application_summaries',
     'import_mappings', 'import_runs', 'import_rows',
     'report_views', 'report_schedules', 'report_files',
-    'workspace_sso_domains'
+    'workspace_sso_domains',
+    'coi_policies', 'coi_signatures'
   ],
   'public schema has exactly the GMS tables'
 );

@@ -5,7 +5,7 @@
 // override with a reason, which is recorded.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { Check, Gavel, Lock, TriangleExclamationPoint } from "lucide-react";
+import { Check, FileText, Gavel, Lock, TriangleExclamationPoint } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CommitResult, DecisionInput, DecisionOutcome, RankingRow } from "../../api/funder.ts";
 import { useServices } from "../../app/services.tsx";
@@ -16,6 +16,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../components/ui.tsx";
 import { formatMinor, parseDollars } from "../../lib/format.ts";
 import { DecisionSummary, PanelDetail, type DecisionTally } from "./PanelDetail.tsx";
+import { DocketDialog } from "./ReviewParity.tsx";
 
 interface Draft {
   outcome: DecisionOutcome | "";
@@ -43,6 +44,7 @@ export default function Panel() {
   const [override, setOverride] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<CommitResult | null>(null);
+  const [docket, setDocket] = useState(false);
 
   useEffect(() => {
     if (!ranking.data) return;
@@ -137,9 +139,15 @@ export default function Panel() {
               </>
             }
             actions={
-              <Link to={`${base}/reviews/assign`} className="btn btn-secondary">
-                Review assignments
-              </Link>
+              <>
+                <Link to={`${base}/reviews/assign`} className="btn btn-secondary">
+                  Review assignments
+                </Link>
+                <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={!ranking.data} onClick={() => setDocket(true)}>
+                  <FileText className="ic" aria-hidden="true" />
+                  Board docket…
+                </button>
+              </>
             }
           />
 
@@ -397,6 +405,7 @@ export default function Panel() {
               </div>
             </Dialog>
           )}
+          {docket && ranking.data && <DocketDialog competitionId={compId} stage={ranking.data.stage} onClose={() => setDocket(false)} />}
         </main>
       </FunderShell>
     </>

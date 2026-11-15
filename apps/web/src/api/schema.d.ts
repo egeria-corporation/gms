@@ -1750,6 +1750,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/competitions/{id}/coi-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The conflict-of-interest policy reviewers sign for a competition. Staff and the competition's reviewers. */
+        get: operations["ReviewParity_readCoiPolicy"];
+        /** @description Write the policy or go back to the default. Program staff. */
+        put: operations["ReviewParity_writeCoiPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/coi-policy/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The reviewer signs the policy, in person (a session, never an agent or API client token). 201 when signed, 200 when this version was already signed. */
+        post: operations["ReviewParity_signCoiPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/conflicts-register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The conflicts register. Program staff, observers and auditors. */
+        get: operations["ReviewParity_conflictsRegister"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/conflicts-register.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The conflicts register as CSV: one line per signature, declared organization and recusal. */
+        get: operations["ReviewParity_conflictsRegisterCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/dockets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Build the board docket PDF and keep it in the workspace's private exports. Program staff. 503 `exports_unavailable` without export storage. */
+        post: operations["ReviewParity_createDocket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/dockets/{docketId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Download a docket. Program staff of the workspace that made it. */
+        get: operations["ReviewParity_downloadDocket"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/competitions/{id}/forms": {
         parameters: {
             query?: never;
@@ -1844,6 +1947,23 @@ export interface paths {
         /** @description Applications ranked by weighted score with mean, median, spread and n. */
         get: operations["Competitions_ranking"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/competitions/{id}/review-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewParity_readReviewSettings"];
+        /** @description One stage's review settings, at any time. Turning anonymized review off shows reviewers who applied from then on. Program staff. */
+        put: operations["ReviewParity_writeReviewSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -11346,6 +11466,11 @@ export interface components {
             /** Format: int64 */
             amountMinor: number;
         };
+        /** @description Set on an application or assignment when the caller reviews in a stage with anonymized review. */
+        "Models.AnonymizedApplicant": {
+            /** @description The application's stable short code in its competition, e.g. `A-1042`; it shows as "Applicant A-1042". */
+            code: string;
+        };
         "Models.Answer": {
             id: string;
             key: string;
@@ -12270,6 +12395,68 @@ export interface components {
             reason: "self_declared_domain";
             detail: string;
         };
+        "Models.CoiPolicy": {
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            competitionTitle: string;
+            /**
+             * Format: int32
+             * @description The version reviewers sign now. Version 1 is the plain-language default until the funder writes its own.
+             */
+            version: number;
+            text: string;
+            /** @description True while the text is the plain-language default. */
+            isDefault: boolean;
+            /** Format: date-time */
+            updatedAt: string | null;
+            /** @description The caller has signed this version. */
+            signed: boolean;
+            /** @description The caller's latest signature in this competition, of any version. */
+            mySignature: components["schemas"]["Models.CoiSignature"] | null;
+        };
+        /** @description The funder's own text, or `{ useDefault: true }` to go back to the plain-language default. A change is a new version: reviewers who signed an earlier one sign again. */
+        "Models.CoiPolicyInput": {
+            text?: string;
+            /** @enum {boolean} */
+            useDefault?: true;
+        };
+        "Models.CoiSignInput": {
+            /**
+             * Format: int32
+             * @description The version the reviewer read. 409 `policy_changed` when the policy changed meanwhile.
+             */
+            policyVersion: number;
+            /** @description The reviewer's name, typed. */
+            signedName: string;
+            /** @enum {boolean} */
+            agree: true;
+            /** @description Organizations the reviewer has a conflict with (at most 50). Matched to applicants by name or website; the match feeds the assignment exclusion and recuses existing assignments. */
+            conflicts?: components["schemas"]["Models.DeclaredOrg"][];
+        };
+        "Models.CoiSignature": {
+            /** Format: int32 */
+            policyVersion: number;
+            signedName: string;
+            /** Format: date-time */
+            signedAt: string;
+            /** @description Signed against the policy as it stands now. */
+            current: boolean;
+            /** @description The organizations the reviewer declared a conflict with, as they typed them. Whether any applied is never said to the reviewer. */
+            declared: components["schemas"]["Models.DeclaredOrg"][];
+        };
+        "Models.CoiSigned": {
+            /** Format: int32 */
+            policyVersion: number;
+            signedName: string;
+            /** Format: date-time */
+            signedAt: string;
+            /** @description Signed against the policy as it stands now. */
+            current: boolean;
+            /** @description The organizations the reviewer declared a conflict with, as they typed them. Whether any applied is never said to the reviewer. */
+            declared: components["schemas"]["Models.DeclaredOrg"][];
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            /** @description True when this version was already signed (200); the declared organizations are the first signature's. */
+            alreadySigned: boolean;
+        };
         /** @description A field comment inside the applicant team. */
         "Models.Comment": {
             id: string;
@@ -12334,6 +12521,30 @@ export interface components {
         "Models.CompareRubricRequest": {
             applicationId: components["schemas"]["Models.GmsId"];
             rubricId: components["schemas"]["CommonGrants.Types.uuid"];
+        };
+        /** @description Who signed the competition's conflict-of-interest policy and when, the conflicts declared, and every recusal with its reason. */
+        "Models.ConflictsRegister": {
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            competitionTitle: string;
+            policy: {
+                /** Format: int32 */
+                version: number;
+                isDefault: boolean;
+                /** Format: date-time */
+                updatedAt: string | null;
+            };
+            counts: {
+                /** Format: int32 */
+                reviewers: number;
+                /** Format: int32 */
+                signed: number;
+                /** Format: int32 */
+                declared: number;
+                /** Format: int32 */
+                recusals: number;
+            };
+            reviewers: components["schemas"]["Models.RegisterReviewer"][];
+            recusals: components["schemas"]["Models.RegisterRecusal"][];
         };
         "Models.ConnectorAccount": {
             provider: components["schemas"]["Models.ConnectorProvider"];
@@ -12619,6 +12830,10 @@ export interface components {
         };
         /** @enum {string} */
         "Models.DecisionOutcome": "approve" | "decline" | "waitlist" | "defer";
+        "Models.DeclaredOrg": {
+            name: string;
+            website?: string;
+        };
         "Models.DeclineRequest": {
             rationale?: string;
             letterTemplateId?: string;
@@ -12798,6 +13013,32 @@ export interface components {
         };
         /** @enum {string} */
         "Models.DnsCheckResult": "matched" | "not_found" | "mismatch" | "error";
+        /** @description A board docket kept in the workspace's private exports. */
+        "Models.Docket": {
+            docketId: components["schemas"]["CommonGrants.Types.uuid"];
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            /** Format: int32 */
+            applications: number;
+            includeFunderOnlyComments: boolean;
+            /** Format: int32 */
+            bytes: number;
+            sha256: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description `GET` it with the same credentials. */
+            downloadPath: string;
+        };
+        "Models.DocketRequest": {
+            /** @description A picked set of applications (at most 200); the whole stage when absent. */
+            applicationIds?: components["schemas"]["Models.GmsId"][];
+            /** @description Defaults to the competition's first stage. */
+            stage?: string;
+            /**
+             * @description Reviewers' comments marked funder-only are left out unless this is true.
+             * @default false
+             */
+            includeFunderOnlyComments: boolean;
+        };
         "Models.Document": {
             id: string;
             name: string;
@@ -13410,8 +13651,9 @@ export interface components {
             submittedAt: string | null;
             verificationLevelAtSubmit: components["schemas"]["Models.VerificationLevel"] | null;
             applicant: {
-                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
-                /** @description The Passport legal name for a Passport workspace, else the workspace's name. */
+                /** @description Null for a reviewer in a stage with anonymized review. */
+                workspaceId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+                /** @description The Passport legal name for a Passport workspace, else the workspace's name; "Applicant A-1042" under anonymized review. */
                 name: string | null;
                 /** @description The workspace's own display name, when it differs from the Passport legal name in `name`. */
                 workspaceName?: string | null;
@@ -13448,6 +13690,8 @@ export interface components {
             /** @description Detail only. Reviewers get reviewer-visible fields; external reviewers also lose PII. */
             formResponses?: components["schemas"]["Models.InboxFormResponse"][];
             timeline?: components["schemas"]["Models.ApplicationEvent"][];
+            /** @description Set when the caller reviews in a stage with anonymized review (api/review.tsp): who applied is hidden. */
+            anonymized?: components["schemas"]["Models.AnonymizedApplicant"] | null;
         };
         /** @description An award as the GMS routes return it. The CommonGrants projection is at `/common-grants/awards/{id}`. */
         "Models.GmsAward": {
@@ -16633,6 +16877,53 @@ export interface components {
         "Models.ReasonBody": {
             reason: string;
         };
+        "Models.RegisterDeclaredOrg": {
+            name: string;
+            website?: string;
+            /** @description The applicant organizations it matched. */
+            matches: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string;
+            }[];
+        };
+        "Models.RegisterRecusal": {
+            assignmentId: components["schemas"]["CommonGrants.Types.uuid"];
+            reviewerUserId: components["schemas"]["CommonGrants.Types.uuid"];
+            reviewerName: string | null;
+            applicationId: components["schemas"]["Models.PrefixedId"];
+            applicationTitle: string;
+            applicant: string | null;
+            stage: string;
+            /**
+             * @description Declared on the assignment, declared when signing the policy, or recused by the reviewer or staff.
+             * @enum {string}
+             */
+            source: "declared_conflict" | "declared_at_signing" | "recused";
+            reason: string | null;
+            /** Format: date-time */
+            at: string;
+        };
+        "Models.RegisterReviewer": {
+            userId: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string | null;
+            email: string | null;
+            role: string | null;
+            /** @description Signed the current version. */
+            signed: boolean;
+            /** @description The latest signature, of any version, with the applicants each declared organization matched. */
+            signature: components["schemas"]["Models.RegisterSignature"] | null;
+            /** Format: int32 */
+            assigned: number;
+        };
+        "Models.RegisterSignature": {
+            /** Format: int32 */
+            policyVersion: number;
+            signedName: string;
+            /** Format: date-time */
+            signedAt: string;
+            current: boolean;
+            declared: components["schemas"]["Models.RegisterDeclaredOrg"][];
+        };
         "Models.ReleaseInput": {
             /** @description A person confirms that a same-amount payment within 24 hours is intended */
             confirmDuplicate?: boolean;
@@ -17127,6 +17418,12 @@ export interface components {
             createdAt: string;
             /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
             coiHint?: components["schemas"]["Models.CoiHint"] | null;
+            /** @description The application's short code ("A-1042") when the caller reviews it anonymized; null otherwise. */
+            applicantCode?: string | null;
+            /** @description The caller reviews this application in a stage with anonymized review. */
+            anonymized?: boolean;
+            /** @description The caller must sign the competition's conflict-of-interest policy first; until then the title and review are withheld. */
+            policyRequired?: boolean;
         };
         /**
          * @description The reviewer's working view: the rubric, their own review, and the application as a reviewer may
@@ -17164,6 +17461,12 @@ export interface components {
             createdAt: string;
             /** @description On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
             coiHint?: components["schemas"]["Models.CoiHint"] | null;
+            /** @description The application's short code ("A-1042") when the caller reviews it anonymized; null otherwise. */
+            applicantCode?: string | null;
+            /** @description The caller reviews this application in a stage with anonymized review. */
+            anonymized?: boolean;
+            /** @description The caller must sign the competition's conflict-of-interest policy first; until then the title and review are withheld. */
+            policyRequired?: boolean;
             rubric: {
                 id: components["schemas"]["CommonGrants.Types.uuid"];
                 /** Format: int32 */
@@ -17180,6 +17483,8 @@ export interface components {
                 };
                 narrative: string | null;
                 recommendation: string | null;
+                /** @enum {string} */
+                visibility?: "panel" | "funder_only";
                 /** Format: date-time */
                 submittedAt: string | null;
             } | null;
@@ -17213,6 +17518,11 @@ export interface components {
             narrative?: string;
             recommendation?: string;
             /**
+             * @description save, submit: the narrative and comments are for the panel (default) or for program staff only.
+             * @enum {string}
+             */
+            visibility?: "panel" | "funder_only";
+            /**
              * Format: date-time
              * @description reschedule
              */
@@ -17220,6 +17530,17 @@ export interface components {
         };
         "Models.ReviewNote": {
             note?: string;
+        };
+        "Models.ReviewSettings": {
+            competitionId: components["schemas"]["Models.PrefixedId"];
+            stages: components["schemas"]["Models.StageReviewSettings"][];
+        };
+        "Models.ReviewSettingsInput": {
+            stage: string;
+            anonymized?: boolean;
+            /** @enum {string} */
+            reviewMode?: "blind" | "see_after_submit" | "open";
+            panelOpen?: boolean;
         };
         "Models.ReviewerInvitation": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -17700,6 +18021,8 @@ export interface components {
             reviewMode?: "blind" | "see_after_submit" | "open";
             /** @description Once true, reviewers of this stage can see each other's submitted reviews */
             panelOpen?: boolean;
+            /** @description Anonymized review: reviewers in this stage do not see who applied. Off by default. */
+            anonymized?: boolean;
         };
         "Models.StageForms": {
             /** @description Stage key → (form id → version) */
@@ -17710,6 +18033,19 @@ export interface components {
             };
             /** @description Re-validate in-progress responses against the new pinned versions. */
             migrate?: boolean;
+        };
+        "Models.StageReviewSettings": {
+            key: string;
+            label: string;
+            /** @description Reviewers in the stage do not see who applied. Off by default. */
+            anonymized: boolean;
+            /**
+             * @description Whether reviewers see each other's scores: never before the panel (blind), after submitting their own, or always.
+             * @enum {string}
+             */
+            reviewMode: "blind" | "see_after_submit" | "open";
+            panelOpen: boolean;
+            rubricId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
         };
         /** @description `PUT /gms/competitions/{id}/stages`. Allowed only while the competition is a draft. */
         "Models.StagesInput": {
@@ -24611,6 +24947,452 @@ export interface operations {
             };
         };
     };
+    ReviewParity_readCoiPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CoiPolicy"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_writeCoiPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.CoiPolicyInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CoiPolicy"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_signCoiPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.CoiSignInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CoiSigned"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CoiSigned"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_conflictsRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ConflictsRegister"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_conflictsRegisterCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_createDocket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DocketRequest"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Docket"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_downloadDocket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+                docketId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Competitions_setForms: {
         parameters: {
             query?: never;
@@ -25023,6 +25805,132 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_readReviewSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReviewSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ReviewParity_writeReviewSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReviewSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReviewSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

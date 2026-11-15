@@ -120,6 +120,20 @@ describe("rendering", () => {
     await expect(renderPdf({ title: "x", createdAt: "not a date", blocks: [] })).rejects.toThrow(RangeError);
   });
 
+  it("starts a new page on a page break, never an empty one, and repeats a table's header across pages", async () => {
+    const pages = (b: Uint8Array) => (ascii(b).match(/\/Type \/Page\b/g) ?? []).length;
+    const one = await renderPdf({ title: "Docket", createdAt: META.createdAt, blocks: [{ type: "pageBreak" }, { type: "heading", level: 1, text: "Cover" }] });
+    expect(pages(one)).toBe(1);
+    const two = await renderPdf({ title: "Docket", createdAt: META.createdAt, blocks: [{ type: "heading", level: 1, text: "Cover" }, { type: "pageBreak" }, { type: "paragraph", text: "Next" }] });
+    expect(pages(two)).toBe(2);
+    const columns = [{ label: "Applicant", width: 3 }, { label: "Request", width: 1, align: "right" as const }];
+    const rows = Array.from({ length: 90 }, (_, i) => [`Organization number ${i} with a long name that wraps onto a second line in its column`, `USD ${i},000`]);
+    const long = await renderPdf({ title: "Docket", createdAt: META.createdAt, blocks: [{ type: "table", columns, rows }] });
+    expect(pages(long)).toBeGreaterThan(2);
+    // Deterministic like every other document.
+    expect(await sha256Hex(long)).toBe(await sha256Hex(await renderPdf({ title: "Docket", createdAt: META.createdAt, blocks: [{ type: "table", columns, rows }] })));
+  });
+
   it("renders an application snapshot", async () => {
     const pdf = await renderApplicationSnapshot({ title: "Mobile Health Navigation", applicant: "Alder Creek Family Services", opportunity: "Community Health Grants 2027", submittedAt: "2027-04-16T17:00:00.000Z", verificationLevel: "L3", forms: [{ title: "Letter of intent", status: "complete", fields: [["Project title", "Mobile Health Navigation"], ["Requested amount", printValue({ amount: "150000.00", currency: "USD" })]] }, { title: "Empty", status: "notStarted", fields: [] }] }, { ...META, reference: "app_0190" });
     expect(ascii(pdf).startsWith("%PDF-")).toBe(true);

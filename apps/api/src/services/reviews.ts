@@ -2,8 +2,8 @@
 // Reviews (build spec §10.5): assignment (manual and automatic, with conflict-of-interest
 // exclusion), COI declaration, rubric scoring, blind mode, external reviewers, and the ranking the
 // panel reads. Scores are computed by `@gms/review`; nothing derived is stored.
-import { autoAssign, canSeeOtherReviews, detectCoi, emailDomain, rankApplications, scoreReview, type AssignableApplication, type Criterion, type ReviewerProfile, type ReviewVisibilityMode, type Rubric, type Scores, type ViewerRole } from "@gms/review";
-import type { StageJson } from "@gms/protocol";
+import { autoAssign, canSeeOtherReviews, DEFAULT_COI_POLICY, declaredMatches, detectCoi, emailDomain, matchDeclaredOrgs, rankApplications, redactText, scoreReview, type AssignableApplication, type Criterion, type DeclaredOrg, type ReviewerProfile, type Rubric, type Scores, type ViewerRole } from "@gms/review";
+import { toCsv } from "@gms/importers";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -14,12 +14,13 @@ import { STAFF_ROLES, emitFor } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { getApplicationDetail } from "./inbox.ts";
 import type { Row } from "./repos/types.ts";
+import { anonymityFor, candidateOf, currentPolicy, declaredAtSigning, isReviewerRole, redactFor, reviewStagesOf, signedCompetitions, type ReviewStage } from "./review-privacy.ts";
 
 type Assignment = Row<"review_assignments">;
 type Review = Row<"reviews">;
 type Member = Row<"workspace_members">;
 type Comp = Row<"competitions">;
-type Stage = StageJson & { rubricId?: string | null; reviewMode?: ReviewVisibilityMode; panelOpen?: boolean };
+type Stage = ReviewStage;
 
 const REVIEWER_ROLES: readonly string[] = ["reviewer", "external_reviewer"];
 /** Who may be assigned a review: reviewers, and staff reviewing alongside them. */
@@ -29,7 +30,11 @@ const REVIEWABLE: readonly string[] = ["submitted", "screening", "under_review",
 
 const isReviewer = (ws: ServiceWorkspace) => !!ws.role && REVIEWER_ROLES.includes(ws.role);
 const stageOf = (c: Comp, key: string): Stage | undefined => (stagesOf(c) as Stage[]).find((s) => s.key === key);
-const coiOf = (a: Assignment) => (a.coi as { declared?: boolean; reason?: string; at?: string } | null) ?? {};
+const coiOf = (a: Assignment) => (a.coi as { declared?: boolean; reason?: string; at?: string; source?: string } | null) ?? {};
+/** Recused because the reviewer declared the organization when signing the competition's policy. */
+const recusedAtSigning = (a: Assignment) => a.status === "recused" && coiOf(a).source === "policy";
+const UNSIGNED = "Sign the conflict-of-interest policy first";
+const unsigned = (competitionId: string) => new ApiError(409, "coi_policy_unsigned", `${UNSIGNED}. Applications in this competition open once you have signed it`, [{ code: "coi_policy_unsigned", field: "competitionId", detail: apiId("competition", competitionId) }]);
 
 async function rubricRow(ctx: ServiceContext, id: string, version?: number): Promise<Row<"rubrics">> {
   const rows = await ctx.repos.table("rubrics").find(version ? { id, version } : { id }, { orderBy: "version", ascending: false, limit: 1 });
@@ -74,12 +79,17 @@ function selfDeclaredDomainHint(reviewerId: string, reviewerEmail: string, app: 
 const memberEmail = (m: Member): string => (typeof (m.scope as { email?: unknown } | null)?.email === "string" ? (m.scope as { email: string }).email : "");
 const scopedCompetitions = (m: Member): string[] | null => (Array.isArray((m.scope as { competitionIds?: unknown } | null)?.competitionIds) ? ((m.scope as { competitionIds: string[] }).competitionIds) : null);
 
-/** Applicant workspaces this reviewer has declared a conflict with, in any earlier assignment. */
-async function declaredConflicts(ctx: ServiceContext, wsId: string, reviewerId: string): Promise<string[]> {
+/**
+ * Applicant workspaces this reviewer has a declared conflict with: in any earlier assignment, and
+ * at signing a competition's conflict-of-interest policy (the workspaces matched then, and any of
+ * `applicants` the organizations they typed name now).
+ */
+async function declaredConflicts(ctx: ServiceContext, wsId: string, reviewerId: string, applicants: readonly Row<"workspaces">[] = []): Promise<string[]> {
   const mine = (await ctx.repos.table("review_assignments").find({ workspace_id: wsId, reviewer_user_id: reviewerId })).filter((a) => coiOf(a).declared === true);
-  if (!mine.length) return [];
-  const apps = await ctx.repos.table("applications").find({ id: [...new Set(mine.map((a) => a.application_id))] });
-  return [...new Set(apps.map((a) => a.applicant_workspace_id))];
+  const apps = mine.length ? await ctx.repos.table("applications").find({ id: [...new Set(mine.map((a) => a.application_id))] }) : [];
+  const signed = await declaredAtSigning(ctx, wsId, reviewerId);
+  const named = signed.declared.length ? applicants.filter((w) => signed.declared.some((d) => declaredMatches(d, candidateOf(w)))).map((w) => w.id) : [];
+  return [...new Set([...apps.map((a) => a.applicant_workspace_id), ...signed.orgIds, ...named])];
 }
 
 async function assignable(ctx: ServiceContext, app: App, applicant: Row<"workspaces"> | null | undefined, programId: string | null, assigned: string[]): Promise<AssignableApplication> {
@@ -103,6 +113,31 @@ function view(a: Assignment, app: App | undefined, review: Review | undefined, r
     review: review ? { id: apiId("review", review.id), submittedAt: review.submitted_at, overall: scored?.overall ?? null, complete: scored?.complete ?? false } : null,
     createdAt: a.created_at,
   };
+}
+
+/**
+ * An assignment as this caller may read it. A reviewer who has not signed the competition's policy
+ * gets only that it is waiting (no title, no review); in a stage with anonymized review, the title
+ * without the organization's names and the application's short code.
+ */
+async function asSeen(ctx: ServiceContext, v: ReturnType<typeof view>, app: App | undefined, signed: Set<string> | null) {
+  if (!app) return { ...v, applicantCode: null, anonymized: false, policyRequired: false };
+  // Only the caller's own assignments wait for the caller's signature.
+  if (signed && v.reviewerUserId === ctx.actor.userId && !signed.has(app.competition_id)) return { ...v, applicationTitle: null, review: null, applicantCode: null, anonymized: false, policyRequired: true };
+  const anon = await anonymityFor(ctx, app.id);
+  return { ...v, applicationTitle: anon && v.applicationTitle !== null ? redactText(v.applicationTitle, anon.terms) : v.applicationTitle, applicantCode: anon?.code ?? null, anonymized: !!anon, policyRequired: false };
+}
+
+/** The competitions whose policy the caller has signed (for their own assignments; staff reviewing alongside reviewers sign too), or null without a person. */
+async function signedFor(ctx: ServiceContext, ws: ServiceWorkspace, apps: readonly App[]): Promise<Set<string> | null> {
+  if (!ctx.actor.userId) return null;
+  return signedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
+}
+
+/** The assigned person must have signed the competition's policy before the application opens or is scored. */
+async function requireSigned(ctx: ServiceContext, ws: ServiceWorkspace, app: App): Promise<void> {
+  if (!ctx.actor.userId) return;
+  if (!(await signedCompetitions(ctx, ws.id, ctx.actor.userId, [app.competition_id])).has(app.competition_id)) throw unsigned(app.competition_id);
 }
 
 async function stageRubric(ctx: ServiceContext, competition: Comp, stageKey: string): Promise<Row<"rubrics">> {
@@ -135,7 +170,7 @@ export async function createAssignment(ctx: ServiceContext, applicationUuid: str
 
   const applicant = await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id });
   const opp = await ctx.repos.table("opportunities").one({ id: app.opportunity_id });
-  const profile: ReviewerProfile = { id: input.reviewerUserId, email: input.reviewerEmail ?? memberEmail(member), capacity: Number.MAX_SAFE_INTEGER, conflicts: { orgIds: await declaredConflicts(ctx, ws.id, input.reviewerUserId) } };
+  const profile: ReviewerProfile = { id: input.reviewerUserId, email: input.reviewerEmail ?? memberEmail(member), capacity: Number.MAX_SAFE_INTEGER, conflicts: { orgIds: await declaredConflicts(ctx, ws.id, input.reviewerUserId, applicant ? [applicant] : []) } };
   const coi = detectCoi(profile, await assignable(ctx, app, applicant, opp?.program_id ?? null, []));
   if (coi) throw new ApiError(409, "conflict_of_interest", coi.detail, [{ code: coi.reason, field: "reviewerUserId", detail: coi.detail }]);
 
@@ -172,13 +207,13 @@ export async function autoAssignReviewers(ctx: ServiceContext, competitionUuid: 
   const live = existing.filter((a) => a.status !== "recused");
 
   const members = (await ctx.repos.table("workspace_members").find({ workspace_id: ws.id })).filter((m) => (input.reviewers ? input.reviewers.some((r) => r.userId === m.user_id) && ASSIGNABLE.includes(m.role) : REVIEWER_ROLES.includes(m.role)) && (m.role !== "external_reviewer" || !scopedCompetitions(m) || scopedCompetitions(m)!.includes(competition.id)));
+  const applicants = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.applicant_workspace_id))] }) : [];
   const reviewers: ReviewerProfile[] = [];
   for (const m of members) {
     const o = input.reviewers?.find((r) => r.userId === m.user_id);
     const scope = (m.scope as { capacity?: unknown; tags?: unknown } | null) ?? {};
-    reviewers.push({ id: m.user_id, email: o?.email ?? memberEmail(m), capacity: o?.capacity ?? (typeof scope.capacity === "number" ? scope.capacity : DEFAULT_CAPACITY), load: live.filter((a) => a.reviewer_user_id === m.user_id).length, tags: o?.tags ?? (Array.isArray(scope.tags) ? (scope.tags as string[]) : []), conflicts: { orgIds: await declaredConflicts(ctx, ws.id, m.user_id) } });
+    reviewers.push({ id: m.user_id, email: o?.email ?? memberEmail(m), capacity: o?.capacity ?? (typeof scope.capacity === "number" ? scope.capacity : DEFAULT_CAPACITY), load: live.filter((a) => a.reviewer_user_id === m.user_id).length, tags: o?.tags ?? (Array.isArray(scope.tags) ? (scope.tags as string[]) : []), conflicts: { orgIds: await declaredConflicts(ctx, ws.id, m.user_id, applicants) } });
   }
-  const applicants = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.applicant_workspace_id))] }) : [];
   const pool: AssignableApplication[] = [];
   for (const a of apps) pool.push(await assignable(ctx, a, applicants.find((w) => w.id === a.applicant_workspace_id), opp?.program_id ?? null, existing.filter((x) => x.application_id === a.id).map((x) => x.reviewer_user_id)));
   // An application that already has reviewers needs only the difference.
@@ -222,15 +257,19 @@ export async function listAssignments(ctx: ServiceContext, f: AssignmentFilter =
   if (f.status) rows = rows.filter((a) => f.status!.split(",").includes(a.status));
   const apps = rows.length ? await ctx.repos.table("applications").find({ id: [...new Set(rows.map((a) => a.application_id))] }) : [];
   if (f.competitionId) rows = rows.filter((a) => apps.find((x) => x.id === a.application_id)?.competition_id === f.competitionId);
+  // A reviewer's own list leaves out what they were recused from by declaring the organization at signing.
+  if (mineOnly) rows = rows.filter((a) => !recusedAtSigning(a));
   const reviews = rows.length ? await ctx.repos.table("reviews").find({ assignment_id: rows.map((a) => a.id) }) : [];
+  const signed = await signedFor(ctx, ws, apps);
   const rubrics = new Map<string, Rubric>();
   const out = [];
   for (const a of rows) {
     const key = `${a.rubric_id}:${a.rubric_version}`;
     if (!rubrics.has(key)) rubrics.set(key, toRubric(await rubricRow(ctx, a.rubric_id, a.rubric_version)));
     const review = reviews.find((r) => r.assignment_id === a.id);
+    const app = apps.find((x) => x.id === a.application_id);
     // In the matrix, staff see that a review exists and its overall; the scores themselves are read through /reviews.
-    out.push(view(a, apps.find((x) => x.id === a.application_id), review, rubrics.get(key)));
+    out.push(await asSeen(ctx, view(a, app, review, rubrics.get(key)), app, signed));
   }
   return out;
 }
@@ -249,15 +288,17 @@ async function ownOrStaff(ctx: ServiceContext, assignmentId: string, scope: "rev
 export async function getAssignment(ctx: ServiceContext, assignmentId: string) {
   const { a, ws, own } = await ownOrStaff(ctx, assignmentId, "reviews:read");
   const app = required(await ctx.repos.table("applications").one({ id: a.application_id }), "Application");
+  // Until the reviewer has signed the competition's policy, all an assignment read says is that.
+  if (own) await requireSigned(ctx, ws, app);
   const rubricRecord = await rubricRow(ctx, a.rubric_id, a.rubric_version);
   const rubric = toRubric(rubricRecord);
   const review = await ctx.repos.table("reviews").one({ assignment_id: a.id });
   // A recused reviewer keeps the record of the assignment but loses the application.
   const recused = a.status === "recused" && own && isReviewer(ws);
   return {
-    ...view(a, app, review ?? undefined, rubric),
+    ...(await asSeen(ctx, view(a, app, review ?? undefined, rubric), app, null)),
     rubric: { id: rubricRecord.id, version: rubricRecord.version, name: rubricRecord.name, criteria: rubricRecord.criteria, overall: rubricRecord.overall },
-    myReview: review && own ? { scores: review.scores, narrative: review.narrative, recommendation: review.recommendation, submittedAt: review.submitted_at } : null,
+    myReview: review && own ? { scores: review.scores, narrative: review.narrative, recommendation: review.recommendation, visibility: review.visibility, submittedAt: review.submitted_at } : null,
     application: recused ? null : await getApplicationDetail(ctx, app.id),
   };
 }
@@ -265,8 +306,9 @@ export async function getAssignment(ctx: ServiceContext, assignmentId: string) {
 const scoresInput = z.record(z.string().max(80), z.union([z.number(), z.string().max(200), z.object({ value: z.union([z.number(), z.string().max(200)]), comment: z.string().max(5000).optional() }).strict()]));
 export const assignmentPatch = z.discriminatedUnion("action", [
   z.object({ action: z.literal("declare_coi"), hasConflict: z.boolean(), reason: z.string().trim().max(2000).optional() }).strict(),
-  z.object({ action: z.literal("save"), scores: scoresInput, narrative: z.string().max(20_000).optional(), recommendation: z.string().max(200).optional() }).strict(),
-  z.object({ action: z.literal("submit"), scores: scoresInput.optional(), narrative: z.string().max(20_000).optional(), recommendation: z.string().max(200).optional() }).strict(),
+  // `visibility`: whether the narrative and comments are for the panel (default) or for program staff only.
+  z.object({ action: z.literal("save"), scores: scoresInput, narrative: z.string().max(20_000).optional(), recommendation: z.string().max(200).optional(), visibility: z.enum(["panel", "funder_only"]).optional() }).strict(),
+  z.object({ action: z.literal("submit"), scores: scoresInput.optional(), narrative: z.string().max(20_000).optional(), recommendation: z.string().max(200).optional(), visibility: z.enum(["panel", "funder_only"]).optional() }).strict(),
   z.object({ action: z.literal("recuse"), reason: z.string().trim().min(1).max(2000) }).strict(),
   z.object({ action: z.literal("reschedule"), dueAt: z.iso.datetime({ offset: true }).nullable() }).strict(),
 ]);
@@ -291,8 +333,9 @@ export async function updateAssignment(ctx: ServiceContext, assignmentId: string
     return view(row, app, undefined);
   }
 
-  // Everything below is the reviewer's own work.
+  // Everything below is the reviewer's own work, and starts with the competition's signed policy.
   if (!own) throw new ApiError(403, "not_your_assignment", "Only the assigned reviewer can declare conflicts and score");
+  await requireSigned(ctx, ws, app);
   if (input.action === "declare_coi") {
     if (input.hasConflict) {
       const row = await set({ status: "recused", coi: { declared: true, reason: input.reason ?? null, at } }, ["assigned", "coi_declared", "in_progress"]);
@@ -308,7 +351,7 @@ export async function updateAssignment(ctx: ServiceContext, assignmentId: string
   if (!["coi_declared", "in_progress"].includes(a.status)) throw new ApiError(409, "invalid_transition", `This assignment is ${a.status.replace(/_/g, " ")}`);
   const existing = await ctx.repos.table("reviews").one({ assignment_id: a.id });
   const scores = (input.scores ?? (existing?.scores as Scores | undefined) ?? {}) as Scores;
-  const fields = { scores: scores as Review["scores"], ...(input.narrative !== undefined ? { narrative: input.narrative } : {}), ...(input.recommendation !== undefined ? { recommendation: input.recommendation } : {}) };
+  const fields = { scores: scores as Review["scores"], ...(input.narrative !== undefined ? { narrative: input.narrative } : {}), ...(input.recommendation !== undefined ? { recommendation: input.recommendation } : {}), ...(input.visibility !== undefined ? { visibility: input.visibility } : {}) };
   if (input.action === "submit") {
     const scored = scoreReview(rubric, scores);
     if (!scored.complete) throw new ApiError(422, "incomplete_review", "Score every criterion before submitting", scored.issues.map((i) => ({ code: "invalid_score", field: `scores.${i.criterion}`, detail: i.message })));
@@ -331,6 +374,7 @@ export async function listReviews(ctx: ServiceContext, applicationUuid: string, 
   const mine = assignments.filter((a) => a.reviewer_user_id === ctx.actor.userId);
   // A reviewer with no assignment on this application has no business with its reviews.
   if (isReviewer(ws) && !mine.length) required(null, "Application");
+  if (isReviewer(ws)) await requireSigned(ctx, ws, app);
   const reviews = assignments.length ? await ctx.repos.table("reviews").find({ assignment_id: assignments.map((a) => a.id) }) : [];
   const out = [];
   for (const a of assignments) {
@@ -344,7 +388,10 @@ export async function listReviews(ctx: ServiceContext, applicationUuid: string, 
     if (!visible) continue;
     const rubric = toRubric(await rubricRow(ctx, a.rubric_id, a.rubric_version));
     const scored = scoreReview(rubric, review.scores as Scores);
-    out.push({ id: apiId("review", review.id), assignmentId: a.id, applicationId: apiId("application", app.id), stage: a.stage, reviewerUserId: a.reviewer_user_id, own, scores: review.scores, normalized: scored.normalized, overall: scored.overall, narrative: review.narrative, recommendation: review.recommendation, visibility: review.visibility, submittedAt: review.submitted_at });
+    // Another reviewer may have named the organization; an anonymized reviewer reads "[applicant]" instead.
+    const scores = own ? review.scores : ((await redactFor(ctx, app.id, review.scores)) as Review["scores"]);
+    const narrative = own || review.narrative === null ? review.narrative : ((await redactFor(ctx, app.id, review.narrative)) as string);
+    out.push({ id: apiId("review", review.id), assignmentId: a.id, applicationId: apiId("application", app.id), stage: a.stage, reviewerUserId: a.reviewer_user_id, own, scores, normalized: scored.normalized, overall: scored.overall, narrative, recommendation: review.recommendation, visibility: review.visibility, submittedAt: review.submitted_at });
   }
   return out;
 }
@@ -418,3 +465,252 @@ export async function inviteExternalReviewer(ctx: ServiceContext, competitionUui
 }
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+// ------------------------------------------------------------------------------------ review parity (v1.8.0)
+//
+// The competition's conflict-of-interest policy, signed once per competition by each reviewer
+// before any application in it opens for them; the conflicts register; and the per-stage review
+// settings (anonymized review, blind mode, the panel). See docs/reviews.md.
+
+/** Who may read the conflicts register and the policy as staff: program staff, observers and auditors. */
+const REGISTER_ROLES = PANEL_ROLES;
+
+async function competitionOf(ctx: ServiceContext, wsId: string, competitionUuid: string): Promise<Comp> {
+  return required(await ctx.repos.table("competitions").one({ id: competitionUuid, workspace_id: wsId }), "Competition");
+}
+
+/** A reviewer reads a competition's policy only where they review: an assignment in it, or an invitation to it. */
+async function reviewerMayRead(ctx: ServiceContext, ws: ServiceWorkspace, competition: Comp): Promise<boolean> {
+  const scoped = (ws.memberScope as { competitionIds?: unknown } | null | undefined)?.competitionIds;
+  if (Array.isArray(scoped) && scoped.includes(competition.id)) return true;
+  if (ws.role === "external_reviewer") return false;
+  if (!ctx.actor.userId) return false;
+  const mine = await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, reviewer_user_id: ctx.actor.userId });
+  if (!mine.length) return ws.role === "reviewer";
+  const apps = await ctx.repos.table("applications").find({ id: [...new Set(mine.map((a) => a.application_id))], competition_id: competition.id });
+  return apps.length > 0 || ws.role === "reviewer";
+}
+
+const declaredView = (d: unknown): DeclaredOrg[] => (Array.isArray(d) ? (d as DeclaredOrg[]).map((x) => ({ name: x.name, ...(x.website ? { website: x.website } : {}) })) : []);
+const signatureView = (r: Row<"coi_signatures">, currentVersion: number) => ({ policyVersion: r.policy_version, signedName: r.signed_name, signedAt: r.signed_at, current: r.policy_version === currentVersion, declared: declaredView(r.declared_orgs) });
+
+/** The policy reviewers sign for a competition, and (for the caller) their own signature. */
+export async function getCoiPolicy(ctx: ServiceContext, competitionUuid: string) {
+  const ws = await authorize(ctx, { scope: "reviews:read", kind: "funder" });
+  const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  if (isReviewerRole(ws) && !(await reviewerMayRead(ctx, ws, competition))) required(null, "Competition");
+  else if (!isReviewerRole(ws) && ws.role !== null && !(REGISTER_ROLES as readonly string[]).includes(ws.role) && !ASSIGNABLE.includes(ws.role)) throw new ApiError(403, "insufficient_role", "Only program staff and reviewers read the conflict-of-interest policy");
+  const policy = await currentPolicy(ctx, competition.id);
+  const mine = ctx.actor.userId ? await ctx.repos.table("coi_signatures").find({ competition_id: competition.id, reviewer_user_id: ctx.actor.userId }, { orderBy: "policy_version", ascending: false }) : [];
+  const latest = mine[0];
+  return {
+    competitionId: apiId("competition", competition.id),
+    competitionTitle: competition.title,
+    version: policy.version,
+    text: policy.text,
+    isDefault: policy.isDefault,
+    updatedAt: policy.updatedAt,
+    signed: mine.some((r) => r.policy_version === policy.version),
+    mySignature: latest ? signatureView(latest, policy.version) : null,
+  };
+}
+
+export const coiPolicyInput = z.union([z.object({ text: z.string().trim().min(20).max(20_000) }).strict(), z.object({ useDefault: z.literal(true) }).strict()]);
+
+/** Write the competition's policy (or go back to the default). A change is a new version: reviewers who signed an earlier one sign again. */
+export async function putCoiPolicy(ctx: ServiceContext, competitionUuid: string, input: z.output<typeof coiPolicyInput>) {
+  const ws = await authorize(ctx, { scope: "reviews:write", kind: "funder", roles: STAFF_ROLES });
+  const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  const current = await currentPolicy(ctx, competition.id);
+  const text = "text" in input ? input.text.replace(/\r\n?/g, "\n") : DEFAULT_COI_POLICY;
+  const isDefault = !("text" in input);
+  if (current.text === text && current.isDefault === isDefault) return getCoiPolicy(ctx, competitionUuid);
+  const version = current.stored ? current.version + 1 : 1;
+  await ctx.repos.table("coi_policies").insert({ workspace_id: ws.id, competition_id: competition.id, version, policy_text: text, is_default: isDefault, created_by: ctx.actor.userId });
+  const resign = (await ctx.repos.table("coi_signatures").find({ competition_id: competition.id })).length > 0;
+  await audit(ctx, "competition.coi_policy_set", "competition", competition.id, { version, isDefault, reviewersSignAgain: resign });
+  return getCoiPolicy(ctx, competitionUuid);
+}
+
+export const signInput = z
+  .object({
+    /** The version the reviewer read; signing fails if the policy changed meanwhile. */
+    policyVersion: z.number().int().min(1),
+    signedName: z.string().trim().min(2).max(200),
+    /** Must be true: the reviewer agrees to the policy. */
+    agree: z.literal(true),
+    /** Organizations the reviewer has a conflict with, as they name them. Matched to applicants by name or website. */
+    conflicts: z.array(z.object({ name: z.string().trim().min(1).max(200), website: z.string().trim().max(300).optional() }).strict()).max(50).default([]),
+  })
+  .strict();
+
+/**
+ * A reviewer signs the competition's policy: the name they type, when, and the organizations they
+ * declare a conflict with. Only the person themselves, signed in: an agent or API client cannot
+ * sign for anyone. Declared organizations feed the assignment exclusion, and an assignment the
+ * reviewer already has on a declared applicant is recused. The answer never says whether a declared
+ * organization applied.
+ */
+export async function signCoiPolicy(ctx: ServiceContext, competitionUuid: string, input: z.output<typeof signInput>) {
+  if (ctx.actor.kind !== "user") throw new ApiError(403, "person_required", "A reviewer signs the conflict-of-interest policy themselves, signed in. An agent or API client cannot sign it");
+  const ws = await authorize(ctx, { scope: "reviews:write", kind: "funder", person: true });
+  if (!ws.role || !ASSIGNABLE.includes(ws.role)) throw new ApiError(403, "insufficient_role", "Only reviewers sign the conflict-of-interest policy");
+  const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  if (isReviewerRole(ws) && !(await reviewerMayRead(ctx, ws, competition))) required(null, "Competition");
+  let policy = await currentPolicy(ctx, competition.id);
+  if (input.policyVersion !== policy.version) throw new ApiError(409, "policy_changed", "The policy changed since you opened it. Read the current version and sign that");
+  const userId = ctx.actor.userId!;
+  const existing = await ctx.repos.table("coi_signatures").one({ competition_id: competition.id, reviewer_user_id: userId, policy_version: policy.version });
+  if (existing) return { ...signatureView(existing, policy.version), competitionId: apiId("competition", competition.id), alreadySigned: true };
+  // The default is written down the first time someone signs it, so the text signed stays on record.
+  if (!policy.stored) {
+    try {
+      await ctx.repos.table("coi_policies").insert({ workspace_id: ws.id, competition_id: competition.id, version: 1, policy_text: policy.text, is_default: true, created_by: null });
+    } catch {
+      // Another signature wrote it first; the version is the same.
+    }
+    policy = await currentPolicy(ctx, competition.id);
+    if (policy.version !== input.policyVersion) throw new ApiError(409, "policy_changed", "The policy changed since you opened it. Read the current version and sign that");
+  }
+  // Match what the reviewer typed against the organizations that applied to this funder.
+  const apps = input.conflicts.length ? await ctx.repos.table("applications").find({ workspace_id: ws.id }, { notNull: ["submitted_at"], limit: 5000 }) : [];
+  const applicants = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.applicant_workspace_id))] }) : [];
+  const matched = matchDeclaredOrgs(input.conflicts, applicants.map(candidateOf));
+  const at = ctx.now().toISOString();
+  const row = await ctx.repos.table("coi_signatures").insert({ workspace_id: ws.id, competition_id: competition.id, reviewer_user_id: userId, policy_version: policy.version, signed_name: input.signedName, signed_at: at, declared_org_ids: matched, declared_orgs: input.conflicts as unknown as Row<"coi_signatures">["declared_orgs"] });
+  // Recuse the reviewer from what they already hold on a declared organization in this competition.
+  let recused = 0;
+  if (matched.length) {
+    const mine = (await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, reviewer_user_id: userId })).filter((a) => ["assigned", "coi_declared", "in_progress"].includes(a.status));
+    for (const a of mine) {
+      const app = apps.find((x) => x.id === a.application_id);
+      if (!app || app.competition_id !== competition.id || !matched.includes(app.applicant_workspace_id)) continue;
+      const [done] = await ctx.repos.table("review_assignments").update({ id: a.id, status: a.status }, { status: "recused", coi: { declared: true, reason: "Declared when signing the conflict-of-interest policy", at, source: "policy" } });
+      if (done) {
+        recused += 1;
+        await audit(ctx, "review.recused", "application", app.id, { assignmentId: a.id, by: "reviewer", source: "policy" });
+      }
+    }
+  }
+  await audit(ctx, "review.coi_policy_signed", "competition", competition.id, { policyVersion: policy.version, declared: input.conflicts.length, recused });
+  return { ...signatureView(row, policy.version), competitionId: apiId("competition", competition.id), alreadySigned: false };
+}
+
+/**
+ * The conflicts register for a competition: who signed which policy version and when, the conflicts
+ * each declared (with the applicants they matched), and every recusal with its reason.
+ */
+export async function getConflictsRegister(ctx: ServiceContext, competitionUuid: string) {
+  const ws = await authorize(ctx, { scope: "reviews:read", kind: "funder", roles: REGISTER_ROLES });
+  const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  const policy = await currentPolicy(ctx, competition.id);
+  const apps = await ctx.repos.table("applications").find({ workspace_id: ws.id, competition_id: competition.id }, { notNull: ["submitted_at"], limit: 5000 });
+  const [signatures, assignments, members] = await Promise.all([
+    ctx.repos.table("coi_signatures").find({ competition_id: competition.id }, { orderBy: "signed_at" }),
+    apps.length ? ctx.repos.table("review_assignments").find({ workspace_id: ws.id, application_id: apps.map((a) => a.id) }) : Promise.resolve([] as Assignment[]),
+    ctx.repos.table("workspace_members").find({ workspace_id: ws.id }),
+  ]);
+  const matchedIds = [...new Set(signatures.flatMap((s) => s.declared_org_ids))];
+  const applicants = await ctx.repos.table("workspaces").find({ id: [...new Set([...apps.map((a) => a.applicant_workspace_id), ...matchedIds])] });
+  const nameOf = (id: string) => applicants.find((w) => w.id === id)?.display_name ?? null;
+  // Everyone who reviews here: assigned, signed, or a reviewer of the workspace (external: invited to this competition).
+  const people = new Set<string>([...assignments.map((a) => a.reviewer_user_id), ...signatures.map((s) => s.reviewer_user_id), ...members.filter((m) => m.role === "reviewer" || (m.role === "external_reviewer" && (scopedCompetitions(m)?.includes(competition.id) ?? true))).map((m) => m.user_id)]);
+  const directory = (await ctx.ports.directory?.lookup([...people])) ?? new Map<string, { email: string | null; name: string | null }>();
+  const reviewers = [...people].map((userId) => {
+    const mine = signatures.filter((s) => s.reviewer_user_id === userId).sort((a, b) => b.policy_version - a.policy_version);
+    const latest = mine[0];
+    const m = members.find((x) => x.user_id === userId);
+    return {
+      userId,
+      name: directory.get(userId)?.name ?? null,
+      email: directory.get(userId)?.email ?? (m ? memberEmail(m) || null : null),
+      role: m?.role ?? null,
+      signed: mine.some((s) => s.policy_version === policy.version),
+      signature: latest ? { ...signatureView(latest, policy.version), declared: declaredView(latest.declared_orgs).map((d) => ({ ...d, matches: applicants.filter((w) => latest.declared_org_ids.includes(w.id) && declaredMatches(d, candidateOf(w))).map((w) => ({ workspaceId: w.id, name: w.display_name })) })) } : null,
+      assigned: assignments.filter((a) => a.reviewer_user_id === userId).length,
+    };
+  }).sort((a, b) => Number(a.signed) - Number(b.signed) || (a.name ?? a.email ?? a.userId).localeCompare(b.name ?? b.email ?? b.userId));
+  const recusals = assignments
+    .filter((a) => a.status === "recused")
+    .map((a) => {
+      const app = apps.find((x) => x.id === a.application_id)!;
+      const coi = coiOf(a);
+      return {
+        assignmentId: a.id,
+        reviewerUserId: a.reviewer_user_id,
+        reviewerName: directory.get(a.reviewer_user_id)?.name ?? directory.get(a.reviewer_user_id)?.email ?? null,
+        applicationId: apiId("application", app.id),
+        applicationTitle: app.title,
+        applicant: nameOf(app.applicant_workspace_id),
+        stage: a.stage,
+        // How it came about: declared on the assignment, declared at signing, or recused (by the reviewer or staff).
+        source: coi.source === "policy" ? ("declared_at_signing" as const) : coi.declared === true ? ("declared_conflict" as const) : ("recused" as const),
+        reason: coi.reason ?? null,
+        at: coi.at ?? a.updated_at,
+      };
+    })
+    .sort((a, b) => (a.at < b.at ? -1 : 1));
+  return {
+    competitionId: apiId("competition", competition.id),
+    competitionTitle: competition.title,
+    policy: { version: policy.version, isDefault: policy.isDefault, updatedAt: policy.updatedAt },
+    counts: { reviewers: reviewers.length, signed: reviewers.filter((r) => r.signed).length, declared: reviewers.reduce((n, r) => n + (r.signature?.declared.length ?? 0), 0), recusals: recusals.length },
+    reviewers,
+    recusals,
+  };
+}
+
+const REGISTER_HEADER = ["Entry", "Reviewer", "Email", "Signed name", "Signed at", "Policy version", "Current policy", "Organization declared", "Website declared", "Matched applicant", "Application", "Stage", "Reason", "At"];
+
+/** The conflicts register as CSV: one line per signature, per declared organization and per recusal. */
+export async function conflictsRegisterCsv(ctx: ServiceContext, competitionUuid: string) {
+  const reg = await getConflictsRegister(ctx, competitionUuid);
+  const rows: unknown[][] = [];
+  for (const r of reg.reviewers) {
+    const who = r.name ?? r.email ?? r.userId;
+    const sig = r.signature;
+    rows.push(["Signature", who, r.email, sig?.signedName ?? "", sig?.signedAt ?? "", sig?.policyVersion ?? "", sig ? (sig.current ? "yes" : "no, an earlier version") : "not signed", "", "", "", "", "", "", sig?.signedAt ?? ""]);
+    for (const d of sig?.declared ?? []) rows.push(["Declared conflict", who, r.email, sig!.signedName, sig!.signedAt, sig!.policyVersion, sig!.current ? "yes" : "no, an earlier version", d.name, d.website ?? "", d.matches.map((m) => m.name).join("; ") || "no applicant matched", "", "", "", sig!.signedAt]);
+  }
+  for (const x of reg.recusals) rows.push([x.source === "declared_at_signing" ? "Recusal (declared at signing)" : x.source === "declared_conflict" ? "Recusal (declared conflict)" : "Recusal", x.reviewerName ?? x.reviewerUserId, "", "", "", "", "", "", "", x.applicant ?? "", x.applicationTitle, x.stage, x.reason ?? "", x.at]);
+  const slug = reg.competitionTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "competition";
+  return { body: toCsv(REGISTER_HEADER, rows), contentType: "text/csv; charset=utf-8", filename: `conflicts-register-${slug}.csv` };
+}
+
+export const reviewSettingsInput = z
+  .object({
+    stage: z.string().min(1).max(60),
+    /** Reviewers in the stage do not see who applied. Off by default. */
+    anonymized: z.boolean().optional(),
+    /** Whether reviewers see each other's scores: never before the panel (blind), after submitting their own, or always. */
+    reviewMode: z.enum(["blind", "see_after_submit", "open"]).optional(),
+    /** The panel for the stage is open: reviewers see the panel's reviews. */
+    panelOpen: z.boolean().optional(),
+  })
+  .strict();
+
+/** The review settings of one stage. Allowed at any time; turning anonymized review off shows reviewers who applied from then on. */
+export async function putReviewSettings(ctx: ServiceContext, competitionUuid: string, input: z.output<typeof reviewSettingsInput>) {
+  const ws = await authorize(ctx, { scope: "reviews:write", kind: "funder", roles: STAFF_ROLES });
+  const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  const stages = reviewStagesOf(competition);
+  if (!stages.some((s) => s.key === input.stage)) throw new ApiError(422, "unknown_stage", `This competition has no stage "${input.stage}"`);
+  const { stage: key, ...patch } = input;
+  const next = stages.map((s) => (s.key === key ? { ...s, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } : s));
+  const [row] = await ctx.repos.table("competitions").update({ id: competition.id, workspace_id: ws.id }, { stages: next as unknown as Comp["stages"] });
+  await audit(ctx, "competition.review_settings_set", "competition", competition.id, { stage: key, ...patch });
+  return reviewSettingsOf(row ?? competition);
+}
+
+/** Each stage's review settings, with their defaults filled in. */
+export function reviewSettingsOf(c: Comp) {
+  return {
+    competitionId: apiId("competition", c.id),
+    stages: reviewStagesOf(c).map((s) => ({ key: s.key, label: s.label, anonymized: s.anonymized === true, reviewMode: s.reviewMode ?? "blind", panelOpen: s.panelOpen === true, rubricId: s.rubricId ?? null })),
+  };
+}
+
+export async function getReviewSettings(ctx: ServiceContext, competitionUuid: string) {
+  const ws = await authorize(ctx, { scope: "reviews:read", kind: "funder", roles: REGISTER_ROLES });
+  return reviewSettingsOf(await competitionOf(ctx, ws.id, competitionUuid));
+}
