@@ -392,6 +392,17 @@ export async function getImportRun(ctx: ServiceContext, id: string) {
   return { run: runView(ctx, run, progress), rows: rows.map(logView) };
 }
 
+/**
+ * A checked import's outcome without its rows, for agents (MCP `get_import_preview`): what would be
+ * created, skipped or needs a fix, the amounts by year, and the names of the columns left out as
+ * bank or identity data. The same check as the import screen; importing the rows is a person's.
+ */
+export async function importPreview(ctx: ServiceContext, id: string) {
+  const { run } = await loadRun(ctx, id);
+  const view = runView(ctx, run, await progressOf(ctx, run.id));
+  return { id: view.id, target: view.target, source: view.source, sourceLabel: view.sourceLabel, status: view.status, rowsTotal: view.rowsTotal, reconciliation: view.reconciliation, droppedColumns: view.dropped.map((d) => d.column), progress: view.progress, createdAt: view.createdAt, expiresAt: view.expiresAt };
+}
+
 export async function listImportRuns(ctx: ServiceContext, target: TargetKey) {
   const ws = await importWorkspace(ctx, target);
   const runs = await ctx.repos.table("import_runs").find({ workspace_id: ws.id, target }, { orderBy: "created_at", ascending: false, limit: 20 });
@@ -477,6 +488,9 @@ async function writeRow(ctx: ServiceContext, ws: ServiceWorkspace, run: Run, row
  * a preview older than a day must be checked again. Rows are written once each, whoever calls.
  */
 export async function commitImport(ctx: ServiceContext, id: string) {
+  // A person imports, on the import screen: agents and API clients may read the check, never commit
+  // it, whatever their scopes (there is no MCP tool for it).
+  if (ctx.actor.kind !== "user") throw forbidden("human_only", "A person imports these rows, in the GMS. An agent or API client can read the check but not import it");
   const { ws, run: loaded } = await loadRun(ctx, id);
   let run = loaded;
   const target = targetOf(run.target);
