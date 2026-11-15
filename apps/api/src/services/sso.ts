@@ -202,7 +202,13 @@ export function dohResolver(fetchFn: (url: string, init?: RequestInit) => Promis
       throw new DnsLookupError(`DNS lookup failed: ${(e as Error).name}`);
     }
     if (!res.ok) throw new DnsLookupError(`DNS resolver responded ${res.status}`);
-    const result = parseDohTxt(await res.json());
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      throw new DnsLookupError("DNS resolver did not answer with JSON");
+    }
+    const result = parseDohTxt(body);
     if (result.status !== 0 && result.status !== 3) throw new DnsLookupError(`DNS resolver returned RCODE ${result.status}`);
     return result;
   };

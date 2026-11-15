@@ -251,6 +251,8 @@ describe("DNS TXT proof", () => {
     expect(parseDohTxt({ Status: 0, Answer: [{ type: 16, data: '"x"' }, { type: 5, data: "cname." }] })).toEqual({ status: 0, records: ["x"] });
     const servfail = dohResolver(async () => new Response(JSON.stringify({ Status: 2 }), { status: 200 }));
     await expect(servfail("example.org")).rejects.toThrow(/RCODE 2/);
+    const notJson = dohResolver(async () => new Response("<html>", { status: 200 }));
+    await expect(notJson("example.org")).rejects.toThrow(/not answer with JSON/);
   });
 });
 
