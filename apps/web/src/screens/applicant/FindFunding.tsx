@@ -19,6 +19,7 @@ import type { OppFunding } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { DigestPrompt } from "../../components/DigestPrompt.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
@@ -571,6 +572,7 @@ export default function FindFunding() {
               </div>
             </div>
           </div>
+          <DigestPrompt workspaceId={ws.id} digest="new_matches" settingsTo={`${base}/settings#digests`} />
 
           <Loaded query={query} label="Checking what you are eligible for">
             {({ competitions, saved: everySaved, mine }) => {

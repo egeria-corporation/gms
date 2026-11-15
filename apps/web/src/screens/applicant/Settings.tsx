@@ -13,6 +13,7 @@ import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
 import { DangerZone, ExportsCard, TokensCard } from "./settingsCards.tsx";
 import { CalendarFeedCard } from "./outside/CalendarFeedCard.tsx";
 import { GrantSettingsCard } from "./outside/GrantSettingsCard.tsx";
+import { WhatWeEmailYouCard } from "../public/whatWeEmailYou.tsx";
 
 /** The events an applicant workspace produces, in the order people meet them. */
 export const EVENTS: { key: string; label: string; detail: string }[] = [
@@ -145,6 +146,7 @@ export default function Settings() {
               </Loaded>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <WhatWeEmailYouCard workspaceId={ws.id} />
               <GrantSettingsCard />
               <CalendarFeedCard />
               <TokensCard base={base} />

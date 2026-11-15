@@ -23,6 +23,8 @@ const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx")
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
 const JoinDraft = lazy(() => import("../screens/applicant/JoinDraft.tsx"));
 const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
+// Opt-in digests (v1.8.0): the one-click unsubscribe page, no sign-in.
+const DigestUnsubscribe = lazy(() => import("../screens/public/DigestUnsubscribe.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -198,6 +200,8 @@ function AppRoutes() {
         <Route path="/consent" element={<OAuthConsent />} />
         {/* An award invitation. Outside the guard so the token is lifted out of the address before any sign-in `next` is built. */}
         <Route path="/awards/claim" element={<ClaimAward />} />
+        {/* An email's "Stop getting this email" link: the signed token is the proof, so no sign-in. */}
+        <Route path="/digests/unsubscribe" element={<DigestUnsubscribe />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>

@@ -6,6 +6,7 @@ import type { MeWorkspace } from "../../api/client.ts";
 import type { NotificationPreferences } from "../../api/applicantMore.ts";
 import { useMoreApi } from "../../api/applicantMoreHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { WhatWeEmailYou } from "./whatWeEmailYou.tsx";
 
 const EVENTS: { key: string; label: string }[] = [
   { key: "approval", label: "An agent needs my approval" },
@@ -110,6 +111,12 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
           </select>
           <span className="help">Approval requests are always shown at once in the app.</span>
         </div>
+        {wsId ? (
+          <>
+            <div className="divider"></div>
+            <WhatWeEmailYou workspaceId={wsId} />
+          </>
+        ) : null}
         {error ? <ErrorBanner error={error} title="Your settings were not saved" /> : null}
       </div>
     </aside>
