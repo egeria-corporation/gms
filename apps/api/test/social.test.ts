@@ -295,6 +295,7 @@ describe("idempotent retries", () => {
     fake.failNext = { status: 503, times: 1 };
     const first = await previewAndPost(who, compose([li.id]));
     expect(first.sent.status).toBe(503);
+    expect(first.sent.body.message).toBe("Zernio did not confirm this post. Post again: it will not go out twice");
     expect((await h.repos.table("social_posts").find({ workspace_id: WS_FUNDER }))[0]).toMatchObject({ status: "sending" });
     const retry = await call("POST", "/gms/social/posts", { ...who, "Idempotency-Key": first.key }, { ...compose([li.id]), previewToken: first.preview.previewToken });
     expect(retry.status).toBe(201);

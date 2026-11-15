@@ -528,8 +528,9 @@ export async function sendPost(ctx: ServiceContext, input: z.output<typeof sendI
   } catch (e) {
     if (e instanceof ZernioError && (e.kind === "unavailable" || e.kind === "rate_limited")) {
       // Unknown outcome: the row stays `sending` and the same key may be sent again safely.
-      await ctx.repos.table("social_posts").update({ id: row.id }, { error: "Zernio did not confirm this post. Post again: it will not go out twice" });
-      zernioFailure(e, "Zernio did not confirm the post");
+      const unconfirmed = "Zernio did not confirm this post. Post again: it will not go out twice";
+      await ctx.repos.table("social_posts").update({ id: row.id }, { error: unconfirmed });
+      throw new ApiError(503, e.kind === "rate_limited" ? "zernio_busy" : "zernio_unavailable", unconfirmed);
     }
     const message = e instanceof ZernioError && e.kind === "auth" ? "Zernio refused this server's key. Nothing was posted" : "Zernio did not accept the post. Nothing was posted";
     await settle(ctx, row, "failed", { error: message, targets: targetsOf(row).map((t) => ({ ...t, status: "failed" })) as unknown as Post["targets"] }, { reason: e instanceof ZernioError ? e.kind : "error" });
