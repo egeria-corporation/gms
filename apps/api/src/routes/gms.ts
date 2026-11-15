@@ -23,6 +23,7 @@ import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
+import { socialRoutes } from "./gms/social.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -53,6 +54,8 @@ const features = (c: Parameters<typeof config>[0]) => {
       airtable: !!ports.airtable,
       mercury: !!ports.bank && !!cfg.credentialsKey,
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
+      // Social posting through Zernio: ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET.
+      social: !!cfg.zernio,
     },
   };
 };
@@ -132,6 +135,7 @@ gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
+gms.route("/", socialRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

@@ -54,6 +54,9 @@ export interface Env {
   RESEND_INBOUND_DOMAIN?: string;
   /** Where consulting requests from outside applications go (default hello@agents.opengrants.io; on on every install). */
   CONSULTING_REQUEST_TO?: string;
+  /** Social posting through Zernio: on only when both are set (docs/social.md). */
+  ZERNIO_API_KEY?: string;
+  ZERNIO_WEBHOOK_SECRET?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;

@@ -37,6 +37,7 @@ export function config(c: C): ServiceConfig {
     resendInboundSecret: c.env.RESEND_INBOUND_SECRET ?? null,
     inboundDomain: c.env.RESEND_INBOUND_DOMAIN ?? (c.env.RESEND_FROM?.match(/@([A-Za-z0-9.-]+)/)?.[1] ?? null),
     consultingRequestTo: c.env.CONSULTING_REQUEST_TO?.trim() || null,
+    zernio: c.env.ZERNIO_API_KEY && c.env.ZERNIO_WEBHOOK_SECRET ? { apiKey: c.env.ZERNIO_API_KEY, webhookSecret: c.env.ZERNIO_WEBHOOK_SECRET } : null,
   };
 }
 

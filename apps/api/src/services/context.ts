@@ -92,6 +92,8 @@ export interface ServiceConfig {
   assistantMonthlyQuota?: number | null;
   /** CONSULTING_REQUEST_TO: where "Get help writing this" requests go; `CONSULTING_REQUEST_TO` of @gms/notify when not set. */
   consultingRequestTo?: string | null;
+  /** ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET; null (social posting hidden) unless both are set. */
+  zernio?: { apiKey: string; webhookSecret: string } | null;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
