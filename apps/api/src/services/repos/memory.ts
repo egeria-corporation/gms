@@ -142,6 +142,9 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   import_mappings: () => ({ updated_by: null }),
   import_runs: () => ({ source_label: null, source_ref: null, dropped_columns: [], reconciliation: {}, created_by: null, committed_by: null, committed_at: null, finished_at: null }),
   import_rows: () => ({ reason: null, problems: [], record: null, subtitle: null, entity_type: null, entity_id: null, written_at: null }),
+  // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
+  digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
+  digest_sends: () => ({ item_keys: [], message_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL or `whereNotNull` is not). */
@@ -171,6 +174,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   application_summaries: [{ columns: ["application_id", "response_version"] }],
   import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
   import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
+  digest_subscriptions: [{ columns: ["member_id"] }],
+  digest_sends: [{ columns: ["workspace_id", "user_id", "digest", "iso_week"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -207,6 +212,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   outside_obligations: { outside_application_id: "outside_applications", series_id: "outside_obligation_series", document_id: "documents" },
   // 0032 checks this one with its own trigger (gms.application_summary_same_workspace).
   application_summaries: { application_id: "applications" },
+  // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
+  digest_subscriptions: { member_id: "workspace_members" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
