@@ -122,14 +122,15 @@ function view(a: Assignment, app: App | undefined, review: Review | undefined, r
  */
 async function asSeen(ctx: ServiceContext, v: ReturnType<typeof view>, app: App | undefined, signed: Set<string> | null) {
   if (!app) return { ...v, applicantCode: null, anonymized: false, policyRequired: false };
-  if (signed && !signed.has(app.competition_id)) return { ...v, applicationTitle: null, review: null, applicantCode: null, anonymized: false, policyRequired: true };
+  // Only the caller's own assignments wait for the caller's signature.
+  if (signed && v.reviewerUserId === ctx.actor.userId && !signed.has(app.competition_id)) return { ...v, applicationTitle: null, review: null, applicantCode: null, anonymized: false, policyRequired: true };
   const anon = await anonymityFor(ctx, app.id);
   return { ...v, applicationTitle: anon && v.applicationTitle !== null ? redactText(v.applicationTitle, anon.terms) : v.applicationTitle, applicantCode: anon?.code ?? null, anonymized: !!anon, policyRequired: false };
 }
 
-/** The competitions whose policy a reviewer has signed, or null for staff (who are not gated). */
+/** The competitions whose policy the caller has signed (for their own assignments; staff reviewing alongside reviewers sign too), or null without a person. */
 async function signedFor(ctx: ServiceContext, ws: ServiceWorkspace, apps: readonly App[]): Promise<Set<string> | null> {
-  if (!isReviewerRole(ws) || !ctx.actor.userId) return null;
+  if (!ctx.actor.userId) return null;
   return signedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
 }
 

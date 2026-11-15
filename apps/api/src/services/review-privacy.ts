@@ -139,11 +139,11 @@ export async function rowsAsSeen<T extends Pick<App, "id" | "title">>(ctx: Servi
   return out;
 }
 
-/** What eligibility decided, without the values the rules read, and redacted. */
+/** What eligibility decided, without the raw values the rules read; the explanation kept, redacted. */
 const outcomesOnly = (e: unknown, terms: IdentityTerms): unknown => {
   const v = e as { results?: unknown[] } | null;
   if (!v || !Array.isArray(v.results)) return e === null || e === undefined ? e : redactValue(e, terms);
-  return redactValue({ ...v, results: v.results.map((r) => (r && typeof r === "object" ? Object.fromEntries(Object.entries(r as Record<string, unknown>).filter(([k]) => k !== "actual" && k !== "explain")) : r)) }, terms);
+  return redactValue({ ...v, results: v.results.map((r) => (r && typeof r === "object" ? Object.fromEntries(Object.entries(r as Record<string, unknown>).filter(([k]) => k !== "actual")) : r)) }, terms);
 };
 
 interface InboxShape {

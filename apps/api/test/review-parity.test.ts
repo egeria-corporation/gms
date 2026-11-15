@@ -104,6 +104,19 @@ describe("the conflict-of-interest policy", () => {
     expect((await s.call(r1, "PATCH", `/gms/review-assignments/${id}`, { action: "recuse", reason: "I sit on their board" })).status).toBe(200);
   });
 
+  it("holds staff who review alongside reviewers to the same signature for their own assignments", async () => {
+    const id = await assign(appA, USER_OFFICER);
+    const mine = await data<{ id: string; policyRequired: boolean; applicationTitle: string | null }[]>(s.funder, "GET", `/gms/review-assignments?reviewerUserId=${USER_OFFICER}`);
+    expect(mine.find((a) => a.id === id)).toMatchObject({ policyRequired: true, applicationTitle: null });
+    expect((await s.call(s.funder, "GET", `/gms/review-assignments/${id}`)).status).toBe(409);
+    // Staff still read the application itself, and see everyone else's assignments in full.
+    expect((await s.call(s.funder, "GET", `/gms/applications/app_${appA}`)).status).toBe(200);
+    await assign(appB, R1);
+    expect((await data<{ reviewerUserId: string; policyRequired: boolean }[]>(s.funder, "GET", "/gms/review-assignments")).filter((a) => a.reviewerUserId === R1).every((a) => !a.policyRequired)).toBe(true);
+    expect((await sign(s.funder, { signedName: "Dana Ortiz" })).status).toBe(201);
+    expect((await s.call(s.funder, "GET", `/gms/review-assignments/${id}`)).status).toBe(200);
+  });
+
   it("opens the competition once signed, records the typed name and time, and is signed once", async () => {
     const id = await assign(appA, R1);
     const signed = await sign(r1);

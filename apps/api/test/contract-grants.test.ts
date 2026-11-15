@@ -87,6 +87,10 @@ describe.skipIf(!existsSync(SPEC))("review-to-award contract", () => {
     const created = await expectValid(s.funder, "/gms/review-assignments", "post", "/gms/review-assignments", 201, { applicationId: `app_${app}`, reviewerUserId: R1 });
     assignment = created.data.id as string;
     const reviewer = { ...bearer(await h.session(R1)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
+    // The competition's conflict-of-interest policy is signed first (v1.8.0).
+    await expectValid(reviewer, "/gms/review-assignments", "get", "/gms/review-assignments", 200);
+    await expectValid(reviewer, "/gms/competitions/{id}/coi-policy", "get", `/gms/competitions/${s.compId}/coi-policy`, 200);
+    await expectValid(reviewer, "/gms/competitions/{id}/coi-policy/sign", "post", `/gms/competitions/${s.compId}/coi-policy/sign`, 201, { policyVersion: 1, signedName: "Morgan Reviewer", agree: true, conflicts: [{ name: "Some Other Group" }] });
     await expectValid(reviewer, "/gms/review-assignments/{id}", "patch", `/gms/review-assignments/${assignment}`, 200, { action: "declare_coi", hasConflict: false });
     await expectValid(reviewer, "/gms/review-assignments/{id}", "patch", `/gms/review-assignments/${assignment}`, 200, { action: "submit", scores: { fit: 4 }, narrative: "Good fit." });
     await expectValid(reviewer, "/gms/review-assignments/{id}", "get", `/gms/review-assignments/${assignment}`, 200);
@@ -95,6 +99,20 @@ describe.skipIf(!existsSync(SPEC))("review-to-award contract", () => {
     await expectValid(s.funder, "/gms/competitions/{id}/ranking", "get", `/gms/competitions/${s.compId}/ranking?stage=loi`, 200);
     await expectValid(s.funder, "/gms/review-assignments/auto", "post", "/gms/review-assignments/auto", 200, { competitionId: s.compId, stage: "loi", dryRun: true });
     await expectValid(s.funder, "/gms/review-assignments/invite", "post", "/gms/review-assignments/invite", 201, { email: "hollis@university.example", competitionId: s.compId });
+  });
+
+  it("review parity: settings, the policy, the conflicts register and the board docket", async () => {
+    await expectValid(s.funder, "/gms/competitions/{id}/review-settings", "get", `/gms/competitions/${s.compId}/review-settings`, 200);
+    await expectValid(s.funder, "/gms/competitions/{id}/review-settings", "put", `/gms/competitions/${s.compId}/review-settings`, 200, { stage: "loi", anonymized: true, reviewMode: "see_after_submit" });
+    await expectValid(s.funder, "/gms/competitions/{id}/coi-policy", "put", `/gms/competitions/${s.compId}/coi-policy`, 200, { text: "Declare every organization you have worked with in the last five years." });
+    await expectValid(s.funder, "/gms/competitions/{id}/conflicts-register", "get", `/gms/competitions/${s.compId}/conflicts-register`, 200);
+    // The application, as the anonymized reviewer reads it.
+    const reviewer = { ...bearer(await h.session(R1)).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
+    await expectValid(reviewer, "/gms/competitions/{id}/coi-policy/sign", "post", `/gms/competitions/${s.compId}/coi-policy/sign`, 201, { policyVersion: 2, signedName: "Morgan Reviewer", agree: true });
+    await expectValid(reviewer, "/gms/applications/{id}", "get", `/gms/applications/app_${app}`, 200);
+    await expectValid(reviewer, "/gms/review-assignments", "get", "/gms/review-assignments", 200);
+    await expectValid(s.funder, "/gms/competitions/{id}/dockets", "post", `/gms/competitions/${s.compId}/dockets`, 201, { stage: "loi" });
+    await expectValid(s.funder, "/gms/competitions/{id}/review-settings", "put", `/gms/competitions/${s.compId}/review-settings`, 200, { stage: "loi", anonymized: false, reviewMode: "blind" });
   });
 
   it("decisions and the allocator", async () => {
