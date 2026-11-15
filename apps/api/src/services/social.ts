@@ -152,7 +152,7 @@ export async function socialSettings(ctx: ServiceContext) {
 
 // ------------------------------------------------------------------------------------ connect
 
-export const platformInput = z.enum(PLATFORMS);
+export const connectInput = z.object({ platform: z.enum(PLATFORMS) }).strict();
 export const callbackInput = z
   .object({
     /** The `gs` this server put on the redirect URL. */
@@ -219,7 +219,7 @@ export async function finishConnect(ctx: ServiceContext, input: z.output<typeof 
 
 async function recordAccount(ctx: ServiceContext, workspaceId: string, acc: { id: string; platform: Platform; username: string | null }, via: "callback" | "webhook") {
   const at = ctx.now().toISOString();
-  const existing = await ctx.repos.table("social_accounts").one({ zernio_account_id: acc.id });
+  const existing = await ctx.repos.table("social_accounts").one({ zernio_id: acc.id });
   // An account never moves between workspaces.
   if (existing && existing.workspace_id !== workspaceId) throw new ApiError(409, "account_elsewhere", "That account is connected to another workspace");
   const username = acc.username ? acc.username.slice(0, 200) : (existing?.username ?? null);
@@ -243,7 +243,7 @@ async function recordAccount(ctx: ServiceContext, workspaceId: string, acc: { id
     });
     return accountView(row!);
   }
-  row = await guardWrite("That account", () => ctx.repos.table("social_accounts").insert({ workspace_id: workspaceId, zernio_account_id: acc.id, platform: acc.platform, username, status: "active", connected_at: at, connected_by: ctx.actor.userId }));
+  row = await guardWrite("That account", () => ctx.repos.table("social_accounts").insert({ workspace_id: workspaceId, zernio_id: acc.id, platform: acc.platform, username, status: "active", connected_at: at, connected_by: ctx.actor.userId }));
   await audit(ctx, "social.account.connected", "social_account", row.id, { platform: acc.platform, via, from: null, to: "active" });
   return accountView(row);
 }
@@ -254,7 +254,7 @@ export async function disconnectAccount(ctx: ServiceContext, id: string) {
   const row = await ctx.repos.table("social_accounts").one({ id, workspace_id: ws.id });
   if (!row) throw notFound("Social account");
   if (row.status === "disconnected") return accountView(row);
-  await port.disconnectAccount(row.zernio_account_id).catch((e: unknown) => zernioFailure(e));
+  await port.disconnectAccount(row.zernio_id).catch((e: unknown) => zernioFailure(e));
   return markDisconnected(ctx, row, "settings");
 }
 
@@ -377,7 +377,7 @@ async function compose(ctx: ServiceContext, ws: ServiceWorkspace, input: Compose
   if (rows.length !== ids.length) throw new ApiError(422, "account_not_connected", "One of the accounts is not connected to this workspace any more. Choose the accounts again");
   const accounts = ids.map((id) => rows.find((r) => r.id === id)!);
   const content = input.content.replace(/\r\n/g, "\n");
-  const ci = { content, imageUrl: input.includeImage ? draft.imageUrl : null, targets: accounts.map((a) => ({ platform: a.platform as Platform, accountId: a.zernio_account_id })), schedule: input.schedule };
+  const ci = { content, imageUrl: input.includeImage ? draft.imageUrl : null, targets: accounts.map((a) => ({ platform: a.platform as Platform, accountId: a.zernio_id })), schedule: input.schedule };
   const check = checkCompose(ci, ctx.now());
   const body = buildPostBody(ci);
   return { draft, accounts, body, digest: await postDigest(body), problems: check.problems, lengths: check.lengths, scheduledAt: check.scheduledAt };
@@ -436,7 +436,7 @@ function overall(targets: Target[], zernioStatus: string | null): PostStatus {
 function mergeTargets(current: Target[], post: ZernioPost | null, accounts: Account[], scheduled: boolean): Target[] {
   return current.map((t) => {
     const acc = accounts.find((a) => a.id === t.accountId);
-    const z = post?.platforms.find((p) => acc && p.accountId === acc.zernio_account_id);
+    const z = post?.platforms.find((p) => acc && p.accountId === acc.zernio_id);
     if (!z) return t;
     const status = targetStatus(z.status ?? post?.status ?? null, scheduled);
     return { ...t, status, url: z.url ?? t.url };
@@ -670,7 +670,7 @@ export async function receiveZernioEvent(base: BaseContext, headers: { get(name:
       await done("no_account");
       return { status: 200, outcome: "ignored" };
     }
-    const row = await base.repos.table("social_accounts").one({ zernio_account_id: accountId });
+    const row = await base.repos.table("social_accounts").one({ zernio_id: accountId });
     if (row && row.workspace_id !== home.id) {
       await done("account_elsewhere");
       return { status: 200, outcome: "ignored" };

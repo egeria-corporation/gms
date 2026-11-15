@@ -27,16 +27,9 @@ const subjectQuery = (type: string | undefined, id: string | undefined) => {
   return r.data;
 };
 
-const platformParam = (value: string | undefined) => {
-  const r = social.platformInput.safeParse(value);
-  if (!r.success) throw new ApiError(404, "not_found", "Platform not found");
-  return r.data;
-};
-
 socialRoutes.get("/social", async (c) => c.json(ok(await social.socialSettings(await svc(c)))));
-// Registered before `/social/connect/:platform`.
+socialRoutes.post("/social/connect", async (c) => c.json(ok(await social.startConnect(await svc(c), parse(social.connectInput, await jsonBody(c)).platform))));
 socialRoutes.post("/social/connect/callback", async (c) => c.json(created(await social.finishConnect(await svc(c), parse(social.callbackInput, await jsonBody(c)))), 201));
-socialRoutes.post("/social/connect/:platform", async (c) => c.json(ok(await social.startConnect(await svc(c), platformParam(c.req.param("platform"))))));
 socialRoutes.delete("/social/accounts/:id", async (c) => c.json(ok(await social.disconnectAccount(await svc(c), bareUuid(c.req.param("id"), "Social account")))));
 socialRoutes.get("/social/compose", async (c) => c.json(ok(await social.composerDraft(await svc(c), subjectQuery(c.req.query("subjectType"), c.req.query("subjectId"))))));
 socialRoutes.post("/social/posts/preview", async (c) => c.json(ok(await social.previewPost(await svc(c), parse(social.composeInput, await jsonBody(c))))));

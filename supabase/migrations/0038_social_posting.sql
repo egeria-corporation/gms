@@ -117,8 +117,8 @@ comment on table public.social_profiles is 'The workspace''s Zernio profile (ext
 create table public.social_accounts (
   id                 uuid primary key default gms.uuid_v7(),
   workspace_id       uuid not null references public.workspaces (id) on delete cascade,
-  -- One Zernio account belongs to one workspace.
-  zernio_account_id  text not null unique check (zernio_account_id ~ '^[A-Za-z0-9_-]{1,64}$'),
+  -- Zernio's id for the account. One Zernio account belongs to one workspace.
+  zernio_id          text not null unique check (zernio_id ~ '^[A-Za-z0-9_-]{1,64}$'),
   platform           text not null check (platform in ('linkedin', 'facebook', 'instagram', 'twitter', 'bluesky', 'threads')),
   username           text check (username is null or length(username) between 1 and 200),
   status             text not null default 'active' check (status in ('active', 'disconnected')),

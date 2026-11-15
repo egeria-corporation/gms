@@ -66,6 +66,10 @@ namespace GMS.Models {
     canPost: boolean;
   }
 
+  model SocialConnectInput {
+    platform: SocialPlatform;
+  }
+
   model SocialConnectStart {
     /** Zernio's sign-in for the platform. It returns to Settings › Social accounts. */
     authUrl: url;
@@ -302,8 +306,8 @@ namespace GMS.Routes.Custom {
     op settings(): OkT<SocialSettings> | AuthErrors | NotFound;
 
     /** Start connecting an account. Creates the workspace's Zernio profile on first use. A signed-in admin only (403 `human_only` for tokens). */
-    @post @route("/social/connect/{platform}") @useAuth(UserSession)
-    op connect(@path platform: SocialPlatform): OkT<SocialConnectStart> | AuthErrors | NotFound | SocialBadGateway | ServiceUnavailable;
+    @post @route("/social/connect") @useAuth(UserSession)
+    op connect(@body body: SocialConnectInput): OkT<SocialConnectStart> | BadRequest | AuthErrors | NotFound | SocialBadGateway | ServiceUnavailable;
 
     /** Record the account Zernio connected. The state must be this person's, for this workspace, and under ten minutes old (403 `connect_state_invalid`); the account must be listed under this workspace's profile (409 `account_not_listed`). */
     @post @route("/social/connect/callback") @useAuth(UserSession)

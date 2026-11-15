@@ -173,7 +173,7 @@ the person starts again.
 ## Routes
 
 - `GET /gms/social`: the settings.
-- `POST /gms/social/connect/{platform}`: start connecting.
+- `POST /gms/social/connect` (`{ platform }`): start connecting.
 - `POST /gms/social/connect/callback`: record the account.
 - `DELETE /gms/social/accounts/{id}`: disconnect.
 - `GET /gms/social/compose?subjectType=&subjectId=`: the composer's starting draft.

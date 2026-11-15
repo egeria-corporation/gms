@@ -2772,7 +2772,7 @@ export type Database = {
           updated_at: string;
           username: string | null;
           workspace_id: string;
-          zernio_account_id: string;
+          zernio_id: string;
         };
         Insert: {
           connected_at?: string;
@@ -2785,7 +2785,7 @@ export type Database = {
           updated_at?: string;
           username?: string | null;
           workspace_id: string;
-          zernio_account_id: string;
+          zernio_id: string;
         };
         Update: {
           connected_at?: string;
@@ -2798,7 +2798,7 @@ export type Database = {
           updated_at?: string;
           username?: string | null;
           workspace_id?: string;
-          zernio_account_id?: string;
+          zernio_id?: string;
         };
         Relationships: [];
       };

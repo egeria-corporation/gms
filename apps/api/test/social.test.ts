@@ -46,7 +46,7 @@ function configure() {
 /** Connect an account as `user` in `ws`, through Zernio's sign-in at the fake and the callback. */
 async function connect(user: string, ws: string, platform: string, username: string) {
   const who = await person(user, ws);
-  const start = await call("POST", `/gms/social/connect/${platform}`, who);
+  const start = await call("POST", "/gms/social/connect", who, { platform });
   expect(start.status).toBe(200);
   const back = new URL(fake.approve(data<{ authUrl: string }>(start).authUrl, username));
   const done = await call("POST", "/gms/social/connect/callback", who, { state: back.searchParams.get("gs"), profileId: back.searchParams.get("profileId"), accountId: back.searchParams.get("accountId"), connected: back.searchParams.get("connected"), username: back.searchParams.get("username") });
@@ -86,7 +86,7 @@ afterEach(() => {
 describe("hidden when Zernio is not set up", () => {
   it("answers 404 on every route and the webhook, and the app is told it is off", async () => {
     const admin = await person(USER_ADMIN, WS_FUNDER);
-    for (const [m, p] of [["GET", "/gms/social"], ["POST", "/gms/social/connect/linkedin"], ["POST", "/gms/social/posts"], ["GET", "/gms/social/posts"]] as const) {
+    for (const [m, p] of [["GET", "/gms/social"], ["POST", "/gms/social/connect"], ["POST", "/gms/social/posts"], ["GET", "/gms/social/posts"]] as const) {
       expect((await call(m, p, admin, m === "POST" ? {} : undefined)).status).toBe(404);
       expect((await call(m, p, { "Content-Type": "application/json" }, m === "POST" ? {} : undefined)).status).toBe(404);
     }
@@ -120,12 +120,12 @@ describe("connect", () => {
     expect(h.ledger.events.map((e) => e.eventType)).toEqual(expect.arrayContaining(["social.profile.created", "social.connect.started", "social.account.connected"]));
     // Stored: ids, platform and username only.
     const rows = await h.repos.table("social_accounts").find({ workspace_id: WS_FUNDER });
-    expect(Object.keys(rows[0]!).sort()).toEqual(["connected_at", "connected_by", "created_at", "disconnected_at", "id", "platform", "status", "updated_at", "username", "workspace_id", "zernio_account_id"]);
+    expect(Object.keys(rows[0]!).sort()).toEqual(["connected_at", "connected_by", "created_at", "disconnected_at", "id", "platform", "status", "updated_at", "username", "workspace_id", "zernio_id"]);
   });
 
   it("refuses a forged, altered, expired or someone else's state, and an account Zernio does not list", async () => {
     const who = await person(USER_ADMIN, WS_FUNDER);
-    const start = data<{ authUrl: string }>(await call("POST", "/gms/social/connect/linkedin", who));
+    const start = data<{ authUrl: string }>(await call("POST", "/gms/social/connect", who, { platform: "linkedin" }));
     const back = new URL(fake.approve(start.authUrl, "riverbend-cf"));
     const good = { state: back.searchParams.get("gs")!, profileId: back.searchParams.get("profileId")!, accountId: back.searchParams.get("accountId")! };
     const refuse = async (headers: Record<string, string>, body: Record<string, unknown>, status = 403) => {
@@ -153,10 +153,10 @@ describe("connect", () => {
   });
 
   it("connecting and disconnecting are a person's, and an admin's", async () => {
-    expect((await call("POST", "/gms/social/connect/linkedin", await person(USER_OFFICER, WS_FUNDER))).status).toBe(403);
-    expect((await call("POST", "/gms/social/connect/linkedin", await agent(USER_ADMIN, WS_FUNDER, "workspace:admin"))).status).toBe(403);
+    expect((await call("POST", "/gms/social/connect", await person(USER_OFFICER, WS_FUNDER), { platform: "linkedin" })).status).toBe(403);
+    expect((await call("POST", "/gms/social/connect", await agent(USER_ADMIN, WS_FUNDER, "workspace:admin"), { platform: "linkedin" })).status).toBe(403);
     const cc = await clientCredentialsToken(h, "workspace:admin");
-    expect((await call("POST", "/gms/social/connect/linkedin", json({ Authorization: `Bearer ${cc}`, "X-GMS-Workspace": WS_FUNDER }))).status).toBe(403);
+    expect((await call("POST", "/gms/social/connect", json({ Authorization: `Bearer ${cc}`, "X-GMS-Workspace": WS_FUNDER }), { platform: "linkedin" })).status).toBe(403);
     const { account } = await connect(USER_ADMIN, WS_FUNDER, "linkedin", "riverbend-cf");
     expect((await call("DELETE", `/gms/social/accounts/${account.id}`, await agent(USER_ADMIN, WS_FUNDER, "workspace:admin"))).status).toBe(403);
     expect((await call("DELETE", `/gms/social/accounts/${account.id}`, await person(OTHER_ADMIN, WS_OTHER))).status).toBe(404);
@@ -429,7 +429,7 @@ describe("webhook", () => {
 
   it("an account disconnected at Zernio shows as disconnected", async () => {
     const li = (await connect(USER_ADMIN, WS_FUNDER, "linkedin", "riverbend-cf")).account;
-    const zid = (await h.repos.table("social_accounts").one({ id: li.id }))!.zernio_account_id;
+    const zid = (await h.repos.table("social_accounts").one({ id: li.id }))!.zernio_id;
     const r = await deliver({ id: "evt_dc", event: "account.disconnected", profiles: [{ externalId: WS_FUNDER }], account: { _id: zid, platform: "linkedin", username: "riverbend-cf" } });
     expect(r.body.message).toBe("processed");
     expect(await h.repos.table("social_accounts").one({ id: li.id })).toMatchObject({ status: "disconnected" });

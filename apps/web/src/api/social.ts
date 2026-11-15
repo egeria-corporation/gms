@@ -73,7 +73,7 @@ export function createHttpSocialApi(opts: HttpSocialOptions): SocialApi {
         throw err;
       }
     },
-    connect: (platform) => call("POST", `/gms/social/connect/${e(platform)}`, {}),
+    connect: (platform) => call("POST", "/gms/social/connect", { platform }),
     finishConnect: (params) => call("POST", "/gms/social/connect/callback", params),
     disconnect: (accountId) => call("DELETE", `/gms/social/accounts/${e(accountId)}`),
     draft: (subject) => call("GET", `/gms/social/compose?${subjectQuery(subject)}`),

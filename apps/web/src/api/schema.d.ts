@@ -5060,6 +5060,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/social/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Start connecting an account. Creates the workspace's Zernio profile on first use. A signed-in admin only (403 `human_only` for tokens). */
+        post: operations["Social_connect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/social/connect/callback": {
         parameters: {
             query?: never;
@@ -5071,23 +5088,6 @@ export interface paths {
         put?: never;
         /** @description Record the account Zernio connected. The state must be this person's, for this workspace, and under ten minutes old (403 `connect_state_invalid`); the account must be listed under this workspace's profile (409 `account_not_listed`). */
         post: operations["Social_connectCallback"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/gms/social/connect/{platform}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Start connecting an account. Creates the workspace's Zernio profile on first use. A signed-in admin only (403 `human_only` for tokens). */
-        post: operations["Social_connect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -16873,6 +16873,9 @@ export interface components {
             accountId: string;
             connected?: string;
             username?: string;
+        };
+        "Models.SocialConnectInput": {
+            platform: components["schemas"]["Models.SocialPlatform"];
         };
         "Models.SocialConnectStart": {
             /**
@@ -37676,6 +37679,87 @@ export interface operations {
             };
         };
     };
+    Social_connect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SocialConnectInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SocialConnectStart"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Server error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Social_connectCallback: {
         parameters: {
             query?: never;
@@ -37739,76 +37823,6 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
-            /** @description Server error */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
-            /** @description Service unavailable. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
-        };
-    };
-    Social_connect: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                platform: components["schemas"]["Models.SocialPlatform"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A 200 response with typed data */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @description Response data */
-                        data: components["schemas"]["Models.SocialConnectStart"];
-                    } & components["schemas"]["CommonGrants.Responses.Success"];
-                };
-            };
-            /** @description Access is unauthorized. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
-            /** @description Access is forbidden. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
-                };
-            };
-            /** @description The server cannot find the requested resource. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

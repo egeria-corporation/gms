@@ -444,7 +444,7 @@ Every route answers 404 `social_not_configured` unless `ZERNIO_API_KEY` and `ZER
 | Route | Status | Notes |
 |---|---|---|
 | `GET /gms/social` | Implemented | Platforms with their limits, the workspace's connected accounts, `canConnect`, `canPost`. Staff (`analytics:read` funder, `awards:read` applicant) |
-| `POST /gms/social/connect/{platform}` | Implemented | A signed-in admin (agents and API clients `403 human_only`). Creates the workspace's Zernio profile on first use; returns Zernio's `authUrl`, which returns to `/w/{handle}/settings/social?gs=…` |
+| `POST /gms/social/connect` | Implemented | `{ platform }`. A signed-in admin (agents and API clients `403 human_only`). Creates the workspace's Zernio profile on first use; returns Zernio's `authUrl`, which returns to `/w/{handle}/settings/social?gs=…` |
 | `POST /gms/social/connect/callback` | Implemented | `{ state, profileId, accountId, connected?, username? }` → `201` the account. `403 connect_state_invalid` (forged, altered, expired, another person or workspace, another profile); `409 account_not_listed` when Zernio does not list the account under this workspace's profile |
 | `DELETE /gms/social/accounts/{id}` | Implemented | A signed-in admin. Disconnects at Zernio, then here |
 | `GET /gms/social/compose?subjectType=&subjectId=` | Implemented | The composer's starting texts, link (`utm_source=social`) and share card; `shareable: false` with a reason for an unpublished or closed call and for an award that is not publicly listed. A read: agents may use it |

@@ -62,17 +62,17 @@ select throws_ok(
   '23514', null, 'a profile id is a Zernio id'
 );
 
-insert into public.social_accounts (id, workspace_id, zernio_account_id, platform, username) values
+insert into public.social_accounts (id, workspace_id, zernio_id, platform, username) values
   ('14000000-0000-7000-8000-0000000000a1', '14000000-0000-7000-8000-000000000001', 'acc_li_funder', 'linkedin', 'social-funder'),
   ('14000000-0000-7000-8000-0000000000a2', '14000000-0000-7000-8000-000000000002', 'acc_bs_grantee', 'bluesky', 'grantee.bsky.social'),
   ('14000000-0000-7000-8000-0000000000a3', '14000000-0000-7000-8000-000000000003', 'acc_x_other', 'twitter', 'other');
 select pass('accounts are recorded by Zernio id, platform and username');
 select throws_ok(
-  $$ insert into public.social_accounts (workspace_id, zernio_account_id, platform) values ('14000000-0000-7000-8000-000000000003', 'acc_li_funder', 'linkedin') $$,
+  $$ insert into public.social_accounts (workspace_id, zernio_id, platform) values ('14000000-0000-7000-8000-000000000003', 'acc_li_funder', 'linkedin') $$,
   '23505', null, 'one Zernio account belongs to one workspace'
 );
 select throws_ok(
-  $$ insert into public.social_accounts (workspace_id, zernio_account_id, platform) values ('14000000-0000-7000-8000-000000000001', 'acc_tt', 'tiktok') $$,
+  $$ insert into public.social_accounts (workspace_id, zernio_id, platform) values ('14000000-0000-7000-8000-000000000001', 'acc_tt', 'tiktok') $$,
   '23514', null, 'only the six platforms'
 );
 select throws_ok(

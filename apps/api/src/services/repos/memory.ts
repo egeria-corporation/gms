@@ -175,7 +175,7 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
   import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
   social_profiles: [{ columns: ["workspace_id"] }, { columns: ["zernio_profile_id"] }],
-  social_accounts: [{ columns: ["zernio_account_id"] }],
+  social_accounts: [{ columns: ["zernio_id"] }],
   social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.

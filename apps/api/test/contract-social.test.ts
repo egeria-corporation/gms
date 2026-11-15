@@ -63,7 +63,7 @@ describe.skipIf(!existsSync(SPEC))("social posting contract", () => {
 
   it("settings, connect, compose, preview, post, reach, disconnect and the webhook match the document", async () => {
     await valid("/gms/social", "get", "/gms/social", 200);
-    const start = await valid<{ authUrl: string }>("/gms/social/connect/{platform}", "post", "/gms/social/connect/linkedin", 200);
+    const start = await valid<{ authUrl: string }>("/gms/social/connect", "post", "/gms/social/connect", 200, { platform: "linkedin" });
     const back = new URL(fake.approve(start.authUrl, "riverbend-cf"));
     const account = await valid<{ id: string }>("/gms/social/connect/callback", "post", "/gms/social/connect/callback", 201, { state: back.searchParams.get("gs"), profileId: back.searchParams.get("profileId"), accountId: back.searchParams.get("accountId"), connected: "linkedin", username: "riverbend-cf" });
     await valid("/gms/social/compose", "get", `/gms/social/compose?subjectType=opportunity&subjectId=${OPP}`, 200);
