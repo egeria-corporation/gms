@@ -22,6 +22,7 @@ import { insightRoutes } from "./gms/insights.ts";
 import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
+import { openDataRoutes } from "./gms/open-data.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { migrationRequestRoutes } from "./gms/migration-request.ts";
 import { config, userSvc } from "./http.ts";
@@ -135,6 +136,8 @@ gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 // The switch pages' free migration request: no token needed, never an API or agent token.
 gms.route("/", migrationRequestRoutes);
+// Open data exports, and the public 360Giving feed (`/open-data/{handle}/360giving.json`, no token).
+gms.route("/", openDataRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

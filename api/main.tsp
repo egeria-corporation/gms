@@ -8,6 +8,7 @@ import "./embed.tsp";
 import "./invites.tsp";
 import "./imports.tsp";
 import "./switch.tsp";
+import "./open-data.tsp";
 
 using TypeSpec.Http;
 

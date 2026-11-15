@@ -150,6 +150,8 @@ export const FUNDER_TOOLS = {
   portfolio_summary: tool("portfolioSummary", "analytics:read", "Portfolio totals: awarded, disbursed, active awards, by program.", z.object({ fiscalYear: z.number().int().optional(), programId: programId.optional() })),
   cycle_metrics: tool("cycleMetrics", "analytics:read", "Cycle metrics for a competition: counts by stage, time in stage, approval rate.", z.object({ competitionId })),
   export_990pf_grant_list: tool("export990pfGrantList", "analytics:read", "Export the 990-PF Part XV grant list for a tax year.", z.object({ taxYear: z.number().int().min(2000).max(2100), format: z.enum(["csv", "json"]).default("csv") })),
+  // Open data (360Giving and CommonGrants): counts only. Turning on the public feed and marking awards confidential are done by a person in the GMS.
+  open_data_summary: tool("openDataSummary", "analytics:read", "Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; nothing is published.", z.object({ year: z.number().int().min(1900).max(2100).optional(), from: isoDate.optional(), to: isoDate.optional() })),
 
   get_import_preview: tool("getImportPreview", "workspace:admin", "Read an import check (dry run) a person made on the import screen: how many rows would be created, skipped or need a fix, the amounts by year, and the names of the columns left out as bank or identity data. Only a person imports the rows, in the GMS; no tool does it.", z.object({ importRunId: uuid("Import run id") })),
 

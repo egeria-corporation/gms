@@ -137,6 +137,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `cycle_metrics` | `analytics:read` | — | Cycle metrics for a competition: counts by stage, time in stage, approval rate. |
 | `export_990pf_grant_list` | `analytics:read` | — | Export the 990-PF Part XV grant list for a tax year. |
 | `get_import_preview` | `workspace:admin` | — | Read a grant history import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out as bank or identity data. No tool imports the rows; only a person does, in the GMS, and agent and API-client tokens are refused on the commit route. |
+| `open_data_summary` | `analytics:read` | — | Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; publishing is done by a person (docs/open-data.md). |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
