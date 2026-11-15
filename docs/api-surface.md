@@ -436,3 +436,20 @@ Tests: `apps/web/test/front-worker.test.ts`, `apps/api/test/share-pages.test.ts`
 | `GET/POST/DELETE /gms/connectors/{provider}` | Implemented | Adds `google_sheets` and `airtable` (read-only Composio connections), workspace admin of either kind. `GET /gms/config` adds `available.googleSheets` and `available.airtable` |
 | `POST /gms/outside-applications/import`, `POST /gms/imports/csv` | Implemented | The older direct imports screen columns by header and by value as the wizard does; a field mapped to a dropped column counts as unmapped |
 | MCP `get_import_preview` | Implemented | Funder (`workspace:admin`) and applicant (`applications:write`) sides. A run's reconciliation, progress and dropped column names. No tool commits an import |
+
+## Social posting through Zernio (v1.8.0)
+
+Every route answers 404 `social_not_configured` unless `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` are both set; `GET /gms/config` adds `available.social`. See docs/social.md.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/social` | Implemented | Platforms with their limits, the workspace's connected accounts, `canConnect`, `canPost`. Staff (`analytics:read` funder, `awards:read` applicant) |
+| `POST /gms/social/connect/{platform}` | Implemented | A signed-in admin (agents and API clients `403 human_only`). Creates the workspace's Zernio profile on first use; returns Zernio's `authUrl`, which returns to `/w/{handle}/settings/social?gs=…` |
+| `POST /gms/social/connect/callback` | Implemented | `{ state, profileId, accountId, connected?, username? }` → `201` the account. `403 connect_state_invalid` (forged, altered, expired, another person or workspace, another profile); `409 account_not_listed` when Zernio does not list the account under this workspace's profile |
+| `DELETE /gms/social/accounts/{id}` | Implemented | A signed-in admin. Disconnects at Zernio, then here |
+| `GET /gms/social/compose?subjectType=&subjectId=` | Implemented | The composer's starting texts, link (`utm_source=social`) and share card; `shareable: false` with a reason for an unpublished or closed call and for an award that is not publicly listed. A read: agents may use it |
+| `POST /gms/social/posts/preview` | Implemented | A signed-in admin or editor. The exact `body` Zernio will receive, each platform's length, problems, and a `previewToken` (null while there is a problem). `409 not_shareable`, `422 account_not_connected` |
+| `POST /gms/social/posts` | Implemented | A signed-in admin or editor (agents and API clients `403 human_only`), `Idempotency-Key` header (a UUID, `400 idempotency_key_required`). The body must be the one previewed (`409 preview_required`, `preview_changed`); the same key returns the post already made (`409 idempotency_key_reused` for other content); Zernio's 409 counts as sent. `503 zernio_unavailable`: not confirmed, post again with the same key |
+| `GET /gms/social/posts?subjectType=&subjectId=` | Implemented | The reach report: the last 50 posts with status, per-account links and Zernio's counts (read at most every 30 minutes, ten Zernio calls per report), totals, and for a call `applicationsFromSocial` |
+| `POST /webhooks/zernio` | Implemented | `X-Zernio-Signature` (HMAC-SHA256 of the raw body) checked first (`401`); stored once by event id (`duplicate`); older than a day `400 stale`; applied only to the workspace whose profile it names. Account and post events |
+| MCP `list_social_posts` | Implemented | Funder (`analytics:read`, an opportunity or award or all) and applicant (`awards:read`, its awards). No tool posts, schedules or connects |

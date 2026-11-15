@@ -149,6 +149,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `OPENGRANTS_API_KEY` | api | Optional |
 | `COMPOSIO_API_KEY` | api | Optional. Connected apps through Composio (`docs/connectors.md`); for imports it must be allowed to execute tools as well as manage connected accounts |
 | `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID`, `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` | api | Optional (v1.7.0). Read-only Composio auth configs for importing from Google Sheets and Airtable (`docs/connectors.md`). Without them imports offer CSV and Excel files only |
+| `ZERNIO_API_KEY`, `ZERNIO_WEBHOOK_SECRET` | api | Optional (v1.8.0). Social posting through Zernio, which a person approves post by post (`docs/social.md`): the API key, and the signing secret of the Zernio webhook endpoint `{GMS_BASE_URL}/webhooks/zernio`. Without both, every social control is hidden |
 | `VITE_USERBACK_TOKEN` | web build | Optional, build-time (not a Worker secret). Userback's public access token for the feedback button. Leave it unset to load nothing and keep the Content-Security-Policy unchanged |
 
 Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_URL`,
