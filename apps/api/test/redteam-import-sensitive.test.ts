@@ -2,9 +2,9 @@
 // Red team: an import whose columns are named or shaped like bank details (the routing and the
 // account digits), identity numbers and when a person was born stores none of those values
 // anywhere: not the records it writes, not the import run or its log, not the saved mappings, not
-// the ledger, mail, files or webhooks, and no answer carries them. Run for both targets, from a CSV, Google Sheets and Airtable
-// (an XLSX goes through the same screen after it is read), with a mapping that tries to use the
-// dropped columns, and through the two older direct imports.
+// the ledger, mail, files or webhooks, and no answer carries them. Run for both targets, from a CSV,
+// an Excel workbook (made at run time, ./xlsx-writer.ts), Google Sheets and Airtable, with a mapping
+// that tries to use the dropped columns, and through the two older direct imports.
 //
 // Every sensitive-looking value is made up at run time, and the headers are put together from
 // parts, so no file in the repository holds one (`pnpm gate:sensitive`).
@@ -12,6 +12,7 @@ import { TABLE_NAMES } from "@gms/db";
 import { parseCsv } from "@gms/importers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { USER_ADMIN, WS_APPLICANT, WS_FUNDER, bearer, harness, type Harness } from "./helpers.ts";
+import { base64Of, xlsxOf } from "./xlsx-writer.ts";
 
 const USER_APPLICANT_ADMIN = "12121212-1212-4121-8121-121212121212";
 const SHEET_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd";
@@ -128,11 +129,15 @@ describe("an import with bank and identity data in it", () => {
     runs.push(await importThrough(applicant, "outside_applications", { kind: "csv", text: toCsv(outside), fileName: "pipeline.csv" }, outsideMapping, outsideSneaky));
     runs.push(await importThrough(applicant, "outside_applications", { kind: "google_sheets", url: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, sheet: "Pipeline" }, outsideMapping, outsideSneaky));
     runs.push(await importThrough(applicant, "outside_applications", { kind: "airtable", url: `https://airtable.com/${BASE}/${TABLE}` }, outsideMapping, outsideSneaky));
+    // An Excel workbook with both sheets; each target reads its own.
+    const workbook = base64Of(xlsxOf({ Pipeline: outside, History: history }));
+    runs.push(await importThrough(applicant, "outside_applications", { kind: "xlsx", base64: workbook, sheet: "Pipeline", fileName: "grants.xlsx" }, outsideMapping, outsideSneaky));
     runs.push(await importThrough(funder, "award_history", { kind: "csv", text: toCsv(history), fileName: "history.csv" }, historyMapping, historySneaky));
     runs.push(await importThrough(funder, "award_history", { kind: "google_sheets", url: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, sheet: "History" }, historyMapping, historySneaky));
+    runs.push(await importThrough(funder, "award_history", { kind: "xlsx", base64: workbook, sheet: "History", fileName: "grants.xlsx" }, historyMapping, historySneaky));
 
-    // The imports did their work: the ordinary columns came in (a CSV and a sheet with the same
-    // rows write them once; Airtable rows are keyed by their record ids).
+    // The imports did their work: the ordinary columns came in (a CSV, a sheet and a workbook with
+    // the same rows write them once; Airtable rows are keyed by their record ids).
     expect((await h.repos.table("outside_applications").find({ workspace_id: WS_APPLICANT })).map((o) => o.title).sort()).toEqual(["Clinic grant 1", "Clinic grant 1", "Clinic grant 2", "Clinic grant 2"]);
     expect(await h.repos.table("awards").count({ workspace_id: WS_FUNDER })).toBe(2);
     // Each run names what it left out, by column name only.
