@@ -105,8 +105,9 @@ Files are kept 30 days: the download then answers 410 `file_expired`, and the jo
 and its row. Only the people a file was sent to can download it.
 
 Without the EXPORTS binding or outbound mail (`RESEND_API_KEY`, `RESEND_FROM`) the job writes and
-sends nothing and logs why. As defence in depth an operator may add an R2 lifecycle rule on the
-EXPORTS bucket that deletes objects under `exports/*/reports/` after 31 days.
+sends nothing and logs why. The job is what removes old files: R2 lifecycle rules match a key
+prefix, and report files sit under each workspace's own `exports/<workspace>/` folder beside its
+export bundles, so a bucket rule cannot single them out.
 
 ## MCP
 
