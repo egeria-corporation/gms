@@ -19,6 +19,7 @@ import { canCancelAward, canGiveDirectAward, canResendInvitation } from "../../l
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
 import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPanels.tsx";
 import { dateTime } from "./shared.tsx";
+import { SocialPanel } from "../../components/SocialPanel.tsx";
 
 const STEPS: [Agreement["status"], string][] = [
   ["draft", "Draft"],
@@ -399,6 +400,7 @@ export default function AwardAgreement() {
                   </div>
                 </div>
               </div>
+              <SocialPanel subject={{ type: "award", id: award.data.id }} />
               <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((t) => ["due", "ready", "held"].includes(t.status)).length }} />
               <TabPanel idPrefix="award" tab="agreement" active={tab}>
                 {invitation && invitation.status !== "accepted" ? (

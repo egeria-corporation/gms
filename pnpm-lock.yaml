@@ -181,6 +181,9 @@ importers:
       '@gms/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      '@gms/social':
+        specifier: workspace:*
+        version: link:../../packages/social
       '@gms/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow
