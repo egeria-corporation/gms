@@ -31,6 +31,8 @@ import { reportRoutes } from "./gms/reports.ts";
 import { reviewParityRoutes } from "./gms/reviews.ts";
 import { galleryRoutes } from "./gallery.ts";
 import { socialRoutes } from "./gms/social.ts";
+import { sendPackageRoutes } from "./gms/send-package.ts";
+import { guestReviewRoutes } from "./gms/guest-review.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -159,6 +161,9 @@ gms.route("/", awardSharingRoutes);
 gms.route("/", socialRoutes);
 // Funds (v1.8.0).
 gms.route("/", fundRoutes);
+// Send to the funder, and the guest reviewer loop (C4).
+gms.route("/", sendPackageRoutes);
+gms.route("/", guestReviewRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

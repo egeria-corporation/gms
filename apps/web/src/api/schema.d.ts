@@ -2933,6 +2933,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/guest-review/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The done screen: whether every assigned review is in, and the one-time offer. */
+        get: operations["GuestReview_done"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/guest-review/offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Count one event of the offer. 422 `not_your_new_workspace` when `created` names a workspace the person did not just set up. */
+        post: operations["GuestReview_offer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/guest-review/welcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The guest reviewer's welcome: the funder, the competition, how many applications, the due date, the conflict-of-interest note and where to start. */
+        get: operations["GuestReview_welcome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/imports/csv": {
         parameters: {
             query?: never;
@@ -4653,6 +4704,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/outside-applications/{id}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description What the package holds, any answer that stops it, and whether it can be emailed now. Members other than consultants. */
+        get: operations["SendToFunder_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/outside-applications/{id}/package.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The package PDF. 422 `sensitive_answer` naming the questions; the number is never returned. */
+        get: operations["SendToFunder_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/outside-applications/{id}/package.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The package ZIP: the PDF, the attached files under their names, and `answers.txt`. 413 `package_too_large` over 60 MB of files. */
+        get: operations["SendToFunder_zip"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/outside-applications/{id}/package/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Send the package if it is still exactly the preview (409 `preview_changed` otherwise). 429 `too_many_package_emails` after five in a UTC day for this application. */
+        post: operations["SendToFunder_sendEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/outside-applications/{id}/package/email/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Exactly the email that would be sent, and its digest. Nothing is sent or counted. A person
+         *     only (admins and editors): an agent's token is 403 `approval_required`, and no MCP tool sends
+         *     a package. 409 `archived`; 422 `sensitive_answer`; 503 `mail_not_configured` or
+         *     `mail_attachments_unavailable`.
+         */
+        post: operations["SendToFunder_previewEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/outside-applications/{id}/questions": {
         parameters: {
             query?: never;
@@ -5835,6 +5976,23 @@ export interface paths {
         get: operations["Reviews_listRubrics"];
         put?: never;
         post: operations["Reviews_createRubric"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/send-package/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Turn the footer line on this applicant workspace's packages on or off. Workspace admins, in person. */
+        put: operations["SendToFunder_settings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -15345,6 +15503,65 @@ export interface components {
             /** Format: int32 */
             pendingChanges: number;
         };
+        "Models.GuestCompetition": {
+            id: components["schemas"]["Models.GmsId"];
+            title: string;
+            opportunityTitle: string | null;
+            /**
+             * Format: int32
+             * @description Applications assigned to the reviewer here, recusals left out.
+             */
+            assigned: number;
+            /** Format: int32 */
+            submitted: number;
+            /** Format: int32 */
+            open: number;
+            /**
+             * Format: date-time
+             * @description The earliest due date of an open review (of any, when none is open); null when none is set.
+             */
+            dueAt: string | null;
+        };
+        "Models.GuestDone": {
+            funder: components["schemas"]["Models.GuestFunder"];
+            done: boolean;
+            /** Format: int32 */
+            submitted: number;
+            /** Format: int32 */
+            assigned: number;
+            /** Format: int32 */
+            open: number;
+            offer: {
+                /** @description Once every review is in, unless the person was shown it before, dismissed it, took it, or already runs a funder workspace. */
+                show: boolean;
+                suggestion: components["schemas"]["Models.PanelSuggestion"] | null;
+            };
+        };
+        "Models.GuestFunder": {
+            name: string;
+            handle: string;
+        };
+        "Models.GuestWelcome": {
+            funder: components["schemas"]["Models.GuestFunder"];
+            competitions: components["schemas"]["Models.GuestCompetition"][];
+            /** Format: int32 */
+            assigned: number;
+            /** Format: int32 */
+            submitted: number;
+            /** Format: int32 */
+            open: number;
+            /** Format: date-time */
+            dueAt: string | null;
+            coi: {
+                note: string;
+                /** @description Where the reviewer declares conflicts (and signs a conflict-of-interest policy when the funder has one). */
+                link: string;
+            };
+            /** @description The reviewer portal, in this funder's workspace. */
+            startUrl: string;
+            /** @description Every assigned review is submitted. */
+            done: boolean;
+        };
         /** @description The assistant's reading of a funder's guidelines. Nothing is saved; the person reviews it. */
         "Models.GuidelinesProposal": {
             /** @enum {string} */
@@ -17288,6 +17505,155 @@ export interface components {
             /** @description A document already attached to this application. */
             receiptDocumentId?: components["schemas"]["CommonGrants.Types.uuid"];
         };
+        "Models.PackageBlockedAnswer": {
+            questionId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: int32 */
+            number: number;
+            prompt: string;
+            /** @enum {string} */
+            reason: "bank_routing" | "identity_number" | "long_number";
+            /** @description Which question, in plain words. The number itself is never returned. */
+            message: string;
+        };
+        "Models.PackageBudget": {
+            byYear: {
+                /** Format: int32 */
+                year: number;
+                amount: components["schemas"]["CommonGrants.Fields.Money"];
+            }[];
+            /** @description The total, printed. */
+            total: string;
+        };
+        "Models.PackageCover": {
+            organization: string;
+            funder: string | null;
+            program: string | null;
+            ask: components["schemas"]["CommonGrants.Fields.Money"] | null;
+            /** @description The ask as printed on the cover, e.g. "USD 50,000.00". */
+            askPrinted: string | null;
+            deadlines: components["schemas"]["Models.PackageDeadline"][];
+            /** @description The date of the latest change to anything in the package (YYYY-MM-DD). */
+            answersAsOf: string;
+        };
+        "Models.PackageDeadline": {
+            /** @description "Letter of inquiry due", "Application due", or "Deadline" for a rolling one. The team's internal deadline is never included. */
+            label: string;
+            /** @description YYYY-MM-DD, or "Rolling". */
+            date: string;
+        };
+        "Models.PackageEmailInput": {
+            /**
+             * Format: email
+             * @description The funder contact's address, typed by the person.
+             */
+            to: string;
+            /** @description The person's own words above the package (up to 2,000 characters). */
+            message?: string;
+        };
+        /** @description Exactly the email that would be sent. */
+        "Models.PackageEmailPreview": {
+            /** @description The person's name on the GMS's sending address. */
+            from: string;
+            to: string;
+            /** @description The person's sign-in address. */
+            replyTo: string;
+            subject: string;
+            text: string;
+            html: string;
+            attachments: {
+                filename: string;
+                contentType: string;
+                sha256: string;
+                /** Format: int64 */
+                size: number;
+            }[];
+            /** @description Ties a send to this preview: a send whose email differs is refused (409 `preview_changed`). */
+            digest: string;
+            /** Format: int32 */
+            perDay: number;
+            /** Format: int32 */
+            remainingToday: number;
+        };
+        "Models.PackageEmailSend": {
+            /**
+             * Format: email
+             * @description The funder contact's address, typed by the person.
+             */
+            to: string;
+            /** @description The person's own words above the package (up to 2,000 characters). */
+            message?: string;
+            /** @description The `digest` of the preview the person confirmed. */
+            digest: string;
+        };
+        "Models.PackageEmailSent": {
+            /** @enum {boolean} */
+            sent: true;
+            sendId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: date-time */
+            sentAt: string;
+            to: string;
+            replyTo: string;
+            /** Format: int32 */
+            remainingToday: number;
+        };
+        "Models.PackageFile": {
+            documentId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description The name in the ZIP and the email: the original name, made unique. */
+            name: string;
+            originalName: string;
+            /**
+             * @description `application`: attached to this application; `vault`: a vault document used for one of its required documents.
+             * @enum {string}
+             */
+            source: "application" | "vault";
+            /** @description For a vault document: the required document it was used for. */
+            requiredFor: string | null;
+            mime: string;
+            /** Format: int64 */
+            size: number;
+            sha256: string;
+        };
+        "Models.PackageFileLeftOut": {
+            documentId: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            /**
+             * @description `passport_locker`: the GMS holds no copy; `sensitive_name`: named like a bank or tax form.
+             * @enum {string}
+             */
+            reason: "passport_locker" | "sensitive_name";
+            message: string;
+        };
+        "Models.PackageQuestion": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: int32 */
+            number: number;
+            /** @enum {string} */
+            phase: "loi" | "full" | "report";
+            prompt: string;
+            answered: boolean;
+        };
+        "Models.PackageSettings": {
+            /** @description The footer line on this workspace's packages (the workspace's `poweredBy` setting). */
+            poweredBy: boolean;
+        };
+        /** @description `created` names the funder workspace the person just made with funder setup (`POST /gms/workspaces`). */
+        "Models.PanelOfferEventInput": {
+            /** @enum {string} */
+            event: "shown" | "clicked" | "dismissed" | "created";
+            workspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
+        };
+        "Models.PanelOfferEventResult": {
+            /** @enum {string} */
+            event: "shown" | "clicked" | "dismissed" | "created";
+            /** @description False when this person's event was already counted. */
+            counted: boolean;
+        };
+        /** @description A name and handle from the reviewer's email domain, only ever a suggestion; null for a shared mail provider. */
+        "Models.PanelSuggestion": {
+            domain: string;
+            name: string;
+            handle: string;
+        };
         "Models.PanelSummary": {
             competitionId: components["schemas"]["Models.PrefixedId"];
             stage: string;
@@ -18946,6 +19312,49 @@ export interface components {
             contactEmail?: string | null;
             orgType?: string | null;
             ein?: string | null;
+        };
+        /** @description `GET /gms/outside-applications/{id}/package`: what the package holds and whether it can be emailed. Builds nothing. */
+        "Models.SendPackage": {
+            applicationId: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            cover: components["schemas"]["Models.PackageCover"];
+            questions: components["schemas"]["Models.PackageQuestion"][];
+            budget: components["schemas"]["Models.PackageBudget"] | null;
+            attachments: components["schemas"]["Models.PackageFile"][];
+            notIncluded: components["schemas"]["Models.PackageFileLeftOut"][];
+            footer: {
+                shown: boolean;
+                text: string;
+                /** @description The caller may switch the footer line (a workspace admin, in person). */
+                canChange: boolean;
+            };
+            /** @description Answers that look like a bank, card or identity number. While any is listed, nothing can be downloaded or sent. */
+            blocked: components["schemas"]["Models.PackageBlockedAnswer"][];
+            files: {
+                pdf: string;
+                zip: string;
+                /** @description The ZIP's entries in order. */
+                contents: string[];
+            };
+            /** Format: int64 */
+            totalBytes: number;
+            downloads: {
+                pdf: string;
+                zip: string;
+            };
+            email: {
+                available: boolean;
+                /** @description Why the package cannot be emailed now, in plain words; null when it can. */
+                reason: string | null;
+                /** Format: int32 */
+                perDay: number;
+                /** Format: int32 */
+                sentToday: number;
+                /** Format: int32 */
+                remainingToday: number;
+                /** Format: int64 */
+                maxBytes: number;
+            };
         };
         "Models.SendRequest": {
             templateId: string;
@@ -31538,6 +31947,151 @@ export interface operations {
             };
         };
     };
+    GuestReview_done: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GuestDone"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    GuestReview_offer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PanelOfferEventInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PanelOfferEventResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    GuestReview_welcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GuestWelcome"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Analytics_importCsv: {
         parameters: {
             query?: never;
@@ -38369,6 +38923,376 @@ export interface operations {
             };
         };
     };
+    SendToFunder_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SendPackage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SendToFunder_pdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SendToFunder_zip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SendToFunder_sendEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PackageEmailSend"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PackageEmailSent"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SendToFunder_previewEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PackageEmailInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PackageEmailPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Outside_listQuestions: {
         parameters: {
             query?: never;
@@ -43184,6 +44108,60 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.Rubric"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SendToFunder_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PackageSettings"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PackageSettings"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };

@@ -29,7 +29,8 @@ select tables_are(
     'coi_policies', 'coi_signatures',
     'gallery_items', 'gallery_submissions',
     'social_profiles', 'social_accounts', 'social_posts',
-    'funds'
+    'funds',
+    'package_sends'
   ],
   'public schema has exactly the GMS tables'
 );

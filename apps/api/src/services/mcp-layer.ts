@@ -34,6 +34,7 @@ import * as obligations from "./obligations.ts";
 import * as openData from "./open-data.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
+import * as sendPackage from "./send-package.ts";
 import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
@@ -317,6 +318,8 @@ const IMPLEMENTED: Impl = {
     return social.reachReport(ctx, opp ? { subjectType: "opportunity", subjectId: uuidOf("opportunity", opp, "Opportunity") } : i.awardId ? { subjectType: "award", subjectId: awd(i.awardId) } : {});
   },
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
+  // Send to the funder (C4): the package described, never emailed by an agent.
+  getSendPackage: (ctx, i) => sendPackage.packageSummary(ctx, oa(i.outsideApplicationId)),
 
   listMessages: async (ctx, i) => {
     if (!i.applicationId) throw new ServiceError("invalid_input", "Pass applicationId: threads are listed per application.", [{ field: "applicationId", message: "Required" }]);

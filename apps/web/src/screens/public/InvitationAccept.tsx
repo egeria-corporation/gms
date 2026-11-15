@@ -46,7 +46,7 @@ export default function InvitationAccept() {
         reloadMe();
         // Reviewers work in the reviewer portal; someone invited into a draft opens it (a draft
         // invitation's link pasted here works as at /invitations/draft); everyone else, the workspace.
-        navigate(isReviewOnly(role) ? "/review/assignments" : landingPath(workspace.handle, draft ?? null), { replace: true });
+        navigate(role === "external_reviewer" ? `/review/welcome?ws=${encodeURIComponent(workspace.handle)}` : isReviewOnly(role) ? "/review/assignments" : landingPath(workspace.handle, draft ?? null), { replace: true });
       },
       (error: unknown) => setState({ status: "failed", ...invitationProblem(error) }),
     );

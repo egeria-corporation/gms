@@ -125,6 +125,8 @@ const RULES: { [T in TableName]: Rule } = {
   outside_obligation_series: OPEN,
   outside_obligations: OPEN,
   outside_questions: OPEN,
+  // 0040: an applicant's own sends of its outside applications (funder workspaces have none).
+  package_sends: OPEN,
   passport_account_links: OPEN,
   passport_link_requests: OPEN,
   passport_links: OPEN,

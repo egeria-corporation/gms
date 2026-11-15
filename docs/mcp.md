@@ -189,6 +189,7 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
 | `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
 | `list_social_posts` | `awards:read` | — | The social posts this workspace sent through Zernio about its awards: each account's status and link and Zernio's counts. No tool posts, schedules or connects an account. |
+| `get_send_package` | `applications:read` | — | Describe the send-to-funder package: cover, questions in order, budget summary, attached files (this application's own and the vault documents used for its checklist), any answer that looks like a bank, card or identity number, and the PDF and ZIP download paths. No tool emails the package; only a person does, in the GMS. |
 
 ### Applicant tools
 

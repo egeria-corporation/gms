@@ -156,6 +156,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   social_profiles: () => ({ created_by: null }),
   social_accounts: () => ({ username: null, status: "active", connected_by: null, disconnected_at: null }),
   social_posts: () => ({ zernio_post_id: null, targets: [], status: "sending", scheduled_at: null, timezone: null, error: null, metrics: {}, metrics_at: null, sent_at: null }),
+  package_sends: () => ({ sent_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -199,6 +200,7 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
   // `funds (workspace_id) where is_default` is kept by services/funds.ts, which creates the default once.
   funds: [{ columns: ["workspace_id", "slug"] }],
+  package_sends: [{ columns: ["outside_application_id", "day", "slot"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -241,6 +243,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   report_schedules: { view_id: "report_views" },
   report_files: { view_id: "report_views", schedule_id: "report_schedules" },
   programs: { fund_id: "funds" },
+  // 0040 checks this one with its own trigger (gms.package_sends_same_workspace).
+  package_sends: { outside_application_id: "outside_applications" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
