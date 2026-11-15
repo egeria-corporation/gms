@@ -2,7 +2,6 @@
 // The embeddable apply widget (`/embed/f/{handle}/o/{slug}` in the web app). Public reads only:
 // the widget shows what the opportunity's public page shows, in fewer words, so it is built on
 // `opportunityPage` and adds nothing that page hides.
-import { poweredByOf } from "./powered-by.ts";
 import { opportunityPage, type PublicContext } from "./public.ts";
 
 /** How many eligibility labels the widget lists before it says "and N more". */
@@ -12,7 +11,6 @@ export const EMBED_ELIGIBILITY_LIMIT = 3;
 export async function embedWidget(ctx: PublicContext, handle: string, slug: string) {
   // 404 for anything the public page would not show (unpublished, unlisted, inactive funder).
   const page = await opportunityPage(ctx, handle, slug);
-  const w = (await ctx.repos.table("workspaces").one({ handle, kind: "funder" }))!;
   const o = page.opportunity;
   const keyDates = (o.keyDates ?? {}) as { closeDate?: { name?: string; date?: string }; postDate?: { date?: string } };
   return {
@@ -35,7 +33,7 @@ export async function embedWidget(ctx: PublicContext, handle: string, slug: stri
     },
     // The same test as the public page's Apply button: an open opportunity with an open competition.
     acceptingApplications: o.status === "open" && page.competitions.some((c) => c.status === "open"),
-    poweredBy: poweredByOf(w),
+    poweredBy: page.funder.poweredBy,
     links: { page: page.links.page },
   };
 }

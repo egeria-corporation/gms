@@ -2268,6 +2268,9 @@ model PublicFunder {
   verificationLevel: string | null;
 
   verification: Verification;
+
+  /** The funder's "Powered by OpenGrants Grant Management System" setting: false only when an admin turned it off. Absent from older servers; read as on. */
+  poweredBy?: boolean;
 }
 
 model PublicOpportunityCard {
@@ -2284,6 +2287,9 @@ model PublicOpportunityCard {
   keyDates: Record<unknown>;
 
   acceptedApplicantTypes: string[];
+
+  /** The opportunity is published as open and one of its competitions is open: the page offers Apply only then. */
+  acceptingApplications: boolean;
 }
 
 model FunderPage {

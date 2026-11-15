@@ -8,6 +8,7 @@ import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
+import { poweredByOf } from "./powered-by.ts";
 import { namesOf, namesShared, orgFacts, sharingWith, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -161,7 +162,7 @@ function publicFunder(w: Row<"workspaces">) {
   const contactEmail = typeof settings.contactEmail === "string" ? settings.contactEmail : typeof org.emails?.primary === "string" ? org.emails.primary : null;
   // Only contacts the funder marked public; the rest are for organizations it already works with.
   const contacts = contactsOf(w).filter((c) => c.public);
-  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification };
+  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification, poweredBy: poweredByOf(w) };
 }
 
 const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;

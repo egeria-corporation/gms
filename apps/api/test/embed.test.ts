@@ -113,6 +113,29 @@ describe("the Powered by setting", () => {
     expect((await data<Widget>(await h.request(WIDGET))).poweredBy).toBe(true);
   });
 
+  it("is on the public funder and opportunity pages' data, which the footers read", async () => {
+    const h = await harness();
+    const officer = await as(h, USER_OFFICER);
+    const admin = await as(h, USER_ADMIN);
+    await published(h, officer);
+    const FUNDER = "/gms/public/funders/riverbend";
+    const PAGE = `${FUNDER}/opportunities/${SLUG}`;
+    const settings = async () => ({
+      funder: (await data<{ funder: { poweredBy?: boolean } }>(await h.request(FUNDER))).funder.poweredBy,
+      page: (await data<{ funder: { poweredBy?: boolean } }>(await h.request(PAGE))).funder.poweredBy,
+      widget: (await data<Widget>(await h.request(WIDGET))).poweredBy,
+    });
+    // On by default.
+    expect(await settings()).toEqual({ funder: true, page: true, widget: true });
+    expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings: { poweredBy: false } }, "PATCH"))).status).toBe(200);
+    expect(await settings()).toEqual({ funder: false, page: false, widget: false });
+    // The setting is the only thing about the workspace's settings the pages carry.
+    const text = await (await h.request(FUNDER)).text();
+    expect(text).not.toContain('"settings"');
+    expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings: { poweredBy: true } }, "PATCH"))).status).toBe(200);
+    expect(await settings()).toEqual({ funder: true, page: true, widget: true });
+  });
+
   it("names other settings it changed without copying their values to the ledger", async () => {
     const h = await harness();
     const admin = await as(h, USER_ADMIN);
