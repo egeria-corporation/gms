@@ -1,7 +1,7 @@
 {
 "source": "https://raw.githubusercontent.com/schemaorg/schemaorg/main/data/releases/30.1/schemaorg-current-https.jsonld",
 "version": "30.1",
-"note": "Every class the GMS's JSON-LD uses, with its ancestors; every property whose domain includes one of them; and the classes their ranges name, with ancestors. Regenerate from the source file when the JSON-LD uses a new type.",
+"note": "Every class the GMS's JSON-LD uses, with its ancestors; every property whose domain includes one of them; and the classes their ranges name, with ancestors. It leaves out the property for tax identification numbers: the GMS never publishes identity numbers, so the check refuses it. Regenerate from the source file when the JSON-LD uses a new type.",
 "classes": {
 "AboutPage": [
 "WebPage"
@@ -2074,15 +2074,6 @@
 "range": [
 "CreativeWork",
 "Event"
-]
-},
-"taxID": {
-"domain": [
-"Organization",
-"Person"
-],
-"range": [
-"Text"
 ]
 },
 "teaches": {
