@@ -3,6 +3,138 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.8.0 — 2026-11-15
+
+### Added
+
+- **Report builder** for funders (Analytics → Report builder): five data sets (applications,
+  awards, payments, reports and requirements, organizations) over whitelisted columns; filters
+  (equals, any of, date and money ranges, relative dates), grouping by one or two columns with
+  count, total and average, and sort; a preview of 200 rows and a CSV download of up to 50,000 rows,
+  streamed, with formula-safe cells. No column carries bank, identity or contact data.
+- Saved report views, private or shared with the workspace, and six starter views (Awards this
+  year by program, Payments due next 90 days, Overdue reports, Applications by stage, Grantees by
+  total awarded, Decline reasons).
+- **Scheduled reports**: a saved view sent weekly or monthly to members of the workspace. The CSV
+  is kept 30 days and the email carries counts and a signed-in download link, never the file. Each
+  recipient can switch the emails off in Digest settings and still find the file in the app.
+- **Open data exports** on the Reporting screen: a funder's awards in the 360Giving Data Standard
+  (JSON and CSV, schema 1.4.3) and its published opportunities and awards as CommonGrants v0.5.0,
+  for a year or a date range, after seeing how many awards go out and why the others are left out.
+- "Publish my awards as open data": a public, cached 360Giving feed at
+  `/gms/open-data/{handle}/360giving.json` for GrantNav, off by default; a workspace admin switches
+  it on after saving the funder's registered 360Giving prefix. Without a prefix, files are drafts.
+- Keep an award confidential so it is never exported. Awards to individuals, offers and cancelled
+  awards are never exported, and grantees that have not verified with Passport and shared their
+  record are exported by name only, with no address.
+- **Single sign-on** (SAML 2.0) for funder workspaces through Supabase Auth: Settings → Security ·
+  Single sign-on lists email domains (pending until OpenGrants connects the identity provider, then
+  active), proves each with a DNS TXT record, shows the service-provider values for the IT team,
+  and can require single sign-on for people on active domains.
+- "Use single sign-on" on the sign-in page. A workspace that requires it says "This workspace
+  requires single sign-on" and sends the person there; after an SSO sign-in the person keeps the
+  role their email-code account holds in workspaces on that domain.
+- **Conflict-of-interest policy** per competition: each reviewer signs it once (typed name and time,
+  and any organizations they have a conflict with) before any application in the competition opens
+  for them; a plain-language default until the funder writes its own; changing it asks reviewers to
+  sign again. Agents cannot sign. New competitions require it; the funder can turn it off.
+- A conflicts register per competition for program staff, observers and auditors: who signed and
+  when, declared conflicts and the applicants they match, and every recusal with its reason, also as
+  a CSV.
+- **Anonymized review**, a per-stage setting (off by default): reviewers see "Applicant A-1042"
+  instead of the organization, no EIN, website, address or contacts, no fields the form marks as
+  saying who applied, attachments under neutral names, and "[applicant]" wherever the
+  organization's name, website, email or EIN appears in an answer. The web app, the CommonGrants
+  routes, MCP tools, the assistant and the AI summary all give the same view. Staff always see
+  everything.
+- "Says who applied" in the form builder marks a field that anonymized review hides.
+- **Board docket PDF** from the panel: a cover, a summary table and a page per application;
+  comments marked for program staff only are left out unless included on purpose.
+- Reviewers choose whether their narrative and comments are for the panel or program staff only.
+- **Template gallery** at `/templates`: ready-to-use application forms, rubrics, report forms, email
+  templates and program kits, filtered by kind, tag and words, each previewed read-only and shared
+  under CC BY 4.0. "Use this template" copies an item into a funder workspace as its own drafts.
+- Nine starter templates from OpenGrants on every install: a common application, a general
+  operating support application, a small capacity-building application, a five-criterion rubric, an
+  interim report, a final report, an award email, a decline email and a small grants program kit.
+- "Share to the gallery" on forms, rubrics and email templates for workspace admins. Contact details
+  and the organization's names are taken out first, a moderator reviews every submission before it
+  is public, the author's team sees the decision in the notification bell, and the author can
+  withdraw at any time. A moderation queue at `/gallery/moderation` for the operators named in
+  `GALLERY_MODERATORS`.
+- **Switch pages** at `/switch` and `/switch/{system}` for Good Grants, Submittable, SurveyMonkey
+  Apply, Foundant GLM, Zengine, Fluxx, SmartSimple, Bonterra CyberGrants, OpenWater and
+  spreadsheets: what each exports and how (with sources), what comes over, what stays behind and
+  why, the steps, and the published list price with its source where there is one, all as of
+  November 2026. Each page has its own title, description and share text for search engines and
+  links, and all of them are in the sitemap; the landing page links to them.
+- **Request a free migration** on every switch page. The preview shows exactly what will be sent;
+  the request goes to OpenGrants with replies to the person, who gets a confirmation. Numbers in the
+  note that look like bank or identity numbers are removed first. Anyone can send; API and agent
+  tokens cannot, and there is no MCP tool.
+- MCP tools `list_report_views`, `run_report_view`, `open_data_summary`, `get_coi_policy`,
+  `get_conflicts_register`, `search_gallery` and `get_gallery_item`, all read only.
+- API routes under `/gms/reports`, `/gms/report-views`, `/gms/report-files`, `/gms/open-data`,
+  `/gms/sso`, `/gms/gallery`, `/gms/migration-requests`, and the competition's `coi-policy`,
+  `conflicts-register`, `review-settings` and `dockets` (see `docs/api-surface.md`).
+
+### Changed
+
+- **Live review panels keep reviewing.** Competitions that existed before this release do not ask
+  reviewers to sign the conflict-of-interest policy until the funder turns it on in the competition's
+  policy dialog; reviewers in the middle of a review are not interrupted.
+- A message on an application thread is no longer emailed to reviewers. They could not open
+  threads, but were mailed the message and the applicant's name.
+- Requests by a signed-in person to a workspace that requires single sign-on for their email domain
+  are refused unless the session came through that domain's identity provider; connecting a new
+  agent to such a workspace needs the same. API clients and existing agent tokens are unaffected.
+- The two older direct CSV imports (a funder's awards, and an applicant's applications) are a
+  signed-in person's, like the import wizard: agent and API-client tokens get the same "human only"
+  refusal.
+- A stage's review settings (anonymized review, who sees others' scores, panel open) can be changed
+  at any time from Review assignment, and are kept when a draft competition's stages are saved again.
+- Rendered PDFs support page breaks and tables.
+- Downloads keep the file name the server gives them (the web app can now read it).
+
+### Fixed
+
+- The reasons the server gives for a field (a report column, a merge field, a form definition, a
+  score) were never listed under an error message anywhere in the app; they are now.
+
+### Upgrade notes
+
+- **Database migrations `0033_review_parity.sql`, `0034_report_builder.sql`,
+  `0035_workspace_sso_domains.sql`, then `0036_template_gallery.sql`, in that order, before deploying
+  the API.**
+  - `0033` adds the conflict-of-interest policy and signature tables, a check on stage settings, and
+    `competitions.coi_policy_required`: every competition that already exists gets `false`, so its
+    reviewers keep reviewing without a policy until the funder turns it on; new competitions get
+    `true`.
+  - `0034` adds the report views, schedules and files tables. `0035` adds `workspace_sso_domains`
+    and the operator functions `gms.activate_sso_domain`, `gms.deactivate_sso_domain` and
+    `gms.lift_sso_requirement`.
+  - `0036` adds the gallery tables and **brings the nine starter templates** (Common application,
+    General operating support application, Small capacity-building grant application, Five-criterion
+    rubric, Interim report, Final report, Award letter email, Decline email, Small grants program
+    kit). Read them before you deploy: they are public on `/templates` as soon as the API is up.
+  - None of them removes an existing row; only the new column above is set on existing
+    competitions.
+- **Single sign-on only:** the Supabase project must be on the Pro plan or above with SAML 2.0
+  switched on (Authentication → Providers → SAML 2.0), and `https://<your web address>/signin` must
+  be on the Auth redirect allow list. Register each workspace's identity provider with
+  `scripts/sso/register-provider.mjs` (it reads `SUPABASE_ACCESS_TOKEN` from your own shell only),
+  then run the `gms.activate_sso_domain` line it prints (`docs/sso.md`). Without this nothing
+  changes: no workspace requires single sign-on.
+- **`GALLERY_MODERATORS`** (API Worker secret, by name; never a `[vars]` entry): the user ids or
+  email addresses of the people who review shared templates, comma-separated. Until it is set,
+  nobody moderates and nothing new is published; the nine starters still show.
+- No other new secrets. Scheduled reports and board dockets use the existing `EXPORTS` R2 bucket
+  (already bound on the API and jobs Workers), and scheduled report emails the existing
+  `RESEND_API_KEY` and `RESEND_FROM` on the jobs Worker. The migration request uses the existing
+  `CONSULTING_REQUEST_TO`, `RATE_LIMIT` and `OAUTH_SIGNING_KEY_JWK`.
+- Rebuild and redeploy the web app and then the front Worker after the API, so the switch pages and
+  the template gallery get their own titles, descriptions and share text.
+
 ## v1.7.0 — 2026-11-15
 
 ### Added
