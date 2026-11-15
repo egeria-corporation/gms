@@ -26,7 +26,8 @@ select tables_are(
     'import_mappings', 'import_runs', 'import_rows',
     'report_views', 'report_schedules', 'report_files',
     'workspace_sso_domains',
-    'coi_policies', 'coi_signatures'
+    'coi_policies', 'coi_signatures',
+    'gallery_items', 'gallery_submissions'
   ],
   'public schema has exactly the GMS tables'
 );

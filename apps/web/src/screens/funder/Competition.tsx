@@ -15,6 +15,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader, problemFor, ReadinessChecklist } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { ShareToGalleryButton } from "./ShareToGallery.tsx";
 
 const dateOf = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 const opensAt = (date: string) => (date ? `${date}T00:00:00Z` : null);
@@ -441,6 +442,11 @@ export default function Competition() {
                                   <span className="tag">{total ? Math.round((c.weight / total) * 100) : 0}%</span>
                                 </div>
                               ))}
+                              {r && !r.shared && (
+                                <div>
+                                  <ShareToGalleryButton small source={{ type: "rubric", id: r.id, version: r.version }} name={r.name} />
+                                </div>
+                              )}
                             </div>
                           );
                         })}

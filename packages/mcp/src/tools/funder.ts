@@ -166,4 +166,8 @@ export const FUNDER_TOOLS = {
   compare_to_rubric: tool("compareToRubric", "assist", "Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score.", z.object({ applicationId, rubricId: rubricId.optional() })),
 
   send_communication: tool("sendCommunication", "communications:write", "Send a templated email to applicants or grantees through Resend.", z.object({ templateId: uuid("Template id"), recipients: z.array(z.object({ applicationId: applicationId.optional(), awardId: awardId.optional(), applicantWorkspaceId: applicantWorkspaceId.optional() })).min(1).max(500), subjectOverride: z.string().max(200).optional() }), { gated: true }),
+
+  // ---- the template gallery: reads only (sharing, withdrawing and moderating are human only, no tool) ----
+  search_gallery: tool("searchGallery", "forms:read", "Search the public template gallery (approved application forms, rubrics, report forms, email templates and program kits, CC BY 4.0). Copying one into the workspace is done in the GMS.", z.object({ kind: z.enum(["application_form", "report_form", "rubric", "email_template", "program_kit"]).optional(), tag: z.string().min(1).max(60).optional().describe("A field of work, grant size or audience tag"), q: z.string().max(200).optional().describe("Words to look for in the title, summary and tags"), ...paging })),
+  get_gallery_item: tool("getGalleryItem", "forms:read", "Get one approved gallery item with its full content: form questions, rubric criteria and email text.", z.object({ slug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/).describe("The item's slug, as in /templates/{slug}") })),
 } as const;

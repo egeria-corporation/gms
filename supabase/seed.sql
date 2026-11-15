@@ -265,4 +265,35 @@ insert into public.ledger_events (workspace_id, actor, event_type, subject_type,
   ('20000000-0000-7000-8000-000000000002', 'user:10000000-0000-4000-8000-000000000005', 'agreement.executed', 'award', '70000000-0000-7000-8000-000000000001', '{"documentSha256":"c41e0f6a7d1b4b0e9a2f5c8d3e7b1a6f0d9c8b7a6e5f4d3c2b1a0f9e8d7c9ab2"}', '2026-06-29T16:40:00Z'),
   ('20000000-0000-7000-8000-000000000002', 'passport', 'tranche.status.changed', 'tranche', '72000000-0000-7000-8000-000000000001', '{"from":"initiated","to":"settled"}', '2026-07-09T17:00:00Z');
 
+
+-- ------------------------------------------------------------------------- template gallery
+-- The nine starter items ship in migration 0036 (every install has them). These demo rows show
+-- the rest of the life of a shared item: one published by a funder, one waiting for a moderator,
+-- one declined with a reason. Set GALLERY_MODERATORS to see the queue.
+insert into public.gallery_items (id, slug, kind, title, summary, tags, author_workspace_id, version, snapshot, uses_count, published_at) values
+  ('36100000-0000-7000-8000-000000000001', 'community-health-mini-grant', 'application_form', 'Community health mini-grant application',
+   'A one-page application for mini-grants of up to $5,000 for neighborhood health projects.',
+   '{"fieldOfWork":["Health"],"grantSize":["Under $10,000"],"audience":["Community groups","Nonprofits"]}',
+   '20000000-0000-7000-8000-000000000002', 1,
+   '{"forms":[{"title":"Community health mini-grant application","description":"A short application for neighborhood health projects.","instructions":"Tell us about your idea in your own words. [Your organization] staff are glad to talk it through before you apply.","purpose":"application","jsonSchema":{"type":"object","required":["projectTitle","idea","requestedAmount"],"properties":{"projectTitle":{"type":"string","title":"Project name","maxLength":200},"idea":{"type":"string","title":"Your idea","x-wordCount":{"max":200}},"neighbors":{"type":"string","title":"Who in the neighborhood it helps","x-wordCount":{"max":100}},"requestedAmount":{"type":"object","title":"Amount requested"}}},"uiSchema":{"type":"VerticalLayout","elements":[{"type":"Control","scope":"#/properties/projectTitle"},{"type":"Control","scope":"#/properties/idea","options":{"help":"What you will do and why it matters to your neighbors."}},{"type":"Control","scope":"#/properties/neighbors"},{"type":"Control","scope":"#/properties/requestedAmount","options":{"widget":"money","widgetOptions":{"currency":"USD"}}}]},"mappingFromCommonGrants":{},"mappingToCommonGrants":{"title":{"field":"projectTitle"},"requestedAmount":{"field":"requestedAmount"}},"fieldMeta":{}}],"rubrics":[],"emails":[]}',
+   4, '2027-01-20T17:00:00Z');
+
+insert into public.gallery_submissions (id, workspace_id, submitted_by, kind, title, summary, tags, source_type, source_id, source_version, snapshot, stripped, status, decided_by, decided_at, decision_reason, item_id, withdrawn_at, created_at) values
+  ('36200000-0000-7000-8000-000000000001', '20000000-0000-7000-8000-000000000002', '10000000-0000-4000-8000-000000000005', 'application_form',
+   'Community health mini-grant application', 'A one-page application for mini-grants of up to $5,000 for neighborhood health projects.',
+   '{"fieldOfWork":["Health"],"grantSize":["Under $10,000"],"audience":["Community groups","Nonprofits"]}', 'form', '36300000-0000-7000-8000-000000000001', 1,
+   (select snapshot from public.gallery_items where id = '36100000-0000-7000-8000-000000000001'),
+   '[{"path":"forms[0].instructions","where":"Form instructions","what":"name","found":["organization name"]}]',
+   'approved', '10000000-0000-4000-8000-000000000006', '2027-01-20T17:00:00Z', null, '36100000-0000-7000-8000-000000000001', null, '2027-01-18T15:00:00Z'),
+  ('36200000-0000-7000-8000-000000000002', '20000000-0000-7000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'rubric',
+   'Letter of inquiry screen', 'A two-criterion screen for letters of inquiry: fit and readiness.',
+   '{"fieldOfWork":["Any field"],"grantSize":["Any size"],"audience":["Nonprofits"]}', 'rubric', '41000000-0000-7000-8000-000000000002', 1,
+   '{"forms":[],"rubrics":[{"name":"[Your organization] LOI screen","criteria":[{"key":"fit","label":"Fit with program goals","weight":0.6,"scale":{"type":"numeric","min":1,"max":5}},{"key":"readiness","label":"Readiness","weight":0.4,"scale":{"type":"numeric","min":1,"max":5}}],"overall":{"recommendations":["invite","decline"],"spreadThreshold":20}}],"emails":[]}',
+   '[{"path":"rubrics[0].name","where":"Rubric name","what":"name","found":["organization name"]}]',
+   'pending', null, null, null, null, null, '2027-04-10T16:00:00Z'),
+  ('36200000-0000-7000-8000-000000000003', '20000000-0000-7000-8000-000000000003', '10000000-0000-4000-8000-000000000006', 'email_template',
+   'Thank-you email', 'A thank-you to every applicant.', '{"fieldOfWork":["Any field"],"grantSize":["Any size"],"audience":["Nonprofits"]}', 'template', '36300000-0000-7000-8000-000000000003', 1,
+   '{"forms":[],"rubrics":[],"emails":[{"name":"Thank you","subject":"Thank you","body":"Hello {{recipient.name}}, thanks."}]}', '[]',
+   'rejected', '10000000-0000-4000-8000-000000000006', '2027-03-02T18:00:00Z', 'The email is one line long. Say what happens next, and when, so it helps the applicant.', null, null, '2027-03-01T18:00:00Z');
+
 commit;

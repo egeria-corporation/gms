@@ -12,6 +12,7 @@ import "./open-data.tsp";
 import "./reports.tsp";
 import "./sso.tsp";
 import "./review.tsp";
+import "./gallery.tsp";
 
 using TypeSpec.Http;
 

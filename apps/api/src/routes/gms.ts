@@ -27,6 +27,7 @@ import { outsideRoutes } from "./gms/outside.ts";
 import { migrationRequestRoutes } from "./gms/migration-request.ts";
 import { reportRoutes } from "./gms/reports.ts";
 import { reviewParityRoutes } from "./gms/reviews.ts";
+import { galleryRoutes } from "./gallery.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -146,6 +147,8 @@ gms.route("/", openDataRoutes);
 gms.route("/", reportRoutes);
 // Single sign-on for funder workspaces (docs/sso.md).
 gms.route("/", ssoRoutes);
+// The template gallery: public reads, moderation, and a funder workspace's copy and share.
+gms.route("/", galleryRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

@@ -2,7 +2,7 @@
 // Forms: the workspace's forms and the shared library to start from. A library form is copied
 // into the workspace; it is never edited in place.
 import { useNavigate, Link } from "react-router";
-import { FileText, Plus } from "lucide-react";
+import { FileText, LayoutTemplate, Plus } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { FormInput, FormSummary } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -10,6 +10,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { GallerySubmissionsPanel } from "./ShareToGallery.tsx";
 
 const PURPOSE: Record<string, string> = { application: "Application", loi: "Letter of intent", report: "Report", amendment: "Amendment", site_visit: "Site visit", other: "Other" };
 
@@ -55,12 +56,19 @@ export default function Forms() {
       New blank form
     </button>
   );
+  // More ready-made forms, rubrics and emails to start from: the public template gallery.
+  const gallery = (
+    <Link to="/templates" className="btn btn-secondary">
+      <LayoutTemplate className="ic" aria-hidden="true" />
+      Template gallery
+    </Link>
+  );
 
   return (
     <FunderShell active="Opportunities">
       <title>{`Forms — ${ws.name}`}</title>
       <main className="main">
-        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: "Forms" }]} title="Forms" meta={<span>Application, report and letter-of-intent forms. Competitions pin a published version.</span>} actions={blank} />
+        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: "Forms" }]} title="Forms" meta={<span>Application, report and letter-of-intent forms. Competitions pin a published version.</span>} actions={<>{gallery}{blank}</>} />
         {create.error !== null && <ErrorBanner error={create.error} title="The form could not be created" />}
         {data.status === "loading" && <Loading label="Loading forms" />}
         {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title="Forms could not be loaded" />}
@@ -79,6 +87,7 @@ export default function Forms() {
             />
             <h2 style={{ marginTop: "8px" }}>Shared library</h2>
             <DataTable label="Shared library forms" rows={data.data.library} rowKey={(f) => f.id} columns={library} empty={<EmptyState icon={FileText} title="The shared library is empty" />} />
+            <GallerySubmissionsPanel />
           </>
         )}
       </main>

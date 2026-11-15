@@ -2640,6 +2640,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Approved items, most used first. No token. `tags` lists the vocabularies to filter by. */
+        get: operations["Gallery_listGallery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/gallery/moderation/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether the signed-in person moderates the gallery. */
+        get: operations["Gallery_galleryModerator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/gallery/moderation/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Pending submissions, oldest first. Moderators only (403 `not_a_moderator`). */
+        get: operations["Gallery_galleryQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/gallery/moderation/submissions/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["Gallery_approveGallerySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/gallery/moderation/submissions/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Decline with a reason the author reads. */
+        post: operations["Gallery_rejectGallerySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/gallery/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One approved item with its content. No token. 404 once it is withdrawn. */
+        get: operations["Gallery_readGalleryItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/grantees": {
         parameters: {
             query?: never;
@@ -6223,6 +6324,75 @@ export interface paths {
          *     workspace linked to Passport: its record is edited in Passport.
          */
         patch: operations["Workspaces_updateProfile"];
+        trace?: never;
+    };
+    "/gms/workspaces/{workspaceId}/gallery/items/{slug}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Copy an item into this funder workspace: new draft forms, a new rubric, new email templates (a name the workspace already uses gets "(from the gallery)"). Counts one use. */
+        post: operations["Gallery_copyGalleryItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/workspaces/{workspaceId}/gallery/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description What would be shared, saving nothing: the cleaned snapshot and what was taken out. A funder admin, in person. */
+        post: operations["Gallery_previewGallerySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/workspaces/{workspaceId}/gallery/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The workspace's submissions, newest first, with each decision and reason. */
+        get: operations["Gallery_listGallerySubmissions"];
+        put?: never;
+        /** @description Share a published form, a rubric or an email template for review. A funder admin, in person (403 `human_only` for an agent). 409 `already_submitted`, `form_not_published`. */
+        post: operations["Gallery_submitToGallery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/workspaces/{workspaceId}/gallery/submissions/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Withdraw a pending or published submission; a published item leaves the gallery. Copies already made stay. */
+        post: operations["Gallery_withdrawGallerySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/llms-full.txt": {
@@ -13631,6 +13801,278 @@ export interface components {
                 outside: components["schemas"]["Models.FundingSummaryCounts"];
                 gms: components["schemas"]["Models.FundingSummaryCounts"];
             };
+        };
+        "Models.GalleryApproveInput": {
+            /** @description The item's address; made from the title when omitted. */
+            slug?: string;
+        };
+        "Models.GalleryApproved": {
+            submission: components["schemas"]["Models.GallerySubmission"];
+            item: {
+                slug: string;
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+        };
+        /** @description Who shared it: the workspace's display name, `verified` only when it is linked to Passport; or the OpenGrants starter library. */
+        "Models.GalleryAuthor": {
+            /** @enum {string} */
+            kind: "workspace" | "opengrants";
+            name: string;
+            verified: boolean;
+        };
+        "Models.GalleryCard": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            slug: string;
+            kind: components["schemas"]["Models.GalleryKind"];
+            title: string;
+            summary: string;
+            tags: components["schemas"]["Models.GalleryTags"];
+            author: components["schemas"]["Models.GalleryAuthor"];
+            licence: components["schemas"]["Models.GalleryLicence"];
+            /** Format: int32 */
+            usesCount: number;
+            /** Format: int32 */
+            version: number;
+            /** Format: date-time */
+            publishedAt: string;
+            contents: components["schemas"]["Models.GalleryContents"];
+        };
+        "Models.GalleryContents": {
+            /** Format: int32 */
+            forms: number;
+            /** Format: int32 */
+            rubrics: number;
+            /** Format: int32 */
+            emails: number;
+            /**
+             * Format: int32
+             * @description Questions across the item's forms.
+             */
+            questions: number;
+        };
+        "Models.GalleryCopyResult": {
+            item: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                slug: string;
+                title: string;
+                kind: components["schemas"]["Models.GalleryKind"];
+                /** Format: int32 */
+                usesCount: number;
+            };
+            /** @description Each a new record of the workspace: forms are drafts. */
+            created: components["schemas"]["Models.GalleryCreated"][];
+        };
+        "Models.GalleryCreated": {
+            /** @enum {string} */
+            type: "form" | "rubric" | "template";
+            /** @description `frm_…` for a form; a bare UUID for a rubric or a template. */
+            id: string;
+            title: string;
+            /** @description Forms only. */
+            purpose?: components["schemas"]["Models.FormPurpose"];
+        };
+        "Models.GalleryEmail": {
+            name: string;
+            subject: string;
+            body: string;
+        };
+        /** @description A form as `POST /gms/forms` takes it: JSON Schema, UI schema and CommonGrants mappings. */
+        "Models.GalleryForm": {
+            title: string;
+            description: string | null;
+            instructions: string | null;
+            purpose: components["schemas"]["Models.FormPurpose"];
+            jsonSchema: {
+                [key: string]: unknown;
+            };
+            uiSchema: {
+                [key: string]: unknown;
+            };
+            mappingFromCommonGrants: {
+                [key: string]: unknown;
+            };
+            mappingToCommonGrants: {
+                [key: string]: unknown;
+            };
+            fieldMeta: {
+                [key: string]: unknown;
+            };
+        };
+        "Models.GalleryItemDetail": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            slug: string;
+            kind: components["schemas"]["Models.GalleryKind"];
+            title: string;
+            summary: string;
+            tags: components["schemas"]["Models.GalleryTags"];
+            author: components["schemas"]["Models.GalleryAuthor"];
+            licence: components["schemas"]["Models.GalleryLicence"];
+            /** Format: int32 */
+            usesCount: number;
+            /** Format: int32 */
+            version: number;
+            /** Format: date-time */
+            publishedAt: string;
+            contents: components["schemas"]["Models.GalleryContents"];
+            snapshot: components["schemas"]["Models.GallerySnapshot"];
+        };
+        /** @enum {string} */
+        "Models.GalleryKind": "application_form" | "report_form" | "rubric" | "email_template" | "program_kit";
+        "Models.GalleryLicence": {
+            /** @enum {string} */
+            code: "CC-BY-4.0";
+            /** @enum {string} */
+            name: "CC BY 4.0";
+            /** Format: uri */
+            url: string;
+        };
+        "Models.GalleryModeratorStatus": {
+            moderator: boolean;
+        };
+        "Models.GalleryPreview": {
+            kind: components["schemas"]["Models.GalleryKind"];
+            source: {
+                /** @enum {string} */
+                type: "form" | "rubric" | "template";
+                /** Format: int32 */
+                version: number;
+            };
+            suggestedTitle: string;
+            names: string[];
+            /** @enum {string} */
+            placeholder: "[Your organization]";
+            snapshot: components["schemas"]["Models.GallerySnapshot"];
+            stripped: components["schemas"]["Models.GalleryStripped"][];
+            licence: components["schemas"]["Models.GalleryLicence"];
+        };
+        "Models.GalleryPreviewInput": {
+            source: components["schemas"]["Models.GallerySource"];
+            /** @description More names to replace with "[Your organization]" (a program's name, for example). */
+            extraNames?: string[];
+        };
+        "Models.GalleryQueueItem": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            kind: components["schemas"]["Models.GalleryKind"];
+            title: string;
+            summary: string;
+            tags: components["schemas"]["Models.GalleryTags"];
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "withdrawn";
+            source: {
+                /** @enum {string} */
+                type: "form" | "rubric" | "template";
+                id: string;
+                /** Format: int32 */
+                version: number;
+            };
+            stripped: components["schemas"]["Models.GalleryStripped"][];
+            /** @description Why a moderator declined it. */
+            decisionReason: string | null;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** Format: date-time */
+            withdrawnAt: string | null;
+            /** @description The published item, once approved; `live` is false after it is withdrawn. */
+            item: {
+                slug: string;
+                live: boolean;
+            } | null;
+            licence: components["schemas"]["Models.GalleryLicence"];
+            /** Format: date-time */
+            createdAt: string;
+            snapshot: components["schemas"]["Models.GallerySnapshot"];
+            author: components["schemas"]["Models.GalleryAuthor"];
+        };
+        "Models.GalleryRejectInput": {
+            /** @description Shown to the author beside the submission. */
+            reason: string;
+        };
+        "Models.GalleryRubric": {
+            name: string;
+            /** @description As `POST /gms/rubrics` takes them. */
+            criteria: {
+                [key: string]: unknown;
+            }[];
+            overall: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description A copy taken when the item was shared; never a link to the author's record. */
+        "Models.GallerySnapshot": {
+            forms: components["schemas"]["Models.GalleryForm"][];
+            rubrics: components["schemas"]["Models.GalleryRubric"][];
+            emails: components["schemas"]["Models.GalleryEmail"][];
+        };
+        /** @description One of the workspace's own records. A form shares its latest published version unless `version` names one. */
+        "Models.GallerySource": {
+            /** @enum {string} */
+            type: "form" | "rubric" | "template";
+            id: string;
+            /** Format: int32 */
+            version?: number;
+        };
+        /** @description One thing taken out. The value itself is never kept. */
+        "Models.GalleryStripped": {
+            path: string;
+            where: string;
+            /** @enum {string} */
+            what: "default" | "help" | "text" | "name";
+            found: ("email" | "phone" | "link" | "organization name")[];
+        };
+        "Models.GallerySubmission": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            kind: components["schemas"]["Models.GalleryKind"];
+            title: string;
+            summary: string;
+            tags: components["schemas"]["Models.GalleryTags"];
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "withdrawn";
+            source: {
+                /** @enum {string} */
+                type: "form" | "rubric" | "template";
+                id: string;
+                /** Format: int32 */
+                version: number;
+            };
+            stripped: components["schemas"]["Models.GalleryStripped"][];
+            /** @description Why a moderator declined it. */
+            decisionReason: string | null;
+            /** Format: date-time */
+            decidedAt: string | null;
+            /** Format: date-time */
+            withdrawnAt: string | null;
+            /** @description The published item, once approved; `live` is false after it is withdrawn. */
+            item: {
+                slug: string;
+                live: boolean;
+            } | null;
+            licence: components["schemas"]["Models.GalleryLicence"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.GallerySubmissionInput": {
+            source: components["schemas"]["Models.GallerySource"];
+            title: string;
+            summary: string;
+            tags?: components["schemas"]["Models.GalleryTags"];
+            extraNames?: string[];
+            /**
+             * @description Sharing is under CC BY 4.0 only.
+             * @enum {string}
+             */
+            licence: "CC-BY-4.0";
+        };
+        /** @description The vocabularies the tags are chosen from. */
+        "Models.GalleryTagVocabulary": {
+            fieldOfWork: string[];
+            grantSize: string[];
+            audience: string[];
+        };
+        /** @description Each from a fixed vocabulary (`tags` on the list response). */
+        "Models.GalleryTags": {
+            fieldOfWork: string[];
+            grantSize: string[];
+            audience: string[];
         };
         /** @description An application in the funder's inbox. The detail route adds the optional fields. */
         "Models.GmsApplication": {
@@ -28872,6 +29314,322 @@ export interface operations {
             };
         };
     };
+    Gallery_listGallery: {
+        parameters: {
+            query?: {
+                /** @description The page to return */
+                page?: components["parameters"]["Models.PageParams.page"];
+                /** @description The number of items to return per page */
+                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
+                kind?: components["schemas"]["Models.GalleryKind"];
+                tag?: string;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Items from the current page */
+                        items: components["schemas"]["Models.GalleryCard"][];
+                        /** @description Details about the paginated results */
+                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                        /**
+                         * Format: int32
+                         * @example 200
+                         */
+                        status: number;
+                        /** @example Success */
+                        message: string;
+                        tags: components["schemas"]["Models.GalleryTagVocabulary"];
+                    };
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_galleryModerator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GalleryModeratorStatus"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_galleryQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with a paginated list of typed items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Items from the current page */
+                        items: components["schemas"]["Models.GalleryQueueItem"][];
+                        /** @description Details about the paginated results */
+                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_approveGallerySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.GalleryApproveInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GalleryApproved"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_rejectGallerySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.GalleryRejectInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GallerySubmission"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_readGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GalleryItemDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Grantees_list: {
         parameters: {
             query?: {
@@ -43733,6 +44491,341 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_copyGalleryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GalleryCopyResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_previewGallerySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.GalleryPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GalleryPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_listGallerySubmissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with a paginated list of typed items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Items from the current page */
+                        items: components["schemas"]["Models.GallerySubmission"][];
+                        /** @description Details about the paginated results */
+                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_submitToGallery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.GallerySubmissionInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GallerySubmission"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Gallery_withdrawGallerySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.GallerySubmission"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

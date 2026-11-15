@@ -146,6 +146,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
 | `send_communication` | `communications:write` | Approval | Send a templated email to applicants or grantees through Resend. |
+| `search_gallery` | `forms:read` | — | Search the public template gallery (approved application forms, rubrics, report forms, email templates and program kits) by kind, tag and words. |
+| `get_gallery_item` | `forms:read` | — | One approved gallery item with its full content. Copying, sharing, withdrawing and moderating are a person's, in the GMS: no tool. See `docs/gallery.md`. |
 | `get_approval` | any | — | Get the status of an approval request created by a gated tool: pending, approved, rejected, executed (with the result) or failed. |
 
 #### Outside applications, writing faster and keeping awards (v1.5.0 and v1.6.0)
