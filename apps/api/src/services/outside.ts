@@ -64,7 +64,7 @@ type Access = { cowriter?: boolean };
 /** The outside application, in the caller's workspace only; anything else is a 404. */
 export async function loadOutside(ctx: ServiceContext, id: string, scope: "applications:read" | "applications:write", opts: Access = {}): Promise<{ ws: ServiceWorkspace; row: Oa }> {
   if (opts.cowriter) {
-    const ws = await authorize(ctx, { scope, kind: "applicant" });
+    const ws = await authorize(ctx, { scope, kind: "applicant", cowriter: true });
     if (isCowriter(ws)) {
       const row = cowriterOf(ws, id) ? await ctx.repos.table("outside_applications").one({ id, workspace_id: ws.id }) : null;
       if (!row) throw notFound("Outside application");
@@ -689,7 +689,7 @@ export async function parseQuestionText(ctx: ServiceContext, id: string, input: 
 }
 
 export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write", opts: Access = {}) {
-  const asked = opts.cowriter ? await authorize(ctx, { scope, kind: "applicant" }) : null;
+  const asked = opts.cowriter ? await authorize(ctx, { scope, kind: "applicant", cowriter: true }) : null;
   const ws = asked && isCowriter(asked) ? asked : await outsideWorkspace(ctx, scope);
   const q = await ctx.repos.table("outside_questions").one({ id: qid, workspace_id: ws.id });
   if (!q || (isCowriter(ws) && !cowriterOf(ws, q.outside_application_id))) throw notFound("Question");
