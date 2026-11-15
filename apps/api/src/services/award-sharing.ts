@@ -470,7 +470,8 @@ export async function setAwardConfidential(ctx: ServiceContext, awardId: string,
   const { award } = await sideAward(ctx, awardId, "funder", "awards:write", FUNDER_CHANGE_ROLES);
   if (ctx.actor.kind !== "user") throw humanOnly("Changing whether an award is confidential");
   if (award.confidential !== input.confidential) {
-    const [row] = await ctx.repos.table("awards").update({ id: award.id, updated_at: award.updated_at }, { confidential: input.confidential });
+    // Compare and set on the flag itself: a change made meanwhile by someone else is a conflict.
+    const [row] = await ctx.repos.table("awards").update({ id: award.id, confidential: !input.confidential }, { confidential: input.confidential });
     if (!row) throw conflict();
     await audit(ctx, input.confidential ? "award.made_confidential" : "award.confidential_removed", "award", award.id, { confidential: input.confidential });
   }
@@ -482,7 +483,7 @@ export async function setRecipientUnlisted(ctx: ServiceContext, awardId: string,
   const { award } = await sideAward(ctx, awardId, "grantee", "awards:write", GRANTEE_CHANGE_ROLES);
   if (ctx.actor.kind !== "user") throw humanOnly("Changing whether your award is listed publicly");
   if ((award.recipient_unlisted === true) !== input.unlisted) {
-    const [row] = await ctx.repos.table("awards").update({ id: award.id, updated_at: award.updated_at }, { recipient_unlisted: input.unlisted });
+    const [row] = await ctx.repos.table("awards").update({ id: award.id, recipient_unlisted: !input.unlisted }, { recipient_unlisted: input.unlisted });
     if (!row) throw conflict();
     // The funder's ledger, as for every change to an award, from whichever side.
     await audit(ctx, input.unlisted ? "award.recipient_unlisted" : "award.recipient_listed", "award", award.id, { unlisted: input.unlisted }, award.workspace_id);
@@ -531,7 +532,8 @@ export async function updateListingSettings(ctx: ServiceContext, input: z.output
   const before = listingSettingsOf(w);
   const next = { listAwards: input.listAwards ?? before.listAwards, showAmounts: input.showAmounts ?? before.showAmounts };
   if (next.listAwards !== before.listAwards || next.showAmounts !== before.showAmounts || !current.awardSharing) {
-    const [row] = await ctx.repos.table("workspaces").update({ id: w.id, updated_at: w.updated_at }, { settings: { ...current, awardSharing: next } as Ws["settings"] });
+    // Read, merge this one key, write: as PATCH /workspaces does for the keys it owns.
+    const [row] = await ctx.repos.table("workspaces").update({ id: w.id }, { settings: { ...current, awardSharing: next } as Ws["settings"] });
     if (!row) throw conflict();
     await audit(ctx, "workspace.award_listing_changed", "workspace", w.id, { ...next });
     return listingView(ctx, row);
