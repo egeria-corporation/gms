@@ -13,7 +13,8 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, access_token_enc: null, access_token_expires_at: null, token_version: 0, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),
   consents: () => ({ scopes: [], granted_by: null, revoked_at: null }),
-  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {} }),
+  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {}, fund_id: null }),
+  funds: () => ({ description: null, brand: {}, budgets: [], is_default: false }),
   forms: () => ({
     version: 1,
     workspace_id: null,
@@ -171,6 +172,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   application_summaries: [{ columns: ["application_id", "response_version"] }],
   import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
   import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
+  // `funds (workspace_id) where is_default` is kept by services/funds.ts, which creates the default once.
+  funds: [{ columns: ["workspace_id", "slug"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -207,6 +210,7 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   outside_obligations: { outside_application_id: "outside_applications", series_id: "outside_obligation_series", document_id: "documents" },
   // 0032 checks this one with its own trigger (gms.application_summary_same_workspace).
   application_summaries: { application_id: "applications" },
+  programs: { fund_id: "funds" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
