@@ -30,4 +30,7 @@ regexes = [
   # Airtable ids are identifiers, not credentials, and these two name nothing real.
   '''^appMockBaseAbCdEf$''',
   '''^tblMockTableAbCdE$''',
+  # Made-up DNS verification tokens for single sign-on domains in mock mode (apps/web/src/mocks/sso.ts)
+  '''^rB7vQ2kLx9TzW4mN8pHc3sYd6fJg1aUe5oKi0lVbXqR$''',
+  '''^cC4nM7tPq2wZ9xL1vB6kH3jS8dF5gA0eR4uY7iO2pTm$''',
 ]
