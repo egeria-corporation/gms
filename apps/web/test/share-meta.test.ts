@@ -18,11 +18,14 @@ import {
   opportunityMeta,
   robotsTxt,
   routeOf,
+  switchMeta,
+  templateMeta,
   type FunderPageData,
   type OpportunityPageData,
   type PageMeta,
 } from "../src/edge/meta.ts";
 import { pngSize } from "../src/edge/og/png.ts";
+import { IMPORT_WIZARD_SEGMENT, SWITCH_ENTRIES, importWizardPath, seoFor } from "../src/content/switch.ts";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const ORIGIN = "https://gms.opengrants.io";
@@ -99,6 +102,47 @@ describe("routes", () => {
     expect(imageRouteOf("/og/f/riverbend.png")).toEqual({ kind: "funder", handle: "riverbend" });
     expect(imageRouteOf("/og/f/riverbend/o/community-health-2027.png")).toEqual({ kind: "opportunity", handle: "riverbend", slug: "community-health-2027" });
     for (const p of ["/og/f/riverbend.jpg", "/og/f/../x.png", "/og/w/x.png"]) expect(imageRouteOf(p), p).toBeNull();
+  });
+
+  it("knows the switch pages and the template gallery", () => {
+    expect(routeOf("/switch")).toEqual({ kind: "switch", system: null });
+    expect(routeOf("/switch/")).toEqual({ kind: "switch", system: null });
+    expect(routeOf("/switch/fluxx")).toEqual({ kind: "switch", system: "fluxx" });
+    expect(routeOf("/templates")).toEqual({ kind: "templates" });
+    expect(routeOf("/templates/common-application")).toEqual({ kind: "template", slug: "common-application" });
+    for (const p of ["/switch/unknown-system", "/switch/fluxx/x", "/templates/A%2Fb", "/templates/x/y", "/gallery/moderation"]) expect(routeOf(p), p).toBeNull();
+    // Share images stay the landing page's and the funder pages'.
+    expect(imageRouteOf("/og/switch.png")).toBeNull();
+  });
+});
+
+describe("switch and template gallery pages", () => {
+  it("serve every switch page's seoFor() text, Open Graph apart from the title", () => {
+    for (const entry of [null, ...SWITCH_ENTRIES]) {
+      const seo = seoFor(entry);
+      const m = switchMeta(entry?.slug ?? null, ORIGIN)!;
+      expect(m).toMatchObject({ title: seo.title, description: seo.description, ogTitle: seo.ogTitle, ogDescription: seo.ogDescription, url: `${ORIGIN}/switch${entry ? `/${entry.slug}` : ""}` });
+      const tags = headTags(m);
+      expect(tags).toContain(`<meta property="og:title" content="${seo.ogTitle}" />`);
+    }
+    expect(switchMeta("nobody", ORIGIN)).toBeNull();
+  });
+
+  it("lists the same ten systems as the API's sitemap", async () => {
+    const api = (await import(/* @vite-ignore */ new URL("../../api/src/services/public.ts", import.meta.url).href)) as { SWITCH_SYSTEMS: readonly string[] };
+    expect([...api.SWITCH_SYSTEMS].sort()).toEqual(SWITCH_ENTRIES.map((e) => e.slug).sort());
+  });
+
+  it("names the import wizard where the app serves it", () => {
+    const app = readFileSync(here("../src/app/App.tsx"), "utf8");
+    expect(app).toMatch(new RegExp(`<Route path="/w/:ws" element=\\{<WorkspaceLayout />\\}>[\\s\\S]*<Route path="${IMPORT_WIZARD_SEGMENT}" element=\\{<ImportWizard />\\} />`));
+    expect(importWizardPath("riverbend")).toBe("/w/riverbend/import");
+  });
+
+  it("describes a gallery item by its own title and summary, under CC BY 4.0", () => {
+    const m = templateMeta({ slug: "five-criterion-rubric", title: "Five-criterion rubric", summary: "Five criteria, each scored 1 to 5." }, ORIGIN);
+    expect(m).toMatchObject({ title: "Five-criterion rubric \u2014 Template gallery \u2014 OpenGrants GMS", description: "Five criteria, each scored 1 to 5.", url: `${ORIGIN}/templates/five-criterion-rubric` });
+    expect(m.jsonLd[0]).toMatchObject({ "@type": "CreativeWork", license: "https://creativecommons.org/licenses/by/4.0/" });
   });
 });
 

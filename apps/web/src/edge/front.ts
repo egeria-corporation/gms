@@ -7,7 +7,7 @@
 // Page data comes from the API's public routes over the service binding and is kept at the edge for
 // EDGE_TTL_SECONDS. Anything that fails, is slow or is not found leaves the page as it was built,
 // with the default meta: a preview is never worth a broken page.
-import { apiPathOf, funderCard, funderMeta, headTags, imageRouteOf, landingCard, landingMeta, opportunityCard, opportunityMeta, robotsTxt, routeOf, DEFAULT_IMAGE, type FunderPageData, type OpportunityPageData, type PageMeta, type PageRoute, type PublicRoute } from "./meta.ts";
+import { apiPathOf, funderCard, funderMeta, galleryApiPathOf, headTags, imageRouteOf, landingCard, landingMeta, opportunityCard, opportunityMeta, robotsTxt, routeOf, switchMeta, templateMeta, templatesMeta, DEFAULT_IMAGE, type FunderPageData, type GalleryItemData, type ImageRoute, type OpportunityPageData, type PageMeta, type PublicRoute } from "./meta.ts";
 import { loadCardAssets, renderCard, type CardAssets, type CardText } from "./og/card.ts";
 
 export interface EmbeddedFile {
@@ -119,15 +119,15 @@ export function createFront(config: FrontConfig) {
       throw e;
     }));
 
-  /** The public page data for a route, from the edge cache or the API; null when it is not found. */
-  async function pageData<T>(route: PageRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<T | null> {
+  /** The public data at an API path (a funder page, an opportunity, a gallery item), from the edge cache or the API; null when it is not found. */
+  async function pageData<T>(apiPath: string, request: Request, env: FrontEnv, ctx: FrontContext): Promise<T | null> {
     const cache = edgeCache();
-    const key = new Request(`${origin}/__front/data${apiPathOf(route)}`);
+    const key = new Request(`${origin}/__front/data${apiPath}`);
     const hit = cache ? await cache.match(key).catch(() => undefined) : undefined;
     let text: string;
     if (hit) text = await hit.text();
     else {
-      const res = await withTimeout(env.API.fetch(new Request(new URL(apiPathOf(route), request.url), { headers: { Accept: "application/json" } })), DATA_TIMEOUT_MS);
+      const res = await withTimeout(env.API.fetch(new Request(new URL(apiPath, request.url), { headers: { Accept: "application/json" } })), DATA_TIMEOUT_MS);
       // Not found: no data. Anything else that is not a success is a failure the caller falls back from.
       if (res.status === 404) return null;
       if (res.status !== 200) throw new Error(`The API answered ${res.status}`);
@@ -139,22 +139,36 @@ export function createFront(config: FrontConfig) {
   }
 
   async function metaFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<PageMeta | null> {
-    if (route.kind === "landing") return landingMeta(origin);
-    if (route.kind === "funder") {
-      const d = await pageData<FunderPageData>(route, request, env, ctx);
-      return d?.funder && Array.isArray(d.opportunities) ? funderMeta(d, origin) : null;
+    switch (route.kind) {
+      case "landing":
+        return landingMeta(origin);
+      case "switch":
+        return switchMeta(route.system, origin);
+      case "templates":
+        return templatesMeta(origin);
+      case "template": {
+        // An approved item only: the API answers 404 for anything else, which leaves the default meta.
+        const d = await pageData<GalleryItemData>(galleryApiPathOf(route.slug), request, env, ctx);
+        return d && typeof d.title === "string" && typeof d.summary === "string" && d.slug === route.slug ? templateMeta(d, origin) : null;
+      }
+      case "funder": {
+        const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);
+        return d?.funder && Array.isArray(d.opportunities) ? funderMeta(d, origin) : null;
+      }
+      case "opportunity": {
+        const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
+        return d?.funder && d.opportunity ? opportunityMeta(d, origin) : null;
+      }
     }
-    const d = await pageData<OpportunityPageData>(route, request, env, ctx);
-    return d?.funder && d.opportunity ? opportunityMeta(d, origin) : null;
   }
 
-  async function cardFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<CardText | null> {
+  async function cardFor(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<CardText | null> {
     if (route.kind === "landing") return landingCard(config.host);
     if (route.kind === "funder") {
-      const d = await pageData<FunderPageData>(route, request, env, ctx);
+      const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);
       return d?.funder && Array.isArray(d.opportunities) ? funderCard(d, config.host) : null;
     }
-    const d = await pageData<OpportunityPageData>(route, request, env, ctx);
+    const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
     return d?.funder && d.opportunity ? opportunityCard(d, config.host) : null;
   }
 
@@ -182,7 +196,7 @@ export function createFront(config: FrontConfig) {
       .transform(page);
   }
 
-  async function shareImage(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<Response> {
+  async function shareImage(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<Response> {
     const cache = edgeCache();
     const key = new Request(new URL(request.url).toString());
     const hit = cache ? await cache.match(key).catch(() => undefined) : undefined;

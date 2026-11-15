@@ -271,6 +271,14 @@ const later = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a);
  * sitemap). An opportunity's lastmod is its own or its latest public competition's change; a funder
  * page's is the funder's or its latest listed opportunity's, since the page shows them.
  */
+/**
+ * The switch pages' systems (`/switch/{system}`), as apps/web/src/content/switch.ts lists them (a web
+ * test keeps the two equal), and the day their facts were last checked, which is their lastmod.
+ */
+export const SWITCH_SYSTEMS = ["good-grants", "submittable", "surveymonkey-apply", "foundant", "zengine", "fluxx", "smartsimple", "cybergrants", "openwater", "spreadsheets"] as const;
+export const SWITCH_FACTS_CHECKED = "2026-11-15T00:00:00.000Z";
+
+/** The sitemap: funder and opportunity pages, the switch pages, and the template gallery's approved items. */
 export async function sitemapEntries(ctx: PublicContext): Promise<{ loc: string; lastmod: string }[]> {
   const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 5000 })).filter((o) => publishFlag(o, "sitemap") && publishFlag(o, "publicPage"));
   const byId = await funders(ctx, published.map((o) => o.workspace_id));
@@ -286,5 +294,11 @@ export async function sitemapEntries(ctx: PublicContext): Promise<{ loc: string;
   const out: { loc: string; lastmod: string }[] = [];
   for (const [id, lastmod] of funderChanged) out.push({ loc: `${ctx.config.webBaseUrl}/f/${live(id)!.handle}`, lastmod });
   for (const o of opps) out.push({ loc: `${ctx.config.webBaseUrl}/f/${live(o.workspace_id)!.handle}/o/${o.slug}`, lastmod: changed.get(o.id)! });
+  out.push({ loc: `${ctx.config.webBaseUrl}/switch`, lastmod: SWITCH_FACTS_CHECKED });
+  for (const system of SWITCH_SYSTEMS) out.push({ loc: `${ctx.config.webBaseUrl}/switch/${system}`, lastmod: SWITCH_FACTS_CHECKED });
+  // Approved gallery items only (a pending or declined submission is not an item; a withdrawn item is not approved).
+  const items = await ctx.repos.table("gallery_items").find({ status: "approved" }, { orderBy: "published_at", ascending: false, limit: 1000 });
+  if (items.length) out.push({ loc: `${ctx.config.webBaseUrl}/templates`, lastmod: items[0]!.published_at });
+  for (const i of items) out.push({ loc: `${ctx.config.webBaseUrl}/templates/${i.slug}`, lastmod: i.published_at });
   return out;
 }

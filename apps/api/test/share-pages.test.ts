@@ -83,11 +83,31 @@ describe("sitemap", () => {
     const xml = await (await h.request("/sitemap.xml")).text();
     const entries = Object.fromEntries([...xml.matchAll(/<url><loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod><\/url>/g)].map((m) => [m[1]!, m[2]!]));
     const base = "https://app.gms.test/f/riverbend";
-    expect(Object.keys(entries).sort()).toEqual([base, `${base}/o/closed-call`, `${base}/o/forecast-call`, `${base}/o/open-call`]);
+    expect(Object.keys(entries).filter((k) => k.includes("/f/")).sort()).toEqual([base, `${base}/o/closed-call`, `${base}/o/forecast-call`, `${base}/o/open-call`]);
     expect(entries[`${base}/o/closed-call`]).toBe("2027-06-10T12:00:00.000Z");
     expect(entries[`${base}/o/forecast-call`]).toBe("2027-05-05T10:00:00.000Z");
     // The funder page changed when its latest listed opportunity did.
     expect(entries[base]).toBe("2027-06-10T12:00:00.000Z");
     expect(xml).not.toContain("draft-call");
+  });
+
+  it("lists the switch pages and the template gallery's approved items, and nothing pending, declined or withdrawn", async () => {
+    const h = await harness();
+    const item = (slug: string, status: string, published: string) => h.repos.table("gallery_items").insert({ slug, kind: "rubric", title: slug, summary: "A rubric.", tags: {} as never, author_workspace_id: null, licence: "CC-BY-4.0", status, version: 1, snapshot: { forms: [], rubrics: [], emails: [] } as never, uses_count: 0, published_at: published, withdrawn_at: status === "withdrawn" ? published : null });
+    await item("five-criterion-rubric", "approved", "2026-11-15T00:00:00.000Z");
+    await item("board-rubric", "approved", "2027-02-01T09:00:00.000Z");
+    await item("gone-rubric", "withdrawn", "2027-03-01T09:00:00.000Z");
+    // A submission waiting for a moderator is not an item at all.
+    await h.repos.table("gallery_submissions").insert({ workspace_id: WS_FUNDER, kind: "rubric", title: "Pending rubric", summary: "Waiting.", tags: {} as never, snapshot: { forms: [], rubrics: [], emails: [] } as never, source_type: "rubric", source_id: "00000000-0000-4000-8000-000000000001", source_version: 1, status: "pending", submitted_by: USER_OFFICER });
+    const xml = await (await h.request("/sitemap.xml")).text();
+    const entries = Object.fromEntries([...xml.matchAll(/<url><loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod><\/url>/g)].map((m) => [m[1]!, m[2]!]));
+    const web = "https://app.gms.test";
+    const systems = ["good-grants", "submittable", "surveymonkey-apply", "foundant", "zengine", "fluxx", "smartsimple", "cybergrants", "openwater", "spreadsheets"];
+    for (const p of ["/switch", ...systems.map((x) => `/switch/${x}`)]) expect(entries[`${web}${p}`], p).toBe("2026-11-15T00:00:00.000Z");
+    expect(Object.keys(entries).filter((k) => k.includes("/switch")).length).toBe(11);
+    expect(entries[`${web}/templates`]).toBe("2027-02-01T09:00:00.000Z");
+    expect(entries[`${web}/templates/board-rubric`]).toBe("2027-02-01T09:00:00.000Z");
+    expect(entries[`${web}/templates/five-criterion-rubric`]).toBe("2026-11-15T00:00:00.000Z");
+    expect(xml).not.toMatch(/gone-rubric|Pending rubric|pending-rubric/);
   });
 });

@@ -175,6 +175,7 @@ export default function Landing() {
                   <Link to="/signin?as=funder" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
                     Start as a funder
                   </Link>
+                  <Link to="/switch" className="small">Switching from another system? See what moves over and get a free migration</Link>
                 </div>
                 <div className="card landing-card" id="grantees">
                   <h3>Grantees and applicants</h3>
@@ -322,6 +323,7 @@ export default function Landing() {
             </div>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
               <Link to="/agents">For agents</Link>
+              <Link to="/templates">Template gallery</Link>
               <a href="/openapi.json">API</a>
               <a href="https://commongrants.org">CommonGrants spec</a>
               <a href="https://github.com/egeria-corporation/gms">Source</a>
