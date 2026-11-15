@@ -1058,6 +1058,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/assist/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The AI summary kept for this application's current response version, or `summary: null`. Never calls the model. 404 `assistant_disabled` when the assistant is off. */
+        get: operations["AiSummaries_get"];
+        put?: never;
+        /** @description Write the AI summary on the first request (one call against the quota), or return the one kept for this version (no call). 404 `assistant_disabled`; 429 `assist_quota_exhausted` only when none is kept. */
+        post: operations["AiSummaries_generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/award-invitations/accept": {
         parameters: {
             query?: never;
@@ -2254,6 +2272,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/draft-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Invitations into this draft still waiting, addresses masked. Not for consultants. */
+        get: operations["DraftInvitations_list"];
+        put?: never;
+        /**
+         * @description Invite someone by email into a draft. A workspace admin's own click only: agents and API
+         *     clients are refused (403 `human_only`), whatever they hold. Sends one transactional email.
+         *     409 `already_member` when the address is on the team, 409 `already_invited` while an
+         *     invitation to it is waiting (nothing is sent again), 409 `application_locked` when the
+         *     application is no longer being written, 429 `invitation_limit` after 20 in a rolling day.
+         */
+        post: operations["DraftInvitations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/eligibility/evaluate": {
         parameters: {
             query?: never;
@@ -2578,7 +2620,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Accept an emailed invitation; the caller becomes a member with the invited role. */
+        /**
+         * @description Accept an emailed invitation; the caller becomes a member with the invited role. An
+         *     invitation into a draft works only for the address it was sent to (403 `email_mismatch`) and
+         *     says where to land in `draft`.
+         */
         post: operations["Workspaces_acceptInvitation"];
         delete?: never;
         options?: never;
@@ -2682,6 +2728,40 @@ export interface paths {
         get: operations["Applicant_myDocuments"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/me/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The one-time notes the signed-in person dismissed in this workspace. */
+        get: operations["DraftInvitations_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/me/notes/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Never show this note to this person in this workspace again. */
+        post: operations["DraftInvitations_dismissNote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4587,6 +4667,26 @@ export interface paths {
             cookie?: never;
         };
         get: operations["Insights_programRollup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/embed/funders/{handle}/opportunities/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apply widget data
+         * @description Published data behind the embeddable apply widget. No token; published fields only.
+         */
+        get: operations["Embed_embedWidget"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10564,6 +10664,35 @@ export interface components {
             /** Format: date-time */
             executedAt: string | null;
         };
+        /** @description The AI summary panel: the summary kept for this application and response version, or null before the first request. */
+        "Models.AiSummary": {
+            /** @enum {boolean} */
+            draft: true;
+            applicationId: components["schemas"]["Models.GmsId"];
+            /** @description SHA-256 (hex) of what the assistant reads of the application as the caller may see it. */
+            responseVersion: string;
+            /** @description "Review before relying on it". */
+            label: string;
+            /** @description True when this summary was written earlier (no call was made, nothing counted). */
+            cached: boolean;
+            /** Format: date-time */
+            generatedAt: string | null;
+            model: string | null;
+            summary: components["schemas"]["Models.AiSummaryContent"] | null;
+            quota: components["schemas"]["Models.AssistQuota"];
+        };
+        /** @description The AI summary's own fields. Never a score or a recommendation. */
+        "Models.AiSummaryContent": {
+            summary: string;
+            strengths: string[];
+            openQuestions: string[];
+            quotes: components["schemas"]["Models.AssistQuote"][];
+            fromExternalSystems: {
+                server: string;
+                note: string;
+            }[];
+            cautions: string[];
+        };
         /** @description The "AI use" note: questions whose current answer is accepted assistant text (provenance `assist`). */
         "Models.AiUse": {
             used: boolean;
@@ -12086,6 +12215,12 @@ export interface components {
              */
             url: string | null;
         };
+        "Models.DismissNoteInput": {
+            note: components["schemas"]["Models.NoteKey"];
+        };
+        "Models.DismissedNotes": {
+            dismissed: components["schemas"]["Models.NoteKey"][];
+        };
         "Models.Document": {
             id: string;
             name: string;
@@ -12133,6 +12268,47 @@ export interface components {
             /** Format: date-time */
             uploadedAt: string;
         };
+        /** @description An invitation into a draft, as its sender sees it. */
+        "Models.DraftInvitation": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Masked: the first character and the domain. */
+            email: string;
+            /** @description Always `consultant`, scoped to the draft. */
+            role: components["schemas"]["Models.MemberRole"];
+            draft: components["schemas"]["Models.DraftLocation"];
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description False when the email could not be sent; `acceptUrl` then holds the link to pass on. */
+            emailed: boolean;
+            /** Format: uri */
+            acceptUrl: string | null;
+        };
+        "Models.DraftInvitationInput": {
+            /** @description The person's address, typed by the admin. No address book is read. */
+            email: string;
+            draft: components["schemas"]["Models.DraftRef"];
+        };
+        /** @description Invitations into one draft still waiting, and whether the caller may send one. */
+        "Models.DraftInvitationList": {
+            invitations: components["schemas"]["Models.PendingDraftInvitation"][];
+            /** @description The caller is a person with a role that may invite (workspace admins). */
+            canInvite: boolean;
+            /** Format: int32 */
+            perDay: number;
+            /** Format: int32 */
+            remainingToday: number;
+        };
+        /** @description Where an accepted invitation into a draft lands. */
+        "Models.DraftLanding": {
+            /** @enum {string} */
+            kind: "outside_application" | "application";
+            id: string;
+            questionId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            formId: string | null;
+            section: string | null;
+            /** @description The question or section was assigned to the person (false when someone else already had it). */
+            assigned: boolean;
+        };
         "Models.DraftLetterRequest": {
             /** @description A template id, or a built-in such as `builtin:decline` */
             templateId: string;
@@ -12144,6 +12320,28 @@ export interface components {
                 [key: string]: unknown;
             };
             tone?: string;
+        };
+        /** @description The draft as the API names it. */
+        "Models.DraftLocation": {
+            /** @enum {string} */
+            kind: "outside_application" | "application";
+            id: string;
+            questionId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            formId: string | null;
+            section: string | null;
+        };
+        /** @description The draft an invitation is for: an outside application (optionally one question) or a built-in application (optionally one section of one form). */
+        "Models.DraftRef": {
+            /** @enum {string} */
+            kind: "outside_application" | "application";
+            /** @description The outside application's UUID, or the built-in application's id (`app_…` or its UUID). */
+            id: string;
+            /** @description Outside applications: the question to assign. */
+            questionId?: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Built-in applications: the form the section belongs to (`frm_…`). */
+            formId?: string;
+            /** @description Built-in applications: the section to assign, as the editor names it. */
+            section?: string;
         };
         "Models.DraftUsedAnswer": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -12259,6 +12457,53 @@ export interface components {
             explain: string;
             /** @description The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
             selfReported?: boolean;
+        };
+        /** @description What the apply widget shows: the call, its funder, and whether it is taking applications. */
+        "Models.EmbedWidget": {
+            funder: {
+                handle: string;
+                /** @description The Passport legal name for a Passport-linked funder, else the workspace's name. */
+                name: string;
+                brand: {
+                    logoUrl: string | null;
+                    accent: string | null;
+                    onAccent: string | null;
+                };
+                /** @description True only for a funder whose organization comes from Passport; a self-declared one is never presented as verified. */
+                verified: boolean;
+            };
+            opportunity: {
+                slug: string;
+                title: string;
+                /** @enum {string} */
+                status: "forecasted" | "open" | "closed";
+                closeDate: {
+                    name: string;
+                    /** Format: date */
+                    date: string;
+                } | null;
+                /** Format: date */
+                opensDate: string | null;
+                acceptedApplicantTypes: string[];
+                /** @description Up to three of the eligibility rules' plain-language labels */
+                eligibility: string[];
+                /**
+                 * Format: int32
+                 * @description How many more labels the opportunity page lists
+                 */
+                moreEligibility: number;
+            };
+            /** @description An open opportunity with an open competition: the widget offers Apply only then. */
+            acceptingApplications: boolean;
+            /** @description The funder's "Powered by OpenGrants Grant Management System" setting (on unless turned off). */
+            poweredBy: boolean;
+            links: {
+                /**
+                 * Format: uri
+                 * @description The public opportunity page, where Apply leads
+                 */
+                page: string;
+            };
         };
         "Models.EndedSession": {
             /** @enum {boolean} */
@@ -13294,6 +13539,14 @@ export interface components {
             /** Format: uri */
             acceptUrl: string;
         };
+        /** @description `POST /gms/invitations/accept`. */
+        "Models.InvitationAccepted": {
+            workspace: components["schemas"]["Models.Workspace"];
+            /** @description The member's role in the workspace (their existing role when they were already a member). */
+            role: components["schemas"]["Models.MemberRole"];
+            /** @description For an invitation into a draft, where to open it; null otherwise. */
+            draft: components["schemas"]["Models.DraftLanding"] | null;
+        };
         "Models.InvitationInput": {
             /** @description Consultants only: the firm they work for. Kept on the membership as `scope.organization`. */
             organizationName?: string;
@@ -13807,6 +14060,11 @@ export interface components {
         "Models.NoteInput": {
             body: string;
         };
+        /**
+         * @description One-time notes a member can dismiss.
+         * @enum {string}
+         */
+        "Models.NoteKey": "invite_teammate";
         "Models.NotificationChannel": {
             inApp: boolean;
             email: boolean;
@@ -14058,6 +14316,8 @@ export interface components {
                     [key: string]: unknown;
                 };
                 acceptedApplicantTypes: string[];
+                /** @description The opportunity is published as open and one of its competitions is open: the page offers Apply only then. */
+                acceptingApplications: boolean;
                 /** Format: date-time */
                 publishedAt: string | null;
                 /** @description The eligibility rules' plain-language labels */
@@ -14217,6 +14477,8 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             previousStage: components["schemas"]["Models.OutsideStage"] | null;
+            /** @description v1.7.0: the caller is a consultant invited into this one draft; the team's records around it (documents, tasks, activity, the funder record, the decision) are left empty. */
+            cowriter?: boolean;
             /** @description Plain moves allowed from the current stage (none while archived). */
             allowedMoves: components["schemas"]["Models.OutsidePlainStage"][];
             listing: components["schemas"]["Models.OutsideListing"];
@@ -14867,6 +15129,16 @@ export interface components {
             /** Format: date-time */
             coolingOffUntil: string | null;
         };
+        "Models.PendingDraftInvitation": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @description Masked. */
+            email: string;
+            draft: components["schemas"]["Models.DraftLocation"];
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         "Models.PipelineCalendar": {
             /** @description YYYY-MM. */
             month: string;
@@ -15135,6 +15407,8 @@ export interface components {
             /** @description Passport's level; null when the funder's organization is not verified with Passport. */
             verificationLevel: string | null;
             verification: components["schemas"]["Models.Verification"];
+            /** @description The funder's "Powered by OpenGrants Grant Management System" setting: false only when an admin turned it off. Absent from older servers; read as on. */
+            poweredBy?: boolean;
         };
         "Models.PublicOpportunityCard": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -15152,6 +15426,8 @@ export interface components {
                 [key: string]: unknown;
             };
             acceptedApplicantTypes: string[];
+            /** @description The opportunity is published as open and one of its competitions is open: the page offers Apply only then. */
+            acceptingApplications: boolean;
         };
         "Models.PublishSettings": {
             publicPage?: boolean;
@@ -19804,6 +20080,139 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AiSummaries_get: {
+        parameters: {
+            query: {
+                applicationId: components["schemas"]["Models.GmsId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AiSummary"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AiSummaries_generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SummarizeRequest"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AiSummary"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -24986,6 +25395,149 @@ export interface operations {
             };
         };
     };
+    DraftInvitations_list: {
+        parameters: {
+            query: {
+                kind: "outside_application" | "application";
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DraftInvitationList"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    DraftInvitations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DraftInvitationInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DraftInvitation"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Applications_evaluateEligibility: {
         parameters: {
             query?: never;
@@ -26363,7 +26915,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @description Response data */
-                        data: components["schemas"]["Models.Workspace"];
+                        data: components["schemas"]["Models.InvitationAccepted"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -26681,6 +27233,101 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    DraftInvitations_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DismissedNotes"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    DraftInvitations_dismissNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DismissNoteInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DismissedNotes"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -34753,6 +35400,41 @@ export interface operations {
             };
         };
     };
+    Embed_embedWidget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.EmbedWidget"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Infrastructure_funderPage: {
         parameters: {
             query?: never;
@@ -37960,6 +38642,15 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
