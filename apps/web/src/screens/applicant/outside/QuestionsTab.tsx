@@ -3,13 +3,15 @@
 // pasted from the funder's guidelines (split into questions for review before anything is saved).
 // Each answer is written here with live counts against the funder's limit, can start from the
 // answer library or an organization fact, and every save is a new version.
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router";
 import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, FileClock, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
 import type { ApplicantMember, MyOrganization } from "../../../api/applicant.ts";
 import type { AdaptedDraft, AssistStatus } from "../../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../../api/applicantFullHooks.ts";
 import type { AnswerInput, LimitKind, OutsideAnswer, OutsideDetail, OutsideQuestion, QuestionInput, QuestionPhase, QuestionStatus } from "../../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../../api/outsideHooks.ts";
+import type { DraftInvitation, DraftInvitationList } from "../../../api/invites.ts";
 import type { LibraryAnswer } from "../../../api/writeKeep.ts";
 import { useWriteKeepApi } from "../../../api/writeKeepHooks.ts";
 import { useServices } from "../../../app/services.tsx";
@@ -23,6 +25,7 @@ import { quotaSpent, QuotaSpentNote } from "../../../components/launch.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
 import { countFor, countText, isOverLimit, LIMIT_UNITS, limitPhrase, type ParsedQuestion, type TextCounts } from "../../../lib/outside.ts";
 import { bestVariant, canApprove as mayApprove, mergeRequired, variantChoices, type RequiredDocument } from "../../../lib/writeKeep.ts";
+import { INVITE_OPTION, InviteDialog, InviteOptions, InviteSentNote, TeamNote, useDraftInvites } from "../inviteDraft.tsx";
 import { GuidelinesReader } from "./guidelines.tsx";
 import { orgFacts } from "./shared.tsx";
 import { AiUseNote, CommentsButton, CommentsPanel, DraftPanel, ReuseDialog, StaleBadge } from "./writeFaster.tsx";
@@ -652,10 +655,19 @@ export function QuestionCard({
   canApprove,
   onChanged,
   reportOf = null,
+  cowriter = false,
+  invites = null,
+  onInvite,
 }: {
   q: OutsideQuestion;
   n: number;
   applicationId: string;
+  /** The signed-in person is a consultant invited into this draft: they write answers, the team sets up the questions. */
+  cowriter?: boolean;
+  /** Invitations into this application still waiting, for the assignee picker. */
+  invites?: DraftInvitationList | null;
+  /** Offers "Invite someone by email" in the assignee picker. */
+  onInvite?: (questionId: string) => void;
   /** A report question: the report obligation it belongs to (offers reuse from earlier reports). */
   reportOf?: string | null;
   members: ApplicantMember[];
@@ -681,7 +693,10 @@ export function QuestionCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cursor = useRef<number | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
-  const assistOn = !!assist?.enabled;
+  // A cowriter's AI drafts would spend the team's quota on a draft they were only invited into: not offered.
+  const assistOn = !!assist?.enabled && !cowriter;
+  const { meState } = useServices();
+  const myId = meState.status === "ready" ? meState.me.userId : null;
   const put = useOutsideMutation((api, input: AnswerInput) => api.putAnswer(q.id, input));
   const patch = useOutsideMutation((api, p: Parameters<typeof api.updateQuestion>[1]) => api.updateQuestion(q.id, p));
   const remove = useOutsideMutation(async (api) => {
@@ -763,17 +778,34 @@ export function QuestionCard({
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
           <span className="tag">Limit: {limitPhrase(q.limitKind, q.limitValue)}</span>
-          <label className="sr" htmlFor={`oq-assignee-${q.id}`}>
-            Who writes question {n}
-          </label>
-          <select id={`oq-assignee-${q.id}`} className="sel" style={{ maxWidth: "200px", height: "30px" }} disabled={readOnly} value={q.assigneeUserId ?? ""} onChange={async (e) => (await patch.run({ assigneeUserId: e.target.value || null })) && onChanged()}>
-            <option value="">No one assigned</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.name ?? m.email}
-              </option>
-            ))}
-          </select>
+          {cowriter ? (
+            <span className="tag">{q.assigneeUserId && q.assigneeUserId === myId ? "Assigned to you" : q.assigneeUserId ? "Assigned to a teammate" : "No one assigned"}</span>
+          ) : (
+            <>
+              <label className="sr" htmlFor={`oq-assignee-${q.id}`}>
+                Who writes question {n}
+              </label>
+              <select
+                id={`oq-assignee-${q.id}`}
+                className="sel"
+                style={{ maxWidth: "220px", height: "30px" }}
+                disabled={readOnly}
+                value={q.assigneeUserId ?? ""}
+                onChange={async (e) => {
+                  if (e.target.value === INVITE_OPTION) return onInvite?.(q.id);
+                  if ((await patch.run({ assigneeUserId: e.target.value || null })) !== undefined) onChanged();
+                }}
+              >
+                <option value="">No one assigned</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.name ?? m.email}
+                  </option>
+                ))}
+                {!readOnly && <InviteOptions list={invites} match={(d) => d.questionId === q.id} />}
+              </select>
+            </>
+          )}
           <label className="sr" htmlFor={`oq-status-${q.id}`}>
             Status of question {n}
           </label>
@@ -798,7 +830,7 @@ export function QuestionCard({
               A workspace admin or the application’s owner approves answers.
             </span>
           )}
-          {!readOnly && (
+          {!readOnly && !cowriter && (
             <span className="row" style={{ gap: "4px", marginLeft: "auto" }}>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(true)} aria-label={`Edit question ${n}`}>
                 <Pencil className="ic" aria-hidden="true" />
@@ -969,6 +1001,23 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
   // Report questions are written on their report, under Awarded funding.
   const questions = detail.questions.filter((q) => !q.obligationId);
   const approved = questions.filter((q) => q.status === "approved").length;
+  // A consultant invited into this draft writes answers; the team sets up the questions and invites.
+  const cowriter = detail.cowriter === true;
+  const setupLocked = readOnly || cowriter;
+  const invites = useDraftInvites("outside_application", detail.id, !cowriter);
+  const inviteList = invites.status === "ready" ? invites.data : null;
+  const [inviting, setInviting] = useState<{ questionId: string | null } | null>(null);
+  const [sent, setSent] = useState<DraftInvitation | null>(null);
+  const invitingPrompt = inviting?.questionId ? (questions.find((q) => q.id === inviting.questionId)?.prompt ?? null) : null;
+  // Arriving from an accepted invitation (`?question=`): go straight to that answer.
+  const [params] = useSearchParams();
+  const focusQuestion = params.get("question");
+  useEffect(() => {
+    if (!focusQuestion) return;
+    const el = document.getElementById(`oq-answer-${focusQuestion}`);
+    el?.scrollIntoView?.({ block: "center" });
+    el?.focus();
+  }, [focusQuestion]);
 
   return (
     <>
@@ -977,7 +1026,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           {questions.length} question{questions.length === 1 ? "" : "s"} · {approved} approved
         </span>
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-          {!readOnly && (
+          {!setupLocked && (
             <>
               <button type="button" className="btn btn-sm btn-primary" aria-haspopup="dialog" onClick={() => setPasting(true)}>
                 <ClipboardList className="ic" aria-hidden="true" />
@@ -1016,6 +1065,13 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           Write each answer below; counts follow the funder’s limits as you type.
         </Notice>
       )}
+      {cowriter && (
+        <Notice tone="info" title="You were invited to help write this application">
+          Write and save your answers here, and mark them ready when they are. The team sets up the questions and approves the answers.
+        </Notice>
+      )}
+      {!cowriter && <TeamNote canInvite={!readOnly && !!inviteList?.canInvite} onInvite={() => setInviting({ questionId: null })} />}
+      {sent && <InviteSentNote sent={sent} onDone={() => setSent(null)} />}
       <AiUseNote questions={questions} />
       {exp.error ? <ErrorBanner error={exp.error} title="The download did not start" /> : null}
       {adding && (
@@ -1038,7 +1094,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
             icon={ClipboardList}
             title="No questions yet"
             actions={
-              !readOnly ? (
+              !setupLocked ? (
                 <button type="button" className="btn btn-primary" onClick={() => setPasting(true)}>
                   Paste questions
                 </button>
@@ -1049,7 +1105,39 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           </EmptyState>
         </div>
       ) : (
-        questions.map((q, i) => <QuestionCard key={q.id} q={q} n={i + 1} applicationId={detail.id} members={members} answers={answers} org={org} readOnly={readOnly} assist={assistStatus} onAssistUsed={assist.reload} canApprove={canApprove} onChanged={onChanged} />)
+        questions.map((q, i) => (
+          <QuestionCard
+            key={q.id}
+            q={q}
+            n={i + 1}
+            applicationId={detail.id}
+            members={members}
+            answers={answers}
+            org={org}
+            readOnly={readOnly}
+            assist={assistStatus}
+            onAssistUsed={assist.reload}
+            canApprove={canApprove}
+            onChanged={onChanged}
+            cowriter={cowriter}
+            invites={inviteList}
+            {...(inviteList?.canInvite ? { onInvite: (questionId: string) => setInviting({ questionId }) } : {})}
+          />
+        ))
+      )}
+      {inviting && (
+        <InviteDialog
+          draft={{ kind: "outside_application", id: detail.id, ...(inviting.questionId ? { questionId: inviting.questionId } : {}) }}
+          title={detail.title}
+          part={invitingPrompt}
+          remainingToday={inviteList?.remainingToday ?? null}
+          onClose={() => setInviting(null)}
+          onSent={(r) => {
+            setInviting(null);
+            setSent(r);
+            invites.reload();
+          }}
+        />
       )}
       {pasting && (
         <PasteQuestionsDialog

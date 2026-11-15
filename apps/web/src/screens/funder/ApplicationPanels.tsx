@@ -5,12 +5,12 @@
 // is a reference to an uploaded document or to one in the applicant's Passport locker), so they
 // work for any form a funder builds. The assistant only drafts: nothing here is saved or sent.
 import { useState } from "react";
-import { BadgeCheck, Sparkles } from "lucide-react";
+import { BadgeCheck, Sparkles, TriangleExclamationPoint } from "lucide-react";
 import type { InboxApplication } from "../../api/funder.ts";
-import type { ComparisonDraft, SummaryDraft } from "../../api/funderFull.ts";
+import type { AiSummary, ComparisonDraft } from "../../api/funderFull.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
-import { formatMinor } from "../../lib/format.ts";
+import { formatDate, formatMinor } from "../../lib/format.ts";
 
 interface BudgetRow {
   category: string;
@@ -179,19 +179,91 @@ export function DocumentsPanel({ app }: { app: InboxApplication }) {
 }
 
 /**
+ * The AI summary (v1.7.0), open on the review screen whenever the assistant is on, and gone when
+ * it is off. It is written once for this version of the answers, on the first request, and every
+ * reviewer then reads the same one without spending the month's quota again. It describes the
+ * application; it never scores, ranks or decides, and it says to review it before relying on it.
+ */
+export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
+  const status = useApiQuery((api) => api.assistStatus(), []);
+  const enabled = status.status === "ready" && status.data.enabled;
+  const kept = useApiQuery((api) => (enabled ? api.aiSummary(applicationId) : Promise.resolve(null)), [applicationId, enabled]);
+  const write = useApiMutation((api) => api.writeAiSummary(applicationId));
+  const [written, setWritten] = useState<AiSummary | null>(null);
+  if (!enabled) return null;
+  const view = written ?? (kept.status === "ready" ? kept.data : null);
+  const s = view?.summary ?? null;
+  const spent = !!view && view.quota.remaining <= 0;
+  return (
+    <section className="assist" aria-labelledby="ai-summary-h">
+      <div className="hd">
+        <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
+        <span id="ai-summary-h">AI summary</span>
+        <span className="draft-mark">
+          <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
+          {view?.label ?? "Review before relying on it"}
+        </span>
+      </div>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+        {kept.status === "loading" && !written ? <p className="muted small" role="status">Looking for this application’s summary…</p> : null}
+        {kept.status === "error" ? <ErrorBanner error={kept.error} onRetry={kept.reload} title="The summary could not be loaded" /> : null}
+        {s ? (
+          <div className="col" style={{ gap: "8px" }} aria-label="AI summary of this application" role="group">
+            <p>{s.summary}</p>
+            {s.strengths.length > 0 && <DraftList title="Strengths" items={s.strengths} />}
+            {s.openQuestions.length > 0 && <DraftList title="Open questions" items={s.openQuestions} />}
+            {s.quotes.map((q, i) => (
+              <blockquote key={i} className="cmt" style={{ margin: 0 }}>
+                <span className="fld-ref">Applicant-supplied · {q.field}</span>
+                <span className="bd">“{q.text}”</span>
+              </blockquote>
+            ))}
+            {s.fromExternalSystems.map((x, i) => (
+              <p key={i} className="small">
+                <span className="tag">{x.server}</span> {x.note}
+              </p>
+            ))}
+            <Cautions items={s.cautions} />
+            <p className="small muted">
+              Written by the assistant{view?.generatedAt ? ` on ${formatDate(view.generatedAt)}` : ""} from this version of the answers. Everyone reviewing this version sees the same summary. It does not score or decide anything.
+            </p>
+          </div>
+        ) : view ? (
+          <>
+            <p className="muted small">No summary yet for this version of the answers. Writing it uses one of this month’s {view.quota.remaining} remaining drafts; everyone reviewing this version then reads the same one. It does not score or decide anything.</p>
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              style={{ alignSelf: "flex-start" }}
+              disabled={spent || write.state === "saving"}
+              onClick={async () => {
+                const r = await write.run();
+                if (r) setWritten(r);
+              }}
+            >
+              <Sparkles className="ic" aria-hidden="true" />
+              {write.state === "saving" ? "Writing…" : "Write the summary"}
+            </button>
+            {spent && <p className="help">This month’s drafts are used up. The count resets on {new Date(view.quota.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>}
+          </>
+        ) : null}
+        {write.error !== null && <ErrorBanner error={write.error} title="The assistant could not write the summary" />}
+      </div>
+    </section>
+  );
+}
+
+/**
  * The drafting assistant. Rendered only when the install has it switched on. Each draft counts
  * against the workspace's monthly quota and is shown with a "review before use" mark; applicant
- * text appears only as attributed quotes.
+ * text appears only as attributed quotes. The summary lives in the AI summary panel above.
  */
 export function AssistantPanel({ app, rubricId, criterionLabel }: { app: InboxApplication; rubricId: string | null; criterionLabel: (key: string) => string }) {
   const status = useApiQuery((api) => api.assistStatus(), []);
-  const [summary, setSummary] = useState<SummaryDraft | null>(null);
   const [comparison, setComparison] = useState<ComparisonDraft | null>(null);
-  const summarize = useApiMutation((api) => api.assistSummarize(app.id));
   const compare = useApiMutation((api) => api.assistCompareRubric(app.id, rubricId!));
   if (!status.data?.enabled) return null;
-  const quota = comparison?.quota ?? summary?.quota ?? status.data.quota;
-  const latest = summary && comparison ? (summary.quota.used >= comparison.quota.used ? summary.quota : comparison.quota) : quota;
+  const latest = comparison?.quota ?? status.data.quota;
   const spent = !!latest && latest.remaining <= 0;
   return (
     <section className="assist" aria-labelledby="assist-h">
@@ -211,17 +283,6 @@ export function AssistantPanel({ app, rubricId, criterionLabel }: { app: InboxAp
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            disabled={spent || summarize.state === "saving"}
-            onClick={async () => {
-              const r = await summarize.run();
-              if (r) setSummary(r);
-            }}
-          >
-            {summarize.state === "saving" ? "Drafting…" : "Summarize"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
             disabled={spent || !rubricId || compare.state === "saving"}
             title={rubricId ? undefined : "This stage has no rubric"}
             onClick={async () => {
@@ -233,27 +294,7 @@ export function AssistantPanel({ app, rubricId, criterionLabel }: { app: InboxAp
           </button>
         </div>
         {spent && <p className="help">This month’s drafts are used up. The count resets on {new Date(latest.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>}
-        {(summarize.error !== null || compare.error !== null) && <ErrorBanner error={summarize.error ?? compare.error} title="The assistant could not draft this" />}
-        {summary && (
-          <div className="col" style={{ gap: "8px" }} aria-label="Summary draft" role="group">
-            <h4>Summary</h4>
-            <p>{summary.summary}</p>
-            {summary.strengths.length > 0 && <DraftList title="Strengths" items={summary.strengths} />}
-            {summary.openQuestions.length > 0 && <DraftList title="Open questions" items={summary.openQuestions} />}
-            {summary.quotes.map((q, i) => (
-              <blockquote key={i} className="cmt" style={{ margin: 0 }}>
-                <span className="fld-ref">Applicant-supplied · {q.field}</span>
-                <span className="bd">“{q.text}”</span>
-              </blockquote>
-            ))}
-            {summary.fromExternalSystems.map((x, i) => (
-              <p key={i} className="small">
-                <span className="tag">{x.server}</span> {x.note}
-              </p>
-            ))}
-            <Cautions items={summary.cautions} />
-          </div>
-        )}
+        {compare.error !== null && <ErrorBanner error={compare.error} title="The assistant could not draft this" />}
         {comparison && (
           <div className="col" style={{ gap: "8px" }} aria-label="Rubric comparison draft" role="group">
             <h4>Against the rubric</h4>

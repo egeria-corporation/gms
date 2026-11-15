@@ -16,7 +16,7 @@ import { RevisionDiff } from "../../components/RevisionDiff.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { SelfReportedTag, StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../components/ui.tsx";
-import { AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
+import { AiSummaryPanel, AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
@@ -597,6 +597,7 @@ export default function ApplicationDetail() {
                   </div>
                 </div>
               </TabPanel>
+              <AiSummaryPanel applicationId={a.id} />
               <AssistantPanel app={a} rubricId={stageRubric?.id ?? null} criterionLabel={(key) => stageRubric?.criteria.find((c) => c.key === key)?.label ?? key} />
             </aside>
           </div>

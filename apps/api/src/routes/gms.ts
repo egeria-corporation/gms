@@ -18,6 +18,7 @@ import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { insightRoutes } from "./gms/insights.ts";
+import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
@@ -116,6 +117,7 @@ gms.route("/public", embedPages);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
 gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);
+gms.route("/", inviteRoutes);
 gms.route("/", designRoutes);
 gms.route("/", applicationRoutes);
 gms.route("/", outsideRoutes);

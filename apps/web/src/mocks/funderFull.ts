@@ -4,7 +4,7 @@
 // the assistant answers with fixed drafts built from the application's own fields. The assistant
 // here is on, with the design's "14 of 40 this month" as its starting count.
 import type { Approval, AwardDetail, AwardSummary, FunderApi, SentCommunication } from "../api/funder.ts";
-import type { AssistQuota, FunderFullApi } from "../api/funderFull.ts";
+import type { AiSummary, AssistQuota, FunderFullApi } from "../api/funderFull.ts";
 import type { FunderMoneyApi } from "../api/funderMoney.ts";
 import type { MockFunderCtx } from "./funder.ts";
 
@@ -21,6 +21,15 @@ export function createMockFunderFullApi(ctx: MockFunderCtx, inner: Inner): Funde
   const status = new Map<string, AwardStatus>();
   const sent = new Map<string, SentCommunication[]>();
   let used = 14;
+  // The AI summary kept per application (one response version per application in the mock).
+  const summaries = new Map<string, NonNullable<AiSummary["summary"]> & { at: string }>();
+  // Tests and the e2e flow switch the assistant off with `window.__GMS_MOCK_ASSIST__ = false`.
+  const assistOff = () => (globalThis as { __GMS_MOCK_ASSIST__?: unknown }).__GMS_MOCK_ASSIST__ === false;
+  const summaryView = (applicationId: string, cached: boolean): AiSummary => {
+    const kept = summaries.get(applicationId);
+    const { at, ...summary } = kept ?? { at: null };
+    return { draft: true, applicationId, responseVersion: `mock-${applicationId}`, label: "Review before relying on it", cached, generatedAt: kept ? at : null, model: kept ? "mock-model" : null, summary: kept ? (summary as NonNullable<AiSummary["summary"]>) : null, quota: quota() };
+  };
   const quota = (): AssistQuota => {
     const now = new Date(ctx.now());
     return { used, limit: QUOTA_LIMIT, remaining: Math.max(0, QUOTA_LIMIT - used), resetsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString() };
@@ -81,7 +90,29 @@ export function createMockFunderFullApi(ctx: MockFunderCtx, inner: Inner): Funde
       return found;
     },
 
-    assistStatus: async () => ({ enabled: true, quota: quota() }),
+    assistStatus: async () => (assistOff() ? { enabled: false, quota: null } : { enabled: true, quota: quota() }),
+    async aiSummary(applicationId) {
+      if (assistOff()) throw ctx.fail(404, "The drafting assistant is not enabled on this server");
+      await inner.getApplication(applicationId);
+      return summaryView(applicationId, summaries.has(applicationId));
+    },
+    async writeAiSummary(applicationId) {
+      if (assistOff()) throw ctx.fail(404, "The drafting assistant is not enabled on this server");
+      const app = await inner.getApplication(applicationId);
+      if (summaries.has(applicationId)) return summaryView(applicationId, true);
+      spend();
+      const org = app.applicant?.name ?? "The applicant";
+      summaries.set(applicationId, {
+        at: ctx.now(),
+        summary: `${org} asks for support for “${app.title}”, at the ${app.stage} stage. The answers describe who the project serves and how; check each point against the application before relying on it.`,
+        strengths: ["The need statement cites local data.", "The budget matches the requested amount."],
+        openQuestions: ["Which partner clinics have confirmed in writing?", "How will outcomes be measured after the grant period?"],
+        quotes: [{ field: "Need statement", text: "Families in the valley travel an average of 46 miles to reach a primary care provider." }],
+        fromExternalSystems: [],
+        cautions: ["Applicant-supplied text is quoted as written and has not been verified."],
+      });
+      return summaryView(applicationId, false);
+    },
     async assistSummarize(applicationId) {
       const app = await inner.getApplication(applicationId);
       const org = app.applicant?.name ?? "The applicant";

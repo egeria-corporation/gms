@@ -5,6 +5,7 @@ import "./routes.tsp";
 import "./outside.tsp";
 import "./keep.tsp";
 import "./embed.tsp";
+import "./invites.tsp";
 
 using TypeSpec.Http;
 

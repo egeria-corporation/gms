@@ -204,3 +204,31 @@ describe("axe: write faster and keep it, with the assistant on and the panels op
     expect(await check()).toEqual([]);
   });
 });
+
+describe("axe: invite into a draft and the AI summary (v1.7.0)", () => {
+  function mount(path: string, services = createMockServices({ session: demoSession() })) {
+    provideMockApplicantStore(services, seedApplicantStore());
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <App services={services} />
+      </MemoryRouter>,
+    );
+  }
+  it("the one-time note and the invite dialog", async () => {
+    mount(`${A}/outside/${OUTSIDE_IDS.northwind}`);
+    const q2 = await screen.findByRole("article", { name: /How will you measure success/ }, { timeout: 4000 });
+    await screen.findByRole("region", { name: "Writing with others" });
+    await userEvent.selectOptions(within(q2).getByRole("combobox", { name: "Who writes question 2" }), await within(q2).findByRole("option", { name: "Invite someone by email…" }));
+    await screen.findByRole("dialog", { name: "Invite someone to help write this" });
+    expect(await check()).toEqual([]);
+  });
+  it("the AI summary panel, written", async () => {
+    const services = createMockServices({ session: demoSession() });
+    await services.api.workspace("riverbend");
+    mount(`${F}/applications/${MOCK_IDS.alder}`, services);
+    const panel = within((await screen.findByText("AI summary")).closest("section")!);
+    await userEvent.click(await panel.findByRole("button", { name: "Write the summary" }));
+    await panel.findByRole("group", { name: "AI summary of this application" });
+    expect(await check()).toEqual([]);
+  });
+});

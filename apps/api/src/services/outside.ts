@@ -49,8 +49,28 @@ export async function outsideWorkspace(ctx: ServiceContext, scope: "applications
   return authorize(ctx, { scope, kind: "applicant", roles: OUTSIDE_ROLES });
 }
 
+/**
+ * A cowriter: a consultant invited into one outside draft (./draft-invitations.ts), whose
+ * membership scope names it in `outsideApplicationIds`. They may open that application, read its
+ * questions, write answers, set a question to draft or ready, and comment. Nothing else of
+ * outside applications: no lists, documents, stages, submissions, decisions or other drafts. The
+ * functions that let them in say so with `{ cowriter: true }`; every other one refuses them.
+ */
+export const COWRITER_ROLE = "consultant";
+export const isCowriter = (ws: ServiceWorkspace): boolean => ws.role === COWRITER_ROLE;
+const cowriterOf = (ws: ServiceWorkspace, id: string): boolean => isCowriter(ws) && ((ws.memberScope?.outsideApplicationIds as unknown[] | undefined) ?? []).includes(id);
+type Access = { cowriter?: boolean };
+
 /** The outside application, in the caller's workspace only; anything else is a 404. */
-export async function loadOutside(ctx: ServiceContext, id: string, scope: "applications:read" | "applications:write"): Promise<{ ws: ServiceWorkspace; row: Oa }> {
+export async function loadOutside(ctx: ServiceContext, id: string, scope: "applications:read" | "applications:write", opts: Access = {}): Promise<{ ws: ServiceWorkspace; row: Oa }> {
+  if (opts.cowriter) {
+    const ws = await authorize(ctx, { scope, kind: "applicant" });
+    if (isCowriter(ws)) {
+      const row = cowriterOf(ws, id) ? await ctx.repos.table("outside_applications").one({ id, workspace_id: ws.id }) : null;
+      if (!row) throw notFound("Outside application");
+      return { ws, row };
+    }
+  }
   const ws = await outsideWorkspace(ctx, scope);
   const row = await ctx.repos.table("outside_applications").one({ id, workspace_id: ws.id });
   if (!row) throw notFound("Outside application");
@@ -388,8 +408,26 @@ export async function createOutside(ctx: ServiceContext, input: z.output<typeof 
 }
 
 export async function getOutside(ctx: ServiceContext, id: string) {
-  const { row } = await loadOutside(ctx, id, "applications:read");
-  return detailView(ctx, row);
+  const { ws, row } = await loadOutside(ctx, id, "applications:read", { cowriter: true });
+  const detail = await detailView(ctx, row);
+  if (!isCowriter(ws)) return { ...detail, cowriter: false };
+  // A cowriter sees the application and its questions, not the team's records around it.
+  return {
+    ...detail,
+    cowriter: true,
+    allowedMoves: [],
+    funderRecordId: null,
+    funderRecord: null,
+    customFields: {},
+    decisionNotes: null,
+    decision: null,
+    nextCycleOn: null,
+    requiredDocuments: [],
+    goNoGo: { ...detail.goNoGo, enabled: false, scorecard: null },
+    documents: [],
+    tasks: [],
+    activity: [],
+  };
 }
 
 /** Everything a person edits by hand. Never the stage, the submission or the decision. */
@@ -597,7 +635,7 @@ const oneQuestion = z.object(questionFields).strict().refine((q) => (q.limitKind
 export const questionsInput = z.union([z.object({ questions: z.array(oneQuestion).min(1).max(100) }).strict(), oneQuestion]).transform((v) => ("questions" in v ? v.questions : [v]));
 
 export async function listQuestions(ctx: ServiceContext, id: string) {
-  const { row } = await loadOutside(ctx, id, "applications:read");
+  const { row } = await loadOutside(ctx, id, "applications:read", { cowriter: true });
   return (await questionsWithAnswers(ctx, row)).map(({ q, latest }) => questionView(q, latest));
 }
 
@@ -650,10 +688,11 @@ export async function parseQuestionText(ctx: ServiceContext, id: string, input: 
   return { mode: "deterministic" as const, questions: parseQuestions(input.text, input.phase ?? "full") };
 }
 
-export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write") {
-  const ws = await outsideWorkspace(ctx, scope);
+export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write", opts: Access = {}) {
+  const asked = opts.cowriter ? await authorize(ctx, { scope, kind: "applicant" }) : null;
+  const ws = asked && isCowriter(asked) ? asked : await outsideWorkspace(ctx, scope);
   const q = await ctx.repos.table("outside_questions").one({ id: qid, workspace_id: ws.id });
-  if (!q) throw notFound("Question");
+  if (!q || (isCowriter(ws) && !cowriterOf(ws, q.outside_application_id))) throw notFound("Question");
   const row = await ctx.repos.table("outside_applications").one({ id: q.outside_application_id, workspace_id: ws.id });
   if (!row) throw notFound("Question");
   return { ws, q, row };
@@ -698,8 +737,10 @@ export const questionPatch = z
   .refine((q) => (q.limitKind ?? null) === null || q.limitValue !== null, { message: "A limit needs a number", path: ["limitValue"] });
 
 export async function patchQuestion(ctx: ServiceContext, qid: string, input: z.output<typeof questionPatch>) {
-  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
+  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write", { cowriter: true });
   writable(row);
+  // A cowriter writes answers and marks them draft or ready; the team sets up the questions.
+  if (isCowriter(ws) && Object.keys(input).some((k) => k !== "status")) throw forbidden("cowriter_answers_only", "You can write answers and mark them ready. Ask the team to change the question itself or who it is assigned to");
   // Refused before anything is written.
   if (input.status === "approved") assertMayApprove(ctx, ws, row);
   await assertMember(ctx, ws.id, input.assigneeUserId);
@@ -772,7 +813,7 @@ async function assertPriorReportAnswer(ctx: ServiceContext, workspaceId: string,
  * to draft.
  */
 export async function putAnswer(ctx: ServiceContext, qid: string, input: z.output<typeof answerInput>) {
-  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
+  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write", { cowriter: true });
   writable(row);
   const library = input.libraryAnswerId ? await ctx.repos.table("answers").one({ id: input.libraryAnswerId, workspace_id: ws.id }) : null;
   if (input.libraryAnswerId) {
@@ -813,7 +854,7 @@ export async function putAnswer(ctx: ServiceContext, qid: string, input: z.outpu
 }
 
 export async function listAnswerVersions(ctx: ServiceContext, qid: string) {
-  const { q } = await loadQuestion(ctx, qid, "applications:read");
+  const { q } = await loadQuestion(ctx, qid, "applications:read", { cowriter: true });
   return (await ctx.repos.table("outside_answers").find({ workspace_id: q.workspace_id, question_id: q.id }, { orderBy: "version", ascending: false })).map((a) => answerView(a, q));
 }
 

@@ -21,6 +21,7 @@ const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
+const JoinDraft = lazy(() => import("../screens/applicant/JoinDraft.tsx"));
 const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
@@ -204,6 +205,8 @@ function AppRoutes() {
           <Route path="/onboarding/applicant" element={<ApplicantOnboarding />} />
           <Route path="/apply/:handle/:slug" element={<ApplyEntry />} />
           <Route path="/invitations/accept" element={<InvitationAccept />} />
+          {/* An invitation into one draft (v1.7.0): lands on the question or section to write. */}
+          <Route path="/invitations/draft" element={<JoinDraft />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />

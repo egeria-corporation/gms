@@ -154,15 +154,40 @@ describe("application detail", () => {
     expect(screen.getByText("Uploaded")).toBeInTheDocument();
   });
 
-  it("drafts a summary with the assistant, marked as a draft and counted against the quota", async () => {
-    open(`/w/riverbend/applications/${MOCK_IDS.alder}`, await riverbend());
+  it("writes the AI summary once, marked to review before relying on it and counted against the quota", async () => {
+    const services = await riverbend();
+    const first = open(`/w/riverbend/applications/${MOCK_IDS.alder}`, services);
+    const panel = within((await screen.findByText("AI summary")).closest("section")!);
+    expect(panel.getByText("Review before relying on it")).toBeInTheDocument();
+    expect(await panel.findByText(/uses one of this month’s 26 remaining drafts/)).toBeInTheDocument();
+    await userEvent.click(panel.getByRole("button", { name: "Write the summary" }));
+    expect(await panel.findByRole("group", { name: "AI summary of this application" })).toBeInTheDocument();
+    expect(panel.getByText(/Applicant-supplied · Need statement/)).toBeInTheDocument();
+    expect(panel.getByText(/It does not score or decide anything/)).toBeInTheDocument();
+    expect((await services.api.assistStatus()).quota?.used).toBe(15);
+    first.unmount();
+    // The next reviewer reads the same summary; nothing more is spent.
+    open(`/w/riverbend/applications/${MOCK_IDS.alder}`, services);
+    const again = within((await screen.findByText("AI summary")).closest("section")!);
+    expect(await again.findByRole("group", { name: "AI summary of this application" })).toBeInTheDocument();
+    expect(again.queryByRole("button", { name: "Write the summary" })).not.toBeInTheDocument();
+    expect((await services.api.assistStatus()).quota?.used).toBe(15);
+    // The assistant panel keeps the rubric comparison; it never scores.
     const assistant = within((await screen.findByText("Assistant")).closest("section")!);
     expect(assistant.getByText("Draft — review before use")).toBeInTheDocument();
-    expect(assistant.getByText("14 of 40 this month")).toBeInTheDocument();
-    await userEvent.click(assistant.getByRole("button", { name: "Summarize" }));
-    expect(await assistant.findByRole("group", { name: "Summary draft" })).toBeInTheDocument();
-    expect(assistant.getByText("15 of 40 this month")).toBeInTheDocument();
-    expect(assistant.getByText(/Applicant-supplied · Need statement/)).toBeInTheDocument();
+    expect(assistant.queryByRole("button", { name: "Summarize" })).not.toBeInTheDocument();
+  });
+
+  it("hides the AI summary when the assistant is off", async () => {
+    (globalThis as { __GMS_MOCK_ASSIST__?: unknown }).__GMS_MOCK_ASSIST__ = false;
+    try {
+      open(`/w/riverbend/applications/${MOCK_IDS.alder}`, await riverbend());
+      expect(await screen.findByRole("tab", { name: "Budget" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText("AI summary")).not.toBeInTheDocument());
+      expect(screen.queryByText("Assistant")).not.toBeInTheDocument();
+    } finally {
+      delete (globalThis as { __GMS_MOCK_ASSIST__?: unknown }).__GMS_MOCK_ASSIST__;
+    }
   });
 });
 
