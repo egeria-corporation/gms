@@ -3,8 +3,7 @@
 // to any funder, kept as the applicant's own record. The rules are the ones the v1.5.0 CSV import
 // applied (apps/api/src/services/outside.ts uses this validator too), so a row reads the same
 // through either path.
-import type { SUBMISSION_METHODS} from "@gms/workflow";
-import { OUTSIDE_STAGES, type OutsideStage } from "@gms/workflow";
+import { OUTSIDE_STAGES, type OutsideStage, type SUBMISSION_METHODS } from "@gms/workflow";
 import type { FieldSpec, ImportTarget, MoneyLine, Problem, RowCheck } from "../target.ts";
 import { cleanLine, cleanText, readAmount, readCurrency, readDate, readUrl, readYesNo } from "../values.ts";
 
