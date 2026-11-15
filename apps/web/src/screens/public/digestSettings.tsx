@@ -16,6 +16,8 @@ const EVENTS: { key: string; label: string }[] = [
   { key: "agreement", label: "An agreement is sent or signed" },
   { key: "organization", label: "A Passport record or consent changes" },
 ];
+/** Funder workspaces only: a scheduled report from the report builder. */
+const FUNDER_EVENTS: { key: string; label: string }[] = [{ key: "report", label: "A scheduled report is ready" }];
 const DIGESTS: { value: NotificationPreferences["digest"]; label: string }[] = [
   { value: "daily", label: "Daily digest" },
   { value: "weekly", label: "Weekly digest" },
@@ -56,12 +58,14 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
       setState("idle");
     }
   };
-  const on = (key: string) => prefs?.channels[key]?.inApp ?? true;
-  const toggle = (key: string) => {
+  const on = (key: string, which: "inApp" | "email" = "inApp") => prefs?.channels[key]?.[which] ?? true;
+  const toggle = (key: string, which: "inApp" | "email" = "inApp") => {
     if (!prefs) return;
     const current = prefs.channels[key] ?? { inApp: true, email: true };
-    void save({ ...prefs, channels: { ...prefs.channels, [key]: { ...current, inApp: !current.inApp } } });
+    void save({ ...prefs, channels: { ...prefs.channels, [key]: { ...current, [which]: !current[which] } } });
   };
+  const funder = workspaces.find((w) => w.id === wsId)?.kind === "funder";
+  const events = funder ? [...EVENTS, ...FUNDER_EVENTS] : EVENTS;
 
   if (workspaces.length === 0) return null;
   return (
@@ -89,13 +93,19 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
         ) : null}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <div className="eyebrow">Notify me when</div>
-          {EVENTS.map((e) => (
+          {events.map((e) => (
             <div className="row" style={{ justifyContent: "space-between", gap: "12px" }} key={e.key}>
               <span id={`digest-${e.key}`}>{e.label}</span>
               <button type="button" className={`tog${on(e.key) ? " on" : ""}`} role="switch" aria-checked={on(e.key)} aria-labelledby={`digest-${e.key}`} disabled={!prefs} onClick={() => toggle(e.key)}></button>
             </div>
           ))}
         </div>
+        {funder ? (
+          <div className="row" style={{ justifyContent: "space-between", gap: "12px" }}>
+            <span id="digest-report-email">Email me the scheduled reports I am sent</span>
+            <button type="button" className={`tog${on("report", "email") ? " on" : ""}`} role="switch" aria-checked={on("report", "email")} aria-labelledby="digest-report-email" disabled={!prefs} onClick={() => toggle("report", "email")}></button>
+          </div>
+        ) : null}
         <div className="divider"></div>
         <div className="fld">
           <label className="lbl" htmlFor="digest">

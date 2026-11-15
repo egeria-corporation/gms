@@ -7,6 +7,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { scopesForRole } from "../src/auth/scopes.ts";
 import { ApiError } from "../src/lib/errors.ts";
 import { makeActor, type ServiceContext } from "../src/services/context.ts";
+import * as notifications from "../src/services/notifications.ts";
 import * as reports from "../src/services/report-builder.ts";
 import { CSV_MAX_ROWS, NOT_REPORTABLE, csvCell, csvStream, csvText, defineDataSet, definitionInput, plan, run, type Definition } from "../src/services/report-engine.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, harness, type Harness } from "./helpers.ts";
@@ -389,6 +390,26 @@ describe("scheduled files", () => {
     expect(h.mailer.sent.length).toBe(2);
     expect((await h.repos.table("report_files").find({ view_id: v.id })).length).toBe(1);
     expect(h.ledger.events.filter((e) => e.eventType === "report.sent").map((e) => e.data)).toEqual([{ period: "2027-W16", rows: 3, recipients: 2, emails: 2 }]);
+  });
+
+  it("honours a recipient's scheduled report email switch, and shows the file in the bell to its recipients only", async () => {
+    await scheduled();
+    // Helen switches scheduled report emails off; Dana keeps them.
+    await notifications.putPreferences(admin(), { digest: "immediate", channels: { report: { inApp: true, email: false } } });
+    h.clock.now = new Date("2027-04-23T13:05:00Z");
+    expect(await reports.sendScheduledReports(base(), store)).toMatchObject({ sent: 1, emails: 1 });
+    expect(h.mailer.sent.map((m) => m.to[0])).toEqual(["dana.ortiz@riverbendcf.example"]);
+    const bell = async (ctx: ServiceContext) => (await notifications.listNotifications(ctx)).items.filter((n) => n.category === "report").map((n) => n.title);
+    expect(await bell(admin())).toEqual(["Scheduled report ready: Board pack"]);
+    expect(await bell(officer())).toEqual(["Scheduled report ready: Board pack"]);
+    // The auditor is not on the schedule and sees nothing of it.
+    expect(await bell(auditor())).toEqual([]);
+    // Email off altogether stops it too.
+    await notifications.putPreferences(officer(), { digest: "off", channels: {} });
+    h.clock.now = new Date("2027-04-30T13:05:00Z");
+    h.mailer.sent.length = 0;
+    expect(await reports.sendScheduledReports(base(), store)).toMatchObject({ sent: 1, emails: 0 });
+    expect(h.mailer.sent).toEqual([]);
   });
 
   it("finishes a file whose emails did not all go out, without sending anyone a second email", async () => {

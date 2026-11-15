@@ -21,6 +21,7 @@ import { fundingOf, keyDatesOf, minorOf } from "./awards.ts";
 import { audit, authorize, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { namesShared, orgFacts, sharingWith, verificationShared } from "./profile.ts";
 import type { Row as DbRow, Where } from "./repos/types.ts";
+import { normalizePreferences } from "./notifications.ts";
 import { toRubric } from "./reviews.ts";
 import {
   CSV_MAX_ROWS,
@@ -917,6 +918,13 @@ async function sendOne(base: BaseContext, store: ReportFileStore, s: Schedule, p
   await store.put(key, csvText(result));
 
   const people = await base.ports.directory!.lookup(recipients);
+  // A recipient who switched off scheduled report emails (or all email) still finds the file in the app.
+  const members = await base.repos.table("workspace_members").find({ workspace_id: ws.id, user_id: recipients });
+  const wantsEmail = (userId: string) => {
+    const m = members.find((x) => x.user_id === userId);
+    const prefs = normalizePreferences((m?.notification_preferences ?? {}) as never);
+    return prefs.digest !== "off" && prefs.channels.report.email;
+  };
   const link = `${base.config.webBaseUrl}/w/${ws.handle}/report-builder?file=${file!.id}`;
   const subject = `${view.name}: your ${s.cadence} report`;
   const counts = `${result.rows.length.toLocaleString("en-US")} ${result.rows.length === 1 ? "row" : "rows"}${result.truncated ? ` (the first ${CSV_MAX_ROWS.toLocaleString("en-US")} of ${result.total.toLocaleString("en-US")})` : ""}`;
@@ -925,7 +933,7 @@ async function sendOne(base: BaseContext, store: ReportFileStore, s: Schedule, p
   let emails = 0;
   for (const userId of recipients) {
     const to = people.get(userId)?.email;
-    if (!to) continue;
+    if (!to || !wantsEmail(userId)) continue;
     try {
       await base.ports.mailer!.send({ from: base.config.mailFrom!, to: [to], subject, text, html, idempotencyKey: `report:${file!.id}:${userId}`, tags: [{ name: "kind", value: "scheduled_report" }] });
       emails++;

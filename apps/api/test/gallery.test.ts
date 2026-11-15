@@ -312,6 +312,9 @@ describe("sharing and moderation", () => {
     const mine = await items<{ status: string; decisionReason: string }>(await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions`, { headers: admin }));
     expect(mine[0]).toMatchObject({ status: "rejected", decisionReason: "It still names a staff member in the instructions." });
     expect(h.ledger.events.find((e) => e.eventType === "gallery.item_declined")).toMatchObject({ workspaceId: WS_FUNDER, subjectId: sub.id });
+    // The author's bell shows the decision (category decision), as it shows every member of the team.
+    const bell = await data<{ items: { category: string; title: string }[] }>(await h.request("/gms/notifications", { headers: admin }));
+    expect(bell.items.filter((n) => n.title.startsWith("Gallery"))).toEqual([expect.objectContaining({ category: "decision", title: "Gallery item declined" })]);
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions/${sub.id}/withdraw`, json(admin, {}))).status).toBe(409);
     // A declined submission frees the record to be shared again.
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions`, json(admin, { ...SUBMIT, source: { type: "form", id: form.id } }))).status).toBe(201);

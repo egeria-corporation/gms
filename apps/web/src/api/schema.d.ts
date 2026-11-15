@@ -15353,7 +15353,7 @@ export interface components {
             id: components["schemas"]["CommonGrants.Types.uuid"];
             type: string;
             /** @enum {string} */
-            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent";
+            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
             title: string;
             subjectType: string | null;
             subjectId: string | null;
@@ -15711,7 +15711,8 @@ export interface components {
              *     Besides the notification categories, `outside_deadline` sets the outside application deadline
              *     reminders, `document_expiring` the vault's expiry warnings, `outside_obligation_due` an outside
              *     award's report and condition reminders, and `outside_next_cycle` the next-cycle reminder (no
-             *     notification carries those categories).
+             *     notification carries those categories). `report` is a scheduled report sent to the person: its
+             *     `email` decides whether the report's email goes out (the file stays in the app either way).
              */
             channels: {
                 [key: string]: components["schemas"]["Models.NotificationChannel"];
