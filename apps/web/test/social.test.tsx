@@ -5,6 +5,7 @@
 // appears under Reach. On a server without Zernio every social control is hidden.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axe from "axe-core";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { callbackFrom, createHttpSocialApi, type SocialApi } from "../src/api/social.ts";
@@ -14,6 +15,15 @@ import { createMockServices, type Services } from "../src/app/services.tsx";
 import { demoSession } from "../src/mocks/auth.ts";
 
 const OPP = "opp_50000000-0000-7000-8000-000000000001";
+
+/** Axe on the document as it stands, as in a11y.test.tsx: serious and critical violations only. */
+async function axeCheck() {
+  const result = await axe.run(document.body, {
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+    rules: { "color-contrast": { enabled: false }, "target-size": { enabled: false } },
+  });
+  return result.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id}: ${v.nodes.map((n) => n.html.slice(0, 120)).join(" | ")}`);
+}
 
 function open(path: string, services: Services = createMockServices({ session: demoSession() })) {
   render(
@@ -31,6 +41,7 @@ describe("social posting", () => {
     expect(await screen.findByText("LinkedIn account connected")).toBeInTheDocument();
     const list = await screen.findByRole("list", { name: "Connected accounts" });
     expect(list).toHaveTextContent("riverbend-foundation");
+    expect(await axeCheck()).toEqual([]);
     const store = mockSocialStore(services);
     expect(store.fake.profiles).toEqual([expect.objectContaining({ externalId: expect.any(String), name: "Riverbend Community Foundation" })]);
 
@@ -44,12 +55,17 @@ describe("social posting", () => {
     const text = within(composer).getByRole("textbox", { name: "Post text" });
     expect((text as HTMLTextAreaElement).value).toMatch(/^Applications are open: Community Health Grants 2027, from Riverbend Community Foundation\. Apply by April 30, 2027\.\n\nhttp.*\/f\/riverbend\/o\/community-health-2027\?utm_source=social$/);
     expect(within(composer).getByRole("group", { name: "Length on each platform" })).toHaveTextContent(/LinkedIn \d+ \/ 3,000/);
+    await userEvent.click(within(composer).getByRole("radio", { name: "Schedule" }));
+    expect(within(composer).getByLabelText("Time zone")).toBeInTheDocument();
+    expect(await axeCheck()).toEqual([]);
+    await userEvent.click(within(composer).getByRole("radio", { name: "Post now" }));
 
     await userEvent.click(within(composer).getByRole("button", { name: "Preview" }));
     const check = await screen.findByRole("dialog", { name: "Check the post" });
     const shown = within(check).getByRole("region", { name: "Post text as it will appear" }).textContent;
     expect(check).toHaveTextContent("LinkedIn (riverbend-foundation)");
     expect(check).toHaveTextContent("Now, when you press Post");
+    expect(await axeCheck()).toEqual([]);
     expect(store.fake.requests.filter((r) => r.path === "/v1/posts")).toEqual([]);
     await userEvent.click(within(check).getByRole("button", { name: "Post" }));
     await screen.findByRole("dialog", { name: "Posted" });
