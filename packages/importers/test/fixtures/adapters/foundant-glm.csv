@@ -1,0 +1,5 @@
+Request ID,Process Name,Organization Name,Project Title,Amount Requested,Amount Awarded,Decision,Decision Date,Payment Amount,Payment Date,TIN,Account notes,Payee account
+R-24-0101,2024 - Community Fund,Hilltop Food Shelf,Winter meals,20000,15000,Approved,2024-02-15,15000,2024-03-01,,Paid by check,{LONG}
+R-24-0102,2024 - Community Fund,Oak Street Arts,Gallery lights,8000,,Declined,2024-02-15,,,,,
+R-24-0103,2024 - Education Fund,Bright Futures Tutoring,Reading coaches,30000,25000,Approved,2024-02-20,10000,2024-04-01,,,
+R-24-0104,2024 - Education Fund,Lakeside School PTA,Science kits,5000,,Pending,,,,,,

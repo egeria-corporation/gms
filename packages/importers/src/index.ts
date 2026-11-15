@@ -2,7 +2,9 @@
 // The import framework. Sources yield tables of named columns (./table.ts; XLSX on its own entry,
 // `@gms/importers/xlsx`); sensitive columns are dropped first (./sensitive.ts); a target is a typed
 // mapping with a validator (./target.ts, ./targets); a dry run gives a plan with a reconciliation
-// (./plan.ts). The CSV reader, writer and the v1 column mapper are in ./csv.ts.
+// (./plan.ts). The CSV reader, writer and the v1 column mapper are in ./csv.ts. Importer adapters,
+// one per grants system, are in ./adapters (the zip reader on its own entry, `@gms/importers/zip`).
+export * from "./adapters/index.ts";
 export * from "./csv.ts";
 export * from "./plan.ts";
 export * from "./sensitive.ts";

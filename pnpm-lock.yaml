@@ -280,6 +280,9 @@ importers:
       '@gms/workflow':
         specifier: workspace:*
         version: link:../workflow
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       read-excel-file:
         specifier: 9.3.17
         version: 9.3.17
