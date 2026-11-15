@@ -40,7 +40,7 @@ export function EmbedPanel({ handle, funderName, opportunity, listed, taking }: 
             <label className="lbl" htmlFor="embed-code">
               Embed code
             </label>
-            <textarea id="embed-code" className="inp embed-code" readOnly value={snippet} rows={resize ? 14 : 4} onFocus={(e) => e.currentTarget.select()} />
+            <textarea id="embed-code" className="ta embed-code" readOnly value={snippet} rows={resize ? 14 : 4} onFocus={(e) => e.currentTarget.select()} />
             <div className="row wrap" style={{ gap: "12px", alignItems: "center", justifyContent: "space-between" }}>
               <label className="cb" htmlFor="embed-resize">
                 <input type="checkbox" id="embed-resize" checked={resize} onChange={(e) => setResize(e.target.checked)} style={{ marginTop: "3px" }} />

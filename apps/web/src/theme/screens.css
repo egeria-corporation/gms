@@ -197,4 +197,4 @@ button.tab { font-family: inherit; }
 .embed-acts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
 .embed-foot { border-top: 1px solid var(--og-gray-200); padding-top: 10px; font-size: 12px; color: var(--og-gray-600); }
 /* The snippet a funder copies. */
-.embed-code { width: 100%; min-height: 120px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre; resize: vertical; }
+.gms textarea.embed-code { width: 100%; height: auto; min-height: 120px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre; resize: vertical; }
