@@ -114,6 +114,39 @@ describe("the column whitelist", () => {
     for (const d of Object.values(reports.DATA_SETS)) for (const c of d.columns) expect(NOT_REPORTABLE.test(`${c.key} ${c.label} ${c.source}`), `${d.key}.${c.key}`).toBe(false);
   });
 
+  it("no data set reads a v1.7.0 or v1.8.0 column that carries contact or identity data", async () => {
+    // Marked values in every column those releases added that names or reaches a person: invitations
+    // (emails, the draft they open), import runs and their row log, saved import mappings, the AI
+    // summary, conflict-of-interest signatures (typed names, declared organizations), SSO domains and
+    // the SSO joiner's address, gallery submissions, and the notes a member dismissed.
+    const M = "ZZMARK";
+    const t = h.repos.table.bind(h.repos);
+    const wsBoth = [WS_FUNDER, WS_APPLICANT];
+    for (const ws of wsBoth) await t("invitations").insert({ workspace_id: ws, email: `${M.toLowerCase()}@invitee.example`, role: "program_officer", token_hash: `${M}-${ws}`, expires_at: "2027-05-01T00:00:00Z", scope: { draft: { kind: "outside_application", id: id(90), note: `${M} draft` } } as never });
+    const run = await t("import_runs").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "csv", source_label: `${M}.csv`, source_ref: `${M}-ref`, mapping: { recipientName: `${M} column` } as never, rows_total: 1, dropped_columns: [{ column: `${M} account`, reason: "header" }] as never, expires_at: "2027-05-01T00:00:00Z" });
+    await t("import_rows").insert({ workspace_id: WS_FUNDER, run_id: run.id, target: "award_history", line: 2, row_key: `${M}-key`, outcome: "create", title: `${M} grant`, subtitle: `${M} person@example.org`, reason: `${M} reason`, record: { recipientName: `${M} Org`, contactEmail: `${M}@example.org` } as never });
+    await t("import_mappings").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "csv", source_ref: `${M}-sheet`, mapping: { recipientName: `${M} name column` } as never });
+    await t("application_summaries").insert({ workspace_id: WS_FUNDER, application_id: id(20), response_version: `${M}-v`, model: "test", summary: { summary: `${M} names the director, Ana Ruiz, ana@aldercreek.example` } as never });
+    await t("coi_policies").insert({ workspace_id: WS_FUNDER, competition_id: COMP, version: 1, policy_text: `${M} policy text, long enough to be a policy.`, is_default: false });
+    await t("coi_signatures").insert({ workspace_id: WS_FUNDER, competition_id: COMP, reviewer_user_id: USER_REVIEWER, policy_version: 1, signed_name: `${M} Signed Name`, declared_orgs: [{ name: `${M} Declared Org`, website: "https://zzmark.example" }] as never, declared_org_ids: [WS_APPLICANT] });
+    await t("workspace_sso_domains").insert({ workspace_id: WS_FUNDER, domain: "zzmark.example", verification_token: `${M}`.padEnd(43, "x"), created_by: USER_ADMIN });
+    await t("gallery_submissions").insert({ workspace_id: WS_FUNDER, kind: "rubric", title: `${M} shared rubric`, summary: `${M} summary`, snapshot: { forms: [], rubrics: [], emails: [] } as never, source_type: "rubric", source_id: id(30), source_version: 1, submitted_by: USER_ADMIN });
+    const member = (await t("workspace_members").find({ workspace_id: WS_FUNDER, user_id: USER_AUDITOR }))[0]!;
+    await t("workspace_members").update({ id: member.id }, { scope: { email: `${M.toLowerCase()}@sso.example`, joinedThrough: "sso" } as never, dismissed_notes: ["invite_teammate"] });
+
+    const all = Object.values(reports.DATA_SETS);
+    expect(all.map((d) => d.key).sort()).toEqual(["applications", "awards", "organizations", "payments", "requirements"]);
+    for (const d of all) {
+      // No column's source names one of those tables.
+      for (const c of d.columns) expect(/invitation|import|summar(y|ies)\b(?! of)|coi_|signature|sso|gallery|dismissed|report_files|scope\.email/i.test(c.source), `${d.key}.${c.key}: ${c.source}`).toBe(false);
+      // And every column of the data set, exported in full, carries none of the marked values.
+      const out = await reports.exportReport(admin(), def({ dataSet: d.key, columns: d.columns.map((c) => c.key) }));
+      expect(out.rows.length, d.key).toBeGreaterThan(0);
+      expect(JSON.stringify(out).includes(M), d.key).toBe(false);
+      expect(JSON.stringify(out).toLowerCase()).not.toContain("zzmark");
+    }
+  });
+
   it("refuses to define such a column", () => {
     const bad = [
       { key: "bankName", label: "Bank", source: "payee credential" },
