@@ -2,6 +2,7 @@
 // CSV in and out: a small RFC 4180 reader and writer and a column mapper. A mapper names, for each
 // target field, the CSV column that feeds it; every other column is never read. Columns whose
 // header names bank or identity data are refused outright, mapped or not.
+import { isSensitiveHeader } from "./sensitive.ts";
 
 /** Rows of cells. Quoted cells may hold commas, quotes ("") and line breaks; blank rows are dropped. */
 export function parseCsv(text: string): string[][] {
@@ -51,9 +52,6 @@ export function toCsv(header: readonly string[], rows: readonly (readonly unknow
   return [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
 
-/** Header names that would carry bank or identity data. Such a column is never imported. */
-const SENSITIVE_HEADER = /(rout(ing)?[\s_-]*(no|num|number|#)|acc(oun)?t[\s_-]*(no|num|number|#)|\biban\b|\bswift\b|\bs\.?s\.?n\b|social[\s_-]*sec|birth|\bdob\b|tax[\s_-]*id|gov(ernment)?[\s_-]*id|passport[\s_-]*(no|num|number|#)|driver)/i;
-export const isSensitiveHeader = (header: string): boolean => SENSITIVE_HEADER.test(header);
 
 export interface MappedCsv<F extends string> {
   header: string[];
