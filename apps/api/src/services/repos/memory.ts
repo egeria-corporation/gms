@@ -142,6 +142,9 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   import_mappings: () => ({ updated_by: null }),
   import_runs: () => ({ source_label: null, source_ref: null, dropped_columns: [], reconciliation: {}, created_by: null, committed_by: null, committed_at: null, finished_at: null }),
   import_rows: () => ({ reason: null, problems: [], record: null, subtitle: null, entity_type: null, entity_id: null, written_at: null }),
+  social_profiles: () => ({ created_by: null }),
+  social_accounts: () => ({ username: null, status: "active", connected_by: null, disconnected_at: null }),
+  social_posts: () => ({ zernio_post_id: null, targets: [], status: "sending", scheduled_at: null, timezone: null, error: null, metrics: {}, metrics_at: null, sent_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL or `whereNotNull` is not). */
@@ -171,6 +174,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   application_summaries: [{ columns: ["application_id", "response_version"] }],
   import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
   import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
+  social_profiles: [{ columns: ["workspace_id"] }, { columns: ["zernio_profile_id"] }],
+  social_accounts: [{ columns: ["zernio_account_id"] }],
+  social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
