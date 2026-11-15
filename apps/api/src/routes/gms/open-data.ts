@@ -36,7 +36,8 @@ openDataRoutes.get("/open-data/:handle/360giving.json", async (c) => {
   const body = JSON.stringify(await openData.publicFeed(publicCtx(c), c.req.param("handle")));
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body)));
   const etag = `"${[...digest].map((b) => b.toString(16).padStart(2, "0")).join("")}"`;
-  const headers = { "Cache-Control": "public, max-age=300, s-maxage=900", ETag: etag, "Access-Control-Allow-Origin": "*" };
+  // Any origin may read it: the open CORS list in app.ts names the feed's path.
+  const headers = { "Cache-Control": "public, max-age=300, s-maxage=900", ETag: etag };
   const seen = (c.req.header("If-None-Match") ?? "").split(",").map((s) => s.trim());
   if (seen.includes(etag)) return new Response(null, { status: 304, headers });
   return new Response(body, { status: 200, headers: { ...headers, "Content-Type": "application/json; charset=utf-8" } });

@@ -64,6 +64,10 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 const CORS_HEADERS = "Authorization, Content-Type, Idempotency-Key, X-GMS-Workspace, Mcp-Session-Id, Mcp-Protocol-Version";
+/** Response headers the web app may read: a download's filename, the report builder's counts, an open data file's draft mark. */
+const CORS_EXPOSE = "WWW-Authenticate, Mcp-Session-Id, X-Request-Id, Content-Disposition, X-Report-Rows, X-Report-Total, X-Report-Truncated, X-Open-Data-Draft";
+/** A funder's public 360Giving feed (`/gms/open-data/{handle}/360giving.json`): no token, any origin. Not the signed-in exports beside it. */
+const OPEN_DATA_FEED = /^\/gms\/open-data\/[^/]+\/360giving\.json$/;
 
 export function createApp(makeDeps: DepsFactory) {
   const app = new Hono<AppEnv>();
@@ -86,7 +90,7 @@ export function createApp(makeDeps: DepsFactory) {
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
     const path = new URL(c.req.url).pathname;
-    const open = path.startsWith("/.well-known/") || path.startsWith("/gms/public/") || path === "/sitemap.xml" || path.startsWith("/oauth/token") || path.startsWith("/oauth/register") || path.startsWith("/mcp") || path.startsWith("/common-grants/") || path === "/llms.txt" || path === "/llms-full.txt" || path === "/openapi.json";
+    const open = path.startsWith("/.well-known/") || path.startsWith("/gms/public/") || path === "/sitemap.xml" || path.startsWith("/oauth/token") || path.startsWith("/oauth/register") || path.startsWith("/mcp") || path.startsWith("/common-grants/") || path === "/llms.txt" || path === "/llms-full.txt" || path === "/openapi.json" || OPEN_DATA_FEED.test(path);
     const allow = open ? "*" : origin && c.env.WEB_BASE_URL && origin === trimSlash(c.env.WEB_BASE_URL) ? origin : null;
     if (c.req.method === "OPTIONS") {
       const res = new Response(null, { status: 204 });
@@ -102,7 +106,7 @@ export function createApp(makeDeps: DepsFactory) {
     await next();
     if (allow) {
       c.res.headers.set("Access-Control-Allow-Origin", allow);
-      c.res.headers.set("Access-Control-Expose-Headers", "WWW-Authenticate, Mcp-Session-Id, X-Request-Id");
+      c.res.headers.set("Access-Control-Expose-Headers", CORS_EXPOSE);
       c.res.headers.append("Vary", "Origin");
     }
   });

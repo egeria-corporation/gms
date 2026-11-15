@@ -114,6 +114,17 @@ describe("envelopes", () => {
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain("Authorization");
   });
+
+  it("opens a funder's public open data feed to any origin, not the signed-in exports beside it, and exposes download headers to the web app", async () => {
+    const h = await harness();
+    const feed = await h.request("/gms/open-data/riverbend/360giving.json", { headers: { Origin: "https://grantnav.example" } });
+    expect(feed.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    for (const path of ["/gms/open-data/summary", "/gms/open-data/360giving.json", "/gms/open-data/360giving.csv", "/gms/open-data/commongrants.json", "/gms/reports/data-sets"]) {
+      expect((await h.request(path, { headers: { Origin: "https://grantnav.example" } })).headers.get("Access-Control-Allow-Origin"), path).toBeNull();
+    }
+    const exposed = (await h.request("/gms/whoami", { headers: { Origin: WEB } })).headers.get("Access-Control-Expose-Headers") ?? "";
+    for (const name of ["Content-Disposition", "X-Report-Rows", "X-Report-Total", "X-Report-Truncated", "X-Open-Data-Draft", "X-Request-Id"]) expect(exposed).toContain(name);
+  });
 });
 
 describe("logging", () => {
