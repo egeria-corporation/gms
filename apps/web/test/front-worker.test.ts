@@ -106,11 +106,13 @@ beforeAll(async () => {
   mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script: bundle.outputFiles[0]!.text, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
 }, 60_000);
 
+// Shutting the runtime down costs about what starting it does, so it gets the same allowance; the
+// default 10 s ran out on a loaded CI runner.
 afterAll(async () => {
   releaseSlow();
   await mf?.dispose();
   if (work) rmSync(work, { recursive: true, force: true });
-});
+}, 60_000);
 
 const get = (path: string, init?: RequestInit) => mf.dispatchFetch(`https://${HOST}${path}`, { redirect: "manual", ...init });
 const count = (html: string, needle: string) => html.split(needle).length - 1;
@@ -180,6 +182,9 @@ describe("front Worker: public pages", () => {
       expect(html, path).toContain('<div id="root"></div>');
       if (path === "/f/slow") expect(Date.now() - started).toBeLessThan(DATA_TIMEOUT_MS + 3000);
     }
+    // The front Worker has given up on the slow funder; let its request finish now rather than
+    // leave it open until the runtime shuts down.
+    releaseSlow();
     // Other app screens are served as built, without asking the API.
     const calls = apiCalls.length;
     expect(contentOf(await (await get("/w/abc/home")).text(), 'name="description"')).toBe(DEFAULT_DESCRIPTION);
