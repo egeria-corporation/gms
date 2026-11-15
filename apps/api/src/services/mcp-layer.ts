@@ -21,6 +21,7 @@ import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
 import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
+import * as gallery from "./gallery.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
@@ -348,6 +349,9 @@ const IMPLEMENTED: Impl = {
   },
   submitRequirement: async (ctx, i) => requirements.submitSubmission(ctx, sub((await requirements.startSubmission(ctx, req(i.requirementId))).id)),
   shareSubmissionWithFunder: (ctx, i) => requirements.shareSubmission(ctx, sub(i.submissionId), { funderWorkspaceId: i.funderWorkspaceId, ...(i.fields ? { fields: i.fields } : {}) }),
+  // ---- funder: the template gallery (reads only) ----
+  searchGallery: (ctx, i) => gallery.searchGalleryAsMember(ctx, { ...(i.kind ? { kind: i.kind } : {}), ...(i.tag ? { tag: i.tag } : {}), ...(i.q ? { q: i.q } : {}) }, paged(i)),
+  getGalleryItem: (ctx, i) => gallery.getGalleryItemAsMember(ctx, i.slug),
 };
 
 export const IMPLEMENTED_SERVICES: readonly string[] = Object.keys(IMPLEMENTED);

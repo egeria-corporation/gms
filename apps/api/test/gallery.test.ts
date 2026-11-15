@@ -357,3 +357,22 @@ describe("sharing and moderation", () => {
     expect(isModerator(undefined, { userId: USER_ADMIN, email: null })).toBe(false);
   });
 });
+
+describe("agents", () => {
+  async function mcp(h: Harness, token: string, method: string, params?: Record<string, unknown>) {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, ...(params ? { params } : {}) }) });
+    return ((await res.json()) as { result: Record<string, unknown> }).result;
+  }
+
+  it("search and read the gallery, and have no tool to share, withdraw or moderate", async () => {
+    const h = await withStarters();
+    const token = await h.forge({ sub: USER_OFFICER, client_id: CLIENT_AGENT, scope: "forms:read", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-gallery-1" });
+    const tools = ((await mcp(h, token, "tools/list")).tools as { name: string }[]).map((t) => t.name);
+    expect(tools).toEqual(expect.arrayContaining(["search_gallery", "get_gallery_item"]));
+    expect(tools.filter((t) => /gallery|moderat/.test(t))).toEqual(["search_gallery", "get_gallery_item"]);
+    const found = (await mcp(h, token, "tools/call", { name: "search_gallery", arguments: { kind: "rubric" } })).structuredContent as { items: { slug: string }[]; total: number };
+    expect(found).toMatchObject({ total: 1, items: [{ slug: "five-criterion-rubric" }] });
+    const one = (await mcp(h, token, "tools/call", { name: "get_gallery_item", arguments: { slug: "decline-email" } })).structuredContent as { snapshot: Snapshot };
+    expect(one.snapshot.emails[0]!.name).toBe("Decline");
+  });
+});

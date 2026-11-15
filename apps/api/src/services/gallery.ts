@@ -398,6 +398,16 @@ export async function getGalleryItem(ctx: ItemCtx, slug: string) {
   return { ...card(row, byId), snapshot: snapshotOf(row.snapshot) };
 }
 
+/** The same reads for a workspace member's agent (MCP `search_gallery`, `get_gallery_item`). */
+export async function searchGalleryAsMember(ctx: ServiceContext, filter: z.output<typeof listQuery>, page: { offset: number; pageSize: number }) {
+  await authorize(ctx, { scope: "forms:read", kind: "funder" });
+  return listGallery(ctx, filter, page);
+}
+export async function getGalleryItemAsMember(ctx: ServiceContext, slug: string) {
+  await authorize(ctx, { scope: "forms:read", kind: "funder" });
+  return getGalleryItem(ctx, slug);
+}
+
 // ------------------------------------------------------------------------------------ copy to a workspace
 
 const NEEDS: Record<"forms" | "rubrics" | "emails", Need> = {
