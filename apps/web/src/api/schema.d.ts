@@ -1946,7 +1946,7 @@ export interface paths {
         };
         get: operations["Integrations_readConnector"];
         put?: never;
-        /** @description Mercury: a read-only token for reconciliation. Google Workspace: the connection lives at Composio. */
+        /** @description Mercury: a read-only token for reconciliation. Google Workspace, Google Sheets and Airtable: the connection lives at Composio (Google Sheets and Airtable: either kind of workspace, admins). */
         post: operations["Integrations_connect"];
         delete: operations["Integrations_disconnect"];
         options?: never;
@@ -2563,6 +2563,108 @@ export interface paths {
          *     in the GMS); any other row keeps the recipient's name without a workspace and reports `matchedRecipient: false`.
          */
         post: operations["Analytics_importCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Check every row (the dry run) and store the run: what will be created, skipped or in error, with totals by year. 422 `mapping_incomplete`. */
+        post: operations["Imports_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Read a source: its columns with sensitive ones dropped, sample values and a suggested mapping. Stores nothing. 409 `source_not_connected`; 422 `invalid_link`, `too_many_rows`, `source_not_readable`; 503 when the source is not set up or Composio cannot be reached. */
+        post: operations["Imports_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The workspace's last 20 runs for a target. */
+        get: operations["Imports_listRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A run and its log, with links to what each row created. */
+        get: operations["Imports_getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/runs/{id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Import the next batch of a checked run; call again until `done`. Each row is written once, whoever calls. 410 `import_expired` for a check older than a day. */
+        post: operations["Imports_commit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The sources this workspace can import from for a target, and the target's fields. Outside applications: applicant workspaces, `applications:write`. Grant history: funder workspace admins, signed in. */
+        get: operations["Imports_sources"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -11643,9 +11745,11 @@ export interface components {
         "Models.ConnectorConnect": {
             /** @description Mercury: a read-only API token. Stored encrypted; used only to list outbound transactions. */
             token?: string;
+            /** @description Google Sheets and Airtable: the page Composio returns to after sign-in, a path in this workspace (`/w/<handle>/…`). */
+            returnTo?: string;
         };
         /** @enum {string} */
-        "Models.ConnectorProvider": "google_workspace" | "mercury";
+        "Models.ConnectorProvider": "google_workspace" | "mercury" | "google_sheets" | "airtable";
         "Models.ConnectorStart": {
             /**
              * Format: uri
@@ -11657,7 +11761,7 @@ export interface components {
         };
         "Models.ConnectorView": {
             /** @enum {string} */
-            provider: "mercury" | "google_workspace";
+            provider: "mercury" | "google_workspace" | "google_sheets" | "airtable";
             connected: boolean;
             status: string;
             scopes: string[];
@@ -12201,6 +12305,15 @@ export interface components {
             fileName: string;
             url: string;
         };
+        "Models.DroppedColumn": {
+            /** @description The column's name. Its values are never stored or shown. */
+            column: string;
+            reason: components["schemas"]["Models.DroppedReason"];
+            /** @description The reason in plain words. */
+            why: string;
+        };
+        /** @enum {string} */
+        "Models.DroppedReason": "header" | "bank_routing" | "identity_number" | "long_number";
         /**
          * @description Dry-run rules. Send `rules` or an `opportunityId` (its stored rules are used). Facts come from
          *     `org` / `profile` / `form` in the request, or from the cached Passport record of
@@ -13181,6 +13294,263 @@ export interface components {
             /** @description Kept on the application as a document typed `funder_guidelines` (the same file once). */
             document: components["schemas"]["Models.Document"];
         };
+        "Models.ImportAirtableSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "airtable";
+            /** @description The base's or table's link (https://airtable.com/app…) or the base id. */
+            url: string;
+            /** @description The table's id or name; the one in the link, else the first. */
+            table?: string;
+        };
+        "Models.ImportColumn": {
+            name: string;
+            /** @description Up to three values from the column, to help choose. */
+            samples: string[];
+        };
+        "Models.ImportCommitted": {
+            run: components["schemas"]["Models.ImportRun"];
+            /** @description True once every row to create is written. Until then, call again. */
+            done: boolean;
+            /**
+             * Format: int32
+             * @description Rows written by this call.
+             */
+            wrote: number;
+        };
+        "Models.ImportCsvSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "csv";
+            /** @description The file's text, header row first. */
+            text: string;
+            fileName?: string;
+        };
+        "Models.ImportEntity": {
+            /** @enum {string} */
+            type: "outside_application" | "award";
+            /** @description An outside application's UUID, or an award's `awd_` id. */
+            id: string;
+        };
+        "Models.ImportField": {
+            key: string;
+            label: string;
+            /** @enum {string} */
+            kind: "text" | "longtext" | "date" | "year" | "money" | "currency" | "choice" | "yesno" | "url" | "id";
+            required: boolean;
+            help: string | null;
+        };
+        "Models.ImportLogRow": {
+            /** Format: int32 */
+            line: number;
+            outcome: components["schemas"]["Models.ImportOutcome"];
+            reason: string | null;
+            problems: components["schemas"]["Models.ImportProblem"][];
+            title: string;
+            subtitle: string | null;
+            written: boolean;
+            entity: components["schemas"]["Models.ImportEntity"] | null;
+        };
+        "Models.ImportMoney": {
+            /** @enum {string} */
+            kind: "ask" | "awarded" | "paid";
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** Format: int32 */
+            year: number | null;
+        };
+        /** @enum {string} */
+        "Models.ImportOutcome": "create" | "skip" | "error";
+        "Models.ImportPreview": {
+            run: components["schemas"]["Models.ImportRun"];
+            source: components["schemas"]["Models.ImportSourceRead"];
+            columns: string[];
+            /** @description Fields mapped to a column that is not there or was dropped. */
+            unknownColumns: string[];
+            rows: components["schemas"]["Models.ImportPreviewRow"][];
+        };
+        "Models.ImportPreviewInput": {
+            target: components["schemas"]["Models.ImportTarget"];
+            source: components["schemas"]["Models.ImportSource"];
+            /** @description Field key → column header. Required fields must be mapped. */
+            mapping: {
+                [key: string]: string;
+            };
+            /**
+             * @description Remember the mapping for the next file with the same columns, or the same sheet or table. Default true.
+             * @default true
+             */
+            saveMapping: boolean;
+        };
+        "Models.ImportPreviewRow": {
+            /**
+             * Format: int32
+             * @description Where the row is in the source (the spreadsheet row; the header is row 1).
+             */
+            line: number;
+            outcome: components["schemas"]["Models.ImportOutcome"];
+            /** @description Why a row is skipped. */
+            reason: string | null;
+            problems: components["schemas"]["Models.ImportProblem"][];
+            title: string;
+            subtitle: string | null;
+            money: components["schemas"]["Models.ImportMoney"][];
+        };
+        "Models.ImportProblem": {
+            field?: string;
+            message: string;
+        };
+        "Models.ImportProgress": {
+            /** Format: int32 */
+            toWrite: number;
+            /** Format: int32 */
+            written: number;
+            /** Format: int32 */
+            skipped: number;
+            /** Format: int32 */
+            failed: number;
+        };
+        "Models.ImportRead": {
+            target: components["schemas"]["Models.ImportTarget"];
+            source: components["schemas"]["Models.ImportSourceRead"];
+            /** Format: int32 */
+            rows: number;
+            /** @description The columns that may be mapped. Dropped columns are not among them. */
+            columns: components["schemas"]["Models.ImportColumn"][];
+            dropped: components["schemas"]["Models.DroppedColumn"][];
+            /** @description A suggested mapping (field key → column), the saved one first. */
+            mapping: {
+                [key: string]: string;
+            };
+            /**
+             * @description Where the suggestion came from: the mapping saved for this source, one for a similar source, or none.
+             * @enum {string|null}
+             */
+            savedMapping: "this_source" | "similar_source" | null;
+            fields: components["schemas"]["Models.ImportField"][];
+        };
+        "Models.ImportReadInput": {
+            target: components["schemas"]["Models.ImportTarget"];
+            source: components["schemas"]["Models.ImportSource"];
+        };
+        "Models.ImportReconciliation": {
+            /** Format: int32 */
+            rows: number;
+            /** Format: int32 */
+            create: number;
+            /** Format: int32 */
+            skip: number;
+            /** Format: int32 */
+            error: number;
+            /** @description Money by outcome, kind, currency and year. */
+            totals: components["schemas"]["Models.ImportTotal"][];
+        };
+        "Models.ImportRun": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            target: components["schemas"]["Models.ImportTarget"];
+            source: components["schemas"]["Models.ImportSourceKind"];
+            sourceLabel: string | null;
+            mapping: {
+                [key: string]: string;
+            };
+            dropped: components["schemas"]["Models.DroppedColumn"][];
+            /** @description As checked. */
+            reconciliation: components["schemas"]["Models.ImportReconciliation"];
+            /** Format: int32 */
+            rowsTotal: number;
+            status: components["schemas"]["Models.ImportRunStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            committedAt: string | null;
+            /** Format: date-time */
+            finishedAt: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+            progress?: components["schemas"]["Models.ImportProgress"];
+        };
+        "Models.ImportRunDetail": {
+            run: components["schemas"]["Models.ImportRun"];
+            rows: components["schemas"]["Models.ImportLogRow"][];
+        };
+        /** @enum {string} */
+        "Models.ImportRunStatus": "checked" | "importing" | "done" | "expired";
+        "Models.ImportSheetsSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "google_sheets";
+            /** @description The spreadsheet's link (https://docs.google.com/spreadsheets/d/…) or its id. */
+            url: string;
+            /** @description The tab to read; the first when left out. */
+            sheet?: string;
+        };
+        "Models.ImportSource": components["schemas"]["Models.ImportCsvSource"] | components["schemas"]["Models.ImportXlsxSource"] | components["schemas"]["Models.ImportSheetsSource"] | components["schemas"]["Models.ImportAirtableSource"];
+        /** @enum {string} */
+        "Models.ImportSourceKind": "csv" | "xlsx" | "google_sheets" | "airtable";
+        "Models.ImportSourceOption": {
+            kind: components["schemas"]["Models.ImportSourceKind"];
+            label: string;
+            /** @description Files are always ready; a connected app is ready once connected. */
+            connected: boolean;
+            /** @description Whether the caller may connect it (workspace admins, signed in). */
+            canConnect: boolean;
+        };
+        "Models.ImportSourceRead": {
+            kind: components["schemas"]["Models.ImportSourceKind"];
+            label: string;
+            /** @description Workbooks and spreadsheets: every sheet, and the one read. */
+            sheets?: string[];
+            sheet?: string | null;
+            /** @description Airtable: the base's tables, and the one read. */
+            tables?: {
+                id: string;
+                name: string;
+            }[];
+            table?: string | null;
+        };
+        "Models.ImportSources": {
+            target: components["schemas"]["Models.ImportTarget"];
+            /** Format: int32 */
+            maxRows: number;
+            /** Format: int32 */
+            maxXlsxBytes: number;
+            fields: components["schemas"]["Models.ImportField"][];
+            /** @description CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them. */
+            sources: components["schemas"]["Models.ImportSourceOption"][];
+        };
+        /** @enum {string} */
+        "Models.ImportTarget": "outside_applications" | "award_history";
+        "Models.ImportTotal": {
+            outcome: components["schemas"]["Models.ImportOutcome"];
+            /** @enum {string} */
+            kind: "ask" | "awarded" | "paid";
+            currency: string;
+            /** Format: int32 */
+            year: number | null;
+            /** Format: int64 */
+            amountMinor: number;
+            /** Format: int32 */
+            rows: number;
+        };
+        "Models.ImportXlsxSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "xlsx";
+            /** @description The .xlsx file, base64. At most 4 MB. */
+            base64: string;
+            fileName?: string;
+            /** @description The sheet to read; the first when left out. */
+            sheet?: string;
+        };
         /** @description A signed webhook from Passport or Resend. Stored raw, deduped on the event id. */
         "Models.InboundWebhook": {
             id?: string;
@@ -13240,6 +13610,10 @@ export interface components {
             assistant: boolean;
             /** @description Google Workspace through Composio. */
             googleWorkspace: boolean;
+            /** @description Import from Google Sheets through Composio (read-only). */
+            googleSheets: boolean;
+            /** @description Import from Airtable through Composio (read-only). */
+            airtable: boolean;
             /** @description Mercury read-only reconciliation. */
             mercury: boolean;
             /** @description Custom MCP servers a workspace may add. */
@@ -26331,6 +26705,385 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ImportPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ImportReadInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportRead"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_listRuns: {
+        parameters: {
+            query: {
+                target: components["schemas"]["Models.ImportTarget"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportRun"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportRunDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_commit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportCommitted"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Imports_sources: {
+        parameters: {
+            query: {
+                target: components["schemas"]["Models.ImportTarget"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportSources"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

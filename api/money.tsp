@@ -733,7 +733,7 @@ model McpServerPatch {
 }
 
 model ConnectorView {
-  provider: "mercury" | "google_workspace";
+  provider: "mercury" | "google_workspace" | "google_sheets" | "airtable";
   connected: boolean;
   status: string;
   scopes: string[];
@@ -746,6 +746,9 @@ model ConnectorView {
 model ConnectorConnect {
   /** Mercury: a read-only API token. Stored encrypted; used only to list outbound transactions. */
   token?: string;
+
+  /** Google Sheets and Airtable: the page Composio returns to after sign-in, a path in this workspace (`/w/<handle>/…`). */
+  returnTo?: string;
 }
 
 model DirectoryPersonView {

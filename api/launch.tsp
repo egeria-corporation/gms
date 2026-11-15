@@ -47,6 +47,12 @@ model InstallAvailability {
   /** Google Workspace through Composio. */
   googleWorkspace: boolean;
 
+  /** Import from Google Sheets through Composio (read-only). */
+  googleSheets: boolean;
+
+  /** Import from Airtable through Composio (read-only). */
+  airtable: boolean;
+
   /** Mercury read-only reconciliation. */
   mercury: boolean;
 
