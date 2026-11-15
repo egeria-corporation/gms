@@ -9,3 +9,4 @@ export * from "./requirement.ts";
 export * from "./effects.ts";
 export * from "./outside.ts";
 export * from "./obligations.ts";
+export * from "./gallery.ts";
