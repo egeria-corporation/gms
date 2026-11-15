@@ -217,3 +217,40 @@ describe("human only", () => {
     expect(tools.filter((t) => /migrat|switch/i.test(t.name))).toEqual([]);
   });
 });
+
+describe("red team (v1.8.0 integration)", () => {
+  it("refuses an agent even with the person's own form token, and sends nothing", async () => {
+    const token = await formToken();
+    later(MIGRATION_REQUEST_LIMITS.minSecondsToSubmit + 2);
+    const agent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "applications:write approvals:bypass", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-mig-redteam" });
+    for (const headers of [bearer(agent).headers, { ...bearer(agent).headers, "X-GMS-Workspace": WS_FUNDER }]) {
+      const r = await call("POST", "/gms/migration-requests", input({ formToken: token }), headers);
+      expect(r.status).toBe(403);
+      expect(r.body.errors![0]!.code).toBe("person_only");
+    }
+    expect(h.mailer.sent).toHaveLength(0);
+    // The person can still use it.
+    expect((await call("POST", "/gms/migration-requests", input({ formToken: token }))).status).toBe(200);
+  });
+
+  it("sends exactly the preview, byte for byte, for a hostile note and name", async () => {
+    // Markup, a line break in a one-line field, invisible characters, and numbers that must go.
+    const routing = ["0110", "0001", "5"].join("");
+    const hostile = { name: "Ana\r\nBcc: someone@example.org", organization: "<b>Riverbend</b>‮", note: `<script>alert(1)</script>\nOur routing ${routing} and acct 11111.\n\nSee <a href="https://evil.example">this</a>.` };
+    const p = await call<{ subject: string; text: string; numbersRemoved: number; confirmation: { subject: string; text: string } }>("POST", "/gms/migration-requests/preview", input(hostile));
+    expect(p.status).toBe(200);
+    expect(p.body.data.numbersRemoved).toBe(2);
+    expect(p.body.data.text).not.toContain(routing);
+    expect(p.body.data.subject).not.toMatch(/[\r\n‮]/);
+    const out = await send(hostile);
+    expect(out.status).toBe(200);
+    const [request, confirmation] = h.mailer.sent;
+    expect(request!.subject).toBe(p.body.data.subject);
+    expect(request!.text).toBe(p.body.data.text);
+    expect(request!.html).not.toMatch(/<script|<b>|<a href/);
+    expect(JSON.stringify(h.mailer.sent)).not.toContain(routing);
+    expect(confirmation!.subject).toBe(p.body.data.confirmation.subject);
+    expect(confirmation!.text).toBe(p.body.data.confirmation.text);
+    expect(confirmation!.text).not.toMatch(/script|evil|Bcc|Riverbend/);
+  });
+});
