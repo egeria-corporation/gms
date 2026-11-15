@@ -153,6 +153,7 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
       {field.kind === "budgetTable" && <ListEditor id="p-categories" label="Budget categories" values={field.categories} onChange={(categories) => onChange({ categories })} />}
       <Toggle id="p-rev" label="Reviewers can see this field" checked={field.reviewerVisible} onChange={(reviewerVisible) => onChange({ reviewerVisible })} />
       <Toggle id="p-pii" label="Contains PII" help="Masked for external reviewers and in exports" checked={field.pii} onChange={(pii) => onChange({ pii })} />
+      <Toggle id="p-identifying" label="Says who applied" help="Hidden from reviewers in a stage with anonymized review" checked={field.identifying} onChange={(identifying) => onChange({ identifying })} />
 
       <div className="fld">
         <label className="lbl" htmlFor="p-when-field">
@@ -246,6 +247,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
           {field.wordMax && <span className="tag">{field.wordMax} words</span>}
           {!field.reviewerVisible && <span className="tag">Hidden from reviewers</span>}
           {field.pii && <span className="tag">PII</span>}
+          {field.identifying && <span className="tag">Says who applied</span>}
         </div>
         {field.help && (
           <div className="small muted" style={{ marginTop: "2px" }}>

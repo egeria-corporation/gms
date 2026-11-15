@@ -262,6 +262,29 @@ describe("form builder", () => {
     });
   });
 
+  it("marks a field as saying who applied, which anonymized review hides", async () => {
+    const services = await riverbend();
+    const { path } = await draftPath(services);
+    open(path, services);
+    await screen.findByRole("heading", { level: 1, name: "Letter of intent · v3" });
+    await userEvent.click(screen.getByRole("button", { name: "Add Short text" }));
+    const label = screen.getByLabelText("Label");
+    await userEvent.clear(label);
+    await userEvent.type(label, "Who referred you");
+    const toggle = screen.getByRole("switch", { name: "Says who applied" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Hidden from reviewers in a stage with anonymized review")).toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(within(screen.getByRole("region", { name: "Form canvas" })).getByText("Says who applied")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(async () => {
+      const saved = await services.api.getForm(IDS.formLoi);
+      const key = Object.entries(saved.jsonSchema.properties!).find(([, p]) => (p as { title?: string }).title === "Who referred you")?.[0];
+      expect(key).toBeDefined();
+      expect(JSON.stringify(saved.uiSchema)).toContain(`"scope":"#/properties/${key}","options":{"identifying":true}`);
+    });
+  });
+
   it("reorders and removes fields with buttons, and sets a condition", async () => {
     const services = await riverbend();
     const { path } = await draftPath(services);

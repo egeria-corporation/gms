@@ -152,6 +152,20 @@ describe("form model", () => {
     expect(JSON.stringify(compiled.uiSchema)).toContain('"rule":{"effect":"SHOW","condition":{"scope":"#/properties/fiscalSponsor","schema":{"const":true}}}');
   });
 
+  it("reads and writes a field's 'Says who applied' mark as the forms engine's identifying option", async () => {
+    const { identifyingFields } = await import("@gms/forms");
+    const model = parseForm(parts);
+    // "need" is a long-text answer the form does not mark.
+    const key = "need";
+    expect(model.sections.flatMap((s) => s.fields).find((f) => f.key === key)!.identifying).toBe(false);
+    const marked = updateField(model, key, { identifying: true });
+    const compiled = compileForm(marked);
+    expect(validateFormDefinition(compiled)).toEqual([]);
+    expect(identifyingFields(compiled)).toContain(`/${key}`);
+    expect(parseForm({ ...parts, jsonSchema: compiled.jsonSchema, uiSchema: compiled.uiSchema }).sections.flatMap((s) => s.fields).find((f) => f.key === key)!.identifying).toBe(true);
+    expect(identifyingFields(compileForm(updateField(marked, key, { identifying: false })))).not.toContain(`/${key}`);
+  });
+
   it("adds a field with a unique key and writes the prefill mapping when one is chosen", () => {
     let model = addSection({ sections: [] }, "s1");
     const first = newField(model, "text");

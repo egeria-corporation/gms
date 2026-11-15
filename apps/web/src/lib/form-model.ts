@@ -68,6 +68,8 @@ export interface FieldModel {
   categories: string[];
   reviewerVisible: boolean;
   pii: boolean;
+  /** Says who applied: hidden from reviewers in a stage with anonymized review (packages/forms `identifyingFields`). */
+  identifying: boolean;
   showWhen: ShowWhen | null;
   /** Path into the Passport record this field is pre-filled from. */
   prefill: string | null;
@@ -174,6 +176,7 @@ export function parseForm(parts: FormParts): FormModel {
       categories: strings(widgetOptions.categories),
       reviewerVisible: options.reviewerVisible !== false,
       pii: options.pii === true,
+      identifying: options.identifying === true,
       showWhen: condKey && (typeof condValue === "string" || typeof condValue === "boolean") ? { field: condKey, equals: condValue } : null,
       prefill: prefills.get(key) ?? null,
       mapsTo: targets.get(key) ?? null,
@@ -257,13 +260,14 @@ const WIDGET: Partial<Record<FieldKind, NonNullable<ControlOptions["widget"]>>> 
 };
 
 function controlFor(f: FieldModel): UiControl {
-  const { widget: _w, help: _h, reviewerVisible: _r, pii: _p, multi: _m, ...keep } = f.options;
+  const { widget: _w, help: _h, reviewerVisible: _r, pii: _p, identifying: _i, multi: _m, ...keep } = f.options;
   const options: ControlOptions = { ...keep };
   const widget = f.kind === "other" ? f.options.widget : WIDGET[f.kind];
   if (widget) options.widget = widget;
   if (f.help.trim()) options.help = f.help.trim();
   if (!f.reviewerVisible) options.reviewerVisible = false;
   if (f.pii) options.pii = true;
+  if (f.identifying) options.identifying = true;
   if (f.kind === "longText" && !f.wordMax) options.multi = true;
   if (f.kind === "money") options.widgetOptions = { currency: "USD", ...(f.options.widgetOptions as object | undefined) } as Json;
   if (f.kind === "budgetTable") options.widgetOptions = { currency: "USD", ...(f.options.widgetOptions as object | undefined), categories: f.categories } as Json;
@@ -327,6 +331,7 @@ export function newField(model: FormModel, kind: Exclude<FieldKind, "other">): F
     categories: kind === "budgetTable" ? ["Personnel", "Supplies", "Indirect"] : [],
     reviewerVisible: true,
     pii: false,
+    identifying: false,
     showWhen: null,
     prefill: kind === "passportField" ? "name" : null,
     mapsTo: null,
