@@ -56,6 +56,12 @@ node scripts/bootstrap-supabase.ts --db-url "postgresql://postgres:<password>@db
 6. Authentication → SMTP: point Supabase's own mail (sign-in codes) at Resend's SMTP, or any SMTP
    you run. The built-in sender is rate-limited and not for production.
 7. Realtime is used for presence in the application editor; leave it enabled.
+8. Single sign-on (optional, v1.8.0): the project must be on the Pro plan or above, with
+   Authentication → Providers → SAML 2.0 switched on, and `https://gms.example.org/signin` on the
+   redirect URLs. Register each workspace's identity provider with `scripts/sso/register-provider.mjs`
+   (it reads `SUPABASE_ACCESS_TOKEN` from your own shell; it is never a Worker secret), then run the
+   `gms.activate_sso_domain` line it prints. Without this no workspace can require single sign-on.
+   See `docs/sso.md`.
 
 Row Level Security is on for every table. The Workers use the service-role key and filter by
 workspace in code; the `authenticated` role has read-only policies and no user ever needs the
