@@ -33,9 +33,16 @@ sendPackageRoutes.get("/outside-applications/:id/package", async (c) => c.json(o
 sendPackageRoutes.get("/outside-applications/:id/package.pdf", async (c) => download(await pkg.packagePdfFile(await svc(c), oaId(c)), "application/pdf"));
 sendPackageRoutes.get("/outside-applications/:id/package.zip", async (c) => download(await pkg.packageZipFile(await svc(c), oaId(c)), "application/zip"));
 // Human only: no MCP tool emails a package, and an agent's token is refused in the service.
+// Who may send is checked before the body is read, so a caller who may not learns nothing from validation.
 sendPackageRoutes.post("/outside-applications/:id/package/email/preview", async (c) => {
   c.header("Cache-Control", "no-store");
-  return c.json(ok(await pkg.previewPackageEmail(await svc(c), oaId(c), parse(pkg.emailInput, await jsonBody(c)))));
+  const ctx = await svc(c);
+  await pkg.assertMayEmail(ctx, oaId(c));
+  return c.json(ok(await pkg.previewPackageEmail(ctx, oaId(c), parse(pkg.emailInput, await jsonBody(c)))));
 });
-sendPackageRoutes.post("/outside-applications/:id/package/email", async (c) => c.json(ok(await pkg.sendPackageEmailFor(await svc(c), oaId(c), parse(pkg.sendInput, await jsonBody(c))))));
+sendPackageRoutes.post("/outside-applications/:id/package/email", async (c) => {
+  const ctx = await svc(c);
+  await pkg.assertMayEmail(ctx, oaId(c));
+  return c.json(ok(await pkg.sendPackageEmailFor(ctx, oaId(c), parse(pkg.sendInput, await jsonBody(c)))));
+});
 sendPackageRoutes.put("/send-package/settings", async (c) => c.json(ok(await pkg.setPackageFooter(await svc(c), parse(pkg.settingsInput, await jsonBody(c))))));

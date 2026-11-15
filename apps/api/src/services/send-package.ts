@@ -321,12 +321,18 @@ async function senderOf(ctx: ServiceContext) {
   return { name: cleanLine(who?.name ?? "") || fallback || email, email };
 }
 
-/** The email exactly as it would be sent, with the digest that ties a send to this preview. */
-async function composeEmail(ctx: ServiceContext, id: string, input: z.output<typeof emailInput>) {
+/** Who may email this application's package: a person, an admin or editor, on an application not archived. Checked before the body is read. */
+export async function assertMayEmail(ctx: ServiceContext, id: string) {
   requirePerson(ctx, "Emailing the package to a funder");
   const { ws, row } = await loadOutside(ctx, id, "applications:write");
   if (!ws.role || !PACKAGE_EMAIL_ROLES.includes(ws.role)) throw new ApiError(403, "insufficient_role", `This needs one of these roles: ${PACKAGE_EMAIL_ROLES.join(", ")}`);
   writable(row);
+  return { ws, row };
+}
+
+/** The email exactly as it would be sent, with the digest that ties a send to this preview. */
+async function composeEmail(ctx: ServiceContext, id: string, input: z.output<typeof emailInput>) {
+  const { ws, row } = await assertMayEmail(ctx, id);
   const g = await gather(ctx, row, { screen: true });
   assertSize(g, PACKAGE_EMAIL_MAX_BYTES, "package_too_large_to_email", "One email carries");
   const { mailer } = ctx.ports;

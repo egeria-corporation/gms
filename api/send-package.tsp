@@ -150,6 +150,7 @@ namespace GMS.Models {
 
   model PackageEmailInput {
     /** The funder contact's address, typed by the person. */
+    @format("email")
     to: string;
 
     /** The person's own words above the package (up to 2,000 characters). */

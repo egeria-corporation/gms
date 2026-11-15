@@ -15505,7 +15505,10 @@ export interface components {
             date: string;
         };
         "Models.PackageEmailInput": {
-            /** @description The funder contact's address, typed by the person. */
+            /**
+             * Format: email
+             * @description The funder contact's address, typed by the person.
+             */
             to: string;
             /** @description The person's own words above the package (up to 2,000 characters). */
             message?: string;
@@ -15535,7 +15538,10 @@ export interface components {
             remainingToday: number;
         };
         "Models.PackageEmailSend": {
-            /** @description The funder contact's address, typed by the person. */
+            /**
+             * Format: email
+             * @description The funder contact's address, typed by the person.
+             */
             to: string;
             /** @description The person's own words above the package (up to 2,000 characters). */
             message?: string;
