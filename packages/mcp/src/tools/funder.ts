@@ -108,6 +108,7 @@ export const FUNDER_TOOLS = {
 
   list_awards: tool("listAwards", "awards:read", "List awards by status, program or recipient.", z.object({ status: z.array(awardStatus).optional(), programId: programId.optional(), recipientWorkspaceId: applicantWorkspaceId.optional(), ...paging })),
   get_award: tool("getAward", "awards:read", "Get one award: lifecycle status, funding (disbursed amount is read from Passport), dates and conditions.", z.object({ awardId })),
+  get_award_share_kit: tool("getAwardShareKit", "awards:read", "Get the share kit for an award on the public grants-awarded page: three ready-to-edit posts (LinkedIn, short, newsletter), the award page link, the card image and the “Funded by” badge snippet, from public fields only. Null when the award is not public (confidential, unlisted, not accepted, or the funder does not list awards). Nothing is posted by this tool; marking an award confidential or unlisted, and listing awards, are a person's, in the GMS.", z.object({ awardId })),
   create_direct_award: tool(
     "createDirectAward",
     "awards:write",

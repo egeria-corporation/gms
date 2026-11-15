@@ -18,6 +18,7 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 import { canCancelAward, canGiveDirectAward, canResendInvitation } from "../../lib/roles.ts";
 import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecords, useAwardTab } from "./AwardSections.tsx";
 import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPanels.tsx";
+import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
 import { dateTime } from "./shared.tsx";
 
 const STEPS: [Agreement["status"], string][] = [
@@ -434,6 +435,7 @@ export default function AwardAgreement() {
               <TabPanel idPrefix="award" tab="closeout" active={tab}>
                 <AwardCloseout award={award.data} onChanged={reload} />
               </TabPanel>
+              <ShareAwardPanel awardId={award.data.id} side="funder" settingsHref={`${base}/settings/public-page`} />
             </>
           )}
         </main>

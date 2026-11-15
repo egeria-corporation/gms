@@ -14,6 +14,7 @@ import * as apply from "./apply.ts";
 import * as agreements from "./agreements.ts";
 import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
+import * as awardSharing from "./award-sharing.ts";
 import * as collab from "./collaboration.ts";
 import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
@@ -136,6 +137,8 @@ const IMPLEMENTED: Impl = {
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
   listAwards: (ctx, i) => awards.listAwards(ctx, paged(i), { status: i.status?.join(","), programId: i.programId, recipientWorkspaceId: i.recipientWorkspaceId }),
   getAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "funder"),
+  // Award sharing (v1.8.0): a read; listing, confidential and unlisted changes have no tool.
+  getAwardShareKit: (ctx, i) => awardSharing.shareKit(ctx, awd(i.awardId), "funder"),
   // Gated for every agent: this runs only after a person approved the call, as that person, and the
   // service checks the input with the same schema as the REST route.
   createDirectAward: (ctx, i) => {
@@ -236,6 +239,7 @@ const IMPLEMENTED: Impl = {
   // ---- applicant: awards and agreements ----
   listMyAwards: (ctx, i) => awards.listMyAwards(ctx, paged(i), { status: i.status?.join(",") }),
   getMyAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "recipient"),
+  getMyAwardShareKit: (ctx, i) => awardSharing.shareKit(ctx, awd(i.awardId), "grantee"),
   // Gated and never bypassable: this runs only after the workspace's admin approved it, as that person.
   acceptAward: (ctx, i) => awards.acceptOffer(ctx, awd(i.awardId)),
   // A signature needs the signer's typed name and attestation, which no agent can supply.

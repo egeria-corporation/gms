@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Routes anyone may call: the CommonGrants read routes (published records; drafts with a token for
-// the owning workspace), the data behind the funder pages, and the sitemap.
+// the owning workspace), the data behind the funder pages (with the awards a funder lists), the
+// "Funded by" badge, and the sitemap.
 import { SearchRequestError } from "@gms/protocol";
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../app.ts";
@@ -8,6 +9,7 @@ import { authenticate } from "../auth/middleware.ts";
 import { ApiError, notFound, ok, pageInfo, paginated } from "../lib/errors.ts";
 import { isUuid } from "@gms/db";
 import * as pub from "../services/public.ts";
+import { BADGE_TTL_SECONDS, badgeFor } from "../services/award-sharing.ts";
 import { cgSearchOpportunities } from "../services/search.ts";
 import { jsonBody, page, publicCtx, versionQuery } from "./http.ts";
 
@@ -62,6 +64,31 @@ publicPages.get("/funders/:handle", async (c) => {
 publicPages.get("/funders/:handle/opportunities/:slug", async (c) => {
   edge(c);
   return c.json(ok(await pub.opportunityPage(publicCtx(c), c.req.param("handle"), c.req.param("slug"))));
+});
+// The grants a funder has awarded and lists (v1.8.0), and one award's page.
+publicPages.get("/funders/:handle/awards", async (c) => {
+  edge(c);
+  return c.json(ok(await pub.funderAwardsPage(publicCtx(c), c.req.param("handle"))));
+});
+publicPages.get("/funders/:handle/awards/:slug", async (c) => {
+  edge(c);
+  return c.json(ok(await pub.awardPage(publicCtx(c), c.req.param("handle"), c.req.param("slug"))));
+});
+/**
+ * The "Funded by" badge, `/gms/public/badges/{slug}.svg` (the front Worker serves it at
+ * `/badge/{slug}.svg`). Cached for an hour. Anything that is not a public award, whether it does
+ * not exist, is confidential or is unlisted, gets the same short 404 that says nothing.
+ */
+publicPages.get("/badges/:file", async (c) => {
+  const file = c.req.param("file");
+  const svg = file.endsWith(".svg") ? await badgeFor(publicCtx(c), file.slice(0, -4)) : null;
+  if (!svg) return c.body("Not found", 404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300" });
+  return c.body(svg, 200, {
+    "Content-Type": "image/svg+xml; charset=utf-8",
+    "Cache-Control": `public, max-age=${BADGE_TTL_SECONDS}, s-maxage=${BADGE_TTL_SECONDS}`,
+    // An image, never a page: nothing in it may run or load.
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+  });
 });
 
 const xml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

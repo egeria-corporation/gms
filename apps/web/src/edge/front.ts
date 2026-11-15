@@ -2,12 +2,44 @@
 // The front Worker that scripts/build-front-worker.mjs builds (docs/staging.md): it serves the web
 // app from files embedded in its script, forwards the API's paths to the API Worker, and gives the
 // public pages what links and search engines read: per-page meta and JSON-LD (set with
-// HTMLRewriter), share images and robots.txt.
+// HTMLRewriter), share images and robots.txt, and since v1.8.0 the "Funded by" badge
+// (`/badge/{slug}.svg`, drawn by the API, kept at the edge for BADGE_TTL_SECONDS).
 //
 // Page data comes from the API's public routes over the service binding and is kept at the edge for
 // EDGE_TTL_SECONDS. Anything that fails, is slow or is not found leaves the page as it was built,
 // with the default meta: a preview is never worth a broken page.
-import { apiPathOf, funderCard, funderMeta, galleryApiPathOf, headTags, imageRouteOf, landingCard, landingMeta, opportunityCard, opportunityMeta, robotsTxt, routeOf, switchMeta, templateMeta, templatesMeta, DEFAULT_IMAGE, type FunderPageData, type GalleryItemData, type ImageRoute, type OpportunityPageData, type PageMeta, type PublicRoute } from "./meta.ts";
+import {
+  apiPathOf,
+  awardCard,
+  awardMeta,
+  awardsCard,
+  awardsMeta,
+  badgeApiPathOf,
+  badgeRouteOf,
+  funderCard,
+  funderMeta,
+  galleryApiPathOf,
+  headTags,
+  imageRouteOf,
+  landingCard,
+  landingMeta,
+  opportunityCard,
+  opportunityMeta,
+  robotsTxt,
+  routeOf,
+  switchMeta,
+  templateMeta,
+  templatesMeta,
+  DEFAULT_IMAGE,
+  type AwardPageData,
+  type FunderAwardsPageData,
+  type FunderPageData,
+  type GalleryItemData,
+  type ImageRoute,
+  type OpportunityPageData,
+  type PageMeta,
+  type PublicRoute,
+} from "./meta.ts";
 import { loadCardAssets, renderCard, type CardAssets, type CardText } from "./og/card.ts";
 
 export interface EmbeddedFile {
@@ -41,6 +73,10 @@ export interface FrontContext {
 export const EDGE_TTL_SECONDS = 300;
 /** How long a page waits for its data before it is served with the default meta. */
 export const DATA_TIMEOUT_MS = 2000;
+/** How long the "Funded by" badge is kept at the edge and by browsers. */
+export const BADGE_TTL_SECONDS = 3600;
+/** The badge is an image: nothing in it may run or load. */
+const BADGE_CSP = "default-src 'none'; style-src 'unsafe-inline'";
 
 // The parts of the Workers runtime this uses, typed here so the web app's type-check needs no Workers types.
 interface RewriterElement {
@@ -119,7 +155,7 @@ export function createFront(config: FrontConfig) {
       throw e;
     }));
 
-  /** The public data at an API path (a funder page, an opportunity, a gallery item), from the edge cache or the API; null when it is not found. */
+  /** The public data at an API path (a funder page, an opportunity, awards, a gallery item), from the edge cache or the API; null when it is not found. */
   async function pageData<T>(apiPath: string, request: Request, env: FrontEnv, ctx: FrontContext): Promise<T | null> {
     const cache = edgeCache();
     const key = new Request(`${origin}/__front/data${apiPath}`);
@@ -159,6 +195,14 @@ export function createFront(config: FrontConfig) {
         const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
         return d?.funder && d.opportunity ? opportunityMeta(d, origin) : null;
       }
+      case "awards": {
+        const d = await pageData<FunderAwardsPageData>(apiPathOf(route), request, env, ctx);
+        return d?.funder && Array.isArray(d.awards) ? awardsMeta(d, origin) : null;
+      }
+      case "award": {
+        const d = await pageData<AwardPageData>(apiPathOf(route), request, env, ctx);
+        return d?.funder && d.award ? awardMeta(d, origin) : null;
+      }
     }
   }
 
@@ -168,8 +212,52 @@ export function createFront(config: FrontConfig) {
       const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);
       return d?.funder && Array.isArray(d.opportunities) ? funderCard(d, config.host) : null;
     }
+    if (route.kind === "awards") {
+      const d = await pageData<FunderAwardsPageData>(apiPathOf(route), request, env, ctx);
+      return d?.funder && Array.isArray(d.awards) ? awardsCard(d, config.host) : null;
+    }
+    if (route.kind === "award") {
+      const d = await pageData<AwardPageData>(apiPathOf(route), request, env, ctx);
+      return d?.funder && d.award ? awardCard(d, config.host) : null;
+    }
     const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
     return d?.funder && d.opportunity ? opportunityCard(d, config.host) : null;
+  }
+
+  /**
+   * The "Funded by" badge, from the API (which answers only for awards that may be public), kept at
+   * the edge for an hour. Not found is the same short 404 whatever the reason; an API failure is a
+   * 503 that is not kept, so a badge comes back as soon as the API does.
+   */
+  async function badge(slug: string, request: Request, env: FrontEnv, ctx: FrontContext): Promise<Response> {
+    const cache = edgeCache();
+    const key = new Request(`${origin}/badge/${slug}.svg`);
+    const hit = cache ? await cache.match(key).catch(() => undefined) : undefined;
+    if (hit) return hit;
+    const path = new URL(request.url).pathname;
+    const plain = (status: number, text: string, cacheControl: string) => {
+      const headers = new Headers({ "Content-Type": "text/plain; charset=utf-8" });
+      applyHeaderRules(headers, config.headerRules, path);
+      headers.set("Cache-Control", cacheControl);
+      return new Response(text, { status, headers });
+    };
+    let res: Response;
+    try {
+      res = await withTimeout(env.API.fetch(new Request(new URL(badgeApiPathOf(slug), request.url), { headers: { Accept: "image/svg+xml" } })), DATA_TIMEOUT_MS);
+    } catch {
+      return plain(503, "Unavailable", "no-store");
+    }
+    if (res.status === 404) return plain(404, "Not found", "public, max-age=300");
+    if (res.status !== 200) return plain(503, "Unavailable", "no-store");
+    const headers = new Headers();
+    applyHeaderRules(headers, config.headerRules, path);
+    headers.set("Content-Type", "image/svg+xml; charset=utf-8");
+    headers.set("Cache-Control", `public, max-age=${BADGE_TTL_SECONDS}`);
+    headers.set("Content-Security-Policy", BADGE_CSP);
+    headers.delete("X-Frame-Options");
+    const out = new Response(await res.text(), { headers });
+    if (cache) ctx.waitUntil(cache.put(key, out.clone()).catch(() => undefined));
+    return out;
   }
 
   function staticFile(path: string, requestPath: string, head: boolean): Response {
@@ -234,6 +322,11 @@ export function createFront(config: FrontConfig) {
         const headers = new Headers({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" });
         applyHeaderRules(headers, config.headerRules, url.pathname);
         return new Response(head ? null : robotsTxt(origin), { headers });
+      }
+      const badgeSlug = badgeRouteOf(url.pathname);
+      if (badgeSlug) {
+        const res = await badge(badgeSlug, request, env, ctx);
+        return head ? new Response(null, res) : res;
       }
       const imageRoute = imageRouteOf(url.pathname);
       if (imageRoute) {

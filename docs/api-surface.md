@@ -289,8 +289,10 @@ All implemented. Each starts with the shared authorization check; none returns b
 | `GET /gms/my/funders/detail` | Open items, documents and public contact per funder | `applications:read` |
 | `GET/POST /gms/discover/alerts`, `DELETE /gms/discover/alerts/{alertId}` | Saved funding alerts (up to 25) | `discovery` |
 
-Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (null unless the
-workspace sets `settings.transparency`); the opportunity page adds `faq` and `documents`, written through
+Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (since v1.8.0
+null unless the funder lists awards, `settings.awardSharing.listAwards`, and shows amounts; only awards that pass
+`isPubliclyListable`, with a `page` link each; `settings.transparency` alone no longer lists them, see
+[award-sharing.md](award-sharing.md)); the opportunity page adds `faq` and `documents`, written through
 `PATCH /gms/opportunities/{id}` as `publish.faq` and `publish.documents` (https links only).
 
 Gates: a tool a workspace adds to `settings.gatedTools` (or an API client's `gated_tools`) is refused for agent and
@@ -512,3 +514,20 @@ rules and the starter library: `docs/gallery.md`.
 | `GET /gms/gallery/moderation/queue` | Implemented | Moderators (`GALLERY_MODERATORS`). Pending submissions, oldest first. `403 not_a_moderator` |
 | `POST /gms/gallery/moderation/submissions/{id}/approve` | Implemented | Moderators. `{ slug? }` → the published item. Ledger `gallery.item_approved` in the author's workspace |
 | `POST /gms/gallery/moderation/submissions/{id}/reject` | Implemented | Moderators. `{ reason }` (3 to 2,000 characters), shown to the author. Ledger `gallery.item_declined` |
+
+## Award sharing (v1.9.0)
+
+Details in [award-sharing.md](award-sharing.md); routes in `api/award-sharing.tsp`. Every public route answers only for
+awards that pass `isPubliclyListable` (`apps/api/src/services/award-sharing.ts`), with the same 404 otherwise.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/public/funders/{handle}/awards` | Implemented | No token. The awards the funder lists, newest first, with `years`, `programs` and `amountsShown`. 404 while the funder does not list awards. Cached like the funder page |
+| `GET /gms/public/funders/{handle}/awards/{slug}` | Implemented | No token. One listed award, its funder and `verified` (linked to Passport). Found by the token at the end of the slug |
+| `GET /gms/public/badges/{slug}.svg` | Implemented | No token. The "Funded by" badge, `Cache-Control: public, max-age=3600`; a plain-text `404 Not found` for anything not public. The front Worker serves it at `/badge/{slug}.svg` |
+| `GET /gms/awards/{id}/sharing`, `GET /gms/my/awards/{id}/sharing` | Implemented | `awards:read`, funder side and grantee side. Listed or not and why (`reason`), the switches, `canChange`, and the share kit while public |
+| `PUT /gms/awards/{id}/confidential` | Implemented | `{ confidential }`. Funder `admin` or `program_officer`, a signed-in person (agents and API clients `403 human_only`) |
+| `PUT /gms/my/awards/{id}/listing` | Implemented | `{ unlisted }`: "Don't list us publicly". Grantee `admin`, a signed-in person |
+| `GET/PUT /gms/award-sharing/settings` | Implemented | `{ listAwards?, showAmounts? }` in `settings.awardSharing` (not a `PATCH /workspaces` key). Read: funder staff (`awards:read`); write: funder `admin`, a signed-in person. Returns counts and program defaults |
+| `PUT /gms/programs/{id}/award-sharing` | Implemented | `{ awardsConfidential }`: new awards in the program start confidential (a database trigger applies it). Funder `admin` or `program_officer`, a signed-in person |
+| MCP `get_award_share_kit` | Implemented | Funder and grantee sides, `awards:read`. The share kit, or nothing for an award that is not public. No tool lists awards, marks one confidential or unlists one |

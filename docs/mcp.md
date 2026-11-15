@@ -115,6 +115,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `commit_decisions` | `decisions:write` | Approval | Commit proposed decisions: creates awards in offered, queues letters. Refused when the program would be over-allocated. |
 | `list_awards` | `awards:read` | — | List awards by status, program or recipient. |
 | `get_award` | `awards:read` | — | Get one award: lifecycle status, funding (disbursed amount is read from Passport), dates and conditions. |
+| `get_award_share_kit` | `awards:read` | — | Get the share kit for an award listed on the funder's grants-awarded page: three ready-to-edit posts, the award page link, the card image and the "Funded by" badge snippet, from public fields only. Nothing for an award that is not public. Nothing is posted; listing, confidential and unlisted are a person's, in the GMS (no tool). |
 | `create_award_from_application` | `awards:write` | — | Create an award in offered from an accepted application. |
 | `amend_award` | `awards:write` | — | Record an amendment (extension, reallocation, scope or supplemental). Amount and period changes are mirrored to Passport. |
 | `close_award` | `awards:write` | — | Complete or cancel an award. |
@@ -208,6 +209,7 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `withdraw_application` | `applications:write` | — | Withdraw an application that has not reached a decision. |
 | `list_awards` | `awards:read` | — | List awards made to this workspace. |
 | `get_award` | `awards:read` | — | Get one award with its payment schedule and requirements. |
+| `get_award_share_kit` | `awards:read` | — | Get the share kit for an award listed on the funder's grants-awarded page: three ready-to-edit posts, the award page link, the card image and the "Funded by" badge snippet, from public fields only. Nothing for an award that is not public. Nothing is posted; listing, confidential and unlisted are a person's, in the GMS (no tool). |
 | `accept_award` | `awards:write` | Always a person | Accept an award offer. Always requires a person. |
 | `sign_agreement` | `agreements:write` | Always a person | Sign a grant agreement. Always requires a person: the signature records their typed name, time, IP and the document hash. |
 | `request_amendment` | `awards:write` | — | Request an amendment to an award. |

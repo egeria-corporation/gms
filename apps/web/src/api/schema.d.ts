@@ -1141,6 +1141,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/award-sharing/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The funder's award listing settings, counts and program defaults. Any funder staff. */
+        get: operations["AwardSharingRoutes_listingSettings"];
+        /** @description "List awards on my public page" and "Show award amounts". A workspace admin, signed in. */
+        put: operations["AwardSharingRoutes_updateListingSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/awards": {
         parameters: {
             query?: never;
@@ -1394,6 +1412,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/awards/{id}/confidential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Mark an award confidential, or not. Funder admins and program officers, signed in: agent and API-client tokens get 403 `human_only`. */
+        put: operations["AwardSharingRoutes_setConfidential"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/awards/{id}/documents": {
         parameters: {
             query?: never;
@@ -1509,6 +1544,23 @@ export interface paths {
         get: operations["Payments_readSchedule"];
         /** @description Replace the tranches that have not started. They must add up to what is left of the award. */
         put: operations["Payments_setSchedule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/awards/{id}/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The funder's "Share this award" panel: whether the award is public and why not, and the share kit while it is. */
+        get: operations["AwardSharingRoutes_funderSharing"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3620,6 +3672,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/my/awards/{id}/listing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description The grantee's "Don't list us publicly", per award. Grantee admins, signed in. */
+        put: operations["AwardSharingRoutes_setUnlisted"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/my/awards/{id}/payout-destination": {
         parameters: {
             query?: never;
@@ -3649,6 +3718,23 @@ export interface paths {
         };
         /** @description The award's payment schedule. No bank data: destinations live in Passport. */
         get: operations["Applicant_mySchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/my/awards/{id}/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The grantee's "Share this award" panel. */
+        get: operations["AwardSharingRoutes_granteeSharing"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5135,6 +5221,23 @@ export interface paths {
         patch: operations["Programs_update"];
         trace?: never;
     };
+    "/gms/programs/{id}/award-sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Whether new awards in a program start confidential. Funder admins and program officers, signed in. */
+        put: operations["AwardSharingRoutes_setProgramDefault"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/programs/{id}/budget-categories": {
         parameters: {
             query?: never;
@@ -5160,6 +5263,26 @@ export interface paths {
             cookie?: never;
         };
         get: operations["Insights_programRollup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/badges/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Funded by badge
+         * @description The "Funded by" badge, `{slug}.svg` (the front Worker serves it at `/badge/{slug}.svg`). "verified" only for a funder linked to Passport. No token.
+         */
+        get: operations["PublicAwards_badge"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5200,6 +5323,46 @@ export interface paths {
          * @description Published data behind `/f/{handle}`: the funder's brand and its listed opportunities. No token.
          */
         get: operations["Infrastructure_funderPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/funders/{handle}/awards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Grants-awarded page data
+         * @description Published data behind `/f/{handle}/awards`: the awards the funder lists. 404 while it does not list awards. No token.
+         */
+        get: operations["PublicAwards_funderAwards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/funders/{handle}/awards/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Award public page data
+         * @description Published data behind `/f/{handle}/awards/{slug}`. The same 404 for an award that does not exist and one that is not public. No token.
+         */
+        get: operations["PublicAwards_awardPage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12098,6 +12261,9 @@ export interface components {
             checks: components["schemas"]["Models.CloseoutCheck"][];
             ready: boolean;
         };
+        "Models.AwardConfidentialInput": {
+            confidential: boolean;
+        };
         "Models.AwardDocument": {
             /** @enum {string} */
             kind: "agreement" | "file";
@@ -12207,6 +12373,51 @@ export interface components {
         "Models.AwardInvitationTokenInput": {
             token: string;
         };
+        "Models.AwardListingSettings": {
+            /** @description "List awards on my public page". Off by default. */
+            listAwards: boolean;
+            /** @description Show amounts on the public pages, cards and share kit. On by default. */
+            showAmounts: boolean;
+            /**
+             * Format: uri
+             * @description The grants-awarded page; it answers 404 while listing is off.
+             */
+            awardsPage: string;
+            counts: {
+                /** Format: int32 */
+                listed: number;
+                /** Format: int32 */
+                confidential: number;
+                /** Format: int32 */
+                recipientUnlisted: number;
+            };
+            /** @description Each program's default for new awards. */
+            programs: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string;
+                awardsConfidential: boolean;
+            }[];
+        };
+        "Models.AwardListingSettingsInput": {
+            listAwards?: boolean;
+            showAmounts?: boolean;
+        };
+        /**
+         * @description Why an award is not public. The first that applies is given, in this order.
+         * @enum {string}
+         */
+        "Models.AwardNotListedReason": "confidential" | "individual" | "not_accepted" | "funder_unavailable" | "listing_off" | "recipient_unlisted";
+        /** @description Data for `/f/{handle}/awards/{slug}`. */
+        "Models.AwardPublicPage": {
+            funder: components["schemas"]["Models.PublicFunder"];
+            award: components["schemas"]["Models.PublicAward"];
+            /** @description The funder's workspace is linked to Passport: only then do the badge and card say verified. */
+            verified: boolean;
+            links: {
+                /** Format: uri */
+                awards: string;
+            };
+        };
         "Models.AwardRequirement": {
             id: components["schemas"]["Models.PrefixedId"];
             /** @enum {string} */
@@ -12217,6 +12428,60 @@ export interface components {
             dueAt: string | null;
             status: components["schemas"]["Models.RequirementStatus"];
             releasesTrancheId: (string & components["schemas"]["Models.PrefixedId"]) | null;
+        };
+        /** @description Ready-to-edit posts and the links that go with them. Nothing is posted from the GMS. */
+        "Models.AwardShareKit": {
+            posts: {
+                /** @description LinkedIn length. */
+                linkedin: string;
+                /** @description At most 280 characters, the link included. */
+                short: string;
+                /** @description A paragraph for a newsletter. */
+                newsletter: string;
+            };
+            links: {
+                /** Format: uri */
+                page: string;
+                /**
+                 * Format: uri
+                 * @description The funder's grants-awarded page.
+                 */
+                awards: string;
+                /** Format: uri */
+                image: string;
+                /** Format: uri */
+                badge: string;
+            };
+            badge: {
+                verified: boolean;
+                /** @description "Funded by {Funder} · verified", or without "verified" for a funder not linked to Passport. */
+                text: string;
+                /** @description An HTML snippet for the grantee's website: the badge, linked to the award page. */
+                snippet: string;
+                /** @description The badge itself, as `/badge/{slug}.svg` serves it, for a preview that loads nothing. */
+                svg: string;
+            };
+            award: components["schemas"]["Models.PublicAward"];
+        };
+        /** @description What the "Share this award" panel shows, for the funder or the grantee. */
+        "Models.AwardSharing": {
+            listed: boolean;
+            reason: components["schemas"]["Models.AwardNotListedReason"] | null;
+            confidential: boolean;
+            /** @description The grantee chose "Don't list us publicly". */
+            recipientUnlisted: boolean;
+            /** @description The funder's "List awards on my public page" setting. */
+            listingOn: boolean;
+            amountsShown: boolean;
+            /** @description Whether the caller may change this side's switch: funder admins and program officers (confidential), grantee admins (unlisted), signed in. */
+            canChange: boolean;
+            /**
+             * Format: uri
+             * @description The funder's grants-awarded page, while it lists awards.
+             */
+            awardsPage: string | null;
+            /** @description Null while the award is not public. */
+            kit: components["schemas"]["Models.AwardShareKit"] | null;
         };
         /** @enum {string} */
         "Models.AwardStatus": "offered" | "accepted" | "active" | "suspended" | "completed" | "cancelled";
@@ -12239,6 +12504,10 @@ export interface components {
             passportStatus: string | null;
             /** Format: date-time */
             releasedAt: string | null;
+        };
+        "Models.AwardUnlistedInput": {
+            /** @description True: "Don't list us publicly". */
+            unlisted: boolean;
         };
         "Models.AwardedFunding": {
             items: components["schemas"]["Models.AwardedFundingItem"][];
@@ -13588,6 +13857,23 @@ export interface components {
             /** @description Section key → user id */
             sections: {
                 [key: string]: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+        };
+        /** @description Data for `/f/{handle}/awards`. */
+        "Models.FunderAwardsPage": {
+            funder: components["schemas"]["Models.PublicFunder"];
+            /** @description Newest award date first. */
+            awards: components["schemas"]["Models.PublicAward"][];
+            /** @description The award years, newest first, to group by. */
+            years: number[];
+            /** @description The program names, A to Z, to group by. */
+            programs: string[];
+            amountsShown: boolean;
+            links: {
+                /** Format: uri */
+                page: string;
+                /** Format: uri */
+                funder: string;
             };
         };
         /** @description A person the funder names for the organizations it works with. Kept in the workspace's `settings.contacts`. */
@@ -17012,6 +17298,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        "Models.ProgramAwardSharingInput": {
+            /** @description New awards in this program start confidential. Awards already made keep their setting. */
+            awardsConfidential: boolean;
+        };
         "Models.ProgramInput": {
             /** @description Must be a member of the workspace (422 `owner_not_a_member`); null clears it */
             ownerUserId?: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
@@ -17098,6 +17388,39 @@ export interface components {
             authorization_servers: string[];
             scopes_supported: string[];
             bearer_methods_supported: string[];
+        };
+        /** @description A listed award, as the public sees it. */
+        "Models.PublicAward": {
+            /** @description `{recipient-name}-{token}`: the award page and badge address. Found by its token, so a rename keeps links working. */
+            slug: string;
+            /** @description The organization's own name in the GMS (never a Passport record it shares only with its funders). */
+            recipient: {
+                name: string;
+            };
+            /** @description The award's title: what it is for. */
+            purpose: string;
+            /** @description The program, else the published opportunity the award came from. */
+            program: string | null;
+            /** Format: int32 */
+            year: number;
+            /** Format: date */
+            awardDate: string;
+            /** @description Null when the funder hides amounts. */
+            amount: components["schemas"]["CommonGrants.Fields.Money"] | null;
+            links: {
+                /** Format: uri */
+                page: string;
+                /**
+                 * Format: uri
+                 * @description The share card (1200x627 PNG), drawn by the front Worker.
+                 */
+                image: string;
+                /**
+                 * Format: uri
+                 * @description The "Funded by" badge (SVG).
+                 */
+                badge: string;
+            };
         };
         "Models.PublicCompetition": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -22668,6 +22991,110 @@ export interface operations {
             };
         };
     };
+    AwardSharingRoutes_listingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardListingSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardSharingRoutes_updateListingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardListingSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardListingSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Awards_list_2: {
         parameters: {
             query?: {
@@ -23761,6 +24188,80 @@ export interface operations {
             };
         };
     };
+    AwardSharingRoutes_setConfidential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardConfidentialInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardSharing"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Insights_awardDocuments: {
         parameters: {
             query?: never;
@@ -24393,6 +24894,58 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardSharingRoutes_funderSharing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardSharing"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -33002,6 +33555,80 @@ export interface operations {
             };
         };
     };
+    AwardSharingRoutes_setUnlisted: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AwardUnlistedInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardSharing"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Applicant_myPayoutDestination: {
         parameters: {
             query?: never;
@@ -33074,6 +33701,58 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.AwardTranche"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardSharingRoutes_granteeSharing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardSharing"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
@@ -39317,6 +39996,71 @@ export interface operations {
             };
         };
     };
+    AwardSharingRoutes_setProgramDefault: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ProgramAwardSharingInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardListingSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Launch_getBudgetCategories: {
         parameters: {
             query?: never;
@@ -39486,6 +40230,39 @@ export interface operations {
             };
         };
     };
+    PublicAwards_badge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The "Funded by" badge. */
+            200: {
+                headers: {
+                    /** @description Cached for an hour. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
+            /** @description The same short answer for an award that does not exist, is confidential, unlisted or not yet public. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     Embed_embedWidget: {
         parameters: {
             query?: never;
@@ -39541,6 +40318,75 @@ export interface operations {
                     "application/json": {
                         /** @description Response data */
                         data: components["schemas"]["Models.FunderPage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    PublicAwards_funderAwards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FunderAwardsPage"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    PublicAwards_awardPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardPublicPage"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };

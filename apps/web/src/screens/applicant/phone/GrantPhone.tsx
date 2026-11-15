@@ -13,6 +13,7 @@ import { EmptyState, ErrorBanner, Loading } from "../../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../../lib/format.ts";
 import { AmendmentsCard, BudgetTable, conditionText, expectedText, HoldBanner, PayeeChip, periodOf, totals, useGrant, type GrantData } from "../grant.tsx";
 import { GrantDocuments, GrantMessages } from "../grantExtras.tsx";
+import { ShareAwardPanel } from "../../../components/ShareAwardPanel.tsx";
 
 function Grant({ data, base, reload }: { data: GrantData; base: string; reload: () => void }) {
   const { award, schedule, requirements, payee } = data;
@@ -174,6 +175,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
       <AmendmentsCard data={data} onSaved={reload} />
       <GrantDocuments award={award} base={base} />
       <GrantMessages award={award} />
+      <ShareAwardPanel awardId={award.id} side="grantee" funderName={award.funder.name ?? undefined} />
     </>
   );
 }

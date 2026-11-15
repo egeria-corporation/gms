@@ -11,6 +11,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Loading, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { POWERED_BY_LABEL } from "../public/PublicFrame.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
+import { AwardListingCard } from "./AwardListingSettings.tsx";
 
 export function PoweredByCard() {
   const ws = useWorkspace("funder");
@@ -98,6 +99,7 @@ export default function SettingsPublicPage() {
           <SettingsNav base={base} active="public-page" />
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <PoweredByCard />
+            <AwardListingCard />
           </div>
         </div>
       </main>

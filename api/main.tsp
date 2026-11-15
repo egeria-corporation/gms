@@ -13,6 +13,7 @@ import "./reports.tsp";
 import "./sso.tsp";
 import "./review.tsp";
 import "./gallery.tsp";
+import "./award-sharing.tsp";
 
 using TypeSpec.Http;
 
