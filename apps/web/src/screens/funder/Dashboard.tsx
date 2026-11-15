@@ -16,6 +16,7 @@ import { ActivityTimeline } from "../../components/ActivityTimeline.tsx";
 import { ApprovalCard } from "./Approvals.tsx";
 import { timeAgo, usePeople } from "./shared.tsx";
 import { publishedNotTaking } from "./applicationsStatus.tsx";
+import { useFundFilter } from "../../components/FundSwitcher.tsx";
 
 const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
 const OPEN = ["submitted", "screening", "under_review", "revision_requested", "interview", "recommended"];
@@ -38,13 +39,28 @@ export default function Dashboard() {
   const { person } = usePeople();
   const done = useApiMutation((api, t: Task) => api.updateTask(t.id, { done: true }));
 
-  const counts = apps.data?.counts ?? {};
+  // The fund chosen in the switcher: programs, their opportunities, competitions, applications and awards.
+  const fund = useFundFilter();
+  const inFund = (() => {
+    if (!fund.current) return null;
+    const programIds = new Set((programs.data ?? []).filter(fund.keepProgram).map((p) => p.id));
+    const oppIds = new Set((opportunities.data ?? []).filter((o) => o.programId && programIds.has(o.programId)).map((o) => o.id));
+    const compIds = new Set((competitions.data ?? []).filter((c) => oppIds.has(c.opportunityId)).map((c) => c.id));
+    return { programIds, oppIds, compIds };
+  })();
+  const fundPrograms = inFund ? programs.data?.filter((p) => inFund.programIds.has(p.id)) : programs.data;
+  const fundOpportunities = inFund ? opportunities.data?.filter((o) => inFund.oppIds.has(o.id)) : opportunities.data;
+  const fundCompetitions = inFund ? competitions.data?.filter((c) => inFund.compIds.has(c.id)) : competitions.data;
+  const fundApps = inFund ? apps.data?.items.filter((a) => inFund.compIds.has(a.competitionId)) : apps.data?.items;
+  const fundAwards = inFund ? awards.data?.filter((a) => a.programId && inFund.programIds.has(a.programId)) : awards.data;
+  const counts: Record<string, number> = inFund ? (fundApps ?? []).reduce<Record<string, number>>((m, a) => ({ ...m, [a.status]: (m[a.status] ?? 0) + 1 }), {}) : (apps.data?.counts ?? {});
   const open = OPEN.reduce((n, s) => n + (counts[s] ?? 0), 0);
-  const reviewsOpen = assignments.data?.filter((a) => ["assigned", "coi_declared", "in_progress"].includes(a.status)) ?? [];
-  const toCountersign = awards.data?.filter((a) => a.status === "accepted").length ?? 0;
+  const appIds = inFund ? new Set((fundApps ?? []).map((a) => a.id)) : null;
+  const reviewsOpen = assignments.data?.filter((a) => ["assigned", "coi_declared", "in_progress"].includes(a.status) && (!appIds || appIds.has(a.applicationId))) ?? [];
+  const toCountersign = fundAwards?.filter((a) => a.status === "accepted").length ?? 0;
   const firstRun = programs.status === "ready" && programs.data.length === 0;
   // Published opportunities applicants can find but cannot apply to yet.
-  const notTaking = opportunities.data && competitions.data ? opportunities.data.filter((o) => publishedNotTaking(o, competitions.data!)) : [];
+  const notTaking = fundOpportunities && competitions.data ? fundOpportunities.filter((o) => publishedNotTaking(o, competitions.data!)) : [];
   const today = new Date();
 
   return (
@@ -59,7 +75,13 @@ export default function Dashboard() {
               <>
                 <span>{today.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</span>
                 <span>·</span>
-                <span>{competitions.data?.filter((c) => c.status === "open").length ?? 0} open competitions</span>
+                <span>{fundCompetitions?.filter((c) => c.status === "open").length ?? 0} open competitions</span>
+                {fund.current && (
+                  <>
+                    <span>·</span>
+                    <span>{fund.current.name}</span>
+                  </>
+                )}
               </>
             }
             actions={
@@ -112,7 +134,7 @@ export default function Dashboard() {
                   <span className="stat-v">{awards.status === "ready" ? toCountersign : "—"}</span>
                   <span className="stat-d">
                     <Gavel className="ic ic-sm" aria-hidden="true" />
-                    {awards.data?.length ?? 0} awards
+                    {fundAwards?.length ?? 0} awards
                   </span>
                 </Link>
                 <Link to={`${base}/approvals`} className="stat" style={{ textDecoration: "none" }}>
@@ -137,9 +159,9 @@ export default function Dashboard() {
                     <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
                       {(competitions.status === "loading" || apps.status === "loading") && <Loading label="Loading the pipeline" />}
                       {apps.status === "error" && <ErrorBanner error={apps.error} onRetry={apps.reload} />}
-                      {competitions.data?.length === 0 && <p className="muted">No competitions yet. Open one from an opportunity.</p>}
-                      {competitions.data?.map((c) => {
-                        const mine = apps.data?.items.filter((a) => a.competitionId === c.id) ?? [];
+                      {fundCompetitions?.length === 0 && <p className="muted">{fund.current ? `No competitions in ${fund.current.name} yet.` : "No competitions yet. Open one from an opportunity."}</p>}
+                      {fundCompetitions?.map((c) => {
+                        const mine = fundApps?.filter((a) => a.competitionId === c.id) ?? [];
                         const decided = mine.filter((a) => ["accepted", "declined", "waitlisted"].includes(a.status)).length;
                         return (
                           <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -183,8 +205,8 @@ export default function Dashboard() {
                       </Link>
                     </div>
                     <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                      {programs.data?.map((p) => {
-                        const mine = awards.data?.filter((a) => a.programId === p.id && a.status !== "cancelled") ?? [];
+                      {fundPrograms?.map((p) => {
+                        const mine = fundAwards?.filter((a) => a.programId === p.id && a.status !== "cancelled") ?? [];
                         const committed = mine.reduce((n, a) => n + (a.awardedAmountMinor ?? 0), 0);
                         const paid = mine.reduce((n, a) => n + (a.disbursedAmountMinor ?? 0), 0);
                         const budget = p.budgetAmountMinor ?? 0;

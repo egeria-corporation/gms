@@ -129,7 +129,7 @@ describe("funds", () => {
     const res = await h.request("/gms/public/funders/riverbend/funds/elder-care");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { fund: Record<string, unknown>; opportunities: { title: string }[]; open: unknown[] } };
-    expect(body.data.fund).toEqual({ name: "Elder Care Fund", slug: "elder-care", description: "Care at home for older neighbours.", brand: { color: null, logoUrl: null } });
+    expect(body.data.fund).toEqual({ name: "Elder Care Fund", slug: "elder-care", description: "Care at home for older neighbours.", brand: { color: null, logoUrl: null }, isDefault: false });
     expect(body.data.opportunities.map((o) => o.title)).toEqual(["Home visit grants"]);
     // Nothing internal: no budgets, no advisors.
     expect(JSON.stringify(body)).not.toMatch(/budget|advisor|programIds/i);

@@ -217,7 +217,7 @@ export async function inviteAdvisor(ctx: ServiceContext, fundId: string, input: 
 // ------------------------------------------------------------------------------------ public
 
 /** What the public pages show of a fund: never its budgets or who advises it. */
-export const publicFundView = (f: Pick<Fund, "name" | "slug" | "description" | "brand">) => ({ name: f.name, slug: f.slug, description: f.description, brand: brandOf(f) });
+export const publicFundView = (f: Pick<Fund, "name" | "slug" | "description" | "brand" | "is_default">) => ({ name: f.name, slug: f.slug, description: f.description, brand: brandOf(f), isDefault: f.is_default });
 
 /**
  * A funder's funds as the public pages group its opportunities: each fund with the ids of its

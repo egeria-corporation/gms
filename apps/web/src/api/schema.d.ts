@@ -16032,6 +16032,19 @@ export interface components {
             slug: string;
             description: string | null;
             brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund: the pages name no fund for it */
+            isDefault: boolean;
+        };
+        /** @description A fund as the funder page groups its opportunities (`FunderPage.funds`, when the server sends it). */
+        "Models.PublicFundSection": {
+            name: string;
+            slug: string;
+            description: string | null;
+            brand: components["schemas"]["Models.FundBrand"];
+            /** @description The fund that holds programs made without naming a fund: the pages name no fund for it */
+            isDefault: boolean;
+            /** @description The fund's published opportunities, by id */
+            opportunityIds: components["schemas"]["CommonGrants.Types.uuid"][];
         };
         /** @description What a funder shows publicly. */
         "Models.PublicFunder": {

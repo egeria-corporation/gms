@@ -194,7 +194,14 @@ export default function OpportunityPage() {
                 <DeadlineBadge opp={o} />
               </div>
               <div className="muted" style={{ fontSize: "14px" }}>
-                {funder.name}
+                {/* A fund other than the default is named, with its page (sent once the public data carries funds). */}
+                {o.fund && !o.fund.isDefault ? (
+                  <>
+                    <Link to={`/f/${funder.handle}/${o.fund.slug}`}>{o.fund.name}</Link> · A fund of {funder.name}
+                  </>
+                ) : (
+                  funder.name
+                )}
                 {o.publishedAt ? ` · Published ${formatDate(o.publishedAt)}` : ""}
               </div>
             </div>

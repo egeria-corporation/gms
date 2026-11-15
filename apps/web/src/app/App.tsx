@@ -58,6 +58,8 @@ const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
+const FFundSettings = lazy(() => import("../screens/funder/FundSettings.tsx"));
+const FundPage = lazy(() => import("../screens/public/FundPage.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -188,6 +190,7 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
+        <Route path="/f/:handle/:fundSlug" element={<FundPage />} />
         {/* The embeddable apply widget. Any site may frame /embed/* (build/headers.ts); no sign-in. */}
         <Route path="/embed/f/:handle/o/:slug" element={<EmbedWidget />} />
         <Route path="/signin" element={<SignIn />} />
@@ -264,6 +267,7 @@ function AppRoutes() {
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="settings/public-page" element={f(<FSettingsPublicPage />)} />
+            <Route path="settings/funds" element={f(<FFundSettings />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}

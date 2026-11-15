@@ -180,6 +180,17 @@ namespace GMS.Models {
     slug: string;
     description: string | null;
     brand: FundBrand;
+
+    /** The fund that holds programs made without naming a fund: the pages name no fund for it */
+    isDefault: boolean;
+  }
+
+  /** A fund as the funder page groups its opportunities (`FunderPage.funds`, when the server sends it). */
+  model PublicFundSection {
+    ...PublicFund;
+
+    /** The fund's published opportunities, by id */
+    opportunityIds: CommonGrants.Types.uuid[];
   }
 
   model FundPage {

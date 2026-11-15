@@ -14,7 +14,7 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp" | "public-page";
+  active: "passport" | "mcp" | "public-page" | "funds";
 }) {
   const items = [
     {
@@ -23,6 +23,7 @@ export function SettingsNav({
       to: `${base}/settings/passport`,
     },
     { key: "public-page", label: "Public page", to: `${base}/settings/public-page` },
+    { key: "funds", label: "Funds", to: `${base}/settings/funds` },
     { key: "mcp", label: "Agents & MCP", to: `${base}/settings/mcp` },
   ] as const;
   return (
