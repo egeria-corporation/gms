@@ -6,6 +6,7 @@
 //   rail: nothing here can move money, and no account identifier is ever read or stored.
 // - WorkspaceApps: the funder's Google Workspace through Composio (Drive export, directory read).
 // - McpDirectory: lists the tools of a funder-registered MCP server; only read tools are allow-listed.
+// - SheetsSource, AirtableSource: import sources in connected apps through Composio, read-only (./tabular.ts).
 
 // ------------------------------------------------------------------------------------ bank feed
 
@@ -288,3 +289,4 @@ export function isRegistrableMcpUrl(url: string): boolean {
 }
 
 export * from "./composio.ts";
+export * from "./tabular.ts";

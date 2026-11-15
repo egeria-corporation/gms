@@ -246,22 +246,26 @@ describe("the pipeline", () => {
     expect(b.outside.applications[0]).toMatchObject({ source: "link", listingUrl: "https://northwind.example/grants/rural-capacity", funderRecordId: OUTSIDE_IDS.recNorthwind, stage: "drafting" });
   });
 
-  it("imports a spreadsheet after checking every row", async () => {
+  it("imports a spreadsheet through the import wizard after checking every row", async () => {
     const o = open("/w/alder-creek/applications");
-    await userEvent.click(await screen.findByRole("button", { name: "Import" }));
-    const dialog = screen.getByRole("dialog", { name: "Import applications from a spreadsheet" });
-    fireEvent.change(within(dialog).getByLabelText("Or paste the CSV"), { target: { value: "Title,Funder,Due,Ask\nCapacity 2027,Larkspur Foundation,2027-03-01,30000\nNo funder,,2027-04-01,10" } });
-    expect(within(dialog).getByLabelText(/^Title/)).toHaveValue("Title");
-    expect(within(dialog).getByLabelText(/^Full application due/)).toHaveValue("Due");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Check the rows" }));
-    const rows = within(await within(dialog).findByRole("table", { name: "Rows checked" })).getAllByRole("row");
-    expect(rows[1]).toHaveTextContent("Ready");
+    await userEvent.click(await screen.findByRole("link", { name: "Import" }));
+    await waitFor(() => expect(where()).toBe("/w/alder-creek/import"));
+    await userEvent.click(await screen.findByRole("radio", { name: /A file from your computer/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText("Or paste CSV text"), { target: { value: "Title,Funder,Due,Ask\nCapacity 2027,Larkspur Foundation,2027-03-01,30000\nNo funder,,2027-04-01,10" } });
+    await userEvent.click(screen.getByRole("button", { name: "Read the file" }));
+    expect(await screen.findByLabelText(/^Title/)).toHaveValue("Title");
+    expect(screen.getByLabelText(/^Full application due/)).toHaveValue("Due");
+    await userEvent.click(screen.getByRole("button", { name: "Check the rows" }));
+    const rows = within(await screen.findByRole("table", { name: "Rows checked" })).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Will be imported");
     expect(rows[2]).toHaveTextContent("No funder");
     const before = o.outside.applications.length;
-    await userEvent.click(within(dialog).getByRole("button", { name: "Import 1 application" }));
+    await userEvent.click(screen.getByRole("button", { name: "Import 1 application" }));
     expect(await screen.findByText("1 application imported")).toBeInTheDocument();
     expect(o.outside.applications).toHaveLength(before + 1);
     expect(o.outside.applications[0]).toMatchObject({ title: "Capacity 2027", source: "import", fullDue: "2027-03-01", askAmount: { amount: "30000.00", currency: "USD" } });
+    expect(screen.getByRole("link", { name: "Capacity 2027" })).toHaveAttribute("href", `/w/alder-creek/outside/${o.outside.applications[0]!.id}`);
   });
 });
 

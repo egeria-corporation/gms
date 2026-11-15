@@ -28,6 +28,8 @@ export interface TableRepo<T extends TableName> {
   count(where: Where<T>, opts?: Pick<FindOptions<T>, "notNull">): Promise<number>;
   one(where: Where<T>): Promise<Row<T> | null>;
   insert(row: Insert<T>): Promise<Row<T>>;
+  /** Insert several rows in one request, all or none; returns how many were written. */
+  insertMany(rows: Insert<T>[]): Promise<number>;
   /** Returns the rows after the update; an empty array means nothing matched. */
   update(where: Where<T>, patch: Update<T>): Promise<Row<T>[]>;
   remove(where: Where<T>): Promise<number>;

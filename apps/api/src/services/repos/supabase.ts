@@ -64,6 +64,13 @@ class SupabaseTable<T extends TableName> implements TableRepo<T> {
     if (error) fail(this.name, "insert", error);
     return data as Row<T>;
   }
+  async insertMany(rows: Insert<T>[]) {
+    if (!rows.length) return 0;
+    // One statement: Postgres writes every row or none. No rows are read back.
+    const { error } = await this.from().insert(rows);
+    if (error) fail(this.name, "insert", error);
+    return rows.length;
+  }
   async update(where: Where<T>, patch: Update<T>) {
     const { data, error } = await filter(this.from().update(patch), where).select("*");
     if (error) fail(this.name, "update", error);

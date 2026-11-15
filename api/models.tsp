@@ -3001,6 +3001,12 @@ model CustomMcpServerInput {
 union ConnectorProvider {
   googleWorkspace: "google_workspace",
   mercury: "mercury",
+
+  /** Import source, read-only, through Composio. */
+  googleSheets: "google_sheets",
+
+  /** Import source, read-only, through Composio. */
+  airtable: "airtable",
 }
 
 model ConnectorAccount {

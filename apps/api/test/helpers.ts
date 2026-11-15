@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { clearPassportTokenCache } from "../src/services/passport-tokens.ts";
 import { FakeLlmClient } from "@gms/assist";
-import { FixtureBankFeed, FixtureMcpDirectory, FixtureWorkspaceApps } from "@gms/connectors";
+import { FixtureAirtableSource, FixtureBankFeed, FixtureMcpDirectory, FixtureSheetsSource, FixtureWorkspaceApps } from "@gms/connectors";
 import { MemoryLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
 import { MemoryMailer } from "@gms/notify";
@@ -49,6 +49,8 @@ export interface Harness {
   openGrants: FixtureOpenGrantsClient;
   bank: FixtureBankFeed;
   workspaceApps: FixtureWorkspaceApps;
+  sheets: FixtureSheetsSource;
+  airtable: FixtureAirtableSource;
   /** Port names to leave out of the next requests, as on a server where that connection is not set up. */
   withoutPorts: Set<string>;
   mcpDirectory: FixtureMcpDirectory;
@@ -144,6 +146,8 @@ export async function harness(): Promise<Harness> {
   const creationLimiter = new MemoryCreationLimiter();
   const bank = new FixtureBankFeed();
   const workspaceApps = new FixtureWorkspaceApps();
+  const sheets = new FixtureSheetsSource();
+  const airtable = new FixtureAirtableSource();
   const mcpDirectory = new FixtureMcpDirectory();
   const llmAnswer: { value: unknown } = { value: {} };
   const llm = new FakeLlmClient(() => llmAnswer.value);
@@ -166,7 +170,7 @@ export async function harness(): Promise<Harness> {
       return passport.fetch;
     },
     ports: () => {
-      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, sheets, airtable, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) } };
       for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
       return all;
     },
@@ -190,6 +194,8 @@ export async function harness(): Promise<Harness> {
     openGrants,
     bank,
     workspaceApps,
+    sheets,
+    airtable,
     withoutPorts,
     mcpDirectory,
     llm,

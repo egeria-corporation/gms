@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Workspace integrations (build spec §9.2 "Integrations", §10.10): outbound webhooks, API
-// clients, MCP connections, funder-registered MCP servers, and the Mercury / Google Workspace
-// connectors. Every secret is shown once at creation or stored as ciphertext; none is returned.
-import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isRegistrableMcpUrl } from "@gms/connectors";
+// clients, MCP connections, funder-registered MCP servers, the Mercury / Google Workspace
+// connectors, and the import sources connected through Composio (Google Sheets, Airtable). Every secret is shown once at creation or stored as ciphertext; none is returned.
+import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isRegistrableMcpUrl, type TabularConnection, type TabularProvider } from "@gms/connectors";
 import { printValue, renderApplicationSnapshot, type SnapshotForm } from "@gms/documents";
 import { decryptSecret, encryptSecret } from "@gms/passport-client";
 import { WEBHOOK_EVENT_TYPES, encryptSecret as encryptWebhookSecret, generateWebhookSecret, isDeliverableUrl } from "@gms/webhooks";
@@ -229,9 +229,30 @@ export async function removeMcpServer(ctx: ServiceContext, id: string) {
 
 // ------------------------------------------------------------------------------------ connectors
 
-export const PROVIDERS = ["mercury", "google_workspace"] as const;
+export const PROVIDERS = ["mercury", "google_workspace", "google_sheets", "airtable"] as const;
 export type Provider = (typeof PROVIDERS)[number];
-export const connectorInput = z.object({ token: z.string().min(8).max(4000).optional() }).strict();
+export const connectorInput = z
+  .object({
+    token: z.string().min(8).max(4000).optional(),
+    /** Import sources: the web page Composio returns to, a path inside this workspace (`/w/<handle>/…`). */
+    returnTo: z.string().max(300).optional(),
+  })
+  .strict();
+
+/** The import sources connected through Composio, read-only. Either kind of workspace may connect them. */
+const IMPORT_SOURCES: readonly Provider[] = ["google_sheets", "airtable"];
+const isImportSource = (p: Provider): p is TabularProvider => IMPORT_SOURCES.includes(p);
+/** What the connector_accounts row records for each: the scope names only, never a credential. */
+const IMPORT_SCOPES: Record<TabularProvider, string[]> = { google_sheets: ["spreadsheets.readonly"], airtable: ["data.records:read", "schema.bases:read"] };
+export const importSourcePort = (ctx: Pick<ServiceContext, "ports">, p: TabularProvider): TabularConnection | undefined => (p === "google_sheets" ? ctx.ports.sheets : ctx.ports.airtable);
+const IMPORT_LABEL: Record<TabularProvider, string> = { google_sheets: "Google Sheets", airtable: "Airtable" };
+
+/** A path in this workspace's pages, or the import page when the one given is not. */
+function importReturnTo(handle: string, returnTo: string | undefined): string {
+  const fallback = `/w/${handle}/import`;
+  if (!returnTo) return fallback;
+  return returnTo.startsWith(`/w/${handle}/`) && /^\/w\/[a-z0-9-]+\/[A-Za-z0-9/_?=&.-]*$/.test(returnTo) && !returnTo.includes("//", 1) ? returnTo : fallback;
+}
 
 const accountView = (a: Row<"connector_accounts"> | null, provider: Provider) => ({ provider, connected: !!a && a.status === "active", status: a?.status ?? "not_connected", scopes: a?.scopes ?? [], lastSyncAt: a?.last_sync_at ?? null });
 
@@ -252,6 +273,7 @@ function googleWorkspaceError(e: unknown): never {
 }
 
 export async function getConnector(ctx: ServiceContext, provider: Provider) {
+  if (isImportSource(provider)) return getImportSource(ctx, provider);
   const ws = await authorize(ctx, { scope: "payments:read", kind: "funder", roles: ["admin", "finance"] });
   const a = await account(ctx, ws.id, provider);
   if (provider === "google_workspace" && ctx.ports.workspaceApps) {
@@ -274,6 +296,7 @@ export async function getConnector(ctx: ServiceContext, provider: Provider) {
  * connection lives at Composio (entity = this workspace); the GMS stores no Google credential.
  */
 export async function connect(ctx: ServiceContext, provider: Provider, input: z.output<typeof connectorInput>) {
+  if (isImportSource(provider)) return connectImportSource(ctx, provider, input);
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
   const existing = await account(ctx, ws.id, provider);
   if (provider === "google_workspace") {
@@ -304,14 +327,49 @@ export async function connect(ctx: ServiceContext, provider: Provider, input: z.
 }
 
 export async function disconnect(ctx: ServiceContext, provider: Provider) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: isImportSource(provider) ? undefined : "funder", roles: ["admin"], person: true });
   const a = await account(ctx, ws.id, provider);
   if (!a) throw notFound("Connector");
+  // An import source's connection lives at Composio too: removed there first, then the row is marked.
+  if (isImportSource(provider)) await importSourcePort(ctx, provider)?.disconnect(ws.id).catch(googleWorkspaceError);
   // Google's credential lives at Composio, so the connection is removed there before the row is marked.
   if (provider === "google_workspace" && ctx.ports.workspaceApps?.disconnect) await ctx.ports.workspaceApps.disconnect(ws.id).catch(googleWorkspaceError);
   await ctx.repos.table("connector_accounts").update({ id: a.id }, { status: "revoked", secret_enc: null });
   await audit(ctx, "connector.disconnected", "connector_account", a.id, { provider });
   return accountView({ ...a, status: "revoked" }, provider);
+}
+
+// ---- import sources (Google Sheets, Airtable) through Composio ----
+
+/** Status of an import source. A read never starts a connection; an unreachable Composio reads as not connected. */
+async function getImportSource(ctx: ServiceContext, provider: TabularProvider) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"] });
+  const a = await account(ctx, ws.id, provider);
+  const port = importSourcePort(ctx, provider);
+  if (!port) return { ...accountView(a, provider), status: "not_configured" as const, connectUrl: null };
+  const s = await port.status(ws.id).catch((e: unknown) => {
+    if (e instanceof ConnectorScopeError || e instanceof ConnectorScopeUnverifiedError || e instanceof ConnectorAuthError || e instanceof ConnectorUnavailableError) return { connected: false, connectUrl: null };
+    throw e;
+  });
+  return { ...accountView(a, provider), connected: s.connected, connectUrl: s.connectUrl };
+}
+
+/**
+ * Connect an import source: Composio returns a hosted sign-in link for this workspace's entity, with
+ * read-only access. The GMS stores no credential; the row keeps the status and the scope names.
+ */
+async function connectImportSource(ctx: ServiceContext, provider: TabularProvider, input: z.output<typeof connectorInput>) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], person: true });
+  if (input.token) throw new ApiError(422, "token_not_accepted", `${IMPORT_LABEL[provider]} is connected by signing in, not with a token`);
+  const port = importSourcePort(ctx, provider);
+  if (!port) throw new ApiError(503, "connector_not_configured", `${IMPORT_LABEL[provider]} through Composio is not configured on this server`);
+  const home = await ctx.repos.table("workspaces").one({ id: ws.id });
+  const s = await port.status(ws.id, { link: true, ...(home ? { returnTo: importReturnTo(home.handle, input.returnTo) } : {}) }).catch(googleWorkspaceError);
+  const existing = await account(ctx, ws.id, provider);
+  const patch = { status: s.connected ? "active" : "pending", scopes: IMPORT_SCOPES[provider], external_id: ws.id, secret_enc: null };
+  const row = existing ? (await ctx.repos.table("connector_accounts").update({ id: existing.id }, patch))[0]! : await ctx.repos.table("connector_accounts").insert({ workspace_id: ws.id, provider, ...patch });
+  await audit(ctx, "connector.connected", "connector_account", row.id, { provider, state: row.status });
+  return { ...accountView(row, provider), connected: s.connected, connectUrl: s.connectUrl };
 }
 
 /**
@@ -345,7 +403,7 @@ export async function syncBank(ctx: ServiceContext, workspaceId: string): Promis
 
 export async function syncConnector(ctx: ServiceContext, provider: Provider) {
   const ws = await authorize(ctx, { scope: "payments:release", kind: "funder", roles: ["admin", "finance"] });
-  if (provider !== "mercury") throw new ApiError(422, "nothing_to_sync", "Google Workspace has nothing to sync; it is read when you use it");
+  if (provider !== "mercury") throw new ApiError(422, "nothing_to_sync", `${isImportSource(provider) ? IMPORT_LABEL[provider] : "Google Workspace"} has nothing to sync; it is read when you use it`);
   const a = await account(ctx, ws.id, provider);
   if (!a || a.status !== "active") throw new ApiError(409, "not_connected", "Connect Mercury first");
   const out = await syncBank(ctx, ws.id);

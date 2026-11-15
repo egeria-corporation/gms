@@ -998,7 +998,7 @@ namespace GMS.Routes.Custom {
     @get @route("/connectors/{provider}") @useAuth(GmsOAuth<["payments:read"]> | UserSession)
     op readConnector(@path provider: ConnectorProvider): OkT<ConnectorView> | AuthErrors | NotFound;
 
-    /** Mercury: a read-only token for reconciliation. Google Workspace: the connection lives at Composio. */
+    /** Mercury: a read-only token for reconciliation. Google Workspace, Google Sheets and Airtable: the connection lives at Composio (Google Sheets and Airtable: either kind of workspace, admins). */
     @post @route("/connectors/{provider}") @useAuth(UserSession)
     op connect(@path provider: ConnectorProvider, @body body: ConnectorConnect): OkT<ConnectorView> | BadRequest | AuthErrors | NotFound | Unprocessable;
 

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
-  "description": "Composio (funder Google), Mercury read-only, custom MCP client registry",
+  "description": "Composio (funder Google; Google Sheets and Airtable import sources, read-only), Mercury read-only, custom MCP client registry",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
