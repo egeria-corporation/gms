@@ -1278,6 +1278,162 @@ export type Database = {
         };
         Relationships: [];
       };
+      import_mappings: {
+        Row: {
+          created_at: string;
+          id: string;
+          mapping: Json;
+          source: string;
+          source_ref: string;
+          target: string;
+          updated_at: string;
+          updated_by: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          mapping: Json;
+          source: string;
+          source_ref: string;
+          target: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          mapping?: Json;
+          source?: string;
+          source_ref?: string;
+          target?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      import_rows: {
+        Row: {
+          created_at: string;
+          entity_id: string | null;
+          entity_type: string | null;
+          id: string;
+          line: number;
+          outcome: string;
+          problems: Json;
+          reason: string | null;
+          record: Json | null;
+          row_key: string;
+          run_id: string;
+          subtitle: string | null;
+          target: string;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+          written_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          id?: string;
+          line: number;
+          outcome: string;
+          problems?: Json;
+          reason?: string | null;
+          record?: Json | null;
+          row_key: string;
+          run_id: string;
+          subtitle?: string | null;
+          target: string;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+          written_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string | null;
+          id?: string;
+          line?: number;
+          outcome?: string;
+          problems?: Json;
+          reason?: string | null;
+          record?: Json | null;
+          row_key?: string;
+          run_id?: string;
+          subtitle?: string | null;
+          target?: string;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+          written_at?: string | null;
+        };
+        Relationships: [];
+      };
+      import_runs: {
+        Row: {
+          committed_at: string | null;
+          committed_by: string | null;
+          created_at: string;
+          created_by: string | null;
+          dropped_columns: Json;
+          expires_at: string;
+          finished_at: string | null;
+          id: string;
+          mapping: Json;
+          reconciliation: Json;
+          rows_total: number;
+          source: string;
+          source_label: string | null;
+          source_ref: string | null;
+          target: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          committed_at?: string | null;
+          committed_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          dropped_columns?: Json;
+          expires_at: string;
+          finished_at?: string | null;
+          id?: string;
+          mapping: Json;
+          reconciliation?: Json;
+          rows_total: number;
+          source: string;
+          source_label?: string | null;
+          source_ref?: string | null;
+          target: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          committed_at?: string | null;
+          committed_by?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+          dropped_columns?: Json;
+          expires_at?: string;
+          finished_at?: string | null;
+          id?: string;
+          mapping?: Json;
+          reconciliation?: Json;
+          rows_total?: number;
+          source?: string;
+          source_label?: string | null;
+          source_ref?: string | null;
+          target?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       inbound_events: {
         Row: {
           created_at: string;
@@ -3047,4 +3203,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];
