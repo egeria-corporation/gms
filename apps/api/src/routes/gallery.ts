@@ -14,13 +14,6 @@ import { parse } from "../lib/input.ts";
 import * as gallery from "../services/gallery.ts";
 import { jsonBody, page, publicCtx, svc, userSvc } from "./http.ts";
 
-declare module "../env.ts" {
-  interface Env {
-    /** Who moderates the template gallery: comma-separated user ids or email addresses. A setting, not a secret. */
-    GALLERY_MODERATORS?: string;
-  }
-}
-
 type C = Context<AppEnv>;
 export const galleryRoutes = new Hono<AppEnv>();
 

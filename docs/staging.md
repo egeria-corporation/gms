@@ -152,7 +152,9 @@ order: the database first, then the API, the jobs Worker and the web app.
 
 **Not set:** `PASSPORT_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET`; and, new in v1.7.0,
 `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID` and `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` (API). Until they are,
-imports offer CSV and Excel files only.
+imports offer CSV and Excel files only. New in v1.8.0: `GALLERY_MODERATORS` (API, a secret, not a
+`[vars]` entry). Until it is set, nobody moderates the template gallery and nothing new is published;
+the nine starter items still show.
 
 ## Sign in with Passport
 

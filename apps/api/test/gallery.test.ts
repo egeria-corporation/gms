@@ -353,6 +353,13 @@ describe("sharing and moderation", () => {
     expect(e.kind).toBe("email_template");
   });
 
+  it("moderators come from a secret, never from the public wrangler.toml", () => {
+    for (const worker of ["../wrangler.toml", "../../jobs/wrangler.toml"]) {
+      const toml = readFileSync(fileURLToPath(new URL(worker, import.meta.url)), "utf8");
+      expect(toml, worker).not.toMatch(/GALLERY_MODERATORS/);
+    }
+  });
+
   it("moderators are a fixed list, matched by user id or email", () => {
     expect(isModerator(" a@b.example , 5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a", { userId: "5A5A5A5A-5A5A-4A5A-8A5A-5A5A5A5A5A5A", email: null })).toBe(true);
     expect(isModerator("a@b.example", { userId: USER_ADMIN, email: "A@B.example" })).toBe(true);

@@ -37,6 +37,8 @@ COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID=
 COMPOSIO_AIRTABLE_AUTH_CONFIG_ID=
 RESEND_API_KEY=
 RESEND_FROM=
+# Template gallery moderators: comma-separated user ids or email addresses (a secret, never in wrangler.toml)
+GALLERY_MODERATORS=
 RESEND_INBOUND_SECRET=
 # Domain that receives replies (thread+<id>@domain); defaults to the domain of RESEND_FROM
 RESEND_INBOUND_DOMAIN=

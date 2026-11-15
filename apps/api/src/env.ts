@@ -54,6 +54,12 @@ export interface Env {
   RESEND_INBOUND_DOMAIN?: string;
   /** Where consulting requests from outside applications go (default hello@agents.opengrants.io; on on every install). */
   CONSULTING_REQUEST_TO?: string;
+  /**
+   * Who moderates the template gallery: comma-separated user ids or email addresses. A Wrangler
+   * secret, never a `[vars]` entry: wrangler.toml is public and moderators' addresses must not be.
+   * Unset, nobody moderates and nothing new is published.
+   */
+  GALLERY_MODERATORS?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;

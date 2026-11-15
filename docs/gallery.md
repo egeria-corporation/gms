@@ -92,8 +92,8 @@ already made stay theirs.
 
 ## Moderation
 
-Operators listed in the setting **`GALLERY_MODERATORS`** (comma-separated user ids or email
-addresses; a variable, not a secret) review submissions at `/gallery/moderation` (linked from the
+Operators listed in **`GALLERY_MODERATORS`** (comma-separated user ids or email addresses; a
+Wrangler secret, never a `[vars]` entry, because `wrangler.toml` is public) review submissions at `/gallery/moderation` (linked from the
 gallery for them). Each card shows the summary, tags, the author and its verification, what was
 taken out, and a preview of the content. A moderator:
 

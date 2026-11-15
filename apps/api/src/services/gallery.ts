@@ -58,7 +58,7 @@ export interface Moderator {
   email: string | null;
 }
 
-/** GALLERY_MODERATORS: comma-separated user ids or email addresses (a setting, not a secret). */
+/** GALLERY_MODERATORS: comma-separated user ids or email addresses (a Wrangler secret, so the addresses are never published). */
 export function moderatorsOf(raw: string | null | undefined): { ids: Set<string>; emails: Set<string> } {
   const ids = new Set<string>();
   const emails = new Set<string>();
