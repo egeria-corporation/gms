@@ -5,8 +5,12 @@
 // column's name and the kind of match are kept, so the preview can say what was left out; the
 // values themselves never leave this function.
 //
-// The value checks are deliberately strict (one matching cell drops the whole column). Two narrow
-// exceptions keep ordinary grant data importable: in a column whose header names an EIN (an
+// The value checks are deliberately strict (one matching cell drops the whole column). Any value
+// that is nine digits once spaces and dashes are taken out is read as a person's identity number
+// (or, when it passes the routing checksum, bank details), whatever its checksum: an unformatted
+// identity number under a header like "ID" or "Reference" must not slip through. The cost is
+// accepted: a ZIP+4 code or a formatted EIN in a column not named for an EIN is left out too. Two
+// narrow exceptions keep ordinary grant data importable: in a column whose header names an EIN (an
 // organization's public number on its 990), nine-digit values are read as EINs, and in a column
 // whose header names a phone, ten- and eleven-digit values are read as phone numbers.
 //
@@ -25,7 +29,7 @@ export interface DroppedColumn {
 export const DROP_REASON_TEXT: Record<DropReason, string> = {
   header: "Its name suggests bank or identity details",
   bank_routing: "Its values look like bank details",
-  identity_number: "Its values look like a person's identity number",
+  identity_number: "Its values look like a person's identity number. Any nine-digit number is left out unless the column is named EIN, so ZIP+4 codes are left out too",
   long_number: "Its values look like account or card numbers",
 };
 
@@ -74,8 +78,7 @@ const PHONE_HEADER = /phone|\btel\b|telephone|mobile|\bcell\b|\bfax\b/i;
 const IDENTITY_FORMATTED = /^\d{3}-\d{2}-\d{4}$|^\d{3} \d{2} \d{4}$/;
 const NINE_DIGITS = /^\d{9}$/;
 const LONG_DIGITS = /^\d{10,19}$/;
-/** Shapes that are something else: an EIN (12-3456789) and a US phone number (555-010-0123). */
-const EIN_FORMATTED = /^\d{2}-\d{7}$/;
+/** A shape that is something else: a US phone number (555-010-0123). */
 const PHONE_FORMATTED = /^\d{3}[-. ]\d{3}[-. ]\d{4}$/;
 
 /**
@@ -96,11 +99,12 @@ export function sensitiveValue(raw: string, header: string): Exclude<DropReason,
   const v = raw.trim();
   if (!v || v.length > 40) return null;
   if (IDENTITY_FORMATTED.test(v)) return "identity_number";
-  if (EIN_FORMATTED.test(v) || PHONE_FORMATTED.test(v)) return null;
+  if (PHONE_FORMATTED.test(v)) return null;
   // Digits written with spaces or dashes between groups read the same as bare digits.
   const digits = /^[\d\s-]+$/.test(v) ? v.replace(/[\s-]/g, "") : null;
   if (!digits) return null;
-  if (NINE_DIGITS.test(digits) && !EIN_HEADER.test(header) && isAbaRoutingShaped(digits)) return "bank_routing";
+  // Nine digits: an EIN only in a column named for one; anything else is dropped (see the top).
+  if (NINE_DIGITS.test(digits)) return EIN_HEADER.test(header) ? null : isAbaRoutingShaped(digits) ? "bank_routing" : "identity_number";
   if (LONG_DIGITS.test(digits)) {
     const phone = PHONE_HEADER.test(header) && (digits.length === 10 || (digits.length === 11 && digits.startsWith("1")));
     if (!phone) return "long_number";

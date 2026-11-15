@@ -4,7 +4,7 @@
 // per row, grant history with payments recorded as paid elsewhere (never through Passport), and
 // who may do what. Google Sheets and Airtable are the connector fixtures here; the real Composio
 // connectors are tested against a fake Composio in packages/connectors.
-import { parseCsv } from "@gms/importers";
+import { DROP_REASON_TEXT, parseCsv } from "@gms/importers";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
@@ -92,7 +92,7 @@ describe("outside applications from a CSV", () => {
     const read = await data<{ rows: number; columns: { name: string; samples: string[] }[]; dropped: { column: string; why: string }[]; mapping: Record<string, string>; savedMapping: string | null }>(applicant, "POST", "/gms/imports/read", { target: "outside_applications", source: csv(PIPELINE) });
     expect(read.rows).toBe(3);
     expect(read.columns.map((c) => c.name)).toEqual(["Grant", "Funder", "Stage", "Deadline", "Ask", "Submitted", "How", "Awarded"]);
-    expect(read.dropped).toEqual([{ column: "Contact ref", reason: "identity_number", why: "Its values look like a person's identity number" }]);
+    expect(read.dropped).toEqual([{ column: "Contact ref", reason: "identity_number", why: DROP_REASON_TEXT.identity_number }]);
     expect(JSON.stringify(read)).not.toContain(IDENTITY_SHAPED);
     expect(read.mapping).toMatchObject({ title: "Grant", funderName: "Funder", stage: "Stage", fullDue: "Deadline", askAmount: "Ask", submittedAt: "Submitted", awardedAmount: "Awarded" });
     expect(read.savedMapping).toBeNull();

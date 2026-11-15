@@ -4,7 +4,7 @@
 // no file in the repository holds one (and the headers are put together from parts, so this file
 // passes the sensitive-data gate).
 import { describe, expect, it } from "vitest";
-import { isAbaRoutingShaped, isSensitiveHeader, screenColumns, sensitiveValue } from "../src/index.ts";
+import { DROP_REASON_TEXT, isAbaRoutingShaped, isSensitiveHeader, screenColumns, sensitiveValue } from "../src/index.ts";
 
 /** Nine digits that pass the routing checksum: eight chosen digits and the check digit that fits. */
 function checksumValid(prefix8: string): string {
@@ -46,7 +46,35 @@ describe("value screening", () => {
     expect(sensitiveValue(IDENTITY_SHAPED, "EIN")).toBe("identity_number");
   });
   it("leaves ordinary grant values alone", () => {
-    for (const v of ["50000", "$25,000.00", "2027-05-01", "12-3456789", "(555) 010-0123", "555-010-0123", "Van route", "AB-2024-0042", "2024"]) expect(sensitiveValue(v, "Anything")).toBeNull();
+    for (const v of ["50000", "$25,000.00", "2027-05-01", "(555) 010-0123", "555-010-0123", "Van route", "AB-2024-0042", "2024", "97201", "12345-678"]) expect(sensitiveValue(v, "Anything")).toBeNull();
+  });
+  it("drops bare nine digits under any header not named for an EIN, checksum or not", () => {
+    // Shaped like an identity number written without dashes, failing the routing checksum.
+    const unformatted = IDENTITY_SHAPED.replace(/-/g, "");
+    expect(isAbaRoutingShaped(unformatted)).toBe(false);
+    expect(isAbaRoutingShaped(ROUTING_WRONG_SUM)).toBe(false);
+    for (const header of ["ID", "Reference", "Contact", "Notes"]) {
+      expect(sensitiveValue(unformatted, header), header).toBe("identity_number");
+      expect(sensitiveValue(ROUTING_WRONG_SUM, header), header).toBe("identity_number");
+      expect(sensitiveValue(unformatted.replace(/(\d{3})(\d{2})/, "$1 $2 "), header), header).toBe("identity_number");
+      expect(sensitiveValue(ROUTING_SHAPED, header), header).toBe("bank_routing");
+    }
+    // A formatted EIN outside an EIN column reads as nine digits too.
+    expect(sensitiveValue("12-3456789", "Reference")).toBe("identity_number");
+  });
+  it("keeps a real EIN under an EIN header, formatted or not", () => {
+    for (const header of ["EIN", "Recipient EIN", "FEIN", "Employer identification"]) {
+      expect(sensitiveValue("12-3456789", header), header).toBeNull();
+      expect(sensitiveValue("123456789", header), header).toBeNull();
+    }
+    const s = screenColumns(["Organization", "EIN"], [["Alder Creek", "12-3456789"], ["Pine Valley", "987654321"]]);
+    expect(s).toEqual({ keep: [0, 1], dropped: [] });
+  });
+  it("drops a ZIP+4 written as nine digits under Zip (an accepted cost), and says why", () => {
+    const s = screenColumns(["Organization", "Zip"], [["Alder Creek", "97201"], ["Pine Valley", "972011234"]]);
+    expect(s).toEqual({ keep: [0], dropped: [{ column: "Zip", reason: "identity_number" }] });
+    expect(DROP_REASON_TEXT.identity_number).toContain("ZIP+4");
+    expect(DROP_REASON_TEXT.identity_number).toContain("named EIN");
   });
 });
 
