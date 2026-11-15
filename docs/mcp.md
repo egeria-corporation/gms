@@ -177,6 +177,7 @@ There is no consulting-request tool and no vault upload tool, and no tool moves 
 | `get_funding_summary` | `applications:read` | — | Applications by fiscal year, win rate, asked and awarded. |
 | `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
 | `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
+| `get_send_package` | `applications:read` | — | Describe the send-to-funder package: cover, questions in order, budget summary, attached files (this application's own and the vault documents used for its checklist), any answer that looks like a bank, card or identity number, and the PDF and ZIP download paths. No tool emails the package; only a person does, in the GMS. |
 
 ### Applicant tools
 

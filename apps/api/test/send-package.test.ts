@@ -390,3 +390,23 @@ describe("zip writer", () => {
     expect([...unzip(zip).keys()]).toEqual(["ä.txt"]);
   });
 });
+
+describe("MCP", () => {
+  let seq = 0;
+  const rpc = async (token: string, method: string, params?: unknown) => {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++seq, method, ...(params ? { params } : {}) }) });
+    return ((await res.json()) as { result: Record<string, unknown> }).result;
+  };
+  const token = () => h.forge({ sub: USER_APPLICANT, client_id: CLIENT_AGENT, scope: "applications:read applications:write", [WORKSPACE_CLAIM]: WS_APPLICANT, jti: `tok-pkg-${++seq}` });
+
+  it("an agent reads what the package holds; no tool sends it", async () => {
+    const out = (await rpc(await token(), "tools/call", { name: "get_send_package", arguments: { outsideApplicationId: oaId } })).structuredContent as { files: { contents: string[] }; downloads: { zip: string }; email: { available: boolean; reason: string } };
+    expect(out.files.contents).toEqual(["Rural-clinics-2027.pdf", "Letter of support.pdf", "Board list 2027.pdf", "answers.txt"]);
+    expect(out.downloads.zip).toBe(`/gms/outside-applications/${oaId}/package.zip`);
+    expect(out.email).toMatchObject({ available: false, reason: "Only a person emails the package, in the GMS" });
+    const tools = (await rpc(await token(), "tools/list")).tools as { name: string; _meta: Record<string, unknown> }[];
+    expect(tools.filter((t) => /package|funder_email|send_to/.test(t.name)).map((t) => t.name)).toEqual(["get_send_package"]);
+    expect(tools.find((t) => t.name === "get_send_package")!._meta["gms/gated"]).toBe(false);
+    expect(h.mailer.sent).toHaveLength(0);
+  });
+});
