@@ -386,3 +386,52 @@ describe("agents", () => {
     expect(one.snapshot.emails[0]!.name).toBe("Decline");
   });
 });
+
+describe("red team: what is not approved", () => {
+  const OTHER_ADMIN = "7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c";
+  async function mcp(h: Harness, token: string, name: string, args: Record<string, unknown>) {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) });
+    return JSON.stringify(await res.json());
+  }
+
+  it("is unreachable anonymously and by other workspaces: pending, declined and withdrawn alike", async () => {
+    const h = await withStarters();
+    const admin = await as(h, USER_ADMIN);
+    const mod = await person(h, MODERATOR);
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_OTHER, user_id: OTHER_ADMIN, role: "admin" });
+    const other = await as(h, OTHER_ADMIN, WS_OTHER);
+    const form = await sharedForm(h, admin);
+    const submit = async (title: string) => data<{ id: string }>(await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions`, json(admin, { ...SUBMIT, title, summary: `${title}, for the red team.`, source: { type: "form", id: form.id } })));
+    // One declined, one approved then withdrawn, one still pending (the same form can be shared again once the last is settled).
+    const declined = await submit("Zzdeclined application");
+    expect((await h.request(`/gms/gallery/moderation/submissions/${declined.id}/reject`, json(mod, { reason: "Names a staff member." }))).status).toBe(200);
+    const withdrawn = await submit("Zzwithdrawn application");
+    const approved = await data<{ item: { slug: string } }>(await h.request(`/gms/gallery/moderation/submissions/${withdrawn.id}/approve`, json(mod, {})));
+    expect((await h.request(`/gms/gallery/${approved.item.slug}`)).status).toBe(200);
+    expect((await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions/${withdrawn.id}/withdraw`, json(admin, {}))).status).toBe(200);
+    const pending = await submit("Zzpending application");
+    const MARK = /zz(pending|declined|withdrawn)/i;
+    const slugs = [approved.item.slug, "zzpending-application", "zzdeclined-application"];
+
+    // Anonymously: the list (every page, every search), each would-be address, and the moderation routes.
+    for (const q of ["", "?q=zzpending", "?q=zzdeclined", "?q=zzwithdrawn", "?pageSize=100", "?kind=application_form&pageSize=100"]) expect(await (await h.request(`/gms/gallery${q}`)).text(), q).not.toMatch(MARK);
+    for (const slug of slugs) expect((await h.request(`/gms/gallery/${slug}`)).status, slug).toBe(404);
+    for (const [method, path] of [["GET", "/gms/gallery/moderation/queue"], ["POST", `/gms/gallery/moderation/submissions/${pending.id}/approve`], ["GET", `/gms/workspaces/${WS_FUNDER}/gallery/submissions`]] as const) expect((await h.request(path, { method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: "{}" } : {}) })).status, path).toBe(401);
+    expect(await (await h.request("/sitemap.xml")).text()).not.toMatch(MARK);
+
+    // Another funder workspace's admin: its own submissions list, the author's list, withdrawing, copying, MCP.
+    expect(await (await h.request(`/gms/workspaces/${WS_OTHER}/gallery/submissions`, { headers: other })).text()).not.toMatch(MARK);
+    expect([403, 404]).toContain((await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions`, { headers: { ...other, "X-GMS-Workspace": WS_FUNDER } })).status);
+    expect([403, 404]).toContain((await h.request(`/gms/workspaces/${WS_OTHER}/gallery/submissions/${pending.id}/withdraw`, json(other, {}))).status);
+    for (const slug of slugs) expect((await h.request(`/gms/workspaces/${WS_OTHER}/gallery/items/${slug}/copy`, json(other, {}))).status, slug).toBe(404);
+    expect((await h.request("/gms/gallery/moderation/queue", { headers: await person(h, OTHER_ADMIN) })).status).toBe(403);
+    const agent = await h.forge({ sub: OTHER_ADMIN, client_id: CLIENT_AGENT, scope: "forms:read", [WORKSPACE_CLAIM]: WS_OTHER, jti: "tok-gallery-redteam" });
+    expect(await mcp(h, agent, "search_gallery", { q: "zzpending" })).not.toMatch(MARK);
+    for (const slug of slugs) expect(await mcp(h, agent, "get_gallery_item", { slug })).not.toMatch(MARK);
+    // Nothing of theirs was changed or copied.
+    expect((await h.repos.table("gallery_submissions").one({ id: pending.id }))!.status).toBe("pending");
+    expect(await h.repos.table("forms").count({ workspace_id: WS_OTHER })).toBe(0);
+    // The author's own team still sees all three, with their status.
+    expect((await items<{ status: string }>(await h.request(`/gms/workspaces/${WS_FUNDER}/gallery/submissions`, { headers: admin }))).map((x) => x.status).sort()).toEqual(["pending", "rejected", "withdrawn"]);
+  });
+});
