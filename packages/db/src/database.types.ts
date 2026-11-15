@@ -553,6 +553,7 @@ export type Database = {
           cg: Json | null;
           cg_status: string;
           conditions: string[];
+          confidential: boolean;
           created_at: string;
           description: string | null;
           disbursed_at: string | null;
@@ -564,7 +565,9 @@ export type Database = {
           passport_award_id: string | null;
           passport_synced_at: string | null;
           program_id: string | null;
+          public_slug: string;
           recipient_individual: Json | null;
+          recipient_unlisted: boolean;
           recipient_workspace_id: string | null;
           status: string;
           title: string;
@@ -577,6 +580,7 @@ export type Database = {
           cg?: Json | null;
           cg_status?: string;
           conditions?: string[];
+          confidential?: boolean;
           created_at?: string;
           description?: string | null;
           disbursed_at?: string | null;
@@ -588,7 +592,9 @@ export type Database = {
           passport_award_id?: string | null;
           passport_synced_at?: string | null;
           program_id?: string | null;
+          public_slug?: string;
           recipient_individual?: Json | null;
+          recipient_unlisted?: boolean;
           recipient_workspace_id?: string | null;
           status?: string;
           title: string;
@@ -601,6 +607,7 @@ export type Database = {
           cg?: Json | null;
           cg_status?: string;
           conditions?: string[];
+          confidential?: boolean;
           created_at?: string;
           description?: string | null;
           disbursed_at?: string | null;
@@ -612,7 +619,9 @@ export type Database = {
           passport_award_id?: string | null;
           passport_synced_at?: string | null;
           program_id?: string | null;
+          public_slug?: string;
           recipient_individual?: Json | null;
+          recipient_unlisted?: boolean;
           recipient_workspace_id?: string | null;
           status?: string;
           title?: string;
@@ -2510,6 +2519,7 @@ export type Database = {
       };
       programs: {
         Row: {
+          awards_confidential: boolean;
           budget_amount_minor: number | null;
           created_at: string;
           currency: string;
@@ -2523,6 +2533,7 @@ export type Database = {
           workspace_id: string;
         };
         Insert: {
+          awards_confidential?: boolean;
           budget_amount_minor?: number | null;
           created_at?: string;
           currency?: string;
@@ -2536,6 +2547,7 @@ export type Database = {
           workspace_id: string;
         };
         Update: {
+          awards_confidential?: boolean;
           budget_amount_minor?: number | null;
           created_at?: string;
           currency?: string;
