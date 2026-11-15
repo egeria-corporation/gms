@@ -12,6 +12,7 @@ import { confirmPassportLink } from "../services/passport-signin.ts";
 import * as sessions from "../services/sessions.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
+import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
@@ -132,6 +133,8 @@ gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
+// Award sharing (v1.8.0): the share panel, confidential and unlisted switches, listing settings.
+gms.route("/", awardSharingRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
