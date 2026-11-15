@@ -4,10 +4,27 @@
 // reconciliation, saved mappings and the idempotent run log, all in page memory. Outside
 // applications are written to the outside-applications mock store, so they appear in the
 // Applications list; grant history is kept in this store only. Google Sheets and Airtable are
-// stand-ins with one spreadsheet and one base.
+// stand-ins with one spreadsheet and one base. Importer adapters (v1.8.0) run as on the server: a
+// grants system's preset and its never-awarded rows set aside; Fluxx and Zengine are stand-ins
+// with a few made-up records; zip files are matched by path and kept by name and size only.
 import {
+  ADAPTERS,
+  adapterMapping,
+  adaptersFor,
+  adapterView,
+  ATTACHMENT_MISS_TEXT,
+  baseName,
   columnsFingerprint,
+  detectAdapter,
   DROP_REASON_TEXT,
+  FILE_ADAPTERS,
+  FLUXX,
+  idKey,
+  matchAttachments,
+  mimeFor,
+  setAsideNotAwarded,
+  tableFromJson,
+  ZENGINE,
   MAX_IMPORT_ROWS,
   planImport,
   screenColumns,
@@ -18,7 +35,9 @@ import {
   tableFromRecords,
   TARGETS,
   withAlreadyImported,
+  type AdapterKey,
   type DroppedColumn,
+  type ImportAdapter as Adapter,
   type ImportTarget as Target,
   type OutsideRecord,
   type PlannedRow,
@@ -26,7 +45,7 @@ import {
 } from "@gms/importers";
 import type { Session } from "../auth/types.ts";
 import { ApiError } from "../api/client.ts";
-import type { ConnectedApp, ImportCommitted, ImportPreview, ImportRead, ImportRun, ImportRunDetail, ImportsApi, ImportSourceInput, ImportSources, ImportTarget } from "../api/imports.ts";
+import type { ConnectedApp, ImportCommitted, ImportFile, ImportPreview, ImportPuller, ImportRead, ImportRun, ImportRunDetail, ImportsApi, ImportSourceInput, ImportSources, ImportTarget } from "../api/imports.ts";
 import type { OutsideApi } from "../api/outside.ts";
 import type { OutsideStore } from "./outside.ts";
 
@@ -49,7 +68,7 @@ interface MockRunRow {
 }
 
 export interface ImportsStore {
-  runs: { run: ImportRun; workspaceId: string; rows: MockRunRow[] }[];
+  runs: { run: ImportRun; workspaceId: string; rows: MockRunRow[]; ref: { kind: string; ref: string | null } }[];
   /** Written row keys by workspace and target: what makes a re-run skip. */
   written: Map<string, string>;
   mappings: Map<string, Record<string, string>>;
@@ -58,6 +77,12 @@ export interface ImportsStore {
   airtable: Record<string, { tables: { id: string; name: string; fields: string[] }[]; records: Record<string, { id: string; fields: Record<string, unknown> }[]> }>;
   /** Grant history written in mock mode (there is no mock awards store to share). */
   awards: { id: string; title: string; recipientName: string; amountMinor: number; paidMinor: number | null }[];
+  /** Fluxx and Zengine: connected or not, per workspace (no credential is kept in mock mode). */
+  pullers: Record<string, Partial<Record<ImportPuller, { instance: string | null; at: string }>>>;
+  fluxxGrants: Record<string, string>[];
+  zengine: { forms: { id: string; name: string; workspaceId: string; workspaceName: string }[]; columns: string[]; records: Record<string, string>[] };
+  /** Files attached from a zip: names and sizes only. */
+  files: (ImportFile & { runId: string })[];
 }
 
 export function seedImportsStore(): ImportsStore {
@@ -82,6 +107,21 @@ export function seedImportsStore(): ImportsStore {
       },
     },
     awards: [],
+    pullers: {},
+    fluxxGrants: [
+      { "Fluxx ID": "4101", "Request ID": "R-23-0101", Organization: "Harbor Food Bank", "Project title": "Cold storage", "Amount requested": "30000", "Amount awarded": "25000", Granted: "Yes", Status: "granted", "Approved on": "2023-05-02", "Grant begins": "2023-06-01", "Grant ends": "2024-05-31", "Closed on": "2024-07-01", "Amount paid": "25000.00", "Last paid on": "2023-06-15" },
+      { "Fluxx ID": "4102", "Request ID": "R-23-0102", Organization: "Valley Singers", "Project title": "Spring tour", "Amount requested": "8000", "Amount awarded": "", Granted: "No", Status: "declined", "Approved on": "", "Grant begins": "", "Grant ends": "", "Closed on": "", "Amount paid": "", "Last paid on": "" },
+      { "Fluxx ID": "4103", "Request ID": "R-24-0007", Organization: "Northside Youth Sports", "Project title": "Coaching clinics", "Amount requested": "12000", "Amount awarded": "12000", Granted: "Yes", Status: "granted", "Approved on": "2024-02-10", "Grant begins": "2024-03-01", "Grant ends": "2025-02-28", "Closed on": "", "Amount paid": "6000.00", "Last paid on": "2024-03-05" },
+    ],
+    zengine: {
+      forms: [{ id: "42", name: "Community grants", workspaceId: "7", workspaceName: "Grantmaking" }],
+      columns: ["Zengine record ID", "Record name", "Organization", "Project title", "Amount Awarded", "Status"],
+      records: [
+        { "Zengine record ID": "900101", "Record name": "CG-101", Organization: "Riverside Neighbors", "Project title": "Creek cleanup", "Amount Awarded": "5000", Status: "Awarded" },
+        { "Zengine record ID": "900102", "Record name": "CG-102", Organization: "Elm Street Seniors", "Project title": "Lunch club", "Amount Awarded": "", Status: "Declined" },
+      ],
+    },
+    files: [],
   };
 }
 
@@ -95,7 +135,8 @@ export interface MockImportsOptions {
   now?: () => Date;
 }
 
-const SOURCE_LABEL = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable" } as const;
+const SOURCE_LABEL = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine" } as const;
+const PULLER_LABEL: Record<ImportPuller, string> = { fluxx: "Fluxx", zengine: "Zengine" };
 const clone = <T>(v: T): T => structuredClone(v);
 const invalid = (code: string, message: string) => new ApiError(422, message, [{ code }]);
 
@@ -112,9 +153,20 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
     return ws;
   }
 
-  async function load(source: ImportSourceInput): Promise<{ table: SourceTable; label: string; ref: string | null; extra: Partial<ImportRead["source"]> }> {
+  async function load(source: ImportSourceInput, wsId: string): Promise<{ table: SourceTable; label: string; ref: string | null; extra: Partial<ImportRead["source"]> }> {
     try {
       if (source.kind === "csv") return { table: tableFromCsv(source.text), label: source.fileName || "Pasted CSV", ref: null, extra: {} };
+      if (source.kind === "json") return { table: tableFromJson(source.text), label: source.fileName || "JSON export", ref: null, extra: {} };
+      if (source.kind === "fluxx" || source.kind === "zengine") {
+        if (!store.pullers[wsId]?.[source.kind]) throw new ApiError(409, `Connect ${PULLER_LABEL[source.kind]} first`, [{ code: "source_not_connected" }]);
+        if ((source.startPage ?? 1) > 1) throw invalid("empty_source", `${PULLER_LABEL[source.kind]} has no more records after the ones imported`);
+        if (source.kind === "fluxx") {
+          const records = store.fluxxGrants.map((r) => ({ id: r["Fluxx ID"]!, fields: r }));
+          return { table: tableFromRecords(records, Object.keys(store.fluxxGrants[0]!)), label: `Fluxx · ${store.pullers[wsId]!.fluxx!.instance ?? "your instance"} · grant requests (records 1–${records.length} of ${records.length})`, ref: "fluxx:mock", extra: { nextPage: null, total: records.length } };
+        }
+        const records = store.zengine.records.map((r) => ({ id: r["Zengine record ID"]!, fields: r }));
+        return { table: tableFromRecords(records, store.zengine.columns), label: `Zengine · form ${source.formId} (records 1–${records.length} of ${records.length})`, ref: `zengine:form:${source.formId}`, extra: { nextPage: null, total: records.length } };
+      }
       if (source.kind === "xlsx") {
         const { readXlsx } = await import("@gms/importers/xlsx");
         const bin = atob(source.base64);
@@ -191,36 +243,44 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
           { kind: "xlsx", label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
           { kind: "google_sheets", label: SOURCE_LABEL.google_sheets, connected: store.connected.google_sheets, canConnect: admin },
           { kind: "airtable", label: SOURCE_LABEL.airtable, connected: store.connected.airtable, canConnect: admin },
+          ...(target === "award_history" ? (["fluxx", "zengine"] as const).map((k) => ({ kind: k, label: PULLER_LABEL[k], connected: !!store.pullers[ws.id]?.[k], canConnect: admin })) : []),
         ],
+        adapters: adaptersFor(target).map(adapterView),
       };
     },
 
-    async read(target, source): Promise<ImportRead> {
+    async read(target, source, named): Promise<ImportRead> {
       const ws = await where(target);
-      const src = await load(source);
+      const src = await load(source, ws.id);
       const s = screenColumns(src.table.header, src.table.rows.map((r) => r.cells));
       const columns = s.keep.map((i) => ({ name: src.table.header[i]!, samples: [...new Set(src.table.rows.map((r) => (r.cells[i] ?? "").trim()).filter(Boolean))].slice(0, 3) }));
       const ref = src.ref ?? (await columnsFingerprint(columns.map((c) => c.name)));
       const exact = store.mappings.get(mappingKey(ws.id, target, source.kind, ref));
       const similar = exact ? null : [...store.mappings.entries()].reverse().find(([k]) => k.startsWith(`${ws.id}|${target}|${source.kind}|`))?.[1];
       const t = TARGETS[target] as unknown as Target;
+      const names = columns.map((c) => c.name);
+      const { adapter, detected } = adapterFor(target, source.kind, named, names);
       return {
         target,
         source: { kind: source.kind, label: src.label, ...src.extra },
         rows: src.table.rows.length,
         columns,
         dropped: dropped(s.dropped),
-        mapping: suggestMapping(t, columns.map((c) => c.name), exact ?? similar ?? null) as Record<string, string>,
+        mapping: (adapter ? adapterMapping(adapter, t, names, exact ? { exact } : { similar: similar ?? null }) : suggestMapping(t, names, exact ?? similar ?? null)) as Record<string, string>,
         savedMapping: exact ? "this_source" : similar ? "similar_source" : null,
         fields: fields(target),
+        adapter: adapter ? { key: adapter.key, system: adapter.system } : null,
+        detected: detected ? { key: detected.adapter.key, system: detected.adapter.system, matched: detected.matched } : null,
       };
     },
 
-    async preview({ target, source, mapping, saveMapping }): Promise<ImportPreview> {
+    async preview({ target, source, mapping, saveMapping, adapter: named }): Promise<ImportPreview> {
       const ws = await where(target);
-      const src = await load(source);
+      const src = await load(source, ws.id);
       const t = TARGETS[target] as unknown as Target<string, unknown>;
       let plan = await planImport({ target: t, table: src.table, mapping, source: { kind: source.kind, ref: src.ref } });
+      const { adapter } = adapterFor(target, source.kind, named, plan.columns);
+      if (adapter) plan = setAsideNotAwarded(plan, src.table, adapter, t);
       if (plan.missingRequired.length) throw invalid("mapping_incomplete", `Choose a column for: ${plan.missingRequired.map((f) => t.fields.find((x) => x.key === f)?.label ?? f).join(", ")}`);
       const already = new Map(plan.rows.filter((r) => store.written.has(writtenKey(ws.id, target, r.key))).map((r) => [r.key, store.written.get(writtenKey(ws.id, target, r.key)) ?? null]));
       plan = withAlreadyImported(plan, already);
@@ -240,10 +300,12 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         committedAt: null,
         finishedAt: null,
         expiresAt: new Date(at.getTime() + 24 * 3600 * 1000).toISOString(),
+        adapter: adapter ? { key: adapter.key, system: adapter.system } : null,
+        nextPage: null,
       };
       const rows: MockRunRow[] = plan.rows.map((r: PlannedRow) => ({ line: r.line, key: r.key, outcome: r.outcome, reason: r.reason, problems: r.problems, record: r.outcome === "create" ? r.record : null, title: r.title, subtitle: r.subtitle, entity: null, written: false }));
       run.progress = progressOf(rows);
-      store.runs.push({ run, workspaceId: ws.id, rows });
+      store.runs.push({ run, workspaceId: ws.id, rows, ref: { kind: source.kind, ref: src.ref } });
       return clone({ run, source: { kind: source.kind, label: src.label, ...src.extra }, columns: plan.columns, unknownColumns: plan.unknownColumns, rows: plan.rows.map((r) => ({ line: r.line, outcome: r.outcome, reason: r.reason, problems: r.problems, title: r.title, subtitle: r.subtitle, money: r.money })) });
     },
 
@@ -276,7 +338,11 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         wrote++;
       }
       const progress = progressOf(r.rows);
-      if (progress.toWrite === 0 && !r.run.finishedAt) r.run.finishedAt = now().toISOString();
+      if (progress.toWrite === 0 && !r.run.finishedAt) {
+        r.run.finishedAt = now().toISOString();
+        // Read to its end: the stand-in forgets the connection, as the server deletes the credentials.
+        if ((r.run.source === "fluxx" || r.run.source === "zengine") && r.run.nextPage === null) delete store.pullers[ws.id]?.[r.run.source];
+      }
       r.run.status = r.run.finishedAt ? "done" : "importing";
       r.run.progress = progress;
       return clone({ run: r.run, done: progress.toWrite === 0, wrote });
@@ -298,5 +364,80 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
       store.connected[app] = true;
       return { connected: true, connectUrl: null };
     },
+
+    async connectPuller(provider, credentials) {
+      const ws = await where("award_history");
+      if (ws.role !== "admin") throw new ApiError(403, "Only a workspace admin can connect an app");
+      let instance: string | null = null;
+      if (provider === "fluxx") {
+        if (!("instanceUrl" in credentials)) throw invalid("bad_request", "Fluxx is connected with your Fluxx address and the application id and secret");
+        const host = /^(?:https:\/\/)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:fluxx\.io|fluxxlabs\.com))\/?$/i.exec(credentials.instanceUrl.trim())?.[1];
+        if (!host) throw invalid("invalid_instance", "Paste your Fluxx address. It looks like https://yourfoundation.fluxx.io");
+        if (credentials.clientSecret === "wrong") throw invalid("credentials_rejected", "Fluxx did not accept this application id and secret. Nothing was saved");
+        instance = `https://${host.toLowerCase()}`;
+      } else if (!("token" in credentials) || credentials.token === "wrong") throw invalid("credentials_rejected", "Zengine did not accept this access token. Nothing was saved");
+      const at = now().toISOString();
+      (store.pullers[ws.id] ??= {})[provider] = { instance, at };
+      return { provider, label: PULLER_LABEL[provider], configured: true, connected: true, instance, connectedAt: at, lastReadAt: null };
+    },
+
+    async disconnectPuller(provider) {
+      const ws = await where("award_history");
+      delete store.pullers[ws.id]?.[provider];
+      return { provider, label: PULLER_LABEL[provider], configured: true, connected: false, instance: null, connectedAt: null, lastReadAt: null };
+    },
+
+    async zengineForms() {
+      const ws = await where("award_history");
+      if (!store.pullers[ws.id]?.zengine) throw new ApiError(409, "Connect Zengine first", [{ code: "source_not_connected" }]);
+      return clone(store.zengine.forms);
+    },
+
+    async matchFiles(runId, paths) {
+      const { r, adapter, keyOf } = await finishedRun(runId);
+      const m = await matchAttachments({ adapter, paths, rows: r.rows.filter((x) => x.written).map((x) => ({ line: x.line, key: x.key, title: x.title })), keyOf });
+      const titles = new Map(r.rows.map((x) => [x.line, x.title]));
+      return { matched: m.matched.map((x) => ({ ...x, title: titles.get(x.line) ?? "" })), unmatched: m.unmatched.map((x) => ({ path: x.path, name: x.name, why: ATTACHMENT_MISS_TEXT[x.why] })) };
+    },
+
+    async attachFile(runId, input) {
+      const { r, adapter, keyOf } = await finishedRun(runId);
+      const name = baseName(input.path);
+      if (/(^|[^a-z0-9])(bank(s|ing)?|ach|void(ed)?|routing|w[-_. ]?9)(?=[^a-z0-9]|$)/i.test(name)) throw invalid("sensitive_document", "Bank and identity documents are never kept in the GMS");
+      const [hit] = (await matchAttachments({ adapter, paths: [input.path], rows: r.rows.filter((x) => x.written).map((x) => ({ line: x.line, key: x.key, title: x.title })), keyOf })).matched;
+      if (!hit) throw invalid("file_not_matched", "No imported award matches this file's name");
+      const award = r.rows.find((x) => x.line === hit.line)!.entity!.id;
+      const size = Math.floor((input.contentBase64.length * 3) / 4);
+      const existing = store.files.find((f) => f.runId === runId && f.award === award && f.name === name && f.size === size);
+      if (existing) return clone({ file: existing, created: false });
+      const file = { runId, id: crypto.randomUUID(), name, mime: mimeFor(name), size, line: hit.line, award, createdAt: now().toISOString() };
+      store.files.push(file);
+      return clone({ file, created: true });
+    },
+
+    async files(runId) {
+      const ws = opts.workspace();
+      if (!ws) throw new ApiError(400, "Open a workspace first");
+      runOf(runId, ws.id);
+      return clone(store.files.filter((f) => f.runId === runId).map(({ runId: _r, ...f }) => f));
+    },
   };
+
+  async function finishedRun(runId: string) {
+    const ws = opts.workspace();
+    if (!ws) throw new ApiError(400, "Open a workspace first");
+    const r = runOf(runId, ws.id);
+    await where(r.run.target);
+    if (!r.run.finishedAt) throw new ApiError(409, "Finish the import first, then add the files", [{ code: "import_not_finished" }]);
+    const adapter = r.run.adapter ? (ADAPTERS[r.run.adapter.key as AdapterKey] ?? null) : null;
+    return { r, adapter, keyOf: idKey(r.run.target, r.ref, r.run.mapping.sourceId ?? null) };
+  }
+}
+
+/** As the server: Fluxx and Zengine their own adapter; a file the one named, else the one its header row matches (grant history only). */
+function adapterFor(target: ImportTarget, kind: string, named: AdapterKey | undefined, columns: readonly string[]): { adapter: Adapter | null; detected: ReturnType<typeof detectAdapter> } {
+  if (kind === "fluxx" || kind === "zengine") return { adapter: kind === "fluxx" ? FLUXX : ZENGINE, detected: null };
+  if (named && (ADAPTERS[named].via === "api" || !ADAPTERS[named].presets[target])) throw new ApiError(422, `${ADAPTERS[named].system} exports are imported as a funder's grant history, from a file`, [{ code: "adapter_not_for_target" }]);
+  const detected = target === "award_history" ? detectAdapter(columns, FILE_ADAPTERS) : null;
+  return { adapter: named ? ADAPTERS[named] : (detected?.adapter ?? null), detected };
 }
