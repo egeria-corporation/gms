@@ -55,12 +55,31 @@ export const userbackConfigured = (token: string | undefined): boolean => !!toke
  * WebSocket for presence in the application editor); it navigates to Passport, which needs no CSP
  * entry. Scripts and fonts are first-party only. Styles are first-party; React writes `style`
  * through the DOM, which a CSP does not govern, so 'unsafe-inline' is not needed. Images may come
- * from any https origin because a funder's logo is a URL they choose. Nothing may frame the app,
- * and the app frames nothing, unless the Google Picker is configured: then, and only then, the
- * Google origins in PICKER are added.
+ * from any https origin because a funder's logo is a URL they choose. Nothing may frame the app
+ * (the apply widget under EMBED_PATHS has its own policy, below), and the app frames nothing,
+ * unless the Google Picker is configured: then, and only then, the Google origins in PICKER are
+ * added.
  * Likewise the Userback origins are added only when a Userback token is configured.
  */
 export function contentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google?: GooglePickerEnv, userbackToken?: string): string {
+  return policy(apiBaseUrl, supabaseUrl, google, userbackToken, "'none'");
+}
+
+/**
+ * The apply widget's pages, which a funder frames on its own site. Only these may be framed, by any
+ * site; every other path keeps `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+ */
+export const EMBED_PATHS = "/embed/*";
+
+/**
+ * The widget's policy: the app's own without the Picker or Userback origins (the widget loads
+ * neither), and `frame-ancestors *` so any site can show it. It needs no cookies and no sign-in.
+ */
+export function embedContentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUrl: string | undefined): string {
+  return policy(apiBaseUrl, supabaseUrl, undefined, undefined, "*");
+}
+
+function policy(apiBaseUrl: string | undefined, supabaseUrl: string | undefined, google: GooglePickerEnv | undefined, userbackToken: string | undefined, frameAncestors: "'none'" | "*"): string {
   const picker = pickerConfigured(google);
   const ub = userbackConfigured(userbackToken);
   const api = originOf(apiBaseUrl);
@@ -78,7 +97,7 @@ export function contentSecurityPolicy(apiBaseUrl: string | undefined, supabaseUr
     `font-src ${["'self'", ...(ub ? USERBACK.font : [])].join(" ")}`,
     `connect-src ${connect.join(" ")}`,
     `frame-src ${picker ? PICKER.frame.join(" ") : "'none'"}`,
-    "frame-ancestors 'none'",
+    `frame-ancestors ${frameAncestors}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -99,6 +118,12 @@ export function headersFile(apiBaseUrl: string | undefined, supabaseUrl: string 
     // looser opener policy. Without the Picker the app stays fully isolated.
     `  Cross-Origin-Opener-Policy: ${pickerConfigured(google) ? "same-origin-allow-popups" : "same-origin"}`,
     "  Strict-Transport-Security: max-age=31536000; includeSubDomains",
+    // Cloudflare applies every rule whose path matches the request, in file order: this one comes
+    // after "/*", so it removes that rule's framing headers ("! Name") and sets its own policy.
+    EMBED_PATHS,
+    "  ! Content-Security-Policy",
+    "  ! X-Frame-Options",
+    `  Content-Security-Policy: ${embedContentSecurityPolicy(apiBaseUrl, supabaseUrl)}`,
     "/assets/*",
     "  Cache-Control: public, max-age=31536000, immutable",
     "/fonts/*",
