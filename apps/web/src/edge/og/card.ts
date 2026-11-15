@@ -109,7 +109,7 @@ const TITLE_SIZES: [size: number, lineHeight: number][] = [
 ];
 
 /** Draws the card and encodes it as PNG. */
-export async function renderCard(text: CardText, assets: CardAssets): Promise<Uint8Array> {
+export async function renderCard(text: CardText, assets: CardAssets): Promise<Uint8Array<ArrayBuffer>> {
   const c = new Canvas(CARD_WIDTH, CARD_HEIGHT);
   c.verticalGradient(C("--og-teal-soft"), C("--og-white"));
   c.fillRect(0, CARD_HEIGHT - 10, CARD_WIDTH, 10, C("--og-teal"));

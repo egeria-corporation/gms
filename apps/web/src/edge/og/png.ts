@@ -19,7 +19,7 @@ function crc32(bytes: Uint8Array, start: number, end: number): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-async function through(data: Uint8Array<ArrayBuffer>, stream: { readable: ReadableStream<Uint8Array>; writable: WritableStream<BufferSource> }): Promise<Uint8Array> {
+async function through(data: Uint8Array<ArrayBuffer>, stream: { readable: ReadableStream<Uint8Array>; writable: WritableStream<BufferSource> }): Promise<Uint8Array<ArrayBuffer>> {
   const source = new ReadableStream<BufferSource>({
     start(controller) {
       controller.enqueue(data);
@@ -32,7 +32,7 @@ async function through(data: Uint8Array<ArrayBuffer>, stream: { readable: Readab
 const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 /** Encodes RGB pixels (3 bytes a pixel, rows top to bottom) as a PNG. */
-export async function encodePng(rgb: Uint8Array, width: number, height: number): Promise<Uint8Array> {
+export async function encodePng(rgb: Uint8Array, width: number, height: number): Promise<Uint8Array<ArrayBuffer>> {
   // Every row uses the Sub filter: flat backgrounds become runs of zeros, which compress well.
   const rowBytes = width * 3;
   const raw = new Uint8Array((rowBytes + 1) * height);
