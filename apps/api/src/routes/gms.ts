@@ -21,6 +21,7 @@ import { insightRoutes } from "./gms/insights.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
+import { galleryRoutes } from "./gallery.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { publicPages } from "./public.ts";
@@ -122,6 +123,8 @@ gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
+// The template gallery: public reads, moderation, and a funder workspace's copy and share.
+gms.route("/", galleryRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
