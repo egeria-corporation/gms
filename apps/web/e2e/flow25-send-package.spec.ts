@@ -2,7 +2,7 @@
 // Flow 25 — Send to the funder (C4). An outside application, written in the GMS, for a funder who
 // is not on it → the checklist uses a vault document → "Send to the funder" lists exactly the
 // package (the PDF, that vault document, answers.txt), with the footer line → the PDF and the ZIP
-// download → an answer that holds an account number stops the package, naming the question →
+// download → an answer that holds a long digit run (an account-style number) stops the package, naming the question →
 // taken out, the email is previewed (under the person's name, replies to them) and sent → the
 // footer line is switched off for the workspace.
 import { dialog, expect, start, test } from "./helpers.ts";
@@ -49,7 +49,7 @@ test("send an outside application to the funder", async ({ app: page }) => {
     await expect(d).toBeHidden();
   });
 
-  await test.step("an answer that holds an account number stops the package", async () => {
+  await test.step("an answer that holds an account-style number stops the package", async () => {
     await page.getByRole("tab", { name: /Questions/ }).click();
     const q2 = page.getByRole("article", { name: /How will you measure success/ });
     await q2.getByRole("textbox", { name: "Answer to question 2" }).fill("We count appointments kept each quarter. Payments go to account 000123456789.");
