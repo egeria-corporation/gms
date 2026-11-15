@@ -24,7 +24,8 @@ select tables_are(
     'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests',
     'outside_obligation_series', 'outside_obligations', 'application_summaries',
     'import_mappings', 'import_runs', 'import_rows',
-    'report_views', 'report_schedules', 'report_files'
+    'report_views', 'report_schedules', 'report_files',
+    'workspace_sso_domains'
   ],
   'public schema has exactly the GMS tables'
 );

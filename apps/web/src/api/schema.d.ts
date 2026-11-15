@@ -5367,6 +5367,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/sso/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Add an email domain. It is pending until its DNS record is checked and the operator connects the identity provider. 409 `domain_exists`, `domain_in_use` (active for another workspace) or `too_many_domains`; 422 `invalid_domain`. A signed-in admin only (403 `human_only`). */
+        post: operations["Sso_addSsoDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/sso/domains/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Remove a domain. Removing an active one ends its requirement; the operator removes its identity provider. */
+        delete: operations["Sso_removeSsoDomain"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/sso/domains/{id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Look up the domain's TXT record now (DNS over HTTPS against Cloudflare's resolver). A match records the proof; a check within ten seconds of the last answers with its result. */
+        post: operations["Sso_checkSsoDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/sso/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description After an SSO sign-in (no workspace): join each workspace whose active domain matches the address and whose identity provider the session came through, with the role the person's email-code account holds there. 409 `sso_session_required` for any other sign-in. */
+        post: operations["Sso_joinThroughSso"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/sso/requirement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Require single sign-on for every active domain, or stop requiring it. Turning it on needs an active domain and an admin signed in through single sign-on now (409 `no_active_domain`, `sso_session_required`). Turning it off is always allowed. */
+        put: operations["Sso_setSsoRequirement"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/sso/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The workspace's single sign-on settings: domains, the requirement, whether this session could turn it on, and the service-provider values. Funder admins; API clients need `workspace:admin`. */
+        get: operations["Sso_getSsoSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/submissions": {
         parameters: {
             query?: never;
@@ -12694,6 +12796,8 @@ export interface components {
         "Models.DismissedNotes": {
             dismissed: components["schemas"]["Models.NoteKey"][];
         };
+        /** @enum {string} */
+        "Models.DnsCheckResult": "matched" | "not_found" | "mismatch" | "error";
         "Models.Document": {
             id: string;
             name: string;
@@ -17474,6 +17578,104 @@ export interface components {
             reason: string | null;
             representativeId: string | null;
             verificationLevel: string | null;
+        };
+        /** @description The DNS TXT record that proves the domain: `gms-verify=<token>` at `_gms-verify.<domain>` (or at the domain itself). */
+        "Models.SsoDnsRecord": {
+            /** @enum {string} */
+            recordType: "TXT";
+            recordName: string;
+            recordValue: string;
+            alsoAcceptedAt: string;
+        };
+        "Models.SsoDomain": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            domain: string;
+            /** @enum {string} */
+            status: "pending" | "active";
+            stage: components["schemas"]["Models.SsoDomainStage"];
+            /** @description People with an address on this domain must sign in through single sign-on. */
+            required: boolean;
+            dns: components["schemas"]["Models.SsoDnsRecord"];
+            /** Format: date-time */
+            verifiedAt: string | null;
+            /** Format: date-time */
+            lastCheckedAt: string | null;
+            lastCheckResult: components["schemas"]["Models.DnsCheckResult"] | null;
+            /** @description The Supabase Auth SSO provider id, once the operator registered one. */
+            providerId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** Format: date-time */
+            activatedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.SsoDomainCheck": {
+            domain: components["schemas"]["Models.SsoDomain"];
+            check: {
+                result: components["schemas"]["Models.DnsCheckResult"];
+                /** Format: date-time */
+                checkedAt: string;
+            };
+        };
+        "Models.SsoDomainInput": {
+            /** @description The email domain, like example.org. Normalized to lowercase ASCII. */
+            domain: string;
+        };
+        "Models.SsoDomainRemoved": {
+            /** @enum {boolean} */
+            removed: true;
+            domain: string;
+            wasActive: boolean;
+        };
+        /**
+         * @description Where a domain is: the admin publishes the DNS record, OpenGrants connects the identity provider, then it is active.
+         * @enum {string}
+         */
+        "Models.SsoDomainStage": "add_dns_record" | "waiting_for_provider" | "active";
+        "Models.SsoJoin": {
+            joined: components["schemas"]["Models.SsoJoinedWorkspace"][];
+        };
+        "Models.SsoJoinedWorkspace": {
+            workspaceId: components["schemas"]["CommonGrants.Types.uuid"];
+            handle: string;
+            name: string;
+            role: string;
+        };
+        "Models.SsoRequirement": {
+            requireSso: boolean;
+            requiredDomains: string[];
+        };
+        "Models.SsoRequirementCheck": {
+            ok: boolean;
+            reason: string | null;
+        };
+        "Models.SsoRequirementInput": {
+            require: boolean;
+        };
+        /** @description The values the workspace's IT team enters in their identity provider, built from the server's Supabase address. */
+        "Models.SsoServiceProvider": {
+            /** Format: uri */
+            entityId: string;
+            /** Format: uri */
+            metadataUrl: string;
+            /** Format: uri */
+            metadataDownloadUrl: string;
+            /** Format: uri */
+            acsUrl: string;
+            nameIdFormat: string;
+        };
+        "Models.SsoSettings": {
+            domains: components["schemas"]["Models.SsoDomain"][];
+            /** @description True when every active domain requires single sign-on. */
+            requireSso: boolean;
+            /** @description Whether this session could turn the requirement on, and if not, what to do first. */
+            canRequire: components["schemas"]["Models.SsoRequirementCheck"];
+            /** @description Null when the server has no SUPABASE_URL. */
+            serviceProvider: components["schemas"]["Models.SsoServiceProvider"] | null;
+            session: {
+                signedInThroughSso: boolean;
+            };
+            /** Format: int32 */
+            maxDomains: number;
         };
         "Models.Stage": {
             key: string;
@@ -39385,6 +39587,336 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_addSsoDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SsoDomainInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoDomain"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_removeSsoDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoDomainRemoved"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_checkSsoDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoDomainCheck"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_joinThroughSso: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoJoin"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_setSsoRequirement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SsoRequirementInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoRequirement"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Sso_getSsoSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SsoSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
                 };
             };
             /** @description Access is unauthorized. */

@@ -3,7 +3,9 @@
 // authenticator code are both MOCK_CODE. Starts signed in so the fixture workspaces open directly.
 import { AuthError, type AuthClient, type Session } from "../auth/types.ts";
 import { MOCK_PASSPORT_SESSION, MOCK_PASSPORT_TOKEN } from "../lib/passportSignIn.ts";
+import { emailDomain } from "../auth/sso.ts";
 import { MOCK_USER } from "./fixtures.ts";
+import { MOCK_SSO_PROVIDERS } from "./sso.ts";
 
 export const MOCK_CODE = "123456";
 const KEY = "gms.mock.session";
@@ -84,6 +86,14 @@ export function createMockAuth(opts: MockAuthOptions = {}): AuthClient {
       if (!session) throw new AuthError("Not signed in");
       enrolled = true;
       return set({ ...session, aal: "aal2", accessToken: "mock.aal2" })!;
+    },
+    async signInWithSSO(workEmail) {
+      const domain = emailDomain(workEmail);
+      if (!domain) throw new AuthError("Enter your work email address.");
+      const provider = MOCK_SSO_PROVIDERS[domain];
+      if (!provider) throw new AuthError(`Single sign-on is not set up for ${domain}. Sign in with an email code instead, or ask your IT team.`, "no_sso");
+      // The mock identity provider signs the person in at once; the real one is a redirect away.
+      set({ ...demoSession("aal1", workEmail.trim()), accessToken: "mock.sso", ssoProviderId: provider });
     },
     async signOut() {
       set(null);

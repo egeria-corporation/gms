@@ -164,6 +164,20 @@ redirect URIs `https://gms.opengrants.io/gms/passport/signin/callback` and
 When the person has set it up, Passport's authenticator serves as the second step (migration `0018`).
 `PASSPORT_ISSUER` is `https://passport.opengrants.io`, which is what Passport signs with.
 
+## Single sign-on (SAML)
+
+Not switched on yet. It needs the `gms-staging` project on the Supabase Pro plan or above with SAML 2.0
+switched on (Authentication → Providers → SAML 2.0) and migration `0035`. Per workspace domain, after
+the admin's DNS check passes: dry run, then `--apply`, with `SUPABASE_ACCESS_TOKEN` set (never printed):
+
+```
+node scripts/sso/register-provider.mjs --project-ref xjgyeotefkjqhiusuuan --domain <domain> \
+  --metadata-url <identity provider metadata URL> --workspace <workspace id> [--apply]
+```
+
+then run the `select gms.activate_sso_domain(…)` line it prints in the SQL editor. Lockout recovery
+is `select gms.lift_sso_requirement('<workspace id>', '<reason>');`. Details: `docs/sso.md`.
+
 ## Known limits
 
 - Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks. It

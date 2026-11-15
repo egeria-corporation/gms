@@ -23,6 +23,8 @@ export interface SessionUser {
   passportStep?: boolean;
   /** The name on the account (`user_metadata.full_name` or `.name`), when the token carries one. For display only. */
   name?: string | null;
+  /** Single sign-on (docs/sso.md): the identity providers of the `sso/saml` entries in `amr`; absent for any other sign-in. */
+  ssoProviderIds?: string[];
 }
 
 export interface SessionConfig {
@@ -87,7 +89,24 @@ export async function verifySupabaseSession(token: string, config: SessionConfig
     throw authError("invalid_session", "Session is invalid or has expired");
   }
   if (typeof payload.sub !== "string" || !payload.sub) throw authError("invalid_session", "Session is invalid or has expired");
-  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}), ...(accountName(payload.user_metadata) ? { name: accountName(payload.user_metadata) } : {}) };
+  const sso = ssoProvidersOf(payload.amr);
+  return { userId: payload.sub, email: typeof payload.email === "string" ? payload.email : null, aal: payload.aal === "aal2" ? "aal2" : "aal1", ...(typeof payload.session_id === "string" ? { sessionId: payload.session_id } : {}), ...(accountName(payload.user_metadata) ? { name: accountName(payload.user_metadata) } : {}), ...(sso.length ? { ssoProviderIds: sso } : {}) };
+}
+
+/**
+ * The provider ids of a verified session's `sso/saml` sign-ins. Supabase Auth writes `amr` as
+ * `[{ method, timestamp, provider? }]`, most recent first, and with two-step verification the SSO
+ * entry need not be first, so every entry is read. An entry without a provider names none.
+ */
+export function ssoProvidersOf(amr: unknown): string[] {
+  if (!Array.isArray(amr)) return [];
+  const out = new Set<string>();
+  for (const e of amr) {
+    if (!e || typeof e !== "object") continue;
+    const { method, provider } = e as { method?: unknown; provider?: unknown };
+    if (method === "sso/saml" && typeof provider === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(provider)) out.add(provider.toLowerCase());
+  }
+  return [...out];
 }
 
 /** The display name Supabase Auth keeps in `user_metadata`; null when there is none. */

@@ -10,6 +10,7 @@ import "./imports.tsp";
 import "./switch.tsp";
 import "./open-data.tsp";
 import "./reports.tsp";
+import "./sso.tsp";
 
 using TypeSpec.Http;
 

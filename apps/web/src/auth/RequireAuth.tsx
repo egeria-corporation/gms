@@ -7,8 +7,8 @@ export function Busy() {
   return <div className="gms gms-frame" aria-busy="true" />;
 }
 
-/** Where to send someone who must sign in (or verify a second factor) before `next`. */
-export function signInPath(next: string, step?: "mfa"): string {
+/** Where to send someone who must sign in (or verify a second factor, or use single sign-on) before `next`. */
+export function signInPath(next: string, step?: "mfa" | "sso"): string {
   const q = new URLSearchParams({ next });
   if (step) q.set("step", step);
   return `/signin?${q.toString()}`;
