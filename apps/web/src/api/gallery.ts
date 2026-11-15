@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The template gallery (v1.8.0): public reads (no sign-in), copying an item into a funder
+// The template gallery: public reads (no sign-in), copying an item into a funder
 // workspace, sharing one of the workspace's own forms, rubrics or email templates, and the
 // moderators' queue. Shapes come from the generated schema (api/gallery.tsp).
 //

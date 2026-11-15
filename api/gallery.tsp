@@ -9,7 +9,7 @@ using GMS.Models;
 using GMS.Auth;
 using GMS.Errors;
 
-// The template gallery (v1.8.0): ready-to-use application forms, rubrics, report forms, email
+// The template gallery: ready-to-use application forms, rubrics, report forms, email
 // templates and program kits, shared under CC BY 4.0. Approved items are public (no token). A
 // funder workspace copies one into its own drafts; a funder workspace admin shares one of its own
 // records, which loses its contact details and the organization's names before it is saved; an

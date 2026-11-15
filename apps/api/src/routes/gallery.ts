@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// /gms routes of the template gallery (v1.8.0):
+// /gms routes of the template gallery:
 //   GET  /gms/gallery, /gms/gallery/{slug}                         public reads, no token
 //   /gms/gallery/moderation/*                                       the operators in GALLERY_MODERATORS, signed in
 //   /gms/workspaces/{workspaceId}/gallery/*                         a funder workspace: copy, share, withdraw

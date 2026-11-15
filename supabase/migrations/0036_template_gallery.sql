@@ -1,5 +1,5 @@
 -- 0036_template_gallery.sql
--- The template gallery (v1.8.0): ready-to-use application forms, rubrics, report forms, email
+-- The template gallery: ready-to-use application forms, rubrics, report forms, email
 -- templates and program kits that any funder copies into its own workspace. A funder workspace
 -- admin shares one of its own; an operator approves or declines it; only approved items are
 -- public, and only through the API (`GET /gms/gallery`), never by table access.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The template gallery (v1.8.0): what is stripped before sharing, the moderation states, copies
+// The template gallery: what is stripped before sharing, the moderation states, copies
 // that are independent drafts, anonymous reads of approved items only, human-only sharing and
 // moderation, and the starter library kept in step with migration 0036.
 import { readFileSync } from "node:fs";

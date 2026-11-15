@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The template gallery (v1.8.0). Anyone reads approved items (public, no token); a funder
+// The template gallery. Anyone reads approved items (public, no token); a funder
 // workspace copies one into its own drafts through the same create paths as its screens; a
 // funder workspace admin shares one of its own forms, rubrics or email templates; an operator
 // listed in GALLERY_MODERATORS approves or declines it. Moderation moves run through

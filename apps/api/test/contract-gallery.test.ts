@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Contract: live responses of the template gallery routes (v1.8.0) validate against the compiled
+// Contract: live responses of the template gallery routes validate against the compiled
 // OpenAPI document (`pnpm spec:compile`). Skipped when it has not been compiled; CI compiles it first.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

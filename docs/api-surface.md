@@ -393,3 +393,22 @@ A workspace that has not linked Passport keeps a self-declared profile (see `doc
   and ledgers `workspace.profile_replaced_by_passport` with the names of the fields that differed.
 - In the OpenAPI document the new response fields are optional so existing clients keep
   compiling; this server always sends them.
+
+## Template gallery
+
+Approved items are public; the rest is a funder workspace's or a moderator's. Details, the stripping
+rules and the starter library: `docs/gallery.md`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/gallery?kind=&tag=&q=` | Implemented | No token. Approved items, most used first, and the tag vocabularies (`tags`). `kind` one of `application_form`, `report_form`, `rubric`, `email_template`, `program_kit` (`400` otherwise) |
+| `GET /gms/gallery/{slug}` | Implemented | No token. One approved item with its `snapshot` (`forms`, `rubrics`, `emails`); `404` once withdrawn |
+| `POST /gms/workspaces/{workspaceId}/gallery/items/{slug}/copy` | Implemented | Funder workspace; each part needs its own scope (`forms:write`, `reviews:write`, `communications:write` with an admin or program officer role), all checked first. `201 { item, created[] }`: new draft forms, a new rubric, new email templates. Ledger `gallery.copied` |
+| `POST /gms/workspaces/{workspaceId}/gallery/preview` | Implemented | Funder admin, signed in. `{ source: { type: form \| rubric \| template, id, version? }, extraNames? }` → the cleaned snapshot, what was stripped, the names replaced. Saves nothing. `409 form_not_published`, `422 not_shareable` |
+| `GET /gms/workspaces/{workspaceId}/gallery/submissions` | Implemented | The workspace's submissions with status, decision and reason (`forms:read`) |
+| `POST /gms/workspaces/{workspaceId}/gallery/submissions` | Implemented | Funder admin, signed in (`403 human_only` for an agent, `person_required` for an API client). Adds `title`, `summary`, `tags`, `licence: "CC-BY-4.0"`. `409 already_submitted`. Ledger `gallery.submitted` |
+| `POST /gms/workspaces/{workspaceId}/gallery/submissions/{id}/withdraw` | Implemented | Funder admin, signed in. Pending or approved; an approved item leaves the gallery. Ledger `gallery.item_withdrawn` |
+| `GET /gms/gallery/moderation/me` | Implemented | Signed in. `{ moderator }` |
+| `GET /gms/gallery/moderation/queue` | Implemented | Moderators (`GALLERY_MODERATORS`). Pending submissions, oldest first. `403 not_a_moderator` |
+| `POST /gms/gallery/moderation/submissions/{id}/approve` | Implemented | Moderators. `{ slug? }` → the published item. Ledger `gallery.item_approved` in the author's workspace |
+| `POST /gms/gallery/moderation/submissions/{id}/reject` | Implemented | Moderators. `{ reason }` (3 to 2,000 characters), shown to the author. Ledger `gallery.item_declined` |

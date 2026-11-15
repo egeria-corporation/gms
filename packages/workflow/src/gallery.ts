@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The template gallery's moderation (v1.8.0). A workspace admin submits a form, rubric or email
+// The template gallery's moderation. A workspace admin submits a form, rubric or email
 // template; an operator approves or declines it with a reason; the author can withdraw it, before
 // or after it is published. Nothing is public until it is approved. The service runs every move as
 // guard → write → ledger; this module is the guard. No webhook: a gallery item is not a record any
