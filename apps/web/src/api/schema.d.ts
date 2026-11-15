@@ -2986,6 +2986,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/migration-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Ask OpenGrants for a free migration (email with reply-to the person, and a confirmation to them). A person only: 403 `person_only` for an API or agent token. 422 `not_sent` (hidden field filled), `form_expired` or `too_fast` (under 3 seconds); 429 `too_many_requests_for_email` (3 a day) or `too_many_requests` (20 a day per network); 503 `mail_not_configured`. */
+        post: operations["Switching_sendMigrationRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/migration-requests/form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Shown with the form: a signed token that says when. No token needed; 403 `person_only` for an API or agent token. */
+        get: operations["Switching_migrationRequestForm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/migration-requests/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Exactly what a migration request would send, and the confirmation. Nothing is sent or counted. No token needed; 403 `person_only` for an API or agent token. */
+        post: operations["Switching_previewMigrationRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/my/answers": {
         parameters: {
             query?: never;
@@ -14222,6 +14273,90 @@ export interface components {
         "Models.MessageInput": {
             body: string;
         };
+        "Models.MigrationEmailPreview": {
+            to: string;
+            subject: string;
+            /** @description Exactly the email's text. */
+            text: string;
+        };
+        /**
+         * @description Approximate number of past awards.
+         * @enum {string}
+         */
+        "Models.MigrationPastAwards": "0-99" | "100-999" | "1000-9999" | "10000+" | "unsure";
+        /**
+         * @description Approximate number of programs.
+         * @enum {string}
+         */
+        "Models.MigrationPrograms": "1" | "2-5" | "6-20" | "21+" | "unsure";
+        "Models.MigrationRequestForm": {
+            /** @description Signed by the server with the time the form was shown. A send needs one at least `minSeconds` and at most 24 hours old. */
+            formToken: string;
+            /** Format: int32 */
+            minSeconds: number;
+        };
+        "Models.MigrationRequestInput": {
+            name: string;
+            email: string;
+            organization: string;
+            system: components["schemas"]["Models.MigrationSystem"];
+            programs: components["schemas"]["Models.MigrationPrograms"];
+            pastAwards: components["schemas"]["Models.MigrationPastAwards"];
+            timing: components["schemas"]["Models.MigrationTiming"];
+            /** @description Up to 2,000 characters. Numbers that look like bank account, routing or identity numbers are removed before the preview and the send. */
+            note?: string;
+            /** @description The form's hidden field: always empty from a person. A send with anything in it is refused (422 `not_sent`). */
+            website?: string;
+            /** @description From `GET /gms/migration-requests/form`. Needed to send, not to preview. */
+            formToken?: string;
+        };
+        "Models.MigrationRequestPreview": {
+            /** @description CONSULTING_REQUEST_TO, default `hello@agents.opengrants.io`. */
+            to: string;
+            replyTo: string;
+            subject: string;
+            /** @description Exactly the email's text. */
+            text: string;
+            name: string;
+            email: string;
+            organization: string;
+            system: components["schemas"]["Models.MigrationSystem"];
+            systemLabel: string;
+            programs: components["schemas"]["Models.MigrationPrograms"];
+            programsLabel: string;
+            pastAwards: components["schemas"]["Models.MigrationPastAwards"];
+            pastAwardsLabel: string;
+            timing: components["schemas"]["Models.MigrationTiming"];
+            timingLabel: string;
+            /** @description The note as it will be sent, with numbers removed; null when there is none. */
+            note: string | null;
+            /** Format: int32 */
+            numbersRemoved: number;
+            /** @description The confirmation the person will get. */
+            confirmation: components["schemas"]["Models.MigrationEmailPreview"];
+        };
+        "Models.MigrationRequestSent": {
+            sent: boolean;
+            /** @description For the email's idempotency only; not stored. */
+            requestId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** Format: date-time */
+            sentAt: string;
+            to: string;
+            replyTo: string;
+            /** @description False when only the confirmation could not be sent; the request reached OpenGrants. */
+            confirmationSent: boolean;
+            message: string;
+        };
+        /**
+         * @description The system the organization uses today, as the switch pages list them.
+         * @enum {string}
+         */
+        "Models.MigrationSystem": "good-grants" | "submittable" | "surveymonkey-apply" | "foundant" | "zengine" | "fluxx" | "smartsimple" | "cybergrants" | "openwater" | "spreadsheets" | "other";
+        /**
+         * @description When they hope to move.
+         * @enum {string}
+         */
+        "Models.MigrationTiming": "asap" | "3-months" | "6-months" | "12-months" | "exploring";
         "Models.MilestoneOffer": {
             /** Format: date */
             fullDue: string | null;
@@ -28482,6 +28617,191 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Switching_sendMigrationRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.MigrationRequestInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.MigrationRequestSent"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Server error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Switching_migrationRequestForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.MigrationRequestForm"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Switching_previewMigrationRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.MigrationRequestInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.MigrationRequestPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
