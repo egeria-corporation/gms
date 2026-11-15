@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The embeddable apply widget (`/embed/f/{handle}/o/{slug}` in the web app) and the funder's
-// "Powered by" setting. Public reads only: the widget shows what the opportunity's public page
-// shows, in fewer words, so it is built on `opportunityPage` and adds nothing that page hides.
-import type { Row } from "./repos/types.ts";
+// The embeddable apply widget (`/embed/f/{handle}/o/{slug}` in the web app). Public reads only:
+// the widget shows what the opportunity's public page shows, in fewer words, so it is built on
+// `opportunityPage` and adds nothing that page hides.
+import { poweredByOf } from "./powered-by.ts";
 import { opportunityPage, type PublicContext } from "./public.ts";
 
 /** How many eligibility labels the widget lists before it says "and N more". */
 export const EMBED_ELIGIBILITY_LIMIT = 3;
-
-/**
- * Whether the funder's public pages, widget and application receipt email carry "Powered by
- * OpenGrants Grant Management System". On unless an admin turned it off (`settings.poweredBy`).
- */
-export const poweredByOf = (w: Pick<Row<"workspaces">, "settings">): boolean => (w.settings as { poweredBy?: unknown } | null)?.poweredBy !== false;
 
 /** Data for the widget: the call, its funder, whether it is taking applications, and the setting. */
 export async function embedWidget(ctx: PublicContext, handle: string, slug: string) {

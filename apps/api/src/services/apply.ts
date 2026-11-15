@@ -12,7 +12,7 @@ import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
-import { poweredByOf } from "./embed.ts";
+import { poweredByOf } from "./powered-by.ts";
 import { toDefinition } from "./forms.ts";
 import { applicantOptionsOf } from "./opportunities.ts";
 import { orgFacts, recipientEmails, verificationOf } from "./profile.ts";
