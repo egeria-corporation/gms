@@ -215,12 +215,26 @@ export async function signedCompetitions(ctx: ServiceContext, workspaceId: strin
   return out;
 }
 
-/** Of these applications, the ones in competitions whose policy the reviewer has signed (apply.reviewerApplicationIds). */
+/**
+ * The competitions (of those named) that are open to this person's review: those that do not require
+ * the policy (`coi_policy_required` false: competitions that existed before migration 0033, until the
+ * funder turns it on) and those whose current policy the person has signed.
+ */
+export async function clearedCompetitions(ctx: ServiceContext, workspaceId: string, userId: string, competitionIds: readonly string[]): Promise<Set<string>> {
+  const ids = [...new Set(competitionIds)];
+  if (!ids.length) return new Set();
+  const comps = await ctx.repos.table("competitions").find({ id: ids, workspace_id: workspaceId });
+  const optional = new Set(comps.filter((c) => !c.coi_policy_required).map((c) => c.id));
+  const signed = await signedCompetitions(ctx, workspaceId, userId, ids.filter((c) => !optional.has(c)));
+  return new Set([...optional, ...signed]);
+}
+
+/** Of these applications, the ones in competitions open to the reviewer's review (apply.reviewerApplicationIds). */
 export async function signedOnly(ctx: ServiceContext, ws: ServiceWorkspace, ids: Set<string>): Promise<Set<string>> {
   if (!ids.size || !ctx.actor.userId) return ids;
   const apps = await ctx.repos.table("applications").find({ id: [...ids], workspace_id: ws.id });
-  const signed = await signedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
-  return new Set(apps.filter((a) => signed.has(a.competition_id)).map((a) => a.id));
+  const cleared = await clearedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
+  return new Set(apps.filter((a) => cleared.has(a.competition_id)).map((a) => a.id));
 }
 
 /** What a reviewer declared at signing, across the workspace: the matched applicant workspaces and what they typed. */

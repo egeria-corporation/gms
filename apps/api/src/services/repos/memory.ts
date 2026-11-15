@@ -42,7 +42,7 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
     cg: null,
     published_at: null,
   }),
-  competitions: () => ({ description: null, instructions: null, status: "draft", key_dates: {}, stages: [], forms: {}, validation: {}, accepted_applicant_types: [], cg: null }),
+  competitions: () => ({ description: null, instructions: null, status: "draft", key_dates: {}, stages: [], forms: {}, validation: {}, accepted_applicant_types: [], cg: null, coi_policy_required: true }),
   applications: () => ({
     title: "",
     status: "draft",

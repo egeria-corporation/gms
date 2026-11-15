@@ -2,11 +2,13 @@
 // Mock of the review parity routes (v1.8.0) for mocks/funder.ts: the competition's conflict-of-
 // interest policy and the reviewers' signatures, the conflicts register, the per-stage review
 // settings (anonymized review) and the board docket. It follows the Worker's rules where a screen
-// depends on them: nothing in a competition opens in the reviewer portal before the reviewer has
-// signed its current policy version, a policy change asks everyone to sign again, and in an
+// depends on them: where a competition requires its policy (new competitions do; one that was
+// running before v1.8.0 does not until the funder turns it on), nothing in it opens in the reviewer
+// portal before the reviewer has signed its current version, a policy change asks everyone to sign
+// again, and in an
 // anonymized stage the portal shows "Applicant A-1001" and "[applicant]" instead of who applied.
 // The reviewer portal is the reviewer's own view here, whatever the demo person's role.
-import type { CoiPolicy, CoiSigned, ConflictsRegister, DeclaredOrg, Docket, InboxApplication, ReviewAssignment, ReviewSettings, StageReviewSettings } from "../api/funder.ts";
+import type { CoiPolicy, CoiPolicyInput, CoiSigned, ConflictsRegister, DeclaredOrg, Docket, InboxApplication, ReviewAssignment, ReviewSettings, StageReviewSettings } from "../api/funder.ts";
 import type { WorkspaceData } from "./store.ts";
 
 /** The plain-language default (packages/review DEFAULT_COI_POLICY). */
@@ -38,6 +40,8 @@ export interface ParityState {
   policies: MockPolicy[];
   signatures: MockSignature[];
   dockets: { id: string; competitionId: string; includeFunderOnlyComments: boolean }[];
+  /** Competitions whose reviewers are not asked to sign (running before v1.8.0, until the funder turns it on). */
+  notRequired: string[];
 }
 
 export function seedParity(competitionId: string, signedBy: { userId: string; name: string }[], at: string): ParityState {
@@ -45,11 +49,15 @@ export function seedParity(competitionId: string, signedBy: { userId: string; na
     policies: [{ competitionId, version: 1, text: MOCK_DEFAULT_COI_POLICY, isDefault: true, at }],
     signatures: signedBy.map((p) => ({ competitionId, userId: p.userId, version: 1, signedName: p.name, signedAt: at, declared: [] })),
     dockets: [],
+    notRequired: [],
   };
 }
 
 export const currentVersion = (p: ParityState, competitionId: string) => p.policies.filter((x) => x.competitionId === competitionId).reduce((m, x) => Math.max(m, x.version), 1);
 export const hasSigned = (p: ParityState, competitionId: string, userId: string) => p.signatures.some((s) => s.competitionId === competitionId && s.userId === userId && s.version === currentVersion(p, competitionId));
+export const isRequired = (p: ParityState, competitionId: string) => !p.notRequired.includes(competitionId);
+/** The competition is open to this reviewer: it does not require the policy, or they signed its current version. */
+export const cleared = (p: ParityState, competitionId: string, userId: string) => !isRequired(p, competitionId) || hasSigned(p, competitionId, userId);
 
 type Stage = WorkspaceData["competitions"][number]["stages"][number] & { anonymized?: boolean; reviewMode?: StageReviewSettings["reviewMode"]; panelOpen?: boolean };
 const stagesOf = (w: WorkspaceData, competitionId: string): Stage[] => (w.competitions.find((c) => c.id === competitionId)?.stages ?? []) as Stage[];
@@ -94,7 +102,7 @@ export function anonymizeDetail(apps: InboxApplication[], app: InboxApplication)
 /** An assignment in the reviewer's own list: waiting for the policy, anonymized, or as it is. */
 export function assignmentAsSeen(p: ParityState, w: WorkspaceData, apps: InboxApplication[], a: ReviewAssignment, me: string): ReviewAssignment {
   if (a.reviewerUserId !== me || !a.competitionId) return { ...a, applicantCode: null, anonymized: false, policyRequired: false };
-  if (!hasSigned(p, a.competitionId, me)) return { ...a, applicationTitle: null, review: null, applicantCode: null, anonymized: false, policyRequired: true };
+  if (!cleared(p, a.competitionId, me)) return { ...a, applicationTitle: null, review: null, applicantCode: null, anonymized: false, policyRequired: true };
   const app = apps.find((x) => x.id === a.applicationId);
   if (!app || !isAnonymized(w, a.competitionId, a.stage)) return { ...a, applicantCode: null, anonymized: false, policyRequired: false };
   return { ...a, applicationTitle: a.applicationTitle === null ? null : redact(a.applicationTitle, app), applicantCode: codeOf(apps, app), anonymized: true, policyRequired: false };
@@ -123,7 +131,7 @@ export function createMockParityApi(io: ParityIo) {
     const v = currentVersion(p, c.id);
     const cur = p.policies.find((x) => x.competitionId === c.id && x.version === v);
     const mine = p.signatures.filter((s) => s.competitionId === c.id && s.userId === io.me).sort((a, b) => b.version - a.version)[0];
-    return { competitionId: c.id, competitionTitle: c.title, version: v, text: cur?.text ?? MOCK_DEFAULT_COI_POLICY, isDefault: cur?.isDefault ?? true, updatedAt: cur?.at ?? null, signed: hasSigned(p, c.id, io.me), mySignature: mine ? { policyVersion: mine.version, signedName: mine.signedName, signedAt: mine.signedAt, current: mine.version === v, declared: mine.declared } : null };
+    return { competitionId: c.id, competitionTitle: c.title, version: v, text: cur?.text ?? MOCK_DEFAULT_COI_POLICY, isDefault: cur?.isDefault ?? true, updatedAt: cur?.at ?? null, required: isRequired(p, c.id), signed: hasSigned(p, c.id, io.me), mySignature: mine ? { policyVersion: mine.version, signedName: mine.signedName, signedAt: mine.signedAt, current: mine.version === v, declared: mine.declared } : null };
   };
   const register = async (id: string): Promise<ConflictsRegister> => {
     const { w, p, apps, assignments, names } = await io.st();
@@ -157,9 +165,11 @@ export function createMockParityApi(io: ParityIo) {
       const { w, p } = await io.st();
       return policyView(p, w, competitionId);
     },
-    async putCoiPolicy(competitionId: string, input: { text: string } | { useDefault: true }): Promise<CoiPolicy> {
+    async putCoiPolicy(competitionId: string, input: CoiPolicyInput): Promise<CoiPolicy> {
       const { w, p } = await io.st();
       const c = comp(w, competitionId);
+      if (input.required !== undefined) p.notRequired = input.required ? p.notRequired.filter((x) => x !== c.id) : [...new Set([...p.notRequired, c.id])];
+      if (!("text" in input) && !("useDefault" in input)) return policyView(p, w, c.id);
       const text = "text" in input ? input.text.trim() : MOCK_DEFAULT_COI_POLICY;
       if ("text" in input && text.length < 20) throw io.fail(400, "Write at least a sentence or two", [{ field: "text", message: "Too short" }]);
       const cur = policyView(p, w, c.id);

@@ -179,6 +179,63 @@ describe("the conflict-of-interest policy", () => {
   });
 });
 
+describe("live panels are not interrupted (competitions created before migration 0033)", () => {
+  /** A competition that was reviewing when v1.8.0 arrived: 0033 set its coi_policy_required to false. */
+  const existing = () => h.repos.table("competitions").update({ id: compUuid }, { coi_policy_required: false });
+
+  it("new competitions require the policy by default", async () => {
+    expect((await h.repos.table("competitions").one({ id: compUuid }))!.coi_policy_required).toBe(true);
+    await assign(appA, R1);
+    expect(await data<{ required: boolean }>(r1, "GET", `/gms/competitions/${s.compId}/coi-policy`)).toMatchObject({ required: true, signed: false });
+  });
+
+  it("a reviewer mid-review on an existing competition keeps opening and scoring without signing", async () => {
+    await existing();
+    const id = await assign(appA, R1);
+    expect(await data<{ id: string; policyRequired: boolean; applicationTitle: string | null }[]>(r1, "GET", "/gms/review-assignments")).toEqual([expect.objectContaining({ id, policyRequired: false, applicationTitle: expect.stringContaining("mobile health") })]);
+    expect((await s.call(r1, "GET", `/gms/review-assignments/${id}`)).status).toBe(200);
+    expect((await s.call(r1, "GET", `/gms/applications/app_${appA}`)).status).toBe(200);
+    expect((await s.call(r1, "GET", `/common-grants/applications/${appA}`)).status).toBe(200);
+    expect((await s.call(r1, "PATCH", `/gms/review-assignments/${id}`, { action: "declare_coi", hasConflict: false })).status).toBe(200);
+    expect(await data<{ required: boolean }>(r1, "GET", `/gms/competitions/${s.compId}/coi-policy`)).toMatchObject({ required: false });
+    expect(await h.repos.table("coi_signatures").count({ competition_id: compUuid })).toBe(0);
+  });
+
+  it("the funder turns it on in the competition's settings; then each reviewer signs before it opens again", async () => {
+    await existing();
+    const id = await assign(appA, R1);
+    expect((await s.call(r1, "GET", `/gms/review-assignments/${id}`)).status).toBe(200);
+    // A reviewer cannot change it, and neither can an agent or an API client acting for staff.
+    expect((await s.call(r1, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { required: true })).status).toBe(403);
+    const agent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "reviews:read reviews:write", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-coi-required-agent" });
+    const byAgent = await s.call<{ errors: { code: string }[] }>({ ...bearer(agent).headers, "Content-Type": "application/json" }, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { required: true });
+    expect(byAgent.status).toBe(403);
+    expect(byAgent.body.errors[0]?.code).toBe("human_only");
+    const client = await clientCredentialsToken(h, "reviews:write");
+    expect([401, 403]).toContain((await s.call({ ...bearer(client).headers, "Content-Type": "application/json" }, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { required: true })).status);
+    expect((await h.repos.table("competitions").one({ id: compUuid }))!.coi_policy_required).toBe(false);
+
+    const on = await data<{ required: boolean; version: number }>(s.funder, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { required: true });
+    expect(on).toMatchObject({ required: true, version: 1 });
+    expect(ledger("competition.coi_policy_required_set").map((e) => e.data)).toEqual([expect.objectContaining({ required: true })]);
+    expect((await s.call(r1, "GET", `/gms/review-assignments/${id}`)).status).toBe(409);
+    expect((await sign(r1)).status).toBe(201);
+    expect((await s.call(r1, "GET", `/gms/review-assignments/${id}`)).status).toBe(200);
+    // Turning it off again opens the competition to reviewers who have not signed.
+    await assign(appA, R2);
+    expect((await data<{ policyRequired: boolean }[]>(r2, "GET", "/gms/review-assignments"))[0]!.policyRequired).toBe(true);
+    await data(s.funder, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { required: false });
+    expect((await data<{ policyRequired: boolean }[]>(r2, "GET", "/gms/review-assignments"))[0]!.policyRequired).toBe(false);
+  });
+
+  it("a text change and the switch can go together, and an empty change is refused", async () => {
+    await existing();
+    const both = await data<{ required: boolean; version: number; isDefault: boolean }>(s.funder, "PUT", `/gms/competitions/${s.compId}/coi-policy`, { text: "Declare every organization you have worked with in the last five years.", required: true });
+    expect(both).toMatchObject({ required: true, version: 1, isDefault: false });
+    expect((await s.call(s.funder, "PUT", `/gms/competitions/${s.compId}/coi-policy`, {})).status).toBe(400);
+  });
+});
+
 describe("the conflicts register", () => {
   it("shows staff who signed and when, the declared conflicts with their matches, and recusals with reasons; it downloads as CSV", async () => {
     await assign(appA, R1);

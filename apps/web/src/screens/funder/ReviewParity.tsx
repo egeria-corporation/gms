@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { CircleCheck, Clock, Download, Eye, EyeOff, FileText, Plus, ShieldCheck, Signature, X } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import type { CoiSigned, DeclaredOrg, Docket, StageReviewSettings } from "../../api/funder.ts";
+import type { CoiPolicyInput, CoiSigned, DeclaredOrg, Docket, StageReviewSettings } from "../../api/funder.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Field, Loading, Notice } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
@@ -98,8 +98,17 @@ export function ReviewSettingsCard({ competitionId, stageKey }: { competitionId:
 function PolicyDialog({ competitionId, onClose }: { competitionId: string; onClose: () => void }) {
   const policy = useApiQuery((api) => api.getCoiPolicy(competitionId), [competitionId]);
   const [text, setText] = useState<string | null>(null);
-  const save = useApiMutation((api, input: { text: string } | { useDefault: true }) => api.putCoiPolicy(competitionId, input));
+  const save = useApiMutation((api, input: CoiPolicyInput) => api.putCoiPolicy(competitionId, input));
   const current = text ?? (policy.data?.text ?? "");
+  const required = policy.data?.required ?? true;
+  const [lastSave, setLastSave] = useState<"text" | "required" | null>(null);
+  const run = async (input: CoiPolicyInput) => {
+    setLastSave("text" in input || "useDefault" in input ? "text" : "required");
+    if (await save.run(input)) {
+      setText(null);
+      policy.reload();
+    }
+  };
   return (
     <Dialog open onClose={onClose} labelledBy="policy-title" size="lg">
       <div className="hd">
@@ -107,6 +116,10 @@ function PolicyDialog({ competitionId, onClose }: { competitionId: string; onClo
           <h2 id="policy-title">Conflict-of-interest policy</h2>
           {policy.data && (
             <p className="small muted">
+              <span className={required ? "bdg bdg-ok" : "bdg bdg-neutral"} style={{ marginRight: "8px" }}>
+                {required ? <ShieldCheck className="ic" aria-hidden="true" /> : <Clock className="ic" aria-hidden="true" />}
+                {required ? "Reviewers sign it" : "Signing is off"}
+              </span>
               Version {policy.data.version}
               {policy.data.isDefault ? " · the plain-language default" : " · your own text"}
               {policy.data.updatedAt ? ` · since ${formatDate(policy.data.updatedAt)}` : ""}
@@ -118,7 +131,19 @@ function PolicyDialog({ competitionId, onClose }: { competitionId: string; onClo
         {policy.status === "loading" && <Loading label="Loading the policy" />}
         {policy.status === "error" && <ErrorBanner error={policy.error} onRetry={policy.reload} />}
         {save.error !== null && <ErrorBanner error={save.error} title="The policy was not saved" />}
-        {save.state === "saved" && <Notice tone="ok" title="Policy saved">Reviewers who signed an earlier version sign this one before more applications open for them.</Notice>}
+        {save.state === "saved" && lastSave === "text" && <Notice tone="ok" title="Policy saved">{required ? "Reviewers who signed an earlier version sign this one before more applications open for them." : "Reviewers are not asked to sign while signing is off."}</Notice>}
+        {save.state === "saved" && lastSave === "required" && <Notice tone="ok" title={required ? "Reviewers now sign the policy" : "Signing turned off"}>{required ? "Each reviewer signs before their applications in this competition open again." : "Reviewers in this competition are not asked to sign."}</Notice>}
+        {policy.data && (
+          <label className="cb" style={{ marginBottom: "12px" }}>
+            <input type="checkbox" checked={required} disabled={save.state === "saving"} onChange={(e) => void run({ required: e.target.checked })} />
+            <span>
+              <strong>Reviewers sign this policy before applications open for them</strong>
+              <span className="help" style={{ display: "block" }}>
+                On for new competitions. A competition that was already reviewing when conflict-of-interest policies arrived starts with this off, so its reviewers carry on as before. When you turn it on, each reviewer signs before their applications in this competition open again.
+              </span>
+            </span>
+          </label>
+        )}
         {policy.data && (
           <Field id="policy-text" label="What reviewers agree to" help="Every reviewer signs it once per competition, before any application in it opens for them. Changing it asks everyone to sign again.">
             <textarea className="ta" id="policy-text" style={{ minHeight: "260px" }} value={current} onChange={(e) => setText(e.target.value)} />
@@ -126,13 +151,13 @@ function PolicyDialog({ competitionId, onClose }: { competitionId: string; onClo
         )}
       </div>
       <div className="ft">
-        <button type="button" className="btn btn-secondary" style={{ marginRight: "auto" }} disabled={!policy.data || policy.data.isDefault || save.state === "saving"} onClick={async () => (await save.run({ useDefault: true })) && (setText(null), policy.reload())}>
+        <button type="button" className="btn btn-secondary" style={{ marginRight: "auto" }} disabled={!policy.data || policy.data.isDefault || save.state === "saving"} onClick={() => void run({ useDefault: true })}>
           Use the default
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
           Close
         </button>
-        <button type="button" className="btn btn-primary" disabled={!policy.data || current.trim().length < 20 || current.trim() === policy.data.text.trim() || save.state === "saving"} onClick={async () => (await save.run({ text: current.trim() })) && (setText(null), policy.reload())}>
+        <button type="button" className="btn btn-primary" disabled={!policy.data || current.trim().length < 20 || current.trim() === policy.data.text.trim() || save.state === "saving"} onClick={() => void run({ text: current.trim() })}>
           Save policy
         </button>
       </div>

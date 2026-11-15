@@ -11,7 +11,8 @@
 -- were invited to); a signature is readable by staff and by the reviewer who signed it. No other
 -- reviewer, no applicant and no other workspace reads either.
 --
--- What this changes on a live database (no existing row is changed, removed or re-written):
+-- What this changes on a live database (no existing row is removed; existing competitions gain one
+-- column, set to false, and nothing else in them changes):
 --   * adds coi_policies: the policy text of a competition, one row per version. A new version is
 --     a new row; a row never changes (the text a reviewer signed stays readable as signed).
 --   * adds coi_signatures: one row per reviewer, competition and policy version, with the name they
@@ -26,7 +27,13 @@
 --     settings already do, so the flag is a JSON key with no new column. No existing stage has the
 --     key, so every existing row passes; the constraint is added NOT VALID and then validated, which
 --     checks existing rows without blocking writes for longer than the scan.
--- No existing row is changed or removed.
+--   * competitions.coi_policy_required (boolean, not null): whether reviewers must sign the policy
+--     before anything in the competition opens for them. Live panels are not interrupted: every
+--     competition that exists when this runs gets false, so its reviewers keep reviewing as they
+--     did until the funder turns the policy on in the competition's settings. The column default
+--     then becomes true, so a competition created afterwards requires the policy. Adding a column
+--     with a constant default does not rewrite the table (Postgres 11 and later).
+-- No existing row is removed.
 
 -- ---------------------------------------------------------------------------------------------
 -- Helpers (immutable checks on jsonb)
@@ -172,6 +179,15 @@ create policy coi_policies_select on public.coi_policies for select to authentic
 -- Staff, and the reviewer who signed.
 create policy coi_signatures_select on public.coi_signatures for select to authenticated
   using (gms.is_staff(workspace_id) or reviewer_user_id = (select auth.uid()));
+
+-- ---------------------------------------------------------------------------------------------
+-- Whether a competition requires the policy
+-- ---------------------------------------------------------------------------------------------
+
+-- Existing competitions keep reviewing without the policy (false); new ones require it (true).
+alter table public.competitions add column coi_policy_required boolean not null default false;
+alter table public.competitions alter column coi_policy_required set default true;
+comment on column public.competitions.coi_policy_required is 'Reviewers sign the conflict-of-interest policy before anything in the competition opens for them. False for competitions that existed before 0033 until the funder turns it on.';
 
 -- ---------------------------------------------------------------------------------------------
 -- Anonymized review: a stage setting

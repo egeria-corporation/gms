@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(34);
 
 -- ---------------------------------------------------------------- fixtures (as postgres)
 insert into auth.users (id, email, aud, role) values
@@ -121,6 +121,13 @@ select throws_ok($$ insert into public.coi_policies (workspace_id, competition_i
 select set_config('request.jwt.claims', '{"sub":"13000000-0000-4000-8000-0000000000f1","role":"authenticated"}', true);
 select throws_ok($$ delete from public.coi_signatures $$, '42501', null, 'staff cannot delete signatures through the data API');
 
+reset role;
+-- New competitions require the policy; 0033 left existing ones off (the live-safety run checks those).
+select col_default_is('public', 'competitions', 'coi_policy_required', 'true', 'new competitions require the conflict-of-interest policy by default');
+select is((select bool_and(coi_policy_required) from public.competitions where id::text like '13000000-%'), true, 'competitions created after 0033 require it');
+select set_config('request.jwt.claims', '{"sub":"13000000-0000-4000-8000-0000000000f1","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok($$ update public.competitions set coi_policy_required = false where id = '13000000-0000-7000-8000-0000000000c1' $$, '42501', null, 'staff cannot turn the requirement off through the data API');
 reset role;
 set local role anon;
 select throws_ok($$ select count(*) from public.coi_signatures $$, '42501', null, 'anon reads nothing');

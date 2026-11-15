@@ -30,7 +30,7 @@ import type { Rubric } from "../api/types.ts";
 import { MOCK_USER } from "./fixtures.ts";
 import { LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
 import { IDS, type WorkspaceData } from "./store.ts";
-import { anonymizeDetail, assignmentAsSeen, createMockParityApi, hasSigned, isAnonymized, seedParity, type ParityState } from "./reviewParity.ts";
+import { anonymizeDetail, assignmentAsSeen, cleared, createMockParityApi, isAnonymized, seedParity, type ParityState } from "./reviewParity.ts";
 
 export const USERS = {
   dana: MOCK_USER.userId,
@@ -295,7 +295,7 @@ export function overallOf(rubric: Rubric, scores: Record<string, unknown>): { ov
 
 export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
   const states = new Map<string, State>();
-  const empty = (): State => ({ applications: [], assignments: [], reviews: [], decisions: [], awards: [], agreements: [], templates: seed().templates.filter((t) => t.builtIn), communications: [], approvals: [], threads: [], tasks: [], parity: { policies: [], signatures: [], dockets: [] } });
+  const empty = (): State => ({ applications: [], assignments: [], reviews: [], decisions: [], awards: [], agreements: [], templates: seed().templates.filter((t) => t.builtIn), communications: [], approvals: [], threads: [], tasks: [], parity: { policies: [], signatures: [], dockets: [], notRequired: [] } });
   async function st(): Promise<{ w: WorkspaceData; s: State }> {
     const w = await ctx.ws();
     if (!states.has(w.record.id)) states.set(w.record.id, w.record.id === IDS.riverbend ? seed() : empty());
@@ -632,7 +632,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
       const rubric = rubricOf(w, a.rubricId);
       const r = s.reviews.find((x) => x.assignmentId === a.id);
       const own = a.reviewerUserId === me;
-      if (own && a.competitionId && !hasSigned(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first. Applications in this competition open once you have signed it", [{ code: "coi_policy_unsigned" }, { code: "coi_policy_unsigned", field: "competitionId", detail: a.competitionId }]);
+      if (own && a.competitionId && !cleared(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first. Applications in this competition open once you have signed it", [{ code: "coi_policy_unsigned" }, { code: "coi_policy_unsigned", field: "competitionId", detail: a.competitionId }]);
       const app = find(s.applications, a.applicationId, "Application");
       const anonymized = own && !!a.competitionId && isAnonymized(w, a.competitionId, a.stage);
       const shown = detail(w, s, app);
@@ -652,7 +652,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
         return clone(a);
       }
       assertRole(a);
-      if (a.reviewerUserId === me && a.competitionId && !hasSigned(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first", [{ code: "coi_policy_unsigned" }]);
+      if (a.reviewerUserId === me && a.competitionId && !cleared(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first", [{ code: "coi_policy_unsigned" }]);
       if (patch.action === "declare_coi") {
         if (a.status !== "assigned") throw conflict();
         a.coi = { declared: !!patch.hasConflict, reason: patch.reason ?? null };

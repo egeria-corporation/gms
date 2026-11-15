@@ -97,6 +97,15 @@ describe.each([
     expect((await b.reviewer.getCoiPolicy(b.competitionId)).signed).toBe(true);
   });
 
+  it("turns signing off and on: new competitions require it, and the switch changes nothing else", async () => {
+    const p = await b.api.getCoiPolicy(b.competitionId);
+    expect(p.required).toBe(true);
+    const off = await b.api.putCoiPolicy(b.competitionId, { required: false });
+    expect(off).toMatchObject({ required: false, version: p.version, text: p.text, isDefault: p.isDefault });
+    expect((await b.reviewer.getCoiPolicy(b.competitionId)).required).toBe(false);
+    expect((await b.api.putCoiPolicy(b.competitionId, { required: true })).required).toBe(true);
+  });
+
   it("lists the conflicts register and downloads it as CSV", async () => {
     const reg = await b.api.getConflictsRegister(b.competitionId);
     expect(reg.competitionId).toBe(b.competitionId);

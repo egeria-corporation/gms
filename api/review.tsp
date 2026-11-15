@@ -40,6 +40,9 @@ namespace GMS.Models {
 
     updatedAt: utcDateTime | null;
 
+    /** Reviewers sign before anything in the competition opens for them. True for new competitions; false for competitions that existed before v1.8.0 until the funder turns it on. */
+    required: boolean;
+
     /** The caller has signed this version. */
     signed: boolean;
 
@@ -73,9 +76,11 @@ namespace GMS.Models {
   }
 
   /** The funder's own text, or `{ useDefault: true }` to go back to the plain-language default. A change is a new version: reviewers who signed an earlier one sign again. */
+  /** `text` or `useDefault` writes a new version; `required` turns signing on or off (a signed-in person only: 403 `human_only` for an agent or API client). At least one. */
   model CoiPolicyInput {
     text?: string;
     useDefault?: true;
+    required?: boolean;
   }
 
   model CoiSignInput {
@@ -220,7 +225,7 @@ namespace GMS.Routes.Custom {
     @get @route("/competitions/{id}/coi-policy") @useAuth(GmsOAuth<["reviews:read"]> | UserSession)
     op readCoiPolicy(@path id: GmsId): OkT<CoiPolicy> | AuthErrors | NotFound;
 
-    /** Write the policy or go back to the default. Program staff. */
+    /** Write the policy or go back to the default, and turn signing on or off. Program staff. */
     @put @route("/competitions/{id}/coi-policy") @useAuth(GmsOAuth<["reviews:write"]> | UserSession)
     op writeCoiPolicy(@path id: GmsId, @body body: CoiPolicyInput): OkT<CoiPolicy> | BadRequest | AuthErrors | NotFound;
 

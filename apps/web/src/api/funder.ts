@@ -43,6 +43,8 @@ export type Thread = S["Models.Thread"];
 export type Task = S["Models.Task"];
 // Review parity (v1.8.0): the COI policy, the conflicts register, stage review settings, the board docket.
 export type CoiPolicy = S["Models.CoiPolicy"];
+/** A new text (or the default), whether reviewers must sign, or both. */
+export type CoiPolicyInput = ({ text: string } | { useDefault: true } | Record<never, never>) & { required?: boolean };
 export type CoiSigned = S["Models.CoiSigned"];
 export type DeclaredOrg = S["Models.DeclaredOrg"];
 export type ConflictsRegister = S["Models.ConflictsRegister"];
@@ -112,7 +114,7 @@ export interface FunderApi {
 
   // ---- review parity: the COI policy, the conflicts register, stage review settings, the docket ----
   getCoiPolicy(competitionId: string): Promise<CoiPolicy>;
-  putCoiPolicy(competitionId: string, input: { text: string } | { useDefault: true }): Promise<CoiPolicy>;
+  putCoiPolicy(competitionId: string, input: CoiPolicyInput): Promise<CoiPolicy>;
   /** The reviewer signs, in person. */
   signCoiPolicy(competitionId: string, input: { policyVersion: number; signedName: string; agree: true; conflicts?: DeclaredOrg[] }): Promise<CoiSigned>;
   getConflictsRegister(competitionId: string): Promise<ConflictsRegister>;

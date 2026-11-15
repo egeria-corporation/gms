@@ -14,7 +14,7 @@ import { STAFF_ROLES, emitFor } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { getApplicationDetail } from "./inbox.ts";
 import type { Row } from "./repos/types.ts";
-import { anonymityFor, candidateOf, currentPolicy, declaredAtSigning, isReviewerRole, redactFor, reviewStagesOf, signedCompetitions, type ReviewStage } from "./review-privacy.ts";
+import { anonymityFor, candidateOf, currentPolicy, declaredAtSigning, isReviewerRole, redactFor, reviewStagesOf, clearedCompetitions, type ReviewStage } from "./review-privacy.ts";
 
 type Assignment = Row<"review_assignments">;
 type Review = Row<"reviews">;
@@ -128,16 +128,16 @@ async function asSeen(ctx: ServiceContext, v: ReturnType<typeof view>, app: App 
   return { ...v, applicationTitle: anon && v.applicationTitle !== null ? redactText(v.applicationTitle, anon.terms) : v.applicationTitle, applicantCode: anon?.code ?? null, anonymized: !!anon, policyRequired: false };
 }
 
-/** The competitions whose policy the caller has signed (for their own assignments; staff reviewing alongside reviewers sign too), or null without a person. */
+/** The competitions open to the caller's review: no policy required, or its policy signed (for their own assignments; staff reviewing alongside reviewers sign too), or null without a person. */
 async function signedFor(ctx: ServiceContext, ws: ServiceWorkspace, apps: readonly App[]): Promise<Set<string> | null> {
   if (!ctx.actor.userId) return null;
-  return signedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
+  return clearedCompetitions(ctx, ws.id, ctx.actor.userId, apps.map((a) => a.competition_id));
 }
 
-/** The assigned person must have signed the competition's policy before the application opens or is scored. */
+/** Where the competition requires its policy, the assigned person must have signed it before the application opens or is scored. */
 async function requireSigned(ctx: ServiceContext, ws: ServiceWorkspace, app: App): Promise<void> {
   if (!ctx.actor.userId) return;
-  if (!(await signedCompetitions(ctx, ws.id, ctx.actor.userId, [app.competition_id])).has(app.competition_id)) throw unsigned(app.competition_id);
+  if (!(await clearedCompetitions(ctx, ws.id, ctx.actor.userId, [app.competition_id])).has(app.competition_id)) throw unsigned(app.competition_id);
 }
 
 async function stageRubric(ctx: ServiceContext, competition: Comp, stageKey: string): Promise<Row<"rubrics">> {
@@ -510,17 +510,36 @@ export async function getCoiPolicy(ctx: ServiceContext, competitionUuid: string)
     text: policy.text,
     isDefault: policy.isDefault,
     updatedAt: policy.updatedAt,
+    required: competition.coi_policy_required,
     signed: mine.some((r) => r.policy_version === policy.version),
     mySignature: latest ? signatureView(latest, policy.version) : null,
   };
 }
 
-export const coiPolicyInput = z.union([z.object({ text: z.string().trim().min(20).max(20_000) }).strict(), z.object({ useDefault: z.literal(true) }).strict()]);
+/** Whether reviewers must sign: `required` (on or off). Changing it is a signed-in person's choice, never an agent's. */
+const requiredInput = { required: z.boolean().optional() };
+export const coiPolicyInput = z.union([
+  z.object({ text: z.string().trim().min(20).max(20_000), ...requiredInput }).strict(),
+  z.object({ useDefault: z.literal(true), ...requiredInput }).strict(),
+  z.object({ required: z.boolean() }).strict(),
+]);
 
-/** Write the competition's policy (or go back to the default). A change is a new version: reviewers who signed an earlier one sign again. */
+/**
+ * Write the competition's policy (or go back to the default), and turn signing on or off. A change of
+ * text is a new version: reviewers who signed an earlier one sign again. Competitions that existed
+ * before migration 0033 start with signing off, so live panels keep reviewing until the funder turns
+ * it on; new competitions start with it on. Turning it on or off needs a signed-in person.
+ */
 export async function putCoiPolicy(ctx: ServiceContext, competitionUuid: string, input: z.output<typeof coiPolicyInput>) {
   const ws = await authorize(ctx, { scope: "reviews:write", kind: "funder", roles: STAFF_ROLES });
   const competition = await competitionOf(ctx, ws.id, competitionUuid);
+  if (input.required !== undefined && input.required !== competition.coi_policy_required) {
+    if (ctx.actor.kind !== "user") throw new ApiError(403, "human_only", "Whether reviewers must sign the conflict-of-interest policy is changed by a signed-in person, not an agent or API client");
+    const [done] = await ctx.repos.table("competitions").update({ id: competition.id, workspace_id: ws.id }, { coi_policy_required: input.required });
+    if (!done) required(null, "Competition");
+    await audit(ctx, "competition.coi_policy_required_set", "competition", competition.id, { required: input.required });
+  }
+  if (!("text" in input) && !("useDefault" in input)) return getCoiPolicy(ctx, competitionUuid);
   const current = await currentPolicy(ctx, competition.id);
   const text = "text" in input ? input.text.replace(/\r\n?/g, "\n") : DEFAULT_COI_POLICY;
   const isDefault = !("text" in input);

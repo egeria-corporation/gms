@@ -21,6 +21,16 @@ and `api/review.tsp`.
 Every competition has a conflict-of-interest policy. Until the funder writes its own, it is a
 plain-language default (`DEFAULT_COI_POLICY` in `packages/review/src/coi.ts`).
 
+- **On for new competitions, off for live panels.** `competitions.coi_policy_required` says whether
+  reviewers must sign. Competitions created after migration 0033 start with it on. Competitions that
+  already existed when 0033 ran start with it off, so a panel that was reviewing keeps reviewing
+  without interruption; the funder turns it on in Review assignment → Conflict-of-interest policy
+  ("Reviewers sign this policy before applications open for them"), and from then on each reviewer
+  signs before their applications in that competition open again. `PUT
+  /gms/competitions/{id}/coi-policy` takes `{ required }` (with or without a new text); changing it
+  needs a signed-in person (`403 human_only` for an agent or API client) and is ledgered
+  `competition.coi_policy_required_set`. While it is off, the signing rules below do not apply in that
+  competition; declared conflicts already on record still feed the assignment exclusion.
 - **Signing.** Each reviewer signs the policy once per competition: they read it, type their name
   and tick that they agree; the time is recorded. Until they sign, nothing in that competition opens
   for them: the assignment list shows each assignment as waiting for their signature (no title, no

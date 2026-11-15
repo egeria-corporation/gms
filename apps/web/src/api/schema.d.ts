@@ -1759,7 +1759,7 @@ export interface paths {
         };
         /** @description The conflict-of-interest policy reviewers sign for a competition. Staff and the competition's reviewers. */
         get: operations["ReviewParity_readCoiPolicy"];
-        /** @description Write the policy or go back to the default. Program staff. */
+        /** @description Write the policy or go back to the default, and turn signing on or off. Program staff. */
         put: operations["ReviewParity_writeCoiPolicy"];
         post?: never;
         delete?: never;
@@ -12578,16 +12578,19 @@ export interface components {
             isDefault: boolean;
             /** Format: date-time */
             updatedAt: string | null;
+            /** @description Reviewers sign before anything in the competition opens for them. True for new competitions; false for competitions that existed before v1.8.0 until the funder turns it on. */
+            required: boolean;
             /** @description The caller has signed this version. */
             signed: boolean;
             /** @description The caller's latest signature in this competition, of any version. */
             mySignature: components["schemas"]["Models.CoiSignature"] | null;
         };
-        /** @description The funder's own text, or `{ useDefault: true }` to go back to the plain-language default. A change is a new version: reviewers who signed an earlier one sign again. */
+        /** @description The funder's own text, or `{ useDefault: true }` to go back to the plain-language default. A change is a new version: reviewers who signed an earlier one sign again.`text` or `useDefault` writes a new version; `required` turns signing on or off (a signed-in person only: 403 `human_only` for an agent or API client). At least one. */
         "Models.CoiPolicyInput": {
             text?: string;
             /** @enum {boolean} */
             useDefault?: true;
+            required?: boolean;
         };
         "Models.CoiSignInput": {
             /**

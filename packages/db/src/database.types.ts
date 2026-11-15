@@ -832,6 +832,7 @@ export type Database = {
         Row: {
           accepted_applicant_types: string[];
           cg: Json | null;
+          coi_policy_required: boolean;
           created_at: string;
           description: string | null;
           forms: Json;
@@ -849,6 +850,7 @@ export type Database = {
         Insert: {
           accepted_applicant_types?: string[];
           cg?: Json | null;
+          coi_policy_required?: boolean;
           created_at?: string;
           description?: string | null;
           forms?: Json;
@@ -866,6 +868,7 @@ export type Database = {
         Update: {
           accepted_applicant_types?: string[];
           cg?: Json | null;
+          coi_policy_required?: boolean;
           created_at?: string;
           description?: string | null;
           forms?: Json;
