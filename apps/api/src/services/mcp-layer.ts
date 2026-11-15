@@ -15,6 +15,7 @@ import * as agreements from "./agreements.ts";
 import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
 import * as collab from "./collaboration.ts";
+import * as digests from "./content-digests.ts";
 import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
@@ -297,6 +298,8 @@ const IMPLEMENTED: Impl = {
   getFundingSummary: (ctx) => summary.fundingSummary(ctx),
   // Imports (v1.7.0): agents read a check a person made; committing it is a person's (no tool).
   getImportPreview: (ctx, i) => imports.importPreview(ctx, bareUuid(i.importRunId, "Import run")),
+  // Content digests (v1.8.0): agents read the preview; turning one on or off is the person's (no tool).
+  getDigestPreview: (ctx, i) => digests.previewDigest(ctx, { digest: i.digest }),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
 
   listMessages: async (ctx, i) => {

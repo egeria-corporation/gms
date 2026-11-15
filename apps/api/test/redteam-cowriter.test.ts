@@ -98,6 +98,9 @@ const PERSONAL_ROUTES = new Set([
   // is in bodyFor and must be refused).
   "get /gms/passport/consent/callback",
   "post /gms/passport/consent/finish",
+  // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
+  "post /gms/digests/unsubscribe",
+  "get /gms/digests/unsubscribe",
 ]);
 
 /** Bodies the document's schema alone does not make valid (cross-field rules, ids that must exist). */

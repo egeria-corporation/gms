@@ -152,6 +152,7 @@ export const FUNDER_TOOLS = {
   export_990pf_grant_list: tool("export990pfGrantList", "analytics:read", "Export the 990-PF Part XV grant list for a tax year.", z.object({ taxYear: z.number().int().min(2000).max(2100), format: z.enum(["csv", "json"]).default("csv") })),
 
   get_import_preview: tool("getImportPreview", "workspace:admin", "Read an import check (dry run) a person made on the import screen: how many rows would be created, skipped or need a fix, the amounts by year, and the names of the columns left out as bank or identity data. Only a person imports the rows, in the GMS; no tool does it.", z.object({ importRunId: uuid("Import run id") })),
+  get_digest_preview: tool("getDigestPreview", "applications:read", "Read next Monday's opt-in digest email for the signed-in person, as it would be written now: new_matches or deadlines in an applicant workspace, funder_activity in a funder one. Nothing is sent or recorded. Turning a digest on or off is a person's own choice; no tool does it.", z.object({ digest: z.enum(["funder_activity"]) })),
 
   draft_letter: tool("draftLetter", "assist", "Draft a letter from a template. The draft is never sent by this tool.", z.object({ kind: letterContext, applicationId: applicationId.optional(), awardId: awardId.optional(), templateId: uuid("Template id").optional(), instructions: z.string().max(2000).optional() })),
   summarize_application: tool("summarizeApplication", "assist", "Summarize an application. Applicant text is quoted and labeled applicant-supplied.", z.object({ applicationId })),

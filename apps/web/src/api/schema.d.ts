@@ -2108,6 +2108,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/digests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The content digests offered to the caller in this workspace and which are on. Every digest starts off. */
+        get: operations["Digests_get"];
+        /** @description Turn digests on or off, or dismiss the one-time prompt. The signed-in person only: agents and API clients are refused (403 `person_required`). */
+        put: operations["Digests_save"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/digests/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Next Monday's email for the caller, written now and not sent. 422 `digest_not_offered` for a digest their role does not get. */
+        get: operations["Digests_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/digests/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Opening the List-Unsubscribe address in a browser: a 303 to the web page, which turns the digest off when it opens. This request changes nothing. */
+        get: operations["Digests_unsubscribePage"];
+        put?: never;
+        /**
+         * @description One-click unsubscribe (RFC 8058). No sign-in: the signed token is the proof. Mail apps POST
+         *     `List-Unsubscribe=One-Click` to the address in the List-Unsubscribe header (token in the
+         *     query); the web page posts `{ token }`. 400 `invalid_link` for a token not signed here, 410
+         *     `link_expired` after 90 days.
+         */
+        post: operations["Digests_unsubscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/directory/suggest": {
         parameters: {
             query?: never;
@@ -12003,6 +12061,8 @@ export interface components {
             replyTo: string;
             message: string;
         };
+        /** @enum {string} */
+        "Models.ContentDigestKey": "new_matches" | "deadlines" | "funder_activity";
         "Models.CsvImportInput": {
             csv: string;
             /** @description Which CSV column feeds each field: recipientName, recipientEin, title, awardedAmount, awardDate, startDate, endDate, status, programName */
@@ -12160,6 +12220,61 @@ export interface components {
         };
         "Models.DeletedResult": {
             deleted: boolean;
+        };
+        /** @description One digest this person can turn on in this workspace. */
+        "Models.DigestChoice": {
+            key: components["schemas"]["Models.ContentDigestKey"];
+            label: string;
+            description: string;
+            on: boolean;
+        };
+        /** @description Next Monday's email as it would be written now. Nothing is sent or recorded. */
+        "Models.DigestPreview": {
+            digest: components["schemas"]["Models.ContentDigestKey"];
+            label: string;
+            /** @description Whether this person has it on. */
+            on: boolean;
+            /** Format: date */
+            sendsOn: string;
+            /** @description False when there is nothing new: no email would go out. */
+            willSend: boolean;
+            subject: string | null;
+            /** @description The plain-text part; the unsubscribe link in it is a placeholder. */
+            text: string | null;
+        };
+        /** @description `GET /gms/digests`: the digests offered to this person here (by workspace kind and role), and which are on. */
+        "Models.DigestSettings": {
+            digests: components["schemas"]["Models.DigestChoice"][];
+            /** @description The one-time "Get new matches every Monday" prompt was acted on or dismissed. */
+            promptDismissed: boolean;
+            /**
+             * Format: date
+             * @description The next Monday the digests go out (YYYY-MM-DD).
+             */
+            nextSendOn: string;
+            /** @description This server can send them (mail, a sender address and the key that signs unsubscribe links). */
+            emailAvailable: boolean;
+        };
+        /** @description Any of the three, and the prompt. A digest the person is not offered cannot be turned on (422 `digest_not_offered`). */
+        "Models.DigestSettingsInput": {
+            new_matches?: boolean;
+            deadlines?: boolean;
+            funder_activity?: boolean;
+            /** @enum {boolean} */
+            promptDismissed?: true;
+        };
+        "Models.DigestUnsubscribeInput": {
+            /** @description The signed token from the email's link. */
+            token: string;
+        };
+        /** @description The digest turned off. */
+        "Models.DigestUnsubscribed": {
+            digest: components["schemas"]["Models.ContentDigestKey"];
+            label: string;
+            /** @description The workspace's name, or null when the membership no longer exists. */
+            workspace: string | null;
+            /** @enum {boolean} */
+            on: false;
         };
         /**
          * @description `POST /gms/awards/direct`: an award for an organization that has not applied. Nothing is looked
@@ -25150,6 +25265,248 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Digests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DigestSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Digests_save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DigestSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DigestSettings"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Digests_preview: {
+        parameters: {
+            query: {
+                digest: components["schemas"]["Models.ContentDigestKey"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DigestPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Digests_unsubscribePage: {
+        parameters: {
+            query?: {
+                token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The List-Unsubscribe address opened in a browser: nothing changes; the page that asks the API opens. */
+            303: {
+                headers: {
+                    location: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    Digests_unsubscribe: {
+        parameters: {
+            query?: {
+                token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Models.DigestUnsubscribeInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DigestUnsubscribed"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

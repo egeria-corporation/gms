@@ -19,10 +19,11 @@
 import { CONTENT_DIGESTS, CONTENT_DIGEST_LABEL, CONTENT_DIGEST_TEMPLATE, DEADLINE_DIGEST_DAYS, MAX_DIGEST_MATCHES, OUTSIDE_DEADLINE_OFFSETS, deadlinesDigestEmail, funderActivityDigestEmail, newMatchesDigestEmail, type ContentDigest, type DigestDeadline, type DigestEmail, type DigestFrame, type DigestMatch, type FunderActivityCounts } from "@gms/notify";
 import { z } from "zod";
 import { scopesForRole, type WorkspaceKind } from "../auth/scopes.ts";
+import { forbidden } from "../auth/verify.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId, uuidOf } from "../lib/ids.ts";
 import { discoverCompetitions, openGrants } from "./applicant.ts";
-import { authorize, makeActor, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { authorize, isOutsideCowriter, makeActor, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { normalizePreferences } from "./notifications.ts";
 import { OUTSIDE_ROLES } from "./outside.ts";
 import { workspaceDeadlines } from "./pipeline.ts";
@@ -162,6 +163,8 @@ export async function unsubscribe(base: Pick<BaseContext, "repos" | "now" | "con
 async function myMembership(ctx: ServiceContext): Promise<{ ws: ServiceWorkspace; member: Member; row: Ws }> {
   const ws = await authorize(ctx, { person: true });
   if (!ws) throw new ApiError(403, "workspace_required", "Name a workspace for this action");
+  // Someone invited to write one draft gets none of these, and reads nothing about them.
+  if (isOutsideCowriter(ws)) throw forbidden("cowriter_draft_only", "You were invited to write the answers of one application. Ask the team for anything else");
   const member = await ctx.repos.table("workspace_members").one({ workspace_id: ws.id, user_id: ctx.actor.userId! });
   if (!member || !live(member, ctx.now())) throw new ApiError(403, "not_a_member", "You are not a member of this workspace");
   const row = await ctx.repos.table("workspaces").one({ id: ws.id });
@@ -425,8 +428,11 @@ export const previewQuery = z.object({ digest: z.enum(CONTENT_DIGESTS) }).strict
  * `GET /gms/digests/preview?digest=`: next Monday's email as it would be written now, for the
  * person asking. Nothing is sent or recorded; the unsubscribe link is a placeholder.
  */
-export async function previewDigest(ctx: ServiceContext, digest: ContentDigest) {
+export async function previewDigest(ctx: ServiceContext, query: unknown) {
   const { member, row } = await myMembership(ctx);
+  const parsed = previewQuery.safeParse(query);
+  if (!parsed.success) throw new ApiError(400, "bad_request", "Name the digest to preview: new_matches, deadlines or funder_activity", [{ code: "invalid_parameter", field: "digest" }]);
+  const digest = parsed.data.digest;
   if (!offeredDigests(row.kind, member.role).includes(digest)) throw new ApiError(422, "digest_not_offered", `"${CONTENT_DIGEST_LABEL[digest]}" is not offered to you in this workspace`);
   const sub = await ctx.repos.table("digest_subscriptions").one({ member_id: member.id });
   const sample = `${ctx.config.webBaseUrl}/digests/unsubscribe`;

@@ -42,4 +42,5 @@ digestRoutes.use("/digests/preview", authenticate());
 
 digestRoutes.get("/digests", async (c) => c.json(ok(await digests.getDigestSettings(await svc(c)))));
 digestRoutes.put("/digests", async (c) => c.json(ok(await digests.saveDigestSettings(await svc(c), parse(digests.digestSettingsInput, await jsonBody(c))))));
-digestRoutes.get("/digests/preview", async (c) => c.json(ok(await digests.previewDigest(await svc(c), parse(digests.previewQuery, { digest: c.req.query("digest") }).digest))));
+// The query is read after the caller is authorized, so a caller who may not preview learns nothing from a 400.
+digestRoutes.get("/digests/preview", async (c) => c.json(ok(await digests.previewDigest(await svc(c), { digest: c.req.query("digest") }))));
