@@ -17172,7 +17172,7 @@ export interface components {
             confidential: boolean;
         };
         /** @enum {string} */
-        "Models.OpenDataExclusion": "not_accepted" | "cancelled" | "individual" | "no_organization" | "confidential" | "no_amount";
+        "Models.OpenDataExclusion": "not_accepted" | "cancelled" | "individual" | "no_organization" | "confidential" | "unlisted" | "no_amount";
         "Models.OpenDataLeftOut": {
             reason: components["schemas"]["Models.OpenDataExclusion"];
             /** @description Plain language, e.g. "Marked confidential". */

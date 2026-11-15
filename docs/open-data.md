@@ -15,7 +15,8 @@ An award is exported when all of these hold:
 | --- | --- |
 | Its status is accepted, active, suspended or completed (`OPEN_DATA_STATUSES`) | "Not accepted yet" (offers), "Cancelled" |
 | It has a recipient organization in the GMS | "Awarded to an individual" (an award to a person, or to a workspace that declared itself an individual); "Recipient is not a linked organization" (a historical import that kept only a name, which may be a person's) |
-| The funder has not kept it confidential | "Marked confidential" |
+| The funder has not kept it confidential (award sharing's one rule, `listability` in `award-sharing.ts`) | "Marked confidential" |
+| The grantee has not chosen "Don't list us publicly" | "The grantee asked not to be listed publicly" |
 | It has an awarded amount | "No amount awarded" |
 
 Awards are chosen by **award date** (`keyDates.awardDate`, else the day the award was created), for
@@ -40,11 +41,16 @@ funder's own data), else by `<prefix>-<workspace id>`.
 ## Confidential awards
 
 Staff (admins and program officers, signed in) tick **Confidential** beside an award in the panel,
-or call `PUT /gms/open-data/awards/{id}/confidential` with `{ "confidential": true }`. The mark is
-kept in the funder workspace's settings under **`settings.openData.excludedAwardIds`** (award UUIDs,
-at most 5,000); there is no column for it, so no migration. If a later release adds a per-award flag,
-the export should read both. Marking and clearing are recorded in the ledger
-(`open_data.award_marked_confidential`, `open_data.award_unmarked_confidential`).
+or call `PUT /gms/open-data/awards/{id}/confidential` with `{ "confidential": true }`. Since v1.9.0
+the mark is the award's own `awards.confidential` flag, set through award sharing's
+`setAwardConfidential`, so a confidential award is never on a public page, card, badge, the sitemap,
+a share kit, a social post or open data. v1.8.0 kept the marks in the funder's settings
+(`settings.openData.excludedAwardIds`); migration 0037 copied them into the flag, and open data still
+reads that list for one release (`LEGACY_EXCLUSIONS_READ`); clearing a mark clears it there too.
+Open data has its own switches, so the funder page's "List awards on my public page" does not gate
+it. Marking and clearing are recorded in the ledger (`award.made_confidential`,
+`award.confidential_removed`, and `open_data.award_unmarked_confidential` when a v1.8.0 mark is
+cleared).
 
 ## 360Giving files
 
@@ -125,7 +131,7 @@ per-award list. Agents cannot change the prefix, the feed or the confidential ma
 ## Constants
 
 All in `apps/api/src/services/open-data.ts`: `OPEN_DATA_STATUSES`, `EXPORT_LIMIT` (5,000 awards per
-export), `MAX_EXCLUDED`, `SCHEMA_VERSION`, `OPEN_DATA_LICENSE`, `REGISTER_URL`,
+export), `LEGACY_EXCLUSIONS_READ`, `SCHEMA_VERSION`, `OPEN_DATA_LICENSE`, `REGISTER_URL`,
 `EXPORT_SELF_DECLARED_RECIPIENT_EIN`, `SUMMARY_ROWS` (500 rows in the panel's list),
 `PREFIX_PATTERN`.
 

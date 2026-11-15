@@ -13,7 +13,7 @@ import { parseCsv } from "@gms/importers";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { ZodType } from "zod";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
-import { CSV_COLUMNS, rangeOf } from "../src/services/open-data.ts";
+import { CSV_COLUMNS, LEGACY_EXCLUSIONS_READ, rangeOf } from "../src/services/open-data.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/360giving/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
@@ -203,13 +203,38 @@ describe("the rule: what goes out and what stays out", () => {
     const unmark = await call(officer, "PUT", `/gms/open-data/awards/awd_${awardIds["Quiet grant"]}/confidential`, { confidential: false });
     expect(unmark.json.data).toEqual({ awardId: `awd_${awardIds["Quiet grant"]}`, confidential: false });
     expect((await summary()).counts.exported).toBe(5);
-    expect((await h.ledger.list({ workspaceId: WS_FUNDER, eventType: "open_data.award_unmarked_confidential" })).length).toBe(1);
+    // The mark is the award's own flag (award sharing), the one every public path reads.
+    expect((await h.repos.table("awards").one({ id: awardIds["Quiet grant"]! }))!.confidential).toBe(false);
+    expect((await h.ledger.list({ workspaceId: WS_FUNDER, eventType: "award.confidential_removed" })).length).toBe(1);
     const client = await clientCredentialsToken(h, "workspace:admin awards:read");
     const viaClient = await call({ ...bearer(client).headers, "Content-Type": "application/json" }, "PUT", `/gms/open-data/awards/awd_${awardIds["Quiet grant"]}/confidential`, { confidential: true });
     expect(viaClient.status).toBe(403);
     // Another funder's award is not found, not forbidden.
     const other = (await h.repos.table("awards").find({ workspace_id: WS_OTHER }))[0]!;
     expect((await call(officer, "PUT", `/gms/open-data/awards/awd_${other.id}/confidential`, { confidential: true })).status).toBe(404);
+  });
+
+  it("still reads a v1.8.0 mark for one release, and clearing it clears that mark too", async () => {
+    expect(LEGACY_EXCLUSIONS_READ).toBe(true);
+    const id = awardIds["Quiet grant"]!;
+    const w = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!;
+    const settings = w.settings as Record<string, unknown>;
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: { ...settings, openData: { ...(settings.openData as object), excludedAwardIds: [id] } } as never });
+    expect((await summary()).awards.find((a) => a.title === "Quiet grant")).toMatchObject({ exported: false, reason: "confidential", confidential: true });
+    expect((await call(officer, "PUT", `/gms/open-data/awards/awd_${id}/confidential`, { confidential: false })).status).toBe(200);
+    const after = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!.settings as { openData: { excludedAwardIds: string[] } };
+    expect(after.openData.excludedAwardIds).toEqual([]);
+    expect((await summary()).awards.find((a) => a.title === "Quiet grant")).toMatchObject({ exported: true, confidential: false });
+    expect((await h.ledger.list({ workspaceId: WS_FUNDER, eventType: "open_data.award_unmarked_confidential" })).length).toBe(1);
+  });
+
+  it("leaves out an award whose grantee asked not to be listed publicly", async () => {
+    const id = awardIds["Quiet grant"]!;
+    // Not confidential (each test starts with it marked), but its grantee chose "Don't list us publicly".
+    await h.repos.table("awards").update({ id }, { confidential: false, recipient_unlisted: true });
+    expect((await summary()).awards.find((a) => a.title === "Quiet grant")).toMatchObject({ exported: false, reason: "unlisted", reasonLabel: "The grantee asked not to be listed publicly" });
+    await setPrefix(PREFIX);
+    expect(JSON.stringify((await pkg()).pkg)).not.toContain("Quiet grant");
   });
 });
 

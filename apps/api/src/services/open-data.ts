@@ -6,7 +6,12 @@
 //
 // - only accepted, active, suspended and completed awards; never offers or cancelled awards;
 // - never an award to an individual, or to a recipient the GMS cannot name as an organization;
-// - never an award the funder marked confidential (`settings.openData.excludedAwardIds`);
+// - never an award that award sharing's one public rule keeps private (`listability` in
+//   award-sharing.ts): confidential, to an individual, or one whose grantee asked not to be listed.
+//   Open data has its own switches (the export and the feed), so the funder page's "List awards"
+//   switch does not gate it, and a suspended award was still made. v1.8.0's marks
+//   (`settings.openData.excludedAwardIds`, copied into `awards.confidential` by 0037) are read too
+//   for one release (`LEGACY_EXCLUSIONS_READ`);
 // - a recipient is named with its Passport record (legal name, EIN, address) only while it is
 //   verified with Passport and shares its record with this funder; any other recipient goes out by
 //   name only, under a local identifier, with no address and no tax number.
@@ -19,6 +24,7 @@ import { z } from "zod";
 import { ApiError, badRequest, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { log } from "../lib/log.ts";
+import { listability, listingSettingsOf, setAwardConfidential as setAwardSharingConfidential } from "./award-sharing.ts";
 import { fundingOf, humanOnly, keyDatesOf, projectAwardRow } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
@@ -35,8 +41,6 @@ type Award = Row<"awards">;
 export const OPEN_DATA_STATUSES: readonly string[] = ["accepted", "active", "suspended", "completed"];
 /** The most awards one export reads (the newest by creation). */
 export const EXPORT_LIMIT = 5000;
-/** The most awards a funder can mark confidential. */
-export const MAX_EXCLUDED = 5000;
 /** The 360Giving package `version` (major.minor of the schema the export follows: 1.4.3). */
 export const SCHEMA_VERSION = "1.4";
 /** The licence the published data carries; the switch that turns on the public feed names it. */
@@ -54,7 +58,7 @@ export const SUMMARY_ROWS = 500;
 /** A registered 360Giving prefix: `360G-` and the publisher's code (360Giving identifier guidance). */
 export const PREFIX_PATTERN = /^360G-[A-Za-z0-9](?:[A-Za-z0-9_-]{0,58}[A-Za-z0-9])?$/;
 
-export const EXCLUSION_REASONS = ["not_accepted", "cancelled", "individual", "no_organization", "confidential", "no_amount"] as const;
+export const EXCLUSION_REASONS = ["not_accepted", "cancelled", "individual", "no_organization", "confidential", "unlisted", "no_amount"] as const;
 export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
 export const REASON_LABELS: Record<ExclusionReason, string> = {
   not_accepted: "Not accepted yet",
@@ -62,8 +66,16 @@ export const REASON_LABELS: Record<ExclusionReason, string> = {
   individual: "Awarded to an individual",
   no_organization: "Recipient is not a linked organization",
   confidential: "Marked confidential",
+  unlisted: "The grantee asked not to be listed publicly",
   no_amount: "No amount awarded",
 };
+
+/**
+ * v1.8.0 kept the funder's confidential marks in `settings.openData.excludedAwardIds`; 0037 copied
+ * them into `awards.confidential`, the one place they live now. They are still read, so a mark made
+ * between the two releases is never lost. Remove in v1.10.0.
+ */
+export const LEGACY_EXCLUSIONS_READ = true;
 
 // ------------------------------------------------------------------------------------ settings
 
@@ -155,7 +167,10 @@ const amountOf = (a: Award): Money | null => {
   return m && typeof m.amount === "string" && /^[A-Z]{3}$/.test(m.currency ?? "") && Number(m.amount) > 0 ? m : null;
 };
 
-function reasonFor(a: Award, w: Ws | null, confidential: ReadonlySet<string>): ExclusionReason | null {
+/** The funder as award sharing's rule sees it for open data: the funder page's listing switch does not apply. */
+const forOpenData = (funder: Ws): Ws => ({ ...funder, settings: { ...((funder.settings as Record<string, unknown> | null) ?? {}), awardSharing: { ...listingSettingsOf(funder), listAwards: true } } as Ws["settings"] });
+
+function reasonFor(a: Award, w: Ws | null, funder: Ws, legacy: ReadonlySet<string>): ExclusionReason | null {
   if (a.status === "cancelled") return "cancelled";
   if (!OPEN_DATA_STATUSES.includes(a.status)) return "not_accepted";
   if (!a.recipient_workspace_id) {
@@ -166,7 +181,10 @@ function reasonFor(a: Award, w: Ws | null, confidential: ReadonlySet<string>): E
   }
   if (!w || w.kind !== "applicant") return "no_organization";
   if (isIndividualOrg(w)) return "individual";
-  if (confidential.has(a.id)) return "confidential";
+  // Award sharing's one rule, with the status already checked above (a suspended award is open data).
+  const rule = listability({ ...a, status: "active" }, { funder: forOpenData(funder), recipient: w });
+  if (!rule.listable) return rule.reason === "individual" ? "individual" : rule.reason === "recipient_unlisted" ? "unlisted" : "confidential";
+  if (LEGACY_EXCLUSIONS_READ && legacy.has(a.id)) return "confidential";
   if (!amountOf(a)) return "no_amount";
   return null;
 }
@@ -187,12 +205,12 @@ async function judge(ctx: PublicContext, funder: Ws, awards: Award[]): Promise<I
   const recipients = ids.length ? await ctx.repos.table("workspaces").find({ id: ids }) : [];
   const byId = new Map(recipients.map((w) => [w.id, w]));
   const shared = await sharingWith(ctx, funder.id, ids);
-  const confidential = new Set(settings.excludedAwardIds);
+  const legacy = new Set(settings.excludedAwardIds);
   return awards
     .map((award) => {
       const recipient = award.recipient_workspace_id ? (byId.get(award.recipient_workspace_id) ?? null) : null;
       const verified = !!recipient && profileSourceOf(recipient) === "passport" && shared.has(recipient.id);
-      return { award, recipient, verified, reason: reasonFor(award, recipient, confidential) };
+      return { award, recipient, verified, reason: reasonFor(award, recipient, funder, legacy) };
     })
     .sort((x, y) => awardDateOf(x.award).localeCompare(awardDateOf(y.award)) || x.award.created_at.localeCompare(y.award.created_at));
 }
@@ -456,7 +474,7 @@ function summaryRow(item: Item, confidential: ReadonlySet<string>): SummaryRow {
     reason: item.reason,
     reasonLabel: item.reason ? REASON_LABELS[item.reason] : null,
     nameOnly: item.reason === null && !item.verified,
-    confidential: confidential.has(a.id),
+    confidential: a.confidential !== false || (LEGACY_EXCLUSIONS_READ && confidential.has(a.id)),
   };
 }
 
@@ -564,20 +582,24 @@ export async function updateOpenDataSettings(ctx: ServiceContext, input: z.outpu
 
 export const confidentialInput = z.object({ confidential: z.boolean() }).strict();
 
-/** Mark one award confidential (never exported) or clear the mark. A person who may change awards. */
+/**
+ * Mark one award confidential (never exported, never public) or clear the mark: award sharing's
+ * `setAwardConfidential`, so the mark lands in `awards.confidential` with every other public path.
+ * A person who may change awards. Clearing it also clears a v1.8.0 mark, so it does not linger.
+ */
 export async function setAwardConfidential(ctx: ServiceContext, awardId: string, input: z.output<typeof confidentialInput>) {
-  const ws = await authorize(ctx, { scope: "awards:write", kind: "funder", roles: ["admin", "program_officer"] });
-  if (ctx.actor.kind !== "user") throw humanOnly("Changing what a funder publishes as open data");
-  const award = await ctx.repos.table("awards").one({ id: awardId });
-  await authorize(ctx, { scope: "awards:write", owner: award?.workspace_id ?? null, what: "Award" });
-  const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  const current = readSettings(funder);
-  const has = current.excludedAwardIds.includes(awardId);
-  if (input.confidential && !has && current.excludedAwardIds.length >= MAX_EXCLUDED) throw new ApiError(409, "too_many_confidential", `At most ${MAX_EXCLUDED} awards can be marked confidential`);
-  if (input.confidential !== has) {
-    const excludedAwardIds = input.confidential ? [...current.excludedAwardIds, awardId] : current.excludedAwardIds.filter((x) => x !== awardId);
-    await writeSettings(ctx, funder, { ...current, excludedAwardIds });
-    await audit(ctx, input.confidential ? "open_data.award_marked_confidential" : "open_data.award_unmarked_confidential", "award", awardId, {});
+  if (ctx.actor.kind !== "user") {
+    await authorize(ctx, { scope: "awards:write", kind: "funder", roles: ["admin", "program_officer"] });
+    throw humanOnly("Changing what a funder publishes as open data");
+  }
+  await setAwardSharingConfidential(ctx, awardId, input);
+  if (!input.confidential) {
+    const funder = await funderFor(ctx);
+    const current = readSettings(funder);
+    if (current.excludedAwardIds.includes(awardId)) {
+      await writeSettings(ctx, funder, { ...current, excludedAwardIds: current.excludedAwardIds.filter((x) => x !== awardId) });
+      await audit(ctx, "open_data.award_unmarked_confidential", "award", awardId, {});
+    }
   }
   return { awardId: apiId("award", awardId), confidential: input.confidential };
 }

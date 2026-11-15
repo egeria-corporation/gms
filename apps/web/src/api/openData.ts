@@ -6,7 +6,7 @@
 import { ApiError } from "./client.ts";
 import type { Money } from "./types.ts";
 
-export type OpenDataReason = "not_accepted" | "cancelled" | "individual" | "no_organization" | "confidential" | "no_amount";
+export type OpenDataReason = "not_accepted" | "cancelled" | "individual" | "no_organization" | "confidential" | "unlisted" | "no_amount";
 
 /** Award dates, inclusive; null for no bound. */
 export interface OpenDataRange {
