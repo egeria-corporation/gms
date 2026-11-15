@@ -436,3 +436,18 @@ Tests: `apps/web/test/front-worker.test.ts`, `apps/api/test/share-pages.test.ts`
 | `GET/POST/DELETE /gms/connectors/{provider}` | Implemented | Adds `google_sheets` and `airtable` (read-only Composio connections), workspace admin of either kind. `GET /gms/config` adds `available.googleSheets` and `available.airtable` |
 | `POST /gms/outside-applications/import`, `POST /gms/imports/csv` | Implemented | The older direct imports screen columns by header and by value as the wizard does; a field mapped to a dropped column counts as unmapped |
 | MCP `get_import_preview` | Implemented | Funder (`workspace:admin`) and applicant (`applications:write`) sides. A run's reconciliation, progress and dropped column names. No tool commits an import |
+
+## Funds (v1.8.0)
+
+Tests: `apps/api/test/funds.test.ts`, `redteam-funds.test.ts`; database: migration `0039_funds.sql`,
+`supabase/tests/database/14_funds.test.sql`. Model and rules: `docs/funds.md`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/funds`, `GET /gms/funds/{id}` | Implemented | `programs:read`. `{ items, scoped }`; each fund with `budgets`, `totals` (its budget per fiscal year beside its programs'), `programIds`; one fund adds `advisors` |
+| `POST /gms/funds`, `PATCH /gms/funds/{id}`, `PUT /gms/funds/{id}/budgets` | Implemented | Funder `admin`. Colours from the theme palette only; reserved addresses refused; budgets one per fiscal year, ledgered with both values |
+| `POST /gms/funds/{id}/advisors` | Implemented | Funder `admin`, a signed-in person. An invitation with `program_officer` or `reviewer` and `scope.fundIds`. No MCP tool |
+| `POST /gms/programs`, `PATCH /gms/programs/{id}` | Implemented | Add `fundId`. A program always has a fund (the default fund when none is named) |
+| `GET /gms/public/funders/{handle}/funds/{slug}` | Implemented | No token. The fund page: `funder`, `fund { name, slug, description, brand, isDefault }`, its published opportunity cards |
+| A fund advisor (a member whose scope names `fundIds`, not an admin) | Implemented | Every route and MCP tool reads and writes through their funds only (`fundScopeOf` in the one authorization path); other funds' records answer 404 |
+| MCP `list_funds` | Implemented | Funder `programs:read` |
