@@ -3435,6 +3435,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/open-data/360giving.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The same grants as a CSV with the 360Giving column titles. */
+        get: operations["OpenData_threeSixtyGivingCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/360giving.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The 360Giving JSON package for the period. 409 `nothing_to_export` when no award in it can go out. */
+        get: operations["OpenData_threeSixtyGivingJson"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/awards/{id}/confidential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Mark an award confidential (never exported) or clear the mark. An admin or program officer, signed in (403 `human_only` otherwise). */
+        put: operations["OpenData_setAwardConfidential"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/commongrants.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Published opportunities (by publish date) and exported awards (by award date) as CommonGrants v0.5.0. */
+        get: operations["OpenData_commonGrantsJson"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description The 360Giving prefix and the "Publish my awards as open data" switch. A workspace admin, signed in: API clients and agents are refused (403 `human_only`). */
+        put: operations["OpenData_updateOpenDataSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description What an export of the period would hold (`year`, or `from` and `to`, by award date; all years when none is given), what it leaves out and why. Funder admins, program officers, finance and auditors. */
+        get: operations["OpenData_openDataSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/open-data/{handle}/360giving.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The public feed: every award the export would hold, all years, in 360Giving JSON. No token. 404 unless the funder has a registered prefix and has switched publishing on, and while there is nothing to publish. Read-only and cached; an unchanged body answers 304. */
+        get: operations["OpenData_openDataFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/opportunities": {
         parameters: {
             query?: never;
@@ -11629,6 +11748,17 @@ export interface components {
             } | null;
             allocation: components["schemas"]["Models.Allocation"];
         };
+        /** @description Published opportunities and exported awards, each a CommonGrants v0.5.0 record validated with `@common-grants/sdk`. */
+        "Models.CommonGrantsOpenData": {
+            /** @enum {string} */
+            commonGrants: "0.5.0";
+            /** Format: date-time */
+            generatedAt: string;
+            range: components["schemas"]["Models.OpenDataRange"];
+            opportunities: components["schemas"]["CommonGrants.Models.OpportunityBase"][];
+            /** @description A recipient appears in `recipientOrganizations` only while it is verified with Passport and shares its record. */
+            awards: components["schemas"]["CommonGrants.Models.AwardBase"][];
+        };
         "Models.CompareRubricRequest": {
             applicationId: components["schemas"]["Models.GmsId"];
             rubricId: components["schemas"]["CommonGrants.Types.uuid"];
@@ -14009,6 +14139,110 @@ export interface components {
             /** @description An expected payment received: the amount that came in. */
             amount?: components["schemas"]["CommonGrants.Fields.Money"];
         };
+        /** @description One award in the period and what the export does with it. */
+        "Models.OpenDataAwardRow": {
+            awardId: components["schemas"]["Models.PrefixedId"];
+            title: string;
+            /** @description "An individual" for an award to a person: this feature never shows a person's name. */
+            recipientName: string;
+            awardedAmount: components["schemas"]["CommonGrants.Fields.Money"] | null;
+            /** Format: date */
+            awardDate: string;
+            status: string;
+            exported: boolean;
+            reason: components["schemas"]["Models.OpenDataExclusion"] | null;
+            reasonLabel: string | null;
+            /** @description Exported by name only: the recipient is not verified with Passport or does not share its record with this funder. */
+            nameOnly: boolean;
+            confidential: boolean;
+        };
+        "Models.OpenDataConfidential": {
+            awardId: components["schemas"]["Models.PrefixedId"];
+            confidential: boolean;
+        };
+        "Models.OpenDataConfidentialInput": {
+            confidential: boolean;
+        };
+        /** @enum {string} */
+        "Models.OpenDataExclusion": "not_accepted" | "cancelled" | "individual" | "no_organization" | "confidential" | "no_amount";
+        "Models.OpenDataLeftOut": {
+            reason: components["schemas"]["Models.OpenDataExclusion"];
+            /** @description Plain language, e.g. "Marked confidential". */
+            label: string;
+            /** Format: int32 */
+            count: number;
+        };
+        /** @description Award dates, inclusive; null for no bound. */
+        "Models.OpenDataRange": {
+            /** Format: date */
+            from: string | null;
+            /** Format: date */
+            to: string | null;
+        };
+        /** @description Merge patch: a key that is not sent keeps its value. Publishing needs a prefix (409 `prefix_required`). */
+        "Models.OpenDataSettingsInput": {
+            /** @description `360G-` and the publisher's code, as 360Giving issued it; null removes it. */
+            threeSixtyGivingPrefix?: string | null;
+            publishFeed?: boolean;
+        };
+        "Models.OpenDataSettingsState": {
+            /** @description The funder's registered 360Giving publisher prefix (`360G-…`); null until it registers. */
+            threeSixtyGivingPrefix: string | null;
+            /** @description "Publish my awards as open data": the public feed. Off by default. */
+            publishFeed: boolean;
+        };
+        "Models.OpenDataSettingsView": {
+            /** @description The funder's registered 360Giving publisher prefix (`360G-…`); null until it registers. */
+            threeSixtyGivingPrefix: string | null;
+            /** @description "Publish my awards as open data": the public feed. Off by default. */
+            publishFeed: boolean;
+            /** Format: uri */
+            feedUrl: string | null;
+        };
+        /** @description What an export of the period would hold, what it leaves out and why. */
+        "Models.OpenDataSummary": {
+            range: components["schemas"]["Models.OpenDataRange"];
+            settings: components["schemas"]["Models.OpenDataSettingsState"];
+            /** @description No registered prefix: the 360Giving file is a draft (identifiers start with `DRAFT-`). */
+            draft: boolean;
+            /**
+             * Format: uri
+             * @description Where a funder registers as a 360Giving publisher.
+             */
+            registerUrl: string;
+            /**
+             * Format: uri
+             * @description The public feed, only while it is switched on.
+             */
+            feedUrl: string | null;
+            license: {
+                name: string;
+                /** Format: uri */
+                url: string;
+            };
+            counts: {
+                /** Format: int32 */
+                inRange: number;
+                /** Format: int32 */
+                exported: number;
+                /** Format: int32 */
+                leftOut: number;
+                /** Format: int32 */
+                nameOnly: number;
+            };
+            /** @description Only the reasons that leave something out. */
+            leftOut: components["schemas"]["Models.OpenDataLeftOut"][];
+            commonGrants: {
+                /** Format: int32 */
+                opportunities: number;
+                /** Format: int32 */
+                awards: number;
+            };
+            /** @description The awards in the period (at most 500 rows; `counts` covers them all). */
+            awards: components["schemas"]["Models.OpenDataAwardRow"][];
+            /** Format: int32 */
+            awardsShown: number;
+        };
         "Models.OpenGrantsListingDetail": {
             id: string;
             title: string;
@@ -16273,6 +16507,74 @@ export interface components {
              * @enum {string}
              */
             visibility?: "shared" | "internal";
+        };
+        /** @description One grant in the 360Giving Data Standard (schema 1.4.3). */
+        "Models.ThreeSixtyGivingGrant": {
+            /** @description `<360Giving prefix>-<award id>`; `DRAFT-<handle>-<award id>` without a registered prefix. */
+            id: string;
+            title: string;
+            description: string;
+            /** @description ISO 4217. */
+            currency: string;
+            /** Format: double */
+            amountAwarded: number;
+            /** Format: date */
+            awardDate: string;
+            plannedDates?: {
+                /** Format: date */
+                startDate: string;
+                /** Format: date */
+                endDate?: string;
+            }[];
+            recipientOrganization: components["schemas"]["Models.ThreeSixtyGivingOrganization"][];
+            fundingOrganization: components["schemas"]["Models.ThreeSixtyGivingOrganization"][];
+            grantProgramme?: {
+                code: string;
+                title: string;
+            }[];
+            /** Format: date-time */
+            dateModified: string;
+        };
+        /** @description A 360Giving organization (schema `#/$defs/Organization`). Address and web address only from a verified, shared Passport record. */
+        "Models.ThreeSixtyGivingOrganization": {
+            /** @description `US-EIN-12-3456789`, or `<prefix>-<id>` for an organization the export does not name by its EIN. */
+            id: string;
+            name: string;
+            streetAddress?: string;
+            addressLocality?: string;
+            addressRegion?: string;
+            postalCode?: string;
+            addressCountry?: string;
+            /** Format: uri */
+            url?: string;
+        };
+        /** @description A 360Giving data package (schema `360-giving-package-schema.json`). */
+        "Models.ThreeSixtyGivingPackage": {
+            /**
+             * @description The schema version, major.minor.
+             * @enum {string}
+             */
+            version: "1.4";
+            title: string;
+            description: string;
+            /** Format: date-time */
+            modified: string;
+            identifier: string;
+            publisher: {
+                name: string;
+                identifier: string;
+                /** Format: uri */
+                website?: string;
+                /** Format: uri */
+                logo?: string;
+            };
+            /** Format: uri */
+            license: string;
+            /** Format: uri */
+            accessURL?: string;
+            /** Format: uri */
+            downloadURL?: string;
+            grants: components["schemas"]["Models.ThreeSixtyGivingGrant"][];
         };
         /** @description Timestamps carried by every GMS record. */
         "Models.Timestamps": {
@@ -29540,6 +29842,428 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_threeSixtyGivingCsv: {
+        parameters: {
+            query?: {
+                year?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "content-disposition": string;
+                    "X-Open-Data-Draft"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_threeSixtyGivingJson: {
+        parameters: {
+            query?: {
+                year?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "content-disposition": string;
+                    /** @description `true` on a draft (no registered prefix). */
+                    "X-Open-Data-Draft"?: "true";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["Models.ThreeSixtyGivingPackage"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_setAwardConfidential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.OpenDataConfidentialInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OpenDataConfidential"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_commonGrantsJson: {
+        parameters: {
+            query?: {
+                year?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "content-disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["Models.CommonGrantsOpenData"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_updateOpenDataSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.OpenDataSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OpenDataSettingsView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_openDataSummary: {
+        parameters: {
+            query?: {
+                year?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OpenDataSummary"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenData_openDataFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                "if-none-match"?: string;
+            };
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    /** @description `public, max-age=300, s-maxage=900`. */
+                    "cache-control": string;
+                    etag: string;
+                    "Access-Control-Allow-Origin": "*";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": components["schemas"]["Models.ThreeSixtyGivingPackage"];
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    etag: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
