@@ -2590,6 +2590,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/imports/connections/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether Fluxx or Zengine is connected for this funder workspace. A funder workspace admin, signed in. */
+        get: operations["ImportAdapters_connection"];
+        put?: never;
+        /** @description Connect Fluxx or Zengine with the funder's own credentials. Checked with one read first, then stored encrypted; never returned. Deleted when an import has read the source to its end and finished, on disconnect, when the source rejects them, or after a week unused. 422 `credentials_rejected`, `invalid_instance`; 503 `credentials_not_configured`, `connector_unavailable`. */
+        post: operations["ImportAdapters_connect"];
+        /** @description Disconnect: the stored credentials are deleted. */
+        delete: operations["ImportAdapters_disconnect"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/imports/csv": {
         parameters: {
             query?: never;
@@ -2620,7 +2639,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Check every row (the dry run) and store the run: what will be created, skipped or in error, with totals by year. 422 `mapping_incomplete`. */
+        /** @description Check every row (the dry run) and store the run: what will be created, skipped or in error, with totals by year. A grants system's never-awarded rows are skipped with the reason. 422 `mapping_incomplete`; 429 `source_rate_limited`. */
         post: operations["Imports_preview"];
         delete?: never;
         options?: never;
@@ -2637,7 +2656,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Read a source: its columns with sensitive ones dropped, sample values and a suggested mapping. Stores nothing. 409 `source_not_connected`; 422 `invalid_link`, `too_many_rows`, `source_not_readable`; 503 when the source is not set up or Composio cannot be reached. */
+        /** @description Read a source: its columns with sensitive ones dropped, sample values and a suggested mapping (a grants system's preset when its export is named or recognised). Stores nothing. 409 `source_not_connected`; 422 `invalid_link`, `too_many_rows`, `source_not_readable`, `adapter_not_for_target`, `adapter_mismatch`; 429 `source_rate_limited` (Fluxx or Zengine asked to wait); 503 when the source is not set up or cannot be reached. */
         post: operations["Imports_read"];
         delete?: never;
         options?: never;
@@ -2696,6 +2715,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/imports/runs/{id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The files attached to a run's awards. */
+        get: operations["ImportAdapters_listFiles"];
+        put?: never;
+        /** @description Attach one file to the award its path matches, as the funder's own document (the grantee never sees it). A signed-in person only (403 `human_only`). The same file on the same award is stored once (200 with `created: false`). 422 `file_not_matched`, `sensitive_document`; 413 `too_large`; 503 `storage_unavailable`. */
+        post: operations["ImportAdapters_attachFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/runs/{id}/files/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Match a zip's paths (never its files) to the awards a finished grant history import created, by the export's own id or by title. 409 `import_not_finished`. */
+        post: operations["ImportAdapters_matchFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/imports/sources": {
         parameters: {
             query?: never;
@@ -2705,6 +2759,23 @@ export interface paths {
         };
         /** @description The sources this workspace can import from for a target, and the target's fields. Outside applications: applicant workspaces, `applications:write`. Grant history: funder workspace admins, signed in. */
         get: operations["Imports_sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/imports/zengine/forms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The Zengine forms the saved token can read, to choose one to import. 409 `source_not_connected`; 429 `source_rate_limited`. */
+        get: operations["ImportAdapters_zengineForms"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12692,6 +12763,12 @@ export interface components {
             code?: string;
             message?: string;
         };
+        /** @description Fluxx: your instance's address, and the id and secret of the OAuth application you created at its /oauth/applications page. */
+        "Models.FluxxConnectInput": {
+            instanceUrl: string;
+            clientId: string;
+            clientSecret: string;
+        };
         /** @enum {string} */
         "Models.FormPurpose": "application" | "report" | "loi" | "amendment" | "site_visit" | "other";
         /** @description Who owns which section of one form of an application. */
@@ -13547,6 +13624,32 @@ export interface components {
             /** @description Kept on the application as a document typed `funder_guidelines` (the same file once). */
             document: components["schemas"]["Models.Document"];
         };
+        /** @description A grants system the import can read: what to export, and what a zip of its files holds. */
+        "Models.ImportAdapter": {
+            key: components["schemas"]["Models.ImportAdapterKey"];
+            system: string;
+            /**
+             * @description `file`: drop in its export. `api`: read with the funder's own credentials.
+             * @enum {string}
+             */
+            via: "file" | "api";
+            /** @description What to export from the system, in plain steps. */
+            steps: string[];
+            /** @description The file types read for it. */
+            accepts: ("csv" | "xlsx" | "json")[];
+            /** @description What its zip of PDFs and files holds, when it has one. */
+            attachments: string | null;
+            /** @description Whether the export's exact column names were confirmed from the system's public pages; when not, the person confirms each field. */
+            headersConfirmed: boolean;
+            /** @description The public pages it was built from, as of November 2026. */
+            sources: string[];
+        };
+        /** @enum {string} */
+        "Models.ImportAdapterKey": "good_grants" | "sm_apply" | "submittable" | "foundant_glm" | "smartsimple" | "openwater" | "fluxx" | "zengine";
+        "Models.ImportAdapterRef": {
+            key: components["schemas"]["Models.ImportAdapterKey"];
+            system: string;
+        };
         "Models.ImportAirtableSource": {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -13583,6 +13686,12 @@ export interface components {
             text: string;
             fileName?: string;
         };
+        "Models.ImportDetected": {
+            key: components["schemas"]["Models.ImportAdapterKey"];
+            system: string;
+            /** @description The headers that matched the system's export. */
+            matched: string[];
+        };
         "Models.ImportEntity": {
             /** @enum {string} */
             type: "outside_application" | "award";
@@ -13596,6 +13705,82 @@ export interface components {
             kind: "text" | "longtext" | "date" | "year" | "money" | "currency" | "choice" | "yesno" | "url" | "id";
             required: boolean;
             help: string | null;
+        };
+        "Models.ImportFile": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            mime: string;
+            /** Format: int64 */
+            size: number;
+            /** Format: int32 */
+            line: number | null;
+            /** @description The award's `awd_` id. */
+            award: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.ImportFileAttached": {
+            file: components["schemas"]["Models.ImportFile"];
+            /** @description False when the same file was already on the award. */
+            created: boolean;
+        };
+        "Models.ImportFileInput": {
+            /** @description The file's path in the zip; it must match an imported award. */
+            path: string;
+            /** @description The file, base64. At most 25 MB. */
+            contentBase64: string;
+        };
+        "Models.ImportFileMatched": {
+            path: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description The row of the import it matched.
+             */
+            line: number;
+            /** @description The imported award's title. */
+            title: string;
+            /**
+             * @description By the export's own id in the path, or by the title.
+             * @enum {string}
+             */
+            by: "id" | "title";
+        };
+        "Models.ImportFileUnmatched": {
+            path: string;
+            name: string;
+            /** @description Why, in plain words. */
+            why: string;
+        };
+        "Models.ImportFilesMatch": {
+            matched: components["schemas"]["Models.ImportFileMatched"][];
+            unmatched: components["schemas"]["Models.ImportFileUnmatched"][];
+        };
+        "Models.ImportFilesMatchInput": {
+            /** @description The zip's paths (folders and file names), never the files. At most 2,000. */
+            paths: string[];
+        };
+        "Models.ImportFluxxSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "fluxx";
+            /**
+             * Format: int32
+             * @description Where to start: the `nextPage` of the last run. The first page when left out.
+             */
+            startPage?: number;
+        };
+        "Models.ImportJsonSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "json";
+            /** @description The export's text: an array of records, or an object holding one. */
+            text: string;
+            fileName?: string;
         };
         "Models.ImportLogRow": {
             /** Format: int32 */
@@ -13630,6 +13815,8 @@ export interface components {
         "Models.ImportPreviewInput": {
             target: components["schemas"]["Models.ImportTarget"];
             source: components["schemas"]["Models.ImportSource"];
+            /** @description As for the read step: the system whose never-awarded rows are set aside. v1.8.0. */
+            adapter?: components["schemas"]["Models.ImportAdapterKey"];
             /** @description Field key → column header. Required fields must be mapped. */
             mapping: {
                 [key: string]: string;
@@ -13668,6 +13855,21 @@ export interface components {
             /** Format: int32 */
             failed: number;
         };
+        /** @enum {string} */
+        "Models.ImportPuller": "fluxx" | "zengine";
+        "Models.ImportPullerConnection": {
+            provider: components["schemas"]["Models.ImportPuller"];
+            label: string;
+            /** @description Whether this server can store credentials (CREDENTIALS_ENCRYPTION_KEY is set). */
+            configured: boolean;
+            connected: boolean;
+            /** @description Fluxx: the instance address. Never a credential. */
+            instance: string | null;
+            /** Format: date-time */
+            connectedAt: string | null;
+            /** Format: date-time */
+            lastReadAt: string | null;
+        };
         "Models.ImportRead": {
             target: components["schemas"]["Models.ImportTarget"];
             source: components["schemas"]["Models.ImportSourceRead"];
@@ -13686,10 +13888,16 @@ export interface components {
              */
             savedMapping: "this_source" | "similar_source" | null;
             fields: components["schemas"]["Models.ImportField"][];
+            /** @description The system whose preset filled the mapping (named, or recognised), or null. v1.8.0. */
+            adapter: components["schemas"]["Models.ImportAdapterRef"] | null;
+            /** @description The system the header row matches, which may differ from the one named. v1.8.0. */
+            detected: components["schemas"]["Models.ImportDetected"] | null;
         };
         "Models.ImportReadInput": {
             target: components["schemas"]["Models.ImportTarget"];
             source: components["schemas"]["Models.ImportSource"];
+            /** @description Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.8.0. */
+            adapter?: components["schemas"]["Models.ImportAdapterKey"];
         };
         "Models.ImportReconciliation": {
             /** Format: int32 */
@@ -13725,6 +13933,13 @@ export interface components {
             finishedAt: string | null;
             /** Format: date-time */
             expiresAt: string;
+            /** @description The grants system whose export the run read, or null. v1.8.0. */
+            adapter: components["schemas"]["Models.ImportAdapterRef"] | null;
+            /**
+             * Format: int32
+             * @description Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.8.0.
+             */
+            nextPage: number | null;
             progress?: components["schemas"]["Models.ImportProgress"];
         };
         "Models.ImportRunDetail": {
@@ -13744,9 +13959,9 @@ export interface components {
             /** @description The tab to read; the first when left out. */
             sheet?: string;
         };
-        "Models.ImportSource": components["schemas"]["Models.ImportCsvSource"] | components["schemas"]["Models.ImportXlsxSource"] | components["schemas"]["Models.ImportSheetsSource"] | components["schemas"]["Models.ImportAirtableSource"];
+        "Models.ImportSource": components["schemas"]["Models.ImportCsvSource"] | components["schemas"]["Models.ImportXlsxSource"] | components["schemas"]["Models.ImportSheetsSource"] | components["schemas"]["Models.ImportAirtableSource"] | components["schemas"]["Models.ImportJsonSource"] | components["schemas"]["Models.ImportFluxxSource"] | components["schemas"]["Models.ImportZengineSource"];
         /** @enum {string} */
-        "Models.ImportSourceKind": "csv" | "xlsx" | "google_sheets" | "airtable";
+        "Models.ImportSourceKind": "csv" | "xlsx" | "google_sheets" | "airtable" | "json" | "fluxx" | "zengine";
         "Models.ImportSourceOption": {
             kind: components["schemas"]["Models.ImportSourceKind"];
             label: string;
@@ -13767,6 +13982,13 @@ export interface components {
                 name: string;
             }[];
             table?: string | null;
+            /**
+             * Format: int32
+             * @description Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.8.0.
+             */
+            nextPage?: number | null;
+            /** Format: int32 */
+            total?: number | null;
         };
         "Models.ImportSources": {
             target: components["schemas"]["Models.ImportTarget"];
@@ -13775,8 +13997,10 @@ export interface components {
             /** Format: int32 */
             maxXlsxBytes: number;
             fields: components["schemas"]["Models.ImportField"][];
-            /** @description CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them. */
+            /** @description CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them; Fluxx and Zengine for grant history where the server can store credentials. */
             sources: components["schemas"]["Models.ImportSourceOption"][];
+            /** @description The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.8.0. */
+            adapters: components["schemas"]["Models.ImportAdapter"][];
         };
         /** @enum {string} */
         "Models.ImportTarget": "outside_applications" | "award_history";
@@ -13803,6 +14027,17 @@ export interface components {
             fileName?: string;
             /** @description The sheet to read; the first when left out. */
             sheet?: string;
+        };
+        "Models.ImportZengineSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "zengine";
+            /** @description The form whose records to read (see `zengineForms`). */
+            formId: string;
+            /** Format: int32 */
+            startPage?: number;
         };
         /** @description A signed webhook from Passport or Resend. Stored raw, deduped on the event id. */
         "Models.InboundWebhook": {
@@ -17302,6 +17537,16 @@ export interface components {
             source: components["schemas"]["Models.ProfileSource"];
             selfDeclared: components["schemas"]["Models.SelfDeclaredProfile"] | null;
             verification: components["schemas"]["Models.Verification"];
+        };
+        /** @description Zengine: an access token for your own account. */
+        "Models.ZengineConnectInput": {
+            token: string;
+        };
+        "Models.ZengineForm": {
+            id: string;
+            name: string;
+            workspaceId: string;
+            workspaceName: string;
         };
     };
     responses: never;
@@ -27207,6 +27452,202 @@ export interface operations {
             };
         };
     };
+    ImportAdapters_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["Models.ImportPuller"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportPullerConnection"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ImportAdapters_connect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["Models.ImportPuller"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FluxxConnectInput"] | components["schemas"]["Models.ZengineConnectInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportPullerConnection"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ImportAdapters_disconnect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: components["schemas"]["Models.ImportPuller"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportPullerConnection"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Analytics_importCsv: {
         parameters: {
             query?: never;
@@ -27340,6 +27781,15 @@ export interface operations {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
             /** @description Service unavailable. */
             503: {
                 headers: {
@@ -27414,6 +27864,15 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -27597,6 +28056,254 @@ export interface operations {
             };
         };
     };
+    ImportAdapters_listFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportFile"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ImportAdapters_attachFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ImportFileInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportFileAttached"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportFileAttached"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ImportAdapters_matchFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ImportFilesMatchInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ImportFilesMatch"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Imports_sources: {
         parameters: {
             query: {
@@ -27640,6 +28347,83 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ImportAdapters_zengineForms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ZengineForm"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
