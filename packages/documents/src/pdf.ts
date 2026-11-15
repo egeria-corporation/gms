@@ -12,7 +12,18 @@ export type Block =
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "fields"; rows: [label: string, value: string][] }
   | { type: "rule" }
-  | { type: "space"; height?: number };
+  | { type: "space"; height?: number }
+  /** Starts a new page (nothing when the current page is still empty). */
+  | { type: "pageBreak" }
+  /** A table with a header row, repeated on each page it runs onto. `width` is each column's share of the line. */
+  | { type: "table"; columns: TableColumn[]; rows: string[][] };
+
+export interface TableColumn {
+  label: string;
+  /** Share of the line width; the shares are scaled to fill the line. */
+  width: number;
+  align?: "left" | "right";
+}
 
 export interface PdfDocumentInput {
   title: string;
@@ -124,6 +135,51 @@ class Writer {
     if (this.y - height < MARGIN.bottom) this.newPage();
   }
 
+  private get pageIsEmpty(): boolean {
+    return this.y === PAGE.height - MARGIN.top;
+  }
+
+  private table(columns: TableColumn[], rows: string[][]): void {
+    const size = 9;
+    const step = size * LEADING;
+    const pad = 6;
+    const total = columns.reduce((n, c) => n + Math.max(0, c.width), 0) || 1;
+    const widths = columns.map((c) => (Math.max(0, c.width) / total) * this.width);
+    const xs = widths.map((_, i) => MARGIN.left + widths.slice(0, i).reduce((n, w) => n + w, 0));
+    const cellLines = (text: string, i: number, font: PDFFont) => {
+      const lines = this.wrap(text || "—", font, size, Math.max(10, widths[i]! - pad));
+      return lines.length ? lines : [""];
+    };
+    const drawRow = (cells: string[], font: PDFFont, color: ReturnType<typeof rgb>) => {
+      const wrapped = columns.map((_, i) => cellLines(cells[i] ?? "", i, font));
+      const height = Math.max(...wrapped.map((l) => l.length)) * step + 4;
+      return { wrapped, height, draw: () => {
+        wrapped.forEach((lines, i) => lines.forEach((line, j) => {
+          const w = font.widthOfTextAtSize(line, size);
+          const x = columns[i]!.align === "right" ? xs[i]! + widths[i]! - pad - w : xs[i]!;
+          this.page.drawText(line, { x, y: this.y - step * (j + 1), size, font, color });
+        }));
+        this.y -= height;
+        this.page.drawRectangle({ x: MARGIN.left, y: this.y + 1, width: this.width, height: 0.5, color: RULE });
+      } };
+    };
+    const header = () => {
+      const h = drawRow(columns.map((c) => c.label), this.bold, MUTED);
+      this.need(h.height + step);
+      h.draw();
+    };
+    header();
+    for (const r of rows) {
+      const row = drawRow(r, this.regular, INK);
+      if (this.y - row.height < MARGIN.bottom) {
+        this.newPage();
+        header();
+      }
+      row.draw();
+    }
+    this.y -= 8;
+  }
+
   private wrap(text: string, font: PDFFont, size: number, width: number): string[] {
     const lines: string[] = [];
     let line = "";
@@ -192,7 +248,10 @@ class Writer {
         this.y -= 2;
       }
       this.y -= 6;
-    } else if (b.type === "rule") {
+    } else if (b.type === "pageBreak") {
+      if (!this.pageIsEmpty) this.newPage();
+    } else if (b.type === "table") this.table(b.columns, b.rows);
+    else if (b.type === "rule") {
       this.need(14);
       this.y -= 8;
       this.page.drawRectangle({ x: MARGIN.left, y: this.y, width: this.width, height: 0.75, color: RULE });
