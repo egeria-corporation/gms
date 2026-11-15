@@ -17,6 +17,7 @@ import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
+import { importRoutes } from "./gms/imports.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
@@ -45,6 +46,9 @@ const features = (c: Parameters<typeof config>[0]) => {
       openGrants: !!ports.openGrants && !!c.env.OPENGRANTS_API_KEY,
       assistant: !!cfg.assistantEnabled && !!ports.llm,
       googleWorkspace: !!ports.workspaceApps,
+      // Import sources through Composio (CSV and XLSX are always on).
+      googleSheets: !!ports.sheets,
+      airtable: !!ports.airtable,
       mercury: !!ports.bank && !!cfg.credentialsKey,
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
     },
@@ -120,6 +124,7 @@ gms.route("/", keepRoutes);
 gms.route("/", approvalRoutes);
 gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
+gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 

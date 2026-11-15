@@ -2,7 +2,7 @@
 // Worker entry: wires Supabase-backed stores. The service-role client is created once per isolate;
 // every store query filters by workspace explicitly (RLS is on for every table regardless).
 import { AnthropicLlmClient } from "@gms/assist";
-import { ComposioClient, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed } from "@gms/connectors";
+import { ComposioAirtableSource, ComposioClient, ComposioSheetsSource, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed } from "@gms/connectors";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
@@ -68,11 +68,25 @@ function ports(env: Env): ServicePorts {
           }),
         }
       : {}),
+    // Import sources, read-only, each only when the key and its own auth config are set. Composio sends
+    // the browser back to the import page it was started from (`returnTo`, a path in the web app).
+    ...(env.COMPOSIO_API_KEY && env.COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID
+      ? { sheets: new ComposioSheetsSource({ client: new ComposioClient({ apiKey: env.COMPOSIO_API_KEY }), authConfigId: env.COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID, callbackUrl: (_entityId, returnTo) => returnUrl(env, returnTo, "google_sheets") }) }
+      : {}),
+    ...(env.COMPOSIO_API_KEY && env.COMPOSIO_AIRTABLE_AUTH_CONFIG_ID
+      ? { airtable: new ComposioAirtableSource({ client: new ComposioClient({ apiKey: env.COMPOSIO_API_KEY }), authConfigId: env.COMPOSIO_AIRTABLE_AUTH_CONFIG_ID, callbackUrl: (_entityId, returnTo) => returnUrl(env, returnTo, "airtable") }) }
+      : {}),
     mcpDirectory: new HttpMcpDirectory(),
     // The drafting assistant exists only when it is switched on and has a key.
     ...(env.ASSISTANT_ENABLED === "true" && env.ANTHROPIC_API_KEY ? { llm: new AnthropicLlmClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ASSISTANT_MODEL ?? null }) } : {}),
     ...(env.EXPORTS ? { exports: { put: async (key: string, body: string, contentType: string) => void (await env.EXPORTS!.put(key, body, { httpMetadata: { contentType } })) } } : {}),
   };
+}
+
+/** The web page Composio returns to after sign-in, with `connected=<provider>` added to its query. */
+function returnUrl(env: Env, returnTo: string | undefined, provider: string): string {
+  const path = returnTo ?? "/workspaces";
+  return `${trimSlash(env.WEB_BASE_URL)}${path}${path.includes("?") ? "&" : "?"}connected=${provider}`;
 }
 
 /** Where the OpenAPI document sits in the EXPORTS bucket when the Worker is deployed without static assets. */

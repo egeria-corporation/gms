@@ -140,6 +140,7 @@ create table public.import_runs (
   rows_total       integer not null check (rows_total between 0 and 5000),
   created_by       uuid,
   -- A run is a preview until it is committed, and finished once every row to create is written.
+  -- committed_by is the signed-in person, or null for an API client acting on its own.
   committed_by     uuid,
   committed_at     timestamptz,
   finished_at      timestamptz,
@@ -149,8 +150,7 @@ create table public.import_runs (
   updated_at       timestamptz not null default now(),
   -- The run log points at (id, workspace_id, target), so a row sits in its run's workspace and target.
   unique (id, workspace_id, target),
-  check (finished_at is null or committed_at is not null),
-  check ((committed_at is null) = (committed_by is null))
+  check (finished_at is null or committed_at is not null)
 );
 comment on table public.import_runs is 'One import run (dry run, then commit). Dropped sensitive columns are kept by name only.';
 create index import_runs_workspace_idx on public.import_runs (workspace_id, created_at desc);

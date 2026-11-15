@@ -156,6 +156,16 @@ export async function planImport<F extends string, N>(input: { target: ImportTar
 }
 
 /**
+ * Step 4 against earlier runs: rows whose key was imported before become skips. The caller looks
+ * the keys up after planning (they are known only then) and applies them here.
+ */
+export function withAlreadyImported<F extends string, N>(plan: Plan<F, N>, already: AlreadyImported): Plan<F, N> {
+  if (!already.size) return plan;
+  const rows = plan.rows.map((r) => (r.outcome === "create" && already.has(r.key) ? { ...r, outcome: "skip" as const, reason: `Imported already${when(already.get(r.key) ?? null)}` } : r));
+  return { ...plan, rows, reconciliation: reconcile(rows) };
+}
+
+/**
  * Which saved mapping a file gets back: files with the same columns (in any order, any case) share
  * one, so next year's export of the same spreadsheet maps itself.
  */

@@ -308,6 +308,65 @@ const dateOf = (v: string | undefined): string | null => {
   return Number.isNaN(t) ? null : new Date(t).toISOString().slice(0, 10);
 };
 
+/** Who an imported award may be linked to: the organizations already connected to this funder, and its programs. */
+export interface AwardImportContext {
+  applicants: Row<"workspaces">[];
+  programs: Row<"programs">[];
+}
+export async function awardImportContext(ctx: ServiceContext, funderWorkspaceId: string): Promise<AwardImportContext> {
+  const connected = [...(await connectedApplicants(ctx, funderWorkspaceId))];
+  const [applicants, programs] = await Promise.all([connected.length ? ctx.repos.table("workspaces").find({ id: connected, kind: "applicant" }) : Promise.resolve([]), ctx.repos.table("programs").find({ workspace_id: funderWorkspaceId })]);
+  return { applicants, programs };
+}
+
+/** A recipient matched by EIN, then by exact name, among connected organizations only (review F-01). */
+export function matchImportedRecipient(c: AwardImportContext, name: string, ein: string | null): Row<"workspaces"> | undefined {
+  const digits = (ein ?? "").replace(/\D/g, "");
+  return (digits ? c.applicants.find((w) => (w.ein ?? "").replace(/\D/g, "") === digits) : undefined) ?? c.applicants.find((w) => [w.display_name, w.legal_name].some((n) => n?.toLowerCase() === name.toLowerCase()));
+}
+
+export interface ImportedAward {
+  recipientName: string;
+  recipientEin: string | null;
+  title: string;
+  description?: string | null;
+  amountMinor: number;
+  currency: string;
+  awardDate: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: "active" | "completed";
+  programName: string | null;
+}
+
+/**
+ * The awards row for an imported award: `completed` or `active`, conditions `imported`, the awarded
+ * amount only (never a disbursed amount), a named recipient unless it matched a connected
+ * organization, and the program when its name matches one of the funder's programs.
+ */
+export function importedAwardRow(funderWorkspaceId: string, a: ImportedAward, c: AwardImportContext, id?: string) {
+  const match = matchImportedRecipient(c, a.recipientName, a.recipientEin);
+  const program = a.programName ? c.programs.find((p) => p.name.toLowerCase() === a.programName!.toLowerCase()) : undefined;
+  return {
+    row: {
+      ...(id ? { id } : {}),
+      workspace_id: funderWorkspaceId,
+      recipient_workspace_id: match?.id ?? null,
+      recipient_individual: (match ? null : { name: a.recipientName, imported: true }) as Award["recipient_individual"],
+      program_id: program?.id ?? null,
+      title: a.title,
+      description: a.description ?? null,
+      status: a.status,
+      cg_status: a.status === "completed" ? "completed" : "awarded",
+      conditions: ["imported"],
+      funding: { awardedAmount: toMoney(a.amountMinor, a.currency) } as unknown as Award["funding"],
+      key_dates: { ...(a.awardDate ? { awardDate: { name: "Award date", eventType: "singleDate", date: a.awardDate } } : {}), ...(a.startDate && a.endDate ? { periodOfPerformance: { name: "Period of performance", eventType: "dateRange", startDate: a.startDate, endDate: a.endDate } } : {}) } as Award["key_dates"],
+    },
+    matched: !!match,
+    programMatched: !!program,
+  };
+}
+
 /**
  * Import historical awards from a CSV with a column mapping (generic mapper). A recipient is
  * matched by EIN, then by exact name, but only among the organizations already connected to this
@@ -325,8 +384,7 @@ export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeo
   const col = (name: (typeof TARGETS)[number]) => (input.mapping[name] ? header.indexOf(input.mapping[name]!) : -1);
   const missing = (["recipientName", "title", "awardedAmount"] as const).filter((n) => col(n) < 0);
   if (missing.length) throw new ApiError(422, "mapping_incomplete", `Map a column for: ${missing.join(", ")}`, missing.map((m) => ({ code: "unmapped", field: m })));
-  const connected = [...(await connectedApplicants(ctx, ws.id))];
-  const [applicants, programs] = await Promise.all([connected.length ? ctx.repos.table("workspaces").find({ id: connected, kind: "applicant" }) : Promise.resolve([]), ctx.repos.table("programs").find({ workspace_id: ws.id })]);
+  const ictx = await awardImportContext(ctx, ws.id);
   const results: { row: number; ok: boolean; awardId?: string; matchedRecipient?: boolean; error?: string }[] = [];
   let created = 0;
   for (const [i, r] of rows.slice(1).entries()) {
@@ -338,31 +396,14 @@ export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeo
       results.push({ row: i + 2, ok: false, error: !name ? "No recipient name" : !title ? "No title" : "The amount is not a positive number" });
       continue;
     }
-    const ein = get("recipientEin").replace(/\D/g, "");
-    const match = (ein ? applicants.find((w) => (w.ein ?? "").replace(/\D/g, "") === ein) : undefined) ?? applicants.find((w) => [w.display_name, w.legal_name].some((n) => n?.toLowerCase() === name.toLowerCase()));
-    const program = programs.find((p) => p.name.toLowerCase() === get("programName").toLowerCase());
-    const status = /closed|complete/i.test(get("status")) ? "completed" : "active";
-    const start = dateOf(get("startDate"));
-    const end = dateOf(get("endDate"));
-    const awardDate = dateOf(get("awardDate"));
+    const planned = importedAwardRow(ws.id, { recipientName: name, recipientEin: get("recipientEin") || null, title, amountMinor: amount, currency: "USD", awardDate: dateOf(get("awardDate")), startDate: dateOf(get("startDate")), endDate: dateOf(get("endDate")), status: /closed|complete/i.test(get("status")) ? "completed" : "active", programName: get("programName") || null }, ictx);
     if (input.dryRun) {
-      results.push({ row: i + 2, ok: true, matchedRecipient: !!match });
+      results.push({ row: i + 2, ok: true, matchedRecipient: planned.matched });
       continue;
     }
-    const a = await ctx.repos.table("awards").insert({
-      workspace_id: ws.id,
-      recipient_workspace_id: match?.id ?? null,
-      recipient_individual: (match ? null : { name, imported: true }) as Award["recipient_individual"],
-      program_id: program?.id ?? null,
-      title,
-      status,
-      cg_status: status === "completed" ? "completed" : "awarded",
-      conditions: ["imported"],
-      funding: { awardedAmount: toMoney(amount, "USD") } as unknown as Award["funding"],
-      key_dates: { ...(awardDate ? { awardDate: { name: "Award date", eventType: "singleDate", date: awardDate } } : {}), ...(start && end ? { periodOfPerformance: { name: "Period of performance", eventType: "dateRange", startDate: start, endDate: end } } : {}) } as Award["key_dates"],
-    });
+    const a = await ctx.repos.table("awards").insert(planned.row);
     created++;
-    results.push({ row: i + 2, ok: true, awardId: apiId("award", a.id), matchedRecipient: !!match });
+    results.push({ row: i + 2, ok: true, awardId: apiId("award", a.id), matchedRecipient: planned.matched });
   }
   if (!input.dryRun) await audit(ctx, "import.csv", "workspace", ws.id, { rows: rows.length - 1, created });
   return { dryRun: input.dryRun === true, rows: rows.length - 1, created, failed: results.filter((r) => !r.ok).length, unmatchedRecipients: results.filter((r) => r.ok && r.matchedRecipient === false).length, results };

@@ -138,10 +138,13 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   consulting_requests: () => ({ sent_at: null, fields_sent: [] }),
   outside_obligation_series: () => ({ amount_minor: null, notes: null, created_by: null }),
   outside_obligations: () => ({ due_on: null, amount_minor: null, status: "upcoming", series_id: null, customized: false, notes: null, submitted_at: null, confirmation_ref: null, document_id: null, snapshot_sha256: null, completed_on: null, created_by: null }),
+  import_mappings: () => ({ updated_by: null }),
+  import_runs: () => ({ source_label: null, source_ref: null, dropped_columns: [], reconciliation: {}, created_by: null, committed_by: null, committed_at: null, finished_at: null }),
+  import_rows: () => ({ reason: null, problems: [], record: null, subtitle: null, entity_type: null, entity_id: null, written_at: null }),
 };
 
-/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
-const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string }[]>> = {
+/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL or `whereNotNull` is not). */
+const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string; whereNotNull?: string }[]>> = {
   workspaces: [{ columns: ["handle"] }],
   workspace_members: [{ columns: ["workspace_id", "user_id"] }],
   invitations: [{ columns: ["token_hash"] }],
@@ -164,6 +167,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
   outside_answers: [{ columns: ["question_id", "version"] }],
   calendar_feeds: [{ columns: ["workspace_id"] }, { columns: ["token_sha256"] }],
+  import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
+  import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -235,7 +240,8 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
   private assertUnique(candidate: AnyRow, self?: AnyRow) {
     for (const u of UNIQUE[this.name] ?? []) {
       if (u.whereNull && (candidate[u.whereNull] ?? null) !== null) continue;
-      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && u.columns.every((c) => r[c] === candidate[c]));
+      if (u.whereNotNull && (candidate[u.whereNotNull] ?? null) === null) continue;
+      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && (!u.whereNotNull || (r[u.whereNotNull] ?? null) !== null) && u.columns.every((c) => r[c] === candidate[c]));
       if (clash) throw new RepoError("conflict", `${this.name}: ${u.columns.join(", ")} already exists`);
     }
   }
@@ -264,6 +270,17 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
     this.assertSameWorkspace(full);
     this.rows.push(structuredClone(full));
     return structuredClone(full) as Row<T>;
+  }
+  async insertMany(rows: Insert<T>[]) {
+    const before = this.rows.length;
+    try {
+      for (const r of rows) await this.insert(r);
+    } catch (e) {
+      // All or none, as one Postgres statement.
+      this.rows.length = before;
+      throw e;
+    }
+    return rows.length;
   }
   async update(where: Where<T>, patch: Update<T>) {
     const at = this.now().toISOString();
