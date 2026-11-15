@@ -48,7 +48,7 @@ describe("social posting", () => {
     // To the call's Publish step through the settings rail.
     await userEvent.click(screen.getAllByRole("link", { name: "Opportunities" })[0]!);
     await userEvent.click((await screen.findAllByRole("link", { name: "Community Health Grants 2027" }))[0]!);
-    await userEvent.click((await screen.findAllByRole("link", { name: "Publish", exact: true }))[0]!);
+    await userEvent.click((await screen.findAllByRole("link", { name: /^Publish$/ }))[0]!);
     const panel = await screen.findByRole("region", { name: "Share on social media" });
     await userEvent.click(await within(panel).findByRole("button", { name: "Write a post" }));
     const composer = await screen.findByRole("dialog", { name: "Write a post" });
