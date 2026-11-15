@@ -4,7 +4,8 @@
 // and a CSV import of awards from another system with column mapping and a dry run.
 import { downloadBlob } from "../../lib/browser.ts";
 import { useState } from "react";
-import { ChartColumn, Download, TriangleExclamationPoint, Upload } from "lucide-react";
+import { ChartColumn, Download, FileSpreadsheet, TriangleExclamationPoint, Upload } from "lucide-react";
+import { Link } from "react-router";
 import { VerificationBadge } from "../../components/status.tsx";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CsvImportResult, CycleReport, Portfolio } from "../../api/funderMoney.ts";
@@ -413,7 +414,7 @@ export default function Analytics() {
       <title>{`Analytics — ${ws.name}`}</title>
       <FunderShell active="Analytics">
         <main className="main">
-          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Analytics" }]} title="Analytics" meta={page.data ? <span>As of {dateTime(page.data.portfolio.asOf)}</span> : undefined} />
+          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Analytics" }]} title="Analytics" meta={page.data ? <span>As of {dateTime(page.data.portfolio.asOf)}</span> : undefined} actions={<Link className="btn btn-secondary" to={`${base}/report-builder`}><FileSpreadsheet className="ic" aria-hidden="true" /> Report builder</Link>} />
           {page.status === "loading" && <Loading label="Loading analytics" />}
           {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
           {page.data && (
