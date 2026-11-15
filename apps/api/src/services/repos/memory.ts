@@ -6,8 +6,8 @@ import { RepoError, type FindOptions, type Insert, type Repos, type Row, type Ta
 
 type AnyRow = Record<string, unknown>;
 
-/** Column defaults from supabase/migrations, for the tables the services write. */
-const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
+/** Column defaults from supabase/migrations, for the tables the services write (`at`: the insert's now()). */
+const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, profile_source: "none", self_declared_profile: null, verification_level: null, status: "active" }),
   workspace_members: () => ({ scope: {}, expires_at: null, mfa_enrolled_at: null, invited_by: null, notification_preferences: {}, notifications_read_at: null, notifications_read_ids: [], dismissed_notes: [] }),
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
@@ -145,10 +145,17 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   // 0033 (review parity): conflict-of-interest policies and signatures.
   coi_policies: () => ({ is_default: false, created_by: null }),
   coi_signatures: () => ({ declared_org_ids: [], declared_orgs: [] }),
+  // 0034 (report builder), 0035 (single sign-on domains), 0036 (template gallery).
+  report_views: () => ({ description: null, visibility: "private" }),
+  report_schedules: (at) => ({ active: true, weekday: null, day_of_month: null, last_period: null, last_sent_at: null, starts_at: at, stopped_reason: null }),
+  report_files: () => ({ schedule_id: null, sent_at: null, sent_count: 0, truncated: false }),
+  workspace_sso_domains: () => ({ status: "pending", require_sso: false, provider_id: null, verified_at: null, last_checked_at: null, last_check_result: null, activated_at: null, created_by: null }),
+  gallery_items: (at) => ({ author_workspace_id: null, licence: "CC-BY-4.0", status: "approved", version: 1, tags: { fieldOfWork: [], grantSize: [], audience: [] }, uses_count: 0, published_at: at, withdrawn_at: null }),
+  gallery_submissions: () => ({ status: "pending", tags: { fieldOfWork: [], grantSize: [], audience: [] }, stripped: [], decided_at: null, decided_by: null, decision_reason: null, item_id: null, withdrawn_at: null }),
 };
 
-/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL or `whereNotNull` is not). */
-const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string; whereNotNull?: string }[]>> = {
+/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
+const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string; whereNotNull?: string; whereEquals?: AnyRow }[]>> = {
   workspaces: [{ columns: ["handle"] }],
   workspace_members: [{ columns: ["workspace_id", "user_id"] }],
   invitations: [{ columns: ["token_hash"] }],
@@ -176,6 +183,13 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
   coi_policies: [{ columns: ["competition_id", "version"] }],
   coi_signatures: [{ columns: ["competition_id", "reviewer_user_id", "policy_version"] }],
+  report_schedules: [{ columns: ["view_id"] }],
+  report_files: [{ columns: ["view_id", "period_key"] }],
+  // A domain may be pending for many workspaces but active for one (workspace_sso_domains_active_domain).
+  workspace_sso_domains: [{ columns: ["workspace_id", "domain"] }, { columns: ["domain"], whereEquals: { status: "active" } }],
+  gallery_items: [{ columns: ["slug"] }],
+  // One pending submission per source record (gallery_submissions_one_pending_idx).
+  gallery_submissions: [{ columns: ["workspace_id", "source_type", "source_id"], whereEquals: { status: "pending" } }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -214,6 +228,9 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   application_summaries: { application_id: "applications" },
   coi_policies: { competition_id: "competitions" },
   coi_signatures: { competition_id: "competitions" },
+  // 0034 checks these with its own trigger (gms.report_rows_check).
+  report_schedules: { view_id: "report_views" },
+  report_files: { view_id: "report_views", schedule_id: "report_schedules" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
@@ -252,7 +269,8 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
     for (const u of UNIQUE[this.name] ?? []) {
       if (u.whereNull && (candidate[u.whereNull] ?? null) !== null) continue;
       if (u.whereNotNull && (candidate[u.whereNotNull] ?? null) === null) continue;
-      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && (!u.whereNotNull || (r[u.whereNotNull] ?? null) !== null) && u.columns.every((c) => r[c] === candidate[c]));
+      if (u.whereEquals && !matches(candidate, u.whereEquals)) continue;
+      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && (!u.whereNotNull || (r[u.whereNotNull] ?? null) !== null) && (!u.whereEquals || matches(r, u.whereEquals)) && u.columns.every((c) => r[c] === candidate[c]));
       if (clash) throw new RepoError("conflict", `${this.name}: ${u.columns.join(", ")} already exists`);
     }
   }
@@ -275,7 +293,7 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
   }
   async insert(row: Insert<T>) {
     const at = this.now().toISOString();
-    const full: AnyRow = { ...(NO_GENERATED_ID.has(this.name) ? {} : { id: crypto.randomUUID() }), ...(DEFAULTS[this.name]?.() ?? {}), created_at: at, updated_at: at };
+    const full: AnyRow = { ...(NO_GENERATED_ID.has(this.name) ? {} : { id: crypto.randomUUID() }), ...(DEFAULTS[this.name]?.(at) ?? {}), created_at: at, updated_at: at };
     for (const [k, v] of Object.entries(row as AnyRow)) if (v !== undefined) full[k] = v;
     this.assertUnique(full);
     this.assertSameWorkspace(full);
