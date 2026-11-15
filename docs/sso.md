@@ -106,3 +106,134 @@ project the deployment uses.
 
 **Verdict: feasible.** SAML SSO works on this project's setup once the project is on Pro or above
 and SAML 2.0 is switched on. The rest of this page describes what the GMS adds on top.
+
+## What a workspace admin does
+
+Settings → Security · Single sign-on (`/w/<handle>/settings/security`, admins of funder workspaces):
+
+1. **Add the email domain** (`example.org`), up to ten. It is **pending**.
+2. **Prove the domain** with a DNS TXT record: `gms-verify=<token>` at `_gms-verify.<domain>` (a
+   record with the same value on the domain itself also works, for DNS hosts without underscore
+   names), then **Check DNS record**. The GMS looks the record up through DNS over HTTPS against
+   Cloudflare's resolver (`cloudflare-dns.com`, the 1.1.1.1 service), the same pattern Passport uses
+   for organization domains. A check within ten seconds of the last one answers with its result.
+3. **Give the IT team the service-provider values** shown on the page (built from the server's
+   `SUPABASE_URL`, never typed in): the Entity ID, the metadata URL and its download, the ACS URL and
+   the NameID format, or **Download these values** as a text file. The IT team creates a SAML 2.0
+   application in their identity provider (Okta, Google Workspace, JumpCloud or any other) and sends
+   back its metadata URL or file.
+4. **OpenGrants connects the identity provider** (the operator steps below). The domain becomes
+   **active**, shown with a check mark and "Active".
+5. Optionally, **require single sign-on for people with these email addresses**. Turning it on needs
+   an active domain and an admin who is signed in through single sign-on right now (for an admin
+   whose own address is on an active domain, through that domain's identity provider), so the person
+   who turns it on is never the one it locks out. Only active domains are required; turning it off is
+   always allowed.
+
+Changing any of this is for a signed-in admin only: an agent or API client gets 403 `human_only`,
+and there is no MCP tool. An API client with `workspace:admin` may read the settings.
+
+## Signing in
+
+The sign-in page has **Use single sign-on**: the person types their work email, the GMS calls
+`signInWithSSO({ domain })` and the browser goes to the organization's sign-in page, then back to
+`/signin` signed in (the page they were going to is kept for that tab). A domain with no identity
+provider gets "Single sign-on is not set up for <domain>. Sign in with an email code instead, or ask
+your IT team." The email-code and Passport sign-ins are unchanged.
+
+An identity-provider-initiated sign-in (a tile in the identity provider's app list) does not work
+with Supabase's PKCE flow; point the tile at `https://<gms host>/signin` instead (a "bookmark app").
+
+**Joining through single sign-on.** Supabase gives an SSO sign-in its own account, separate from
+the email-code account with the same address. Right after an SSO sign-in the web app calls
+`POST /gms/sso/join`: for each workspace whose **active** domain matches the address and whose
+registered identity provider is the one the session came through, the SSO account gets the role
+that person's email-code account already holds there (matched on the account's own email, never on
+an invited address), with the same scope and expiry, ledgered as `member.joined_through_sso`.
+Nobody gets a role nobody held: an address that is not a member needs an invitation, as before.
+(`SSO_JOIN_FROM_EXISTING_MEMBERSHIP` in `apps/api/src/services/sso.ts` switches this off.)
+
+Single sign-on does not replace the GMS's own two-step verification for admin and finance roles.
+
+## Enforcement
+
+One function, `assertSsoSatisfied` (`apps/api/src/services/sso.ts`), called by the auth middleware
+for every signed-in person's request that names a workspace, and by the agent-consent decision:
+
+- when the workspace has an **active, required** domain equal to the domain of the session's email
+  address, the session must carry an `amr` entry `sso/saml` whose `provider` is that domain's
+  registered provider; otherwise 403 `sso_required`, "This workspace requires single sign-on". The
+  web app sends the person to the single sign-on step with that message.
+- members with addresses on other domains, the same person's other workspaces, and pending or
+  unrequired domains are untouched. Subdomains are not included: `staff.example.org` is its own domain.
+- API clients (client credentials) and agents' existing tokens are not sessions and are unaffected;
+  they stay bound to their scopes. Connecting a **new** agent to a workspace that requires single
+  sign-on needs a session that came through it.
+
+## Operator steps
+
+Prerequisite, once per Supabase project: the project is on the Pro plan or above, and SAML 2.0 is
+switched on (dashboard → Authentication → Providers → SAML 2.0). The project's redirect allow list
+already holds `https://<gms host>/signin`, which email links use.
+
+1. Wait until the workspace shows the domain as "DNS record found. Waiting for your identity
+   provider to be connected" (`verified_at` is set).
+2. Get the identity provider's metadata URL (or file) from the workspace's IT team.
+3. Dry run, then apply, with a personal access token in `SUPABASE_ACCESS_TOKEN` (Supabase dashboard,
+   Account, Access Tokens). The token is read from the environment and never printed:
+
+   ```
+   node scripts/sso/register-provider.mjs --project-ref <ref> --domain example.org \
+     --metadata-url https://idp.example.org/saml/metadata --workspace <workspace id>
+   node scripts/sso/register-provider.mjs ... --apply
+   ```
+
+   The dry run prints the exact `POST https://api.supabase.com/v1/projects/<ref>/config/auth/sso/providers`
+   request with the token left out and sends nothing. `--metadata-file idp.xml` replaces
+   `--metadata-url`; `--attribute-mapping-file mapping.json` adds a mapping (not needed for email).
+   A file holding a private key is refused.
+4. `--apply` prints the provider id and the SQL to run in the Supabase SQL editor:
+
+   ```sql
+   select gms.activate_sso_domain('<workspace id>', 'example.org', '<provider id>');
+   ```
+
+   It refuses a domain without DNS proof, one already active, and one active for another workspace,
+   and writes `sso_domain.activated` to the ledger as `system:operator`.
+
+**Replacing or removing a provider.** `supabase sso remove <provider id> --remote=<ref>` (or `DELETE`
+on the Management API), then `select gms.deactivate_sso_domain('<workspace id>', 'example.org');`,
+which returns the domain to pending and lifts its requirement. Register the new provider and
+activate again.
+
+**Lockout recovery.** If a workspace requires single sign-on and its identity provider is down (or
+misconfigured) so that no admin can get in, an admin whose address is on another domain can turn
+the requirement off. Otherwise the operator runs, with the support ticket as the reason:
+
+```sql
+select gms.lift_sso_requirement('<workspace id>', 'Identity provider outage, ticket 1234');
+```
+
+It stops requiring single sign-on on every domain of that workspace and records
+`sso.requirement_lifted` with the reason. Email-code sign-in works again at once; the admins turn the
+requirement back on once single sign-on works.
+
+## Data
+
+Migration 0035 adds `workspace_sso_domains` (workspace, domain, status `pending`/`active`,
+`require_sso`, `provider_id`, the DNS challenge and its last result). A domain is active for one
+workspace at most (partial unique index) and pending for any number, so nobody can block a domain by
+adding it first. Members read their workspace's rows; signed-in users write nothing directly; the
+API writes after its checks, and only the operator functions set a domain active. Rows belong to
+funder workspaces only.
+
+## Routes
+
+| Route | Who | Notes |
+|---|---|---|
+| `GET /gms/sso/settings` | funder admins; API clients with `workspace:admin` | `{ domains, requireSso, canRequire: { ok, reason }, serviceProvider, session: { signedInThroughSso }, maxDomains }` |
+| `POST /gms/sso/domains` | a signed-in admin | `{ domain }`. 409 `domain_exists`, `domain_in_use`, `too_many_domains`; 422 `invalid_domain` |
+| `POST /gms/sso/domains/{id}/check` | a signed-in admin | `{ domain, check: { result, checkedAt } }`; `result` is `matched`, `not_found`, `mismatch` or `error` |
+| `DELETE /gms/sso/domains/{id}` | a signed-in admin | `{ removed, domain, wasActive }` |
+| `PUT /gms/sso/requirement` | a signed-in admin | `{ require }`. 409 `no_active_domain`, `sso_session_required` |
+| `POST /gms/sso/join` | the signed-in person, no workspace | `{ joined: [{ workspaceId, handle, name, role }] }`. 409 `sso_session_required` for any other sign-in |
