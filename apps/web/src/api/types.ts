@@ -317,6 +317,11 @@ export interface PublicFunder {
   website: string | null;
   verificationLevel: string | null;
   verification: Verification;
+  /**
+   * "Powered by OpenGrants Grant Management System" in the page footer. Off only when false; a
+   * server that does not send it yet means on (the funder's default).
+   */
+  poweredBy?: boolean;
 }
 export interface PublicOpportunityCard {
   id: string;
@@ -327,6 +332,8 @@ export interface PublicOpportunityCard {
   funding: OppFunding;
   keyDates: OppTimeline;
   acceptedApplicantTypes: string[];
+  /** The funder page card offers Apply only when this is true (the opportunity and a competition are open). */
+  acceptingApplications?: boolean;
 }
 export interface FunderPageData {
   funder: PublicFunder;
@@ -354,6 +361,25 @@ export interface OpportunityPageData {
   competitions: PublicCompetition[];
   commonGrants: unknown;
   links: { json: string; page: string };
+}
+
+/** `/gms/public/embed/funders/{handle}/opportunities/{slug}`: what the embeddable apply widget shows. */
+export interface EmbedWidgetData {
+  funder: { handle: string; name: string; brand: PublicFunder["brand"]; verified: boolean };
+  opportunity: {
+    slug: string;
+    title: string;
+    status: OpportunityStatus;
+    closeDate: { name: string; date: string } | null;
+    opensDate: string | null;
+    acceptedApplicantTypes: string[];
+    /** Up to three rule labels; `moreEligibility` counts the rest. */
+    eligibility: string[];
+    moreEligibility: number;
+  };
+  acceptingApplications: boolean;
+  poweredBy: boolean;
+  links: { page: string };
 }
 
 /** CommonGrants `FormBase`, as `/common-grants/competitions/{id}` embeds it. */
