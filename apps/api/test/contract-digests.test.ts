@@ -83,6 +83,11 @@ describe.skipIf(!existsSync(SPEC))("content digests contract", () => {
     expect(out).toMatchObject({ digest: "deadlines", label: "Deadlines", sendsOn: "2027-04-19" });
     const funder = await rpc(await agent(USER_OFFICER, WS_FUNDER, "applications:read"), "get_digest_preview", { digest: "funder_activity" });
     expect(funder).toMatchObject({ digest: "funder_activity", on: true });
+    // The preview needs the scope the screen would: deadlines are applications:read.
+    const narrow = await agent(USER_APPLICANT, WS_APPLICANT, "discovery");
+    const refused = await h.request("/gms/digests/preview?digest=deadlines", { headers: { Authorization: `Bearer ${narrow}`, "X-GMS-Workspace": WS_APPLICANT } });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { errors: { code: string }[] }).errors[0]!.code).toBe("insufficient_scope");
     const put = await h.request("/gms/digests", { method: "PUT", headers: { Authorization: `Bearer ${token}`, "X-GMS-Workspace": WS_APPLICANT, "Content-Type": "application/json" }, body: JSON.stringify({ deadlines: true }) });
     expect(put.status).toBe(403);
     expect(((await put.json()) as { errors: { code: string }[] }).errors[0]!.code).toBe("person_required");

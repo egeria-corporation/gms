@@ -423,6 +423,7 @@ async function compose(ctx: ServiceContext, digest: ContentDigest, ws: Ws, m: Me
 }
 
 export const previewQuery = z.object({ digest: z.enum(CONTENT_DIGESTS) }).strict();
+const PREVIEW_SCOPE = { new_matches: "discovery", deadlines: "applications:read", funder_activity: "applications:read" } as const satisfies Record<ContentDigest, string>;
 
 /**
  * `GET /gms/digests/preview?digest=`: next Monday's email as it would be written now, for the
@@ -434,6 +435,8 @@ export async function previewDigest(ctx: ServiceContext, query: unknown) {
   if (!parsed.success) throw new ApiError(400, "bad_request", "Name the digest to preview: new_matches, deadlines or funder_activity", [{ code: "invalid_parameter", field: "digest" }]);
   const digest = parsed.data.digest;
   if (!offeredDigests(row.kind, member.role).includes(digest)) throw new ApiError(422, "digest_not_offered", `"${CONTENT_DIGEST_LABEL[digest]}" is not offered to you in this workspace`);
+  // What the email reads, the caller must be able to read: an agent's token needs the same scope as the screen.
+  await authorize(ctx, { scope: PREVIEW_SCOPE[digest] });
   const sub = await ctx.repos.table("digest_subscriptions").one({ member_id: member.id });
   const sample = `${ctx.config.webBaseUrl}/digests/unsubscribe`;
   const made = await compose(ctx, digest, row, member, { unsubscribeLink: sample, oneClickUrl: `${ctx.config.baseUrl}/gms/digests/unsubscribe` }, newRun(1));
