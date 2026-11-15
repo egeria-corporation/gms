@@ -172,6 +172,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/importers':
+        specifier: workspace:*
+        version: link:../../packages/importers
       '@gms/rules':
         specifier: workspace:*
         version: link:../../packages/rules

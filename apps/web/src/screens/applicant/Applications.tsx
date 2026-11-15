@@ -17,10 +17,9 @@ import { Loaded } from "../../components/applicant.tsx";
 import { RequirementsCalendar, type CalendarItem } from "../../components/RequirementsCalendar.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
-import { DataTable, EmptyState, ErrorBanner, Notice, type Column } from "../../components/ui.tsx";
+import { DataTable, EmptyState, ErrorBanner, type Column } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
 import { daysUntil, formatDate } from "../../lib/format.ts";
-import { ImportDialog } from "./outside/ImportDialog.tsx";
 import { NewApplicationDialog } from "./outside/NewApplicationDialog.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, nextDeadline } from "./outside/shared.tsx";
 
@@ -279,8 +278,7 @@ export default function Applications() {
   const [owner, setOwner] = useState<string>("");
   const [q, setQ] = useState("");
   const [archived, setArchived] = useState(false);
-  const [dialog, setDialog] = useState<null | "new" | "import">(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<null | "new">(null);
   const exporter = useOutsideMutation(async (api, format: "csv" | "json") => {
     const f = await api.exportAll(format);
     downloadBlob(f.blob, f.filename);
@@ -315,16 +313,6 @@ export default function Applications() {
         overlay={
           <>
         {dialog === "new" && <NewApplicationDialog base={base} records={query.status === "ready" ? query.data.records : []} openGrants={openGrants} onClose={() => setDialog(null)} />}
-        {dialog === "import" && (
-          <ImportDialog
-            onClose={() => setDialog(null)}
-            onImported={(n) => {
-              setDialog(null);
-              setNote(`${n} application${n === 1 ? "" : "s"} imported`);
-              query.reload();
-            }}
-          />
-        )}
           </>
         }
       >
@@ -343,10 +331,10 @@ export default function Applications() {
                 <Plus className="ic" aria-hidden="true" />
                 New application
               </button>
-              <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("import")}>
+              <Link to={`${base}/import`} className="btn btn-secondary">
                 <Upload className="ic" aria-hidden="true" />
                 Import
-              </button>
+              </Link>
               <label className="sr" htmlFor="apps-export">
                 Export
               </label>
@@ -368,7 +356,6 @@ export default function Applications() {
               </select>
             </div>
           </div>
-          {note && <Notice tone="ok" title={note} />}
           {exporter.error ? <ErrorBanner error={exporter.error} title="The export did not start" /> : null}
 
           <div className="filterbar" role="group" aria-label="Filters">

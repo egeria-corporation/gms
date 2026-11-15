@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { openBlob } from "../../lib/browser.ts";
 import { Link, useLocation, useParams } from "react-router";
-import { Award as AwardIcon, Check, FileText, Hash, PenLine, Plus, Send } from "lucide-react";
+import { Award as AwardIcon, Check, FileText, Hash, PenLine, Plus, Send, Upload } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Agreement, AwardDetail, AwardSummary } from "../../api/funder.ts";
 import { invitationOf } from "../../api/directAwards.ts";
@@ -272,12 +272,20 @@ export default function AwardAgreement() {
             crumbs={[{ label: ws.name, to: base }, { label: "Awards" }]}
             title="Awards"
             actions={
-              canGive && (
-                <Link to={`${base}/awards/new`} className="btn btn-primary">
-                  <Plus className="ic" aria-hidden="true" />
-                  New award
-                </Link>
-              )
+              <>
+                {canGive && (
+                  <Link to={`${base}/awards/new`} className="btn btn-primary">
+                    <Plus className="ic" aria-hidden="true" />
+                    New award
+                  </Link>
+                )}
+                {(ws.member.role ?? "admin") === "admin" && (
+                  <Link to={`${base}/import`} className="btn btn-secondary">
+                    <Upload className="ic" aria-hidden="true" />
+                    Import history
+                  </Link>
+                )}
+              </>
             }
             meta={
               <span>

@@ -11,7 +11,7 @@ import { demoSession } from "../src/mocks/auth.ts";
 import { CONSULTING_REQUEST_TO, createMockOutsideApi, OUTSIDE_IDS, textPdf } from "../src/mocks/outside.ts";
 import { laneOf, matchesDeadline, rowsOf } from "../src/screens/applicant/Applications.tsx";
 import { isAlertRow } from "../src/screens/applicant/FindFunding.tsx";
-import { guessMapping } from "../src/screens/applicant/outside/ImportDialog.tsx";
+import { OUTSIDE_TARGET, suggestMapping } from "@gms/importers";
 import { plainText } from "../src/screens/applicant/outside/QuestionsTab.tsx";
 import { nextDeadline, orgFacts } from "../src/screens/applicant/outside/shared.tsx";
 
@@ -98,7 +98,8 @@ describe("links, files and facts", () => {
       ["Food, shelter", "Larkspur Foundation", "25,000"],
       ['Say "hi"', "X", "1"],
     ]);
-    expect(guessMapping(["Grant", "Foundation", "Internal deadline", "Due", "Amount requested", "Portal"])).toEqual({ title: "Grant", funderName: "Foundation", internalDue: "Internal deadline", fullDue: "Due", askAmount: "Amount requested", portalUrl: "Portal" });
+    // The import wizard's suggestions come from the import framework (@gms/importers).
+    expect(suggestMapping(OUTSIDE_TARGET, ["Grant", "Foundation", "Internal deadline", "Due", "Amount requested", "Portal"])).toEqual({ title: "Grant", funderName: "Foundation", internalDue: "Internal deadline", fullDue: "Due", askAmount: "Amount requested", portalUrl: "Portal" });
   });
 
   it("lists organization facts from Passport, or from the self-declared profile", () => {

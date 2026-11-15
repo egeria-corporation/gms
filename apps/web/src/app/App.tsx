@@ -75,6 +75,7 @@ const AOutsideApplication = lazy(() => import("../screens/applicant/OutsideAppli
 const ADocuments = lazy(() => import("../screens/applicant/Documents.tsx"));
 const AOutsideAward = lazy(() => import("../screens/applicant/OutsideAward.tsx"));
 const AFundingSummary = lazy(() => import("../screens/applicant/FundingSummary.tsx"));
+const ImportWizard = lazy(() => import("../screens/shared/ImportWizard.tsx"));
 const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
 const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
 const AOrganizationPhone = lazy(() => import("../screens/applicant/phone/OrganizationPhone.tsx"));
@@ -255,6 +256,8 @@ function AppRoutes() {
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
+            {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}
+            <Route path="import" element={<ImportWizard />} />
             <Route path="approvals" element={f(<FApprovals />)} />
 
             {/* Applicant workspace */}

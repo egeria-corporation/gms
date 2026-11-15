@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@gms/forms": "workspace:*",
+    "@gms/importers": "workspace:*",
     "@gms/rules": "workspace:*",
     "@gms/workflow": "workspace:*",
     "@supabase/supabase-js": "2.118.0",
