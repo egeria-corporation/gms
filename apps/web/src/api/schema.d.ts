@@ -4635,6 +4635,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/report-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Scheduled files sent to the caller, kept 30 days. */
+        get: operations["Reports_listFiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A scheduled file, for one of its recipients. 410 `file_expired` after 30 days. */
+        get: operations["Reports_downloadFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The starter views, and the saved views the caller may see. */
+        get: operations["Reports_listViews"];
+        put?: never;
+        /** @description Save a view. A signed-in person only (403 `person_required` otherwise). */
+        post: operations["Reports_createView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-views/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Reports_getView"];
+        put?: never;
+        post?: never;
+        /** @description The owner removes a view, or an admin a shared one; its schedule stops and its files are removed. */
+        delete: operations["Reports_deleteView"];
+        options?: never;
+        head?: never;
+        /** @description The owner changes a view (403 `not_owner` otherwise). 409 `view_scheduled_to_others` when making private a view sent to others. */
+        patch: operations["Reports_updateView"];
+        trace?: never;
+    };
+    "/gms/report-views/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Reports_exportView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-views/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Members the view can be sent to. */
+        get: operations["Reports_scheduleRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-views/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description A view's first 200 rows. */
+        post: operations["Reports_runView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/report-views/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Send the view weekly or monthly. The owner, in person; 422 `recipient_not_allowed` for anyone who is not a member who may read it. */
+        put: operations["Reports_setSchedule"];
+        post?: never;
+        delete: operations["Reports_stopSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/reports/data-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The five data sets and their whitelisted columns. */
+        get: operations["Reports_dataSets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Up to 50,000 rows as CSV, streamed (`X-Report-Rows`, `X-Report-Total`, `X-Report-Truncated`). */
+        post: operations["Reports_exportCsv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/reports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The first 200 rows (or groups) of a definition. Also needs the data set's read scope. */
+        post: operations["Reports_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/requirements/due": {
         parameters: {
             query?: never;
@@ -15361,10 +15549,233 @@ export interface components {
             text: string;
             html: string | null;
         };
+        "Models.ReportAggregate": {
+            /** @enum {string} */
+            fn: "count" | "sum" | "avg";
+            /** @description Not for `count`. A number or money column the data set allows to add up. */
+            column?: string;
+        };
+        "Models.ReportColumnInfo": {
+            key: string;
+            label: string;
+            type: components["schemas"]["Models.ReportColumnType"];
+            /** @description Where the value comes from. */
+            source: string;
+            /** @description Number and money columns that may be added up and averaged. */
+            aggregatable: boolean;
+            /** @description Status columns: the values the column takes. */
+            values?: string[];
+            /** @description Status columns: which status vocabulary labels them (`application`, `award`, `tranche`, `requirement`). */
+            statusKind?: string;
+            note?: string;
+        };
+        /** @enum {string} */
+        "Models.ReportColumnType": "text" | "number" | "money" | "date" | "status";
+        "Models.ReportDataSet": {
+            key: components["schemas"]["Models.ReportDataSetKey"];
+            label: string;
+            description: string;
+            /** @description False when the caller lacks the data set's own read scope. */
+            available: boolean;
+            columns: components["schemas"]["Models.ReportColumnInfo"][];
+        };
+        /** @enum {string} */
+        "Models.ReportDataSetKey": "applications" | "awards" | "payments" | "requirements" | "organizations";
+        /** @description What a person builds. Every name is a column key of the data set; anything else is refused (422 `unknown_column`). */
+        "Models.ReportDefinition": {
+            dataSet: components["schemas"]["Models.ReportDataSetKey"];
+            /** @description 1-30 column keys. */
+            columns: string[];
+            filters?: components["schemas"]["Models.ReportFilter"][];
+            /** @description At most two column keys. With grouping (or summaries) the rows are groups. */
+            groupBy?: string[];
+            aggregates?: components["schemas"]["Models.ReportAggregate"][];
+            /** @description At most three. */
+            sort?: components["schemas"]["Models.ReportSort"][];
+        };
+        "Models.ReportExportInput": {
+            definition: components["schemas"]["Models.ReportDefinition"];
+            /** @description Names the file. */
+            name?: string;
+        };
+        "Models.ReportFileSummary": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            viewId: components["schemas"]["CommonGrants.Types.uuid"];
+            viewName: string;
+            /** @description ISO week (2027-W16) or month (2027-04). */
+            period: string;
+            /** Format: int32 */
+            rows: number;
+            truncated: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /**
+         * @description `eq` takes `value`, `in` takes `values` (1-100), `between` takes `from` and/or `to`, inclusive:
+         *     numbers (money in minor units), or dates as YYYY-MM-DD or relative to the run day
+         *     (`today`, `startOfYear`, `endOfYear`, `startOfMonth`, `endOfMonth`, each with an optional `+Nd` / `-Nd`).
+         */
+        "Models.ReportFilter": {
+            column: string;
+            /** @enum {string} */
+            op: "eq" | "in" | "between";
+            value?: (string | number) | null;
+            values?: (string | number)[];
+            from?: string | number;
+            to?: string | number;
+        };
+        "Models.ReportOutColumn": {
+            key: string;
+            label: string;
+            type: components["schemas"]["Models.ReportColumnType"];
+            statusKind?: string;
+            note?: string;
+        };
+        "Models.ReportPerson": {
+            userId: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+        };
+        "Models.ReportRecipient": {
+            userId: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            role: string;
+        };
+        "Models.ReportResult": {
+            dataSet: components["schemas"]["Models.ReportDataSetKey"];
+            columns: components["schemas"]["Models.ReportOutColumn"][];
+            /** @description One array per row, in the order of `columns`. */
+            rows: ((string | number) | null)[][];
+            /**
+             * Format: int32
+             * @description Rows (or groups) that matched, before the cap.
+             */
+            total: number;
+            /** @description More rows matched than were returned. */
+            truncated: boolean;
+            warnings: string[];
+            /** Format: date-time */
+            asOf: string;
+            /**
+             * Format: int32
+             * @description The cap: 200 for a preview.
+             */
+            limit: number;
+        };
+        "Models.ReportSchedule": {
+            /** @enum {string} */
+            cadence: "weekly" | "monthly";
+            /**
+             * Format: int32
+             * @description Weekly: 1 = Monday … 7 = Sunday.
+             */
+            weekday: number | null;
+            /**
+             * Format: int32
+             * @description Monthly: 1-28.
+             */
+            dayOfMonth: number | null;
+            recipients: components["schemas"]["Models.ReportPerson"][];
+            active: boolean;
+            /** @description `owner_left`, `no_recipients` or `view_private` when the job stopped it. */
+            stoppedReason: string | null;
+            /** Format: date-time */
+            lastSentAt: string | null;
+            /** Format: date-time */
+            nextSendAt: string | null;
+        };
+        /** @description Recipients are members of the workspace by user id, never addresses. */
+        "Models.ReportScheduleInput": {
+            /** @enum {string} */
+            cadence: "weekly" | "monthly";
+            /** Format: int32 */
+            weekday?: number;
+            /** Format: int32 */
+            dayOfMonth?: number;
+            /** @description 1-20 members who may read the report; for a private view, its owner only. */
+            recipientUserIds: components["schemas"]["CommonGrants.Types.uuid"][];
+        };
+        "Models.ReportSort": {
+            /** @description A column shown in the report, or `count`, `sum:<column>`, `avg:<column>` when grouped. */
+            column: string;
+            /** @enum {string} */
+            dir?: "asc" | "desc";
+        };
         "Models.ReportSubmissionInput": {
             /** @description RFC 3339 timestamp, or a date (recorded at 12:00 UTC). Not in the future. */
             submittedAt: string;
             confirmationRef?: string;
+        };
+        "Models.ReportView": {
+            /** @description A UUID, or `starter-<key>` for a starter view. */
+            id: string;
+            name: string;
+            description: string | null;
+            dataSet: components["schemas"]["Models.ReportDataSetKey"];
+            definition: components["schemas"]["Models.ReportDefinition"];
+            /** @enum {string} */
+            visibility: "private" | "workspace";
+            /** @description A starter view: read only; save a copy to change or schedule it. */
+            starter: boolean;
+            owner: components["schemas"]["Models.ReportPerson"] | null;
+            /** @description The caller saved this view. */
+            mine: boolean;
+            schedule: components["schemas"]["Models.ReportSchedule"] | null;
+            /** Format: date-time */
+            createdAt: string | null;
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        "Models.ReportViewDeleted": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @enum {boolean} */
+            deleted: true;
+        };
+        "Models.ReportViewInput": {
+            name: string;
+            description?: string | null;
+            /**
+             * @description Default `private`.
+             * @enum {string}
+             */
+            visibility?: "private" | "workspace";
+            definition: components["schemas"]["Models.ReportDefinition"];
+        };
+        "Models.ReportViewList": {
+            starters: components["schemas"]["Models.ReportView"][];
+            /** @description Shared views and the caller's own private ones. */
+            saved: components["schemas"]["Models.ReportView"][];
+        };
+        "Models.ReportViewPatch": {
+            name?: string;
+            description?: string | null;
+            /** @enum {string} */
+            visibility?: "private" | "workspace";
+            definition?: components["schemas"]["Models.ReportDefinition"];
+        };
+        "Models.ReportViewRun": {
+            dataSet: components["schemas"]["Models.ReportDataSetKey"];
+            columns: components["schemas"]["Models.ReportOutColumn"][];
+            /** @description One array per row, in the order of `columns`. */
+            rows: ((string | number) | null)[][];
+            /**
+             * Format: int32
+             * @description Rows (or groups) that matched, before the cap.
+             */
+            total: number;
+            /** @description More rows matched than were returned. */
+            truncated: boolean;
+            warnings: string[];
+            /** Format: date-time */
+            asOf: string;
+            /**
+             * Format: int32
+             * @description The cap: 200 for a preview.
+             */
+            limit: number;
+            viewId: string;
+            name: string;
         };
         /** @description A person Passport has verified as able to act for the organization. No contact details. */
         "Models.Representative": {
@@ -34813,6 +35224,866 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_listFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportFileSummary"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_downloadFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A CSV: formula-safe cells, money in units with two decimals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_listViews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportViewList"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_createView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReportViewInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_getView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_deleteView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportViewDeleted"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_updateView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReportViewPatch"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_exportView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A CSV: formula-safe cells, money in units with two decimals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_scheduleRecipients: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportRecipient"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_runView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportViewRun"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_setSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReportScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_stopSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportView"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_dataSets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportDataSet"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_exportCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReportExportInput"];
+            };
+        };
+        responses: {
+            /** @description A CSV: formula-safe cells, money in units with two decimals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Reports_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ReportDefinition"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ReportResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
