@@ -25,6 +25,7 @@ import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as inbox from "./inbox.ts";
 import * as obligations from "./obligations.ts";
+import * as openData from "./open-data.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
 import * as org from "./organization.ts";
@@ -336,6 +337,11 @@ const IMPLEMENTED: Impl = {
   export990pfGrantList: async (ctx, i) => {
     const out = await analytics.grantList990pf(ctx, i.taxYear);
     return i.format === "json" ? { year: out.year, items: out.items, totals: out.totals } : { year: out.year, csv: out.csv, totals: out.totals };
+  },
+  // Open data: the export summary without the per-award list.
+  openDataSummary: async (ctx, i) => {
+    const { awards: _awards, awardsShown: _shown, ...counts } = await openData.openDataSummary(ctx, openData.rangeOf({ year: i.year, from: i.from, to: i.to }));
+    return counts;
   },
 
   // ---- applicant: reports ----

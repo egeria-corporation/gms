@@ -9,7 +9,8 @@ These two files are copies of the 360Giving Data Standard JSON schemas, version 
 
 Fetched on 2026-11-15. The files on the `main` branch are the files of the `1.4.3` tag with the
 `$id` corrected to `.../1.4.3/...` (the tagged files still name `1.4.2` in their `$id`); nothing
-else differs. SHA-256:
+else differs (the package schema still refers to the grant schema by its `1.4.2` address; the
+tests register the grant schema under both). SHA-256:
 
 - `360-giving-schema.json`: `e8a1c581ce18447b2dc9c757d7229862624970a3724718d8319a8d3c47429ebb`
 - `360-giving-package-schema.json`: `30c0897090628d161cda0f3048031abd955eb9b68cfd83f8fe54340756886b11`

@@ -20,6 +20,7 @@ import { grantRoutes } from "./gms/grants.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
+import { openDataRoutes } from "./gms/open-data.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
@@ -122,6 +123,8 @@ gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
+// Open data exports, and the public 360Giving feed (`/open-data/{handle}/360giving.json`, no token).
+gms.route("/", openDataRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
