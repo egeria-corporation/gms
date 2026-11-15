@@ -12674,6 +12674,14 @@ export interface components {
             destinationLast4: string;
             bankTransactionId?: string;
         };
+        /** @description A payment the funder made outside the GMS and recorded here. Never more than these. */
+        "Models.ExternalPaymentRecord": {
+            /** @description The funder's own reference, such as a wire or check number */
+            reference: string;
+            paidAt: string;
+            /** @description The last four digits of the account that was paid. Absent when nobody gave them, as for imported grant history. */
+            last4?: string;
+        };
         "Models.ExternalPaymentResult": {
             /**
              * @description `unverified`: recorded here, but Passport could not verify it against the grantee's destination
@@ -15427,10 +15435,8 @@ export interface components {
             /** Format: date-time */
             releasedAt: string | null;
             releasedBy: string | null;
-            /** @description Resolve mode: reference, paidAt and last four digits of what the funder paid elsewhere */
-            external: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Resolve mode: what the funder paid elsewhere */
+            external: components["schemas"]["Models.ExternalPaymentRecord"] | null;
         };
         "Models.PaymentsCenter": {
             items: {
@@ -17013,10 +17019,8 @@ export interface components {
             /** Format: date-time */
             releasedAt: string | null;
             releasedBy: string | null;
-            /** @description Resolve mode: reference, paidAt and last four digits of what the funder paid elsewhere */
-            external: {
-                [key: string]: unknown;
-            } | null;
+            /** @description Resolve mode: what the funder paid elsewhere */
+            external: components["schemas"]["Models.ExternalPaymentRecord"] | null;
             award: {
                 id: components["schemas"]["Models.PrefixedId"];
                 title: string;

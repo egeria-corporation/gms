@@ -417,7 +417,7 @@ async function recordPaidElsewhere(ctx: ServiceContext, wsId: string, awardId: s
   if (tranche.status !== "scheduled" && tranche.status !== "due") return;
   // The GMS never knew where the money went, so the record has a reference and a date and no
   // destination digits (an ExternalPaymentRecord's last4 is left out on purpose).
-  const external = { reference: p.reference, paidAt: p.paidOn } as unknown as ExternalPaymentRecord;
+  const external: ExternalPaymentRecord = { reference: p.reference, paidAt: p.paidOn };
   await applyTrancheUpdate(ctx, { trancheId: tranche.id, path: tranche.status === "scheduled" ? ["due", "settled"] : ["settled"], patch: { mode: "resolve", external, dueAt: `${p.paidOn}T00:00:00.000Z`, ...(ctx.actor.userId ? { releasedBy: ctx.actor.userId } : {}) }, reason: "imported" }, "funder");
 }
 

@@ -34,8 +34,19 @@ model PaymentTranche {
   releasedAt: utcDateTime | null;
   releasedBy: string | null;
 
-  /** Resolve mode: reference, paidAt and last four digits of what the funder paid elsewhere */
-  external: Record<unknown> | null;
+  /** Resolve mode: what the funder paid elsewhere */
+  external: ExternalPaymentRecord | null;
+}
+
+/** A payment the funder made outside the GMS and recorded here. Never more than these. */
+model ExternalPaymentRecord {
+  /** The funder's own reference, such as a wire or check number */
+  reference: string;
+
+  paidAt: string;
+
+  /** The last four digits of the account that was paid. Absent when nobody gave them, as for imported grant history. */
+  last4?: string;
 }
 
 model PaymentSchedule {
