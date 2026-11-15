@@ -5,7 +5,7 @@
 // the readiness checklist and submits; a 422 comes back as the list of fields to fix.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, ShieldOff, TriangleExclamationPoint, Upload, X } from "lucide-react";
 import { passportFieldPaths, type FormDefinition, type JsonObject } from "@gms/forms";
 import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
@@ -26,6 +26,8 @@ import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs }
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
 import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
 import { EditorAssistant } from "./editorAssist.tsx";
+import type { DraftInvitation } from "../../api/invites.ts";
+import { INVITE_OPTION, InviteDialog, InviteOptions, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
 
 interface EditorData {
   app: Application;
@@ -36,8 +38,9 @@ interface EditorData {
   members: ApplicantMember[];
   sections: Record<string, Record<string, string>>;
   answers: Answer[];
-  readiness: ApplicantReadiness;
-  org: MyOrganization;
+  /** Null for a consultant, who does not read the organization's record. */
+  readiness: ApplicantReadiness | null;
+  org: MyOrganization | null;
 }
 
 async function loadEditor(api: ApplicantApi, id: string): Promise<EditorData> {
@@ -46,10 +49,12 @@ async function loadEditor(api: ApplicantApi, id: string): Promise<EditorData> {
     api.applications(),
     api.comments(id),
     api.attachments(id),
-    api.members(),
-    api.answers(),
-    api.readiness(),
-    api.organization(),
+    // A consultant invited into this draft reads neither the team list nor the organization's
+    // record; the editor still opens for them.
+    api.members().catch(() => [] as ApplicantMember[]),
+    api.answers().catch(() => [] as Answer[]),
+    api.readiness().catch(() => null),
+    api.organization().catch(() => null),
   ]);
   const defs = Object.fromEntries(await Promise.all(app.forms.map(async (f) => [f.formId, await api.form(f.formId, f.version)] as const)));
   const sections = Object.fromEntries(await Promise.all(app.forms.filter((f) => !f.lockedAt).map(async (f) => [f.formId, (await api.sections(id, `frm_${f.formId}`)).sections] as const)));
@@ -172,6 +177,19 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const openComments = comments.filter((c) => !c.resolvedAt);
   const goTo = (label: string) => document.getElementById(slug(label))?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  // Inviting someone into this draft (admins), and the one-time note after the first application.
+  const consultant = ws.member.role === "consultant";
+  const invites = useDraftInvites("application", app.id, !consultant);
+  const inviteList = invites.status === "ready" ? invites.data : null;
+  const [inviting, setInviting] = useState<{ section: string | null } | null>(null);
+  const [invited, setInvited] = useState<DraftInvitation | null>(null);
+  // Arriving from an accepted invitation (`?section=`): go to that section.
+  const [params] = useSearchParams();
+  const landSection = params.get("section");
+  useEffect(() => {
+    if (landSection) requestAnimationFrame(() => document.getElementById(slug(landSection))?.scrollIntoView?.({ block: "start" }));
+  }, [landSection]);
+
   // FormView draws one card per group; give each an anchor the rail and the Fix links can reach.
   const formRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -234,10 +252,10 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       {
         key: "passport",
         // Passport is optional: without it the organization goes in as not verified, which is no obstacle.
-        state: data.readiness.linked ? "pass" : "unknown",
-        label: data.readiness.linked ? "Passport connected" : "Passport not connected (optional)",
-        reason: data.readiness.linked ? `Level ${data.readiness.level ?? "unknown"} and your attestation are attached at submission` : "Your organization is submitted as not verified. Connect Passport to attach a verification level",
-        fixHref: data.readiness.linked ? null : "/onboarding/applicant",
+        state: data.readiness?.linked ? "pass" : "unknown",
+        label: data.readiness?.linked ? "Passport connected" : "Passport not connected (optional)",
+        reason: data.readiness?.linked ? `Level ${data.readiness?.level ?? "unknown"} and your attestation are attached at submission` : "Your organization is submitted as not verified. Connect Passport to attach a verification level",
+        fixHref: data.readiness?.linked ? null : "/onboarding/applicant",
       },
     ];
     const fail = items.filter((i) => i.state === "fail").length;
@@ -428,10 +446,12 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
         </aside>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", minWidth: 0 }}>
+          {!consultant && <TeamNote canInvite={!!inviteList?.canInvite} onInvite={() => setInviting({ section: null })} />}
+          {invited && <InviteSentNote sent={invited} onDone={() => setInvited(null)} />}
           {rejected.length > 0 && (
-            <Notice tone="info" title={data.readiness.linked ? "Some fields follow your Passport record" : "Some fields follow your organization details"}>
-              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in {data.readiness.linked ? "Passport" : "Settings"}.{" "}
-              {data.readiness.linked ? data.org.editUrl && <a href={data.org.editUrl}>Edit in Passport</a> : <Link to={`${base}/settings#organization-details`}>Open Settings</Link>}
+            <Notice tone="info" title={data.readiness?.linked ? "Some fields follow your Passport record" : "Some fields follow your organization details"}>
+              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in {data.readiness?.linked ? "Passport" : "Settings"}.{" "}
+              {data.readiness?.linked ? data.org?.editUrl && <a href={data.org?.editUrl}>Edit in Passport</a> : <Link to={`${base}/settings#organization-details`}>Open Settings</Link>}
             </Notice>
           )}
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -457,9 +477,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               }}
               onAutosave={() => void push(activeFormId)}
               uploadFile={uploadFile}
-              {...(data.org.editUrl ? { passportUrl: data.org.editUrl } : {})}
+              {...(data.org?.editUrl ? { passportUrl: data.org?.editUrl } : {})}
               profileUrl={`${base}/settings#organization-details`}
-              passportLinked={data.readiness.linked}
+              passportLinked={data.readiness?.linked}
             />
           </div>
 
@@ -629,12 +649,12 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                 ) : (
                   <p className="small muted">Eligibility is evaluated when you submit.</p>
                 )}
-                {data.readiness.linked && (
+                {data.readiness?.linked && (
                   <div className="bnr bnr-info" style={{ marginTop: "12px" }}>
                     <ShieldCheck className="ic" aria-hidden="true" />
                     <div>
                       <div className="t" style={{ fontSize: "14px" }}>
-                        Passport level {data.readiness.level ?? "—"} will be attached
+                        Passport level {data.readiness?.level ?? "—"} will be attached
                       </div>
                       <div className="d" style={{ fontSize: "13px" }}>
                         Your attestation and payee status travel with the submission.
@@ -674,7 +694,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                         id={`own-${slug(s.label)}`}
                         style={{ height: "36px", fontSize: "14px" }}
                         value={formOwners[s.label] ?? ""}
+                        disabled={consultant}
                         onChange={async (e) => {
+                          if (e.target.value === INVITE_OPTION) return setInviting({ section: s.label });
                           const r = await api.assignSections(app.id, `frm_${activeFormId}`, { [s.label]: e.target.value || null });
                           setOwners((prev) => ({ ...prev, [activeFormId]: r.sections }));
                         }}
@@ -686,6 +708,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                             {m.role === "consultant" ? " (consultant)" : ""}
                           </option>
                         ))}
+                        <InviteOptions list={inviteList} match={(d) => d.section === s.label && (d.formId ?? "").replace(/^frm_/, "") === activeFormId} />
                       </select>
                     </div>
                   ))}
@@ -697,6 +720,21 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
         </aside>,
         )}
       </div>
+
+      {inviting && (
+        <InviteDialog
+          draft={{ kind: "application", id: app.id, ...(inviting.section ? { formId: `frm_${activeFormId}`, section: inviting.section } : {}) }}
+          title={app.title}
+          part={inviting.section}
+          remainingToday={inviteList?.remainingToday ?? null}
+          onClose={() => setInviting(null)}
+          onSent={(r) => {
+            setInviting(null);
+            setInvited(r);
+            invites.reload();
+          }}
+        />
+      )}
 
       <Dialog open={submitOpen} onClose={() => setSubmitOpen(false)} labelledBy="submit-title" size="lg">
         <div className="hd">
@@ -730,12 +768,12 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </div>
             </div>
           )}
-          {data.readiness.linked ? (
+          {data.readiness?.linked ? (
             <div className="bnr bnr-info">
               <ShieldCheck className="ic" aria-hidden="true" />
               <div>
                 <div className="t">
-                  Your Passport level <LevelBadge level={data.readiness.level} /> and attestation will be attached to this submission
+                  Your Passport level <LevelBadge level={data.readiness?.level} /> and attestation will be attached to this submission
                 </div>
                 <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application, your attestation and your payee status (bank name and last four digits only). Nothing else from Passport is shared.</div>
               </div>
@@ -751,7 +789,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           )}
           <p className="small muted">
             {summary?.stage.closes ? `You can withdraw until the stage closes. ` : ""}
-            {data.readiness.linked ? "Submitting gives this funder permission to read your Passport record for this application." : "Submitting gives this funder permission to read the organization details you entered for this application."}
+            {data.readiness?.linked ? "Submitting gives this funder permission to read your Passport record for this application." : "Submitting gives this funder permission to read the organization details you entered for this application."}
           </p>
         </div>
         <div className="ft">
