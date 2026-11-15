@@ -244,3 +244,9 @@ export async function publicFundPage(ctx: PublicContext, handle: string, fundSlu
   const cards = page.opportunities.filter((o) => ids.has(o.id));
   return { funder: page.funder, fund: publicFundView(fund), opportunities: cards, open: cards.filter((o) => o.status === "open"), forecasted: cards.filter((o) => o.status === "forecasted") };
 }
+
+/** The fund an opportunity page names ("{Fund} · A fund of {Funder}"), or null when it has none. */
+export async function publicFundOfOpportunity(ctx: PublicContext, workspaceId: string, opportunityId: string): Promise<{ name: string; slug: string; isDefault: boolean } | null> {
+  const fund = (await publicFundsOf(ctx, workspaceId)).find((f) => f.opportunityIds.includes(opportunityId));
+  return fund ? { name: fund.name, slug: fund.slug, isDefault: fund.isDefault } : null;
+}

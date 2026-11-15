@@ -134,5 +134,13 @@ describe("funds", () => {
     // Nothing internal: no budgets, no advisors.
     expect(JSON.stringify(body)).not.toMatch(/budget|advisor|programIds/i);
     expect((await h.request("/gms/public/funders/riverbend/funds/nope")).status).toBe(404);
+    // What the funder and opportunity pages will group and name by (services/public.ts adds it at integration).
+    const { publicFundsOf, publicFundOfOpportunity } = await import("../src/services/funds.ts");
+    const pub = { repos: h.repos, now: () => h.clock.now, config: { baseUrl: "https://gms.test", webBaseUrl: "https://app.gms.test" } } as never;
+    const sections = await publicFundsOf(pub, WS_FUNDER);
+    expect(sections.find((f) => f.slug === "elder-care")!.opportunityIds).toHaveLength(1);
+    expect(sections.find((f) => f.isDefault)!.opportunityIds).toHaveLength(1);
+    const [inFundOpp] = sections.find((f) => f.slug === "elder-care")!.opportunityIds;
+    expect(await publicFundOfOpportunity(pub, WS_FUNDER, inFundOpp!)).toEqual({ name: "Elder Care Fund", slug: "elder-care", isDefault: false });
   });
 });
