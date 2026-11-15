@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Analytics, exports and imports (build spec §9.2, §10.13). Paid amounts are always the values
 // last read from Passport (`funding.disbursedAmount`); the GMS never sums payments itself.
-import { parseCsv } from "@gms/importers";
+import { parseCsv, screenColumns } from "@gms/importers";
 import { toMoney } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -381,7 +381,13 @@ export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeo
   const rows = parseCsv(input.csv);
   const header = rows[0];
   if (!header || rows.length < 2) throw new ApiError(422, "empty_csv", "The file has no data rows");
-  const col = (name: (typeof TARGETS)[number]) => (input.mapping[name] ? header.indexOf(input.mapping[name]!) : -1);
+  // Sensitive data first, as in the import wizard: a column whose header or any value looks like bank
+  // or identity data is never read, so a field mapped to it counts as unmapped.
+  const readable = new Set(screenColumns(header, rows.slice(1)).keep);
+  const col = (name: (typeof TARGETS)[number]) => {
+    const at = input.mapping[name] ? header.indexOf(input.mapping[name]!) : -1;
+    return readable.has(at) ? at : -1;
+  };
   const missing = (["recipientName", "title", "awardedAmount"] as const).filter((n) => col(n) < 0);
   if (missing.length) throw new ApiError(422, "mapping_incomplete", `Map a column for: ${missing.join(", ")}`, missing.map((m) => ({ code: "unmapped", field: m })));
   const ictx = await awardImportContext(ctx, ws.id);

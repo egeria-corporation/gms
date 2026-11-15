@@ -2,7 +2,7 @@
 // CSV in and out: a small RFC 4180 reader and writer and a column mapper. A mapper names, for each
 // target field, the CSV column that feeds it; every other column is never read. Columns whose
 // header names bank or identity data are refused outright, mapped or not.
-import { isSensitiveHeader } from "./sensitive.ts";
+import { isSensitiveHeader, screenColumns } from "./sensitive.ts";
 
 /** Rows of cells. Quoted cells may hold commas, quotes ("") and line breaks; blank rows are dropped. */
 export function parseCsv(text: string): string[][] {
@@ -59,24 +59,30 @@ export interface MappedCsv<F extends string> {
   rows: { line: number; values: Partial<Record<F, string>> }[];
   /** Mapped columns that are not in the header. */
   missingColumns: F[];
-  /** Columns left out because their header names bank or identity data. */
+  /** Columns left out because their header names bank or identity data, or their values look like it. */
   refusedColumns: string[];
 }
 
-/** Read a CSV through a mapping (target field → column header). Unmapped columns are never read. */
+/**
+ * Read a CSV through a mapping (target field → column header). Unmapped columns are never read,
+ * and a column the sensitive-data screen drops (by header or by any value) is never read either:
+ * a field mapped to it counts as missing.
+ */
 export function mapCsv<F extends string>(text: string, mapping: Partial<Record<F, string>>, opts: { maxRows?: number } = {}): MappedCsv<F> & { tooMany: boolean } {
   const all = parseCsv(text);
   const header = (all[0] ?? []).map((h) => h.trim());
-  const refusedColumns = header.filter(isSensitiveHeader);
+  const data = all.slice(1);
+  const screened = screenColumns(header, data);
+  const readable = new Set(screened.keep);
+  const refusedColumns = screened.dropped.map((d) => d.column);
   const index = new Map<F, number>();
   const missingColumns: F[] = [];
   for (const [field, column] of Object.entries(mapping) as [F, string | undefined][]) {
     if (!column) continue;
     const at = header.indexOf(column.trim());
-    if (at < 0 || isSensitiveHeader(column)) missingColumns.push(field);
+    if (at < 0 || !readable.has(at) || isSensitiveHeader(column)) missingColumns.push(field);
     else index.set(field, at);
   }
-  const data = all.slice(1);
   const max = opts.maxRows ?? Infinity;
   const rows = data.slice(0, max).map((cells, i) => {
     const values: Partial<Record<F, string>> = {};

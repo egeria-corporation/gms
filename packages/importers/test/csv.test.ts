@@ -37,6 +37,14 @@ describe("mapCsv", () => {
     expect(m.missingColumns).toEqual(["title"]);
     expect(m.rows.every((r) => Object.keys(r.values).length === 0)).toBe(true);
   });
+  it("never reads a column whose values look like bank or identity numbers, whatever its header", () => {
+    const shaped = ["900", "00", "0021"].join("");
+    const m = mapCsv<"title" | "notes">(`Grant,Ref\nRural clinics,${shaped}\n`, { title: "Grant", notes: "Ref" });
+    expect(m.refusedColumns).toEqual(["Ref"]);
+    expect(m.missingColumns).toEqual(["notes"]);
+    expect(m.rows).toEqual([{ line: 2, values: { title: "Rural clinics" } }]);
+    expect(JSON.stringify(m)).not.toContain(shaped);
+  });
   it("caps the rows read", () => {
     const big = "t\n" + Array.from({ length: 10 }, (_, i) => `r${i}`).join("\n");
     const m = mapCsv<"title">(big, { title: "t" }, { maxRows: 3 });
