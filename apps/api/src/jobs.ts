@@ -33,6 +33,8 @@ export { SupabaseUserDirectory } from "./services/ports.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";
 export { RestOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
+// The report builder's scheduled CSVs (apps/jobs/src/reports.ts).
+export { r2ReportStore, sendScheduledReports } from "./services/report-builder.ts";
 
 const sys = (base: BaseContext, job: string, workspaceId: string): ServiceContext => systemContext(base, { job }, { id: workspaceId, kind: "funder" });
 
