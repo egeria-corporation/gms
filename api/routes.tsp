@@ -280,11 +280,15 @@ namespace GMS.Routes.Custom {
     @get @route("/whoami") @useAuth(GmsOAuth<[]> | UserSession)
     op whoami(): OkT<WhoAmI> | AuthErrors;
 
-    /** Accept an emailed invitation; the caller becomes a member with the invited role. */
+    /**
+     * Accept an emailed invitation; the caller becomes a member with the invited role. An
+     * invitation into a draft works only for the address it was sent to (403 `email_mismatch`) and
+     * says where to land in `draft`.
+     */
     @post @route("/invitations/accept") @useAuth(UserSession)
     op acceptInvitation(@body body: {
       token: string;
-    }): OkT<Workspace> | BadRequest | AuthErrors | NotFound;
+    }): OkT<InvitationAccepted> | BadRequest | AuthErrors | NotFound;
 
     /** Workspaces the caller is a member of. */
     @get @route("/workspaces") @useAuth(UserSession)
@@ -331,7 +335,7 @@ namespace GMS.Routes.Custom {
 
     /** Invite by email; external reviewers and consultants are scoped and may expire. */
     @post @route("/workspaces/{id}/invitations") @useAuth(GmsOAuth<["workspace:admin"]> | UserSession)
-    op invite(@path id: CommonGrants.Types.uuid, @body body: InvitationInput): CreatedT<Invitation> | BadRequest | AuthErrors | NotFound;
+    op invite(@path id: CommonGrants.Types.uuid, @body body: InvitationInput): CreatedT<Invitation> | BadRequest | AuthErrors | NotFound | TooManyRequests;
 
     /** Store the funder's Passport client (secret encrypted), request a token and verify it against Passport. */
     @post @route("/workspaces/{id}/passport/link") @useAuth(UserSession)

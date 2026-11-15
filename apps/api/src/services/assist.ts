@@ -26,6 +26,8 @@ import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { sha256Hex } from "./ports.ts";
+import { RepoError, type Row } from "./repos/types.ts";
 import { getApplicationDetail } from "./inbox.ts";
 import { authHeaderOf } from "./integrations.ts";
 import { getTemplate } from "./templates.ts";
@@ -133,8 +135,8 @@ async function externalContext(ctx: ServiceContext, ws: ServiceWorkspace, org: {
   return out;
 }
 
-/** The application as the caller may see it: reviewers get the masked responses, like everywhere else. */
-async function applicationMaterial(ctx: ServiceContext, ws: ServiceWorkspace, appUuid: string): Promise<ApplicationMaterial> {
+/** The application as the caller may see it, without what connected systems say: reviewers get the masked responses, like everywhere else. */
+async function ownMaterial(ctx: ServiceContext, appUuid: string): Promise<{ material: Omit<ApplicationMaterial, "external">; org: { name: string; ein: string | null } | null }> {
   const d = await getApplicationDetail(ctx, appUuid);
   const projection = d.organization?.projection as { name?: unknown; identifiers?: Record<string, { id?: unknown } | undefined> } | undefined;
   const orgName = typeof projection?.name === "string" ? projection.name : null;
@@ -142,15 +144,22 @@ async function applicationMaterial(ctx: ServiceContext, ws: ServiceWorkspace, ap
   const opp = await ctx.repos.table("opportunities").one({ id: d.opportunityId.replace(/^opp_/, "") });
   const results = (d.eligibilityResults as { results?: { rule?: { label?: string }; label?: string; outcome?: unknown }[] } | null)?.results ?? [];
   return {
-    title: d.title,
-    opportunity: opp?.title ?? "",
-    stage: d.stage,
-    organizationName: orgName,
-    requestedAmount: money(d.requestedAmountMinor, d.currency),
-    responses: d.formResponses.map((r) => ({ form: r.formTitle ?? r.formId, fields: r.response as Record<string, unknown> })),
-    eligibility: results.map((r) => ({ label: r.label ?? r.rule?.label ?? "Rule", outcome: String(r.outcome) })),
-    external: await externalContext(ctx, ws, orgName ? { name: orgName, ein: typeof ein === "string" ? ein : null } : null),
+    material: {
+      title: d.title,
+      opportunity: opp?.title ?? "",
+      stage: d.stage,
+      organizationName: orgName,
+      requestedAmount: money(d.requestedAmountMinor, d.currency),
+      responses: d.formResponses.map((r) => ({ form: r.formTitle ?? r.formId, fields: r.response as Record<string, unknown> })),
+      eligibility: results.map((r) => ({ label: r.label ?? r.rule?.label ?? "Rule", outcome: String(r.outcome) })),
+    },
+    org: orgName ? { name: orgName, ein: typeof ein === "string" ? ein : null } : null,
   };
+}
+
+async function applicationMaterial(ctx: ServiceContext, ws: ServiceWorkspace, appUuid: string): Promise<ApplicationMaterial> {
+  const { material, org } = await ownMaterial(ctx, appUuid);
+  return { ...material, external: await externalContext(ctx, ws, org) };
 }
 
 // ------------------------------------------------------------------------------------ the four calls
@@ -160,6 +169,73 @@ export async function summarize(ctx: ServiceContext, appUuid: string) {
   const material = await applicationMaterial(ctx, ws, appUuid);
   const r = await run(ctx, ws, "summarize", apiId("application", appUuid), (llm) => summarizeApp(llm, material));
   return { ...r, applicationId: apiId("application", appUuid), externalServers: [...new Set((material.external ?? []).map((e) => e.server))] };
+}
+
+// ------------------------------------------------------------------------------------ the shared AI summary
+
+/** JSON with object keys sorted, so the same material always has the same version. */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (v && typeof v === "object") return `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  return JSON.stringify(v ?? null);
+}
+
+/**
+ * The response version a summary is kept under: SHA-256 of what the assistant reads of the
+ * application as this caller may see it (answers, title, stage, ask, eligibility outcomes). A
+ * reviewer whose view masks fields gets a version of their own, so a summary is never shown to
+ * someone who could not see what it was written from. New answers make a new version.
+ */
+export async function responseVersionOf(material: Omit<ApplicationMaterial, "external">): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(canonical(material)));
+}
+
+/** The panel's label. The summary describes; it never scores, ranks or recommends. */
+export const AI_SUMMARY_LABEL = "Review before relying on it";
+
+const summaryView = (appUuid: string, version: string, row: Row<"application_summaries"> | null, quotaNow: ReturnType<typeof quotaState>, cached: boolean) => {
+  const s = (row?.summary ?? null) as Partial<ApplicationSummaryOut> | null;
+  return {
+    draft: true as const,
+    applicationId: apiId("application", appUuid),
+    responseVersion: version,
+    label: AI_SUMMARY_LABEL,
+    cached,
+    generatedAt: row?.created_at ?? null,
+    model: row?.model ?? null,
+    // Only the summary's own fields: whatever else a stored row holds is never passed on.
+    summary: s
+      ? { summary: String(s.summary ?? ""), strengths: s.strengths ?? [], openQuestions: s.openQuestions ?? [], quotes: s.quotes ?? [], fromExternalSystems: s.fromExternalSystems ?? [], cautions: s.cautions ?? [] }
+      : null,
+    quota: quotaNow,
+  };
+};
+type ApplicationSummaryOut = { summary: string; strengths: string[]; openQuestions: string[]; quotes: { field: string; text: string }[]; fromExternalSystems: { server: string; note: string }[]; cautions: string[] };
+
+/**
+ * The AI summary panel on the review screen. `generate: false` reads the summary of this version
+ * if there is one and never calls the model. `generate: true` writes it on the first request with
+ * the `summarize` assist (one call against the quota) and keeps it, so every later reviewer of the
+ * same version reads it and the quota is not spent again. 404 when the assistant is off.
+ */
+export async function applicationSummary(ctx: ServiceContext, appUuid: string, opts: { generate: boolean }) {
+  const ws = await authorize(ctx, { scope: "assist", kind: "funder" });
+  if (!assistantOn(ctx)) throw disabled();
+  const { material, org } = await ownMaterial(ctx, appUuid);
+  const version = await responseVersionOf(material);
+  const where = { workspace_id: ws.id, application_id: appUuid, response_version: version };
+  const cached = await ctx.repos.table("application_summaries").one(where);
+  if (cached || !opts.generate) return summaryView(appUuid, version, cached, await quota(ctx, ws), !!cached);
+  const r = await runAssist(ctx, ws, "summarize", apiId("application", appUuid), async (llm) => summarizeApp(llm, { ...material, external: await externalContext(ctx, ws, org) }));
+  let row: Row<"application_summaries">;
+  try {
+    row = await ctx.repos.table("application_summaries").insert({ ...where, summary: r.output as unknown as Row<"application_summaries">["summary"], model: r.model, generated_by: ctx.actor.userId });
+  } catch (e) {
+    // Another reviewer's request wrote it first: show theirs.
+    if (!(e instanceof RepoError && e.kind === "conflict")) throw e;
+    row = required(await ctx.repos.table("application_summaries").one(where), "Summary");
+  }
+  return summaryView(appUuid, version, row, r.quota, false);
 }
 
 export async function compareToRubric(ctx: ServiceContext, appUuid: string, rubricUuid: string) {

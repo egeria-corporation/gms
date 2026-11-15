@@ -245,6 +245,9 @@ namespace GMS.Models {
     ...OutsideApplicationItem;
     previousStage: OutsideStage | null;
 
+    /** v1.7.0: the caller is a consultant invited into this one draft; the team's records around it (documents, tasks, activity, the funder record, the decision) are left empty. */
+    cowriter?: boolean;
+
     /** Plain moves allowed from the current stage (none while archived). */
     allowedMoves: OutsidePlainStage[];
 

@@ -43,7 +43,7 @@ workspaceRoutes.post("/workspaces", requireUser(), async (c) => {
 });
 workspaceRoutes.post("/invitations/accept", requireUser(), async (c) => {
   const { token } = parse(z.object({ token: z.string().min(10).max(200) }).strict(), await jsonBody(c));
-  return c.json(ok(await workspaces.acceptInvitation(userSvc(c), token)));
+  return c.json(ok(await workspaces.acceptInvitation(userSvc(c), token, c.get("user").email ?? null)));
 });
 
 workspaceRoutes.use("/workspaces/:workspaceId/*", authenticate());

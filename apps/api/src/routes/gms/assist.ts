@@ -32,6 +32,17 @@ assistRoutes.post("/assist/summarize", async (c) => {
   return c.json(ok(await assist.summarize(await svc(c), uuidOf("application", input.applicationId, "Application"))));
 });
 
+// The AI summary on the review screen: GET reads the one kept for this version (never calls the
+// model); POST writes it on the first request and returns the kept one after that.
+assistRoutes.get("/assist/summary", async (c) => {
+  const input = parse(summarizeInput, { applicationId: c.req.query("applicationId") });
+  return c.json(ok(await assist.applicationSummary(await svc(c), uuidOf("application", input.applicationId, "Application"), { generate: false })));
+});
+assistRoutes.post("/assist/summary", async (c) => {
+  const input = parse(summarizeInput, await jsonBody(c));
+  return c.json(ok(await assist.applicationSummary(await svc(c), uuidOf("application", input.applicationId, "Application"), { generate: true })));
+});
+
 assistRoutes.post("/assist/compare-rubric", async (c) => {
   const input = parse(compareInput, await jsonBody(c));
   return c.json(ok(await assist.compareToRubric(await svc(c), uuidOf("application", input.applicationId, "Application"), input.rubricId)));

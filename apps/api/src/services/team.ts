@@ -90,14 +90,14 @@ export const commentsQuery = z.object({ questionId: z.uuid().optional() }).stric
 
 /** Every comment on the application (or one question's), oldest first. */
 export async function listQuestionComments(ctx: ServiceContext, id: string, query: z.output<typeof commentsQuery> = {}) {
-  const { row } = await loadOutside(ctx, id, "applications:read");
+  const { row } = await loadOutside(ctx, id, "applications:read", { cowriter: true });
   const thread = await commentThread(ctx, row, false);
   const all = thread ? (await ctx.repos.table("messages").find({ thread_id: thread.id }, { orderBy: "created_at" })).map(commentView) : [];
   return query.questionId ? all.filter((c) => c.questionId === query.questionId) : all;
 }
 
 export async function addQuestionComment(ctx: ServiceContext, qid: string, input: z.output<typeof commentInput>) {
-  const { q, row } = await loadQuestion(ctx, qid, "applications:write");
+  const { q, row } = await loadQuestion(ctx, qid, "applications:write", { cowriter: true });
   writable(row);
   const thread = (await commentThread(ctx, row, true))!;
   const m = await ctx.repos.table("messages").insert({ thread_id: thread.id, author: ctx.actor.id, author_user_id: ctx.actor.userId, body: input.body, field_ref: { questionId: q.id } });
@@ -106,7 +106,7 @@ export async function addQuestionComment(ctx: ServiceContext, qid: string, input
 }
 
 export async function resolveQuestionComment(ctx: ServiceContext, id: string, commentId: string) {
-  const { row } = await loadOutside(ctx, id, "applications:write");
+  const { row } = await loadOutside(ctx, id, "applications:write", { cowriter: true });
   const thread = await commentThread(ctx, row, false);
   if (!thread) throw notFound("Comment");
   const [m] = await ctx.repos.table("messages").update({ id: commentId, thread_id: thread.id }, { resolved_at: ctx.now().toISOString(), resolved_by: ctx.actor.userId });
