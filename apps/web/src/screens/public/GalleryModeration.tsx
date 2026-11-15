@@ -106,7 +106,7 @@ export default function GalleryModeration() {
   return (
     <GalleryFrame>
       <title>Review shared templates — OpenGrants GMS</title>
-      <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "28px 0 48px" }}>
+      <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "16px", paddingTop: "28px", paddingBottom: "48px" }}>
         <nav aria-label="Breadcrumb" className="crumbs">
           <Link to="/templates">Template gallery</Link>
         </nav>

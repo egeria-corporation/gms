@@ -15,7 +15,7 @@ export const KIND_ICON: Record<GalleryKind, LucideIcon> = { application_form: Fi
 export function KindBadge({ kind }: { kind: GalleryKind }) {
   const Icon = KIND_ICON[kind];
   return (
-    <span className="bdg bdg-info">
+    <span className="bdg bdg-info" style={{ alignSelf: "flex-start" }}>
       <Icon className="ic" aria-hidden="true" />
       {KIND_LABEL[kind]}
     </span>
@@ -102,7 +102,8 @@ export function StrippedList({ stripped, empty = "Nothing needed to be taken out
     <ul className="small" style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "4px" }}>
       {stripped.map((s, i) => (
         <li key={`${s.path}-${s.what}-${i}`}>
-          <span className="b">{s.where}</span>: {WHAT[s.what]} ({s.found.map((f) => FOUND[f] ?? f).join(", ")})
+          <span className="b">{s.where}</span>: {WHAT[s.what]}
+          {s.what === "name" ? "" : ` (${s.found.map((f) => FOUND[f] ?? f).join(", ")})`}
         </li>
       ))}
     </ul>
@@ -112,7 +113,7 @@ export function StrippedList({ stripped, empty = "Nothing needed to be taken out
 function FormPreview({ form, index }: { form: GalleryForm; index: number }) {
   const definition = useMemo<FormDefinition>(() => ({ id: `gallery-${index}`, version: 1, title: form.title, jsonSchema: form.jsonSchema, uiSchema: form.uiSchema } as unknown as FormDefinition), [form, index]);
   return (
-    <section className="card" aria-label={`Form: ${form.title}`}>
+    <div className="card" role="region" aria-label={`Form: ${form.title}`}>
       <div className="card-h">
         <h3>{form.title}</h3>
         <span className="tag">{form.purpose === "report" ? "Report form" : "Application form"}</span>
@@ -127,7 +128,7 @@ function FormPreview({ form, index }: { form: GalleryForm; index: number }) {
         )}
         <FormView form={definition} response={{}} mode="print" />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -151,7 +152,7 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
         const criteria = r.criteria as CriterionLike[];
         const total = criteria.reduce((n, c) => n + (c.weight ?? 0), 0);
         return (
-          <section key={`r${i}`} className="card" aria-label={`Rubric: ${r.name}`}>
+          <div key={`r${i}`} className="card" role="region" aria-label={`Rubric: ${r.name}`}>
             <div className="card-h">
               <h3>{r.name}</h3>
               <span className="tag">
@@ -185,11 +186,11 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
                 </tbody>
               </table>
             </div>
-          </section>
+          </div>
         );
       })}
       {snapshot.emails.map((m, i) => (
-        <section key={`e${i}`} className="card" aria-label={`Email: ${m.name}`}>
+        <div key={`e${i}`} className="card" role="region" aria-label={`Email: ${m.name}`}>
           <div className="card-h">
             <h3>{m.name}</h3>
             <span className="tag">Email</span>
@@ -205,7 +206,7 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
             </div>
             <p className="small muted">Words in double braces, such as {"{{recipient.name}}"}, are filled in for each person when the email is sent.</p>
           </div>
-        </section>
+        </div>
       ))}
     </div>
   );

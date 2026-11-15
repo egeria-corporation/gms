@@ -61,7 +61,7 @@ export default function Gallery() {
       <title>Template gallery — OpenGrants GMS</title>
       <meta name="description" content="Free, ready-to-use grant application forms, rubrics, report forms and email templates. Copy one into your workspace and start in minutes." />
       <GalleryFrame>
-        <section style={{ background: "var(--grad-hero)", padding: "40px 0 32px" }}>
+        <section style={{ background: "var(--grad-hero)", paddingTop: "40px", paddingBottom: "32px" }}>
           <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <span className="og-eyebrow" style={{ color: "var(--og-teal-dark)" }}>
               <LayoutTemplate className="ic" aria-hidden="true" />
@@ -75,7 +75,7 @@ export default function Gallery() {
           </div>
         </section>
 
-        <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "18px", padding: "24px 0 48px" }}>
+        <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "18px", paddingTop: "24px", paddingBottom: "48px" }}>
           <form
             role="search"
             aria-label="Find a template"

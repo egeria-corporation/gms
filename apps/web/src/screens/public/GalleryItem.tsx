@@ -169,12 +169,12 @@ export default function GalleryItem() {
   return (
     <GalleryFrame>
       {item.status === "loading" && (
-        <div className="wrap-c" style={{ padding: "32px 0" }}>
+        <div className="wrap-c" style={{ paddingTop: "32px", paddingBottom: "32px" }}>
           <Loading label="Loading the template" />
         </div>
       )}
       {item.status === "error" && (
-        <div className="wrap-c" style={{ padding: "32px 0" }}>
+        <div className="wrap-c" style={{ paddingTop: "32px", paddingBottom: "32px" }}>
           <ErrorBanner error={item.error} onRetry={item.reload} title="The template could not be loaded" />
         </div>
       )}
@@ -190,7 +190,7 @@ function ItemPage({ item }: { item: Item }) {
     <>
       <title>{`${item.title} — Template gallery — OpenGrants GMS`}</title>
       <meta name="description" content={item.summary} />
-      <section style={{ background: "var(--grad-hero)", padding: "28px 0 24px" }}>
+      <section style={{ background: "var(--grad-hero)", paddingTop: "28px", paddingBottom: "24px" }}>
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <nav aria-label="Breadcrumb" className="crumbs">
             <Link to="/templates" className="row" style={{ gap: "4px" }}>
@@ -205,7 +205,7 @@ function ItemPage({ item }: { item: Item }) {
         </div>
       </section>
       {/* wrap-reverse: on a narrow screen the panel with "Use this template" comes first. */}
-      <div className="wrap-c" style={{ display: "flex", flexWrap: "wrap-reverse", gap: "24px", alignItems: "flex-start", padding: "24px 0 48px" }}>
+      <div className="wrap-c" style={{ display: "flex", flexWrap: "wrap-reverse", gap: "24px", alignItems: "start", paddingTop: "24px", paddingBottom: "48px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0, flex: "1 1 520px" }}>
           <h2 style={{ fontSize: "18px" }}>Preview</h2>
           <p className="small muted">This is exactly what you get. Nothing here can be filled in; copy it to make it yours.</p>
