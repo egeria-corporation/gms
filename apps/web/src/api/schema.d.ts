@@ -14202,6 +14202,8 @@ export interface components {
         /** @description What an export of the period would hold, what it leaves out and why. */
         "Models.OpenDataSummary": {
             range: components["schemas"]["Models.OpenDataRange"];
+            /** @description Every year the funder has awards in (by award date), newest first. */
+            years: number[];
             settings: components["schemas"]["Models.OpenDataSettingsState"];
             /** @description No registered prefix: the 360Giving file is a draft (identifiers start with `DRAFT-`). */
             draft: boolean;

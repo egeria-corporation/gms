@@ -190,6 +190,7 @@ describe("the rule: what goes out and what stays out", () => {
 
   it("filters by award year or date range", async () => {
     expect((await summary("?year=2026")).awards.map((a) => a.title)).toEqual(["Completed clinic"]);
+    expect(((await summary("?year=2026")) as unknown as { years: number[] }).years).toEqual([2027, 2026]);
     expect((await summary("?from=2027-01-01&to=2027-12-31")).counts.inRange).toBe(10);
     expect((await call(officer, "GET", "/gms/open-data/summary?from=2027-12-31&to=2027-01-01")).status).toBe(400);
     expect((await call(officer, "GET", "/gms/open-data/summary?year=27")).status).toBe(400);

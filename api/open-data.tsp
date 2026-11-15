@@ -76,6 +76,10 @@ namespace GMS.Models {
   /** What an export of the period would hold, what it leaves out and why. */
   model OpenDataSummary {
     range: OpenDataRange;
+
+    /** Every year the funder has awards in (by award date), newest first. */
+    years: int32[];
+
     settings: OpenDataSettingsState;
 
     /** No registered prefix: the 360Giving file is a draft (identifiers start with `DRAFT-`). */

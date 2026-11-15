@@ -20,6 +20,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabP
 import { FormView } from "../../forms/FormView.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
+import { OpenDataPanel } from "./OpenDataPanel.tsx";
 
 type Tab = "due" | "received";
 const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : "Grantee");
@@ -492,6 +493,7 @@ export default function Reporting() {
               </TabPanel>
             </>
           )}
+          <OpenDataPanel />
           {plan && (
             <ReminderPlanDialog
               requirement={plan}

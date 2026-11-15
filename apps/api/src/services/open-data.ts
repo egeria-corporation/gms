@@ -171,10 +171,17 @@ function reasonFor(a: Award, w: Ws | null, confidential: ReadonlySet<string>): E
   return null;
 }
 
-/** The funder's awards in the range, each with the rule's answer. */
-async function collect(ctx: PublicContext, funder: Ws, range: DateRange): Promise<Item[]> {
+/** The funder's awards in the range, each with the rule's answer; `years` lists every award year the funder has, newest first. */
+async function collectWithYears(ctx: PublicContext, funder: Ws, range: DateRange): Promise<{ items: Item[]; years: number[] }> {
+  const all = await ctx.repos.table("awards").find({ workspace_id: funder.id }, { orderBy: "created_at", ascending: true, limit: EXPORT_LIMIT });
+  const years = [...new Set(all.map((a) => Number(awardDateOf(a).slice(0, 4))))].sort((x, y) => y - x);
+  return { items: await judge(ctx, funder, all.filter((a) => within(awardDateOf(a), range))), years };
+}
+
+const collect = async (ctx: PublicContext, funder: Ws, range: DateRange): Promise<Item[]> => (await collectWithYears(ctx, funder, range)).items;
+
+async function judge(ctx: PublicContext, funder: Ws, awards: Award[]): Promise<Item[]> {
   const settings = readSettings(funder);
-  const awards = (await ctx.repos.table("awards").find({ workspace_id: funder.id }, { orderBy: "created_at", ascending: true, limit: EXPORT_LIMIT })).filter((a) => within(awardDateOf(a), range));
   const ids = [...new Set(awards.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x))];
   const recipients = ids.length ? await ctx.repos.table("workspaces").find({ id: ids }) : [];
   const byId = new Map(recipients.map((w) => [w.id, w]));
@@ -456,12 +463,14 @@ function summaryRow(item: Item, confidential: ReadonlySet<string>): SummaryRow {
 export async function openDataSummary(ctx: ServiceContext, range: DateRange) {
   const funder = await funderFor(ctx);
   const settings = readSettings(funder);
-  const items = await collect(ctx, funder, range);
+  const { items, years } = await collectWithYears(ctx, funder, range);
   const cg = await buildCommonGrants(ctx, funder, items, range);
   const confidential = new Set(settings.excludedAwardIds);
   const exported = items.filter((i) => i.reason === null);
   return {
     range,
+    /** Every year the funder has awards in (by award date), newest first: the panel's choices. */
+    years,
     settings: { threeSixtyGivingPrefix: settings.threeSixtyGivingPrefix, publishFeed: settings.publishFeed },
     draft: !settings.threeSixtyGivingPrefix,
     registerUrl: REGISTER_URL,
