@@ -10,7 +10,7 @@ import type { InboxApplication, ReviewAssignmentDetail, ReviewAssignmentPatch } 
 import type { RubricCriterion } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.tsx";
 import { ResponseCard } from "./ApplicationDetail.tsx";
-import { ASSIGNMENT_LOOK, ReviewerFrame, usePortal } from "./ReviewerAssignments.tsx";
+import { ASSIGNMENT_LOOK, ReviewerFrame, assignmentName, usePortal } from "./ReviewerAssignments.tsx";
 
 type ScoreValue = number | string;
 interface Entry {
@@ -68,9 +68,10 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [narrative, setNarrative] = useState("");
   const [recommendation, setRecommendation] = useState("");
+  const [visibility, setVisibility] = useState<"panel" | "funder_only">("panel");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const save = useApiMutation((api, action: "save" | "submit") => {
-    const patch: ReviewAssignmentPatch = { action, scores: toScores(entries), ...(narrative.trim() ? { narrative: narrative.trim() } : {}), ...(recommendation ? { recommendation } : {}) };
+    const patch: ReviewAssignmentPatch = { action, scores: toScores(entries), ...(narrative.trim() ? { narrative: narrative.trim() } : {}), ...(recommendation ? { recommendation } : {}), visibility };
     return api.updateAssignment(assignmentId, patch);
   });
 
@@ -80,6 +81,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
     setEntries(Object.fromEntries(Object.entries(d.myReview?.scores ?? {}).map(([k, v]) => [k, entryOf(v)])));
     setNarrative(d.myReview?.narrative ?? "");
     setRecommendation(d.myReview?.recommendation ?? "");
+    setVisibility(d.myReview?.visibility ?? "panel");
   }, [detail.data]);
 
   if (detail.status === "loading") return <Loading label="Loading the application" />;
@@ -102,17 +104,17 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
           <div className="crumbs">
             <Link to="/review/assignments">My assignments</Link>
             <span>›</span>
-            <span>{d.applicationTitle}</span>
+            <span>{assignmentName(d)}</span>
           </div>
           <div className="title">
-            <h1>{d.applicationTitle}</h1>
+            <h1>{assignmentName(d)}</h1>
             <span className={`bdg bdg-${look.tone}`}>
               <Check className="ic" aria-hidden="true" />
               {look.label}
             </span>
           </div>
           <div className="meta">
-            <span>{app?.applicant.name}</span>
+            <span>{d.anonymized ? d.applicationTitle : app?.applicant.name}</span>
             <span>·</span>
             <span>
               {d.rubric.name} v{d.rubric.version}
@@ -129,6 +131,11 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
       {needsCoi && (
         <Notice tone="warn" title="Declare any conflict of interest first">
           Go back to <Link to="/review/assignments">My assignments</Link> and open this application from there.
+        </Notice>
+      )}
+      {d.anonymized && (
+        <Notice tone="neu" title="Anonymized review">
+          You do not see who applied. The organization&rsquo;s name, website and identifying answers are hidden, its name in an answer shows as [applicant], and attachments carry neutral names.
         </Notice>
       )}
       {!own && <Notice tone="info" title="You are viewing another reviewer’s assignment">Only the assigned reviewer can score it.</Notice>}
@@ -176,6 +183,17 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
               Narrative for the panel
             </label>
             <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => setNarrative(e.target.value)} />
+            <fieldset style={{ border: 0, padding: 0, margin: "4px 0 0" }}>
+              <legend className="lbl">Who reads your narrative and comments</legend>
+              <label className="radio">
+                <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => setVisibility("panel")} />
+                <span>The panel</span>
+              </label>
+              <label className="radio">
+                <input type="radio" name="visibility" checked={visibility === "funder_only"} disabled={readOnly || needsCoi} onChange={() => setVisibility("funder_only")} />
+                <span>Program staff only (left out of the board docket unless staff include it)</span>
+              </label>
+            </fieldset>
           </div>
           {save.error !== null && <ErrorBanner error={save.error} />}
           <div className="card" style={{ position: "sticky", bottom: 0, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
