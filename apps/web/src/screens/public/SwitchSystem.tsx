@@ -5,7 +5,7 @@
 import { Link, useParams } from "react-router";
 import { ArrowRight, CalendarClock, Check, Download, FileInput, ShieldCheck, Tag } from "lucide-react";
 import { NotFound } from "../../components/NotFound.tsx";
-import { COMMON_FAQ, DIFFERENCES, FACTS_AS_OF, IMPORT_WIZARD_SEGMENT, LIST_PRICE_LABEL, OUR_NAME, OUR_PRICE, STAYS_BEHIND, STEPS, seoFor, switchEntry, type SwitchEntry } from "../../content/switch.ts";
+import { COMMON_FAQ, DIFFERENCES, FACTS_AS_OF, IMPORT_WIZARD_SEGMENT, LIST_PRICE_LABEL, OUR_NAME, OUR_PRICE, PRICED_BY_QUOTE, STAYS_BEHIND, STEPS, seoFor, switchEntry, type SwitchEntry } from "../../content/switch.ts";
 import { MigrationRequestForm } from "./switch/MigrationRequestForm.tsx";
 import { FaqList, SourceLink, SwitchFrame } from "./switch/SwitchFrame.tsx";
 
@@ -34,7 +34,15 @@ function Page({ entry }: { entry: SwitchEntry }) {
           </span>
           <h1 id="switch-h1">{heading}</h1>
           <p className="landing-lede">{entry.summary}</p>
-          {entry.background && <p style={{ maxWidth: "680px" }}>{entry.background}</p>}
+          {entry.news.length > 0 && (
+            <ul aria-label="Who owns it" style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "680px" }}>
+              {entry.news.map((n) => (
+                <li key={n.text} data-claim="ownership">
+                  {n.text} <span className="muted">Source:</span> <SourceLink {...n.source} />
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="landing-links-row">
             <a href="#request" className="btn btn-cta">
               Request a free migration
@@ -135,23 +143,30 @@ function Page({ entry }: { entry: SwitchEntry }) {
               </li>
             ))}
           </ul>
-          {entry.listPrice && (
-            <div className="tbl-wrap" style={{ marginTop: "24px", maxWidth: "720px" }}>
+          {entry.price && (
+            <div className="tbl-wrap" style={{ marginTop: "24px", maxWidth: "760px" }}>
               <table className="tbl landing-tbl">
                 <caption className="sr">Price</caption>
                 <thead>
                   <tr>
                     <th scope="col">System</th>
-                    <th scope="col">Price</th>
+                    <th scope="col">Price, as of {FACTS_AS_OF}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>{entry.name}</td>
-                    <td>
-                      <Tag className="ic" aria-hidden="true" />
-                      {entry.listPrice} <span className="muted">({LIST_PRICE_LABEL})</span>
-                    </td>
+                    <td>{entry.price.kind === "list" ? entry.price.product : entry.name}</td>
+                    {entry.price.kind === "list" ? (
+                      <td data-claim="price">
+                        <Tag className="ic" aria-hidden="true" />
+                        {entry.price.text} <span className="muted">({LIST_PRICE_LABEL})</span>. <span className="muted">Source:</span> <SourceLink {...entry.price.source} />
+                      </td>
+                    ) : (
+                      <td>
+                        <Tag className="ic" aria-hidden="true" />
+                        {PRICED_BY_QUOTE}
+                      </td>
+                    )}
                   </tr>
                   <tr>
                     <td>OpenGrants GMS</td>

@@ -18,6 +18,10 @@ test("switch from Submittable and request a free migration", async ({ app: page 
     const sources = page.getByRole("list", { name: "Sources" }).getByRole("link");
     await expect(sources).toHaveCount(2);
     await expect(sources.first()).toHaveAttribute("href", "https://submittable.help/en/articles/904906");
+    const owner = page.getByRole("list", { name: "Who owns it" }).getByRole("listitem");
+    await expect(owner).toContainText("Submittable acquired WizeHive, the maker of Zengine, on 8 August 2024.");
+    await expect(owner.getByRole("link")).toHaveAttribute("href", "https://www.submittable.com/blog/submittable-joins-forces-with-wizehive");
+    await expect(page.getByRole("table", { name: "Price" })).toContainText("Priced by quote");
     await expect(page.getByTestId("switch-note")).toContainText("Product names are trademarks of their owners. Facts as of November 2026; tell us if something changed.");
   });
 

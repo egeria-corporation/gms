@@ -13,20 +13,28 @@ for a new system in 2024, and most keep one for about five years
 | `/switch/{system}` | `apps/web/src/screens/public/SwitchSystem.tsx` | What that system exports and how (with sources), what comes over, what stays behind and why, the four steps, how the GMS differs, the list price where one is published, questions, and the request form |
 
 Systems: `good-grants`, `submittable`, `surveymonkey-apply`, `foundant`, `zengine`, `fluxx`,
-`smartsimple`, `cybergrants`, `openwater`, and `spreadsheets` (spreadsheets, Airtable or GrantHub).
+`smartsimple`, `cybergrants`, `openwater`, and `spreadsheets` (spreadsheets, Airtable or GrantHub;
+the page names GrantHub exports and makes no claim about GrantHub itself).
 An unknown system answers Page not found.
 
 All text lives in `apps/web/src/content/switch.ts`, one entry per system. Rules for that file:
 
-- **Only researched facts.** Every fact comes from the research of 15 November 2026, and every
-  system entry lists its sources (the page links each one, opening the owner's own page). A test
-  fails if a system has no source.
+- **Only researched facts.** Every fact comes from the research of 15 November 2026 as corrected
+  after a source check, and every system entry lists its sources (the page links each one, opening
+  the owner's own page). A test fails if a system has no source.
+- **Claims carry their own source.** Every line about who owns a product (`news`) and every list
+  price (`price`) has its own source link beside it on the page. A test fails if one lacks a source,
+  and if a figure or an ownership word appears anywhere else in an entry. Source labels are neutral
+  (the owner and the address) unless the page was opened and its title read.
 - **Date stamp.** Each page says "facts as of November 2026" at the top, and the footer of every
   page says: "Product names are trademarks of their owners. Facts as of November 2026; tell us if
   something changed." Change `FACTS_AS_OF` when the research is redone.
-- **Prices.** A list price appears only where the research gives one (Good Grants, Foundant GLM,
-  Fluxx, OpenWater), always labelled "list price as published, as of November 2026", beside ours:
-  free, with unlimited seats.
+- **Prices.** A list price appears only where the research gives one with a source: Good Grants
+  (€3,200 or €6,400 a year) and Fluxx Grantmaker (from $13,000 a year, plus a one-time setup fee),
+  labelled "list price as published, as of November 2026" with the source, beside ours: free, with
+  unlimited seats. Submittable, SurveyMonkey Apply, Foundant GLM, SmartSimple, Bonterra CyberGrants
+  and OpenWater say "Priced by quote", with no figure (their own pages publish none, and third-party
+  estimates disagree). OpenWater's REST API is "a paid add-on", with no figure.
 - **Tone.** Factual and respectful. Say what each system exports and how it moves over; where we
   differ, say so plainly (free, unlimited seats, open source under AGPL-3.0, CommonGrants,
   applicants track every grant). No "better than", no disparagement, and product names as text,

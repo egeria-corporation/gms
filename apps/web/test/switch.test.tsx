@@ -45,15 +45,28 @@ describe("switch page content", () => {
       expect(e.sources.length, e.slug).toBeGreaterThan(0);
       for (const s of e.sources) expect(s.url, e.slug).toMatch(/^https:\/\/[^\s]+$/);
     }
-    expect(Object.fromEntries(SWITCH_ENTRIES.filter((e) => e.listPrice).map((e) => [e.slug, e.listPrice]))).toEqual({
-      "good-grants": "€3,200 or €6,400 a year",
-      foundant: "$6,500, $9,900 or $13,900 a year, plus $2,500 to $4,500 for setup",
-      fluxx: "from $13,000 a year, plus setup",
-      openwater: "from $5,100 a year",
+    // Only the two list prices the research gives with a source; every other system that has a price line is priced by quote.
+    expect(Object.fromEntries(SWITCH_ENTRIES.filter((e) => e.price?.kind === "list").map((e) => [e.slug, e.price]))).toEqual({
+      "good-grants": { kind: "list", product: "Good Grants", text: "€3,200 or €6,400 a year", source: { label: "Good Grants (goodgrants.com/pricing)", url: "https://goodgrants.com/pricing" } },
+      fluxx: { kind: "list", product: "Fluxx Grantmaker", text: "from $13,000 a year, plus a one-time setup fee", source: { label: "Fluxx (fluxx.io/demo)", url: "https://www.fluxx.io/demo" } },
     });
+    expect(SWITCH_ENTRIES.filter((e) => e.price?.kind === "quote").map((e) => e.slug)).toEqual(["submittable", "surveymonkey-apply", "foundant", "smartsimple", "cybergrants", "openwater"]);
     // Respectful: no comparisons of quality, no superlatives about anyone.
     const all = JSON.stringify(SWITCH_ENTRIES);
     expect(all).not.toMatch(/better than|worse|outdated|clunky|legacy|expensive|cheaper|best\b/i);
+  });
+
+  it("gives every price and every ownership claim its own https source, and makes no such claim anywhere else", () => {
+    for (const e of SWITCH_ENTRIES) {
+      if (e.price?.kind === "list") expect(e.price.source.url, e.slug).toMatch(/^https:\/\/[^\s]+$/);
+      for (const n of e.news) expect(n.source.url, `${e.slug}: ${n.text}`).toMatch(/^https:\/\/[^\s]+$/);
+      // Figures and ownership words only in a sourced price or a sourced news line.
+      const elsewhere = JSON.stringify([e.summary, e.exports, e.movesOver, e.exportStep, e.faq, seoFor(e)]);
+      expect(elsewhere, e.slug).not.toMatch(/[$€£]\s?\d|\d\s?(USD|EUR)|\bper (year|month)\b|\ba year\b|acquir|merg|bought|owned by|part of|joined|retired|discontinued|successor|moving to/i);
+    }
+    // The claims taken out after the source check stay out.
+    const all = JSON.stringify(SWITCH_ENTRIES);
+    for (const gone of ["6,500", "9,900", "13,900", "5,100", "2,000 a year", "ASI", "no successor", "customers are moving", "discontinued", "retired"]) expect(all, gone).not.toContain(gone);
   });
 
   it("lists every system plus spreadsheets in the form, then something else", () => {
@@ -88,13 +101,26 @@ describe("/switch/{system}", () => {
     expect(screen.getByText(/dropped automatically and never stored/)).toBeInTheDocument();
     for (const step of ["Upload the files to the import wizard", "Review the dry run", "Import"]) expect(screen.getByText(step, { selector: ".t" })).toBeInTheDocument();
     for (const d of ["Free", "Unlimited seats", "Open source (AGPL-3.0)", "CommonGrants"]) expect(screen.getByRole("heading", { level: 3, name: d })).toBeInTheDocument();
-    if (entry.listPrice) {
+    // Each ownership line carries its own source link.
+    const claims = view.container.querySelectorAll<HTMLElement>("[data-claim=ownership]");
+    expect([...claims].map((c) => c.textContent)).toEqual(entry.news.map((n) => expect.stringContaining(n.text)));
+    entry.news.forEach((n, i) => expect(within(claims[i]!).getByRole("link")).toHaveAttribute("href", n.source.url));
+    if (entry.price?.kind === "list") {
       const price = screen.getByRole("table", { name: "Price" });
-      expect(price).toHaveTextContent(`${entry.listPrice} (${LIST_PRICE_LABEL})`);
+      expect(price).toHaveTextContent(`${entry.price.product}`);
+      expect(price).toHaveTextContent(`${entry.price.text} (${LIST_PRICE_LABEL})`);
+      expect(within(view.container.querySelector<HTMLElement>("[data-claim=price]")!).getByRole("link")).toHaveAttribute("href", entry.price.source.url);
       expect(price).toHaveTextContent("Free, with unlimited seats");
+    } else if (entry.price?.kind === "quote") {
+      const price = screen.getByRole("table", { name: "Price" });
+      expect(price).toHaveTextContent(`${entry.name}Priced by quote`);
+      expect(price.textContent).not.toMatch(/[$€]\s?\d/);
     } else {
       expect(screen.queryByRole("table", { name: "Price" })).toBeNull();
     }
+    // Every figure with a currency on the page sits in the sourced price cell.
+    const figures = [...view.container.querySelectorAll("main *")].filter((el) => el.children.length === 0 && /[$€]\s?\d/.test(el.textContent ?? ""));
+    for (const f of figures) expect(f.closest("[data-claim=price]"), f.textContent!).not.toBeNull();
     expect(screen.getByRole("form", { name: "Request a free migration" })).toBeInTheDocument();
     // The form starts on this system.
     expect(screen.getByLabelText(/Current system/)).toHaveValue(entry.slug);
@@ -126,7 +152,7 @@ describe("/switch", () => {
       expect(screen.getByRole("link", { name: e.listName })).toHaveAttribute("href", `/switch/${e.slug}`);
       expect(screen.getByText(e.summary)).toBeInTheDocument();
     }
-    expect(screen.getByRole("link", { name: new RegExp(PEAK_SOURCE.label) })).toHaveAttribute("href", PEAK_SOURCE.url);
+    expect(screen.getByRole("link", { name: (name) => name.startsWith(PEAK_SOURCE.label) })).toHaveAttribute("href", PEAK_SOURCE.url);
     expect(screen.getByTestId("switch-note")).toHaveTextContent(TRADEMARK_NOTE);
     expect(screen.getByLabelText(/Current system/)).toHaveValue("");
     expect(await axeProblems()).toEqual([]);
