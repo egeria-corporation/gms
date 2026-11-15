@@ -4,6 +4,7 @@ import "@common-grants/core";
 import "./routes.tsp";
 import "./outside.tsp";
 import "./keep.tsp";
+import "./review.tsp";
 
 using TypeSpec.Http;
 
