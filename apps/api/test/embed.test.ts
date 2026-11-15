@@ -174,6 +174,20 @@ describe("the application receipt email", () => {
   });
 
   it.each([
+    ["on by default", undefined, true],
+    ["off", false, false],
+  ])("is one switch for every surface: footers' data, the widget and the receipt (%s)", async (_name, setting, shown) => {
+    const { h } = await submitted(setting);
+    const page = "/gms/public/funders/riverbend/opportunities/community-health-grants-2027";
+    expect((await data<{ funder: { poweredBy?: boolean } }>(await h.request("/gms/public/funders/riverbend"))).funder.poweredBy).toBe(shown);
+    expect((await data<{ funder: { poweredBy?: boolean } }>(await h.request(page))).funder.poweredBy).toBe(shown);
+    expect((await data<Widget>(await h.request("/gms/public/embed/funders/riverbend/opportunities/community-health-grants-2027"))).poweredBy).toBe(shown);
+    const [receipt] = h.mailer.sent;
+    expect(receipt!.text.includes("Powered by OpenGrants Grant Management System")).toBe(shown);
+    expect(receipt!.html.includes("Powered by")).toBe(shown);
+  });
+
+  it.each([
     ["revision request", "request-revision", { message: "Cite the county assessment." }],
     ["decline", "decline", { rationale: "Outside this cycle's priorities." }],
   ])("never adds it to a %s, even with the setting on", async (_name, action, body) => {
