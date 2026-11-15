@@ -15,6 +15,9 @@ import { NotFound } from "../components/NotFound.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
+// The switch pages and their free migration request.
+const Switch = lazy(() => import("../screens/public/Switch.tsx"));
+const SwitchSystem = lazy(() => import("../screens/public/SwitchSystem.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
@@ -185,6 +188,8 @@ function AppRoutes() {
         <Route path="/signin" element={<SignIn />} />
         <Route path="/auth/passport" element={<PassportReturn />} />
         <Route path="/agents" element={<Agents />} />
+        <Route path="/switch" element={<Switch />} />
+        <Route path="/switch/:system" element={<SwitchSystem />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         {/* The agent consent page. Not under /oauth/: the site hands every /oauth/ path to the API. */}
         <Route path="/consent" element={<OAuthConsent />} />
