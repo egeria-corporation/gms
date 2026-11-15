@@ -138,6 +138,9 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   consulting_requests: () => ({ sent_at: null, fields_sent: [] }),
   outside_obligation_series: () => ({ amount_minor: null, notes: null, created_by: null }),
   outside_obligations: () => ({ due_on: null, amount_minor: null, status: "upcoming", series_id: null, customized: false, notes: null, submitted_at: null, confirmation_ref: null, document_id: null, snapshot_sha256: null, completed_on: null, created_by: null }),
+  // 0033 (review parity): conflict-of-interest policies and signatures.
+  coi_policies: () => ({ is_default: false, created_by: null }),
+  coi_signatures: () => ({ declared_org_ids: [], declared_orgs: [] }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
@@ -164,6 +167,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
   outside_answers: [{ columns: ["question_id", "version"] }],
   calendar_feeds: [{ columns: ["workspace_id"] }, { columns: ["token_sha256"] }],
+  coi_policies: [{ columns: ["competition_id", "version"] }],
+  coi_signatures: [{ columns: ["competition_id", "reviewer_user_id", "policy_version"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -198,6 +203,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   consulting_requests: { outside_application_id: "outside_applications" },
   outside_obligation_series: { outside_application_id: "outside_applications" },
   outside_obligations: { outside_application_id: "outside_applications", series_id: "outside_obligation_series", document_id: "documents" },
+  coi_policies: { competition_id: "competitions" },
+  coi_signatures: { competition_id: "competitions" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

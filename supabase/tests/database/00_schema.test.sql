@@ -22,7 +22,8 @@ select tables_are(
     'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
     'workspace_creation_counts', 'award_invitations', 'award_invitation_sends',
     'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests',
-    'outside_obligation_series', 'outside_obligations'
+    'outside_obligation_series', 'outside_obligations',
+    'coi_policies', 'coi_signatures'
   ],
   'public schema has exactly the GMS tables'
 );
