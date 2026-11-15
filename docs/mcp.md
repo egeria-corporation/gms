@@ -143,6 +143,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `open_data_summary` | `analytics:read` | — | Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; publishing is done by a person (docs/open-data.md). |
 | `list_report_views` | `analytics:read` | — | List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule. |
 | `run_report_view` | `analytics:read` | — | Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set. |
+| `list_social_posts` | `analytics:read` | — | The social posts this workspace sent through Zernio, for one opportunity or award or all: each account's status and link, Zernio's counts, and for a call the applications started from a shared link. No tool posts, schedules or connects an account; only a person does, in the GMS (docs/social.md). |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
@@ -186,6 +187,7 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `get_funding_summary` | `applications:read` | — | Applications by fiscal year, win rate, asked and awarded. |
 | `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
 | `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
+| `list_social_posts` | `awards:read` | — | The social posts this workspace sent through Zernio about its awards: each account's status and link and Zernio's counts. No tool posts, schedules or connects an account. |
 
 ### Applicant tools
 

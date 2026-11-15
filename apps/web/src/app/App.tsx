@@ -70,6 +70,7 @@ const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
+const SettingsSocial = lazy(() => import("../screens/shared/SettingsSocial.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -286,6 +287,8 @@ function AppRoutes() {
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="settings/public-page" element={f(<FSettingsPublicPage />)} />
             <Route path="settings/security" element={f(<FSettingsSecurity />)} />
+            {/* Social accounts (Zernio), both kinds of workspace; Zernio returns here after a connection. */}
+            <Route path="settings/social" element={<SettingsSocial />} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}

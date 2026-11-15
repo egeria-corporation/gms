@@ -152,6 +152,9 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   workspace_sso_domains: () => ({ status: "pending", require_sso: false, provider_id: null, verified_at: null, last_checked_at: null, last_check_result: null, activated_at: null, created_by: null }),
   gallery_items: (at) => ({ author_workspace_id: null, licence: "CC-BY-4.0", status: "approved", version: 1, tags: { fieldOfWork: [], grantSize: [], audience: [] }, uses_count: 0, published_at: at, withdrawn_at: null }),
   gallery_submissions: () => ({ status: "pending", tags: { fieldOfWork: [], grantSize: [], audience: [] }, stripped: [], decided_at: null, decided_by: null, decision_reason: null, item_id: null, withdrawn_at: null }),
+  social_profiles: () => ({ created_by: null }),
+  social_accounts: () => ({ username: null, status: "active", connected_by: null, disconnected_at: null }),
+  social_posts: () => ({ zernio_post_id: null, targets: [], status: "sending", scheduled_at: null, timezone: null, error: null, metrics: {}, metrics_at: null, sent_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -190,6 +193,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   gallery_items: [{ columns: ["slug"] }],
   // One pending submission per source record (gallery_submissions_one_pending_idx).
   gallery_submissions: [{ columns: ["workspace_id", "source_type", "source_id"], whereEquals: { status: "pending" } }],
+  social_profiles: [{ columns: ["workspace_id"] }, { columns: ["zernio_profile_id"] }],
+  social_accounts: [{ columns: ["zernio_id"] }],
+  social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };

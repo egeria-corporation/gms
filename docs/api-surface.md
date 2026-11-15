@@ -531,3 +531,20 @@ awards that pass `isPubliclyListable` (`apps/api/src/services/award-sharing.ts`)
 | `GET/PUT /gms/award-sharing/settings` | Implemented | `{ listAwards?, showAmounts? }` in `settings.awardSharing` (not a `PATCH /workspaces` key). Read: funder staff (`awards:read`); write: funder `admin`, a signed-in person. Returns counts and program defaults |
 | `PUT /gms/programs/{id}/award-sharing` | Implemented | `{ awardsConfidential }`: new awards in the program start confidential (a database trigger applies it). Funder `admin` or `program_officer`, a signed-in person |
 | MCP `get_award_share_kit` | Implemented | Funder and grantee sides, `awards:read`. The share kit, or nothing for an award that is not public. No tool lists awards, marks one confidential or unlists one |
+
+## Social posting through Zernio (v1.9.0)
+
+Every route answers 404 `social_not_configured` unless `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` are both set; `GET /gms/config` adds `available.social`. See docs/social.md.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/social` | Implemented | Platforms with their limits, the workspace's connected accounts, `canConnect`, `canPost`. Staff (`analytics:read` funder, `awards:read` applicant) |
+| `POST /gms/social/connect` | Implemented | `{ platform }`. A signed-in admin (agents and API clients `403 human_only`). Creates the workspace's Zernio profile on first use; returns Zernio's `authUrl`, which returns to `/w/{handle}/settings/social?gs=…` |
+| `POST /gms/social/connect/callback` | Implemented | `{ state, profileId, accountId, connected?, username? }` → `201` the account. `403 connect_state_invalid` (forged, altered, expired, another person or workspace, another profile); `409 account_not_listed` when Zernio does not list the account under this workspace's profile |
+| `DELETE /gms/social/accounts/{id}` | Implemented | A signed-in admin. Disconnects at Zernio, then here |
+| `GET /gms/social/compose?subjectType=&subjectId=` | Implemented | The composer's starting texts, link (`utm_source=social`) and share card; `shareable: false` with a reason for an unpublished or closed call and for an award that is not publicly listed. A read: agents may use it |
+| `POST /gms/social/posts/preview` | Implemented | A signed-in admin or editor. The exact `body` Zernio will receive, each platform's length, problems, and a `previewToken` (null while there is a problem). `409 not_shareable`, `422 account_not_connected` |
+| `POST /gms/social/posts` | Implemented | A signed-in admin or editor (agents and API clients `403 human_only`), `Idempotency-Key` header (a UUID, `400 idempotency_key_required`). The body must be the one previewed (`409 preview_required`, `preview_changed`); the same key returns the post already made (`409 idempotency_key_reused` for other content); Zernio's 409 counts as sent. `503 zernio_unavailable`: not confirmed, post again with the same key |
+| `GET /gms/social/posts?subjectType=&subjectId=` | Implemented | The reach report: the last 50 posts with status, per-account links and Zernio's counts (read at most every 30 minutes, ten Zernio calls per report), totals, and for a call `applicationsFromSocial` |
+| `POST /webhooks/zernio` | Implemented | `X-Zernio-Signature` (HMAC-SHA256 of the raw body) checked first (`401`); stored once by event id (`duplicate`); older than a day `400 stale`; applied only to the workspace whose profile it names. Account and post events |
+| MCP `list_social_posts` | Implemented | Funder (`analytics:read`, an opportunity or award or all) and applicant (`awards:read`, its awards). No tool posts, schedules or connects |

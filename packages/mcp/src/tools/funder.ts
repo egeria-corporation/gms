@@ -161,6 +161,8 @@ export const FUNDER_TOOLS = {
   // The report builder: read only. Saving and scheduling a view are done by a person in the GMS.
   list_report_views: tool("listReportViews", "analytics:read", "List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule.", z.object({})),
   run_report_view: tool("runReportView", "analytics:read", "Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set.", z.object({ viewId: z.string().min(1).max(80).describe("A view id from list_report_views: a UUID or starter-<key>") })),
+  // Social posting (v1.8.0): read only. No tool posts, schedules or connects an account; a person does, in the GMS.
+  list_social_posts: tool("listSocialPosts", "analytics:read", "List the social posts this workspace sent through Zernio, with each account's status and link and Zernio's counts (impressions, clicks, engagements), for one opportunity or award or all; for an opportunity, also the applications started from a shared link. Reading only: no tool posts, schedules or connects an account.", z.object({ opportunityId: opportunityId.optional(), awardId: awardId.optional() })),
 
   draft_letter: tool("draftLetter", "assist", "Draft a letter from a template. The draft is never sent by this tool.", z.object({ kind: letterContext, applicationId: applicationId.optional(), awardId: awardId.optional(), templateId: uuid("Template id").optional(), instructions: z.string().max(2000).optional() })),
   summarize_application: tool("summarizeApplication", "assist", "Summarize an application. Applicant text is quoted and labeled applicant-supplied.", z.object({ applicationId })),

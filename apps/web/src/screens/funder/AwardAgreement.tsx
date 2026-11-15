@@ -20,6 +20,7 @@ import { AwardActivity, AwardCloseout, AwardDocuments, AwardTabs, SignatureRecor
 import { InvitationBadge, InvitationPanel, type MailNote } from "./DirectAwardPanels.tsx";
 import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
 import { dateTime } from "./shared.tsx";
+import { SocialPanel } from "../../components/SocialPanel.tsx";
 
 const STEPS: [Agreement["status"], string][] = [
   ["draft", "Draft"],
@@ -436,6 +437,7 @@ export default function AwardAgreement() {
                 <AwardCloseout award={award.data} onChanged={reload} />
               </TabPanel>
               <ShareAwardPanel awardId={award.data.id} side="funder" settingsHref={`${base}/settings/public-page`} />
+              <SocialPanel subject={{ type: "award", id: award.data.id }} />
             </>
           )}
         </main>

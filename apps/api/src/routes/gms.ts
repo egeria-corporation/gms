@@ -29,6 +29,7 @@ import { migrationRequestRoutes } from "./gms/migration-request.ts";
 import { reportRoutes } from "./gms/reports.ts";
 import { reviewParityRoutes } from "./gms/reviews.ts";
 import { galleryRoutes } from "./gallery.ts";
+import { socialRoutes } from "./gms/social.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -60,6 +61,8 @@ const features = (c: Parameters<typeof config>[0]) => {
       airtable: !!ports.airtable,
       mercury: !!ports.bank && !!cfg.credentialsKey,
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
+      // Social posting through Zernio: ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET.
+      social: !!cfg.zernio,
     },
   };
 };
@@ -152,6 +155,7 @@ gms.route("/", ssoRoutes);
 gms.route("/", galleryRoutes);
 // Award sharing (v1.8.0): the share panel, confidential and unlisted switches, listing settings.
 gms.route("/", awardSharingRoutes);
+gms.route("/", socialRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

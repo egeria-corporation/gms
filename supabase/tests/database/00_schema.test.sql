@@ -27,7 +27,8 @@ select tables_are(
     'report_views', 'report_schedules', 'report_files',
     'workspace_sso_domains',
     'coi_policies', 'coi_signatures',
-    'gallery_items', 'gallery_submissions'
+    'gallery_items', 'gallery_submissions',
+    'social_profiles', 'social_accounts', 'social_posts'
   ],
   'public schema has exactly the GMS tables'
 );

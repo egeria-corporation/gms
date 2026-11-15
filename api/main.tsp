@@ -14,6 +14,7 @@ import "./sso.tsp";
 import "./review.tsp";
 import "./gallery.tsp";
 import "./award-sharing.tsp";
+import "./social.tsp";
 
 using TypeSpec.Http;
 
