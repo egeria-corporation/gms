@@ -367,6 +367,24 @@ describe.each([
     await expect(anonymous.publicOpportunity("riverbend", "no-such-opportunity")).rejects.toMatchObject({ status: 404 });
   });
 
+  it("publicEmbed() gives the apply widget's data without a sign-in, and the Powered by setting", async () => {
+    const widget = await anonymous.publicEmbed("riverbend", slug);
+    expect(widget.funder).toMatchObject({ handle: "riverbend", name: "Riverbend Community Foundation" });
+    expect(typeof widget.funder.verified).toBe("boolean");
+    expect(widget.opportunity).toMatchObject({ slug, title: opportunity.title, status: "open", closeDate: { date: "2027-04-30" } });
+    expect(widget.opportunity.eligibility).toEqual(["Tax-exempt under 501(c)(3)", "Located in Oregon or Washington"]);
+    expect(widget.opportunity.moreEligibility).toBe(0);
+    expect(widget.acceptingApplications).toBe(true);
+    expect(widget.links.page).toMatch(new RegExp(`/f/riverbend/o/${slug}$`));
+    expect(widget.poweredBy).toBe(true);
+    await expect(anonymous.publicEmbed("riverbend", "no-such-opportunity")).rejects.toMatchObject({ status: 404 });
+
+    await api.updateWorkspace(workspaceId, { settings: { poweredBy: false } });
+    expect((await anonymous.publicEmbed("riverbend", slug)).poweredBy).toBe(false);
+    await api.updateWorkspace(workspaceId, { settings: { poweredBy: null } });
+    expect((await anonymous.publicEmbed("riverbend", slug)).poweredBy).toBe(true);
+  });
+
   it("evaluateEligibility() dry-runs rules, by value and by opportunity", async () => {
     // Facts in the shapes Passport serves: CommonGrants `OrganizationBase` and the Common App profile.
     const org = { addresses: { primary: { stateOrProvince: "OR" } } };

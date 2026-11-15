@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The apply widget, its copy-paste snippet, and the funder's "Powered by" setting on every public
 // surface, against the mock API.
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { EMBED_MAX_HEIGHT, EMBED_MESSAGE, EMBED_MIN_HEIGHT, embedFrameId, embedIframe, embedResizeScript, embedSnippet, postEmbedHeight } from "../src/lib/embed.ts";
-import { seedStore } from "../src/mocks/store.ts";
+import { demoSession } from "../src/mocks/auth.ts";
+import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
+import { IDS, seedStore } from "../src/mocks/store.ts";
 
 const ORIGIN = window.location.origin;
 const POWERED = "Powered by OpenGrants Grant Management System";
@@ -179,5 +182,70 @@ describe("the embed snippet", () => {
     send({ type: EMBED_MESSAGE, height: 0 });
     expect(frame.style.height).toBe(`${EMBED_MIN_HEIGHT}px`);
     frame.remove();
+  });
+});
+
+describe("the embed panel in the opportunity builder", () => {
+  const builder = (path: string, store = seedStore()) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <App services={createMockServices({ session: demoSession(), store })} />
+      </MemoryRouter>,
+    );
+
+  it("gives the snippet, a copy button and a live preview for a published opportunity", async () => {
+    builder(`/w/riverbend/opportunities/${IDS.oppHealth27}/edit#publish`);
+    const panel = await screen.findByRole("region", { name: "Embed on your website" });
+    const code = within(panel).getByRole("textbox", { name: "Embed code" }) as HTMLTextAreaElement;
+    expect(code.value).toContain(`src="${ORIGIN}/embed/f/riverbend/o/community-health-2027"`);
+    expect(code.value).not.toContain("<script>");
+    await userEvent.click(within(panel).getByRole("checkbox", { name: /Resize to fit/ }));
+    expect(code.value).toContain("<script>");
+    expect(code.value).toContain(EMBED_MESSAGE);
+    expect(within(panel).getByRole("button", { name: "Copy the embed code" })).toBeInTheDocument();
+    const preview = await within(panel).findByRole("region", { name: "Widget preview" });
+    expect(within(preview).getByRole("link", { name: "Apply to Community Health Grants 2027 (opens in a new tab)" })).toBeInTheDocument();
+    expect(within(preview).getByRole("link", { name: POWERED })).toBeInTheDocument();
+  });
+
+  it("asks for publishing first", async () => {
+    builder("/w/riverbend/opportunities/new#publish");
+    const panel = await screen.findByRole("region", { name: "Embed on your website" });
+    expect(within(panel).getByText("Publish to embed")).toBeInTheDocument();
+    expect(within(panel).queryByRole("textbox", { name: "Embed code" })).toBeNull();
+  });
+});
+
+describe("the Public page setting", () => {
+  const SWITCH = { name: `Show “${POWERED}”` };
+
+  it("is on by default; an admin turns it off and the public pages drop the line", async () => {
+    const store = seedStore();
+    render(
+      <MemoryRouter initialEntries={["/w/riverbend/settings/public-page"]}>
+        <App services={createMockServices({ session: demoSession(), store })} />
+      </MemoryRouter>,
+    );
+    const toggle = await screen.findByRole("switch", SWITCH);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(toggle);
+    await waitFor(() => expect(screen.getByRole("switch", SWITCH)).toHaveAttribute("aria-checked", "false"));
+    expect(store.workspaces[0]!.record.settings.poweredBy).toBe(false);
+    expect(screen.getByRole("link", { name: "Public page" })).toHaveAttribute("aria-current", "page");
+
+    document.body.innerHTML = "";
+    open("/f/riverbend", store);
+    await screen.findByRole("heading", { level: 1, name: "Riverbend Community Foundation" });
+    expect(screen.queryByText(POWERED)).toBeNull();
+  });
+
+  it("is for admins only", async () => {
+    render(
+      <MemoryRouter initialEntries={["/w/riverbend/settings/public-page"]}>
+        <App services={createMockServices({ session: demoSession(), memberships: MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "program_officer" } : m)) })} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("switch", SWITCH)).toBeDisabled();
+    expect(screen.getByText("Only workspace admins can change this.")).toBeInTheDocument();
   });
 });

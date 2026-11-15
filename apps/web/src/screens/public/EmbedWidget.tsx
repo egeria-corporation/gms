@@ -68,7 +68,7 @@ function eligibilityLine(o: EmbedWidgetData["opportunity"]): string | null {
 }
 
 /** The card itself. The opportunity builder shows it as the embed preview. */
-export function EmbedCard({ data, headingLevel = 1 }: { data: EmbedWidgetData; headingLevel?: 1 | 2 | 3 }) {
+export function EmbedCard({ data, headingLevel = 1 }: { data: EmbedWidgetData; headingLevel?: 1 | 2 | 3 | 4 }) {
   const { funder, opportunity: o } = data;
   const Heading = `h${headingLevel}` as const;
   const page = absolute(data.links.page);
@@ -127,7 +127,7 @@ export function EmbedCard({ data, headingLevel = 1 }: { data: EmbedWidgetData; h
 export default function EmbedWidget() {
   const { handle = "", slug = "" } = useParams();
   const widget = useApiQuery((api) => api.publicEmbed(handle, slug), [handle, slug]);
-  const root = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLElement>(null);
 
   // Tell the page that frames this widget how tall it is, so its resize script can fit the iframe.
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function EmbedWidget() {
   }, [widget.status]);
 
   return (
-    <div className="gms embed" ref={root}>
+    <main className="gms embed" ref={root}>
       {widget.status === "loading" && (
         <div className="embed-card" aria-busy="true">
           <span className="muted">Loading…</span>
@@ -163,6 +163,6 @@ export default function EmbedWidget() {
           <EmbedCard data={widget.data} />
         </>
       )}
-    </div>
+    </main>
   );
 }
