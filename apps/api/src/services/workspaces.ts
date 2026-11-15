@@ -46,6 +46,9 @@ export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
     transparency: z.boolean(),
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
     defaultRail: z.enum(["auto", "standard", "instant"]),
+    // v1.7.0: "Powered by OpenGrants Grant Management System" on the public pages, the embed widget
+    // and the application receipt email. On unless this is false.
+    poweredBy: z.boolean(),
   },
   applicant: {
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
@@ -204,15 +207,19 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
   const current = required(await ctx.repos.table("workspaces").one({ id }), "Workspace");
   const merge = (base: unknown, patch: Record<string, unknown>) => Object.fromEntries(Object.entries({ ...((base as Record<string, unknown> | null) ?? {}), ...patch }).filter(([, v]) => v !== null && v !== undefined));
   const resolved = input.brand ? resolveBrand(merge(current.brand, input.brand) as z.output<typeof brandInput>) : null;
+  const settings = input.settings ? userSettingsPatch(caller.kind, input.settings) : null;
   const [row] = await ctx.repos.table("workspaces").update(
     { id },
     {
       ...(input.displayName ? { display_name: input.displayName } : {}),
       ...(resolved ? { brand: resolved.brand } : {}),
-      ...(input.settings ? { settings: merge(current.settings, userSettingsPatch(caller.kind, input.settings)) as Row<"workspaces">["settings"] } : {}),
+      ...(settings ? { settings: merge(current.settings, settings) as Row<"workspaces">["settings"] } : {}),
     },
   );
-  await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input) });
+  // Which settings changed: on/off switches with their new value, anything else (an address, a
+  // list) by name only, so the ledger never copies a contact address.
+  const changed = settings ? Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, typeof v === "boolean" || v === null ? v : "changed"])) : {};
+  await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input), ...(Object.keys(changed).length ? { settings: changed } : {}) });
   return { workspace: workspaceView(required(row, "Workspace")), warnings: resolved?.warnings ?? [] };
 }
 

@@ -23,6 +23,7 @@ import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
+import { embedPages } from "./embed.ts";
 import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
@@ -110,6 +111,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 
 // Published data for the funder pages: no token.
 gms.route("/public", publicPages);
+// The embeddable apply widget's data, also public.
+gms.route("/public", embedPages);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
 gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);

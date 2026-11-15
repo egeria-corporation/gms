@@ -5,7 +5,7 @@ import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
 import type { AwardDetail } from "../api/funder.ts";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { Navigate, Outlet, Route, Routes, useParams } from "react-router";
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
 import { UserbackBridge } from "./UserbackBridge.tsx";
@@ -17,6 +17,7 @@ const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
+const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
@@ -55,6 +56,7 @@ const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
+const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -175,13 +177,17 @@ export function App({ services }: { services?: Services }) {
 function AppRoutes() {
   // The design reference boards and template previews carry demo content: demo (mock) mode only.
   const { mock } = useServices();
+  // The apply widget runs inside other sites' pages: no feedback widget there, and a plain frame.
+  const embedded = useLocation().pathname.startsWith("/embed/");
   return (
-    <Suspense fallback={<div className="gms gms-frame" aria-busy="true" />}>
-      <UserbackBridge />
+    <Suspense fallback={<div className={embedded ? "gms embed" : "gms gms-frame"} aria-busy="true" />}>
+      {!embedded && <UserbackBridge />}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
+        {/* The embeddable apply widget. Any site may frame /embed/* (build/headers.ts); no sign-in. */}
+        <Route path="/embed/f/:handle/o/:slug" element={<EmbedWidget />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/auth/passport" element={<PassportReturn />} />
         <Route path="/agents" element={<Agents />} />
@@ -253,6 +259,7 @@ function AppRoutes() {
             <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
+            <Route path="settings/public-page" element={f(<FSettingsPublicPage />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             <Route path="approvals" element={f(<FApprovals />)} />

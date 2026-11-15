@@ -77,12 +77,21 @@ function OpportunityCard({ handle, opp }: { handle: string; opp: PublicOpportuni
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "6px" }}>
-        <Link to={to} className="btn btn-tenant" aria-label={`Apply to ${opp.title}`}>
-          Apply <ArrowRight className="ic" aria-hidden="true" />
-        </Link>
-        <Link to={to} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={`Details of ${opp.title}`}>
-          Details
-        </Link>
+        {opp.acceptingApplications === true ? (
+          <>
+            <Link to={to} className="btn btn-tenant" aria-label={`Apply to ${opp.title}`}>
+              Apply <ArrowRight className="ic" aria-hidden="true" />
+            </Link>
+            <Link to={to} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={`Details of ${opp.title}`}>
+              Details
+            </Link>
+          </>
+        ) : (
+          // Open, but no competition is taking applications yet (or an older server): no Apply.
+          <Link to={to} className="btn btn-secondary" aria-label={`View details of ${opp.title}`}>
+            View details <ArrowRight className="ic" aria-hidden="true" />
+          </Link>
+        )}
       </div>
     </article>
   );

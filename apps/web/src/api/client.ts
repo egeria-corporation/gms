@@ -16,6 +16,7 @@ import type {
   FormPatch,
   FormRecord,
   FormSummary,
+  EmbedWidgetData,
   FunderPageData,
   Invitation,
   InvitationInput,
@@ -98,6 +99,8 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, Direct
   // ---- public pages: no sign-in, published fields only ----
   publicFunder(handle: string): Promise<FunderPageData>;
   publicOpportunity(handle: string, slug: string): Promise<OpportunityPageData>;
+  /** The embeddable apply widget's data. Sent without a token or cookies, whoever is signed in. */
+  publicEmbed(handle: string, slug: string): Promise<EmbedWidgetData>;
   /** The CommonGrants competition, with the forms it pins. */
   publicCompetition(id: string): Promise<CgCompetition>;
 
@@ -296,6 +299,12 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),
+    publicEmbed: async (handle, slug) => {
+      const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}/gms/public/embed/funders/${e(handle)}/opportunities/${e(slug)}`, { credentials: "omit" });
+      const json = (await res.json().catch(() => ({}))) as { data?: EmbedWidgetData; message?: string; errors?: unknown[] };
+      if (!res.ok) throw new ApiError(res.status, json.message ?? `Request failed (${res.status})`, json.errors ?? []);
+      return json.data as EmbedWidgetData;
+    },
     publicCompetition: (id) => get(`/common-grants/competitions/${e(id)}`),
 
     createWorkspace: (input) => call("POST", "/gms/workspaces", input),
