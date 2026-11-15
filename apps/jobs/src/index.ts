@@ -9,6 +9,7 @@ import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
 import { SupabaseWebhookStore } from "@gms/webhooks";
 import { createClient } from "@supabase/supabase-js";
+import { runScheduledReports } from "./reports.ts";
 
 export interface Env {
   GMS_BASE_URL: string;
@@ -143,6 +144,7 @@ export default {
         log("error", "job.failed", { job: name, error: e instanceof Error ? e.name : "error" });
       }
     }
+    await runScheduledReports(base, env);
   },
 
   async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {

@@ -34,6 +34,7 @@ import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
 import * as quickSetup from "./quick-setup.ts";
+import * as reportBuilder from "./report-builder.ts";
 import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
 import * as team from "./team.ts";
@@ -346,6 +347,9 @@ const IMPLEMENTED: Impl = {
     const { awards: _awards, awardsShown: _shown, ...counts } = await openData.openDataSummary(ctx, openData.rangeOf({ year: i.year, from: i.from, to: i.to }));
     return counts;
   },
+  // The report builder: read only, through the same service and authorization as the REST routes.
+  listReportViews: (ctx) => reportBuilder.listViews(ctx),
+  runReportView: (ctx, i) => reportBuilder.runView(ctx, i.viewId),
 
   // ---- applicant: reports ----
   listMyRequirements: async (ctx, i) => (await requirements.listMyRequirements(ctx)).filter((r) => (!i.awardId || r.awardId === `awd_${awd(i.awardId)}`) && (!i.status?.length || i.status.includes(r.status as never))),

@@ -2586,6 +2586,150 @@ export type Database = {
         };
         Relationships: [];
       };
+      report_files: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          period_key: string;
+          recipient_user_ids: string[];
+          row_count: number;
+          schedule_id: string | null;
+          sent_at: string | null;
+          sent_count: number;
+          storage_key: string;
+          truncated: boolean;
+          updated_at: string;
+          view_id: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          period_key: string;
+          recipient_user_ids: string[];
+          row_count: number;
+          schedule_id?: string | null;
+          sent_at?: string | null;
+          sent_count?: number;
+          storage_key: string;
+          truncated?: boolean;
+          updated_at?: string;
+          view_id: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          period_key?: string;
+          recipient_user_ids?: string[];
+          row_count?: number;
+          schedule_id?: string | null;
+          sent_at?: string | null;
+          sent_count?: number;
+          storage_key?: string;
+          truncated?: boolean;
+          updated_at?: string;
+          view_id?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      report_schedules: {
+        Row: {
+          active: boolean;
+          cadence: string;
+          created_at: string;
+          created_by: string;
+          day_of_month: number | null;
+          id: string;
+          last_period: string | null;
+          last_sent_at: string | null;
+          recipient_user_ids: string[];
+          starts_at: string;
+          stopped_reason: string | null;
+          updated_at: string;
+          view_id: string;
+          weekday: number | null;
+          workspace_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          cadence: string;
+          created_at?: string;
+          created_by: string;
+          day_of_month?: number | null;
+          id?: string;
+          last_period?: string | null;
+          last_sent_at?: string | null;
+          recipient_user_ids: string[];
+          starts_at?: string;
+          stopped_reason?: string | null;
+          updated_at?: string;
+          view_id: string;
+          weekday?: number | null;
+          workspace_id: string;
+        };
+        Update: {
+          active?: boolean;
+          cadence?: string;
+          created_at?: string;
+          created_by?: string;
+          day_of_month?: number | null;
+          id?: string;
+          last_period?: string | null;
+          last_sent_at?: string | null;
+          recipient_user_ids?: string[];
+          starts_at?: string;
+          stopped_reason?: string | null;
+          updated_at?: string;
+          view_id?: string;
+          weekday?: number | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      report_views: {
+        Row: {
+          created_at: string;
+          data_set: string;
+          definition: Json;
+          description: string | null;
+          id: string;
+          name: string;
+          owner_user_id: string;
+          updated_at: string;
+          visibility: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          data_set: string;
+          definition: Json;
+          description?: string | null;
+          id?: string;
+          name: string;
+          owner_user_id: string;
+          updated_at?: string;
+          visibility?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          data_set?: string;
+          definition?: Json;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          owner_user_id?: string;
+          updated_at?: string;
+          visibility?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       requirements: {
         Row: {
           award_id: string;
@@ -3242,4 +3386,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","discover_saved","documents","form_responses","forms","funder_records","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","submissions","tasks","templates","threads","tranches","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspaces"] as const satisfies readonly TableName[];

@@ -57,6 +57,7 @@ const FPaymentsLedger = lazy(() => import("../screens/funder/PaymentsLedger.tsx"
 const FReporting = lazy(() => import("../screens/funder/Reporting.tsx"));
 const FGrantees = lazy(() => import("../screens/funder/Grantees.tsx"));
 const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
+const FReportBuilder = lazy(() => import("../screens/funder/ReportBuilder.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
@@ -264,6 +265,7 @@ function AppRoutes() {
             <Route path="grantees" element={f(<FGrantees />)} />
             <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
             <Route path="analytics" element={f(<FAnalytics />)} />
+            <Route path="report-builder" element={f(<FReportBuilder />)} />
             <Route path="communications" element={f(<FCommunications />)} />
             <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />

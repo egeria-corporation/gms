@@ -154,6 +154,9 @@ export const FUNDER_TOOLS = {
   open_data_summary: tool("openDataSummary", "analytics:read", "Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; nothing is published.", z.object({ year: z.number().int().min(1900).max(2100).optional(), from: isoDate.optional(), to: isoDate.optional() })),
 
   get_import_preview: tool("getImportPreview", "workspace:admin", "Read an import check (dry run) a person made on the import screen: how many rows would be created, skipped or need a fix, the amounts by year, and the names of the columns left out as bank or identity data. Only a person imports the rows, in the GMS; no tool does it.", z.object({ importRunId: uuid("Import run id") })),
+  // The report builder: read only. Saving and scheduling a view are done by a person in the GMS.
+  list_report_views: tool("listReportViews", "analytics:read", "List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule.", z.object({})),
+  run_report_view: tool("runReportView", "analytics:read", "Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set.", z.object({ viewId: z.string().min(1).max(80).describe("A view id from list_report_views: a UUID or starter-<key>") })),
 
   draft_letter: tool("draftLetter", "assist", "Draft a letter from a template. The draft is never sent by this tool.", z.object({ kind: letterContext, applicationId: applicationId.optional(), awardId: awardId.optional(), templateId: uuid("Template id").optional(), instructions: z.string().max(2000).optional() })),
   summarize_application: tool("summarizeApplication", "assist", "Summarize an application. Applicant text is quoted and labeled applicant-supplied.", z.object({ applicationId })),

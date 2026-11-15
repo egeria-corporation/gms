@@ -25,6 +25,7 @@ import { keepRoutes } from "./gms/keep.ts";
 import { openDataRoutes } from "./gms/open-data.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { migrationRequestRoutes } from "./gms/migration-request.ts";
+import { reportRoutes } from "./gms/reports.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -138,6 +139,8 @@ gms.route("/", assistRoutes);
 gms.route("/", migrationRequestRoutes);
 // Open data exports, and the public 360Giving feed (`/open-data/{handle}/360giving.json`, no token).
 gms.route("/", openDataRoutes);
+// The report builder (docs/reports.md).
+gms.route("/", reportRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

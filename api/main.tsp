@@ -9,6 +9,7 @@ import "./invites.tsp";
 import "./imports.tsp";
 import "./switch.tsp";
 import "./open-data.tsp";
+import "./reports.tsp";
 
 using TypeSpec.Http;
 
