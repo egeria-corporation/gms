@@ -17,6 +17,9 @@ const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
+// Award sharing (v1.8.0): the grants a funder has awarded, and one award's page.
+const FunderAwards = lazy(() => import("../screens/public/FunderAwards.tsx"));
+const AwardPublic = lazy(() => import("../screens/public/AwardPublic.tsx"));
 const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
@@ -188,6 +191,8 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
+        <Route path="/f/:handle/awards" element={<FunderAwards />} />
+        <Route path="/f/:handle/awards/:slug" element={<AwardPublic />} />
         {/* The embeddable apply widget. Any site may frame /embed/* (build/headers.ts); no sign-in. */}
         <Route path="/embed/f/:handle/o/:slug" element={<EmbedWidget />} />
         <Route path="/signin" element={<SignIn />} />
