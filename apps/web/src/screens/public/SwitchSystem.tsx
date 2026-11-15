@@ -125,7 +125,7 @@ function Page({ entry }: { entry: SwitchEntry }) {
       <section className="landing-sec" aria-labelledby="differ-h">
         <div className="wrap-c">
           <h2 id="differ-h">How the GMS differs</h2>
-          <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
+          <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
             {DIFFERENCES.map(([t, d]) => (
               <li key={t} className="card landing-card">
                 <h3>

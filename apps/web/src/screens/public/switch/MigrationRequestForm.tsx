@@ -229,23 +229,23 @@ function PreviewView({ p }: { p: MigrationRequestPreview }) {
         <dt>Subject</dt>
         <dd>{p.subject}</dd>
       </dl>
-      <pre data-testid="migration-email-text" tabIndex={0} aria-label="The email's text" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "14px", margin: 0, background: "#fff", border: "1px solid var(--og-gray-200)", borderRadius: "6px", padding: "10px 12px" }}>
+      <div data-testid="migration-email-text" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "14px", lineHeight: 1.5, color: "var(--og-gray-800)", background: "var(--og-white)", border: "1px solid var(--og-gray-200)", borderRadius: "6px", padding: "10px 12px" }}>
         {p.text}
-      </pre>
+      </div>
       {p.numbersRemoved > 0 && (
         <p className="small" style={{ margin: 0 }}>
           {p.numbersRemoved === 1 ? "One number was" : `${p.numbersRemoved} numbers were`} removed from your note because {p.numbersRemoved === 1 ? "it looked" : "they looked"} like a bank or identity number.
         </p>
       )}
       <details>
-        <summary>The confirmation you will get at {p.confirmation.to}</summary>
+        <summary style={{ fontSize: "14px" }}>The confirmation you will get at {p.confirmation.to}</summary>
         <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere", marginTop: "8px" }}>
           <dt>Subject</dt>
           <dd>{p.confirmation.subject}</dd>
         </dl>
-        <pre tabIndex={0} aria-label="The confirmation's text" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "14px", margin: "8px 0 0" }}>
+        <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "14px", lineHeight: 1.5, color: "var(--og-gray-800)", background: "var(--og-white)", border: "1px solid var(--og-gray-200)", borderRadius: "6px", padding: "10px 12px", marginTop: "8px" }}>
           {p.confirmation.text}
-        </pre>
+        </div>
       </details>
     </section>
   );
