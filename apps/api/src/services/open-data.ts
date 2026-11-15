@@ -13,13 +13,13 @@
 //
 // Nothing here moves money or reads bank data. The EIN is an organization's public tax number; no
 // person's identifiers are ever exported.
-import { projectAward, projectOpportunity, ProjectionError, type AwardBase, type AwardRow, type Money, type OpportunityBase, type OpportunityRow } from "@gms/protocol";
+import { projectOpportunity, ProjectionError, type AwardBase, type Money, type OpportunityBase, type OpportunityRow } from "@gms/protocol";
 import { toCsv } from "@gms/importers";
 import { z } from "zod";
 import { ApiError, badRequest, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { log } from "../lib/log.ts";
-import { fundingOf, humanOnly, keyDatesOf } from "./awards.ts";
+import { fundingOf, humanOnly, keyDatesOf, projectAwardRow } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { namesOf, namesShared, orgFacts, profileSourceOf, selfDeclaredOf, sharingWith } from "./profile.ts";
@@ -390,18 +390,18 @@ async function buildCommonGrants(ctx: PublicContext, funder: Ws, items: Item[], 
   const [oppRefs, appRefs, parentRefs] = await Promise.all([refs("opportunities", exported.map((i) => i.award.opportunity_id)), refs("applications", exported.map((i) => i.award.application_id)), refs("awards", exported.map((i) => i.award.parent_award_id))]);
   const awards: AwardBase[] = [];
   for (const { award: a, recipient, verified } of exported) {
-    const row: AwardRow = { id: a.id, title: a.title, description: a.description, status: a.status as AwardRow["status"], funding: fundingOf(a), key_dates: a.key_dates as AwardRow["key_dates"], recipient_individual: null, parent_award_id: a.parent_award_id, created_at: a.created_at, updated_at: a.updated_at };
     try {
       awards.push(
-        projectAward(
+        projectAwardRow(
+          a,
           {
-            award: row,
-            funder: funderOf(funder),
+            funder,
             // A CommonGrants organization reference is a Passport organization; a recipient that is not verified and shared is left unnamed.
-            recipient: verified && recipient?.passport_org_id ? { id: recipient.passport_org_id, name: namesOf(recipient).name, ein: recipient.ein } : null,
+            recipient: verified ? recipient : null,
             opportunity: a.opportunity_id ? (oppRefs.get(a.opportunity_id) ?? null) : null,
             application: a.application_id ? (appRefs.get(a.application_id) ?? null) : null,
             parent: a.parent_award_id ? (parentRefs.get(a.parent_award_id) ?? null) : null,
+            withoutIndividual: true,
           },
           opts,
         ),
