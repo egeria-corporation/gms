@@ -118,6 +118,8 @@ export const APPLICANT_TOOLS = {
   close_out_award: tool("closeOutAward", "applications:write", "Close out an outside award once every obligation is done or received. The stage stays awarded.", z.object({ outsideApplicationId })),
   get_funding_summary: tool("getFundingSummary", "applications:read", "Get the funding summary: outside and built-in applications by fiscal year (submitted, decided, awarded, declined), the win rate, and amounts asked and awarded.", z.object({})),
   get_import_preview: tool("getImportPreview", "applications:write", "Read an import check (dry run) a person made on the import screen: how many rows would be created, skipped or need a fix, the amounts by year, and the names of the columns left out as bank or identity data. Only a person imports the rows, in the GMS; no tool does it.", z.object({ importRunId: uuid("Import run id") })),
+  // Social posting (v1.8.0): read only. No tool posts, schedules or connects an account; a person does, in the GMS.
+  list_social_posts: tool("listSocialPosts", "awards:read", "List the social posts this workspace sent through Zernio about its awards, with each account's status and link and Zernio's counts (impressions, clicks, engagements). Reading only: no tool posts, schedules or connects an account.", z.object({ awardId: awardId.optional() })),
   alert_on_next_cycle: tool("alertOnNextCycle", "discovery", "Set a funding alert on an outside application's program name, to hear when the funder reopens.", z.object({ outsideApplicationId })),
 
   list_messages: tool("listMessages", "messages:read", "List message threads with funders, or the messages of one thread.", z.object({ threadId: threadId.optional(), applicationId: applicationId.optional(), awardId: awardId.optional(), ...paging })),

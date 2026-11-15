@@ -24,6 +24,7 @@ import * as forms from "./forms.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as imports from "./imports.ts";
+import * as social from "./social.ts";
 import * as inbox from "./inbox.ts";
 import * as obligations from "./obligations.ts";
 import * as opportunities from "./opportunities.ts";
@@ -297,6 +298,12 @@ const IMPLEMENTED: Impl = {
   getFundingSummary: (ctx) => summary.fundingSummary(ctx),
   // Imports (v1.7.0): agents read a check a person made; committing it is a person's (no tool).
   getImportPreview: (ctx, i) => imports.importPreview(ctx, bareUuid(i.importRunId, "Import run")),
+  // Social posting (v1.8.0): agents read posts and reach; posting stays a person's (no tool).
+  listSocialPosts: (ctx, i) => {
+    // The funder's tool also takes an opportunity; the applicant's, an award only.
+    const opp = (i as { opportunityId?: string }).opportunityId;
+    return social.reachReport(ctx, opp ? { subjectType: "opportunity", subjectId: uuidOf("opportunity", opp, "Opportunity") } : i.awardId ? { subjectType: "award", subjectId: awd(i.awardId) } : {});
+  },
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
 
   listMessages: async (ctx, i) => {

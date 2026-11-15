@@ -3,6 +3,7 @@
 // connect with a sealed state; the preview is what is sent; only a person posts; one workspace
 // never reaches another's accounts or posts; the webhook is signed, applied once and only to its
 // workspace; a retry with the same Idempotency-Key posts once and Zernio's 409 counts as sent.
+import { prefixedId } from "@gms/protocol";
 import { FakeZernio, sealToken, signZernioBody } from "@gms/social";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
@@ -432,5 +433,35 @@ describe("webhook", () => {
     expect(r.body.message).toBe("processed");
     expect(await h.repos.table("social_accounts").one({ id: li.id })).toMatchObject({ status: "disconnected" });
     expect(data<{ accounts: unknown[] }>(await call("GET", "/gms/social", await person(USER_ADMIN, WS_FUNDER))).accounts).toEqual([]);
+  });
+});
+
+describe("agents over MCP", () => {
+  beforeEach(configure);
+
+  const rpc = async (headers: Record<string, string>, method: string, params?: unknown) => {
+    const res = await h.request("/mcp", { method: "POST", headers: { ...headers, Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++seq, method, ...(params ? { params } : {}) }) });
+    return (await res.json()) as { result: { tools?: { name: string }[]; structuredContent?: Record<string, unknown> } };
+  };
+
+  it("read posts and reach, and have no tool that posts, schedules or connects", async () => {
+    const li = (await connect(USER_ADMIN, WS_FUNDER, "linkedin", "riverbend-cf")).account;
+    await previewAndPost(await person(USER_ADMIN, WS_FUNDER), compose([li.id]));
+    const token = await agent(USER_ADMIN, WS_FUNDER, "analytics:read communications:write workspace:admin");
+    const tools = (await rpc(token, "tools/list")).result.tools!.map((t) => t.name);
+    expect(tools.filter((n) => /social|zernio|connect_account|schedule_post/.test(n))).toEqual(["list_social_posts"]);
+    const out = (await rpc(token, "tools/call", { name: "list_social_posts", arguments: { opportunityId: prefixedId("opportunity", OPP) } })).result.structuredContent!;
+    expect(out).toMatchObject({ totals: { posts: 1 }, posts: [{ status: "published", platforms: ["linkedin"] }], applicationsFromSocial: 0 });
+    // The same authorization as the screen: another workspace's call is not found.
+    const other = await agent(OTHER_ADMIN, WS_OTHER, "analytics:read");
+    expect((await rpc(other, "tools/call", { name: "list_social_posts", arguments: { opportunityId: prefixedId("opportunity", OPP) } })).result.structuredContent).toMatchObject({ error: { code: "not_found" } });
+    expect((await rpc(other, "tools/call", { name: "list_social_posts", arguments: {} })).result.structuredContent).toMatchObject({ posts: [] });
+  });
+
+  it("a grantee's agent reads its own award posts", async () => {
+    const token = await agent(USER_OFFICER, WS_APPLICANT, "awards:read");
+    const tools = (await rpc(token, "tools/list")).result.tools!.map((t) => t.name);
+    expect(tools.filter((n) => /social/.test(n))).toEqual(["list_social_posts"]);
+    expect((await rpc(token, "tools/call", { name: "list_social_posts", arguments: { awardId: prefixedId("award", AWARD) } })).result.structuredContent).toMatchObject({ posts: [], applicationsFromSocial: null });
   });
 });
