@@ -1,7 +1,8 @@
 # Connectors
 
 Code: `packages/connectors` (ports and implementations), `apps/api/src/services/integrations.ts`
-(routes), `apps/api/src/services/ports.ts` (OpenGrants), `apps/api/src/jobs.ts` (`pollBanks`).
+(routes), `apps/api/src/services/ports.ts` (OpenGrants), `apps/api/src/jobs.ts` (`pollBanks`),
+`apps/api/src/services/imports.ts` (the import sources' use).
 
 A connector is a port with a fixture implementation for tests and, where one exists, a production
 implementation. Credentials are encrypted with `CREDENTIALS_ENCRYPTION_KEY` before they are stored
@@ -10,7 +11,9 @@ in `connector_accounts`; they are never returned or logged.
 | Connector | Port | Production implementation | Checked against documentation | Run against the live service |
 |---|---|---|---|---|
 | Mercury (`mercury`) | `BankFeed` | `MercuryBankFeed` | Yes, 2026-11-10 (see below) | **No** |
-| Google Workspace (`google_workspace`) | `WorkspaceApps` | **None**: `FixtureWorkspaceApps` only | No | No |
+| Google Workspace (`google_workspace`) | `WorkspaceApps` | `GoogleWorkspaceConnector` (Composio) | Yes, 2026-11-10 (see below) | No |
+| Google Sheets import (`google_sheets`) | `SheetsSource` | `ComposioSheetsSource` (Composio tools) | Yes, 2026-11-15 (see below) | **No** |
+| Airtable import (`airtable`) | `AirtableSource` | `ComposioAirtableSource` (Composio tools) | Yes, 2026-11-15 (see below) | **No** |
 | OpenGrants discovery | `OpenGrantsClient` | `RestOpenGrantsClient` | Yes, 2026-11-11 (OpenAPI 1.2.0) | **Yes**, 2026-11-11: search and match against the live API |
 | Custom MCP servers | `McpDirectory` | `HttpMcpDirectory` (`tools/list`, `tools/call`) | MCP Streamable HTTP, stateless JSON-RPC | Against in-process fakes only |
 | Resend | `Mailer` (`@gms/notify`) | `ResendMailer` | Not re-checked in this pass | **No** |
@@ -220,3 +223,100 @@ on the allow-list (`drive.file`, `admin.directory.user.readonly`, the OpenID ide
 
 After Google sign-in, Composio sends the browser to
 `{WEB_BASE_URL}/w/{handle}/settings/connectors?connected=google_workspace`.
+
+## Import sources: Google Sheets and Airtable (Composio)
+
+The import wizard (`/gms/imports`, `apps/api/src/services/imports.ts`) reads a spreadsheet or an
+Airtable table the person points at, to import a funder's grant history or an applicant's
+applications. Both sources are **read-only** and both go through Composio. A CSV or XLSX upload
+needs neither and always works; the two connected sources are hidden (not listed by
+`GET /gms/imports/sources`, `available.googleSheets` / `available.airtable` false in `/gms/config`)
+until the server is configured for them.
+
+Code: `packages/connectors/src/tabular.ts` (`ComposioSheetsSource`, `ComposioAirtableSource`, the
+fixtures, the link readers and scope checks), on the same `ComposioClient` as Google Workspace.
+
+- **Entity:** the Composio `user_id` is the GMS workspace id, funder or applicant. One connection per
+  workspace per toolkit, on the toolkit's own auth config.
+- **Credentials:** Composio holds the provider's token. The `connector_accounts` row
+  (`google_sheets` / `airtable`, migration 0031) keeps status and scope names only, `secret_enc`
+  null. The client keeps ids, status and scopes from an account read and drops the rest of
+  `state.val`.
+- **Who connects:** a workspace admin, signed in, of either kind (`POST /gms/connectors/{provider}`
+  with an optional `returnTo`, a path inside the workspace; anything else falls back to
+  `/w/<handle>/import`). Anyone who may import can then use the connection. Disconnecting deletes
+  every account the entity has on that auth config at Composio, then marks the row `revoked`.
+- **Scopes (checked before every use, as for Google Workspace):**
+  - Google Sheets: exactly `https://www.googleapis.com/auth/spreadsheets.readonly`, plus
+    `openid email profile` (either spelling). `…/auth/spreadsheets` (write) and any `…/auth/drive…`
+    scope are refused.
+  - Airtable: exactly `data.records:read` and `schema.bases:read`, plus `user.email:read`. Any
+    `:write` or `:manage` scope is refused.
+  - A connection holding anything else is **deleted at Composio** (`422 connector_scope_rejected`).
+    One that reports no scopes, or lacks a required read scope, is left in place and not used
+    (`422 connector_scope_unverified`).
+
+### Configuration (what the owner sets up)
+
+| Setting (API Worker) | What it is |
+|---|---|
+| `COMPOSIO_API_KEY` | The existing key. It needs permission to execute tools (and to manage connected accounts, as now) |
+| `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID` | **New.** An auth config on the `googlesheets` toolkit, OAuth2 with a custom Google OAuth client, scopes exactly `https://www.googleapis.com/auth/spreadsheets.readonly openid email profile`. The Google Sheets API must be enabled in that Google Cloud project |
+| `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` | **New.** An auth config on the `airtable` toolkit, OAuth2, scopes exactly `data.records:read schema.bases:read` (`user.email:read` may be added) |
+
+`COMPOSIO_GOOGLE_AUTH_CONFIG_ID` (Google Workspace, `googlesuper`, `drive.file` + directory) is not
+reused: `drive.file` reaches only files picked in the Google Picker, so a pasted spreadsheet link
+would not open, and adding a spreadsheets scope there would make every Google Workspace connection
+fail its own allow-list. Each source has its own auth config, so each keeps a narrow scope set.
+
+### Composio tools executed
+
+Only these four, each with `POST /api/v3.1/tools/execute/{slug}` and the body
+`{ connected_account_id, user_id, arguments }` (no `version`: REST v3.1 runs the latest; no `text`;
+never `connected_account_id: "instant_account"`, which the client refuses). A response with
+`successful: false` becomes one plain sentence; Composio's or the provider's error text is not
+passed on.
+
+| Tool | Arguments sent | Read from `data` | Checked against |
+|---|---|---|---|
+| `GOOGLESHEETS_GET_SHEET_NAMES` | `spreadsheet_id` | `sheet_names` (or `sheets[].properties.title`) | docs.composio.dev/toolkits/googlesheets and the toolkit listing of the tool (inputs `spreadsheet_id`, `exclude_hidden`) |
+| `GOOGLESHEETS_VALUES_GET` | `spreadsheet_id`, `range` (`'Tab'!A1:GR5002`: the header, 5,000 rows and one more, 200 columns), `value_render_option: "FORMATTED_VALUE"`, `major_dimension: "ROWS"` | `values` (or `valueRanges[0].values`) | the tool listing (inputs `spreadsheet_id`, `range`, `start_row`, `end_row`, `major_dimension`, `value_render_option`, `date_time_render_option`) and Google's `spreadsheets.values.get` |
+| `AIRTABLE_GET_BASE_SCHEMA` | `baseId` | `tables[].id`, `name`, `fields[].name` | docs.composio.dev/toolkits/airtable |
+| `AIRTABLE_LIST_RECORDS` | `baseId`, `tableIdOrName` (the `tbl…` id), `pageSize: 100`, `maxRecords: 5001`, `cellFormat: "string"`, `timeZone: "utc"`, `userLocale: "en-us"`, `offset` on later pages (60 pages at most) | `records[].id`, `records[].fields`, `offset` | docs.composio.dev/toolkits/airtable |
+
+The execute endpoint itself (path, body fields, `version` defaulting to latest on v3.1, the
+`instant_account` value, the response `data`, `error`, `successful`, `log_id`, and the error body)
+was checked on https://docs.composio.dev/reference/api-reference/tools/postToolsExecuteByToolSlug
+on 2026-11-15. The pages were read through a search service's fetch: docs.composio.dev is not
+reachable directly from the build environment. Connect, list, read and delete of connected
+accounts are the calls already documented above for Google Workspace.
+
+The person pastes a link: `https://docs.google.com/spreadsheets/d/<id>/…` (or the id), and
+`https://airtable.com/app…/tbl…` (or the base id). Only those hosts are accepted. The tab defaults
+to the first; the table to the one in the link, else the first.
+
+### What the import does with the rows
+
+Before anything is shown, mapped or stored, `packages/importers/src/sensitive.ts` drops every
+column whose header names bank or identity details, or whose values look like them (the ABA routing
+checksum on nine digits, a formatted identity number, 10 to 19 bare digits). One matching cell drops
+the whole column. Two exceptions: nine digits in a column named EIN are an EIN, and ten or eleven
+digits in a column named phone are a phone number. Only the dropped columns' names are kept on the
+run, and the wizard shows them.
+
+### Not verified
+
+- Nothing has run against Composio, Google or Airtable (this environment cannot reach them).
+- The nesting of each tool's `data`. The reference documents `data` only as an object; the reader
+  looks for the keys above in `data`, `data.response_data` and `data.data`, up to three levels.
+- Whether `GOOGLESHEETS_VALUES_GET` honours a range beyond the sheet's last row without an error
+  (Google's API does), and the toolkit's argument names, which can change between toolkit versions
+  because the version is not pinned.
+- Whether `AIRTABLE_LIST_RECORDS` paginates itself when `maxRecords` is given. The connector handles
+  both: it follows `offset` when one comes back and stops one record past the limit.
+- That Composio reports the granted scopes of these toolkits' accounts in `state.val.scope` or
+  `requested_scopes`. If it reports neither, every connection is treated as unusable (the intended
+  failure).
+- XLSX reading (`read-excel-file` 9.3.17, MIT, its `universal` entry: fflate and saxen) ran in Node
+  in the tests and was bundled for the Worker (`wrangler deploy --dry-run`); it has not run inside
+  workerd.
