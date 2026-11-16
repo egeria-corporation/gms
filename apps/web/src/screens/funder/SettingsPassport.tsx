@@ -7,6 +7,7 @@ import { OrganizationProfileCard } from "../../components/OrganizationProfileCar
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { PageHeader } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 /** The sections of funder settings. Sections not built yet are not listed. */
 export function SettingsNav({
@@ -19,20 +20,20 @@ export function SettingsNav({
   const items = [
     {
       key: "passport",
-      label: "Payments · Passport",
+      label: t("settingsPassport.paymentsPassport"),
       to: `${base}/settings/passport`,
     },
-    { key: "public-page", label: "Public page", to: `${base}/settings/public-page` },
-    { key: "funds", label: "Funds", to: `${base}/settings/funds` },
-    { key: "mcp", label: "Agents & MCP", to: `${base}/settings/mcp` },
-    { key: "security", label: "Security · Single sign-on", to: `${base}/settings/security` },
-    { key: "social", label: "Social accounts", to: `${base}/settings/social` },
+    { key: "public-page", label: t("settingsPassport.publicPage"), to: `${base}/settings/public-page` },
+    { key: "funds", label: t("settingsPassport.funds"), to: `${base}/settings/funds` },
+    { key: "mcp", label: t("settingsPassport.agentsMcp"), to: `${base}/settings/mcp` },
+    { key: "security", label: t("settingsPassport.securitySingleSignOn"), to: `${base}/settings/security` },
+    { key: "social", label: t("settingsPassport.socialAccounts"), to: `${base}/settings/social` },
   ] as const;
   return (
     <nav
       className="card snav"
       style={{ padding: "8px" }}
-      aria-label="Settings sections"
+      aria-label={t("settingsPassport.settingsSections")}
     >
       {items.map((i) => (
         <Link
@@ -54,15 +55,15 @@ export default function SettingsPassport() {
   const flags = usePassportFlags();
   return (
     <FunderShell active="Settings">
-      <title>{`Payments settings — ${ws.name}`}</title>
+      <title>{t("settingsPassport.paymentsSettings", { name: ws.name })}</title>
       <main className="main">
         <PageHeader
           crumbs={[
             { label: ws.name, to: base },
-            { label: "Settings" },
-            { label: "Payments" },
+            { label: t("settingsPassport.settings") },
+            { label: t("settingsPassport.payments") },
           ]}
-          title="Settings"
+          title={t("settingsPassport.settings")}
           meta={<span>{ws.name}</span>}
         />
         <div
@@ -87,10 +88,7 @@ export default function SettingsPassport() {
                   <div>
                     <h2 id="passport-title">OpenGrants Passport</h2>
                     <p className="small muted">
-                      Passport holds each grantee's verified payout destination
-                      and moves the money. The GMS sends release instructions
-                      and reads back what was paid; it never stores bank
-                      details.
+                      {t("settingsPassport.passportHoldsEachGrantees")}
                     </p>
                   </div>
                 </div>

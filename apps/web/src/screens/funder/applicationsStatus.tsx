@@ -4,6 +4,7 @@
 import { CirclePause } from "lucide-react";
 import type { Competition, Opportunity } from "../../api/types.ts";
 import { StatusBadge } from "../../components/status.tsx";
+import { t } from "./i18n.ts";
 
 /** The competition the Applications step works on: the open one, else the newest draft, else the newest. */
 export function competitionOf(opportunityId: string, competitions: readonly Competition[]): Competition | undefined {
@@ -41,5 +42,5 @@ export function OpportunityStatusBadge({ opportunity, competitions }: { opportun
       </span>
     );
   }
-  return <StatusBadge kind="opportunity" status={opportunity.status} label={opportunity.published ? undefined : "Draft"} />;
+  return <StatusBadge kind="opportunity" status={opportunity.status} label={opportunity.published ? undefined : t("applicationsStatus.draft")} />;
 }

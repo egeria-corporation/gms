@@ -9,6 +9,7 @@ import type { Evaluation } from "../../api/types.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { APPLICANT_TYPE_LABELS } from "../../lib/format.ts";
 import { describeRow, FACTS, IRS_SUBSECTIONS, LEVELS, newRow, rowsToRules, US_STATES, type FactKey, type RuleRow } from "../../lib/rules.ts";
+import { t } from "./i18n.ts";
 
 /** The applicant types offered as chips; the rest of the CommonGrants list stays available in rules. */
 export const APPLICANT_TYPE_CHOICES = [
@@ -29,7 +30,7 @@ export function ApplicantTypes({ value, onChange }: { value: string[]; onChange:
   return (
     <div className="fld">
       <span className="lbl" id="applicant-types-label">
-        Applicant types
+        {t("eligibilityEditor.applicantTypes")}
       </span>
       <div className="row wrap" style={{ gap: "6px" }} role="group" aria-labelledby="applicant-types-label">
         {APPLICANT_TYPE_CHOICES.map((code) => {
@@ -43,7 +44,7 @@ export function ApplicantTypes({ value, onChange }: { value: string[]; onChange:
         })}
       </div>
       <span className="help">
-        Maps to CommonGrants <span className="mono">acceptedApplicantTypes</span>. Shown as tags on the public page.
+        {t.rich("eligibilityEditor.mapsToCommongrantsAcceptedapplicanttypes", { span: (chunks) => <span className="mono">{chunks}</span> })}
       </span>
     </div>
   );
@@ -57,7 +58,7 @@ function MultiChips({ label, options, value, onChange }: { label: string; option
       {value.map((code) => (
         <span className="tag" key={code} style={{ gap: "4px" }}>
           {options[code] ?? code}
-          <button type="button" className="iconbtn" style={{ width: "18px", height: "18px" }} aria-label={`Remove ${options[code] ?? code}`} onClick={() => onChange(value.filter((v) => v !== code))}>
+          <button type="button" className="iconbtn" style={{ width: "18px", height: "18px" }} aria-label={t("eligibilityEditor.remove", { options: options[code] ?? code })} onClick={() => onChange(value.filter((v) => v !== code))}>
             ×
           </button>
         </span>
@@ -74,7 +75,7 @@ function MultiChips({ label, options, value, onChange }: { label: string; option
           if (e.target.value) onChange([...value, e.target.value]);
         }}
       >
-        <option value="">Add…</option>
+        <option value="">{t("eligibilityEditor.add")}</option>
         {remaining.map(([code, name]) => (
           <option key={code} value={code}>
             {name}
@@ -88,15 +89,15 @@ function MultiChips({ label, options, value, onChange }: { label: string; option
 function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (row: RuleRow) => void }) {
   switch (row.fact) {
     case "taxStatus":
-      return <MultiChips label={`Tax-exempt statuses, rule ${n}`} options={IRS_SUBSECTIONS} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
+      return <MultiChips label={t("eligibilityEditor.taxExemptStatusesRule", { n })} options={IRS_SUBSECTIONS} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
     case "state":
-      return <MultiChips label={`States, rule ${n}`} options={US_STATES} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
+      return <MultiChips label={t("eligibilityEditor.statesRule", { n })} options={US_STATES} value={row.values} onChange={(values) => onChange({ ...row, values })} />;
     case "level":
       return (
-        <select className="sel" aria-label={`Minimum level, rule ${n}`} value={row.level} onChange={(e) => onChange({ ...row, level: e.target.value as (typeof LEVELS)[number] })}>
+        <select className="sel" aria-label={t("eligibilityEditor.minimumLevelRule", { n })} value={row.level} onChange={(e) => onChange({ ...row, level: e.target.value as (typeof LEVELS)[number] })}>
           {LEVELS.map((l) => (
             <option key={l} value={l}>
-              {l} or higher
+              {t("eligibilityEditor.orHigher", { l })}
             </option>
           ))}
         </select>
@@ -105,16 +106,16 @@ function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (ro
       return (
         <input
           className={row.amount > 0 ? "inp" : "inp err"}
-          aria-label={`Amount in dollars, rule ${n}`}
+          aria-label={t("eligibilityEditor.amountInDollarsRule", { n })}
           inputMode="numeric"
           value={row.amount ? String(row.amount) : ""}
           onChange={(e) => onChange({ ...row, amount: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })}
         />
       );
     case "orgActive":
-      return <span className="muted small">No value needed</span>;
+      return <span className="muted small">{t("eligibilityEditor.noValueNeeded")}</span>;
     case "custom":
-      return <span className="muted small">Written outside this editor; kept as is</span>;
+      return <span className="muted small">{t("eligibilityEditor.writtenOutsideThisEditor")}</span>;
   }
 }
 
@@ -134,17 +135,17 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
   const [adding, setAdding] = useState<Exclude<FactKey, "custom">>("taxStatus");
   return (
     <div className="fld">
-      <span className="lbl">Eligibility rules</span>
-      <span className="help">An applicant must meet all of these. Each is checked against the organization's Passport record.</span>
-      <ol style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-label="Eligibility rules">
+      <span className="lbl">{t("eligibilityEditor.eligibilityRules")}</span>
+      <span className="help">{t("eligibilityEditor.anApplicantMustMeet")}</span>
+      <ol style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-label={t("eligibilityEditor.eligibilityRules")}>
         {rows.map((row, i) => {
           const problem = rowProblem(row);
           return (
             <li key={row.id} style={{ border: "1px solid #D6DEDE", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "#fff" }}>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.6fr) 32px", gap: "8px", alignItems: "center" }}>
-                <span className="b">{row.fact === "custom" ? "Custom rule" : FACTS.find((f) => f.key === row.fact)!.label}</span>
+                <span className="b">{row.fact === "custom" ? t("eligibilityEditor.customRule") : FACTS.find((f) => f.key === row.fact)!.label}</span>
                 <RowValue row={row} n={i + 1} onChange={(next) => onChange(rows.map((r) => (r.id === row.id ? next : r)))} />
-                <button type="button" className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label={`Remove rule ${i + 1}`} onClick={() => onChange(rows.filter((r) => r.id !== row.id))}>
+                <button type="button" className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label={t("eligibilityEditor.removeRule", { i: i + 1 })} onClick={() => onChange(rows.filter((r) => r.id !== row.id))}>
                   <Trash2 className="ic" aria-hidden="true" />
                 </button>
               </div>
@@ -156,7 +157,7 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
                 <div className="row small" style={{ gap: "6px", color: "#145450" }}>
                   <MessageSquare className="ic ic-sm" aria-hidden="true" />
                   <span>
-                    Applicants read: <span className="b">“{describeRow(row)}.”</span>
+                    {t.rich("eligibilityEditor.applicantsRead", { describeRow: describeRow(row), span: (chunks) => <span className="b">{chunks}</span> })}
                   </span>
                 </div>
               )}
@@ -164,10 +165,10 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
           );
         })}
       </ol>
-      {rows.length === 0 && <p className="muted small">No rules yet: any organization of an accepted type may apply.</p>}
+      {rows.length === 0 && <p className="muted small">{t("eligibilityEditor.noRulesYetAny")}</p>}
       <div className="row wrap" style={{ gap: "8px" }}>
         <label className="sr" htmlFor="add-rule-fact">
-          Rule to add
+          {t("eligibilityEditor.ruleToAdd")}
         </label>
         <select className="sel" id="add-rule-fact" style={{ width: "auto" }} value={adding} onChange={(e) => setAdding(e.target.value as typeof adding)}>
           {FACTS.map((f) => (
@@ -178,10 +179,10 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
         </select>
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => add(adding)}>
           <Plus className="ic" aria-hidden="true" />
-          Add rule
+          {t("eligibilityEditor.addRule")}
         </button>
         <span className="help" style={{ flex: "1 1 240px" }}>
-          A missing value shows Unknown, never Pass. An Unknown flags the application for a person and never declines it.
+          {t("eligibilityEditor.aMissingValueShows")}
         </span>
       </div>
     </div>
@@ -213,7 +214,7 @@ function Verdict({ result }: { result: Evaluation }) {
     return (
       <span className="bdg bdg-ok">
         <CircleCheck className="ic" aria-hidden="true" />
-        Eligible
+        {t("eligibilityEditor.eligible")}
       </span>
     );
   }
@@ -221,14 +222,14 @@ function Verdict({ result }: { result: Evaluation }) {
     return (
       <span className="bdg bdg-dng">
         <CircleX className="ic" aria-hidden="true" />
-        Not eligible
+        {t("eligibilityEditor.notEligible")}
       </span>
     );
   }
   return (
     <span className="bdg bdg-neutral">
       <CircleDashed className="ic" aria-hidden="true" />
-      Unknown
+      {t("eligibilityEditor.unknown")}
     </span>
   );
 }
@@ -264,11 +265,11 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
     <section className="card" aria-labelledby="dry-run-title">
       <div className="card-h" style={{ padding: "12px 16px" }}>
         <h3 id="dry-run-title" style={{ fontSize: "14px" }}>
-          Test against an org
+          {t("eligibilityEditor.testAgainstAnOrg")}
         </h3>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div className="row wrap" style={{ gap: "6px" }} role="group" aria-label="Sample organizations">
+        <div className="row wrap" style={{ gap: "6px" }} role="group" aria-label={t("eligibilityEditor.sampleOrganizations")}>
           {PRESETS.map((p) => (
             <button key={p.label} type="button" className="btn btn-sm btn-secondary" disabled={blocked} onClick={() => test(p.facts)}>
               {p.label}
@@ -278,10 +279,10 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
         <div className="fld-row" style={{ gap: "8px" }}>
           <div className="fld">
             <label className="lbl" htmlFor="fact-type">
-              Tax status
+              {t("eligibilityEditor.taxStatus")}
             </label>
             <select className="sel" id="fact-type" value={facts.subsection} onChange={(e) => set("subsection", e.target.value)}>
-              <option value="">Not shared</option>
+              <option value="">{t("eligibilityEditor.notShared")}</option>
               {Object.entries(IRS_SUBSECTIONS).map(([code, name]) => (
                 <option key={code} value={code}>
                   {name}
@@ -291,7 +292,7 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
           </div>
           <div className="fld">
             <label className="lbl" htmlFor="fact-state">
-              State
+              {t("eligibilityEditor.state")}
             </label>
             <select className="sel" id="fact-state" value={facts.state} onChange={(e) => set("state", e.target.value)}>
               {Object.entries(US_STATES).map(([code, name]) => (
@@ -303,7 +304,7 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
           </div>
           <div className="fld">
             <label className="lbl" htmlFor="fact-level">
-              Passport level
+              {t("eligibilityEditor.passportLevel")}
             </label>
             <select className="sel" id="fact-level" value={facts.level} onChange={(e) => set("level", e.target.value)}>
               {LEVELS.map((l) => (
@@ -313,21 +314,21 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
           </div>
           <div className="fld">
             <label className="lbl" htmlFor="fact-revenue">
-              Annual revenue
+              {t("eligibilityEditor.annualRevenue")}
             </label>
-            <input className="inp" id="fact-revenue" inputMode="numeric" placeholder="Not shared" value={facts.revenue} onChange={(e) => set("revenue", e.target.value.replace(/[^\d]/g, ""))} />
+            <input className="inp" id="fact-revenue" inputMode="numeric" placeholder={t("eligibilityEditor.notShared")} value={facts.revenue} onChange={(e) => set("revenue", e.target.value.replace(/[^\d]/g, ""))} />
           </div>
         </div>
         <button type="button" className="btn btn-secondary" disabled={blocked || run.state === "saving"} onClick={() => test(facts)}>
-          Run test
+          {t("eligibilityEditor.runTest")}
         </button>
-        {blocked && <span className="help">Finish or remove the incomplete rule to test.</span>}
-        {run.error !== null && <ErrorBanner error={run.error} title="The rules could not be tested" />}
+        {blocked && <span className="help">{t("eligibilityEditor.finishOrRemoveThe")}</span>}
+        {run.error !== null && <ErrorBanner error={run.error} title={t("eligibilityEditor.theRulesCouldNot")} />}
         {result && (
-          <div role="status" aria-label="Test result">
+          <div role="status" aria-label={t("eligibilityEditor.testResult")}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className="b" style={{ color: "#0D2A43" }}>
-                Result
+                {t("eligibilityEditor.result")}
               </span>
               <Verdict result={result} />
             </div>
@@ -345,7 +346,7 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
                   </li>
                 );
               })}
-              {result.results.length === 0 && <li className="muted small">No rules to check: everyone of an accepted type may apply.</li>}
+              {result.results.length === 0 && <li className="muted small">{t("eligibilityEditor.noRulesToCheck")}</li>}
             </ul>
           </div>
         )}

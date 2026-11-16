@@ -10,12 +10,13 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Competition, Opportunity, QuickSetupResult } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, ReadinessChecklist } from "../../components/ui.tsx";
 import { FORECASTED_LABEL, NOT_TAKING_LABEL } from "./applicationsStatus.tsx";
+import { t } from "./i18n.ts";
 
 function madeSummary(r: QuickSetupResult): { title: string; detail: string } {
   const made = [r.created.competition && "a one-stage competition", r.created.form && "the application form", r.created.rubric && "the rubric"].filter((x): x is string => !!x);
-  if (!made.length) return { title: "Already set up", detail: "Quick setup found the competition, form and rubric it made before and kept them as they are." };
+  if (!made.length) return { title: t("applicationsStep.alreadySetUp"), detail: "Quick setup found the competition, form and rubric it made before and kept them as they are." };
   const list = made.length === 1 ? made[0]! : `${made.slice(0, -1).join(", ")} and ${made[made.length - 1]}`;
-  return { title: "Quick setup is done", detail: `It made ${list}. Each is a draft you can edit until you open for applications.` };
+  return { title: t("applicationsStep.quickSetupIsDone"), detail: `It made ${list}. Each is a draft you can edit until you open for applications.` };
 }
 
 export function ApplicationsStep({ opportunity, competition, base, publicPath, onChanged }: { opportunity: Opportunity | undefined; competition: Competition | undefined; base: string; publicPath: string | null; onChanged: () => void }) {
@@ -27,15 +28,15 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
 
   if (!opportunity) {
     return (
-      <Notice tone="neu" title="Save the opportunity first">
-        Quick setup works from a saved opportunity: its title and its opening and closing dates.
+      <Notice tone="neu" title={t("applicationsStep.saveTheOpportunityFirst")}>
+        {t("applicationsStep.quickSetupWorksFrom")}
       </Notice>
     );
   }
   if (opportunity.status === "closed") {
     return (
-      <Notice tone="neu" title="This opportunity is closed">
-        It no longer accepts applications.
+      <Notice tone="neu" title={t("applicationsStep.thisOpportunityIsClosed")}>
+        {t("applicationsStep.itNoLongerAccepts")}
       </Notice>
     );
   }
@@ -57,7 +58,7 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
         <CirclePause className="ic" aria-hidden="true" />
         <div>
           <div className="t">{FORECASTED_LABEL}</div>
-          <div className="d">{competition.title} is open, but the opportunity is published as forecasted, so the public page does not offer Apply. Publish it as open to take applications.</div>
+          <div className="d">{t("applicationsStep.isOpenButThe", { title: competition.title })}</div>
         </div>
       </div>
     );
@@ -68,20 +69,20 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
         <div className="bnr bnr-ok" role="status">
           <CircleCheck className="ic" aria-hidden="true" />
           <div className="grow">
-            <div className="t">Taking applications</div>
-            <div className="d">{competition.title} is open. Applicants can apply from the public page and from Find funding.</div>
+            <div className="t">{t("applicationsStep.takingApplications")}</div>
+            <div className="d">{t("applicationsStep.isOpenApplicantsCan", { title: competition.title })}</div>
           </div>
         </div>
         <div className="row wrap" style={{ gap: "8px" }}>
           {publicPath && opportunity.published && (
             <Link to={publicPath} className="btn btn-secondary">
               <Eye className="ic" aria-hidden="true" />
-              Open public page
+              {t("applicationsStep.openPublicPage")}
             </Link>
           )}
           <Link to={competitionPath} className="btn btn-secondary">
             <Layers className="ic" aria-hidden="true" />
-            Competition &amp; stages
+            {t("applicationsStep.competitionStages")}
           </Link>
         </div>
       </>
@@ -97,28 +98,27 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
             <div className="t">{opportunity.status === "forecasted" ? FORECASTED_LABEL : NOT_TAKING_LABEL}</div>
             <div className="d">
               {opportunity.status === "forecasted"
-                ? "Applicants can see what is coming but cannot apply. Publish it as open and open a competition to take applications."
-                : "Applicants can find this opportunity but cannot apply until a competition is open."}
+                ? t("applicationsStep.applicantsCanSeeWhat")
+                : t("applicationsStep.applicantsCanFindThis")}
             </div>
           </div>
         </div>
       )}
       <p className="small muted" style={{ margin: 0 }}>
-        Quick setup makes a one-stage competition using your opening and closing dates, a starter application form (project title, summary, amount requested, how the funds will be used, expected outcomes, a budget upload and a contact) and a starter rubric
-        (alignment with the opportunity, feasibility, budget and community impact, each scored 1 to 5). It keeps anything you have already set. Everything stays a draft you can edit until you open for applications.
+        {t("applicationsStep.quickSetupMakesA")}
       </p>
 
-      {setup.error !== null && <ErrorBanner error={setup.error} title="Quick setup could not finish" />}
-      {open.error !== null && <ErrorBanner error={open.error} title="Applications could not be opened" />}
+      {setup.error !== null && <ErrorBanner error={setup.error} title={t("applicationsStep.quickSetupCouldNot")} />}
+      {open.error !== null && <ErrorBanner error={open.error} title={t("applicationsStep.applicationsCouldNotBe")} />}
       {result && <Notice tone="ok" title={madeSummary(result).title}>{madeSummary(result).detail}</Notice>}
 
       {draft && (
         <section aria-labelledby="apps-launch-title" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <h3 id="apps-launch-title" style={{ fontSize: "14px" }}>
-            Launch checklist
+            {t("applicationsStep.launchChecklist")}
           </h3>
-          {check.status === "loading" && <Loading label="Checking what is ready" />}
-          {check.status === "error" && <ErrorBanner error={check.error} onRetry={check.reload} title="The checklist could not be loaded" />}
+          {check.status === "loading" && <Loading label={t("applicationsStep.checkingWhatIsReady")} />}
+          {check.status === "error" && <ErrorBanner error={check.error} onRetry={check.reload} title={t("applicationsStep.theChecklistCouldNot")} />}
           {check.status === "ready" && check.data && <ReadinessChecklist checklist={check.data} />}
         </section>
       )}
@@ -126,7 +126,7 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
       <div className="row wrap" style={{ gap: "8px" }}>
         <button type="button" className={draft ? "btn btn-secondary" : "btn btn-primary"} disabled={setup.state === "saving"} onClick={runSetup}>
           <Wand className="ic" aria-hidden="true" />
-          Quick setup
+          {t("applicationsStep.quickSetup")}
         </button>
         {draft && (
           <button
@@ -138,23 +138,23 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
               if (await open.run(draft.id)) onChanged();
             }}
           >
-            Open for applications
+            {t("applicationsStep.openForApplications")}
           </button>
         )}
         {formId && (
           <Link to={`${base}/forms/${formId}/edit`} className="btn btn-ghost">
             <Pencil className="ic" aria-hidden="true" />
-            Edit the application form
+            {t("applicationsStep.editTheApplicationForm")}
           </Link>
         )}
         {competition && (
           <Link to={competitionPath} className="btn btn-ghost">
             <Layers className="ic" aria-hidden="true" />
-            Competition &amp; stages
+            {t("applicationsStep.competitionStages")}
           </Link>
         )}
       </div>
-      {draft && !ready && check.status === "ready" && <p className="help">Opening is available when every line of the checklist passes.</p>}
+      {draft && !ready && check.status === "ready" && <p className="help">{t("applicationsStep.openingIsAvailableWhen")}</p>}
     </>
   );
 }

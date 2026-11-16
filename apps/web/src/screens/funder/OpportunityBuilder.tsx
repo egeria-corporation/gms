@@ -22,6 +22,7 @@ import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote }
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
 import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
 import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
+import { t } from "./i18n.ts";
 
 const STEPS = [
   { key: "basics", title: "Basics", hint: "Title, summary, program" },
@@ -160,29 +161,29 @@ export function PreviewCard({ draft, brand, apply, closed = false }: { draft: Dr
     <section className="card" aria-labelledby="preview-card-title">
       <div className="card-h" style={{ padding: "12px 16px" }}>
         <h3 id="preview-card-title" style={{ fontSize: "14px" }}>
-          Live preview · public card
+          {t("opportunityBuilder.livePreviewPublicCard")}
         </h3>
       </div>
       <div className="card-b" style={{ padding: "14px 16px" }}>
         <div className="pub" style={{ fontSize: "15px", "--tenant": brand.accent, "--on-tenant": brand.onAccent, background: "transparent" } as CSSProperties}>
           <div className="oc" style={{ padding: "18px" }}>
-            <span className="eyebrow">{draft.closes ? `${draft.closesName} ${formatDate(draft.closes)}` : "No closing date"}</span>
-            <h3 style={{ fontSize: "17px" }}>{draft.title || "Untitled opportunity"}</h3>
+            <span className="eyebrow">{draft.closes ? `${draft.closesName} ${formatDate(draft.closes)}` : t("opportunityBuilder.noClosingDate")}</span>
+            <h3 style={{ fontSize: "17px" }}>{draft.title || t("opportunityBuilder.untitledOpportunity")}</h3>
             <div className="amt" style={{ fontSize: "18px" }}>
               {formatAwardRange(input.funding)}
             </div>
             <div className="meta" style={{ fontSize: "13px" }}>
               {count && <span>{count}</span>}
-              <span>{draft.types.map(applicantTypeLabel).join(", ") || "No applicant types chosen"}</span>
+              <span>{draft.types.map(applicantTypeLabel).join(", ") || t("opportunityBuilder.noApplicantTypesChosen")}</span>
             </div>
             {apply ? (
               <span className="btn btn-tenant btn-sm" style={{ alignSelf: "flex-start" }} aria-hidden="true">
-                Apply
+                {t("opportunityBuilder.apply")}
               </span>
             ) : !closed ? (
               <span className="bdg bdg-neutral" style={{ alignSelf: "flex-start" }}>
                 <Clock className="ic" aria-hidden="true" />
-                Not taking applications yet
+                {t("opportunityBuilder.notTakingApplicationsYet")}
               </span>
             ) : null}
           </div>
@@ -271,26 +272,26 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
   return (
     <main className="main">
       <PageHeader
-        crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: opportunity?.title ?? "New opportunity" }]}
-        title="Opportunity builder"
+        crumbs={[{ label: ws.name, to: base }, { label: t("opportunityBuilder.opportunities"), to: `${base}/opportunities` }, { label: opportunity?.title ?? t("opportunityBuilder.newOpportunity") }]}
+        title={t("opportunityBuilder.opportunityBuilder")}
         badge={
           <>
             {opportunity ? <OpportunityStatusBadge opportunity={opportunity} competitions={competitions} /> : <StatusBadge kind="form" status="draft" />}
             {dirty && (
               <span className="pill-warn">
                 <Clock className="ic ic-sm" aria-hidden="true" />
-                Unsaved changes
+                {t("opportunityBuilder.unsavedChanges")}
               </span>
             )}
           </>
         }
         meta={
           <>
-            <span>{draft.title || "Untitled opportunity"}</span>
+            <span>{draft.title || t("opportunityBuilder.untitledOpportunity")}</span>
             {program && (
               <>
                 <span>·</span>
-                <span>Program: {program.name}</span>
+                <span>{t("opportunityBuilder.program", { name: program.name })}</span>
               </>
             )}
             <SaveNote state={save.state === "saving" ? "saving" : !dirty && save.state === "saved" ? "saved" : "idle"} />
@@ -301,15 +302,15 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
             {publicPath && opportunity?.published && (
               <Link to={publicPath} className="btn btn-secondary">
                 <Eye className="ic" aria-hidden="true" />
-                Open public page
+                {t("opportunityBuilder.openPublicPage")}
               </Link>
             )}
             <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving"}>
-              Save draft
+              {t("opportunityBuilder.saveDraft")}
             </button>
             {opportunity && (
               <Link to={`${base}/opportunities/${opportunity.id}/competition`} className="btn btn-primary">
-                Competition &amp; stages
+                {t("opportunityBuilder.competitionStages")}
                 <ArrowRight className="ic" aria-hidden="true" />
               </Link>
             )}
@@ -319,9 +320,9 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
       {writeError !== null && <ErrorBanner error={writeError} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 360px", gap: "20px", alignItems: "start" }}>
-        <nav className="card" style={{ padding: "18px 16px" }} aria-label="Builder steps">
+        <nav className="card" style={{ padding: "18px 16px" }} aria-label={t("opportunityBuilder.builderSteps")}>
           <div className="eyebrow" style={{ marginBottom: "14px" }}>
-            Steps
+            {t("opportunityBuilder.steps")}
           </div>
           <ol className="stp-v">
             {STEPS.map((s, i) => {
@@ -329,7 +330,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
               const on = s.key === step;
               return (
                 <li key={s.key} className={on ? "s on" : done ? "s done" : "s"}>
-                  <span className="n">{done && !on ? <Check className="ic ic-sm" role="img" aria-label="Complete" /> : i + 1}</span>
+                  <span className="n">{done && !on ? <Check className="ic ic-sm" role="img" aria-label={t("opportunityBuilder.complete")} /> : i + 1}</span>
                   <div>
                     <Link to={{ hash: `#${s.key}` }} replace className="t" aria-current={on ? "step" : undefined} style={{ display: "block", textDecoration: "none" }}>
                       {s.title}
@@ -347,28 +348,28 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
             <div>
               <h2 id="step-title">{STEPS[index]!.title}</h2>
               <p className="small muted">
-                {step === "basics" && "What the opportunity is called and what it funds. The summary appears on your public page and in the CommonGrants record."}
-                {step === "funding" && "How much is available and the size of a typical award. Amounts are in US dollars."}
-                {step === "dates" && "Key dates shown to applicants. Stage dates are set on the competition."}
-                {step === "who" && "Applicant types come from the CommonGrants list. Rules are evaluated against each organization's Passport record and shown to applicants in plain language."}
-                {step === "publish" && "Where the opportunity is listed once it is published."}
-                {step === "applications" && "Applicants can apply only once a competition is open. Quick setup gets one ready from what you entered; the launch checklist says what is left."}
+                {step === "basics" && t("opportunityBuilder.whatTheOpportunityIs")}
+                {step === "funding" && t("opportunityBuilder.howMuchIsAvailable")}
+                {step === "dates" && t("opportunityBuilder.keyDatesShownTo")}
+                {step === "who" && t("opportunityBuilder.applicantTypesComeFrom")}
+                {step === "publish" && t("opportunityBuilder.whereTheOpportunityIs")}
+                {step === "applications" && t("opportunityBuilder.applicantsCanApplyOnly")}
               </p>
             </div>
           </div>
           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
             {step === "basics" && (
               <>
-                <Field id="opp-title" label="Title" required error={err("title") ?? problemFor(save.error, "title")}>
+                <Field id="opp-title" label={t("opportunityBuilder.title")} required error={err("title") ?? problemFor(save.error, "title")}>
                   <input className={err("title") ? "inp err" : "inp"} id="opp-title" {...text("title")} required aria-invalid={!!err("title")} />
                 </Field>
-                <Field id="opp-description" label="Summary" help="One or two paragraphs. Required before publishing.">
+                <Field id="opp-description" label={t("opportunityBuilder.summary")} help={t("opportunityBuilder.oneOrTwoParagraphs")}>
                   <textarea className="ta" id="opp-description" style={{ minHeight: "140px" }} {...text("description")} />
                 </Field>
                 <div className="fld-row">
-                  <Field id="opp-program" label="Program" help="The budget this opportunity awards from.">
+                  <Field id="opp-program" label={t("opportunityBuilder.program2")} help={t("opportunityBuilder.theBudgetThisOpportunity")}>
                     <select className="sel" id="opp-program" value={draft.programId} onChange={(e) => set("programId", e.target.value)}>
-                      <option value="">No program</option>
+                      <option value="">{t("opportunityBuilder.noProgram")}</option>
                       {programs.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -376,7 +377,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                       ))}
                     </select>
                   </Field>
-                  <Field id="opp-slug" label="Public address" help={`/f/${ws.handle}/o/${draft.slug || slugify(draft.title || "your-title")}`} error={err("slug") ?? problemFor(save.error, "slug")}>
+                  <Field id="opp-slug" label={t("opportunityBuilder.publicAddress")} help={t("opportunityBuilder.fO", { handle: ws.handle, slug: draft.slug || slugify(draft.title || "your-title") })} error={err("slug") ?? problemFor(save.error, "slug")}>
                     <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || "your-title")} {...text("slug")} />
                   </Field>
                 </div>
@@ -384,26 +385,26 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
             )}
             {step === "funding" && (
               <>
-                <Field id="opp-total" label="Total available" error={err("total")}>
+                <Field id="opp-total" label={t("opportunityBuilder.totalAvailable")} error={err("total")}>
                   <input className={err("total") ? "inp err" : "inp"} id="opp-total" inputMode="decimal" placeholder="1,200,000" {...text("total")} />
                 </Field>
                 <div className="fld-row">
-                  <Field id="opp-min" label="Smallest award" error={err("min")}>
+                  <Field id="opp-min" label={t("opportunityBuilder.smallestAward")} error={err("min")}>
                     <input className={err("min") ? "inp err" : "inp"} id="opp-min" inputMode="decimal" placeholder="50,000" {...text("min")} />
                   </Field>
-                  <Field id="opp-max" label="Largest award" error={err("max")}>
+                  <Field id="opp-max" label={t("opportunityBuilder.largestAward")} error={err("max")}>
                     <input className={err("max") ? "inp err" : "inp"} id="opp-max" inputMode="decimal" placeholder="150,000" {...text("max")} />
                   </Field>
                 </div>
                 <div className="fld-row">
-                  <Field id="opp-min-count" label="Fewest awards expected" error={err("minCount")}>
+                  <Field id="opp-min-count" label={t("opportunityBuilder.fewestAwardsExpected")} error={err("minCount")}>
                     <input className={err("minCount") ? "inp err" : "inp"} id="opp-min-count" inputMode="numeric" {...text("minCount")} />
                   </Field>
-                  <Field id="opp-max-count" label="Most awards expected" error={err("maxCount")}>
+                  <Field id="opp-max-count" label={t("opportunityBuilder.mostAwardsExpected")} error={err("maxCount")}>
                     <input className={err("maxCount") ? "inp err" : "inp"} id="opp-max-count" inputMode="numeric" {...text("maxCount")} />
                   </Field>
                 </div>
-                <Field id="opp-funding-details" label="Notes on funding" help="For example: reviewed monthly, or matching funds required.">
+                <Field id="opp-funding-details" label={t("opportunityBuilder.notesOnFunding")} help={t("opportunityBuilder.forExampleReviewedMonthly")}>
                   <input className="inp" id="opp-funding-details" {...text("fundingDetails")} />
                 </Field>
               </>
@@ -411,21 +412,21 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
             {step === "dates" && (
               <>
                 <div className="fld-row">
-                  <Field id="opp-opens" label="Opens">
+                  <Field id="opp-opens" label={t("opportunityBuilder.opens")}>
                     <input className="inp" id="opp-opens" type="date" {...text("opens")} />
                   </Field>
-                  <Field id="opp-closes" label="Closes" help="Leave empty for a rolling opportunity." error={err("closes")}>
+                  <Field id="opp-closes" label={t("opportunityBuilder.closes")} help={t("opportunityBuilder.leaveEmptyForA")} error={err("closes")}>
                     <input className={err("closes") ? "inp err" : "inp"} id="opp-closes" type="date" {...text("closes")} />
                   </Field>
                 </div>
-                <Field id="opp-closes-name" label="What closes on that date" help="Shown next to the date, e.g. “LOI closes”.">
+                <Field id="opp-closes-name" label={t("opportunityBuilder.whatClosesOnThat")} help={t("opportunityBuilder.shownNextToThe")}>
                   <input className="inp" id="opp-closes-name" {...text("closesName")} />
                 </Field>
                 <div className="fld-row">
-                  <Field id="opp-decision" label="Decisions announced">
+                  <Field id="opp-decision" label={t("opportunityBuilder.decisionsAnnounced")}>
                     <input className="inp" id="opp-decision" type="date" {...text("decision")} />
                   </Field>
-                  <Field id="opp-period" label="Grant period starts">
+                  <Field id="opp-period" label={t("opportunityBuilder.grantPeriodStarts")}>
                     <input className="inp" id="opp-period" type="date" {...text("periodStart")} />
                   </Field>
                 </div>
@@ -437,7 +438,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                 <RuleRows rows={draft.rows} onChange={(rows) => set("rows", rows)} />
                 <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
                   <legend className="lbl" style={{ marginBottom: "8px" }}>
-                    Verification
+                    {t("opportunityBuilder.verification")}
                   </legend>
                   {(
                     [
@@ -462,7 +463,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
               <>
                 <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
                   <legend className="lbl" style={{ marginBottom: "8px" }}>
-                    Publish targets
+                    {t("opportunityBuilder.publishTargets")}
                   </legend>
                   {(
                     [
@@ -487,30 +488,27 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                     <CircleCheck className="ic" aria-hidden="true" />
                     <div className="grow">
                       <div className="t">
-                        Published · live at{" "}
-                        <Link to={publicPath} className="mono" style={{ fontSize: "13px" }}>
-                          {publicPath}
-                        </Link>
+                        {t.rich("opportunityBuilder.publishedLiveAt", { publicPath, link: (chunks) => <Link to={publicPath} className="mono" style={{ fontSize: "13px" }}>{chunks}</Link> })}
                       </div>
-                      <div className="d">Published {formatDate(opportunity.publishedAt)}. Saved changes appear on the public page at once.</div>
+                      <div className="d">{t("opportunityBuilder.publishedSavedChangesAppear", { date: formatDate(opportunity.publishedAt) })}</div>
                     </div>
                   </div>
                 )}
                 {opportunity?.published && opportunity.status !== "closed" && competitions && !taking && (
-                  <Notice tone="warn" title="Not taking applications yet">
-                    Applicants can find this opportunity but cannot apply. <Link to={{ hash: "#applications" }} replace>Set up applications</Link>
+                  <Notice tone="warn" title={t("opportunityBuilder.notTakingApplicationsYet")}>
+                    {t.rich("opportunityBuilder.applicantsCanFindThis", { link: (chunks) => <Link to={{ hash: "#applications" }} replace>{chunks}</Link> })}
                   </Notice>
                 )}
-                {opportunity?.status === "closed" && <Notice tone="neu" title="This opportunity is closed">It no longer accepts applications and cannot be reopened.</Notice>}
-                {!draft.description.trim() && <Notice tone="warn" title="Add a summary before publishing">The public page and the CommonGrants record both need one.</Notice>}
+                {opportunity?.status === "closed" && <Notice tone="neu" title={t("opportunityBuilder.thisOpportunityIsClosed")}>{t("opportunityBuilder.itNoLongerAccepts")}</Notice>}
+                {!draft.description.trim() && <Notice tone="warn" title={t("opportunityBuilder.addASummaryBefore")}>{t("opportunityBuilder.thePublicPageAnd")}</Notice>}
                 {opportunity?.status !== "closed" && (
                   <div className="row wrap" style={{ gap: "8px" }}>
                     <button type="button" className="btn btn-primary" disabled={!draft.description.trim() || publish.state === "saving"} onClick={() => publishAs("open")}>
-                      {opportunity?.published && opportunity.status === "open" ? "Publish changes" : "Publish as open"}
+                      {opportunity?.published && opportunity.status === "open" ? t("opportunityBuilder.publishChanges") : t("opportunityBuilder.publishAsOpen")}
                     </button>
                     {!(opportunity?.published && opportunity.status === "open") && (
                       <button type="button" className="btn btn-secondary" disabled={!draft.description.trim() || publish.state === "saving"} onClick={() => publishAs("forecasted")}>
-                        Publish as forecasted
+                        {t("opportunityBuilder.publishAsForecasted")}
                       </button>
                     )}
                     {opportunity?.published && (
@@ -523,7 +521,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                           if (closed) onSaved(closed, visited);
                         }}
                       >
-                        Close opportunity
+                        {t("opportunityBuilder.closeOpportunity")}
                       </button>
                     )}
                   </div>
@@ -545,7 +543,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
             )}
             <div className="row" style={{ gap: "8px" }}>
               <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving"}>
-                Save draft
+                {t("opportunityBuilder.saveDraft")}
               </button>
               {next && (
                 <Link to={{ hash: `#${next.key}` }} replace className="btn btn-primary">
@@ -586,15 +584,15 @@ export default function OpportunityBuilder() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{`${opportunity?.title ?? "New opportunity"} — Opportunity builder`}</title>
+      <title>{t("opportunityBuilder.opportunityBuilder2", { title: opportunity?.title ?? "New opportunity" })}</title>
       {data.status === "loading" && (
         <main className="main">
-          <Loading label="Loading the opportunity" />
+          <Loading label={t("opportunityBuilder.loadingTheOpportunity")} />
         </main>
       )}
       {data.status === "error" && (
         <main className="main">
-          <ErrorBanner error={data.error} onRetry={data.reload} title="The opportunity could not be loaded" />
+          <ErrorBanner error={data.error} onRetry={data.reload} title={t("opportunityBuilder.theOpportunityCouldNot")} />
         </main>
       )}
       {data.status === "ready" && (

@@ -17,6 +17,7 @@ import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { BudgetCategoriesEditor, ProgramOutcomes, ProgramOwnerField, useProgramOwners } from "./ProgramExtras.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
+import { t } from "./i18n.ts";
 
 interface Draft {
   name: string;
@@ -61,15 +62,15 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
     <Dialog open onClose={onClose} labelledBy="program-dialog-title">
       <form onSubmit={submit} noValidate>
         <div className="hd">
-          <h2 id="program-dialog-title">{program ? "Edit program" : "New program"}</h2>
+          <h2 id="program-dialog-title">{program ? t("funderPrograms.editProgram") : t("funderPrograms.newProgram")}</h2>
         </div>
         <div className="bd">
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <Field id="program-name" label="Name" required error={local.name ?? problemFor(save.error, "name")}>
+          <Field id="program-name" label={t("funderPrograms.name")} required error={local.name ?? problemFor(save.error, "name")}>
             <input className={local.name ? "inp err" : "inp"} id="program-name" value={draft.name} onChange={set("name")} aria-invalid={!!local.name} required />
           </Field>
           {fund.funds.length > 1 && (
-            <Field id="program-fund" label="Fund" help={program ? "Moving a program moves its opportunities, applications and awards with it." : "Everything made in this program belongs to this fund."} error={problemFor(save.error, "fundId")}>
+            <Field id="program-fund" label={t("funderPrograms.fund")} help={program ? t("funderPrograms.movingAProgramMoves") : t("funderPrograms.everythingMadeInThis")} error={problemFor(save.error, "fundId")}>
               <select className="sel" id="program-fund" value={draft.fundId || startFund} onChange={set("fundId")}>
                 {fund.funds.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -79,14 +80,14 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
               </select>
             </Field>
           )}
-          <Field id="program-description" label="Description" help="Shown to your team. The public page describes each opportunity separately.">
+          <Field id="program-description" label={t("funderPrograms.description")} help={t("funderPrograms.shownToYourTeam")}>
             <textarea className="ta" id="program-description" value={draft.description} onChange={set("description")} />
           </Field>
           <div className="fld-row">
-            <Field id="program-fy" label="Fiscal year" error={local.fiscalYear}>
+            <Field id="program-fy" label={t("funderPrograms.fiscalYear")} error={local.fiscalYear}>
               <input className={local.fiscalYear ? "inp err" : "inp"} id="program-fy" inputMode="numeric" value={draft.fiscalYear} onChange={set("fiscalYear")} placeholder="2027" />
             </Field>
-            <Field id="program-budget" label="Budget (USD)" help="The panel allocator refuses decisions that exceed it." error={local.budget}>
+            <Field id="program-budget" label={t("funderPrograms.budgetUsd")} help={t("funderPrograms.thePanelAllocatorRefuses")} error={local.budget}>
               <input className={local.budget ? "inp err" : "inp"} id="program-budget" inputMode="decimal" value={draft.budget} onChange={set("budget")} placeholder="1,200,000" />
             </Field>
           </div>
@@ -94,10 +95,10 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
         <div className="ft">
           <SaveNote state={save.state === "saving" ? "saving" : "idle"} />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("funderPrograms.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.state === "saving"}>
-            {program ? "Save program" : "Create program"}
+            {program ? t("funderPrograms.saveProgram") : t("funderPrograms.createProgram")}
           </button>
         </div>
       </form>
@@ -126,16 +127,16 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
           </h2>
           <div className="small muted" style={{ marginTop: "4px" }}>
             {fundName ? `${fundName} · ` : ""}
-            {program.fiscalYear ? `FY${program.fiscalYear}` : "No fiscal year"} · Budget {formatMinor(program.budgetAmountMinor, program.currency)} · {owner ? `Owner ${owner.name}` : "No owner"} · Updated {formatDate(program.updatedAt)}
+            {program.fiscalYear ? t("funderPrograms.fy", { fiscalYear: program.fiscalYear }) : t("funderPrograms.noFiscalYear")} {t("funderPrograms.budget", { amount: formatMinor(program.budgetAmountMinor, program.currency) })} {owner ? t("funderPrograms.owner", { name: owner.name }) : t("funderPrograms.noOwner")} {t("funderPrograms.updated", { date: formatDate(program.updatedAt) })}
           </div>
         </div>
         <div className="row" style={{ gap: "8px" }}>
           <button type="button" className="btn btn-secondary" onClick={onEdit}>
-            Edit program
+            {t("funderPrograms.editProgram")}
           </button>
           <Link to={`${base}/opportunities/new?program=${program.id}`} className="btn btn-primary">
             <Plus className="ic" aria-hidden="true" />
-            New opportunity
+            {t("funderPrograms.newOpportunity")}
           </Link>
         </div>
       </div>
@@ -143,50 +144,50 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: "0" }}>
           {program.description && <p>{program.description}</p>}
           <ProgramOwnerField programId={program.id} owner={owner} members={members} onChanged={onOwnerChanged} />
-          <h3>Opportunities</h3>
+          <h3>{t("funderPrograms.opportunities")}</h3>
           <DataTable
-            label={`Opportunities in ${program.name}`}
+            label={t("funderPrograms.opportunitiesIn", { name: program.name })}
             rows={opportunities}
             rowKey={(o) => o.id}
             empty={
-              <EmptyState icon={Briefcase} title="No opportunities in this program yet">
-                An opportunity is what applicants see and apply to. Create one to start a cycle.
+              <EmptyState icon={Briefcase} title={t("funderPrograms.noOpportunitiesInThis")}>
+                {t("funderPrograms.anOpportunityIsWhat")}
               </EmptyState>
             }
             columns={[
-              { key: "title", header: "Opportunity", cell: (o) => <Link to={`${base}/opportunities/${o.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{o.title}</Link>, sort: (o) => o.title },
-              { key: "status", header: "Status", cell: (o) => <StatusBadge kind="opportunity" status={o.status} label={o.published ? undefined : "Draft"} /> },
-              { key: "stage", header: "Stage", cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${c.status}`}` : "No competition"; } },
-              { key: "apps", header: "Applications", numeric: true, cell: (o) => { const c = competitionOf(o); return c ? (received.get(c.id) ?? "—") : "—"; } },
-              { key: "closes", header: "Closes", cell: (o) => formatDate(o.keyDates.closeDate?.date), sort: (o) => o.keyDates.closeDate?.date ?? null },
-              { key: "go", header: "", numeric: true, cell: (o) => <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">Competition</Link> },
+              { key: "title", header: t("funderPrograms.opportunity"), cell: (o) => <Link to={`${base}/opportunities/${o.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{o.title}</Link>, sort: (o) => o.title },
+              { key: "status", header: t("funderPrograms.status"), cell: (o) => <StatusBadge kind="opportunity" status={o.status} label={o.published ? undefined : t("funderPrograms.draft")} /> },
+              { key: "stage", header: t("funderPrograms.stage"), cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${c.status}`}` : "No competition"; } },
+              { key: "apps", header: t("funderPrograms.applications"), numeric: true, cell: (o) => { const c = competitionOf(o); return c ? (received.get(c.id) ?? "—") : "—"; } },
+              { key: "closes", header: t("funderPrograms.closes"), cell: (o) => formatDate(o.keyDates.closeDate?.date), sort: (o) => o.keyDates.closeDate?.date ?? null },
+              { key: "go", header: "", numeric: true, cell: (o) => <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">{t("funderPrograms.competition")}</Link> },
             ]}
           />
         </div>
         <div className="card" style={{ background: "#F7FAFA" }}>
           <div className="card-h" style={{ padding: "12px 16px" }}>
-            <h3 style={{ fontSize: "14px" }}>Program defaults</h3>
+            <h3 style={{ fontSize: "14px" }}>{t("funderPrograms.programDefaults")}</h3>
           </div>
           <div className="card-b" style={{ padding: "14px 16px" }}>
             <dl className="kv" style={{ gridTemplateColumns: "120px minmax(0, 1fr)" }}>
-              <dt>Budget</dt>
+              <dt>{t("funderPrograms.budget2")}</dt>
               <dd>{formatMinor(program.budgetAmountMinor, program.currency)}</dd>
-              <dt>Currency</dt>
+              <dt>{t("funderPrograms.currency")}</dt>
               <dd>{program.currency}</dd>
-              <dt>Reminder plan</dt>
-              <dd>{defaults.reminderPlan?.length ? `${defaults.reminderPlan.map((d) => (d > 0 ? `+${d}` : String(d))).join(", ")} days from the due date` : "Workspace default"}</dd>
+              <dt>{t("funderPrograms.reminderPlan")}</dt>
+              <dd>{defaults.reminderPlan?.length ? t("funderPrograms.daysFromTheDue", { map: defaults.reminderPlan.map((d) => (d > 0 ? `+${d}` : String(d))).join(", ") }) : t("funderPrograms.workspaceDefault")}</dd>
             </dl>
           </div>
           <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
-            <h3 style={{ fontSize: "14px" }}>Committed by status</h3>
+            <h3 style={{ fontSize: "14px" }}>{t("funderPrograms.committedByStatus")}</h3>
             <span className={over ? "small b var-neg" : "small muted"}>{formatMinor(committed, program.currency)}</span>
           </div>
           <div className="card-b" style={{ padding: "14px 16px" }}>
             {over && (
               <div className="bnr bnr-dng" role="status" style={{ marginBottom: "10px" }}>
                 <div>
-                  <div className="t">Over-committed by {formatMinor(committed - program.budgetAmountMinor!, program.currency)}</div>
-                  <div className="d">Awards exceed this program’s budget. New approvals need an admin override at the panel.</div>
+                  <div className="t">{t("funderPrograms.overCommittedBy", { amount: formatMinor(committed - program.budgetAmountMinor!, program.currency) })}</div>
+                  <div className="d">{t("funderPrograms.awardsExceedThisPrograms")}</div>
                 </div>
               </div>
             )}
@@ -247,15 +248,15 @@ export default function Programs() {
   }, [data.status, programId, selected, navigate, base]);
 
   const columns: Column<Program>[] = [
-    { key: "name", header: "Program", cell: (p) => <Link to={`${base}/programs/${p.id}`} className="b" style={{ color: "#0D2A43" }}>{p.name}</Link>, sort: (p) => p.name },
-    ...(fund.several && !fund.current ? [{ key: "fund", header: "Fund", cell: (p: Program) => fund.nameOf(fund.fundOf(p)) ?? "—", sort: (p: Program) => fund.nameOf(fund.fundOf(p)) } satisfies Column<Program>] : []),
-    { key: "fy", header: "FY", cell: (p) => p.fiscalYear ?? "—", sort: (p) => p.fiscalYear },
-    { key: "budget", header: "Budget", numeric: true, cell: (p) => formatMinor(p.budgetAmountMinor, p.currency), sort: (p) => p.budgetAmountMinor },
-    { key: "committed", header: "Committed", numeric: true, cell: (p) => formatMinor(moneyFor(p)?.committedMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.committedMinor ?? 0 },
-    { key: "paid", header: "Paid", numeric: true, cell: (p) => formatMinor(moneyFor(p)?.paidMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.paidMinor ?? 0 },
+    { key: "name", header: t("funderPrograms.program"), cell: (p) => <Link to={`${base}/programs/${p.id}`} className="b" style={{ color: "#0D2A43" }}>{p.name}</Link>, sort: (p) => p.name },
+    ...(fund.several && !fund.current ? [{ key: "fund", header: t("funderPrograms.fund"), cell: (p: Program) => fund.nameOf(fund.fundOf(p)) ?? "—", sort: (p: Program) => fund.nameOf(fund.fundOf(p)) } satisfies Column<Program>] : []),
+    { key: "fy", header: t("funderPrograms.fy2"), cell: (p) => p.fiscalYear ?? "—", sort: (p) => p.fiscalYear },
+    { key: "budget", header: t("funderPrograms.budget2"), numeric: true, cell: (p) => formatMinor(p.budgetAmountMinor, p.currency), sort: (p) => p.budgetAmountMinor },
+    { key: "committed", header: t("funderPrograms.committed"), numeric: true, cell: (p) => formatMinor(moneyFor(p)?.committedMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.committedMinor ?? 0 },
+    { key: "paid", header: t("funderPrograms.paid"), numeric: true, cell: (p) => formatMinor(moneyFor(p)?.paidMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.paidMinor ?? 0 },
     {
       key: "remaining",
-      header: "Remaining",
+      header: t("funderPrograms.remaining"),
       numeric: true,
       cell: (p) => {
         if (p.budgetAmountMinor === null) return "—";
@@ -264,25 +265,25 @@ export default function Programs() {
       },
       sort: (p) => (p.budgetAmountMinor === null ? null : p.budgetAmountMinor - (moneyFor(p)?.committedMinor ?? 0)),
     },
-    { key: "owner", header: "Owner", cell: (p) => owners.data?.[p.id]?.name ?? <span className="muted">—</span>, sort: (p) => owners.data?.[p.id]?.name ?? null },
-    { key: "opps", header: "Opportunities", numeric: true, cell: countFor, sort: countFor },
+    { key: "owner", header: t("funderPrograms.owner2"), cell: (p) => owners.data?.[p.id]?.name ?? <span className="muted">—</span>, sort: (p) => owners.data?.[p.id]?.name ?? null },
+    { key: "opps", header: t("funderPrograms.opportunities"), numeric: true, cell: countFor, sort: countFor },
   ];
 
   return (
     <FunderShell active="Programs">
-      <title>{`Programs — ${ws.name}`}</title>
+      <title>{t("funderPrograms.programs", { name: ws.name })}</title>
       <main className="main">
         <PageHeader
-          crumbs={[{ label: ws.name, to: base }, { label: "Programs", ...(selected ? { to: `${base}/programs` } : {}) }, ...(selected ? [{ label: selected.name }] : [])]}
-          title="Programs"
+          crumbs={[{ label: ws.name, to: base }, { label: t("funderPrograms.programs2"), ...(selected ? { to: `${base}/programs` } : {}) }, ...(selected ? [{ label: selected.name }] : [])]}
+          title={t("funderPrograms.programs2")}
           meta={
             data.status === "ready" && (
               <>
                 <span>
-                  {programs.length} program{programs.length === 1 ? "" : "s"}
+                  {t("funderPrograms.program2", { count: programs.length })}{programs.length === 1 ? "" : t("funderPrograms.s")}
                 </span>
                 <span>·</span>
-                <span>{formatMinor(totalBudget)} budgeted</span>
+                <span>{t("funderPrograms.budgeted", { amount: formatMinor(totalBudget) })}</span>
                 {fund.current && (
                   <>
                     <span>·</span>
@@ -295,16 +296,16 @@ export default function Programs() {
           actions={
             <button type="button" className="btn btn-primary" onClick={() => setDialog({ program: null })}>
               <Plus className="ic" aria-hidden="true" />
-              New program
+              {t("funderPrograms.newProgram")}
             </button>
           }
         />
-        {data.status === "loading" && <Loading label="Loading programs" />}
-        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title="Programs could not be loaded" />}
+        {data.status === "loading" && <Loading label={t("funderPrograms.loadingPrograms")} />}
+        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title={t("funderPrograms.programsCouldNotBe")} />}
         {data.status === "ready" && (
           <>
             <DataTable
-              label="Programs"
+              label={t("funderPrograms.programs2")}
               rows={programs}
               rowKey={(p) => p.id}
               selectedKey={selected?.id ?? null}
@@ -312,14 +313,14 @@ export default function Programs() {
               empty={
                 <EmptyState
                   icon={Briefcase}
-                  title="Start with a program"
+                  title={t("funderPrograms.startWithAProgram")}
                   actions={
                     <button type="button" className="btn btn-primary" onClick={() => setDialog({ program: null })}>
-                      Create a program
+                      {t("funderPrograms.createAProgram")}
                     </button>
                   }
                 >
-                  A program holds a budget, default rubric and templates. Opportunities, competitions and awards hang off it.
+                  {t("funderPrograms.aProgramHoldsA")}
                 </EmptyState>
               }
             />

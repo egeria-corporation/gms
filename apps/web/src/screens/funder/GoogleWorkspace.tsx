@@ -13,6 +13,7 @@ import { ErrorBanner, Notice } from "../../components/ui.tsx";
 import { env } from "../../env.ts";
 import { leaveTo } from "../../lib/browser.ts";
 import { pickDriveFolder, type PickedFolder, type PickerConfig } from "../../lib/googlePicker.ts";
+import { t } from "./i18n.ts";
 
 /** `/w/:handle/settings/connectors`: the API returns the person here; the integrations live under Agents & MCP. */
 export function ConnectorReturn() {
@@ -54,8 +55,8 @@ export function GoogleWorkspaceCard() {
     <div className="cmt">
       <div className="row wrap" style={{ justifyContent: "space-between" }}>
         <div>
-          <div className="b">Google Workspace</div>
-          <div className="small muted">Export letters and agreements to a Drive folder you choose, and suggest teammates when inviting. The GMS can open only the folders you pick, and reads names and addresses from your directory.</div>
+          <div className="b">{t("googleWorkspace.googleWorkspace")}</div>
+          <div className="small muted">{t("googleWorkspace.exportLettersAndAgreements")}</div>
         </div>
         <span className={c.connected ? "bdg bdg-ok" : c.status === "pending" ? "bdg bdg-info" : "bdg bdg-neutral"}>
           <Plug className="ic" aria-hidden="true" />
@@ -65,21 +66,21 @@ export function GoogleWorkspaceCard() {
       {disconnect.error !== null && <ErrorBanner error={disconnect.error} />}
       {c.connected ? (
         <div className="row wrap">
-          <span className="small muted">{c.scopes.length > 0 ? `Access: ${c.scopes.join(", ")}` : "Connected"}</span>
+          <span className="small muted">{c.scopes.length > 0 ? t("googleWorkspace.access", { scopes: c.scopes.join(", ") }) : t("googleWorkspace.connected")}</span>
           <button type="button" className="btn btn-sm btn-danger" disabled={disconnect.state === "saving"} onClick={async () => (await disconnect.run()) && status.reload()}>
-            Disconnect Google Workspace
+            {t("googleWorkspace.disconnectGoogleWorkspace")}
           </button>
         </div>
       ) : notConfigured ? (
-        <Notice tone="neu" title="Not available on this installation">
-          Google Workspace needs a Composio connection set up by whoever hosts this GMS. Everything else works without it.
+        <Notice tone="neu" title={t("googleWorkspace.notAvailableOnThis")}>
+          {t("googleWorkspace.googleWorkspaceNeedsA")}
         </Notice>
       ) : (
         <div className="row wrap">
           <button type="button" className="btn btn-sm btn-secondary" disabled={connect.state === "saving"} onClick={() => void start()}>
-            {c.status === "pending" ? "Continue to Google sign-in" : "Connect Google Workspace"}
+            {c.status === "pending" ? t("googleWorkspace.continueToGoogleSign") : t("googleWorkspace.connectGoogleWorkspace")}
           </button>
-          {c.status === "pending" && <span className="small muted">Sign-in was started but not finished. Nothing is connected until you finish it.</span>}
+          {c.status === "pending" && <span className="small muted">{t("googleWorkspace.signInWasStarted")}</span>}
         </div>
       )}
     </div>
@@ -111,7 +112,7 @@ export function DriveExportButton({ kind, id, label, pick = pickDriveFolder, con
       <button
         type="button"
         className="btn btn-sm btn-ghost"
-        aria-label={`Export ${label} to Drive`}
+        aria-label={t("googleWorkspace.exportToDrive", { label })}
         disabled={send.state === "saving"}
         onClick={async () => {
           setAsked(true);
@@ -121,25 +122,25 @@ export function DriveExportButton({ kind, id, label, pick = pickDriveFolder, con
         }}
       >
         <FolderUp className="ic" aria-hidden="true" />
-        Export to Drive
+        {t("googleWorkspace.exportToDrive2")}
       </button>
       {asked && !config && (
         <span className="help" role="status">
-          Export to Drive is not configured on this installation: the host has not set the Google Picker key and OAuth client id for the web app.
+          {t("googleWorkspace.exportToDriveIs")}
         </span>
       )}
       {send.error !== null && (
         <span className="err-msg" role="alert">
-          {send.error instanceof Error ? send.error.message : "The file was not exported."}
+          {send.error instanceof Error ? send.error.message : t("googleWorkspace.theFileWasNot")}
         </span>
       )}
       {done && (
         <span className="notice" role="status">
           <CircleCheck className="ic" aria-hidden="true" />
-          {done.fileName} saved to {done.folder}.{" "}
+          {t("googleWorkspace.savedTo", { fileName: done.fileName, folder: done.folder })}{" "}
           {done.url && (
             <a href={done.url} target="_blank" rel="noopener noreferrer">
-              Open in Drive
+              {t("googleWorkspace.openInDrive")}
             </a>
           )}
         </span>
@@ -178,8 +179,8 @@ export function DirectorySuggestions({ query, onChoose }: { query: string; onCho
   }, [api, connected, q]);
   if (people.length === 0) return null;
   return (
-    <div className="row wrap" role="group" aria-label="From your Google directory" style={{ flexBasis: "100%" }}>
-      <span className="small muted">From your Google directory:</span>
+    <div className="row wrap" role="group" aria-label={t("googleWorkspace.fromYourGoogleDirectory")} style={{ flexBasis: "100%" }}>
+      <span className="small muted">{t("googleWorkspace.fromYourGoogleDirectory2")}</span>
       {people.map((p) => (
         <button key={p.email} type="button" className="btn btn-sm btn-ghost" onClick={() => onChoose(p)}>
           {p.name} · {p.email}

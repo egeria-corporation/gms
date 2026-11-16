@@ -16,6 +16,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader, problemFor, ReadinessChecklist } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { ShareToGalleryButton } from "./ShareToGallery.tsx";
+import { t } from "./i18n.ts";
 
 const dateOf = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 const opensAt = (date: string) => (date ? `${date}T00:00:00Z` : null);
@@ -54,16 +55,16 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
       <div className="hd">
         <div>
           <h2 id="stages-title" style={{ fontSize: "16px" }}>
-            Edit stages
+            {t("funderCompetition.editStages")}
           </h2>
           <p className="small muted" style={{ marginTop: "4px" }}>
-            Most competitions have one stage. Add a second when applicants are invited from a letter of intent to a full proposal.
+            {t("funderCompetition.mostCompetitionsHaveOne")}
           </p>
         </div>
       </div>
       <div className="bd">
-        {save.error !== null && <ErrorBanner error={save.error} title="The stages could not be saved" />}
-        <ol style={{ display: "flex", flexDirection: "column", gap: "14px" }} aria-label="Stages">
+        {save.error !== null && <ErrorBanner error={save.error} title={t("funderCompetition.theStagesCouldNot")} />}
+        <ol style={{ display: "flex", flexDirection: "column", gap: "14px" }} aria-label={t("funderCompetition.stages")}>
           {rows.map((s, i) => {
             const n = i + 1;
             const pinned = Object.entries(s.forms);
@@ -73,7 +74,7 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 32px", gap: "10px", alignItems: "end" }}>
                   <div className="fld">
                     <label className="lbl" htmlFor={`${s.rowId}-label`}>
-                      Stage {n} name
+                      {t("funderCompetition.stageName", { n })}
                     </label>
                     <input
                       className={problemFor(save.error, `stages.${i}.label`) ? "inp err" : "inp"}
@@ -84,44 +85,44 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
                   </div>
                   <div className="fld">
                     <label className="lbl" htmlFor={`${s.rowId}-opens`}>
-                      Opens
+                      {t("funderCompetition.opens")}
                     </label>
                     <input className="inp" id={`${s.rowId}-opens`} type="date" value={dateOf(s.opens)} onChange={(e) => patch(s.rowId, { opens: opensAt(e.target.value) })} />
                   </div>
                   <div className="fld">
                     <label className="lbl" htmlFor={`${s.rowId}-closes`}>
-                      Closes
+                      {t("funderCompetition.closes")}
                     </label>
                     <input className="inp" id={`${s.rowId}-closes`} type="date" value={dateOf(s.closes)} onChange={(e) => patch(s.rowId, { closes: closesAt(e.target.value) })} />
                   </div>
-                  <button type="button" className="iconbtn" aria-label={`Remove stage ${n}`} disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((r) => r.rowId !== s.rowId))}>
+                  <button type="button" className="iconbtn" aria-label={t("funderCompetition.removeStage", { n })} disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((r) => r.rowId !== s.rowId))}>
                     <Trash2 className="ic" aria-hidden="true" />
                   </button>
                 </div>
                 <div className="fld-row">
                   <div className="fld">
                     <span className="lbl" id={`${s.rowId}-forms-label`}>
-                      Forms
+                      {t("funderCompetition.forms")}
                     </span>
                     <ul aria-labelledby={`${s.rowId}-forms-label`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                       {pinned.map(([id, version]) => (
                         <li key={id} className="row" style={{ justifyContent: "space-between" }}>
                           <span>
-                            {formName(id)} <span className="tag">v{version}</span>
+                            {formName(id)} <span className="tag">{t("funderCompetition.v", { version })}</span>
                           </span>
                           <button
                             type="button"
                             className="btn btn-sm btn-ghost"
-                            aria-label={`Unpin ${formName(id)} from stage ${n}`}
+                            aria-label={t("funderCompetition.unpinFromStage", { formName: formName(id), n })}
                             onClick={() => patch(s.rowId, { forms: Object.fromEntries(pinned.filter(([f]) => f !== id)) })}
                           >
-                            Unpin
+                            {t("funderCompetition.unpin")}
                           </button>
                         </li>
                       ))}
                     </ul>
                     <label className="sr" htmlFor={`${s.rowId}-add-form`}>
-                      Pin a form to stage {n}
+                      {t("funderCompetition.pinAFormTo", { n })}
                     </label>
                     <select
                       className="sel"
@@ -132,53 +133,53 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
                         if (f) patch(s.rowId, { forms: { ...s.forms, [f.id]: f.version } });
                       }}
                     >
-                      <option value="">{addable.length ? "Pin a published form…" : "No more published forms"}</option>
+                      <option value="">{addable.length ? t("funderCompetition.pinAPublishedForm") : t("funderCompetition.noMorePublishedForms")}</option>
                       {addable.map((f) => (
                         <option key={f.id} value={f.id}>
-                          {f.title} · v{f.version}
+                          {t("funderCompetition.v2", { title: f.title, version: f.version })}
                         </option>
                       ))}
                     </select>
-                    <span className="help">Only published versions can be pinned; a pinned version never changes under applicants.</span>
+                    <span className="help">{t("funderCompetition.onlyPublishedVersionsCan")}</span>
                   </div>
                   <div className="fld">
                     <label className="lbl" htmlFor={`${s.rowId}-rubric`}>
-                      Rubric
+                      {t("funderCompetition.rubric")}
                     </label>
                     <select className="sel" id={`${s.rowId}-rubric`} value={s.rubricId ?? ""} onChange={(e) => patch(s.rowId, { rubricId: e.target.value || null })}>
-                      <option value="">No rubric</option>
+                      <option value="">{t("funderCompetition.noRubric")}</option>
                       {rubrics.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name} · v{r.version}
+                          {t("funderCompetition.v3", { name: r.name, version: r.version })}
                         </option>
                       ))}
                     </select>
                     <label className="cb" htmlFor={`${s.rowId}-submission`} style={{ marginTop: "6px" }}>
                       <input type="checkbox" id={`${s.rowId}-submission`} checked={s.requiresSubmission} onChange={(e) => patch(s.rowId, { requiresSubmission: e.target.checked })} style={{ marginTop: "3px" }} />
-                      <span>Applicants submit forms in this stage</span>
+                      <span>{t("funderCompetition.applicantsSubmitFormsIn")}</span>
                     </label>
                     <label className="cb" htmlFor={`${s.rowId}-decision`}>
                       <input type="checkbox" id={`${s.rowId}-decision`} checked={s.decisionRequired} onChange={(e) => patch(s.rowId, { decisionRequired: e.target.checked })} style={{ marginTop: "3px" }} />
-                      <span>Reviewers score and a decision is recorded</span>
+                      <span>{t("funderCompetition.reviewersScoreAndA")}</span>
                     </label>
                   </div>
                 </div>
-                {i > 0 && <span className="help">Entered by invitation from “{rows[i - 1]!.label}”.</span>}
+                {i > 0 && <span className="help">{t("funderCompetition.enteredByInvitationFrom", { label: rows[i - 1]!.label })}</span>}
               </li>
             );
           })}
         </ol>
         <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} onClick={() => setRows((rs) => [...rs, newStage(rs.length + 1, rs[rs.length - 1])])}>
           <Plus className="ic" aria-hidden="true" />
-          Add stage
+          {t("funderCompetition.addStage")}
         </button>
       </div>
       <div className="ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Cancel
+          {t("funderCompetition.cancel")}
         </button>
         <button type="button" className="btn btn-primary" onClick={submit} disabled={save.state === "saving"}>
-          Save stages
+          {t("funderCompetition.saveStages")}
         </button>
       </div>
     </Dialog>
@@ -188,7 +189,7 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
 function StageTimeline({ stages }: { stages: Stage[] }) {
   const now = Date.now();
   return (
-    <ol className="stp" aria-label="Stage timeline" style={{ flexWrap: "wrap", rowGap: "12px" }}>
+    <ol className="stp" aria-label={t("funderCompetition.stageTimeline")} style={{ flexWrap: "wrap", rowGap: "12px" }}>
       {stages.map((s, i) => {
         const done = !!s.closes && Date.parse(s.closes) < now;
         const on = !done && (!s.opens || Date.parse(s.opens) <= now) && (!!s.opens || !!s.closes);
@@ -196,11 +197,11 @@ function StageTimeline({ stages }: { stages: Stage[] }) {
           <li key={s.key} style={{ display: "contents" }}>
             {i > 0 && <span className={done || on ? "ln done" : "ln"} aria-hidden="true"></span>}
             <div className={done ? "s done" : on ? "s on" : "s"} aria-current={on ? "step" : undefined}>
-              <span className="n">{done ? <Check className="ic ic-sm" role="img" aria-label="Closed" /> : i + 1}</span>
+              <span className="n">{done ? <Check className="ic ic-sm" role="img" aria-label={t("funderCompetition.closed")} /> : i + 1}</span>
               <div>
                 <div>{s.label}</div>
                 <div className="small muted" style={{ fontWeight: 400 }}>
-                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : "No dates yet"} · {done ? "closed" : on ? "open" : "upcoming"}
+                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : t("funderCompetition.noDatesYet")} · {done ? t("funderCompetition.closed2") : on ? t("funderCompetition.open") : t("funderCompetition.upcoming")}
                 </div>
               </div>
             </div>
@@ -253,14 +254,14 @@ export default function Competition() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{`${opportunity?.title ?? "Competition"} — Competition`}</title>
+      <title>{t("funderCompetition.competition", { title: opportunity?.title ?? "Competition" })}</title>
       <main className="main">
-        {data.status === "loading" && <Loading label="Loading the competition" />}
-        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title="The competition could not be loaded" />}
+        {data.status === "loading" && <Loading label={t("funderCompetition.loadingTheCompetition")} />}
+        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title={t("funderCompetition.theCompetitionCouldNot")} />}
         {loaded && opportunity && (
           <>
             <PageHeader
-              crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: opportunity.title, to: `${base}/opportunities/${opportunity.id}/edit` }, { label: "Competition" }]}
+              crumbs={[{ label: ws.name, to: base }, { label: t("funderCompetition.opportunities"), to: `${base}/opportunities` }, { label: opportunity.title, to: `${base}/opportunities/${opportunity.id}/edit` }, { label: t("funderCompetition.competition2") }]}
               title={competition?.title ?? opportunity.title}
               badge={competition && <StatusBadge kind="competition" status={competition.status} />}
               meta={
@@ -271,13 +272,13 @@ export default function Competition() {
                       {publicPath}
                     </Link>
                   ) : (
-                    <span>Opportunity not published yet</span>
+                    <span>{t("funderCompetition.opportunityNotPublishedYet")}</span>
                   )}
                   {competition && (
                     <>
                       <span>·</span>
                       <span>
-                        {competition.stages.length} stage{competition.stages.length === 1 ? "" : "s"}
+                        {t("funderCompetition.stage", { count: competition.stages.length })}{competition.stages.length === 1 ? "" : t("funderCompetition.s")}
                       </span>
                     </>
                   )}
@@ -288,7 +289,7 @@ export default function Competition() {
                   <>
                     <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)} disabled={competition.status === "closed"}>
                       <Pencil className="ic" aria-hidden="true" />
-                      Edit stages
+                      {t("funderCompetition.editStages")}
                     </button>
                     {competition.status === "open" && (
                       <button
@@ -299,7 +300,7 @@ export default function Competition() {
                           if (await close.run(competition.id)) data.reload();
                         }}
                       >
-                        Close competition
+                        {t("funderCompetition.closeCompetition")}
                       </button>
                     )}
                   </>
@@ -312,11 +313,11 @@ export default function Competition() {
               <div className="card">
                 <EmptyState
                   icon={Layers}
-                  title="No competition yet"
+                  title={t("funderCompetition.noCompetitionYet")}
                   actions={
                     <>
                       <Link to={`${base}/opportunities/${opportunity.id}/edit#applications`} className="btn btn-primary">
-                        Quick setup
+                        {t("funderCompetition.quickSetup")}
                       </Link>
                       <button
                         type="button"
@@ -329,12 +330,12 @@ export default function Competition() {
                           }
                         }}
                       >
-                        Set up the competition
+                        {t("funderCompetition.setUpTheCompetition")}
                       </button>
                     </>
                   }
                 >
-                  A competition is how {opportunity.title} takes applications: its stages, the form for each stage and the rubric reviewers score against. Quick setup makes a one-stage competition with a starter form and rubric you can edit.
+                  {t("funderCompetition.aCompetitionIsHow", { title: opportunity.title })}
                 </EmptyState>
               </div>
             )}
@@ -342,20 +343,20 @@ export default function Competition() {
             {competition && (
               <>
                 <div className="card" style={{ padding: "18px 20px" }}>
-                  {competition.stages.length ? <StageTimeline stages={competition.stages} /> : <span className="muted">No stages yet. Edit stages to add the first one.</span>}
+                  {competition.stages.length ? <StageTimeline stages={competition.stages} /> : <span className="muted">{t("funderCompetition.noStagesYetEdit")}</span>}
                 </div>
 
                 {competition.stages.length > 0 && (
-                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Stages, scrollable">
-                    <table className="tbl" aria-label="Stages">
+                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderCompetition.stagesScrollable")}>
+                    <table className="tbl" aria-label={t("funderCompetition.stages")}>
                       <thead>
                         <tr>
-                          <th>Stage</th>
-                          <th>Opens</th>
-                          <th>Closes</th>
-                          <th>Form</th>
-                          <th>Rubric</th>
-                          <th>Entry rule</th>
+                          <th>{t("funderCompetition.stage2")}</th>
+                          <th>{t("funderCompetition.opens")}</th>
+                          <th>{t("funderCompetition.closes")}</th>
+                          <th>{t("funderCompetition.form")}</th>
+                          <th>{t("funderCompetition.rubric")}</th>
+                          <th>{t("funderCompetition.entryRule")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -367,10 +368,10 @@ export default function Competition() {
                             <td style={{ whiteSpace: "normal" }}>
                               {Object.entries(s.forms)
                                 .map(([id, version]) => `${formOf(id)?.title ?? "Unknown form"} v${version}`)
-                                .join(", ") || <span className="muted">No form</span>}
+                                .join(", ") || <span className="muted">{t("funderCompetition.noForm")}</span>}
                             </td>
-                            <td>{rubricOf(s.rubricId)?.name ?? <span className="muted">{s.decisionRequired ? "None yet" : "Not scored"}</span>}</td>
-                            <td style={{ whiteSpace: "normal" }}>{i === 0 ? "Open to every eligible applicant" : `Advanced from ${s.entryFrom.map((k) => competition.stages.find((x) => x.key === k)?.label ?? k).join(" or ") || "the previous stage"}`}</td>
+                            <td>{rubricOf(s.rubricId)?.name ?? <span className="muted">{s.decisionRequired ? t("funderCompetition.noneYet") : t("funderCompetition.notScored")}</span>}</td>
+                            <td style={{ whiteSpace: "normal" }}>{i === 0 ? t("funderCompetition.openToEveryEligible") : t("funderCompetition.advancedFrom", { map: s.entryFrom.map((k) => competition.stages.find((x) => x.key === k)?.label ?? k).join(" or ") || "the previous stage" })}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -383,10 +384,10 @@ export default function Competition() {
                     <section className="card" aria-labelledby="comp-forms-title">
                       <div className="card-h" style={{ padding: "12px 16px" }}>
                         <h3 id="comp-forms-title" style={{ fontSize: "14px" }}>
-                          Forms
+                          {t("funderCompetition.forms")}
                         </h3>
                         <Link to={`${base}/forms`} className="small b">
-                          All forms
+                          {t("funderCompetition.allForms")}
                         </Link>
                       </div>
                       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
@@ -401,26 +402,25 @@ export default function Competition() {
                                   </Link>
                                 ) : (
                                   <span className="b" style={{ color: "#0D2A43" }}>
-                                    {f?.title ?? "Unknown form"}
+                                    {f?.title ?? t("funderCompetition.unknownForm")}
                                   </span>
                                 )}
                                 <div className="row small muted" style={{ gap: "6px" }}>
-                                  <span className="tag">v{version}</span>
-                                  pinned · {s.label}
-                                  {f && f.version > version ? ` · v${f.version} ${f.status === "draft" ? "draft in progress" : "available"}` : ""}
+                                  {t.rich("funderCompetition.vPinned", { version, label: s.label, span: (chunks) => <span className="tag">{chunks}</span> })}
+                                  {f && f.version > version ? t("funderCompetition.v4", { version: f.version, value: f.status === "draft" ? "draft in progress" : "available" }) : ""}
                                 </div>
                               </div>
                             );
                           }),
                         )}
-                        {competition.stages.every((s) => !Object.keys(s.forms).length) && <span className="muted">No forms pinned yet.</span>}
+                        {competition.stages.every((s) => !Object.keys(s.forms).length) && <span className="muted">{t("funderCompetition.noFormsPinnedYet")}</span>}
                       </div>
                     </section>
 
                     <section className="card" aria-labelledby="comp-rubric-title">
                       <div className="card-h" style={{ padding: "12px 16px" }}>
                         <h3 id="comp-rubric-title" style={{ fontSize: "14px" }}>
-                          Rubrics
+                          {t("funderCompetition.rubrics")}
                         </h3>
                       </div>
                       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
@@ -433,7 +433,7 @@ export default function Competition() {
                                 {s.label}
                                 <span className="muted" style={{ fontWeight: 400 }}>
                                   {" "}
-                                  · {r ? `${r.name} v${r.version}` : s.decisionRequired ? "no rubric yet" : "not scored"}
+                                  · {r ? t("funderCompetition.v5", { name: r.name, version: r.version }) : s.decisionRequired ? t("funderCompetition.noRubricYet") : t("funderCompetition.notScored2")}
                                 </span>
                               </div>
                               {r?.criteria.map((c) => (
@@ -450,7 +450,7 @@ export default function Competition() {
                             </div>
                           );
                         })}
-                        {!competition.stages.length && <span className="muted">Rubrics are chosen per stage.</span>}
+                        {!competition.stages.length && <span className="muted">{t("funderCompetition.rubricsAreChosenPer")}</span>}
                       </div>
                     </section>
                     <ReviewerPool competitionId={competition.id} stages={competition.stages} base={base} />
@@ -458,7 +458,7 @@ export default function Competition() {
 
                   <section className="card" aria-labelledby="launch-title">
                     <div className="card-h">
-                      <h3 id="launch-title">Launch checklist</h3>
+                      <h3 id="launch-title">{t("funderCompetition.launchChecklist")}</h3>
                     </div>
                     <div className="card-b" style={{ padding: "8px 20px 16px" }}>
                       {checklist && <ReadinessChecklist checklist={checklist} />}
@@ -467,11 +467,11 @@ export default function Competition() {
                       <span className="small muted">
                         {competition.status === "draft"
                           ? checklist?.ready
-                            ? "Everything is ready."
-                            : "Opening is available when every line passes."
+                            ? t("funderCompetition.everythingIsReady")
+                            : t("funderCompetition.openingIsAvailableWhen")
                           : competition.status === "open"
-                            ? "This competition is open to applicants."
-                            : "This competition is closed."}
+                            ? t("funderCompetition.thisCompetitionIsOpen")
+                            : t("funderCompetition.thisCompetitionIsClosed")}
                       </span>
                       {competition.status === "draft" && (
                         <button
@@ -483,12 +483,12 @@ export default function Competition() {
                             if (await open.run(competition.id)) data.reload();
                           }}
                         >
-                          Open competition
+                          {t("funderCompetition.openCompetition")}
                         </button>
                       )}
                       {competition.status !== "draft" && opportunity.published && (
                         <Link to={publicPath} className="btn btn-sm btn-primary">
-                          View public page
+                          {t("funderCompetition.viewPublicPage")}
                         </Link>
                       )}
                     </div>

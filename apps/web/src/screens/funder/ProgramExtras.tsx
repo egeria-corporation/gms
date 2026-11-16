@@ -8,6 +8,7 @@ import type { Member } from "../../api/types.ts";
 import type { ProgramOwner } from "../../api/launch.ts";
 import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 const number = new Intl.NumberFormat("en-US");
 
@@ -25,7 +26,7 @@ export function ProgramOwnerField({ programId, owner, members, onChanged }: { pr
   return (
     <div className="fld">
       <label className="lbl" htmlFor={id}>
-        Owner
+        {t("programExtras.owner")}
       </label>
       <div className="row wrap">
         <select
@@ -39,7 +40,7 @@ export function ProgramOwnerField({ programId, owner, members, onChanged }: { pr
             onChanged();
           }}
         >
-          <option value="">No owner</option>
+          <option value="">{t("programExtras.noOwner")}</option>
           {options.map((o) => (
             <option key={o.userId} value={o.userId}>
               {o.label}
@@ -47,13 +48,13 @@ export function ProgramOwnerField({ programId, owner, members, onChanged }: { pr
           ))}
           {members.map((m) => (
             <option key={m.userId} value={m.userId}>
-              {(m as Member & { name?: string | null }).name ?? m.email ?? "Team member"}
+              {(m as Member & { name?: string | null }).name ?? m.email ?? t("programExtras.teamMember")}
             </option>
           ))}
         </select>
         <SaveNote state={save.state} />
       </div>
-      <span className="help">The person answerable for this program. Shown in the programs list.</span>
+      <span className="help">{t("programExtras.thePersonAnswerableFor")}</span>
       {save.error !== null && <ErrorBanner error={save.error} />}
     </div>
   );
@@ -66,34 +67,34 @@ export function ProgramOutcomes({ programId, reportsTotal, reportsAccepted, base
   return (
     <>
       <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
-        <h3 style={{ fontSize: "14px" }}>Outcomes rollup</h3>
+        <h3 style={{ fontSize: "14px" }}>{t("programExtras.outcomesRollup")}</h3>
         <span className="small muted">
-          {reportsAccepted} of {reportsTotal} reports accepted
+          {t("programExtras.ofReportsAccepted", { reportsAccepted, reportsTotal })}
         </span>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
         {outcomes.status === "error" && <ErrorBanner error={outcomes.error} onRetry={outcomes.reload} />}
         {totals.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
-            {totals.map((t) => (
-              <div className="stat" key={t.key}>
-                <span className="stat-l">{t.label} (reported)</span>
+            {totals.map((item) => (
+              <div className="stat" key={item.key}>
+                <span className="stat-l">{t("programExtras.reported", { label: item.label })}</span>
                 <span className="stat-v">
-                  {number.format(t.total)}
-                  {t.unit ? <span className="small muted"> {t.unit}</span> : null}
+                  {number.format(item.total)}
+                  {item.unit ? <span className="small muted"> {item.unit}</span> : null}
                 </span>
                 <span className="stat-d">
-                  From {outcomes.data?.reportsAccepted ?? reportsAccepted} accepted report{(outcomes.data?.reportsAccepted ?? reportsAccepted) === 1 ? "" : "s"}
+                  {t("programExtras.fromAcceptedReport", { reportsAccepted: outcomes.data?.reportsAccepted ?? reportsAccepted })}{(outcomes.data?.reportsAccepted ?? reportsAccepted) === 1 ? "" : t("programExtras.s")}
                 </span>
               </div>
             ))}
           </div>
         )}
         {outcomes.status === "ready" && totals.length === 0 && (
-          <p className="small muted">{reportsTotal ? "No outcome figures to add up yet. Totals appear when accepted reports carry numeric outcome fields." : "Outcomes appear once grantees in this program report."}</p>
+          <p className="small muted">{reportsTotal ? t("programExtras.noOutcomeFiguresTo") : t("programExtras.outcomesAppearOnceGrantees")}</p>
         )}
         <Link to={`${base}/reporting`} className="small b">
-          Open reporting
+          {t("programExtras.openReporting")}
         </Link>
       </div>
     </>
@@ -121,19 +122,19 @@ export function BudgetCategoriesEditor({ programId }: { programId: string }) {
   return (
     <>
       <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
-        <h3 style={{ fontSize: "14px" }}>Budget categories</h3>
+        <h3 style={{ fontSize: "14px" }}>{t("programExtras.budgetCategories")}</h3>
         <SaveNote state={save.state} />
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
         {saved.status === "error" && <ErrorBanner error={saved.error} onRetry={saved.reload} />}
         {save.error !== null && <ErrorBanner error={save.error} />}
-        {categories.length === 0 && saved.status === "ready" && <p className="small muted">No categories yet. Budgets in this program use the form’s own rows until you add some.</p>}
+        {categories.length === 0 && saved.status === "ready" && <p className="small muted">{t("programExtras.noCategoriesYetBudgets")}</p>}
         {categories.length > 0 && (
-          <ul className="row wrap" aria-label="Budget categories" style={{ gap: "6px" }}>
+          <ul className="row wrap" aria-label={t("programExtras.budgetCategories")} style={{ gap: "6px" }}>
             {categories.map((c) => (
               <li key={c} className="chip">
                 {c}
-                <button type="button" className="iconbtn" style={{ width: "24px", height: "24px" }} aria-label={`Remove ${c}`} disabled={save.state === "saving"} onClick={() => put(categories.filter((x) => x !== c))}>
+                <button type="button" className="iconbtn" style={{ width: "24px", height: "24px" }} aria-label={t("programExtras.remove", { c })} disabled={save.state === "saving"} onClick={() => put(categories.filter((x) => x !== c))}>
                   <X className="ic ic-sm" aria-hidden="true" />
                 </button>
               </li>
@@ -148,12 +149,12 @@ export function BudgetCategoriesEditor({ programId }: { programId: string }) {
           }}
         >
           <label className="sr" htmlFor={`cat-${programId}`}>
-            New budget category
+            {t("programExtras.newBudgetCategory")}
           </label>
-          <input id={`cat-${programId}`} className="inp" style={{ maxWidth: "220px" }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="e.g. Personnel" />
+          <input id={`cat-${programId}`} className="inp" style={{ maxWidth: "220px" }} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t("programExtras.eGPersonnel")} />
           <button type="submit" className="btn btn-sm btn-secondary" disabled={!draft.trim() || save.state === "saving"}>
             <Plus className="ic" aria-hidden="true" />
-            Add
+            {t("programExtras.add")}
           </button>
         </form>
       </div>

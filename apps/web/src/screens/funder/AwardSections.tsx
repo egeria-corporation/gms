@@ -17,6 +17,7 @@ import { openBlob } from "../../lib/browser.ts";
 import { formatMinor } from "../../lib/format.ts";
 import { DriveExportButton } from "./GoogleWorkspace.tsx";
 import { dateTime, usePeople } from "./shared.tsx";
+import { t } from "./i18n.ts";
 
 export type AwardTab = "agreement" | "payments" | "requirements" | "budget" | "amendments" | "documents" | "messages" | "activity" | "closeout";
 type Owner = "agreement" | "payments";
@@ -37,10 +38,10 @@ const TABS: { key: AwardTab; label: string; owner: Owner }[] = [
 export function useAwardTab(owner: Owner, awardId: string | undefined, base: string): [AwardTab, (tab: AwardTab) => void] {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const asked = TABS.find((t) => t.key === params.get("tab") && t.owner === owner)?.key;
+  const asked = TABS.find((item) => item.key === params.get("tab") && item.owner === owner)?.key;
   const tab: AwardTab = asked ?? owner;
   const setTab = (next: AwardTab) => {
-    const target = TABS.find((t) => t.key === next)!;
+    const target = TABS.find((item) => item.key === next)!;
     if (target.owner === owner) {
       setParams(next === owner ? {} : { tab: next }, { replace: true });
     } else if (awardId) {
@@ -51,7 +52,7 @@ export function useAwardTab(owner: Owner, awardId: string | undefined, base: str
 }
 
 export function AwardTabs({ active, onChange, counts = {} }: { active: AwardTab; onChange: (tab: AwardTab) => void; counts?: Partial<Record<AwardTab, number>> }) {
-  return <Tabs label="Award sections" idPrefix="award" active={active} onChange={onChange} tabs={TABS.map((t) => ({ key: t.key, label: t.label, ...(counts[t.key] !== undefined ? { count: counts[t.key] } : {}) }))} />;
+  return <Tabs label={t("awardSections.awardSections")} idPrefix="award" active={active} onChange={onChange} tabs={TABS.map((item) => ({ key: item.key, label: item.label, ...(counts[item.key] !== undefined ? { count: counts[item.key] } : {}) }))} />;
 }
 
 const shortHash = (sha: string | null | undefined) => (sha ? `${sha.slice(0, 8)}…${sha.slice(-4)}` : "—");
@@ -64,7 +65,7 @@ export function SignatureRecords({ awardId, agreement, recipientName, funderName
   const ipOf = (party: "grantee" | "funder") => {
     const r = record(party);
     if (r?.ip) return <span className="mono">{r.ip}</span>;
-    if (r && !r.ipVisible) return <span className="muted">Recorded · shown to admins and finance</span>;
+    if (r && !r.ipVisible) return <span className="muted">{t("awardSections.recordedShownToAdmins")}</span>;
     return "Recorded";
   };
   const rows = [
@@ -74,28 +75,28 @@ export function SignatureRecords({ awardId, agreement, recipientName, funderName
   return (
     <section className="card" aria-labelledby="signatures-h">
       <div className="card-h">
-        <h3 id="signatures-h">Signature records</h3>
-        <span className="small muted">Typed name, time, IP address and document hash are recorded in the ledger at signing.</span>
+        <h3 id="signatures-h">{t("awardSections.signatureRecords")}</h3>
+        <span className="small muted">{t("awardSections.typedNameTimeIp")}</span>
       </div>
-      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Signature records, scrollable">
-        <table className="tbl" aria-label="Signature records">
+      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("awardSections.signatureRecordsScrollable")}>
+        <table className="tbl" aria-label={t("awardSections.signatureRecords")}>
           <thead>
             <tr>
-              <th>Signer</th>
-              <th>Role</th>
-              <th>Signed</th>
-              <th>IP address</th>
-              <th>Document hash</th>
+              <th>{t("awardSections.signer")}</th>
+              <th>{t("awardSections.role")}</th>
+              <th>{t("awardSections.signed")}</th>
+              <th>{t("awardSections.ipAddress")}</th>
+              <th>{t("awardSections.documentHash")}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.role}>
-                <td className="b">{r.signature?.name ?? <span className="muted">Not signed yet</span>}</td>
+                <td className="b">{r.signature?.name ?? <span className="muted">{t("awardSections.notSignedYet")}</span>}</td>
                 <td>{r.role}</td>
                 <td>{r.signature ? dateTime(r.signature.at) : "—"}</td>
                 <td>{r.signature ? ipOf(r.party) : "—"}</td>
-                <td className="mono">{r.signature ? `sha256 ${shortHash(agreement.documentSha256)}` : "—"}</td>
+                <td className="mono">{r.signature ? t("awardSections.sha256", { shortHash: shortHash(agreement.documentSha256) }) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -115,49 +116,49 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
   return (
     <section className="card" aria-labelledby="award-docs-h">
       <div className="card-h">
-        <h3 id="award-docs-h">Documents</h3>
-        <span className="small muted">Generated by the GMS for this award</span>
+        <h3 id="award-docs-h">{t("awardSections.documents")}</h3>
+        <span className="small muted">{t("awardSections.generatedByTheGms")}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {(letter.error !== null || pdf.error !== null) && <ErrorBanner error={letter.error ?? pdf.error} />}
         <div className="doc">
           <span className="ft ft-pdf">PDF</span>
           <div className="grow">
-            <div className="nm">Award letter.pdf</div>
+            <div className="nm">{t("awardSections.awardLetterPdf")}</div>
             <div className="mt">
               <span>
-                {formatMinor(award.awardedAmountMinor, award.currency)} to {award.recipient?.name ?? "the recipient"}
+                {t("awardSections.to", { amount: formatMinor(award.awardedAmountMinor, award.currency) })} {award.recipient?.name ?? t("awardSections.theRecipient")}
               </span>
             </div>
           </div>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void letter.run()} disabled={letter.state === "saving"} aria-label="Open the award letter">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void letter.run()} disabled={letter.state === "saving"} aria-label={t("awardSections.openTheAwardLetter")}>
             <Download className="ic" aria-hidden="true" />
-            Open
+            {t("awardSections.open")}
           </button>
-          <DriveExportButton kind="award_letter" id={award.id} label="the award letter" />
+          <DriveExportButton kind="award_letter" id={award.id} label={t("awardSections.theAwardLetter")} />
         </div>
         {agreement && agreement.documentSha256 ? (
           <div className="doc">
             <span className="ft ft-pdf">PDF</span>
             <div className="grow">
-              <div className="nm">{agreement.status === "executed" ? "Grant agreement — executed.pdf" : "Grant agreement.pdf"}</div>
+              <div className="nm">{agreement.status === "executed" ? t("awardSections.grantAgreementExecutedPdf") : t("awardSections.grantAgreementPdf")}</div>
               <div className="mt">
-                <span>Version {agreement.version}</span>
+                <span>{t("awardSections.version", { version: agreement.version })}</span>
                 <span>·</span>
-                <span className="mono">sha256 {shortHash(agreement.documentSha256)}</span>
+                <span className="mono">{t("awardSections.sha256", { shortHash: shortHash(agreement.documentSha256) })}</span>
                 {agreement.executedAt && (
                   <>
                     <span>·</span>
-                    <span>executed {dateTime(agreement.executedAt)}</span>
+                    <span>{t("awardSections.executed", { dateTime: dateTime(agreement.executedAt) })}</span>
                   </>
                 )}
               </div>
             </div>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => void pdf.run()} disabled={pdf.state === "saving"} aria-label="Open the grant agreement">
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => void pdf.run()} disabled={pdf.state === "saving"} aria-label={t("awardSections.openTheGrantAgreement")}>
               <Download className="ic" aria-hidden="true" />
-              Open
+              {t("awardSections.open")}
             </button>
-            <DriveExportButton kind="agreement" id={agreement.id} label="the grant agreement" />
+            <DriveExportButton kind="agreement" id={agreement.id} label={t("awardSections.theGrantAgreement")} />
           </div>
         ) : (
           <div className="doc">
@@ -165,14 +166,14 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
               <FileText className="ic" aria-hidden="true" />
             </span>
             <div className="grow">
-              <div className="nm">Grant agreement</div>
+              <div className="nm">{t("awardSections.grantAgreement")}</div>
               <div className="mt">
-                <span>{agreement ? "Drafted, not sent yet" : "Not generated yet"}</span>
+                <span>{agreement ? t("awardSections.draftedNotSentYet") : t("awardSections.notGeneratedYet")}</span>
               </div>
             </div>
           </div>
         )}
-        <p className="small muted">Report attachments from the grantee are on each received report under Reporting.</p>
+        <p className="small muted">{t("awardSections.reportAttachmentsFromThe")}</p>
       </div>
     </section>
   );
@@ -184,15 +185,15 @@ const bare = (id: string | null | undefined) => (id ?? "").replace(/^[a-z]{3}_/,
 export function AwardActivity({ award }: { award: AwardDetail }) {
   const { person } = usePeople();
   const ledger = useApiQuery((api) => api.listLedger({ pageSize: 100 }), [award.id]);
-  const subjects = new Set([bare(award.id), bare(award.agreement?.id), bare(award.applicationId), ...award.tranches.map((t) => bare(t.id))].filter(Boolean));
+  const subjects = new Set([bare(award.id), bare(award.agreement?.id), bare(award.applicationId), ...award.tranches.map((item) => bare(item.id))].filter(Boolean));
   return (
     <section className="card" aria-labelledby="award-activity-h">
       <div className="card-h">
-        <h3 id="award-activity-h">Activity</h3>
-        <span className="small muted">From the append-only ledger</span>
+        <h3 id="award-activity-h">{t("awardSections.activity")}</h3>
+        <span className="small muted">{t("awardSections.fromTheAppendOnly")}</span>
       </div>
       <div className="card-b">
-        {ledger.status === "loading" && <Loading label="Loading activity" />}
+        {ledger.status === "loading" && <Loading label={t("awardSections.loadingActivity")} />}
         {ledger.status === "error" && <ErrorBanner error={ledger.error} onRetry={ledger.reload} />}
         {ledger.data && <ActivityTimeline events={ledger.data.items.filter((e) => subjects.has(bare(e.subjectId)))} personName={(id) => person(id)?.name} when={(iso) => dateTime(iso)} compact={false} empty="Nothing has been recorded for this award yet." />}
       </div>
@@ -217,24 +218,24 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
   const resume = useApiMutation((api) => api.resumeAward(award.id));
   const stop = useApiMutation((api, kind: "suspend" | "cancel", reason: string) => (kind === "suspend" ? api.suspendAward(award.id, reason) : api.cancelAward(award.id, reason)));
 
-  const live = award.tranches.filter((t) => t.status !== "cancelled");
-  const open = live.filter((t) => t.status !== "settled");
+  const live = award.tranches.filter((item) => item.status !== "cancelled");
+  const open = live.filter((item) => item.status !== "settled");
   const owed = (requirements.data ?? []).filter((r) => !["accepted", "waived"].includes(r.status));
   const awarded = award.awardedAmountMinor ?? 0;
   const disbursed = award.disbursedAmountMinor;
   const checks: { key: string; state: CheckState; label: string; reason: string }[] = [
-    { key: "agreement", state: award.agreement?.status === "executed" ? "pass" : "fail", label: "Agreement executed", reason: award.agreement?.status === "executed" ? "Both parties have signed." : "The agreement is not executed." },
-    { key: "tranches", state: live.length === 0 ? "unknown" : open.length ? "fail" : "pass", label: "Every tranche settled", reason: live.length === 0 ? "No payment schedule." : open.length ? `${open.length} of ${live.length} still open.` : `${live.length} of ${live.length} settled.` },
+    { key: "agreement", state: award.agreement?.status === "executed" ? "pass" : "fail", label: t("awardSections.agreementExecuted"), reason: award.agreement?.status === "executed" ? "Both parties have signed." : "The agreement is not executed." },
+    { key: "tranches", state: live.length === 0 ? "unknown" : open.length ? "fail" : "pass", label: t("awardSections.everyTrancheSettled"), reason: live.length === 0 ? "No payment schedule." : open.length ? `${open.length} of ${live.length} still open.` : `${live.length} of ${live.length} settled.` },
     {
       key: "requirements",
       state: requirements.status !== "ready" ? "unknown" : owed.length ? "fail" : "pass",
-      label: "Every requirement accepted or waived",
+      label: t("awardSections.everyRequirementAcceptedOr"),
       reason: requirements.status !== "ready" ? "Requirements could not be read." : owed.length ? `${owed.length} still owed: ${owed.map((r) => r.title).join(", ")}.` : requirements.data.length ? "All reports and documents are in." : "No requirements on this award.",
     },
     {
       key: "disbursed",
       state: disbursed === null ? "unknown" : disbursed >= awarded ? "pass" : "fail",
-      label: "Disbursed equals awarded",
+      label: t("awardSections.disbursedEqualsAwarded"),
       reason: disbursed === null ? "Passport has not reported a disbursed amount yet." : `${formatMinor(disbursed, award.currency)} of ${formatMinor(awarded, award.currency)} disbursed, as read from Passport.`,
     },
   ];
@@ -247,13 +248,13 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
   return (
     <section className="card" aria-labelledby="closeout-h">
       <div className="card-h">
-        <h3 id="closeout-h">Closeout</h3>
-        <span className="small muted">{award.status === "completed" ? "This award is complete" : blocking ? `${blocking} of ${checks.length} not met` : "Ready to complete"}</span>
+        <h3 id="closeout-h">{t("awardSections.closeout")}</h3>
+        <span className="small muted">{award.status === "completed" ? t("awardSections.thisAwardIsComplete") : blocking ? t("awardSections.ofNotMet", { blocking, count: checks.length }) : t("awardSections.readyToComplete")}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {done && <Notice tone="ok" title={done} />}
         {(complete.error !== null || resume.error !== null || stop.error !== null) && <ErrorBanner error={complete.error ?? resume.error ?? stop.error} />}
-        <ul className="rc" aria-label="Closeout checklist">
+        <ul className="rc" aria-label={t("awardSections.closeoutChecklist")}>
           {checks.map((c, i) => {
             const Icon = CHECK_ICON[c.state];
             return (
@@ -261,7 +262,7 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
                 <Icon className="ic" aria-hidden="true" />
                 <div>
                   <div className="l">
-                    <span className="sr">{c.state === "pass" ? "Met: " : c.state === "fail" ? "Not met: " : "Unknown: "}</span>
+                    <span className="sr">{c.state === "pass" ? t("awardSections.met") : c.state === "fail" ? t("awardSections.notMet") : t("awardSections.unknown")}</span>
                     {c.label}
                   </div>
                   <div className="r">{c.reason}</div>
@@ -282,10 +283,10 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
                   if (await complete.run()) finished("Award completed. Passport has been told.");
                 }}
               >
-                Complete award
+                {t("awardSections.completeAward")}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => setDialog("suspend")}>
-                Suspend
+                {t("awardSections.suspend")}
               </button>
             </>
           )}
@@ -298,22 +299,22 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
                 if (await resume.run()) finished("Award resumed.");
               }}
             >
-              Resume award
+              {t("awardSections.resumeAward")}
             </button>
           )}
           {["offered", "accepted", "active", "suspended"].includes(award.status) && (
             <button type="button" className="btn btn-danger" onClick={() => setDialog("cancel")}>
-              Cancel award
+              {t("awardSections.cancelAward")}
             </button>
           )}
         </div>
-        {award.status === "active" && blocking > 0 && <p className="help">Complete award is unavailable until every line above is met.</p>}
-        {award.status === "completed" && <p className="help">A completed award is read-only. Its closeout summary is part of the workspace export.</p>}
+        {award.status === "active" && blocking > 0 && <p className="help">{t("awardSections.completeAwardIsUnavailable")}</p>}
+        {award.status === "completed" && <p className="help">{t("awardSections.aCompletedAwardIs")}</p>}
       </div>
       {dialog && (
         <ReasonDialog
-          title={dialog === "suspend" ? "Suspend this award" : "Cancel this award"}
-          label={dialog === "suspend" ? "Why is it suspended? The grantee sees this." : "Why is it cancelled? Open tranches are cancelled with it."}
+          title={dialog === "suspend" ? t("awardSections.suspendThisAward") : t("awardSections.cancelThisAward")}
+          label={dialog === "suspend" ? t("awardSections.whyIsItSuspended") : t("awardSections.whyIsItCancelled")}
           action={dialog === "suspend" ? "Suspend award" : "Cancel award"}
           danger={dialog === "cancel"}
           onClose={() => setDialog(null)}

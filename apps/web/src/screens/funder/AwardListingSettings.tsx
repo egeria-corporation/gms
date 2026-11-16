@@ -9,6 +9,7 @@ import type { AwardListingSettings } from "../../api/awardSharing.ts";
 import { useAwardSharingMutation, useAwardSharingQuery } from "../../api/awardSharingHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, Loading, SaveNote } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 function Row({ id, label, detail, on, disabled, onToggle }: { id: string; label: string; detail: string; on: boolean; disabled: boolean; onToggle: () => void }) {
   return (
@@ -19,7 +20,7 @@ function Row({ id, label, detail, on, disabled, onToggle }: { id: string; label:
           {label}
         </div>
         <div className="r">
-          {on ? "On" : "Off"} · {detail}
+          {on ? t("awardListingSettings.on") : t("awardListingSettings.off")} · {detail}
         </div>
       </div>
       <button type="button" className={on ? "tog on" : "tog"} role="switch" aria-checked={on} aria-labelledby={id} disabled={disabled} onClick={onToggle}></button>
@@ -54,39 +55,35 @@ export function AwardListingCard() {
     <section className="card" aria-labelledby="awards-listing-h">
       <div className="card-h">
         <div>
-          <h2 id="awards-listing-h">Grants awarded</h2>
+          <h2 id="awards-listing-h">{t("awardListingSettings.grantsAwarded")}</h2>
           <p className="small muted">
-            List the grants you award at{" "}
-            <Link to={`/f/${ws.handle}/awards`} className="mono">
-              /f/{ws.handle}/awards
-            </Link>
-            , each with its own page, a share card and a “Funded by” badge for the grantee. Only accepted, active and completed awards to organizations are listed. Confidential awards never are, and a grantee can ask not to be listed.
+            {t.rich("awardListingSettings.listTheGrantsYou", { handle: ws.handle, link: (chunks) => <Link to={`/f/${ws.handle}/awards`} className="mono">{chunks}</Link> })}
           </p>
         </div>
         <SaveNote state={save.state === "saving" || saveDefault.state === "saving" ? "saving" : save.state === "saved" || saveDefault.state === "saved" ? "saved" : "idle"} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {q.status === "loading" && <Loading label="Loading the settings" />}
+        {q.status === "loading" && <Loading label={t("awardListingSettings.loadingTheSettings")} />}
         {q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} />}
-        {failed && error !== null && <ErrorBanner error={error} title="The setting did not change." />}
+        {failed && error !== null && <ErrorBanner error={error} title={t("awardListingSettings.theSettingDidNot")} />}
         {s && (
           <>
             <div className="rc">
-              <Row id="list-awards-label" label="List awards on my public page" detail="Recipient, program, purpose and year of each award you list. Off until you turn it on." on={s.listAwards} disabled={!isAdmin || busy} onToggle={() => void toggle({ listAwards: !s.listAwards })} />
-              <Row id="show-amounts-label" label="Show award amounts" detail="Amounts on your grants-awarded pages, share cards and the posts grantees are offered." on={s.showAmounts} disabled={!isAdmin || busy} onToggle={() => void toggle({ showAmounts: !s.showAmounts })} />
+              <Row id="list-awards-label" label={t("awardListingSettings.listAwardsOnMy")} detail="Recipient, program, purpose and year of each award you list. Off until you turn it on." on={s.listAwards} disabled={!isAdmin || busy} onToggle={() => void toggle({ listAwards: !s.listAwards })} />
+              <Row id="show-amounts-label" label={t("awardListingSettings.showAwardAmounts")} detail="Amounts on your grants-awarded pages, share cards and the posts grantees are offered." on={s.showAmounts} disabled={!isAdmin || busy} onToggle={() => void toggle({ showAmounts: !s.showAmounts })} />
             </div>
             <p className="small" style={{ margin: 0 }}>
-              {s.counts.listed} listed · {s.counts.confidential} confidential · {s.counts.recipientUnlisted} kept off by the grantee
+              {t("awardListingSettings.listedConfidentialKeptOff", { listed: s.counts.listed, confidential: s.counts.confidential, recipientUnlisted: s.counts.recipientUnlisted })}
               {s.listAwards && (
                 <>
                   {" · "}
-                  <Link to={`/f/${ws.handle}/awards`}>Open your grants-awarded page</Link>
+                  <Link to={`/f/${ws.handle}/awards`}>{t("awardListingSettings.openYourGrantsAwarded")}</Link>
                 </>
               )}
             </p>
             {s.programs.length > 0 && (
               <div>
-                <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>New awards start confidential</h3>
+                <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>{t("awardListingSettings.newAwardsStartConfidential")}</h3>
                 <div className="rc">
                   {s.programs.map((p) => (
                     <Row key={p.id} id={`prog-conf-${p.id}`} label={p.name} detail="Awards made from now on in this program start confidential. Awards already made keep their setting." on={p.awardsConfidential} disabled={!canDefault || busy} onToggle={() => void toggleDefault(p.id, !p.awardsConfidential)} />
@@ -100,7 +97,7 @@ export function AwardListingCard() {
       {!isAdmin && (
         <div className="card-f small muted">
           <Info className="ic" aria-hidden="true" />
-          Only workspace admins can change what your public page lists{canDefault ? "; program officers can set a program’s default." : "."}
+          {t("awardListingSettings.onlyWorkspaceAdminsCan")}{canDefault ? t("awardListingSettings.programOfficersCanSet") : "."}
         </div>
       )}
     </section>

@@ -16,6 +16,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { formatMinor, parseDollars, slugify } from "../../lib/format.ts";
 import { SettingsNav } from "./SettingsPassport.tsx";
+import { t } from "./i18n.ts";
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
@@ -48,14 +49,14 @@ function FundDialog({ fund, handle, onClose, onSaved }: { fund: Fund | null; han
     <Dialog open onClose={onClose} labelledBy="fund-dialog-title">
       <form onSubmit={submit} noValidate>
         <div className="hd">
-          <h2 id="fund-dialog-title">{fund ? `Edit ${fund.name}` : "New fund"}</h2>
+          <h2 id="fund-dialog-title">{fund ? t("fundSettings.edit", { name: fund.name }) : t("fundSettings.newFund")}</h2>
         </div>
         <div className="bd">
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <Field id="fund-name" label="Name" required error={local.name ?? problemFor(save.error, "name")}>
+          <Field id="fund-name" label={t("fundSettings.name")} required error={local.name ?? problemFor(save.error, "name")}>
             <input className={local.name ? "inp err" : "inp"} id="fund-name" value={name} onChange={(e) => setName(e.target.value)} required />
           </Field>
-          <Field id="fund-slug" label="Public address" help={`Your fund's page: /f/${handle}/${address || "…"}`} error={local.slug ?? problemFor(save.error, "slug")}>
+          <Field id="fund-slug" label={t("fundSettings.publicAddress")} help={t("fundSettings.yourFundsPageF", { handle, address: address || "…" })} error={local.slug ?? problemFor(save.error, "slug")}>
             <input
               className={local.slug ? "inp err" : "inp mono"}
               id="fund-slug"
@@ -66,13 +67,13 @@ function FundDialog({ fund, handle, onClose, onSaved }: { fund: Fund | null; han
               }}
             />
           </Field>
-          <Field id="fund-description" label="Short description" help="Shown on your public pages. Up to 500 characters." error={local.description}>
+          <Field id="fund-description" label={t("fundSettings.shortDescription")} help={t("fundSettings.shownOnYourPublic")} error={local.description}>
             <textarea className="ta" id="fund-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
           </Field>
           <div className="fld-row">
-            <Field id="fund-color" label="Colour" help="From your theme, so it always reads well.">
+            <Field id="fund-color" label={t("fundSettings.colour")} help={t("fundSettings.fromYourThemeSo")}>
               <select className="sel" id="fund-color" value={color} onChange={(e) => setColor(e.target.value as FundColor | "")}>
-                <option value="">No colour</option>
+                <option value="">{t("fundSettings.noColour")}</option>
                 {FUND_COLORS.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
@@ -80,18 +81,18 @@ function FundDialog({ fund, handle, onClose, onSaved }: { fund: Fund | null; han
                 ))}
               </select>
             </Field>
-            <Field id="fund-logo" label="Logo link" help="An https link to an image." error={local.logoUrl}>
-              <input className={local.logoUrl ? "inp err" : "inp"} id="fund-logo" inputMode="url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://" />
+            <Field id="fund-logo" label={t("fundSettings.logoLink")} help={t("fundSettings.anHttpsLinkTo")} error={local.logoUrl}>
+              <input className={local.logoUrl ? "inp err" : "inp"} id="fund-logo" inputMode="url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder={t("fundSettings.https")} />
             </Field>
           </div>
         </div>
         <div className="ft">
           <SaveNote state={save.state === "saving" ? "saving" : "idle"} />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("fundSettings.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.state === "saving"}>
-            {fund ? "Save fund" : "Create fund"}
+            {fund ? t("fundSettings.saveFund") : t("fundSettings.createFund")}
           </button>
         </div>
       </form>
@@ -129,10 +130,10 @@ function BudgetsDialog({ fund, onClose, onSaved }: { fund: Fund; onClose: () => 
     <Dialog open onClose={onClose} labelledBy="budgets-dialog-title">
       <form onSubmit={submit} noValidate>
         <div className="hd">
-          <h2 id="budgets-dialog-title">Budget for {fund.name}</h2>
+          <h2 id="budgets-dialog-title">{t("fundSettings.budgetFor", { name: fund.name })}</h2>
         </div>
         <div className="bd">
-          <p className="small muted">The fund's own budget for each fiscal year. Its programs' budgets are shown beside it, so you can see what is left to give.</p>
+          <p className="small muted">{t("fundSettings.theFundsOwnBudget")}</p>
           {problem && (
             <div className="bnr bnr-warn" role="alert">
               <TriangleAlert className="ic" aria-hidden="true" />
@@ -142,26 +143,26 @@ function BudgetsDialog({ fund, onClose, onSaved }: { fund: Fund; onClose: () => 
           {save.error !== null && <ErrorBanner error={save.error} />}
           {rows.map((r, i) => (
             <div className="fld-row" key={i}>
-              <Field id={`fy-${i}`} label="Fiscal year">
+              <Field id={`fy-${i}`} label={t("fundSettings.fiscalYear")}>
                 <input className="inp" id={`fy-${i}`} inputMode="numeric" value={r.fiscalYear} onChange={(e) => set(i, "fiscalYear", e.target.value)} placeholder="2027" />
               </Field>
-              <Field id={`amt-${i}`} label="Budget (USD)">
+              <Field id={`amt-${i}`} label={t("fundSettings.budgetUsd")}>
                 <input className="inp" id={`amt-${i}`} inputMode="decimal" value={r.amount} onChange={(e) => set(i, "amount", e.target.value)} placeholder="2,500,000" />
               </Field>
             </div>
           ))}
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => setRows((r) => [...r, { fiscalYear: "", amount: "" }])}>
             <Plus className="ic" aria-hidden="true" />
-            Add a year
+            {t("fundSettings.addAYear")}
           </button>
         </div>
         <div className="ft">
           <SaveNote state={save.state === "saving" ? "saving" : "idle"} />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("fundSettings.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.state === "saving"}>
-            Save budget
+            {t("fundSettings.saveBudget")}
           </button>
         </div>
       </form>
@@ -191,31 +192,31 @@ function AdvisorDialog({ fund, onClose, onSent }: { fund: Fund; onClose: () => v
         noValidate
       >
         <div className="hd">
-          <h2 id="advisor-dialog-title">Advisor for {fund.name}</h2>
+          <h2 id="advisor-dialog-title">{t("fundSettings.advisorFor", { name: fund.name })}</h2>
         </div>
         <div className="bd">
-          <p className="small muted">An advisor sees only this fund: its programs, opportunities, applications, awards and payments. Nothing of your other funds.</p>
+          <p className="small muted">{t("fundSettings.anAdvisorSeesOnly")}</p>
           {invite.error !== null && <ErrorBanner error={invite.error} />}
           {invite.state === "saved" ? (
             <div className="bnr bnr-ok" role="status">
               <CircleCheck className="ic" aria-hidden="true" />
               <div>
-                <div className="t">Invitation created for {email.trim()}</div>
+                <div className="t">{t("fundSettings.invitationCreatedFor", { email: email.trim() })}</div>
                 {link ? (
                   <div className="d row" style={{ gap: "8px" }}>
-                    Send them this link: <span className="mono small">{link}</span> <CopyButton value={link} label="Copy link" what="invitation link" className="btn btn-sm btn-secondary" />
+                    {t.rich("fundSettings.sendThemThisLink", { link, span: (chunks) => <span className="mono small">{chunks}</span> })} <CopyButton value={link} label={t("fundSettings.copyLink")} what="invitation link" className="btn btn-sm btn-secondary" />
                   </div>
                 ) : (
-                  <div className="d">We emailed them a link to join.</div>
+                  <div className="d">{t("fundSettings.weEmailedThemA")}</div>
                 )}
               </div>
             </div>
           ) : (
             <>
-              <Field id="advisor-email" label="Their email address" required>
-                <input className="inp" id="advisor-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@organization.org" required />
+              <Field id="advisor-email" label={t("fundSettings.theirEmailAddress")} required>
+                <input className="inp" id="advisor-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("fundSettings.nameOrganizationOrg")} required />
               </Field>
-              <Field id="advisor-role" label="What they do" help="Program officers manage the fund's programs and awards. Reviewers score the applications assigned to them.">
+              <Field id="advisor-role" label={t("fundSettings.whatTheyDo")} help={t("fundSettings.programOfficersManageThe")}>
                 <select className="sel" id="advisor-role" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
                   {ADVISOR_ROLES.map((r) => (
                     <option key={r.value} value={r.value}>
@@ -229,12 +230,12 @@ function AdvisorDialog({ fund, onClose, onSent }: { fund: Fund; onClose: () => v
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {invite.state === "saved" ? "Done" : "Cancel"}
+            {invite.state === "saved" ? t("fundSettings.done") : t("fundSettings.cancel")}
           </button>
           {invite.state !== "saved" && (
             <button type="submit" className="btn btn-primary" disabled={!valid || invite.state === "saving"}>
               <UserPlus className="ic" aria-hidden="true" />
-              Send invitation
+              {t("fundSettings.sendInvitation")}
             </button>
           )}
         </div>
@@ -247,12 +248,12 @@ function Advisors({ fundId, version }: { fundId: string; version: number }) {
   const detail = useApiQuery(async (api) => api.getFund(fundId), [fundId, version]);
   if (detail.status !== "ready") return null;
   const people = detail.data.advisors;
-  if (!people.length) return <p className="small muted">No advisors yet.</p>;
+  if (!people.length) return <p className="small muted">{t("fundSettings.noAdvisorsYet")}</p>;
   return (
-    <ul className="small" aria-label="Advisors" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+    <ul className="small" aria-label={t("fundSettings.advisors")} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       {people.map((a, i) => (
         <li key={`${a.email ?? a.userId}-${i}`}>
-          {a.name ?? a.email ?? "Advisor"} · {ADVISOR_ROLES.find((r) => r.value === a.role)?.label ?? a.role.replace(/_/g, " ")}
+          {a.name ?? a.email ?? t("fundSettings.advisor")} · {ADVISOR_ROLES.find((r) => r.value === a.role)?.label ?? a.role.replace(/_/g, " ")}
         </li>
       ))}
     </ul>
@@ -269,27 +270,24 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
           <div>
             <h2 id={`fund-${fund.id}`} style={{ fontSize: "16px" }}>
               {fund.name}
-              {fund.isDefault && <span className="small muted"> · Default fund</span>}
+              {fund.isDefault && <span className="small muted"> {t("fundSettings.defaultFund")}</span>}
             </h2>
             <div className="small muted">
-              <Link to={page} className="mono">
-                {page}
-              </Link>{" "}
-              · {fund.programCount} program{fund.programCount === 1 ? "" : "s"}
+              {t.rich("fundSettings.program", { page, programCount: fund.programCount, link: (chunks) => <Link to={page} className="mono">{chunks}</Link> })}{fund.programCount === 1 ? "" : t("fundSettings.s")}
             </div>
           </div>
         </div>
         {isAdmin && (
           <div className="row" style={{ gap: "8px" }}>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onEdit} aria-label={`Edit ${fund.name}`}>
-              Edit
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onEdit} aria-label={t("fundSettings.edit", { name: fund.name })}>
+              {t("fundSettings.edit2")}
             </button>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onBudgets} aria-label={`Budget for ${fund.name}`}>
-              Budget
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onBudgets} aria-label={t("fundSettings.budgetFor", { name: fund.name })}>
+              {t("fundSettings.budget")}
             </button>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onInvite} aria-label={`Invite an advisor for ${fund.name}`}>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onInvite} aria-label={t("fundSettings.inviteAnAdvisorFor", { name: fund.name })}>
               <UserPlus className="ic" aria-hidden="true" />
-              Invite an advisor
+              {t("fundSettings.inviteAnAdvisor")}
             </button>
           </div>
         )}
@@ -298,35 +296,35 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
         <div style={{ minWidth: 0 }}>
           {fund.description && <p style={{ marginBottom: "10px" }}>{fund.description}</p>}
           {fund.totals.length === 0 ? (
-            <p className="small muted">No budget yet. Set the fund's budget per fiscal year, and budget its programs, to see what is left to give.</p>
+            <p className="small muted">{t("fundSettings.noBudgetYetSet")}</p>
           ) : (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`Budget of ${fund.name}, scrollable`}>
-              <table className="tbl" aria-label={`Budget of ${fund.name} by fiscal year`}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("fundSettings.budgetOfScrollable", { name: fund.name })}>
+              <table className="tbl" aria-label={t("fundSettings.budgetOfByFiscal", { name: fund.name })}>
                 <thead>
                   <tr>
-                    <th>Fiscal year</th>
-                    <th className="num">Fund budget</th>
-                    <th className="num">Programs</th>
-                    <th className="num">Left to budget</th>
+                    <th>{t("fundSettings.fiscalYear")}</th>
+                    <th className="num">{t("fundSettings.fundBudget")}</th>
+                    <th className="num">{t("fundSettings.programs")}</th>
+                    <th className="num">{t("fundSettings.leftToBudget")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fund.totals.map((t) => (
-                    <tr key={t.fiscalYear}>
-                      <td>FY{t.fiscalYear}</td>
-                      <td className="num">{formatMinor(t.budgetMinor, t.currency)}</td>
+                  {fund.totals.map((year) => (
+                    <tr key={year.fiscalYear}>
+                      <td>{t("fundSettings.fy", { fiscalYear: year.fiscalYear })}</td>
+                      <td className="num">{formatMinor(year.budgetMinor, year.currency)}</td>
                       <td className="num">
-                        {formatMinor(t.programsMinor, t.currency)} <span className="small muted">({t.programCount})</span>
+                        {formatMinor(year.programsMinor, year.currency)} <span className="small muted">({year.programCount})</span>
                       </td>
                       <td className="num">
-                        {t.availableMinor === null ? (
-                          <span className="muted">No fund budget</span>
-                        ) : t.over ? (
+                        {year.availableMinor === null ? (
+                          <span className="muted">{t("fundSettings.noFundBudget")}</span>
+                        ) : year.over ? (
                           <span className="var-neg b">
-                            <TriangleAlert className="ic ic-sm" aria-hidden="true" /> Over by {formatMinor(-t.availableMinor, t.currency)}
+                            <TriangleAlert className="ic ic-sm" aria-hidden="true" /> {t("fundSettings.overBy", { amount: formatMinor(-year.availableMinor, year.currency) })}
                           </span>
                         ) : (
-                          formatMinor(t.availableMinor, t.currency)
+                          formatMinor(year.availableMinor, year.currency)
                         )}
                       </td>
                     </tr>
@@ -337,7 +335,7 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
           )}
         </div>
         <div>
-          <h3 style={{ fontSize: "14px", marginBottom: "6px" }}>Advisors</h3>
+          <h3 style={{ fontSize: "14px", marginBottom: "6px" }}>{t("fundSettings.advisors")}</h3>
           <Advisors fundId={fund.id} version={version} />
         </div>
       </div>
@@ -360,17 +358,17 @@ export default function FundSettings() {
 
   return (
     <FunderShell active="Settings">
-      <title>{`Funds — ${ws.name}`}</title>
+      <title>{t("fundSettings.funds", { name: ws.name })}</title>
       <main className="main">
         <PageHeader
-          crumbs={[{ label: ws.name, to: base }, { label: "Settings" }, { label: "Funds" }]}
-          title="Settings"
-          meta={funds.status === "ready" && <span>{funds.data.items.length === 1 ? "1 fund" : `${funds.data.items.length} funds`}</span>}
+          crumbs={[{ label: ws.name, to: base }, { label: t("fundSettings.settings") }, { label: t("fundSettings.funds2") }]}
+          title={t("fundSettings.settings")}
+          meta={funds.status === "ready" && <span>{funds.data.items.length === 1 ? t("fundSettings.n1Fund") : t("fundSettings.funds3", { count: funds.data.items.length })}</span>}
           actions={
             isAdmin && (
               <button type="button" className="btn btn-primary" onClick={() => setDialog({ kind: "fund", fund: null })}>
                 <Plus className="ic" aria-hidden="true" />
-                New fund
+                {t("fundSettings.newFund")}
               </button>
             )
           }
@@ -383,15 +381,15 @@ export default function FundSettings() {
                 <Landmark className="ic ic-md" aria-hidden="true" />
                 <div>
                   <h2 id="funds-intro" style={{ fontSize: "16px" }}>
-                    Funds
+                    {t("fundSettings.funds2")}
                   </h2>
-                  <p className="small muted">Run many funds from one workspace, each with its own programs, budget, advisors and public page. Every program belongs to one fund; its opportunities, applications and awards go with it.</p>
+                  <p className="small muted">{t("fundSettings.runManyFundsFrom")}</p>
                 </div>
               </div>
             </section>
-            {funds.status === "loading" && <Loading label="Loading funds" />}
-            {funds.status === "error" && <ErrorBanner error={funds.error} onRetry={funds.reload} title="Funds could not be loaded" />}
-            {funds.status === "ready" && funds.data.items.length === 0 && <EmptyState icon={Landmark} title="No funds to show">Ask a workspace admin which funds you work on.</EmptyState>}
+            {funds.status === "loading" && <Loading label={t("fundSettings.loadingFunds")} />}
+            {funds.status === "error" && <ErrorBanner error={funds.error} onRetry={funds.reload} title={t("fundSettings.fundsCouldNotBe")} />}
+            {funds.status === "ready" && funds.data.items.length === 0 && <EmptyState icon={Landmark} title={t("fundSettings.noFundsToShow")}>{t("fundSettings.askAWorkspaceAdmin")}</EmptyState>}
             {funds.status === "ready" &&
               funds.data.items.map((f) => (
                 <Fragment key={f.id}>
@@ -401,7 +399,7 @@ export default function FundSettings() {
             {!isAdmin && (
               <p className="small muted row" style={{ gap: "6px" }}>
                 <Info className="ic ic-sm" aria-hidden="true" />
-                Only workspace admins can create funds, set their budgets and invite advisors.
+                {t("fundSettings.onlyWorkspaceAdminsCan")}
               </p>
             )}
           </div>

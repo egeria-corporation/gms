@@ -22,6 +22,7 @@ import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
 import { dateTime } from "./shared.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
+import { t } from "./i18n.ts";
 
 const STEPS: [Agreement["status"], string][] = [
   ["draft", "Draft"],
@@ -45,7 +46,7 @@ function CountersignDialog({ agreement, award, onClose, onDone }: { agreement: A
       >
         <div className="hd">
           <div>
-            <h2 id="countersign-title">Countersign the grant agreement</h2>
+            <h2 id="countersign-title">{t("awardAgreement.countersignTheGrantAgreement")}</h2>
             <p className="small muted">
               {award.recipient?.name} · {award.title} · {formatMinor(award.awardedAmountMinor, award.currency)}
             </p>
@@ -55,24 +56,24 @@ function CountersignDialog({ agreement, award, onClose, onDone }: { agreement: A
           {sign.error !== null && <ErrorBanner error={sign.error} />}
           <p className="row small">
             <Hash className="ic" aria-hidden="true" />
-            Document hash <span className="mono">sha256 {shortHash(agreement.documentSha256)}</span> · signed by {agreement.granteeSignature?.name} on {formatDate(agreement.granteeSignedAt)}
+            {t.rich("awardAgreement.documentHashSha256Signed", { shortHash: shortHash(agreement.documentSha256), name: agreement.granteeSignature?.name, date: formatDate(agreement.granteeSignedAt), span: (chunks) => <span className="mono">{chunks}</span> })}
           </p>
-          <Field id="countersign-name" label="Type your full legal name" required>
+          <Field id="countersign-name" label={t("awardAgreement.typeYourFullLegal")} required>
             <input className="inp" id="countersign-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
           </Field>
           <label className="cb">
             <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} />
-            <span>I am authorized to sign for {award.funder.name} and agree to the terms of this agreement.</span>
+            <span>{t("awardAgreement.iAmAuthorizedTo", { name: award.funder.name })}</span>
           </label>
-          <p className="help">Recorded: your typed name, the time, the network address of this session and the document hash. Signing is a human gate: an agent can prepare an agreement but never sign one.</p>
+          <p className="help">{t("awardAgreement.recordedYourTypedName")}</p>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("awardAgreement.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!name.trim() || !attest || sign.state === "saving"}>
             <PenLine className="ic" aria-hidden="true" />
-            Countersign
+            {t("awardAgreement.countersign")}
           </button>
         </div>
       </form>
@@ -98,36 +99,36 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
       <div className="card-h">
         <div>
           <h2 id="agreement-h" style={{ fontSize: "18px" }}>
-            Grant agreement
+            {t("awardAgreement.grantAgreement")}
           </h2>
           {g && (
             <p className="small muted">
-              Version {g.version} · created {formatDate(g.createdAt)}
+              {t("awardAgreement.versionCreated", { version: g.version, date: formatDate(g.createdAt) })}
             </p>
           )}
         </div>
         {g && <StatusBadge kind="agreement" status={g.status} />}
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        {agreement.status === "loading" && <Loading label="Loading the agreement" />}
+        {agreement.status === "loading" && <Loading label={t("awardAgreement.loadingTheAgreement")} />}
         {agreement.status === "error" && <ErrorBanner error={agreement.error} onRetry={agreement.reload} />}
         {(create.error !== null || send.error !== null || pdf.error !== null) && <ErrorBanner error={create.error ?? send.error ?? pdf.error} />}
         {agreement.status === "ready" && !g && (
           <EmptyState
             icon={FileText}
-            title="No agreement yet"
+            title={t("awardAgreement.noAgreementYet")}
             actions={
               <button type="button" className="btn btn-primary" disabled={create.state === "saving"} onClick={async () => (await create.run()) && onChanged()}>
-                Generate agreement
+                {t("awardAgreement.generateAgreement")}
               </button>
             }
           >
-            Generate the agreement from your standard template. Nothing is sent until you send it.
+            {t("awardAgreement.generateTheAgreementFrom")}
           </EmptyState>
         )}
         {g && (
           <>
-            <ol className="stp" aria-label="Agreement progress" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            <ol className="stp" aria-label={t("awardAgreement.agreementProgress")} style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {STEPS.map(([key, label], i) => (
                 <li key={key} style={{ display: "contents" }}>
                   <span className={i < at || g.status === "executed" ? "s done" : i === at ? "s on" : "s"} aria-current={i === at ? "step" : undefined}>
@@ -139,34 +140,34 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
               ))}
             </ol>
             <dl className="kv">
-              <dt>Document</dt>
-              <dd className="mono">sha256 {shortHash(g.documentSha256)}</dd>
-              <dt>Grantee signature</dt>
-              <dd>{g.granteeSignature ? `${g.granteeSignature.name} · ${dateTime(g.granteeSignature.at)}` : "Not signed yet"}</dd>
-              <dt>Funder signature</dt>
-              <dd>{g.funderSignature ? `${g.funderSignature.name} · ${dateTime(g.funderSignature.at)}` : "Not signed yet"}</dd>
-              <dt>Executed</dt>
+              <dt>{t("awardAgreement.document")}</dt>
+              <dd className="mono">{t("awardAgreement.sha256", { shortHash: shortHash(g.documentSha256) })}</dd>
+              <dt>{t("awardAgreement.granteeSignature")}</dt>
+              <dd>{g.granteeSignature ? `${g.granteeSignature.name} · ${dateTime(g.granteeSignature.at)}` : t("awardAgreement.notSignedYet")}</dd>
+              <dt>{t("awardAgreement.funderSignature")}</dt>
+              <dd>{g.funderSignature ? `${g.funderSignature.name} · ${dateTime(g.funderSignature.at)}` : t("awardAgreement.notSignedYet")}</dd>
+              <dt>{t("awardAgreement.executed")}</dt>
               <dd>{g.executedAt ? dateTime(g.executedAt) : "—"}</dd>
             </dl>
-            {g.status === "sent" && <Notice tone="info" title="Waiting for the grantee to sign">You can countersign once they have signed.</Notice>}
-            {g.status === "executed" && <Notice tone="ok" title="Agreement executed">The award is active and tranches that were waiting on execution are now due.</Notice>}
+            {g.status === "sent" && <Notice tone="info" title={t("awardAgreement.waitingForTheGrantee")}>{t("awardAgreement.youCanCountersignOnce")}</Notice>}
+            {g.status === "executed" && <Notice tone="ok" title={t("awardAgreement.agreementExecuted")}>{t("awardAgreement.theAwardIsActive")}</Notice>}
             <div className="row wrap">
               {g.status === "draft" && (
                 <button type="button" className="btn btn-primary" disabled={send.state === "saving"} onClick={async () => (await send.run(g.id)) && onChanged()}>
                   <Send className="ic" aria-hidden="true" />
-                  Send to grantee
+                  {t("awardAgreement.sendToGrantee")}
                 </button>
               )}
               {g.status === "signed_by_grantee" && (
                 <button type="button" className="btn btn-primary" onClick={() => setSigning(true)}>
                   <PenLine className="ic" aria-hidden="true" />
-                  Countersign…
+                  {t("awardAgreement.countersign2")}
                 </button>
               )}
               {g.hasStoredPdf && (
                 <button type="button" className="btn btn-secondary" disabled={pdf.state === "saving"} onClick={() => pdf.run(g.id)}>
                   <FileText className="ic" aria-hidden="true" />
-                  {g.status === "executed" ? "Open executed PDF" : "Open PDF"}
+                  {g.status === "executed" ? t("awardAgreement.openExecutedPdf") : t("awardAgreement.openPdf")}
                 </button>
               )}
             </div>
@@ -190,16 +191,16 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
 
 function Amendments({ award, onChanged }: { award: AwardDetail; onChanged: () => void }) {
   const decide = useApiMutation((api, id: string, status: "approved" | "declined") => api.decideAmendment(id, { status }));
-  if (!award.amendments.length) return <div className="card card-b muted">No amendment requests on this award.</div>;
+  if (!award.amendments.length) return <div className="card card-b muted">{t("awardAgreement.noAmendmentRequestsOn")}</div>;
   return (
     <div className="card">
       {decide.error !== null && <ErrorBanner error={decide.error} />}
-      <table className="tbl" aria-label="Amendments">
+      <table className="tbl" aria-label={t("awardAgreement.amendments")}>
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Requested</th>
-            <th>Status</th>
+            <th>{t("awardAgreement.type")}</th>
+            <th>{t("awardAgreement.requested")}</th>
+            <th>{t("awardAgreement.status")}</th>
             <th></th>
           </tr>
         </thead>
@@ -213,10 +214,10 @@ function Amendments({ award, onChanged }: { award: AwardDetail; onChanged: () =>
                 {m.status === "requested" && (
                   <span className="row">
                     <button type="button" className="btn btn-sm btn-primary" onClick={async () => (await decide.run(m.id, "approved")) && onChanged()}>
-                      Approve
+                      {t("awardAgreement.approve")}
                     </button>
                     <button type="button" className="btn btn-sm btn-danger" onClick={async () => (await decide.run(m.id, "declined")) && onChanged()}>
-                      Decline
+                      {t("awardAgreement.decline")}
                     </button>
                   </span>
                 )}
@@ -255,8 +256,8 @@ export default function AwardAgreement() {
   const [tab, setTab] = useAwardTab("agreement", current?.id, base);
   const tranches = useApiQuery((api) => api.listTranches(), []);
   const nextDue = (id: string) => {
-    const open = (tranches.data ?? []).filter((t) => t.awardId === id && ["scheduled", "due", "ready", "held"].includes(t.status));
-    const dated = open.filter((t) => t.dueAt).sort((a, b) => a.dueAt!.localeCompare(b.dueAt!))[0];
+    const open = (tranches.data ?? []).filter((item) => item.awardId === id && ["scheduled", "due", "ready", "held"].includes(item.status));
+    const dated = open.filter((item) => item.dueAt).sort((a, b) => a.dueAt!.localeCompare(b.dueAt!))[0];
     if (dated) return `Tranche ${dated.seq} · ${formatDate(dated.dueAt)}`;
     return open[0] ? `Tranche ${open[0].seq} · when its condition is met` : "—";
   };
@@ -271,55 +272,55 @@ export default function AwardAgreement() {
 
   return (
     <>
-      <title>{`Awards — ${ws.name}`}</title>
+      <title>{t("awardAgreement.awards", { name: ws.name })}</title>
       <FunderShell active="Awards">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Awards" }]}
-            title="Awards"
+            crumbs={[{ label: ws.name, to: base }, { label: t("awardAgreement.awards2") }]}
+            title={t("awardAgreement.awards2")}
             actions={
               <>
                 {canGive && (
                   <Link to={`${base}/awards/new`} className="btn btn-primary">
                     <Plus className="ic" aria-hidden="true" />
-                    New award
+                    {t("awardAgreement.newAward")}
                   </Link>
                 )}
                 {(ws.member.role ?? "admin") === "admin" && (
                   <Link to={`${base}/import`} className="btn btn-secondary">
                     <Upload className="ic" aria-hidden="true" />
-                    Import history
+                    {t("awardAgreement.importHistory")}
                   </Link>
                 )}
               </>
             }
             meta={
               <span>
-                {awards.data?.length === 1 ? "1 award" : `${awards.data?.length ?? 0} awards`} · {formatMinor(total)} awarded
+                {awards.data?.length === 1 ? t("awardAgreement.n1Award") : t("awardAgreement.awards3", { count: awards.data?.length ?? 0 })} {t("awardAgreement.awarded", { amount: formatMinor(total) })}
                 {fund.current ? ` · ${fund.current.name}` : ""}
               </span>
             }
           />
-          {awards.status === "loading" && <Loading label="Loading awards" />}
+          {awards.status === "loading" && <Loading label={t("awardAgreement.loadingAwards")} />}
           {awards.status === "error" && <ErrorBanner error={awards.error} onRetry={awards.reload} />}
           {awards.status === "ready" && awards.data.length === 0 && (
-            <EmptyState icon={AwardIcon} title={fund.current ? `No awards in ${fund.current.name} yet` : "No awards yet"}>
-              An award is created when a panel decision to approve is committed, or you can give one directly to an organization that has not applied.
+            <EmptyState icon={AwardIcon} title={fund.current ? t("awardAgreement.noAwardsInYet", { name: fund.current.name }) : t("awardAgreement.noAwardsYet")}>
+              {t("awardAgreement.anAwardIsCreated")}
             </EmptyState>
           )}
           {awards.status === "ready" && awards.data.length > 0 && (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Awards, scrollable">
-              <table className="tbl" aria-label="Awards">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("awardAgreement.awardsScrollable")}>
+              <table className="tbl" aria-label={t("awardAgreement.awards2")}>
                 <thead>
                   <tr>
-                    <th>Recipient</th>
-                    <th>Title</th>
-                    <th>Program</th>
-                    <th className="num">Awarded</th>
-                    <th className="num">Disbursed</th>
-                    <th className="num">Remaining</th>
-                    <th>Status</th>
-                    <th>Next due</th>
+                    <th>{t("awardAgreement.recipient")}</th>
+                    <th>{t("awardAgreement.title")}</th>
+                    <th>{t("awardAgreement.program")}</th>
+                    <th className="num">{t("awardAgreement.awarded2")}</th>
+                    <th className="num">{t("awardAgreement.disbursed")}</th>
+                    <th className="num">{t("awardAgreement.remaining")}</th>
+                    <th>{t("awardAgreement.status")}</th>
+                    <th>{t("awardAgreement.nextDue")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,7 +329,7 @@ export default function AwardAgreement() {
                       <td style={{ padding: "6px 12px" }}>
                         <div className="ent">
                           <Link to={`${base}/awards/${a.id}/agreement`} className="nm" aria-current={a.id === current?.id ? "true" : undefined}>
-                            {a.recipient?.name ?? "Recipient"}
+                            {a.recipient?.name ?? t("awardAgreement.recipient")}
                           </Link>
                           <div className="sub">
                             {invitationOf(a) && invitationOf(a)!.status !== "accepted" ? (
@@ -375,12 +376,12 @@ export default function AwardAgreement() {
                   <div className="row">
                     {award.data.applicationId && (
                       <Link to={`${base}/applications/${award.data.applicationId}`} className="btn btn-secondary">
-                        Application
+                        {t("awardAgreement.application")}
                       </Link>
                     )}
                     {!awaitingAcceptance && (
                       <Link to={`${base}/awards/${award.data.id}/payments`} className="btn btn-secondary">
-                        Payments
+                        {t("awardAgreement.payments")}
                       </Link>
                     )}
                   </div>
@@ -388,25 +389,25 @@ export default function AwardAgreement() {
               </div>
               <div className="amounts">
                 <div>
-                  <div className="stat-l">Awarded</div>
+                  <div className="stat-l">{t("awardAgreement.awarded2")}</div>
                   <div className="stat-v">{formatMinor(award.data.awardedAmountMinor, award.data.currency)}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Disbursed (from Passport)</div>
+                  <div className="stat-l">{t("awardAgreement.disbursedFromPassport")}</div>
                   <div className="stat-v">{formatMinor(award.data.disbursedAmountMinor ?? 0, award.data.currency)}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Tranches</div>
+                  <div className="stat-l">{t("awardAgreement.tranches")}</div>
                   <div className="stat-v">{award.data.tranches.length}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Passport mirror</div>
+                  <div className="stat-l">{t("awardAgreement.passportMirror")}</div>
                   <div className="stat-d" style={{ marginTop: "8px" }}>
                     {{ synced: "Synced", pending: "Not synced yet", not_applicable: "Not applicable", disabled: "Connect Passport to pay" }[award.data.passport.mirror]}
                   </div>
                 </div>
               </div>
-              <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((t) => ["due", "ready", "held"].includes(t.status)).length }} />
+              <AwardTabs active={tab} onChange={setTab} counts={{ amendments: award.data.amendments.length, payments: award.data.tranches.filter((item) => ["due", "ready", "held"].includes(item.status)).length }} />
               <TabPanel idPrefix="award" tab="agreement" active={tab}>
                 {invitation && invitation.status !== "accepted" ? (
                   <InvitationPanel award={award.data} invitation={invitation} canAct={canResend} canWithdraw={canWithdraw} mail={mail} onMail={setMail} onChanged={reload} />
@@ -428,10 +429,10 @@ export default function AwardAgreement() {
                 <div className="card card-b">
                   {award.data.applicationId ? (
                     <span>
-                      Messages with this grantee continue in the thread on the <Link to={`${base}/applications/${award.data.applicationId}#messages`}>application</Link>.
+                      {t.rich("awardAgreement.messagesWithThisGrantee", { link: (chunks) => <Link to={`${base}/applications/${award.data?.applicationId}#messages`}>{chunks}</Link> })}
                     </span>
                   ) : (
-                    <span className="muted">No thread for this award.</span>
+                    <span className="muted">{t("awardAgreement.noThreadForThis")}</span>
                   )}
                 </div>
               </TabPanel>

@@ -13,6 +13,7 @@ import { InvitationError } from "../../components/InvitationError.tsx";
 import { ErrorBanner, Field, Notice } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { daysLeft } from "../../lib/directAward.ts";
+import { t } from "./i18n.ts";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -39,23 +40,23 @@ function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; o
       >
         <div className="hd">
           <div>
-            <h2 id="change-address-title">Change the contact address</h2>
+            <h2 id="change-address-title">{t("directAwardPanels.changeTheContactAddress")}</h2>
             <p className="small muted">{award.recipient?.name} · {award.title}</p>
           </div>
         </div>
         <div className="bd">
-          {resend.error !== null && <InvitationError error={resend.error} title="The invitation was not sent" />}
-          <Field id="ca-email" label="New email address" required error={touched ? problem : null} help="We send a new link here. The link already sent stops working.">
+          {resend.error !== null && <InvitationError error={resend.error} title={t("directAwardPanels.theInvitationWasNot")} />}
+          <Field id="ca-email" label={t("directAwardPanels.newEmailAddress")} required error={touched ? problem : null} help={t("directAwardPanels.weSendANew")}>
             <input className="inp" id="ca-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("directAwardPanels.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={resend.state === "saving"}>
             <Send className="ic" aria-hidden="true" />
-            Send to this address
+            {t("directAwardPanels.sendToThisAddress")}
           </button>
         </div>
       </form>
@@ -81,24 +82,24 @@ function WithdrawDialog({ award, onClose, onDone }: { award: AwardDetail; onClos
       >
         <div className="hd">
           <div>
-            <h2 id="withdraw-title">Withdraw this award</h2>
+            <h2 id="withdraw-title">{t("directAwardPanels.withdrawThisAward")}</h2>
             <p className="small muted">{award.recipient?.name} · {award.title}</p>
           </div>
         </div>
         <div className="bd">
-          {cancel.error !== null && <ErrorBanner error={cancel.error} title="The award was not withdrawn" />}
-          <p>The link in the invitation stops working and the award is cancelled. This cannot be undone.</p>
-          <Field id="wd-reason" label="Reason" required error={touched ? problem : null}>
+          {cancel.error !== null && <ErrorBanner error={cancel.error} title={t("directAwardPanels.theAwardWasNot")} />}
+          <p>{t("directAwardPanels.theLinkInThe")}</p>
+          <Field id="wd-reason" label={t("directAwardPanels.reason")} required error={touched ? problem : null}>
             <textarea className="ta" id="wd-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Keep the award
+            {t("directAwardPanels.keepTheAward")}
           </button>
           <button type="submit" className="btn btn-danger" disabled={cancel.state === "saving"}>
             <Ban className="ic" aria-hidden="true" />
-            Withdraw award
+            {t("directAwardPanels.withdrawAward")}
           </button>
         </div>
       </form>
@@ -135,34 +136,34 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
       <div className="card-h">
         <div>
           <h2 id="invitation-h" style={{ fontSize: "18px" }}>
-            Invitation
+            {t("directAwardPanels.invitation")}
           </h2>
           <p className="small muted">
-            Sent to {invitation.email} · {formatDate(invitation.sentAt)}
+            {t("directAwardPanels.sentTo", { email: invitation.email, date: formatDate(invitation.sentAt) })}
           </p>
         </div>
         <InvitationBadge invitation={invitation} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {resend.error !== null && <InvitationError error={resend.error} title="The invitation was not sent" />}
+        {resend.error !== null && <InvitationError error={resend.error} title={t("directAwardPanels.theInvitationWasNot")} />}
         {unsent && (
           <div role="alert">
-            <Notice tone="warn" title="The award was saved, but the email could not be sent">
-              {name} has not been told yet. Choose Resend invitation to try again{canAct ? "" : ", or ask a workspace admin or finance member to"}.
+            <Notice tone="warn" title={t("directAwardPanels.theAwardWasSaved")}>
+              {t("directAwardPanels.hasNotBeenTold", { name })}{canAct ? "" : t("directAwardPanels.orAskAWorkspace")}.
             </Notice>
           </div>
         )}
-        {resent && !unsent && <div role="status"><Notice tone="ok" title="Invitation sent again">A new link is on its way to {invitation.email}. The earlier link no longer works.</Notice></div>}
+        {resent && !unsent && <div role="status"><Notice tone="ok" title={t("directAwardPanels.invitationSentAgain")}>{t("directAwardPanels.aNewLinkIs", { email: invitation.email })}</Notice></div>}
         <p>
           <Mail className="ic" aria-hidden="true" style={{ verticalAlign: "-3px", marginRight: "6px" }} />
           {WHAT_NEXT[invitation.status](name, invitation)}
         </p>
         <dl className="kv">
-          <dt>Organization</dt>
+          <dt>{t("directAwardPanels.organization")}</dt>
           <dd>{name}</dd>
-          <dt>Contact address</dt>
+          <dt>{t("directAwardPanels.contactAddress")}</dt>
           <dd>{invitation.email}</dd>
-          <dt>Link expires</dt>
+          <dt>{t("directAwardPanels.linkExpires")}</dt>
           <dd>{formatDate(invitation.expiresAt)}</dd>
         </dl>
         {open && (
@@ -182,18 +183,18 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
                 }}
               >
                 <Send className="ic" aria-hidden="true" />
-                Resend invitation
+                {t("directAwardPanels.resendInvitation")}
               </button>
             )}
             {canAct && canResend && (
               <button type="button" className="btn btn-secondary" onClick={() => setDialog("address")}>
-                Change address…
+                {t("directAwardPanels.changeAddress")}
               </button>
             )}
             {canWithdraw && (
               <button type="button" className="btn btn-danger" onClick={() => setDialog("withdraw")}>
                 <Ban className="ic" aria-hidden="true" />
-                Withdraw…
+                {t("directAwardPanels.withdraw")}
               </button>
             )}
           </div>

@@ -14,6 +14,7 @@ import { ErrorBanner, Field, Loading, Notice, PageHeader, errorMessage } from ".
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
 import { SettingsNav } from "./SettingsPassport.tsx";
+import { t } from "./i18n.ts";
 
 /** Status is an icon and a label, never colour alone. */
 export function DomainStatus({ d }: { d: SsoDomain }) {
@@ -22,18 +23,18 @@ export function DomainStatus({ d }: { d: SsoDomain }) {
       {d.status === "active" ? (
         <span className="bdg bdg-ok">
           <CircleCheck className="ic" aria-hidden="true" />
-          Active
+          {t("settingsSecurity.active")}
         </span>
       ) : (
         <span className="bdg bdg-warn">
           <Clock className="ic" aria-hidden="true" />
-          Pending
+          {t("settingsSecurity.pending")}
         </span>
       )}
       {d.required && (
         <span className="bdg bdg-info">
           <Lock className="ic" aria-hidden="true" />
-          Required
+          {t("settingsSecurity.required")}
         </span>
       )}
     </span>
@@ -78,36 +79,36 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
         </div>
         {confirm ? (
           <span className="row" style={{ gap: "8px" }}>
-            <span className="small">Remove {d.domain}?</span>
+            <span className="small">{t("settingsSecurity.remove", { domain: d.domain })}</span>
             <button type="button" className="btn btn-sm btn-danger" disabled={busy !== null} onClick={() => void act("remove")}>
-              Remove
+              {t("settingsSecurity.remove2")}
             </button>
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirm(false)}>
-              Keep it
+              {t("settingsSecurity.keepIt")}
             </button>
           </span>
         ) : (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirm(true)} aria-label={`Remove ${d.domain}`}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirm(true)} aria-label={t("settingsSecurity.remove3", { domain: d.domain })}>
             <Trash2 className="ic" aria-hidden="true" />
-            Remove
+            {t("settingsSecurity.remove2")}
           </button>
         )}
       </div>
 
       {d.stage === "add_dns_record" && (
         <>
-          <p className="small muted">Prove the domain is yours: add this TXT record at your DNS host, then check it. A record with the same value on the domain itself also works.</p>
+          <p className="small muted">{t("settingsSecurity.proveTheDomainIs")}</p>
           <dl className="kv">
-            <dt>Type</dt>
+            <dt>{t("settingsSecurity.type")}</dt>
             <dd className="mono">{d.dns.recordType}</dd>
-            <dt>Name</dt>
+            <dt>{t("settingsSecurity.name")}</dt>
             <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
               <span className="mono" style={{ overflowWrap: "anywhere" }}>
                 {d.dns.recordName}
               </span>
               <CopyButton value={d.dns.recordName} what="record name" className="btn btn-sm btn-secondary" />
             </dd>
-            <dt>Value</dt>
+            <dt>{t("settingsSecurity.value")}</dt>
             <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
               <span className="mono" style={{ overflowWrap: "anywhere" }}>
                 {d.dns.recordValue}
@@ -118,9 +119,9 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
             <button type="button" className="btn btn-sm btn-primary" disabled={busy !== null} onClick={() => void act("check")}>
               <RefreshCw className="ic" aria-hidden="true" />
-              {busy === "check" ? "Checking…" : "Check DNS record"}
+              {busy === "check" ? t("settingsSecurity.checking") : t("settingsSecurity.checkDnsRecord")}
             </button>
-            {d.lastCheckedAt && <span className="small muted">Last checked {formatDate(d.lastCheckedAt)}</span>}
+            {d.lastCheckedAt && <span className="small muted">{t("settingsSecurity.lastChecked", { date: formatDate(d.lastCheckedAt) })}</span>}
           </div>
           {(checked ?? d.lastCheckResult) && (checked ?? d.lastCheckResult) !== "matched" && (
             <span className="small" role="status">
@@ -130,13 +131,13 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
         </>
       )}
       {d.stage === "waiting_for_provider" && (
-        <Notice tone="info" title="DNS record found. Waiting for your identity provider to be connected">
-          Give your IT team the values under "For your IT team", then ask OpenGrants to connect your identity provider. This domain becomes active when it is connected.
+        <Notice tone="info" title={t("settingsSecurity.dnsRecordFoundWaiting")}>
+          {t("settingsSecurity.giveYourItTeam")}
         </Notice>
       )}
       {d.stage === "active" && (
         <p className="small muted">
-          Your identity provider is connected{d.activatedAt ? ` since ${formatDate(d.activatedAt)}` : ""}. People at {d.domain} can use single sign-on.
+          {t("settingsSecurity.yourIdentityProviderIs")}{d.activatedAt ? t("settingsSecurity.since", { date: formatDate(d.activatedAt) }) : ""}{t("settingsSecurity.peopleAtCanUse", { domain: d.domain })}
         </p>
       )}
       {problem && <ErrorBanner error={new Error(problem)} />}
@@ -166,12 +167,12 @@ function AddDomain({ disabled, onAdded }: { disabled: boolean; onAdded: () => vo
   return (
     <form className="row" style={{ gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }} onSubmit={(e) => void submit(e)}>
       <div style={{ flex: "1 1 260px" }}>
-        <Field id="sso-add-domain" label="Email domain" help="The part of your staff's addresses after the @, like example.org." error={problem}>
-          <input id="sso-add-domain" className="inp" value={domain} placeholder="example.org" disabled={disabled} onChange={(e) => setDomain(e.target.value)} />
+        <Field id="sso-add-domain" label={t("settingsSecurity.emailDomain")} help={t("settingsSecurity.thePartOfYour")} error={problem}>
+          <input id="sso-add-domain" className="inp" value={domain} placeholder={t("settingsSecurity.exampleOrg")} disabled={disabled} onChange={(e) => setDomain(e.target.value)} />
         </Field>
       </div>
       <button type="submit" className="btn btn-secondary" disabled={disabled || busy || !domain.trim()}>
-        Add domain
+        {t("settingsSecurity.addDomain")}
       </button>
     </form>
   );
@@ -206,11 +207,11 @@ function ServiceProviderValues({ sp, workspaceName }: { sp: NonNullable<SsoSetti
       <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
         <a className="btn btn-secondary" href={sp.metadataDownloadUrl} download>
           <Download className="ic" aria-hidden="true" />
-          Download metadata file
+          {t("settingsSecurity.downloadMetadataFile")}
         </a>
         <button type="button" className="btn btn-secondary" onClick={download}>
           <Download className="ic" aria-hidden="true" />
-          Download these values
+          {t("settingsSecurity.downloadTheseValues")}
         </button>
       </div>
     </>
@@ -250,35 +251,34 @@ export default function SettingsSecurity() {
   const toggleDisabled = !s || saving || (!s.requireSso && !s.canRequire.ok);
   return (
     <FunderShell active="Settings">
-      <title>{`Security settings — ${ws.name}`}</title>
+      <title>{t("settingsSecurity.securitySettings", { name: ws.name })}</title>
       <main className="main">
-        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Settings" }, { label: "Security" }]} title="Settings" meta={<span>{ws.name}</span>} />
+        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("settingsSecurity.settings") }, { label: t("settingsSecurity.security") }]} title={t("settingsSecurity.settings")} meta={<span>{ws.name}</span>} />
         <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
           <SettingsNav base={base} active="security" />
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {state.status === "loading" && <Loading label="Loading single sign-on settings" />}
+            {state.status === "loading" && <Loading label={t("settingsSecurity.loadingSingleSignOn")} />}
             {state.status === "error" && <ErrorBanner error={state.error} onRetry={load} />}
             {s && (
               <>
                 <section className="card" aria-labelledby="sso-title">
                   <div className="card-h">
                     <div>
-                      <h2 id="sso-title">Single sign-on</h2>
+                      <h2 id="sso-title">{t("settingsSecurity.singleSignOn")}</h2>
                       <p className="small muted">
-                        Let your staff sign in through your organization's identity provider (SAML 2.0), such as Okta, Google Workspace or JumpCloud. Add your email domain, prove it with a DNS record and send the values below to your IT team.
-                        OpenGrants then connects your identity provider.
+                        {t("settingsSecurity.letYourStaffSign")}
                       </p>
                     </div>
                   </div>
                   <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                     <span className="row small" style={{ gap: "6px" }} role="status">
                       {s.session.signedInThroughSso ? <ShieldCheck className="ic ic-sm" aria-hidden="true" /> : <Mail className="ic ic-sm" aria-hidden="true" />}
-                      {s.session.signedInThroughSso ? "You are signed in with single sign-on." : "You are signed in with an email code."}
+                      {s.session.signedInThroughSso ? t("settingsSecurity.youAreSignedIn") : t("settingsSecurity.youAreSignedIn2")}
                     </span>
                     {s.domains.length === 0 ? (
-                      <p className="small muted">No domains yet.</p>
+                      <p className="small muted">{t("settingsSecurity.noDomainsYet")}</p>
                     ) : (
-                      <ul aria-label="Single sign-on domains" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <ul aria-label={t("settingsSecurity.singleSignOnDomains")} style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
                         {s.domains.map((d) => (
                           <DomainRow key={d.id} d={d} onChanged={load} />
                         ))}
@@ -291,28 +291,28 @@ export default function SettingsSecurity() {
                 <section className="card" aria-labelledby="sso-require-title">
                   <div className="card-h">
                     <div>
-                      <h2 id="sso-require-title">Require single sign-on</h2>
-                      <p className="small muted">Only active domains are required. Members with other addresses, API clients and connected agents are not affected.</p>
+                      <h2 id="sso-require-title">{t("settingsSecurity.requireSingleSignOn")}</h2>
+                      <p className="small muted">{t("settingsSecurity.onlyActiveDomainsAre")}</p>
                     </div>
                   </div>
                   <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <div className="row" style={{ gap: "12px", justifyContent: "space-between" }}>
                       <div>
                         <div className="b" id="sso-require-l">
-                          Require single sign-on for people with these email addresses
+                          {t("settingsSecurity.requireSingleSignOn2")}
                         </div>
-                        <div className="small muted">They must sign in through your identity provider to open this workspace.</div>
+                        <div className="small muted">{t("settingsSecurity.theyMustSignIn")}</div>
                       </div>
                       <button type="button" className={`tog${s.requireSso ? " on" : ""}`} role="switch" aria-checked={s.requireSso} aria-labelledby="sso-require-l" disabled={toggleDisabled} onClick={() => void setRequirement(!s.requireSso)}></button>
                     </div>
                     <span className="row small" style={{ gap: "6px" }}>
                       {s.requireSso ? <Lock className="ic ic-sm" aria-hidden="true" /> : <KeyRound className="ic ic-sm" aria-hidden="true" />}
-                      {s.requireSso ? "Required" : "Not required"}
+                      {s.requireSso ? t("settingsSecurity.required") : t("settingsSecurity.notRequired")}
                     </span>
-                    {!s.requireSso && !s.canRequire.ok && s.canRequire.reason && <Notice tone="neu" title="Not available yet">{s.canRequire.reason}</Notice>}
+                    {!s.requireSso && !s.canRequire.ok && s.canRequire.reason && <Notice tone="neu" title={t("settingsSecurity.notAvailableYet")}>{s.canRequire.reason}</Notice>}
                     {problem && <ErrorBanner error={new Error(problem)} />}
                     <p className="small muted">
-                      If your identity provider stops working, an admin with an address on another domain can turn this off, or OpenGrants can lift it for you.
+                      {t("settingsSecurity.ifYourIdentityProvider")}
                     </p>
                   </div>
                 </section>
@@ -320,12 +320,12 @@ export default function SettingsSecurity() {
                 <section className="card" aria-labelledby="sso-it-title">
                   <div className="card-h">
                     <div>
-                      <h2 id="sso-it-title">For your IT team</h2>
-                      <p className="small muted">Set up OpenGrants GMS as a SAML 2.0 application in your identity provider with these values.</p>
+                      <h2 id="sso-it-title">{t("settingsSecurity.forYourItTeam")}</h2>
+                      <p className="small muted">{t("settingsSecurity.setUpOpengrantsGms")}</p>
                     </div>
                   </div>
                   <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {s.serviceProvider ? <ServiceProviderValues sp={s.serviceProvider} workspaceName={ws.name} /> : <Notice tone="warn" title="Not configured on this server">The server has no Supabase address set, so these values cannot be shown.</Notice>}
+                    {s.serviceProvider ? <ServiceProviderValues sp={s.serviceProvider} workspaceName={ws.name} /> : <Notice tone="warn" title={t("settingsSecurity.notConfiguredOnThis")}>{t("settingsSecurity.theServerHasNo")}</Notice>}
                   </div>
                 </section>
               </>

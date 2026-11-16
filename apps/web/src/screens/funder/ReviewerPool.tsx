@@ -6,6 +6,7 @@ import { useApiQuery } from "../../api/hooks.ts";
 import type { Stage } from "../../api/types.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { usePeople } from "./shared.tsx";
+import { t } from "./i18n.ts";
 
 const REVIEWING_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin"];
 const ROLE_LABEL: Record<string, string> = { reviewer: "Staff reviewer", external_reviewer: "External", program_officer: "Program officer", admin: "Admin" };
@@ -19,15 +20,15 @@ export function ReviewerPool({ competitionId, stages, base }: { competitionId: s
     <section className="card" aria-labelledby="comp-pool-title">
       <div className="card-h" style={{ padding: "12px 16px" }}>
         <h3 id="comp-pool-title" style={{ fontSize: "14px" }}>
-          Reviewer pool
+          {t("reviewerPool.reviewerPool")}
         </h3>
         <Link to={`${base}/reviews/assign`} className="small b">
-          Assign
+          {t("reviewerPool.assign")}
         </Link>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
         {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
-        {!pool.length && <span className="muted">No reviewers yet. Add reviewers to the team, or invite an external reviewer from Review assignments.</span>}
+        {!pool.length && <span className="muted">{t("reviewerPool.noReviewersYetAdd")}</span>}
         {pool.map((p) => {
           const mine = assigned(p.userId);
           const open = mine.filter((a) => a.status !== "submitted").length;
@@ -38,10 +39,10 @@ export function ReviewerPool({ competitionId, stages, base }: { competitionId: s
               </span>
               <div>
                 <div className="b" style={{ color: "var(--og-navy-dark)" }}>
-                  {p.name} {p.role === "external_reviewer" && <span className="tag">External</span>}
+                  {p.name} {p.role === "external_reviewer" && <span className="tag">{t("reviewerPool.external")}</span>}
                 </div>
                 <div className="muted xs">
-                  {ROLE_LABEL[p.role] ?? p.role} · {mine.length} assigned{mine.length ? ` · ${open} still to score` : ""}
+                  {t("reviewerPool.assigned", { ROLE_LABEL: ROLE_LABEL[p.role] ?? p.role, count: mine.length })}{mine.length ? t("reviewerPool.stillToScore", { open }) : ""}
                 </div>
               </div>
             </div>
@@ -50,15 +51,15 @@ export function ReviewerPool({ competitionId, stages, base }: { competitionId: s
         <div className="divider"></div>
         <div>
           <div className="b" style={{ color: "var(--og-navy-dark)" }}>
-            Entry rules
+            {t("reviewerPool.entryRules")}
           </div>
           {stages.length <= 1 ? (
-            <div className="muted xs">One stage: every submitted application is reviewed.</div>
+            <div className="muted xs">{t("reviewerPool.oneStageEverySubmitted")}</div>
           ) : (
             stages.slice(1).map((s) => (
               <div key={s.key} className="muted xs">
-                {s.label}: a program officer advances an application from {s.entryFrom.map((k) => stages.find((x) => x.key === k)?.label ?? k).join(" or ") || "the previous stage"}
-                {s.requiresSubmission ? "; the applicant then submits this stage’s forms." : "."}
+                {t("reviewerPool.aProgramOfficerAdvances", { label: s.label })} {s.entryFrom.map((k) => stages.find((x) => x.key === k)?.label ?? k).join(" or ") || t("reviewerPool.thePreviousStage")}
+                {s.requiresSubmission ? t("reviewerPool.theApplicantThenSubmits") : "."}
               </div>
             ))
           )}

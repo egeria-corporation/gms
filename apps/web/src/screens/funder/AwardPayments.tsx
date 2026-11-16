@@ -19,6 +19,7 @@ import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
+import { t } from "./i18n.ts";
 
 const OPEN = ["due", "ready", "held"];
 const NOT_STARTED = ["scheduled", "due", "ready", "held"];
@@ -31,13 +32,13 @@ interface DraftLine {
 }
 
 function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule: Schedule; requirements: Requirement[]; onClose: () => void; onSaved: () => void }) {
-  const editable = schedule.tranches.filter((t) => NOT_STARTED.includes(t.status));
-  const fixed = schedule.tranches.filter((t) => !NOT_STARTED.includes(t.status) && t.status !== "cancelled");
-  const left = (schedule.awardedAmountMinor ?? 0) - fixed.reduce((n, t) => n + t.amountMinor, 0);
+  const editable = schedule.tranches.filter((item) => NOT_STARTED.includes(item.status));
+  const fixed = schedule.tranches.filter((item) => !NOT_STARTED.includes(item.status) && item.status !== "cancelled");
+  const left = (schedule.awardedAmountMinor ?? 0) - fixed.reduce((n, item) => n + item.amountMinor, 0);
   const [lines, setLines] = useState<DraftLine[]>(() =>
-    (editable.length ? editable : [null]).map((t) => {
-      const c = (t?.condition ?? { type: "manual" }) as TrancheCondition;
-      return { amount: t ? String(t.amountMinor / 100) : "", type: c.type, date: c.type === "onDate" ? c.date : "", requirementId: c.type === "onReportAccepted" ? c.requirementId : "" };
+    (editable.length ? editable : [null]).map((tr) => {
+      const c = (tr?.condition ?? { type: "manual" }) as TrancheCondition;
+      return { amount: tr ? String(tr.amountMinor / 100) : "", type: c.type, date: c.type === "onDate" ? c.date : "", requirementId: c.type === "onReportAccepted" ? c.requirementId : "" };
     }),
   );
   const amounts = lines.map((l) => parseDollars(l.amount));
@@ -60,40 +61,40 @@ function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule
       >
         <div className="hd">
           <div>
-            <h2 id="schedule-title">Edit the payment schedule</h2>
-            <p className="small muted">Only tranches that have not started can change. They must add up to {formatMinor(left, schedule.currency)}.</p>
+            <h2 id="schedule-title">{t("awardPayments.editThePaymentSchedule")}</h2>
+            <p className="small muted">{t("awardPayments.onlyTranchesThatHave", { amount: formatMinor(left, schedule.currency) })}</p>
           </div>
         </div>
         <div className="bd">
           {save.error !== null && <ErrorBanner error={save.error} />}
           {lines.map((l, i) => (
             <fieldset key={i} className="card" style={{ padding: "12px 16px", margin: 0 }}>
-              <legend className="small b">Tranche {fixed.length + i + 1}</legend>
+              <legend className="small b">{t("awardPayments.tranche", { count: fixed.length + i + 1 })}</legend>
               <div className="fld-row">
-                <Field id={`sch-amount-${i}`} label="Amount (USD)" required>
+                <Field id={`sch-amount-${i}`} label={t("awardPayments.amountUsd")} required>
                   <input className="inp" id={`sch-amount-${i}`} inputMode="decimal" value={l.amount} onChange={(e) => set(i, { amount: e.target.value })} />
                 </Field>
-                <Field id={`sch-cond-${i}`} label="Becomes due" required>
+                <Field id={`sch-cond-${i}`} label={t("awardPayments.becomesDue")} required>
                   <select className="sel" id={`sch-cond-${i}`} value={l.type} onChange={(e) => set(i, { type: e.target.value as DraftLine["type"] })}>
-                    <option value="onExecution">On agreement execution</option>
-                    <option value="onReportAccepted">When a report is accepted</option>
-                    <option value="onDate">On a date</option>
-                    <option value="manual">Manually</option>
+                    <option value="onExecution">{t("awardPayments.onAgreementExecution")}</option>
+                    <option value="onReportAccepted">{t("awardPayments.whenAReportIs")}</option>
+                    <option value="onDate">{t("awardPayments.onADate")}</option>
+                    <option value="manual">{t("awardPayments.manually")}</option>
                   </select>
                 </Field>
               </div>
               {l.type === "onDate" && (
-                <Field id={`sch-date-${i}`} label="Date" required>
+                <Field id={`sch-date-${i}`} label={t("awardPayments.date")} required>
                   <input className="inp" id={`sch-date-${i}`} type="date" value={l.date} onChange={(e) => set(i, { date: e.target.value })} style={{ maxWidth: "220px" }} />
                 </Field>
               )}
               {l.type === "onReportAccepted" && (
-                <Field id={`sch-req-${i}`} label="Report" required>
+                <Field id={`sch-req-${i}`} label={t("awardPayments.report")} required>
                   <select className="sel" id={`sch-req-${i}`} value={l.requirementId} onChange={(e) => set(i, { requirementId: e.target.value })}>
-                    <option value="">Choose a requirement</option>
+                    <option value="">{t("awardPayments.chooseARequirement")}</option>
                     {requirements.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.title} · due {formatDate(r.dueAt)}
+                        {t("awardPayments.due", { title: r.title, date: formatDate(r.dueAt) })}
                       </option>
                     ))}
                   </select>
@@ -102,25 +103,25 @@ function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule
               {lines.length > 1 && (
                 <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLines((rows) => rows.filter((_, n) => n !== i))}>
                   <Trash2 className="ic" aria-hidden="true" />
-                  Remove tranche {fixed.length + i + 1}
+                  {t("awardPayments.removeTranche", { count: fixed.length + i + 1 })}
                 </button>
               )}
             </fieldset>
           ))}
           <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} onClick={() => setLines((rows) => [...rows, { amount: "", type: "manual", date: "", requirementId: "" }])}>
             <Plus className="ic" aria-hidden="true" />
-            Add tranche
+            {t("awardPayments.addTranche")}
           </button>
           <p className={total === left ? "help" : "err-msg"} role="status">
-            {formatMinor(total, schedule.currency)} of {formatMinor(left, schedule.currency)} scheduled{total === left ? "" : " · amounts must add up"}
+            {t("awardPayments.ofScheduled", { amount: formatMinor(total, schedule.currency), amount2: formatMinor(left, schedule.currency) })}{total === left ? "" : t("awardPayments.amountsMustAddUp")}
           </p>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("awardPayments.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!complete || total !== left || save.state === "saving"}>
-            Save schedule
+            {t("awardPayments.saveSchedule")}
           </button>
         </div>
       </form>
@@ -162,24 +163,24 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
       <div className="card-h">
         <div>
           <h3 id={`trn-${row.id}`}>
-            Tranche {row.seq} · {formatMinor(row.amountMinor, row.currency)}
+            {t("awardPayments.tranche2", { seq: row.seq, amount: formatMinor(row.amountMinor, row.currency) })}
           </h3>
           <p className="small muted">
             {conditionLabel(row.condition, requirementTitle)}
-            {row.dueAt ? ` · due ${formatDate(row.dueAt)}` : ""}
+            {row.dueAt ? t("awardPayments.due2", { date: formatDate(row.dueAt) }) : ""}
           </p>
         </div>
         <StatusBadge kind="tranche" status={row.status} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        {row.status === "scheduled" && !note && <p className="muted small">Not due yet. It becomes due {conditionLabel(row.condition, requirementTitle).replace(/^./, (c) => c.toLowerCase())}, and is paid only when a person releases it.</p>}
+        {row.status === "scheduled" && !note && <p className="muted small">{t("awardPayments.notDueYetIt", { replace: conditionLabel(row.condition, requirementTitle).replace(/^./, (c) => c.toLowerCase()) })}</p>}
         {note && <Notice tone="ok" title={note} />}
         {(unhold.error !== null || hold.error !== null || cancel.error !== null) && <ErrorBanner error={unhold.error ?? hold.error ?? cancel.error} />}
-        {open && readiness.status === "loading" && <Loading label="Checking readiness" />}
+        {open && readiness.status === "loading" && <Loading label={t("awardPayments.checkingReadiness")} />}
         {open && readiness.status === "error" && <ErrorBanner error={readiness.error} onRetry={readiness.reload} />}
         {r?.banner && <HoldBanner banner={r.banner} />}
-        {row.status === "held" && !r?.banner && <Notice tone="warn" title="Held by your team">This tranche stays out of the due list until someone lifts the hold.</Notice>}
-        {r && <ReadinessChecklist checklist={checklistOf(r)} title="Readiness" />}
+        {row.status === "held" && !r?.banner && <Notice tone="warn" title={t("awardPayments.heldByYourTeam")}>{t("awardPayments.thisTrancheStaysOut")}</Notice>}
+        {r && <ReadinessChecklist checklist={checklistOf(r)} title={t("awardPayments.readiness")} />}
         {["initiated", "releasing", "settled", "returned", "failed"].includes(row.status) && (
           <div className="tl tl-sm">
             {row.releasedAt && (
@@ -202,8 +203,8 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
                   <CircleCheck className="ic" aria-hidden="true" />
                 </span>
                 <div>
-                  <div className="what">{row.passportStatus === "unverified" ? "Settled here · not verified by Passport" : "Settled"}</div>
-                  <div className="who">{row.passportStatus === "unverified" ? "Passport could not match the destination; this amount is not in the disbursed total." : "Confirmed by Passport"}</div>
+                  <div className="what">{row.passportStatus === "unverified" ? t("awardPayments.settledHereNotVerified") : t("awardPayments.settled")}</div>
+                  <div className="who">{row.passportStatus === "unverified" ? t("awardPayments.passportCouldNotMatch") : t("awardPayments.confirmedByPassport")}</div>
                 </div>
               </div>
             )}
@@ -214,28 +215,28 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
             {facilitatedPayments && row.status !== "held" && (
               <button type="button" className="btn btn-primary" disabled={blocked !== null} onClick={() => setDialog("release")} aria-describedby={blocked ? `blocked-${row.id}` : undefined}>
                 <Send className="ic" aria-hidden="true" />
-                Release
+                {t("awardPayments.release")}
               </button>
             )}
             {row.status !== "held" && (
               <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} onClick={() => setDialog("external")}>
                 <Banknote className="ic" aria-hidden="true" />
-                {facilitatedPayments ? "Record external payment" : RECORD_OUTSIDE_LABEL}
+                {facilitatedPayments ? t("awardPayments.recordExternalPayment") : RECORD_OUTSIDE_LABEL}
               </button>
             )}
             {row.status === "held" && row.holdReason === "manual" && (
               <button type="button" className="btn btn-secondary" disabled={unhold.state === "saving"} onClick={async () => (await unhold.run()) && done("Hold lifted")}>
-                Lift hold
+                {t("awardPayments.liftHold")}
               </button>
             )}
             {row.status !== "held" && (
               <button type="button" className="btn btn-ghost" onClick={() => setDialog("hold")}>
                 <Hand className="ic" aria-hidden="true" />
-                Hold
+                {t("awardPayments.hold")}
               </button>
             )}
             <button type="button" className="btn btn-ghost" onClick={() => setDialog("cancel")}>
-              Cancel tranche
+              {t("awardPayments.cancelTranche")}
             </button>
             {facilitatedPayments && blocked && row.status !== "held" && (
               <span className="help" id={`blocked-${row.id}`}>
@@ -249,8 +250,8 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
       {dialog === "external" && <RecordExternalDialog tranche={row} recipientName={recipientName} onClose={() => setDialog(null)} onDone={(unverified) => done(unverified ? "Recorded here as unverified: Passport could not match the destination." : "Recorded as paid")} />}
       {dialog === "hold" && (
         <ReasonDialog
-          title={`Hold tranche ${row.seq}`}
-          label="Why is this tranche on hold?"
+          title={t("awardPayments.holdTranche", { seq: row.seq })}
+          label={t("awardPayments.whyIsThisTranche")}
           action="Hold tranche"
           onClose={() => setDialog(null)}
           onSubmit={async (reason) => {
@@ -261,8 +262,8 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
       )}
       {dialog === "cancel" && (
         <ReasonDialog
-          title={`Cancel tranche ${row.seq}`}
-          label="Why is this tranche cancelled?"
+          title={t("awardPayments.cancelTranche2", { seq: row.seq })}
+          label={t("awardPayments.whyIsThisTranche2")}
           action="Cancel tranche"
           danger
           onClose={() => setDialog(null)}
@@ -278,27 +279,27 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
 
 function BudgetPanel({ awardId }: { awardId: string }) {
   const variance = useApiQuery((api) => api.getVariance(awardId), [awardId]);
-  if (variance.status === "loading") return <Loading label="Loading the budget" />;
+  if (variance.status === "loading") return <Loading label={t("awardPayments.loadingTheBudget")} />;
   if (variance.status === "error") return <ErrorBanner error={variance.error} onRetry={variance.reload} />;
   const v: BudgetVariance = variance.data;
   if (!v.hasApprovedBudget)
     return (
       <div className="card">
-        <EmptyState icon={Banknote} title="No approved budget">
-          The approved budget is set from the application’s budget when the award is made. Actuals arrive with the grantee’s reports.
+        <EmptyState icon={Banknote} title={t("awardPayments.noApprovedBudget")}>
+          {t("awardPayments.theApprovedBudgetIs")}
         </EmptyState>
       </div>
     );
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Approved budget against actuals, scrollable">
-      <table className="tbl bud" aria-label="Approved budget against actuals">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("awardPayments.approvedBudgetAgainstActuals")}>
+      <table className="tbl bud" aria-label={t("awardPayments.approvedBudgetAgainstActuals2")}>
         <thead>
           <tr>
-            <th>Category</th>
-            <th className="num">Approved</th>
-            <th className="num">Actual to date</th>
-            <th className="num">Remaining</th>
-            <th className="num">Spent</th>
+            <th>{t("awardPayments.category")}</th>
+            <th className="num">{t("awardPayments.approved")}</th>
+            <th className="num">{t("awardPayments.actualToDate")}</th>
+            <th className="num">{t("awardPayments.remaining")}</th>
+            <th className="num">{t("awardPayments.spent")}</th>
           </tr>
         </thead>
         <tbody>
@@ -314,7 +315,7 @@ function BudgetPanel({ awardId }: { awardId: string }) {
         </tbody>
         <tfoot>
           <tr>
-            <td>Total</td>
+            <td>{t("awardPayments.total")}</td>
             <td className="num">{formatMinor(v.totals.approvedMinor, v.currency)}</td>
             <td className={`num${v.totals.over ? " over" : ""}`}>{formatMinor(v.totals.actualMinor, v.currency)}</td>
             <td className="num">{formatMinor(v.totals.varianceMinor, v.currency)}</td>
@@ -330,20 +331,20 @@ function RequirementList({ requirements, base }: { requirements: Requirement[]; 
   if (!requirements.length)
     return (
       <div className="card">
-        <EmptyState icon={Calendar} title="No requirements">
-          Reports and other requirements come from the program’s defaults when the award is made.
+        <EmptyState icon={Calendar} title={t("awardPayments.noRequirements")}>
+          {t("awardPayments.reportsAndOtherRequirements")}
         </EmptyState>
       </div>
     );
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Requirements, scrollable">
-      <table className="tbl" aria-label="Requirements">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("awardPayments.requirementsScrollable")}>
+      <table className="tbl" aria-label={t("awardPayments.requirements")}>
         <thead>
           <tr>
-            <th>Requirement</th>
-            <th>Due</th>
-            <th>Status</th>
-            <th>Releases</th>
+            <th>{t("awardPayments.requirement")}</th>
+            <th>{t("awardPayments.due3")}</th>
+            <th>{t("awardPayments.status")}</th>
+            <th>{t("awardPayments.releases")}</th>
             <th />
           </tr>
         </thead>
@@ -355,10 +356,10 @@ function RequirementList({ requirements, base }: { requirements: Requirement[]; 
               <td>
                 <StatusBadge kind="requirement" status={r.status} />
               </td>
-              <td>{r.releasesTrancheId ? "A tranche when accepted" : <span className="muted">—</span>}</td>
+              <td>{r.releasesTrancheId ? t("awardPayments.aTrancheWhenAccepted") : <span className="muted">—</span>}</td>
               <td>
                 <Link to={`${base}/reporting`} className="small b">
-                  Open in Reporting
+                  {t("awardPayments.openInReporting")}
                 </Link>
               </td>
             </tr>
@@ -385,15 +386,15 @@ export default function AwardPayments() {
   const recipientName = first?.recipient?.name ?? "the grantee";
   const title = first?.award?.title ?? "Award";
   const requirementTitle = (id: string) => d?.requirements.find((r) => r.id === id)?.title.toLowerCase();
-  const live: Tranche[] = d?.schedule.tranches.filter((t) => t.status !== "cancelled") ?? [];
+  const live: Tranche[] = d?.schedule.tranches.filter((item) => item.status !== "cancelled") ?? [];
 
   return (
     <>
-      <title>{`Payments — ${title}`}</title>
+      <title>{t("awardPayments.payments", { title })}</title>
       <FunderShell active="Awards">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: "Awards", to: `${base}/awards` }, { label: title, to: `${base}/awards/${awardId}/agreement` }, { label: "Payments" }]}
+            crumbs={[{ label: t("awardPayments.awards"), to: `${base}/awards` }, { label: title, to: `${base}/awards/${awardId}/agreement` }, { label: t("awardPayments.payments2") }]}
             title={title}
             badge={first?.recipient ? <VerificationBadge verification={first.recipient.verification} level={first.recipient.verificationLevel} /> : undefined}
             meta={
@@ -404,36 +405,36 @@ export default function AwardPayments() {
             actions={
               <>
                 <Link to={`${base}/awards/${awardId}/agreement`} className="btn btn-secondary">
-                  Agreement
+                  {t("awardPayments.agreement")}
                 </Link>
                 {d && (
                   <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
-                    Edit schedule
+                    {t("awardPayments.editSchedule")}
                   </button>
                 )}
               </>
             }
           />
-          {page.status === "loading" && <Loading label="Loading payments" />}
+          {page.status === "loading" && <Loading label={t("awardPayments.loadingPayments")} />}
           {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
           {d && (
             <>
               <div className="amounts">
                 <div>
-                  <div className="stat-l">Awarded</div>
+                  <div className="stat-l">{t("awardPayments.awarded")}</div>
                   <div className="stat-v">{formatMinor(d.schedule.awardedAmountMinor, d.schedule.currency)}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Disbursed</div>
+                  <div className="stat-l">{t("awardPayments.disbursed")}</div>
                   <div className="stat-v">{formatMinor(d.schedule.disbursedAmountMinor ?? 0, d.schedule.currency)}</div>
-                  <div className="stat-d">{d.schedule.disbursedAsOf ? `Read from Passport ${dateTime(d.schedule.disbursedAsOf)}` : "Not read from Passport yet"}</div>
+                  <div className="stat-d">{d.schedule.disbursedAsOf ? t("awardPayments.readFromPassport", { dateTime: dateTime(d.schedule.disbursedAsOf) }) : t("awardPayments.notReadFromPassport")}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Remaining</div>
+                  <div className="stat-l">{t("awardPayments.remaining")}</div>
                   <div className="stat-v">{formatMinor((d.schedule.awardedAmountMinor ?? 0) - (d.schedule.disbursedAmountMinor ?? 0), d.schedule.currency)}</div>
                 </div>
                 <div>
-                  <div className="stat-l">Tranches</div>
+                  <div className="stat-l">{t("awardPayments.tranches")}</div>
                   <div className="stat-v">{live.length}</div>
                 </div>
               </div>
@@ -443,8 +444,8 @@ export default function AwardPayments() {
                   {!facilitatedPayments && <PaymentsOffNotice />}
                   {!d.rows.length && (
                     <div className="card">
-                      <EmptyState icon={Banknote} title="No payment schedule yet">
-                        Add tranches with Edit schedule. Nothing is paid until a person releases a tranche.
+                      <EmptyState icon={Banknote} title={t("awardPayments.noPaymentScheduleYet")}>
+                        {t("awardPayments.addTranchesWithEdit")}
                       </EmptyState>
                     </div>
                   )}

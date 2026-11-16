@@ -21,6 +21,7 @@ import { FormView } from "../../forms/FormView.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
 import { OpenDataPanel } from "./OpenDataPanel.tsx";
+import { t } from "./i18n.ts";
 
 type Tab = "due" | "received";
 const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : "Grantee");
@@ -54,7 +55,7 @@ function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Re
       >
         <div className="hd">
           <div>
-            <h2 id="plan-title">Reminder plan</h2>
+            <h2 id="plan-title">{t("funderReporting.reminderPlan")}</h2>
             <p className="small muted">
               {requirement.title} · {nameOf(requirement)}{" "}
               {((v) => (v ? <VerificationBadge verification={v} /> : null))((requirement.recipient as { verification?: Verification } | null | undefined)?.verification)}
@@ -63,19 +64,19 @@ function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Re
         </div>
         <div className="bd">
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <Field id="plan-days" label="Days relative to the due date" required help="Comma-separated. Negative numbers are before the due date, 0 is the day itself, positive numbers are after.">
+          <Field id="plan-days" label={t("funderReporting.daysRelativeToThe")} required help={t("funderReporting.commaSeparatedNegativeNumbers")}>
             <input className="inp" id="plan-days" value={text} onChange={(e) => setText(e.target.value)} />
           </Field>
           <p className={valid ? "help" : "err-msg"} role="status">
-            {valid ? `Reminders go out ${planText(parsed)}.` : "Enter whole numbers between -365 and 365."}
+            {valid ? t("funderReporting.remindersGoOut", { planText: planText(parsed) }) : t("funderReporting.enterWholeNumbersBetween")}
           </p>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("funderReporting.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!valid || save.state === "saving"}>
-            Save plan
+            {t("funderReporting.savePlan")}
           </button>
         </div>
       </form>
@@ -86,8 +87,8 @@ function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Re
 function ReportBody({ submission }: { submission: Submission }) {
   const first = submission.formResponses[0];
   const form = useApiQuery(async (api) => (first ? api.getForm(first.formId, first.formVersion) : null), [first?.formId, first?.formVersion]);
-  if (!first) return <p className="muted">This report has no form responses.</p>;
-  if (form.status === "loading") return <Loading label="Loading the report" />;
+  if (!first) return <p className="muted">{t("funderReporting.thisReportHasNo")}</p>;
+  if (form.status === "loading") return <Loading label={t("funderReporting.loadingTheReport")} />;
   if (form.status === "error" || !form.data)
     return (
       <dl className="kv">
@@ -108,7 +109,7 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
   const accept = useApiMutation((api) => api.acceptSubmission(id));
   const send = useApiMutation((api, note: string) => api.returnSubmission(id, note));
   const [returning, setReturning] = useState(false);
-  if (sub.status === "loading") return <Loading label="Loading the report" />;
+  if (sub.status === "loading") return <Loading label={t("funderReporting.loadingTheReport")} />;
   if (sub.status === "error") return <ErrorBanner error={sub.error} onRetry={sub.reload} />;
   const s = sub.data;
   const open = ["submitted", "under_review"].includes(s.status) && !s.shared;
@@ -117,18 +118,18 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
       <div className="card-h">
         <div>
           <h2 id="review-h" style={{ fontSize: "18px" }}>
-            {s.requirement?.title ?? "Report"}
+            {s.requirement?.title ?? t("funderReporting.report")}
           </h2>
           <p className="small muted">
-            {s.submittedAt ? `Submitted ${dateTime(s.submittedAt)}` : "Not submitted"}
-            {s.requirement?.dueAt ? ` · due ${formatDate(s.requirement.dueAt)}` : ""}
+            {s.submittedAt ? t("funderReporting.submitted", { dateTime: dateTime(s.submittedAt) }) : t("funderReporting.notSubmitted")}
+            {s.requirement?.dueAt ? t("funderReporting.due", { date: formatDate(s.requirement.dueAt) }) : ""}
           </p>
         </div>
         <div className="row">
           {s.shared && (
             <span className="shared-mark">
               <Share2 className="ic" aria-hidden="true" />
-              Shared by grantee
+              {t("funderReporting.sharedByGrantee")}
             </span>
           )}
           <StatusBadge kind="submission" status={s.status} />
@@ -136,8 +137,8 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {(accept.error !== null || send.error !== null) && <ErrorBanner error={accept.error ?? send.error} />}
-        {s.shared && <Notice title="Shared for reference">The grantee chose to share this report, written for another funder. There is nothing to accept or return.</Notice>}
-        {s.reviewNote && <Notice tone="neu" title="Review note">{s.reviewNote}</Notice>}
+        {s.shared && <Notice title={t("funderReporting.sharedForReference")}>{t("funderReporting.theGranteeChoseTo")}</Notice>}
+        {s.reviewNote && <Notice tone="neu" title={t("funderReporting.reviewNote")}>{s.reviewNote}</Notice>}
         <ReportBody submission={s} />
       </div>
       {open && (
@@ -152,19 +153,19 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
             }}
           >
             <CircleCheck className="ic" aria-hidden="true" />
-            Accept report
+            {t("funderReporting.acceptReport")}
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => setReturning(true)}>
             <RotateCcw className="ic" aria-hidden="true" />
-            Return with a note
+            {t("funderReporting.returnWithANote")}
           </button>
-          <span className="help">{releases ? "Accepting makes the next tranche due; it is not released until a person releases it." : "Accepting closes this requirement."}</span>
+          <span className="help">{releases ? t("funderReporting.acceptingMakesTheNext") : t("funderReporting.acceptingClosesThisRequirement")}</span>
         </div>
       )}
       {returning && (
         <ReasonDialog
-          title="Return this report"
-          label="What should the grantee change?"
+          title={t("funderReporting.returnThisReport")}
+          label={t("funderReporting.whatShouldTheGrantee")}
           action="Return report"
           onClose={() => setReturning(false)}
           onSubmit={async (note) => {
@@ -205,7 +206,7 @@ export default function Reporting() {
   const shown = day ? owed.filter((r) => r.dueAt?.slice(0, 10) === day) : owed;
   const calendarItems: CalendarItem[] = [
     ...owed.filter((r) => r.dueAt).map((r) => ({ id: r.id, date: r.dueAt as string, label: `${nameOf(r)} · ${r.title}`, tone: (r.status === "overdue" ? "overdue" : r.status === "due" ? "due" : "scheduled") as CalendarItem["tone"] })),
-    ...received.filter((x) => x.submittedAt).map((x) => ({ id: x.id, date: x.submittedAt as string, label: `${x.requirement?.title ?? "Report"} received`, tone: "received" as const })),
+    ...received.filter((x) => x.submittedAt).map((x) => ({ id: x.id, date: x.submittedAt as string, label: t("funderReporting.received", { title: x.requirement?.title ?? "Report" }), tone: "received" as const })),
   ];
   const reportForms = (forms.data ?? []).filter((f) => f.purpose === "report");
   const remindAll = async () => {
@@ -238,38 +239,38 @@ export default function Reporting() {
 
   return (
     <>
-      <title>{`Reporting & compliance — ${ws.name}`}</title>
+      <title>{t("funderReporting.reportingCompliance", { name: ws.name })}</title>
       <FunderShell active="Reporting">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Reporting" }]}
-            title="Reporting & compliance"
+            crumbs={[{ label: ws.name, to: base }, { label: t("funderReporting.reporting") }]}
+            title={t("funderReporting.reportingCompliance2")}
             meta={
               d ? (
                 <>
-                  <span>{owed.filter((r) => r.status === "overdue").length} overdue</span>
+                  <span>{t("funderReporting.overdue", { count: owed.filter((r) => r.status === "overdue").length })}</span>
                   <span>·</span>
-                  <span>{owed.filter((r) => r.status === "due").length} due</span>
+                  <span>{t("funderReporting.due2", { count: owed.filter((r) => r.status === "due").length })}</span>
                   <span>·</span>
-                  <span>{waiting} waiting for review</span>
+                  <span>{t("funderReporting.waitingForReview", { waiting })}</span>
                 </>
               ) : undefined
             }
           />
-          {page.status === "loading" && <Loading label="Loading reporting" />}
+          {page.status === "loading" && <Loading label={t("funderReporting.loadingReporting")} />}
           {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
           {note && <Notice tone="ok" title={note} />}
           {(remind.error !== null || waive.error !== null) && <ErrorBanner error={remind.error ?? waive.error} />}
           {d && (
             <>
               <Tabs
-                label="Reporting views"
+                label={t("funderReporting.reportingViews")}
                 idPrefix="reporting"
                 active={tab}
                 onChange={(key) => go({ tab: key, submission: null })}
                 tabs={[
-                  { key: "due", label: "Owed", count: owed.length },
-                  { key: "received", label: "Received", count: waiting },
+                  { key: "due", label: t("funderReporting.owed"), count: owed.length },
+                  { key: "received", label: t("funderReporting.received2"), count: waiting },
                 ]}
               />
               <TabPanel idPrefix="reporting" tab="due" active={tab}>
@@ -279,7 +280,7 @@ export default function Reporting() {
                     {overdue.length > 0 && (
                       <section className="card" id="overdue" style={{ borderColor: "var(--s-dng-bd)" }} aria-labelledby="overdue-h">
                         <div className="card-h">
-                          <h3 id="overdue-h">Overdue</h3>
+                          <h3 id="overdue-h">{t("funderReporting.overdue2")}</h3>
                           <span className="bdg bdg-dng">
                             <TriangleAlert className="ic" aria-hidden="true" />
                             {overdue.length}
@@ -292,19 +293,19 @@ export default function Reporting() {
                                 {nameOf(r)} · {r.title}
                               </div>
                               <div className="small muted">
-                                Due {formatDate(r.dueAt)} · {dueText(r, now)}
-                                {r.releasesTrancheId ? " · its tranche stays scheduled until the report is accepted" : ""}
+                                {t("funderReporting.due3", { date: formatDate(r.dueAt), dueText: dueText(r, now) })}
+                                {r.releasesTrancheId ? t("funderReporting.itsTrancheStaysScheduled") : ""}
                               </div>
                             </div>
                           ))}
                           <div className="row wrap" style={{ gap: "8px" }}>
                             <button type="button" className="btn btn-primary btn-sm" disabled={remind.state === "saving"} onClick={remindAll}>
                               <Mail className="ic ic-sm" aria-hidden="true" />
-                              Send reminder to {overdue.length}
+                              {t("funderReporting.sendReminderTo", { count: overdue.length })}
                             </button>
                             {mock && (
                               <Link to="/preview/email/report-reminder" className="small b">
-                                Preview the reminder
+                                {t("funderReporting.previewTheReminder")}
                               </Link>
                             )}
                           </div>
@@ -313,9 +314,9 @@ export default function Reporting() {
                     )}
                     <section className="card" aria-labelledby="report-forms-h">
                       <div className="card-h">
-                        <h3 id="report-forms-h">Report forms</h3>
+                        <h3 id="report-forms-h">{t("funderReporting.reportForms")}</h3>
                         <Link to={`${base}/forms`} className="small b">
-                          Open form builder →
+                          {t("funderReporting.openFormBuilder")}
                         </Link>
                       </div>
                       {reportForms.length ? (
@@ -325,17 +326,17 @@ export default function Reporting() {
                               <div>
                                 <div className="b">{f.title}</div>
                                 <div className="small muted">
-                                  v{f.version} · {f.publishedAt ? "published" : "draft"} · reuses the form builder
+                                  {t("funderReporting.v", { version: f.version })} {f.publishedAt ? t("funderReporting.published") : t("funderReporting.draft")} {t("funderReporting.reusesTheFormBuilder")}
                                 </div>
                               </div>
                               <Link to={`${base}/forms/${f.id}/edit`} className="small b">
-                                Edit
+                                {t("funderReporting.edit")}
                               </Link>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="card-b small muted">No report forms yet. Build one in the form builder with the purpose “Report”.</p>
+                        <p className="card-b small muted">{t("funderReporting.noReportFormsYet")}</p>
                       )}
                     </section>
                   </div>
@@ -343,29 +344,29 @@ export default function Reporting() {
                     {day && (
                       <div className="row small" style={{ gap: "8px" }}>
                         <span className="muted">
-                          Showing what is due on {formatDate(day)} ({shown.length}).
+                          {t("funderReporting.showingWhatIsDue", { date: formatDate(day), count: shown.length })}
                         </span>
                         <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDay(null)}>
-                          Show all
+                          {t("funderReporting.showAll")}
                         </button>
                       </div>
                     )}
                     {!shown.length ? (
                       <div className="card">
-                        <EmptyState icon={ClipboardCheck} title={owed.length ? "Nothing is due on that day" : "Nothing is owed right now"}>
-                          Requirements appear here from each award’s plan, with reminders scheduled around the due date.
+                        <EmptyState icon={ClipboardCheck} title={owed.length ? t("funderReporting.nothingIsDueOn") : t("funderReporting.nothingIsOwedRight")}>
+                          {t("funderReporting.requirementsAppearHereFrom")}
                         </EmptyState>
                       </div>
                     ) : (
-                      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Requirements owed, scrollable">
-                        <table className="tbl" aria-label="Requirements owed">
+                      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderReporting.requirementsOwedScrollable")}>
+                        <table className="tbl" aria-label={t("funderReporting.requirementsOwed")}>
                           <thead>
                             <tr>
-                              <th>Grantee</th>
-                              <th>Requirement</th>
-                              <th>Due</th>
-                              <th>Status</th>
-                              <th>Reminders</th>
+                              <th>{t("funderReporting.grantee")}</th>
+                              <th>{t("funderReporting.requirement")}</th>
+                              <th>{t("funderReporting.due4")}</th>
+                              <th>{t("funderReporting.status")}</th>
+                              <th>{t("funderReporting.reminders")}</th>
                               <th />
                             </tr>
                           </thead>
@@ -384,7 +385,7 @@ export default function Reporting() {
                                 </td>
                                 <td>
                                   {r.title}
-                                  {r.releasesTrancheId && <div className="small muted">Releases a tranche when accepted</div>}
+                                  {r.releasesTrancheId && <div className="small muted">{t("funderReporting.releasesATrancheWhen")}</div>}
                                 </td>
                                 <td>
                                   {formatDate(r.dueAt)}
@@ -395,26 +396,17 @@ export default function Reporting() {
                                 </td>
                                 <td>
                                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPlan(r)}>
-                                    {planOf(r).length} planned{" "}
-                                <span className="sr">
-                                  reminders for {r.title}, {nameOf(r)} — edit the plan
-                                </span>
+                                    {t.rich("funderReporting.plannedRemindersForEdit", { count: planOf(r).length, title: r.title, nameOf: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
                                   </button>
                                 </td>
                                 <td>
                                   <div className="row">
                                     <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(`Reminder sent to ${nameOf(r)}.`)} >
                                       <Bell className="ic" aria-hidden="true" />
-                                      Remind{" "}
-                                  <span className="sr">
-                                    {nameOf(r)} about {r.title}
-                                  </span>
+                                      {t.rich("funderReporting.remindAbout", { nameOf: nameOf(r), title: r.title, span: (chunks) => <span className="sr">{chunks}</span> })}
                                     </button>
                                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => setWaiving(r)}>
-                                      Waive{" "}
-                                  <span className="sr">
-                                    {r.title} for {nameOf(r)}
-                                  </span>
+                                      {t.rich("funderReporting.waiveFor", { title: r.title, nameOf: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
                                     </button>
                                   </div>
                                 </td>
@@ -429,13 +421,13 @@ export default function Reporting() {
               </TabPanel>
               <TabPanel idPrefix="reporting" tab="received" active={tab}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1.3fr)", gap: "20px", alignItems: "start" }}>
-                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Reports received, scrollable">
-                    <table className="tbl" aria-label="Reports received">
+                  <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderReporting.reportsReceivedScrollable")}>
+                    <table className="tbl" aria-label={t("funderReporting.reportsReceived")}>
                       <thead>
                         <tr>
-                          <th>Report</th>
-                          <th>Received</th>
-                          <th>Status</th>
+                          <th>{t("funderReporting.report")}</th>
+                          <th>{t("funderReporting.received2")}</th>
+                          <th>{t("funderReporting.status")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -444,14 +436,14 @@ export default function Reporting() {
                             <td>
                               <div className="ent">
                                 <button type="button" className="btn btn-ghost btn-sm nm" style={{ justifyContent: "flex-start", padding: 0, height: "auto" }} onClick={() => go({ submission: s.id })} aria-current={selected === s.id ? "true" : undefined}>
-                                  {s.requirement?.title ?? "Report"}
+                                  {s.requirement?.title ?? t("funderReporting.report")}
                                 </button>
                                 <span className="sub small muted">
                                   {granteeOf(s)}
                                   {s.shared && (
                                     <span className="shared-mark">
                                       <Share2 className="ic" aria-hidden="true" />
-                                      Shared by grantee
+                                      {t("funderReporting.sharedByGrantee")}
                                     </span>
                                   )}
                                 </span>
@@ -466,7 +458,7 @@ export default function Reporting() {
                         {!received.length && (
                           <tr>
                             <td colSpan={3} className="muted">
-                              No reports received yet.
+                              {t("funderReporting.noReportsReceivedYet")}
                             </td>
                           </tr>
                         )}
@@ -484,8 +476,8 @@ export default function Reporting() {
                     />
                   ) : (
                     <div className="card">
-                      <EmptyState icon={ClipboardCheck} title="Choose a report to review">
-                        Responses show where each value came from: the grantee’s Passport record, a prior report, or typed for this report.
+                      <EmptyState icon={ClipboardCheck} title={t("funderReporting.chooseAReportTo")}>
+                        {t("funderReporting.responsesShowWhereEach")}
                       </EmptyState>
                     </div>
                   )}
@@ -506,8 +498,8 @@ export default function Reporting() {
           )}
           {waiving && (
             <ReasonDialog
-              title={`Waive ${waiving.title}`}
-              label="Why is this requirement waived?"
+              title={t("funderReporting.waive", { title: waiving.title })}
+              label={t("funderReporting.whyIsThisRequirement")}
               action="Waive requirement"
               onClose={() => setWaiving(null)}
               onSubmit={async (reason) => {

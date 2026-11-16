@@ -11,6 +11,7 @@ import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { US_STATES } from "../../lib/rules.ts";
 import { usePeople } from "./shared.tsx";
+import { t } from "./i18n.ts";
 
 const MIN_GROUP = 5;
 
@@ -84,29 +85,29 @@ export function PortfolioExtras() {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
       <section className="card" aria-labelledby="by-region-h">
         <div className="card-h">
-          <h3 id="by-region-h">Awards by region</h3>
-          <span className="small muted">By the recipient’s state in Passport</span>
+          <h3 id="by-region-h">{t("analyticsExtras.awardsByRegion")}</h3>
+          <span className="small muted">{t("analyticsExtras.byTheRecipientsState")}</span>
         </div>
         <div className="card-b">
-          {orgs.status === "loading" && <Loading label="Loading regions" />}
+          {orgs.status === "loading" && <Loading label={t("analyticsExtras.loadingRegions")} />}
           {orgs.status === "error" && <ErrorBanner error={orgs.error} onRetry={orgs.reload} />}
-          {orgs.status === "ready" && !byRegion.length && <p className="muted small">No awards yet.</p>}
+          {orgs.status === "ready" && !byRegion.length && <p className="muted small">{t("analyticsExtras.noAwardsYet")}</p>}
           {byRegion.length > 0 && <Bars rows={byRegion} total={awardedTotal} format={(n) => formatMinor(n)} />}
         </div>
       </section>
 
       <section className="card" aria-labelledby="reviewer-load-h">
         <div className="card-h">
-          <h3 id="reviewer-load-h">Reviewer load</h3>
-          <span className="small muted">Assigned · submitted</span>
+          <h3 id="reviewer-load-h">{t("analyticsExtras.reviewerLoad")}</h3>
+          <span className="small muted">{t("analyticsExtras.assignedSubmitted")}</span>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
-          {assignments.status === "ready" && !reviewers.length && <p className="muted small">No reviews have been assigned.</p>}
+          {assignments.status === "ready" && !reviewers.length && <p className="muted small">{t("analyticsExtras.noReviewsHaveBeen")}</p>}
           {reviewers.map(([userId, r]) => (
             <div className="bar-h" key={userId}>
-              <span className="b">{person(userId)?.name ?? "Reviewer"}</span>
-              <div className="trk" role="img" aria-label={`${r.submitted} of ${r.assigned} submitted`}>
+              <span className="b">{person(userId)?.name ?? t("analyticsExtras.reviewer")}</span>
+              <div className="trk" role="img" aria-label={t("analyticsExtras.ofSubmitted", { submitted: r.submitted, assigned: r.assigned })}>
                 <div className="f1" style={{ width: most ? `${(r.submitted / most) * 100}%` : "0%" }}></div>
                 <div className="f2" style={{ width: most ? `${((r.assigned - r.submitted) / most) * 100}%` : "0%" }}></div>
               </div>
@@ -121,22 +122,22 @@ export function PortfolioExtras() {
       <section className="card" aria-labelledby="equity-h" style={{ gridColumn: "1 / -1" }}>
         <div className="card-h">
           <div>
-            <h3 id="equity-h">Equity lens</h3>
-            <p className="small muted">Who applied compared with who was funded, by region. Groups under {MIN_GROUP} organizations are not charted.</p>
+            <h3 id="equity-h">{t("analyticsExtras.equityLens")}</h3>
+            <p className="small muted">{t("analyticsExtras.whoAppliedComparedWith", { MIN_GROUP })}</p>
           </div>
-          <div className="seg" role="radiogroup" aria-label="Equity lens group">
+          <div className="seg" role="radiogroup" aria-label={t("analyticsExtras.equityLensGroup")}>
             <button type="button" role="radio" aria-checked={lens === "applicants"} className={lens === "applicants" ? "on" : undefined} onClick={() => setLens("applicants")}>
-              Applicants · {applicants}
+              {t("analyticsExtras.applicants", { applicants })}
             </button>
             <button type="button" role="radio" aria-checked={lens === "awards"} className={lens === "awards" ? "on" : undefined} onClick={() => setLens("awards")}>
-              Awards · {funded}
+              {t("analyticsExtras.awards", { funded })}
             </button>
           </div>
         </div>
         <div className="card-b">
           {orgs.status === "ready" && lensTotal < MIN_GROUP ? (
-            <EmptyState icon={ChartColumn} title={lens === "awards" ? "Not enough awards to chart" : "Not enough applicants to chart"}>
-              A breakdown appears once there are at least {MIN_GROUP} organizations, so that no single one can be identified.
+            <EmptyState icon={ChartColumn} title={lens === "awards" ? t("analyticsExtras.notEnoughAwardsTo") : t("analyticsExtras.notEnoughApplicantsTo")}>
+              {t("analyticsExtras.aBreakdownAppearsOnce", { MIN_GROUP })}
             </EmptyState>
           ) : (
             <Bars rows={lensRows} total={lensTotal} format={(n) => `${n} · ${lensTotal ? Math.round((n / lensTotal) * 100) : 0}%`} />
