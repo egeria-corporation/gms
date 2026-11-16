@@ -27,7 +27,7 @@ function toTime(value: string | number | Date): number {
 
 export type DateStyle = "short" | "medium" | "long";
 const DATE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
-  // "Nov 15, 2026" / "15 nov 2026"
+  // "Nov 15, 2026" / "15 de noviembre de 2026" (Spanish spells the month out, below)
   short: { month: "short", day: "numeric", year: "numeric" },
   // "November 15, 2026" / "15 de noviembre de 2026"
   medium: { dateStyle: "long" },
@@ -35,11 +35,16 @@ const DATE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
   long: { dateStyle: "full" },
 };
 
+// Spanish writes the month in full even in the short style: "15 de noviembre de 2026" reads
+// naturally where "15 nov 2026" reads like a form field.
+const SHORT_IN_FULL: ReadonlySet<Locale> = new Set(["es"]);
+
 /** A calendar date; null when the value cannot be read. */
 export function formatDateIn(locale: Locale, value: string | number | Date, style: DateStyle = "short", timeZone = "UTC"): string | null {
   const t = toTime(value);
   if (Number.isNaN(t)) return null;
-  return cached(`d${locale}${style}${timeZone}`, () => new Intl.DateTimeFormat(INTL_LOCALE[locale], { ...DATE_OPTIONS[style], timeZone })).format(t);
+  const options = style === "short" && SHORT_IN_FULL.has(locale) ? DATE_OPTIONS.medium : DATE_OPTIONS[style];
+  return cached(`d${locale}${style}${timeZone}`, () => new Intl.DateTimeFormat(INTL_LOCALE[locale], { ...options, timeZone })).format(t);
 }
 
 /** Any other date or time shape, in the language. */

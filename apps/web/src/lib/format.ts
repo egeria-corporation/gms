@@ -35,7 +35,7 @@ export function formatAwardCount(f: OppFunding | undefined | null, locale: Local
   return null;
 }
 
-/** "Apr 30, 2027" / "30 abr 2027" from an ISO date or date-time; "—" when missing or unparseable. */
+/** "Apr 30, 2027" / "30 de abril de 2027" from an ISO date or date-time; "—" when missing or unparseable. */
 export function formatDate(iso: string | null | undefined): string {
   return formatDateAs(iso, "short");
 }

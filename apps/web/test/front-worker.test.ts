@@ -155,6 +155,26 @@ describe("front Worker: public pages", () => {
     expect(contentOf(html, 'property="og:image"')).toMatch(/^https:\/\/gms\.test\/og\/f\/riverbend\.png\?v=/);
   });
 
+  it("serves Spanish meta and <html lang> for ?lang=es, and lists both languages on every public page", async () => {
+    const es = await (await get("/f/riverbend/o/open-call?lang=es")).text();
+    expect(es).toMatch(/<html[^>]* lang="es"/);
+    expect(contentOf(es, 'name="description"')).toBe("Recibe solicitudes hasta el 30 de septiembre de 2099. Subvenciones de $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
+    expect(es).toContain('<link rel="canonical" href="https://gms.test/f/riverbend/o/open-call?lang=es" />');
+    expect(contentOf(es, 'property="og:locale"')).toBe("es_US");
+    expect((await (await get("/f/riverbend?lang=es")).text())).toContain("<title>Subvenciones de Riverbend Community Foundation</title>");
+    expect(contentOf(await (await get("/?lang=es")).text(), 'name="description"')).toMatch(/^Gestione programas de subvenciones/);
+    expect(contentOf(await (await get("/templates?lang=es")).text(), 'name="description"')).toMatch(/^Formularios de solicitud de subvenciones/);
+    for (const path of ["/", "/f/riverbend", "/f/riverbend/o/open-call", "/switch", "/switch/fluxx", "/templates"]) {
+      const html = await (await get(path)).text();
+      const base = `https://gms.test${path}`;
+      expect(html, path).toMatch(/<html[^>]* lang="en"/);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="en" href="${base}" />`);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="es" href="${base}?lang=es" />`);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="x-default" href="${base}" />`);
+      expect(count(html, 'hreflang="'), path).toBe(3);
+    }
+  });
+
   it("gives the landing page its canonical address and its own card", async () => {
     const html = await (await get("/")).text();
     expect(html).toContain('<link rel="canonical" href="https://gms.test/" />');

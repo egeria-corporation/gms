@@ -41,7 +41,7 @@ describe("the page's language", () => {
   it("formats money and dates in the active language", async () => {
     expect(formatDate("2026-11-15")).toBe("Nov 15, 2026");
     await changeLocale("es");
-    expect(formatDate("2026-11-15")).toBe("15 nov 2026");
+    expect(formatDate("2026-11-15")).toBe("15 de noviembre de 2026");
     expect(formatMoney({ amount: "50000", currency: "USD" })).toBe("$50,000");
     expect(formatAwardRange({ maxAwardAmount: { amount: "10000", currency: "USD" } } as never)).toBe("Hasta $10,000");
   });

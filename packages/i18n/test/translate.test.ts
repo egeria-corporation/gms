@@ -81,7 +81,7 @@ describe("numbers, money and dates", () => {
     expect(formatNumber("es", 1234567)).toBe("1,234,567");
     expect(formatDateIn("en", "2026-11-15", "medium")).toBe("November 15, 2026");
     expect(formatDateIn("es", "2026-11-15", "medium")).toBe("15 de noviembre de 2026");
-    expect(formatDateIn("es", "2026-11-15")).toBe("15 nov 2026");
+    expect(formatDateIn("es", "2026-11-15")).toBe("15 de noviembre de 2026");
     expect(formatDateIn("es", "not a date")).toBeNull();
     expect(formatList("es", ["Ana", "Luis", "Marta"])).toBe("Ana, Luis y Marta");
   });

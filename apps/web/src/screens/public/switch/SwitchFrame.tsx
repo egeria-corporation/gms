@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { TRADEMARK_NOTE } from "../../../content/switch.ts";
+import { switchText } from "../../../content/switch.ts";
 
 import { translator } from "../../../i18n/index.tsx";
 
@@ -35,7 +35,7 @@ export function SwitchFrame({ title, children }: { title: string; children: Reac
         <footer className="pub-foot" style={{ marginTop: "auto" }}>
           <div className="wrap-c" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
             <p data-testid="switch-note" style={{ margin: 0 }}>
-              {t.rich("switchFrame.writeToHelloAgentsOpengrants", { TRADEMARK_NOTE, link: (chunks) => <a href="mailto:hello@agents.opengrants.io">{chunks}</a> })}
+              {t.rich("switchFrame.writeToHelloAgentsOpengrants", { TRADEMARK_NOTE: switchText().trademarkNote, link: (chunks) => <a href="mailto:hello@agents.opengrants.io">{chunks}</a> })}
             </p>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", width: "100%", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

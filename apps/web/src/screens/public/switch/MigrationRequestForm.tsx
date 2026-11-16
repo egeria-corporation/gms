@@ -9,7 +9,7 @@ import { ApiError } from "../../../api/client.ts";
 import type { MigrationPastAwards, MigrationPrograms, MigrationRequestInput, MigrationRequestPreview, MigrationRequestSent, MigrationSystem, MigrationTiming } from "../../../api/migrationRequest.ts";
 import { useMigrationRequestApi } from "../../../api/migrationRequestHooks.ts";
 import { ErrorBanner, Field, Notice, problemFor } from "../../../components/ui.tsx";
-import { NOTE_MAX, PAST_AWARD_OPTIONS, PROGRAM_OPTIONS, SYSTEM_OPTIONS, TIMING_OPTIONS } from "../../../content/switch.ts";
+import { NOTE_MAX, PAST_AWARD_OPTIONS, PROGRAM_OPTIONS, SYSTEM_OPTIONS, TIMING_OPTIONS, switchText } from "../../../content/switch.ts";
 
 import { intlLocale, translator } from "../../../i18n/index.tsx";
 
@@ -44,6 +44,7 @@ const codeOf = (e: unknown) => (e instanceof ApiError ? (e.errors.find((x) => ty
 
 /** `labelledBy` is the id of the heading the page puts above the form. */
 export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSystem?: MigrationSystem; labelledBy: string }) {
+  const text = switchText();
   const api = useMigrationRequestApi();
   const id = useId().replace(/:/g, "");
   const f = (name: string) => `mig-${id}-${name}`;
@@ -155,7 +156,7 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             <option value="">{tr("migrationRequestForm.choose")}</option>
             {SYSTEM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {text.systemLabel(o)}
               </option>
             ))}
           </select>
@@ -165,7 +166,7 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             <option value="">{tr("migrationRequestForm.choose")}</option>
             {PROGRAM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {text.programsLabel(o.value)}
               </option>
             ))}
           </select>
@@ -175,7 +176,7 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             <option value="">{tr("migrationRequestForm.choose")}</option>
             {PAST_AWARD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {text.pastAwardsLabel(o.value)}
               </option>
             ))}
           </select>
@@ -185,7 +186,7 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             <option value="">{tr("migrationRequestForm.choose")}</option>
             {TIMING_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {text.timingLabel(o.value)}
               </option>
             ))}
           </select>

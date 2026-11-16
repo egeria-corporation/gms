@@ -3,24 +3,25 @@
 // free migration request for anyone whose system is not listed.
 import { Link } from "react-router";
 import { ArrowRight, CalendarClock, Check } from "lucide-react";
-import { COMMON_FAQ, FACTS_AS_OF, OUR_NAME, PEAK_SOURCE, SWITCH_ENTRIES, seoFor } from "../../content/switch.ts";
+import { PEAK_SOURCE, SWITCH_ENTRIES, seoFor, switchText } from "../../content/switch.ts";
 import { MigrationRequestForm } from "./switch/MigrationRequestForm.tsx";
 import { FaqList, SourceLink, SwitchFrame } from "./switch/SwitchFrame.tsx";
 
-import { translator } from "../../i18n/index.tsx";
+import { getLocale, translator } from "../../i18n/index.tsx";
 
 
 const t = translator("public");
 export default function Switch() {
+  const text = switchText();
   return (
-    <SwitchFrame title={seoFor(null).title}>
+    <SwitchFrame title={seoFor(null, getLocale()).title}>
       <section className="landing-sec landing-hero" aria-labelledby="switch-h1">
         <div className="wrap-c landing-stack">
           <span className="og-eyebrow">
             <CalendarClock className="ic" aria-hidden="true" />
-            {t("switch.switchingFactsAsOf", { FACTS_AS_OF })}
+            {t("switch.switchingFactsAsOf", { FACTS_AS_OF: text.factsAsOf })}
           </span>
-          <h1 id="switch-h1">{t("switch.switchingTo", { OUR_NAME })}</h1>
+          <h1 id="switch-h1">{t("switch.switchingTo", { OUR_NAME: text.ourName })}</h1>
           <p className="landing-lede">
             {t("switch.mostFundersKeepAGrants")}
           </p>
@@ -61,7 +62,7 @@ export default function Switch() {
       <section className="landing-sec" aria-labelledby="faq-h">
         <div className="wrap-c landing-faq" style={{ maxWidth: "820px" }}>
           <h2 id="faq-h">{t("switch.questionsPeopleAsk")}</h2>
-          <FaqList items={COMMON_FAQ} />
+          <FaqList items={text.commonFaq} />
         </div>
       </section>
 
