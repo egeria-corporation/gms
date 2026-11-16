@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 import { useOutsideMutation } from "../../../api/outsideHooks.ts";
 import { CopyButton } from "../../../components/CopyButton.tsx";
 import { ErrorBanner, Notice } from "../../../components/ui.tsx";
+import { t } from "../i18n.ts";
 
 export function CalendarFeedCard() {
   const [url, setUrl] = useState<string | null>(null);
@@ -22,32 +23,32 @@ export function CalendarFeedCard() {
         <div className="row" style={{ gap: "8px" }}>
           <CalendarDays className="ic ic-md" aria-hidden="true" />
           <h2 id="calfeed-h" style={{ fontSize: "18px" }}>
-            Calendar feed
+            {t("outsideCalendarFeedCard.calendarFeed")}
           </h2>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "14px" }}>
-        <p>A private link your calendar app can subscribe to. It lists your deadlines: the letter of inquiry, full application and internal deadlines of the applications you track here, and stage closing and report due dates on this GMS.</p>
-        <p className="muted">Each event shows only the application’s title, the funder and the date; never answers or amounts. Anyone who has the link can see those events, so share it only with your team. Archived applications are left out.</p>
+        <p>{t("outsideCalendarFeedCard.aPrivateLinkYourCalendarApp")}</p>
+        <p className="muted">{t("outsideCalendarFeedCard.eachEventShowsOnlyTheApplications")}</p>
         {url ? (
           <>
-            <Notice tone="warn" title="Copy this link now">
-              It is shown only once. If you lose it, get a new link; the old one stops working.
+            <Notice tone="warn" title={t("outsideCalendarFeedCard.copyThisLinkNow")}>
+              {t("outsideCalendarFeedCard.itIsShownOnlyOnceIf")}
             </Notice>
             <label className="lbl" htmlFor="calfeed-url">
-              Your calendar link
+              {t("outsideCalendarFeedCard.yourCalendarLink")}
             </label>
             <div className="row" style={{ gap: "8px" }}>
               <input id="calfeed-url" className="inp mono" readOnly value={url} onFocus={(e) => e.currentTarget.select()} style={{ fontSize: "12px" }} />
-              <CopyButton value={url} what="the calendar link" className="btn btn-sm btn-secondary" />
+              <CopyButton value={url} what={t("outsideCalendarFeedCard.theCalendarLink")} className="btn btn-sm btn-secondary" />
             </div>
           </>
         ) : off ? (
-          <Notice tone="neu" title="The calendar link is off">
-            Calendars that subscribed to it stop showing your deadlines.
+          <Notice tone="neu" title={t("outsideCalendarFeedCard.theCalendarLinkIsOff")}>
+            {t("outsideCalendarFeedCard.calendarsThatSubscribedToItStop")}
           </Notice>
         ) : (
-          <p className="small muted">If you made a link before, getting a new one turns the old one off.</p>
+          <p className="small muted">{t("outsideCalendarFeedCard.ifYouMadeALinkBefore")}</p>
         )}
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           <button
@@ -62,7 +63,7 @@ export function CalendarFeedCard() {
               }
             }}
           >
-            {create.state === "saving" ? "Making the link…" : url ? "Get a new link" : "Get a calendar link"}
+            {create.state === "saving" ? t("outsideCalendarFeedCard.makingTheLink") : url ? t("outsideCalendarFeedCard.getANewLink") : t("outsideCalendarFeedCard.getACalendarLink")}
           </button>
           <button
             type="button"
@@ -75,11 +76,11 @@ export function CalendarFeedCard() {
               }
             }}
           >
-            Turn off the calendar link
+            {t("outsideCalendarFeedCard.turnOffTheCalendarLink")}
           </button>
         </div>
-        {create.error ? <ErrorBanner error={create.error} title="The link was not made" /> : null}
-        {remove.error ? <ErrorBanner error={remove.error} title="The link was not turned off" /> : null}
+        {create.error ? <ErrorBanner error={create.error} title={t("outsideCalendarFeedCard.theLinkWasNotMade")} /> : null}
+        {remove.error ? <ErrorBanner error={remove.error} title={t("outsideCalendarFeedCard.theLinkWasNotTurnedOff")} /> : null}
       </div>
     </section>
   );

@@ -17,10 +17,7 @@ import { STALE_AFTER_MONTHS, VARIANT_KEYS, VARIANT_WORDS, type VariantKey, type 
 import { AdaptPanel } from "./answerAdapt.tsx";
 import { StaleBadge } from "./outside/writeFaster.tsx";
 import { t, useApplicantText } from "./i18n.ts";
-
-/** Each version's name, in the page's language (lib/writeKeep.ts keeps the English one). */
-export const variantLabel = (k: VariantKey | "full"): string =>
-  k === "short" ? t("answerLibrary.variant.short") : k === "medium" ? t("answerLibrary.variant.medium") : k === "long" ? t("answerLibrary.variant.long") : t("answerLibrary.variant.full");
+import { variantLabel } from "./labels.ts";
 
 /** When the answer was last checked, the short, medium and long versions, and its tags. */
 function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: (saved: LibraryAnswer | null) => void }) {

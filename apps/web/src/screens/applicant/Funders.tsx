@@ -17,6 +17,7 @@ import { useFullApi } from "../../api/applicantFullHooks.ts";
 import type { ApplicantMoreApi, MyRequirement } from "../../api/applicantMore.ts";
 import { useMoreApi } from "../../api/applicantMoreHooks.ts";
 import { FunderRecordsCard } from "./outside/FunderRecordsCard.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 const load = async (api: ApplicantApi, more: ApplicantMoreApi, full: ApplicantFullApi) => {
   const [funders, applications, awards, consents, requirements] = await Promise.all([api.funders(), api.applications(), api.awards(), api.consents(), more.requirements().catch(() => [] as MyRequirement[])]);
@@ -28,7 +29,11 @@ const load = async (api: ApplicantApi, more: ApplicantMoreApi, full: ApplicantFu
 const OPEN_REQ = ["due", "overdue", "returned"];
 const OPEN_APP = ["draft", "revision_requested"];
 
+/** A funder's public page, as its address reads. */
+const publicAddress = (handle: string) => `gms.opengrants.io/f/${handle}`;
+
 export default function Funders() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const more = useMoreApi();
@@ -37,28 +42,28 @@ export default function Funders() {
 
   return (
     <>
-      <title>{`Funders — ${ws.name}`}</title>
+      <title>{t("funders.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Funders">
         <main className="main">
           <div className="crumbs">
-            <Link to={base}>Dashboard</Link>
+            <Link to={base}>{t("funders.dashboard")}</Link>
             <span>›</span>
-            <span>Funders</span>
+            <span>{t("funders.funders")}</span>
           </div>
-          <Loaded query={query} label="Loading funders">
+          <Loaded query={query} label={t("funders.loadingFunders")}>
             {({ funders, applications, awards, consents, requirements, contacts }) => {
               const openFor = (f: MyFunder) => ({
                 reports: requirements.filter((r) => r.funder?.workspaceId === f.workspaceId && OPEN_REQ.includes(r.status)),
                 apps: applications.filter((a) => a.funder.workspaceId === f.workspaceId && OPEN_APP.includes(a.status)),
               });
               const columns: Column<MyFunder>[] = [
-                { key: "name", header: "Funder", cell: (f) => <FunderChip name={f.name} accent={accentOf(f.brand)} />, sort: (f) => f.name },
-                { key: "since", header: "Relationship since", cell: (f) => (f.since ? new Date(f.since).getUTCFullYear() : "—"), sort: (f) => f.since },
-                { key: "apps", header: "Applications", numeric: true, cell: (f) => f.applications, sort: (f) => f.applications },
-                { key: "awards", header: "Awards", numeric: true, cell: (f) => f.awards, sort: (f) => f.awards },
+                { key: "name", header: t("funders.col.funder"), cell: (f) => <FunderChip name={f.name} accent={accentOf(f.brand)} />, sort: (f) => f.name },
+                { key: "since", header: t("funders.col.since"), cell: (f) => (f.since ? new Date(f.since).getUTCFullYear() : "—"), sort: (f) => f.since },
+                { key: "apps", header: t("funders.col.applications"), numeric: true, cell: (f) => f.applications, sort: (f) => f.applications },
+                { key: "awards", header: t("funders.col.awards"), numeric: true, cell: (f) => f.awards, sort: (f) => f.awards },
                 {
                   key: "open",
-                  header: "Open items",
+                  header: t("funders.col.open"),
                   cell: (f) => {
                     const o = openFor(f);
                     const n = o.reports.length + o.apps.length;
@@ -67,22 +72,22 @@ export default function Funders() {
                     ) : (
                       <span className="bdg bdg-warn">
                         <Clock className="ic" aria-hidden="true" />
-                        {n} open
+                        {t("funders.openCount", { count: n })}
                       </span>
                     );
                   },
                 },
                 {
                   key: "access",
-                  header: "Reads your Passport record",
-                  cell: (f) => (consents.some((c) => c.funder.workspaceId === f.workspaceId && !c.revokedAt) ? <span>Yes · <Link to={`${base}/team`}>manage</Link></span> : <span className="muted">No</span>),
+                  header: t("funders.col.reads"),
+                  cell: (f) => (consents.some((c) => c.funder.workspaceId === f.workspaceId && !c.revokedAt) ? <span>{t.rich("funders.yesManage", { link: (chunks) => <Link to={`${base}/team`}>{chunks}</Link> })}</span> : <span className="muted">{t("funders.readsNo")}</span>),
                 },
                 {
                   key: "page",
                   header: "",
                   cell: (f) => (
                     <Link to={`/f/${f.handle}`} className="small b">
-                      Public page <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                      {t("funders.publicPage")} <ExternalLink className="ic ic-sm" aria-hidden="true" />
                     </Link>
                   ),
                 },
@@ -92,31 +97,31 @@ export default function Funders() {
                   <div className="ph">
                     <div>
                       <div className="title">
-                        <h1>Funders</h1>
+                        <h1>{t("funders.funders")}</h1>
                       </div>
                       <div className="meta">
                         <span>
-                          {funders.length} funder{funders.length === 1 ? "" : "s"} you have applied to on the GMS
+                          {t("funders.appliedTo", { count: funders.length })}
                         </span>
                       </div>
                     </div>
                     <div className="actions">
                       <Link to={`${base}/find`} className="btn btn-secondary">
                         <Search className="ic" aria-hidden="true" />
-                        Find more funding
+                        {t("funders.findMoreFunding")}
                       </Link>
                     </div>
                   </div>
                   <FunderRecordsCard base={base} />
-                  <h2 style={{ fontSize: "18px" }}>Funders on this GMS</h2>
+                  <h2 style={{ fontSize: "18px" }}>{t("funders.fundersOnThisGms")}</h2>
                   <DataTable
-                    label="Funders"
+                    label={t("funders.funders")}
                     columns={columns}
                     rows={funders}
                     rowKey={(f) => f.workspaceId}
                     empty={
-                      <EmptyState icon={Landmark} title="No funders yet">
-                        A funder appears here once you start an application with it.
+                      <EmptyState icon={Landmark} title={t("funders.noFundersYet")}>
+                        {t("funders.aFunderAppearsHereOnceYou")}
                       </EmptyState>
                     }
                   />
@@ -126,11 +131,11 @@ export default function Funders() {
                     const open = openFor(f);
                     return (
                       <div key={f.workspaceId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-                      <section className="card" aria-label={`History with ${f.name}`}>
+                      <section className="card" aria-label={t("funders.historyWith", { name: f.name })}>
                         <div className="card-h">
                           <div className="row" style={{ gap: "12px" }}>
                             <FunderChip name={f.name} accent={accentOf(f.brand)} />
-                            <h2 style={{ fontSize: "18px" }}>History</h2>
+                            <h2 style={{ fontSize: "18px" }}>{t("funders.history")}</h2>
                           </div>
                         </div>
                         <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -142,7 +147,7 @@ export default function Funders() {
                               </Link>
                               <span className="small muted">
                                 {a.stage.label}
-                                {a.submittedAt ? ` · submitted ${formatDate(a.submittedAt)}` : ""}
+                                {a.submittedAt ? ` · ${t("funders.submittedOn", { date: formatDate(a.submittedAt) })}` : ""}
                               </span>
                             </li>
                           ))}
@@ -152,25 +157,25 @@ export default function Funders() {
                               <Link to={`${base}/grants/${w.id}/offer`} className="b">
                                 {w.title}
                               </Link>
-                              <span className="small muted">Award</span>
+                              <span className="small muted">{t("funders.award")}</span>
                             </li>
                           ))}
                         </ul>
                       </section>
                         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                          <section className="card" aria-label={`Open items with ${f.name}`}>
+                          <section className="card" aria-label={t("funders.openItemsWith", { name: f.name })}>
                             <div className="card-h">
-                              <h3>Open items</h3>
+                              <h3>{t("funders.openItems")}</h3>
                             </div>
                             <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                              {open.reports.length + open.apps.length === 0 && <li className="muted">Nothing is waiting on you.</li>}
+                              {open.reports.length + open.apps.length === 0 && <li className="muted">{t("funders.nothingIsWaitingOnYou")}</li>}
                               {open.reports.map((r) => (
                                 <li key={r.id} className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
                                   <StatusBadge kind="requirement" status={r.status} />
                                   <Link to={`${base}/reports?r=${r.id}`} className="b">
                                     {r.title}
                                   </Link>
-                                  {r.dueAt ? <span className="small muted">Due {formatDate(r.dueAt)}</span> : null}
+                                  {r.dueAt ? <span className="small muted">{t("funders.dueOn", { date: formatDate(r.dueAt) })}</span> : null}
                                 </li>
                               ))}
                               {open.apps.map((a) => (
@@ -183,38 +188,38 @@ export default function Funders() {
                               ))}
                             </ul>
                           </section>
-                          <section className="card" aria-label={`Documents from ${f.name}`}>
+                          <section className="card" aria-label={t("funders.documentsFrom", { name: f.name })}>
                             <div className="card-h">
-                              <h3>Documents from {f.name}</h3>
+                              <h3>{t("funders.documentsFrom", { name: f.name })}</h3>
                             </div>
                             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                              {mine.length === 0 && <p className="muted">Agreements and award letters appear here once {f.name} makes an award.</p>}
+                              {mine.length === 0 && <p className="muted">{t("funders.noDocuments", { name: f.name })}</p>}
                               {mine.map((w) => (
                                 <div className="doc" key={w.id}>
                                   <span className="ft ft-pdf">PDF</span>
                                   <div className="grow">
-                                    <div className="nm">Grant agreement — {w.title}</div>
+                                    <div className="nm">{t("funders.agreementFor", { title: w.title })}</div>
                                     <div className="mt">
                                       <StatusBadge kind="award" status={w.status} />
                                     </div>
                                   </div>
-                                  <Link to={`${base}/grants/${w.id}/offer`} className="btn btn-sm btn-ghost" aria-label={`Open the grant agreement for ${w.title}`}>
-                                    Open
+                                  <Link to={`${base}/grants/${w.id}/offer`} className="btn btn-sm btn-ghost" aria-label={t("funders.openAgreement", { title: w.title })}>
+                                    {t("funders.open")}
                                   </Link>
                                 </div>
                               ))}
                             </div>
                           </section>
-                          <section className="card" aria-label={`Contact ${f.name}`}>
+                          <section className="card" aria-label={t("funders.contactName", { name: f.name })}>
                             <div className="card-h">
-                              <h3>Contact</h3>
+                              <h3>{t("funders.contact")}</h3>
                             </div>
                             <div className="card-b">
                               <dl className="kv" style={{ fontSize: "15px" }}>
                                 <FunderContactRows handle={f.handle} fallbackEmail={contacts[f.workspaceId] ?? null} />
-                                <dt>Public page</dt>
+                                <dt>{t("funders.publicPage")}</dt>
                                 <dd>
-                                  <Link to={`/f/${f.handle}`}>gms.opengrants.io/f/{f.handle}</Link>
+                                  <Link to={`/f/${f.handle}`}>{publicAddress(f.handle)}</Link>
                                 </dd>
                               </dl>
                             </div>

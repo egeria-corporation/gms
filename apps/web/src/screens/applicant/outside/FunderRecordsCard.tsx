@@ -11,13 +11,14 @@ import { Loaded } from "../../../components/applicant.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, type Column } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { webAddress } from "../../../lib/outside.ts";
+import { t } from "../i18n.ts";
 
 function AddFunderDialog({ base, onClose }: { base: string; onClose: () => void }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const create = useOutsideMutation((api) => api.createFunderRecord({ name: name.trim(), ...(website.trim() ? { website: webAddress(website) } : {}) }));
-  const bad = website.trim() && !webAddress(website) ? "Enter a full web address, starting with https://" : null;
+  const bad = website.trim() && !webAddress(website) ? t("outsideFunderRecordsCard.badAddress") : null;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim() || bad) return;
@@ -30,29 +31,29 @@ function AddFunderDialog({ base, onClose }: { base: string; onClose: () => void 
         <div className="hd">
           <div>
             <h3 id="addf-title" style={{ fontSize: "16px" }}>
-              Add a funder
+              {t("outsideFunderRecordsCard.addAFunder")}
             </h3>
-            <p className="small muted">A private record for a funder you apply to: contacts, notes, who holds the portal login.</p>
+            <p className="small muted">{t("outsideFunderRecordsCard.aPrivateRecordForAFunder")}</p>
           </div>
-          <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+          <button className="iconbtn" type="button" aria-label={t("outsideFunderRecordsCard.close")} onClick={onClose}>
             <X className="ic ic-md" aria-hidden="true" />
           </button>
         </div>
         <div className="bd">
-          <Field id="addf-name" label="Name" required>
+          <Field id="addf-name" label={t("outsideFunderRecordsCard.name")} required>
             <input id="addf-name" className="inp" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field id="addf-web" label="Website" error={bad}>
+          <Field id="addf-web" label={t("outsideFunderRecordsCard.website")} error={bad}>
             <input id="addf-web" className="inp" type="url" value={website} onChange={(e) => setWebsite(e.target.value)} />
           </Field>
-          {create.error ? <ErrorBanner error={create.error} title="The funder was not added" /> : null}
+          {create.error ? <ErrorBanner error={create.error} title={t("outsideFunderRecordsCard.theFunderWasNotAdded")} /> : null}
         </div>
         <div className="ft">
           <button className="btn btn-secondary" type="button" onClick={onClose}>
-            Cancel
+            {t("outsideFunderRecordsCard.cancel")}
           </button>
           <button className="btn btn-primary" type="submit" disabled={!name.trim() || !!bad || create.state === "saving"}>
-            {create.state === "saving" ? "Adding…" : "Add funder"}
+            {create.state === "saving" ? t("outsideFunderRecordsCard.adding") : t("outsideFunderRecordsCard.addFunder")}
           </button>
         </div>
       </form>
@@ -66,7 +67,7 @@ export function FunderRecordsCard({ base }: { base: string }) {
   const columns: Column<FunderRecord>[] = [
     {
       key: "name",
-      header: "Funder",
+      header: t("outsideFunderRecordsCard.col.funder"),
       sort: (r) => r.name.toLowerCase(),
       cell: (r) => (
         <Link to={`${base}/funders/${r.id}`} className="nm b">
@@ -74,35 +75,35 @@ export function FunderRecordsCard({ base }: { base: string }) {
         </Link>
       ),
     },
-    { key: "contacts", header: "Contacts", numeric: true, cell: (r) => r.contacts.length, sort: (r) => r.contacts.length },
-    { key: "apps", header: "Applications", numeric: true, cell: (r) => r.applications.length, sort: (r) => r.applications.length },
-    { key: "login", header: "Portal login held by", cell: (r) => r.portalLoginHolder ?? <span className="muted">—</span> },
-    { key: "updated", header: "Updated", cell: (r) => formatDate(r.updatedAt), sort: (r) => r.updatedAt },
+    { key: "contacts", header: t("outsideFunderRecordsCard.col.contacts"), numeric: true, cell: (r) => r.contacts.length, sort: (r) => r.contacts.length },
+    { key: "apps", header: t("outsideFunderRecordsCard.col.applications"), numeric: true, cell: (r) => r.applications.length, sort: (r) => r.applications.length },
+    { key: "login", header: t("outsideFunderRecordsCard.col.login"), cell: (r) => r.portalLoginHolder ?? <span className="muted">—</span> },
+    { key: "updated", header: t("outsideFunderRecordsCard.col.updated"), cell: (r) => formatDate(r.updatedAt), sort: (r) => r.updatedAt },
   ];
   return (
     <section className="card" aria-labelledby="frc-h">
       <div className="card-h">
         <div>
           <h2 id="frc-h" style={{ fontSize: "18px" }}>
-            Your funder records
+            {t("outsideFunderRecordsCard.yourFunderRecords")}
           </h2>
-          <p className="small muted">Every funder you track, on this GMS or not. Only your team sees these.</p>
+          <p className="small muted">{t("outsideFunderRecordsCard.everyFunderYouTrackOnThis")}</p>
         </div>
         <button type="button" className="btn btn-sm btn-primary" aria-haspopup="dialog" onClick={() => setAdding(true)}>
           <Plus className="ic" aria-hidden="true" />
-          Add a funder
+          {t("outsideFunderRecordsCard.addAFunder")}
         </button>
       </div>
-      <Loaded query={query} label="Loading funder records">
+      <Loaded query={query} label={t("outsideFunderRecordsCard.loadingFunderRecords")}>
         {(records) => (
           <DataTable
-            label="Your funder records"
+            label={t("outsideFunderRecordsCard.yourFunderRecords")}
             columns={columns}
             rows={records}
             rowKey={(r) => r.id}
             empty={
-              <EmptyState icon={Landmark} title="No funder records yet">
-                Add a funder to keep its contacts, notes and past asks together.
+              <EmptyState icon={Landmark} title={t("outsideFunderRecordsCard.noFunderRecordsYet")}>
+                {t("outsideFunderRecordsCard.addAFunderToKeepIts")}
               </EmptyState>
             }
           />

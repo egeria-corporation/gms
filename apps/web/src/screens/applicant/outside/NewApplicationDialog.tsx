@@ -13,6 +13,7 @@ import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, Notice, problemFor } from "../../../components/ui.tsx";
 import { gmsOpportunityOf, webAddress } from "../../../lib/outside.ts";
 import { moneyFrom } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 type Mode = "choose" | "link" | "details";
 
@@ -112,7 +113,7 @@ export function NewApplicationDialog({ base, records, openGrants, onClose }: { b
 
   const need = (v: string, message: string) => (tried && !v.trim() ? message : null);
   const funderField = (
-    <Field id="na-funder" label="Funder" required error={need(funder, "Name the funder") ?? problemFor(error, "funderName")} help={records.length ? "Pick one of your funder records, or type a new name." : undefined}>
+    <Field id="na-funder" label={t("outsideNewApplicationDialog.funder")} required error={need(funder, t("outsideNewApplicationDialog.nameTheFunder")) ?? problemFor(error, "funderName")} help={records.length ? t("outsideNewApplicationDialog.pickOneOfYourFunderRecords") : undefined}>
       <input id="na-funder" className="inp" list="na-funder-records" autoComplete="off" value={funder} onChange={(e) => setFunder(e.target.value)} />
       <datalist id="na-funder-records">
         {records.map((r) => (
@@ -128,35 +129,35 @@ export function NewApplicationDialog({ base, records, openGrants, onClose }: { b
         <div className="hd">
           <div>
             <h3 id="na-title" style={{ fontSize: "16px" }}>
-              New application
+              {t("outsideNewApplicationDialog.newApplication")}
             </h3>
-            <p className="small muted">{mode === "choose" ? "Track an application to any funder, on this GMS or anywhere else." : mode === "link" ? "Paste the funder’s page for the opportunity." : "Enter what you know now; you can add the rest later."}</p>
+            <p className="small muted">{mode === "choose" ? t("outsideNewApplicationDialog.trackAnApplicationToAnyFunder") : mode === "link" ? t("outsideNewApplicationDialog.pasteTheFundersPageForThe") : t("outsideNewApplicationDialog.enterWhatYouKnowNowYou")}</p>
           </div>
-          <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+          <button className="iconbtn" type="button" aria-label={t("outsideNewApplicationDialog.close")} onClick={onClose}>
             <X className="ic ic-md" aria-hidden="true" />
           </button>
         </div>
         <div className="bd">
           {mode === "choose" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {openGrants && <Choice icon={Search} title="From an OpenGrants listing" detail="Search OpenGrants in Find funding, then choose Start application." onClick={() => navigate(`${base}/find?tab=index`)} />}
-              <Choice icon={Link2} title="Paste a link" detail="The funder’s page for the opportunity. A link to this GMS opens the application here." onClick={() => setMode("link")} />
-              <Choice icon={FileText} title="Enter the details" detail="Funder, title, deadlines and the amount you plan to ask for." onClick={() => setMode("details")} />
+              {openGrants && <Choice icon={Search} title={t("outsideNewApplicationDialog.fromAnOpengrantsListing")} detail={t("outsideNewApplicationDialog.fromListingDetail")} onClick={() => navigate(`${base}/find?tab=index`)} />}
+              <Choice icon={Link2} title={t("outsideNewApplicationDialog.pasteALink")} detail={t("outsideNewApplicationDialog.pasteLinkDetail")} onClick={() => setMode("link")} />
+              <Choice icon={FileText} title={t("outsideNewApplicationDialog.enterTheDetails")} detail={t("outsideNewApplicationDialog.detailsDetail")} onClick={() => setMode("details")} />
             </div>
           )}
           {mode === "link" && (
             <>
-              <Field id="na-link" label="Link" required error={tried && !linkUrl ? "Enter a full web address, starting with https://" : null}>
-                <input id="na-link" className="inp" type="url" inputMode="url" autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" />
+              <Field id="na-link" label={t("outsideNewApplicationDialog.link")} required error={tried && !linkUrl ? t("outsideNewApplicationDialog.badAddress") : null}>
+                <input id="na-link" className="inp" type="url" inputMode="url" autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("outsideNewApplicationDialog.https")} />
               </Field>
               {gms ? (
-                <Notice tone="info" title="This opportunity is on this GMS">
-                  You apply to it here, with your organization’s details filled in for you.
+                <Notice tone="info" title={t("outsideNewApplicationDialog.thisOpportunityIsOnThisGms")}>
+                  {t("outsideNewApplicationDialog.youApplyToItHereWith")}
                 </Notice>
               ) : (
                 linkUrl && (
                   <>
-                    <Field id="na-t" label="Title" required error={need(title, "Give the application a title") ?? problemFor(error, "title")}>
+                    <Field id="na-t" label={t("outsideNewApplicationDialog.title")} required error={need(title, t("outsideNewApplicationDialog.needTitle")) ?? problemFor(error, "title")}>
                       <input id="na-t" className="inp" value={title} onChange={(e) => setTitle(e.target.value)} />
                     </Field>
                     {funderField}
@@ -168,55 +169,55 @@ export function NewApplicationDialog({ base, records, openGrants, onClose }: { b
           {mode === "details" && (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-                <Field id="na-t" label="Title" required error={need(title, "Give the application a title") ?? problemFor(error, "title")}>
+                <Field id="na-t" label={t("outsideNewApplicationDialog.title")} required error={need(title, t("outsideNewApplicationDialog.needTitle")) ?? problemFor(error, "title")}>
                   <input id="na-t" className="inp" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
                 </Field>
                 {funderField}
-                <Field id="na-p" label="Program">
+                <Field id="na-p" label={t("outsideNewApplicationDialog.program")}>
                   <input id="na-p" className="inp" value={program} onChange={(e) => setProgram(e.target.value)} />
                 </Field>
-                <Field id="na-a" label="Ask (USD)" error={ask.trim() && !askMoney ? "Enter the amount in dollars, such as 25000" : null}>
+                <Field id="na-a" label={t("outsideNewApplicationDialog.askUsd")} error={ask.trim() && !askMoney ? t("outsideNewApplicationDialog.badAmount") : null}>
                   <input id="na-a" className="inp" inputMode="decimal" value={ask} onChange={(e) => setAsk(e.target.value)} />
                 </Field>
-                <Field id="na-loi" label="Letter of inquiry due">
+                <Field id="na-loi" label={t("outsideNewApplicationDialog.letterOfInquiryDue")}>
                   <input id="na-loi" className="inp" type="date" value={loi} onChange={(e) => setLoi(e.target.value)} />
                 </Field>
-                <Field id="na-full" label="Full application due">
+                <Field id="na-full" label={t("outsideNewApplicationDialog.fullApplicationDue")}>
                   <input id="na-full" className="inp" type="date" value={full} onChange={(e) => setFull(e.target.value)} />
                 </Field>
-                <Field id="na-int" label="Internal deadline" help="When your team wants it finished.">
+                <Field id="na-int" label={t("outsideNewApplicationDialog.internalDeadline")} help={t("outsideNewApplicationDialog.whenYourTeamWantsItFinished")}>
                   <input id="na-int" className="inp" type="date" value={internal} onChange={(e) => setInternal(e.target.value)} />
                 </Field>
-                <Field id="na-portal" label="Funder’s portal link" error={portal.trim() && !webAddress(portal) ? "Enter a full web address, starting with https://" : null}>
+                <Field id="na-portal" label={t("outsideNewApplicationDialog.fundersPortalLink")} error={portal.trim() && !webAddress(portal) ? t("outsideNewApplicationDialog.badAddress") : null}>
                   <input id="na-portal" className="inp" type="url" value={portal} onChange={(e) => setPortal(e.target.value)} />
                 </Field>
               </div>
               <label className="row" style={{ gap: "8px", fontSize: "14px" }}>
                 <input type="checkbox" checked={rolling} onChange={(e) => setRolling(e.target.checked)} />
-                The funder takes applications on a rolling basis
+                {t("outsideNewApplicationDialog.theFunderTakesApplicationsOnA")}
               </label>
               <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                <legend className="lbl">Where you are</legend>
+                <legend className="lbl">{t("outsideNewApplicationDialog.whereYouAre")}</legend>
                 <label className="row" style={{ gap: "6px", fontSize: "14px" }}>
                   <input type="radio" name="na-stage" checked={stage === "drafting"} onChange={() => setStage("drafting")} />
-                  Writing it now
+                  {t("outsideNewApplicationDialog.writingItNow")}
                 </label>
                 <label className="row" style={{ gap: "6px", fontSize: "14px" }}>
                   <input type="radio" name="na-stage" checked={stage === "prospect"} onChange={() => setStage("prospect")} />
-                  Just a prospect for now
+                  {t("outsideNewApplicationDialog.justAProspectForNow")}
                 </label>
               </fieldset>
             </>
           )}
-          {error ? <ErrorBanner error={error} title="The application was not started" /> : null}
+          {error ? <ErrorBanner error={error} title={t("outsideNewApplicationDialog.theApplicationWasNotStarted")} /> : null}
         </div>
         {mode !== "choose" && (
           <div className="ft">
             <button className="btn btn-secondary" type="button" onClick={() => setMode("choose")}>
-              Back
+              {t("outsideNewApplicationDialog.back")}
             </button>
             <button className="btn btn-primary" type="submit" disabled={busy}>
-              {busy ? "Starting…" : gms ? "Go to the application" : "Start application"}
+              {busy ? t("outsideNewApplicationDialog.starting") : gms ? t("outsideNewApplicationDialog.goToTheApplication") : t("outsideNewApplicationDialog.startApplication")}
             </button>
           </div>
         )}
