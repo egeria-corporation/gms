@@ -23,6 +23,7 @@ import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, par
 import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
 import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 const STEPS = [
   { key: "basics", get title() { return t("opportunityBuilder.step.basics.title"); }, get hint() { return t("opportunityBuilder.step.basics.hint"); } },
@@ -567,6 +568,8 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
 
 export default function OpportunityBuilder() {
   useFunderMessages();
+  // The embed panel shows the public widget's card: its messages load with the screen, not when the panel opens.
+  usePublicMessages();
   const ws = useWorkspace("funder");
   const { oppId } = useParams();
   const navigate = useNavigate();

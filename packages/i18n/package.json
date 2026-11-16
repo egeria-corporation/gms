@@ -20,5 +20,8 @@
   "dependencies": {
     "@formatjs/icu-messageformat-parser": "3.5.22",
     "intl-messageformat": "12.1.4"
+  },
+  "devDependencies": {
+    "rolldown": "1.2.16"
   }
 }

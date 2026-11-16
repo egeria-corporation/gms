@@ -66,7 +66,15 @@ export function useT<N extends Namespace>(ns: N): T<N> {
 }
 
 /**
- * A translator for module scope, for `public` and `shared` (always loaded): it reads the current
+ * Call first in a screen that shows a public screen's part (a card, a label, a message) outside the
+ * public routes: suspends until the `public` catalog is loaded, as the public routes do.
+ */
+export function usePublicMessages(): void {
+  useT("public");
+}
+
+/**
+ * A translator for module scope, for `public` and `shared` (loaded before any screen that reads them renders): it reads the current
  * language at each call, so `const t = translator("public")` at the top of a file is safe in any
  * function there. Screens redraw on a language change because the routes remount (app/App.tsx).
  * Never call it while a module loads (a label table built once would stay in one language): build

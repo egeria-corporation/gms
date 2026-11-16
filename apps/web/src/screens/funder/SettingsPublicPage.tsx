@@ -13,8 +13,11 @@ import { poweredByLabel } from "../public/PublicFrame.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { AwardListingCard } from "./AwardListingSettings.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 export function PoweredByCard() {
+  // poweredByLabel() is the public pages' own label.
+  usePublicMessages();
   const ws = useWorkspace("funder");
   const isAdmin = ws.member.role === "admin";
   const record = useApiQuery((api) => api.workspaceRecord(ws.id), [ws.id]);
@@ -86,6 +89,7 @@ export function PoweredByCard() {
 
 export default function SettingsPublicPage() {
   useFunderMessages();
+  usePublicMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   return (

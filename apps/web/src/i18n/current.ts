@@ -18,11 +18,12 @@ export const subscribeLocale = (listener: () => void): (() => void) => {
 };
 
 /**
- * Show the page in a language: loads its catalogs (the namespaces already in use, plus `public` and
- * `shared`), then switches every screen at once and sets `<html lang>`. English needs no download.
+ * Show the page in a language: loads its catalogs (`shared` and the namespaces already in use), then
+ * switches every screen at once and sets `<html lang>`. A screen that needs another namespace loads
+ * it when it renders (`useT`, `publicScreen` in app/App.tsx).
  */
 export async function changeLocale(locale: Locale): Promise<void> {
-  const namespaces = Array.from(new Set<Namespace>(["public", "shared", ...loadedNamespaces(current)]));
+  const namespaces = Array.from(new Set<Namespace>(["shared", ...loadedNamespaces(current)]));
   await loadCatalogs(locale, namespaces);
   if (typeof document !== "undefined") document.documentElement.lang = locale;
   if (locale === current) return;
@@ -33,8 +34,9 @@ export async function changeLocale(locale: Locale): Promise<void> {
 /**
  * Outside a component (a label table, a formatter in lib/): the message in the current language,
  * or in `locale` when given (the front Worker, after loading that language's catalogs). Only for
- * `public` and `shared`, which are always loaded. Screens remount on a language change
- * (app/App.tsx), so a value computed here is never stale on screen.
+ * `shared`, which is always loaded, and `public`, which every public screen loads before it renders
+ * (`publicScreen` in app/App.tsx; `usePublicMessages` where another screen borrows a public part).
+ * Screens remount on a language change (app/App.tsx), so a value computed here is never stale.
  */
 export function translate<N extends "public" | "shared">(ns: N, key: Key<N>, values?: Values, locale: Locale = current): string {
   return createTranslator(locale, ns)(key, values);

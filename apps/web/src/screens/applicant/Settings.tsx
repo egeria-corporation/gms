@@ -15,6 +15,7 @@ import { CalendarFeedCard } from "./outside/CalendarFeedCard.tsx";
 import { GrantSettingsCard } from "./outside/GrantSettingsCard.tsx";
 import { WhatWeEmailYouCard } from "../public/whatWeEmailYou.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 /** The events an applicant workspace produces, in the order people meet them. */
 export const EVENTS: { key: string; readonly label: string; readonly detail: string }[] = [
@@ -113,6 +114,8 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
 
 export default function Settings() {
   useApplicantText();
+  // WhatWeEmailYouCard is the public screens' card.
+  usePublicMessages();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const query = useMoreQuery((api) => api.notificationPreferences(), [ws.id]);

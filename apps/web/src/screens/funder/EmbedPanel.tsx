@@ -11,8 +11,11 @@ import { ErrorBanner, Loading, Notice } from "../../components/ui.tsx";
 import { EMBED_HEIGHT, embedSnippet } from "../../lib/embed.ts";
 import { EmbedCard } from "../public/EmbedWidget.tsx";
 import { t } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 export function EmbedPanel({ handle, funderName, opportunity, listed, taking }: { handle: string; funderName: string; opportunity: Opportunity | undefined; listed: boolean; taking: boolean }) {
+  // The preview is the public widget's card (screens/public/EmbedWidget.tsx); OpportunityBuilder loads its messages with the screen.
+  usePublicMessages();
   const [resize, setResize] = useState(false);
   const live = !!opportunity?.published && listed;
   const slug = opportunity?.slug ?? "";

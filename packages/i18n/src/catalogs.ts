@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The message catalogs: one JSON file per language and namespace under ../catalogs. English is the
 // source; its keys are the type of every key (a missing key is a type error), and the Spanish files
-// must hold the same keys (test/catalogs.test.ts). The English `public` and `shared` namespaces ship
-// in the web app's first bundle; every other catalog, all of Spanish included, is loaded on demand,
-// so an English visitor downloads nothing extra.
+// must hold the same keys (test/catalogs.test.ts). The English `shared` namespace ships with the
+// web app's first page, in a chunk of its own; every other catalog, `public` and all of Spanish
+// included, is a chunk of its own loaded on demand, with the screens of its area.
 import type { MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 import type { Locale } from "./locales.ts";
-import enPublic from "../catalogs/en/public.json";
+import type enPublic from "../catalogs/en/public.json";
 import enShared from "../catalogs/en/shared.json";
 import type enApplicant from "../catalogs/en/applicant.json";
 import type enFunder from "../catalogs/en/funder.json";
@@ -41,7 +41,7 @@ type Loader = () => Promise<{ default: Catalog }>;
 // Literal paths, one per file: bundlers split each into its own chunk.
 const LOADERS: Record<Locale, Record<Namespace, Loader>> = {
   en: {
-    public: () => Promise.resolve({ default: enPublic }),
+    public: () => import("../catalogs/en/public.json"),
     shared: () => Promise.resolve({ default: enShared }),
     applicant: () => import("../catalogs/en/applicant.json"),
     funder: () => import("../catalogs/en/funder.json"),
@@ -59,10 +59,7 @@ const LOADERS: Record<Locale, Record<Namespace, Loader>> = {
 };
 
 const slot = (locale: Locale, ns: Namespace) => `${locale}:${ns}`;
-const loaded = new Map<string, Catalog>([
-  [slot("en", "public"), enPublic],
-  [slot("en", "shared"), enShared],
-]);
+const loaded = new Map<string, Catalog>([[slot("en", "shared"), enShared]]);
 const pending = new Map<string, Promise<Catalog>>();
 
 /** The catalog when it is already loaded; undefined otherwise (never starts a load). */

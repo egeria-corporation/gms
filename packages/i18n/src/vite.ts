@@ -7,7 +7,8 @@
 // In a production build the keys are shortened too: every key is given a short id (its place among
 // all English keys, in base 36), in the catalogs and in the web app's code alike, so the bundle
 // carries "1x" instead of "accountSettings.theAgentLosesAccessTo" twice. This is why a key in code
-// is always a string literal: a key built at run time (`step.${name}`) stops the build.
+// is always a string literal: a key built at run time in a translation call (`t(`step.${name}`)`)
+// stops the build. Only the translation calls' arguments are inspected for that.
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { parse } from "@formatjs/icu-messageformat-parser";
@@ -45,13 +46,92 @@ export function keyIds(catalogDir: URL = new URL("../catalogs/en/", import.meta.
 }
 
 const KEY_LITERAL = /(["'])([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_]+)+)\1/g;
-const KEY_TEMPLATE = /`([a-z][A-Za-z0-9]*\.[A-Za-z0-9_.]*)\$\{/g;
+const KEY_HEAD = /^[a-z][A-Za-z0-9]*\.[A-Za-z0-9_.]*$/;
 
-/** The web app's code with each catalog key (a string literal) replaced by its short id. A key built from a template stops the build. */
-export function shortenKeys(code: string, ids: ReadonlyMap<string, string>, file = "module"): string {
-  for (const m of code.matchAll(KEY_TEMPLATE)) {
-    const head = m[1]!;
-    for (const k of ids.keys()) if (k.startsWith(head)) throw new Error(`${file}: the catalog key \`${head}\${…}\` is built at run time; write each key as a string literal (docs/i18n.md)`);
+/**
+ * The names the web app gives its translators: `const t = useT(…)` or `translator(…)`, the screens'
+ * own `t` (screens/funder/i18n.ts, screens/applicant/i18n.ts), `tr` and `s` beside a second
+ * namespace, `translate(ns, key)` and the front Worker's `m(locale, key)`. `.rich` calls count too.
+ */
+export const TRANSLATION_CALLS: ReadonlySet<string> = new Set(["t", "tr", "s", "m", "translate"]);
+
+/** An ESTree node, as `this.parse` (Rolldown) or `parseAst` gives it. */
+interface Node {
+  type: string;
+  [field: string]: unknown;
+}
+/** Parses one module of the web app into ESTree. */
+export type ParseModule = (code: string, file: string) => unknown;
+
+const isNode = (value: unknown): value is Node => typeof value === "object" && value !== null && typeof (value as Node).type === "string";
+const nameOf = (node: unknown): string | undefined => (isNode(node) && node.type === "Identifier" ? (node.name as string) : undefined);
+
+/** Is this call a translation, `t(…)` or `t.rich(…)`? */
+function isTranslation(call: Node): boolean {
+  const callee = call.callee as Node;
+  const name = nameOf(callee) ?? (callee.type === "MemberExpression" && nameOf(callee.property) === "rich" ? nameOf(callee.object) : undefined);
+  return name !== undefined && TRANSLATION_CALLS.has(name);
+}
+
+/** The fixed start of each key an argument builds at run time: `` `step.${x}` `` and `"step." + x` give "step.". */
+function* runTimeHeads(arg: unknown): Generator<string> {
+  if (!isNode(arg)) return;
+  switch (arg.type) {
+    case "TemplateLiteral":
+      if ((arg.expressions as unknown[]).length) yield ((arg.quasis as Node[])[0]!.value as { cooked?: string; raw: string }).cooked ?? "";
+      return;
+    case "BinaryExpression":
+      if (arg.operator === "+") {
+        const left = arg.left as Node;
+        if (left.type === "Literal" && typeof left.value === "string") yield left.value;
+        else yield* runTimeHeads(left);
+      }
+      return;
+    case "ConditionalExpression":
+      yield* runTimeHeads(arg.consequent);
+      yield* runTimeHeads(arg.alternate);
+      return;
+    case "LogicalExpression":
+      yield* runTimeHeads(arg.left);
+      yield* runTimeHeads(arg.right);
+      return;
+    case "ParenthesizedExpression":
+    case "TSAsExpression":
+    case "TSSatisfiesExpression":
+    case "TSNonNullExpression":
+    case "TSTypeAssertion":
+      yield* runTimeHeads(arg.expression);
+      return;
+    default:
+      return;
+  }
+}
+
+/** Every call in the module that translates, wherever it sits. */
+function* translationCalls(node: unknown): Generator<Node> {
+  if (Array.isArray(node)) {
+    for (const item of node) yield* translationCalls(item);
+    return;
+  }
+  if (!isNode(node)) return;
+  if (node.type === "CallExpression" && isTranslation(node)) yield node;
+  for (const [field, value] of Object.entries(node)) if (field !== "type" && typeof value === "object" && value !== null) yield* translationCalls(value);
+}
+
+/**
+ * The web app's code with each catalog key (a string literal) replaced by its short id. A key built at
+ * run time in a translation call's arguments stops the build; a template literal anywhere else (a
+ * file name such as `applications.${format}`, a field path such as `stages.${i}.label`) is not a key
+ * and is left alone.
+ */
+export function shortenKeys(code: string, ids: ReadonlyMap<string, string>, file: string, parse: ParseModule): string {
+  if (code.includes("${") || code.includes("+")) {
+    for (const call of translationCalls(parse(code, file))) {
+      for (const head of (call.arguments as unknown[]).flatMap((arg) => [...runTimeHeads(arg)])) {
+        if (!KEY_HEAD.test(head)) continue;
+        for (const k of ids.keys()) if (k.startsWith(head)) throw new Error(`${file}: the catalog key \`${head}\${…}\` is built at run time; write each key as a string literal (docs/i18n.md)`);
+      }
+    }
   }
   return code.replace(KEY_LITERAL, (all, quote: string, key: string) => {
     const id = ids.get(key);
@@ -69,9 +149,16 @@ interface CatalogPlugin {
   enforce: "pre";
   config(user: unknown, env: { command: string }): {
     resolve: { alias: { find: RegExp; replacement: string }[] };
-    build: { rolldownOptions: { output: { chunkFileNames: (chunk: ChunkInfo) => string } } };
+    json: { stringify: boolean; namedExports: boolean };
+    build: { rolldownOptions: { output: { chunkFileNames: (chunk: ChunkInfo) => string; codeSplitting: { groups: { name: (id: string) => string | null; debugName: string; test: RegExp }[] } } } };
   };
-  transform(code: string, id: string): { code: string; map: null } | null;
+  transform(this: { parse(code: string, options: { lang: "ts" | "tsx" }): unknown }, code: string, id: string): { code: string; map: null } | null;
+}
+
+/** Each catalog is a chunk of its own, also one the first page imports (English `shared`), named by language and namespace. */
+export function catalogChunk(id: string): string | null {
+  const m = CATALOG.exec(id.split("?")[0]!);
+  return m ? `i18n-${m[1]}-${m[2]}` : null;
 }
 
 /** `assets/i18n-es-public-<hash>.js` for a catalog chunk, so a reader (and the bundle-size test) can tell a language's chunks apart. */
@@ -98,14 +185,19 @@ export function i18nCatalogs(opts: { shortKeys?: boolean } = {}): CatalogPlugin 
       if (env.command === "build" && opts.shortKeys !== false) ids = keyIds();
       return {
         resolve: { alias: [{ find: /^@formatjs\/icu-messageformat-parser$/, replacement: noParser }] },
-        build: { rolldownOptions: { output: { chunkFileNames: chunkFileName } } },
+        // A catalog becomes `JSON.parse("…")`: smaller than a named export per message, and quicker to load.
+        json: { stringify: true, namedExports: false },
+        build: { rolldownOptions: { output: { chunkFileNames: chunkFileName, codeSplitting: { groups: [{ name: catalogChunk, debugName: "i18n catalogs", test: CATALOG }] } } } },
       };
     },
     transform(code, id) {
       const file = id.split("?")[0]!;
       const catalog = CATALOG.exec(file);
       if (catalog) return { code: SERVER_ONLY_NAMESPACES.includes(catalog[2]!) ? "{}" : precompileCatalog(code, file, ids), map: null };
-      if (ids && WEB_SOURCE.test(file) && !file.includes("node_modules")) return { code: shortenKeys(code, ids, file), map: null };
+      if (ids && WEB_SOURCE.test(file) && !file.includes("node_modules")) {
+        const parse: ParseModule = (source, name) => this.parse(source, { lang: name.endsWith(".tsx") ? "tsx" : "ts" });
+        return { code: shortenKeys(code, ids, file, parse), map: null };
+      }
       return null;
     },
   };

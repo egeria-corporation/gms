@@ -295,6 +295,10 @@ importers:
       intl-messageformat:
         specifier: 12.1.4
         version: 12.1.4
+    devDependencies:
+      rolldown:
+        specifier: 1.2.16
+        version: 1.2.16
 
   packages/importers:
     dependencies:

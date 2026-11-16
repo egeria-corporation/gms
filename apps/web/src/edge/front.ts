@@ -177,8 +177,8 @@ export function createFront(config: FrontConfig) {
   }
 
   async function metaFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale): Promise<PageMeta | null> {
-    // A language other than English loads its catalogs once per isolate.
-    if (locale !== DEFAULT_LOCALE) await loadCatalogs(locale, ["public", "shared"]);
+    // Each language's catalogs load once per isolate (a language other than English loads English too).
+    await loadCatalogs(locale, ["public", "shared"]);
     switch (route.kind) {
       case "landing":
         return landingMeta(origin, locale);
@@ -213,7 +213,7 @@ export function createFront(config: FrontConfig) {
   /** A card's text, in the language its address asks for (`?lang=es`, as the page's meta gives it). */
   async function cardFor(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale = DEFAULT_LOCALE): Promise<CardText | null> {
     // The status and amount words come from the public and shared catalogs, loaded once per isolate.
-    if (locale !== DEFAULT_LOCALE) await loadCatalogs(locale, ["public", "shared"]);
+    await loadCatalogs(locale, ["public", "shared"]);
     if (route.kind === "landing") return landingCard(config.host, locale);
     if (route.kind === "funder") {
       const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);

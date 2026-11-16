@@ -11,11 +11,14 @@ import { useInvitesApi } from "../../api/invitesHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { invitationProblem } from "../public/InvitationAccept.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 type State = { status: "joining" } | { status: "failed"; title: string; detail: string };
 
 export default function JoinDraft() {
   useApplicantText();
+  // invitationProblem() words its messages from the public invitation screen.
+  usePublicMessages();
   const api = useInvitesApi();
   const { reloadMe } = useServices();
   const navigate = useNavigate();

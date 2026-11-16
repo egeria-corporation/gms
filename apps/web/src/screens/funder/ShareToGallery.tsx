@@ -15,6 +15,7 @@ import { ErrorBanner, Field, Loading, Notice, problemFor } from "../../component
 import { formatDate } from "../../lib/format.ts";
 import { StrippedList, SnapshotPreview, SubmissionBadge } from "../public/galleryParts.tsx";
 import { t } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 /** Only a workspace admin shares (the API refuses anyone else). */
 export const useCanShare = () => (useWorkspace("funder").member.role ?? "admin") === "admin";
@@ -58,6 +59,8 @@ const KIND: Record<GalleryKind, () => string> = {
 const kindLabel = (kind: GalleryKind) => KIND[kind]?.() ?? kind;
 
 function ShareDialog({ source, name, onClose }: { source: GallerySource; name: string; onClose: () => void }) {
+  // Loaded already by the button that opens the dialog, so the dialog never waits (or loses focus) for it.
+  usePublicMessages();
   const ws = useWorkspace("funder");
   const [extra, setExtra] = useState("");
   const extraNames = extra.split(",").map((s) => s.trim()).filter((s) => s.length >= 3);
@@ -188,6 +191,8 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
 
 /** One button for a form, a rubric or an email template. Renders nothing for anyone but an admin. */
 export function ShareToGalleryButton({ source, name, small = false, disabledReason }: { source: GallerySource; name: string; small?: boolean; disabledReason?: string }) {
+  // The dialog shows the gallery's own parts (screens/public/galleryParts.tsx): their messages load with the button.
+  usePublicMessages();
   const canShare = useCanShare();
   const [open, setOpen] = useState(false);
   if (!canShare) return null;
@@ -204,6 +209,7 @@ export function ShareToGalleryButton({ source, name, small = false, disabledReas
 
 /** What the workspace has shared: the moderator's decision and reason, and withdraw. */
 export function GallerySubmissionsPanel() {
+  usePublicMessages();
   const ws = useWorkspace("funder");
   const canShare = useCanShare();
   const list = useGalleryQuery((api) => api.submissions(ws.id), [ws.id]);
