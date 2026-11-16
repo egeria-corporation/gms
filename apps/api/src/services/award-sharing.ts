@@ -24,11 +24,6 @@ type Money = { amount: string; currency: string };
 
 /** Award statuses that may be listed: accepted or later, and not suspended or cancelled. */
 export const LISTABLE_STATUSES = ["accepted", "active", "completed"] as const;
-/**
- * Whether the older `settings.transparency` switch (past awards on the funder page) also counts as
- * "List awards on my public page". Off: nothing becomes public on upgrade without the new choice.
- */
-export const LEGACY_TRANSPARENCY_LISTS = false;
 /** Amounts show on listed awards unless the funder hides them. */
 export const AMOUNTS_SHOWN_BY_DEFAULT = true;
 /** The most awards one funder's public pages read. */
@@ -47,8 +42,9 @@ export interface ListingSettings {
 
 /** `settings.awardSharing`, written only by `updateListingSettings` (not a PATCH /workspaces key). */
 export function listingSettingsOf(w: Pick<Ws, "settings"> | null | undefined): ListingSettings {
-  const s = (w?.settings ?? {}) as { awardSharing?: { listAwards?: unknown; showAmounts?: unknown }; transparency?: unknown };
-  const listAwards = s.awardSharing?.listAwards === true || (LEGACY_TRANSPARENCY_LISTS && s.transparency === true);
+  // The older `settings.transparency` switch is retired (v1.9.0) and never lists anything.
+  const s = (w?.settings ?? {}) as { awardSharing?: { listAwards?: unknown; showAmounts?: unknown } };
+  const listAwards = s.awardSharing?.listAwards === true;
   const showAmounts = typeof s.awardSharing?.showAmounts === "boolean" ? s.awardSharing.showAmounts : AMOUNTS_SHOWN_BY_DEFAULT;
   return { listAwards, showAmounts };
 }

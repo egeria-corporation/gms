@@ -21,9 +21,9 @@ shows):
 | The funder turned on **List awards on my public page** (`settings.awardSharing.listAwards`, off by default). | `listing_off` |
 | The grantee did not choose **Don't list us publicly** (`awards.recipient_unlisted`). | `recipient_unlisted` |
 
-Constants to relax, each in `award-sharing.ts`: `LISTABLE_STATUSES`, `LEGACY_TRANSPARENCY_LISTS`
-(false: the older `settings.transparency` switch does not count as listing), `AMOUNTS_SHOWN_BY_DEFAULT`
-(true), `LIST_LIMIT` (1,000 awards read per funder), `BADGE_TTL_SECONDS` (3,600).
+Constants to relax, each in `award-sharing.ts`: `LISTABLE_STATUSES`, `AMOUNTS_SHOWN_BY_DEFAULT`
+(true), `LIST_LIMIT` (1,000 awards read per funder), `BADGE_TTL_SECONDS` (3,600). The older
+`settings.transparency` switch is retired in v1.9.0 and never lists anything.
 
 What the public sees of a listed award: the recipient's own workspace name (never a Passport record it
 shares only with its funders), the award title as its purpose, the program (or, without one, the
@@ -61,8 +61,9 @@ creates an award gets it); awards already made keep their setting.
   OpenGrants Passport" on its cards.
 - The sitemap names each funder's grants-awarded page (when it has a listed award) and every listed
   award page.
-- Past awards on the funder page (`pastAwards`) follow the same rule, and are left out while the
-  funder hides amounts (that table cannot show a hidden amount yet; it would read as $0).
+- Past awards on the funder page (`pastAwards`) follow the same rule, with a link to each award's
+  page; while the funder hides amounts each amount is null and the table shows a dash (v1.9.0), and
+  the page's nav links to "Grants awarded".
 
 Data comes from `GET /gms/public/funders/{handle}/awards` and `…/awards/{slug}` (no token), cached at
 the edge for 5 minutes like the other public pages.

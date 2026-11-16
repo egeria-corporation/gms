@@ -2322,6 +2322,35 @@ model PublicOpportunityCard {
 model FunderPage {
   funder: PublicFunder;
   opportunities: PublicOpportunityCard[];
+
+  /** The awards the funder lists on its page (award sharing's one public rule), newest first; null while it does not list awards. */
+  pastAwards?: FunderPastAward[] | null;
+
+  /** The funder's funds, each with the ids of its opportunities on this page (api/funds.tsp). */
+  funds?: PublicFundSection[];
+}
+
+/** One listed award on the funder page. */
+model FunderPastAward {
+  recipient: string;
+  title: string;
+
+  /** Null when the funder hides amounts. */
+  awardedAmount: Money | null;
+
+  year: int32;
+
+  /** The award's own public page. */
+  page: url;
+}
+
+/** The fund an opportunity belongs to, as its page names it ("{Fund} · A fund of {Funder}"). */
+model OpportunityFund {
+  name: string;
+  slug: string;
+
+  /** The default fund: the page names no fund for it. */
+  isDefault: boolean;
 }
 
 model PublicCompetition {
@@ -2348,6 +2377,9 @@ model OpportunityPage {
 
     /** The eligibility rules' plain-language labels */
     eligibility: string[];
+
+    /** The opportunity's fund, through its program; null without one. */
+    fund?: OpportunityFund | null;
   };
   competitions: PublicCompetition[];
 

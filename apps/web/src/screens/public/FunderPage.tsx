@@ -134,6 +134,7 @@ export default function FunderPage() {
           <>
             <a href="#open">Open opportunities</a>
             {forecasted.length > 0 && <a href="#forecast">Forecasted</a>}
+            {page.data.pastAwards != null && <Link to={`/f/${funder.handle}/awards`}>Grants awarded</Link>}
           </>
         }
         hero={

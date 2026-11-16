@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Sections of the public funder and opportunity pages that a funder chooses to publish: past
-// awards (only with transparency on), questions about applying, and guideline documents.
+// awards (only while the funder lists its awards), questions about applying, and guideline documents.
 import { Fragment, useState } from "react";
 import { Download, FileText, ShieldOff } from "lucide-react";
 import type { PastAward, PublicDocument, PublicExtras } from "../../api/applicantFull.ts";
@@ -10,7 +10,7 @@ import { ContactLine } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatMinor } from "../../lib/format.ts";
 
-function PastAwards({ awards, handle }: { awards: PastAward[]; handle: string }) {
+export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: string }) {
   const years = [...new Set(awards.map((a) => a.year))].sort().reverse();
   const [year, setYear] = useState(years[0] ?? "");
   const rows = awards.filter((a) => a.year === year);
@@ -32,7 +32,7 @@ function PastAwards({ awards, handle }: { awards: PastAward[]; handle: string })
           <button
             type="button"
             className="btn btn-sm btn-secondary"
-            onClick={() => downloadCsv([["Year", "Recipient", "Amount", "Currency", "Purpose"], ...awards.map((a) => [a.year, a.recipient, (a.amountMinor / 100).toFixed(2), a.currency, a.purpose])], `${handle}-past-awards.csv`)}
+            onClick={() => downloadCsv([["Year", "Recipient", "Amount", "Currency", "Purpose"], ...awards.map((a) => [a.year, a.recipient, a.amountMinor === null ? "" : (a.amountMinor / 100).toFixed(2), a.amountMinor === null ? "" : a.currency, a.purpose])], `${handle}-past-awards.csv`)}
           >
             <Download className="ic" aria-hidden="true" />
             Download CSV
@@ -57,8 +57,8 @@ function PastAwards({ awards, handle }: { awards: PastAward[]; handle: string })
               <tr key={`${a.recipient}-${i}`}>
                 <td>{a.year}</td>
                 <td className="b">{a.recipient}</td>
-                <td className="num">{formatMinor(a.amountMinor, a.currency)}</td>
-                <td style={{ whiteSpace: "normal" }}>{a.purpose}</td>
+                <td className="num">{a.amountMinor === null ? <span aria-label="Amount not shown">—</span> : formatMinor(a.amountMinor, a.currency)}</td>
+                <td style={{ whiteSpace: "normal" }}>{a.page ? <a href={new URL(a.page, window.location.origin).pathname}>{a.purpose}</a> : a.purpose}</td>
               </tr>
             ))}
           </tbody>

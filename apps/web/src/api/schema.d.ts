@@ -14638,6 +14638,24 @@ export interface components {
         "Models.FunderPage": {
             funder: components["schemas"]["Models.PublicFunder"];
             opportunities: components["schemas"]["Models.PublicOpportunityCard"][];
+            /** @description The awards the funder lists on its page (award sharing's one public rule), newest first; null while it does not list awards. */
+            pastAwards?: components["schemas"]["Models.FunderPastAward"][] | null;
+            /** @description The funder's funds, each with the ids of its opportunities on this page (api/funds.tsp). */
+            funds?: components["schemas"]["Models.PublicFundSection"][];
+        };
+        /** @description One listed award on the funder page. */
+        "Models.FunderPastAward": {
+            recipient: string;
+            title: string;
+            /** @description Null when the funder hides amounts. */
+            awardedAmount: components["schemas"]["CommonGrants.Fields.Money"] | null;
+            /** Format: int32 */
+            year: number;
+            /**
+             * Format: uri
+             * @description The award's own public page.
+             */
+            page: string;
         };
         "Models.FunderRecord": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -17284,6 +17302,13 @@ export interface components {
             /** @description Served from the 15-minute cache for this organization and query. */
             cached: boolean;
         };
+        /** @description The fund an opportunity belongs to, as its page names it ("{Fund} · A fund of {Funder}"). */
+        "Models.OpportunityFund": {
+            name: string;
+            slug: string;
+            /** @description The default fund: the page names no fund for it. */
+            isDefault: boolean;
+        };
         "Models.OpportunityPage": {
             funder: components["schemas"]["Models.PublicFunder"];
             opportunity: {
@@ -17308,6 +17333,8 @@ export interface components {
                 publishedAt: string | null;
                 /** @description The eligibility rules' plain-language labels */
                 eligibility: string[];
+                /** @description The opportunity's fund, through its program; null without one. */
+                fund?: components["schemas"]["Models.OpportunityFund"] | null;
             };
             competitions: components["schemas"]["Models.PublicCompetition"][];
             /** @description The CommonGrants `OpportunityDetails` record */

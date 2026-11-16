@@ -142,5 +142,19 @@ describe("funds", () => {
     expect(sections.find((f) => f.isDefault)!.opportunityIds).toHaveLength(1);
     const [inFundOpp] = sections.find((f) => f.slug === "elder-care")!.opportunityIds;
     expect(await publicFundOfOpportunity(pub, WS_FUNDER, inFundOpp!)).toEqual({ name: "Elder Care Fund", slug: "elder-care", isDefault: false });
+
+    // The funder page carries the funds, each naming only opportunities shown on that page.
+    const hidden = (await call<{ id: string }>(officer, "POST", "/gms/opportunities", { title: "Off the page", programId: inFund.id, description: "Not on the public page." })).body.data;
+    await h.repos.table("opportunities").update({ id: hidden.id.replace(/^opp_/, "") }, { publish: { publicPage: false } as never, published_at: "2027-01-01T00:00:00Z" });
+    const page = ((await (await h.request("/gms/public/funders/riverbend")).json()) as { data: { opportunities: { id: string; title: string }[]; funds: { slug: string; isDefault: boolean; opportunityIds: string[] }[] } }).data;
+    const onPage = new Set(page.opportunities.map((o) => o.id));
+    expect(page.funds.map((f) => f.slug).sort()).toEqual(["default", "elder-care"]);
+    for (const f of page.funds) for (const id of f.opportunityIds) expect(onPage.has(id), `${f.slug} names ${id}`).toBe(true);
+    expect(JSON.stringify(page.funds)).not.toContain(hidden.id.replace(/^opp_/, ""));
+    expect(page.funds.find((f) => f.slug === "elder-care")!.opportunityIds).toEqual([inFundOpp]);
+    // The opportunity page names its fund.
+    const slugOf = (await h.repos.table("opportunities").one({ id: inFundOpp! }))!.slug;
+    const oppPage = ((await (await h.request(`/gms/public/funders/riverbend/opportunities/${slugOf}`)).json()) as { data: { opportunity: { fund: unknown } } }).data;
+    expect(oppPage.opportunity.fund).toEqual({ name: "Elder Care Fund", slug: "elder-care", isDefault: false });
   });
 });

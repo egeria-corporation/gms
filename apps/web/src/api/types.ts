@@ -342,6 +342,8 @@ export interface FunderPageData {
   opportunities: PublicOpportunityCard[];
   /** The funder's funds with their published opportunities, when the server sends them (api/funds.ts). */
   funds?: { name: string; slug: string; description: string | null; isDefault: boolean; opportunityIds: string[] }[];
+  /** The awards the funder lists (award sharing); null or absent while it does not list awards. */
+  pastAwards?: { recipient: string | null; title: string; awardedAmount: { amount: string; currency: string } | null; year: number; page?: string | null }[] | null;
 }
 export interface PublicStage {
   key: string;

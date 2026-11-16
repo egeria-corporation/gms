@@ -79,7 +79,7 @@ describe("a report shared with another funder", () => {
 });
 
 describe("public pages", () => {
-  it("shows past awards only when the funder lists its awards (v1.8.0: transparency alone no longer does), and the FAQ a builder wrote", async () => {
+  it("shows past awards only when the funder lists its awards (the retired transparency setting never does), and the FAQ a builder wrote", async () => {
     const page = async () => ((await (await h.request("/gms/public/funders/riverbend")).json()) as { data: { pastAwards: unknown; open: unknown[]; forecasted: unknown[] } }).data;
     expect((await page()).pastAwards).toBeNull();
     await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: { transparency: true } });

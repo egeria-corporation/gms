@@ -183,8 +183,11 @@ describe("consent", () => {
     expect(page.amountsShown).toBe(false);
     expect(page.awards[0]!.amount).toBeNull();
     expect((await data<{ award: { amount: unknown } }>(await get(s.h, `/gms/public/funders/riverbend/awards/${slugOf(s.listed)}`))).award.amount).toBeNull();
-    // The funder page's past awards table cannot show a hidden amount yet, so it is left out.
-    expect((await data<{ pastAwards: unknown }>(await get(s.h, "/gms/public/funders/riverbend"))).pastAwards).toBeNull();
+    // The funder page's past awards table lists them with no amount (the table shows a dash, never $0).
+    const past = (await data<{ pastAwards: { awardedAmount: unknown; page: string }[] }>(await get(s.h, "/gms/public/funders/riverbend"))).pastAwards;
+    expect(past.length).toBeGreaterThan(0);
+    expect(past.every((a) => a.awardedAmount === null)).toBe(true);
+    expect(JSON.stringify(past)).not.toContain("150000");
     const kit = (await data<sharing.AwardSharing>(await get(s.h, `/gms/my/awards/${awd(s.listed.id)}/sharing`, s.grantee))).kit!;
     const text = JSON.stringify(kit);
     expect(text).not.toContain("150,000");

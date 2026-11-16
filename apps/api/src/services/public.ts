@@ -6,6 +6,7 @@ import { ProjectionError, projectCompetition, projectForm, projectOpportunity, p
 import { parseRules, type Rule } from "@gms/rules";
 import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
+import { publicFundOfOpportunity, publicFundsOf } from "./funds.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
 import { poweredByOf } from "./powered-by.ts";
@@ -195,6 +196,9 @@ export async function funderPage(ctx: PublicContext, handle: string) {
   const opps = (await ctx.repos.table("opportunities").find({ workspace_id: w.id }, { notNull: ["published_at"], orderBy: "published_at", ascending: false })).filter((o) => publishFlag(o, "publicPage"));
   const open = await competitionsOf(ctx, opps.filter((o) => o.status === "open").map((o) => o.id), { status: "open" });
   const cards = opps.map((o) => card(o, acceptingApplications(o, open)));
+  // Each fund with the ids of its opportunities on this page only (never one left off the page).
+  const onPage = new Set(cards.map((o) => o.id));
+  const funds = (await publicFundsOf(ctx, w.id)).map((f) => ({ ...f, opportunityIds: f.opportunityIds.filter((id) => onPage.has(id)) }));
   return {
     funder: publicFunder(w),
     opportunities: cards,
@@ -202,18 +206,19 @@ export async function funderPage(ctx: PublicContext, handle: string) {
     forecasted: cards.filter((o) => o.status === "forecasted"),
     closed: cards.filter((o) => o.status === "closed"),
     pastAwards: await pastAwards(ctx, w),
+    funds,
   };
 }
 
 /**
  * Past awards on the funder page: the awards it lists (`isPubliclyListable`, services/award-sharing.ts),
- * with recipient name, title, amount and year. Null while the funder does not list awards, so the
- * page can omit the section. Also null while the funder hides amounts: the funder page's table has
- * no way yet to show a hidden amount (it would read as $0); the grants-awarded page lists them.
+ * with recipient name, title, amount (null while the funder hides amounts; the table shows a dash),
+ * year and the award's own page. Null while the funder does not list awards, so the page can omit
+ * the section.
  */
 async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
   const settings = listingSettingsOf(w);
-  if (!settings.listAwards || !settings.showAmounts) return null;
+  if (!settings.listAwards) return null;
   return (await listedAwardsOf(ctx, w)).slice(0, 200).map((a) => ({ recipient: a.recipient.name, title: a.purpose, awardedAmount: a.amount, year: a.year, page: a.links.page }));
 }
 
@@ -272,7 +277,7 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   }
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp) },
+    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,
