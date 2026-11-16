@@ -14,7 +14,8 @@
 --     .excludedAwardIds`, a list of award UUIDs, from the open-data track) into
 --     `awards.confidential = true`, for awards of that same workspace only. A workspace without the
 --     key, a value that is not a list, and entries that are not one of its award ids change nothing.
---     The copy is `gms.confidential_from_open_data()`, which the service role can run again.
+--     The copy is `gms.confidential_from_open_data()`, which the service role can run again; the
+--     one run here keeps each award's `updated_at` (the touch trigger is held for that statement).
 --   * adds `awards.recipient_unlisted boolean not null default false`: the grantee's "Don't list us
 --     publicly". Every existing award stays false (no choice made yet).
 --   * adds `awards.public_slug text not null unique`: a random 12-character token per award. Adding
@@ -99,4 +100,8 @@ revoke all on function gms.confidential_from_open_data() from public, anon, auth
 grant execute on function gms.new_public_slug() to service_role;
 grant execute on function gms.confidential_from_open_data() to service_role;
 
+-- The one copy keeps each award's updated_at: carrying over a choice the funder already made is not
+-- an edit of the award (the touch trigger is held for this statement only, as 0039 does for programs).
+alter table public.awards disable trigger awards_touch_updated_at;
 select gms.confidential_from_open_data();
+alter table public.awards enable trigger awards_touch_updated_at;
