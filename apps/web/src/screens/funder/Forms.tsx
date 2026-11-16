@@ -12,11 +12,12 @@ import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } 
 import { formatDate } from "../../lib/format.ts";
 import { GallerySubmissionsPanel } from "./ShareToGallery.tsx";
 import { PURPOSE_LABEL } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const purposeLabel = (purpose: string) => PURPOSE_LABEL[purpose as FormPurpose]?.() ?? purpose;
 
 export default function Forms() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();

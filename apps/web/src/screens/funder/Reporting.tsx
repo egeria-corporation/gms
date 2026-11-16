@@ -21,7 +21,7 @@ import { FormView } from "../../forms/FormView.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
 import { OpenDataPanel } from "./OpenDataPanel.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 type Tab = "due" | "received";
 const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : t("funderReporting.grantee"));
@@ -179,6 +179,7 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
 }
 
 export default function Reporting() {
+  useFunderMessages();
   // The reminder preview is a design reference with sample content: demo mode only.
   const { mock } = useServices();
   const ws = useWorkspace("funder");

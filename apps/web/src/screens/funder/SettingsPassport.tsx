@@ -7,7 +7,7 @@ import { OrganizationProfileCard } from "../../components/OrganizationProfileCar
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { PageHeader } from "../../components/ui.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** The sections of funder settings. Sections not built yet are not listed. */
 export function SettingsNav({
@@ -17,6 +17,7 @@ export function SettingsNav({
   base: string;
   active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social";
 }) {
+  useFunderMessages();
   const items = [
     {
       key: "passport",
@@ -50,6 +51,7 @@ export function SettingsNav({
 }
 
 export default function SettingsPassport() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const flags = usePassportFlags();

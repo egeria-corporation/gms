@@ -11,7 +11,7 @@ import { initialsOf } from "../../api/client.ts";
 import { useServices } from "../../app/services.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** The guest's own chrome: the reviewer portal's top bar, nothing else. */
 export function GuestFrame({ title, funder, children }: { title: string; funder: string | null; children: ReactNode }) {
@@ -65,6 +65,7 @@ export function NotAGuest() {
 }
 
 export default function GuestReviewerWelcome() {
+  useFunderMessages();
   const [params] = useSearchParams();
   const guest = useGuestMembership(params.get("ws"));
   const membership = guest.status === "ready" ? guest.membership : null;

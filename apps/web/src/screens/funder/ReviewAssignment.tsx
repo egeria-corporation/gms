@@ -14,7 +14,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../
 import { usePeople, type Person } from "./shared.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
 import { ReviewSettingsCard } from "./ReviewParity.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
 const STATUS_TEXT: Record<Assignment["status"], () => string> = {
@@ -123,6 +123,7 @@ function InviteDialog({ competitionId, onClose, onDone }: { competitionId: strin
 }
 
 export default function ReviewAssignment() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();

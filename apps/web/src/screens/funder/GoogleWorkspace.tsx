@@ -13,10 +13,11 @@ import { ErrorBanner, Notice } from "../../components/ui.tsx";
 import { env } from "../../env.ts";
 import { leaveTo } from "../../lib/browser.ts";
 import { pickDriveFolder, type PickedFolder, type PickerConfig } from "../../lib/googlePicker.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** `/w/:handle/settings/connectors`: the API returns the person here; the integrations live under Agents & MCP. */
 export function ConnectorReturn() {
+  useFunderMessages();
   const { search } = useLocation();
   return <Navigate to={{ pathname: "../mcp", search, hash: "#integrations" }} relative="path" replace />;
 }

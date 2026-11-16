@@ -16,7 +16,7 @@ import { formatMinor } from "../../lib/format.ts";
 import ApplicationsEmpty from "./ApplicationsEmpty.tsx";
 import { approvalTargets, Avatar, EligibilityMark, usePeople } from "./shared.tsx";
 import { intlLocale } from "../../i18n/index.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const PAGE_SIZE = 25;
 const FILTER_KEYS = ["stage", "status", "eligibility", "level", "tag", "assignee"] as const;
@@ -127,6 +127,7 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
 }
 
 export default function Applications() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();

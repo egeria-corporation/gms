@@ -14,7 +14,7 @@ import { ResponseCard } from "./ApplicationDetail.tsx";
 import { ASSIGNMENT_LOOK, ReviewerFrame, assignmentName, usePortal } from "./ReviewerAssignments.tsx";
 import { AiSummaryPanel } from "./ApplicationPanels.tsx";
 import { formatDateAs } from "../../lib/format.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 type ScoreValue = number | string;
 interface Entry {
@@ -255,6 +255,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
 }
 
 export default function ReviewerScoring() {
+  useFunderMessages();
   // The route names the review assignment; the reviewer never needs the application's own id.
   const { appId = "" } = useParams();
   return (

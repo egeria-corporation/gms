@@ -10,9 +10,10 @@ import { FunderShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { OpportunityStatusBadge, publishedNotTaking } from "./applicationsStatus.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export default function Opportunities() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const data = useApiQuery(async (api) => {

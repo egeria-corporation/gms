@@ -15,7 +15,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabP
 import { PortfolioExtras } from "./AnalyticsExtras.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 type Tab = "portfolio" | "cycle" | "exports";
 const pct = (part: number, whole: number) => (whole > 0 ? `${Math.min(100, Math.round((part / whole) * 1000) / 10)}%` : "0%");
@@ -417,6 +417,7 @@ function ExportsPanel() {
 }
 
 export default function Analytics() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [tab, setTab] = useState<Tab>("portfolio");

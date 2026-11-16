@@ -20,7 +20,7 @@ import { AiSummaryPanel, AssistantPanel, BudgetPanel, DocumentsPanel } from "./A
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Who on the applicant's team holds each section. Hidden when nothing is assigned or the caller may not see it. */
 function SectionAssignments({ applicationId }: { applicationId: string }) {
@@ -302,6 +302,7 @@ function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication;
 }
 
 export default function ApplicationDetail() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { appId = "" } = useParams();

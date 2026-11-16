@@ -22,7 +22,7 @@ import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
 import { dateTime } from "./shared.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const STEPS: Agreement["status"][] = ["draft", "sent", "signed_by_grantee", "executed"];
 const shortHash = (h: string | null) => (h ? `${h.slice(0, 8)}…${h.slice(-4)}` : "—");
@@ -233,6 +233,7 @@ function AgreementSignatures({ award, funderName }: { award: AwardDetail; funder
 }
 
 export default function AwardAgreement() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const canGive = canGiveDirectAward(ws.member.role ?? "admin");

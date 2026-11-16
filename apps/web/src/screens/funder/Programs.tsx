@@ -17,7 +17,7 @@ import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { BudgetCategoriesEditor, ProgramOutcomes, ProgramOwnerField, useProgramOwners } from "./ProgramExtras.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 interface Draft {
   name: string;
@@ -218,6 +218,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
 }
 
 export default function Programs() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { programId } = useParams();

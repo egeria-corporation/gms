@@ -12,7 +12,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader } from "../../components/ui.tsx";
 import { ApprovalDetail } from "./ApprovalDetail.tsx";
 import { approvalTargets, dateTime, timeAgo, usePeople } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const TOOL_TEXT: Record<string, (n: number) => string> = {
   decline_application: (count) => t("funderApprovals.tool.decline", { count }),
@@ -105,6 +105,7 @@ export function ApprovalCard({ approval, base, onResolved, onOpen }: { approval:
 }
 
 export default function Approvals() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { person } = usePeople();

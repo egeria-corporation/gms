@@ -40,7 +40,7 @@ import {
 } from "../../lib/form-model.ts";
 import { PURPOSE_LABEL } from "./shared.tsx";
 import { conditionText, fieldKindLabel, prefillLabel } from "./formWords.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const PURPOSES = (Object.keys(PURPOSE_LABEL) as FormPurpose[]).map((value) => ({ value, get label() { return PURPOSE_LABEL[value](); } }));
 
@@ -636,6 +636,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
 }
 
 export default function FormBuilder() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const { formId = "" } = useParams();
   const data = useApiQuery((api) => api.getForm(formId), [ws.id, formId]);

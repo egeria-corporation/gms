@@ -3,10 +3,11 @@ import { Link } from "react-router";
 import { Columns3, Download, Inbox } from "lucide-react";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** What Applications shows a funder who has no program yet: the four steps to the first application. */
 export default function ApplicationsEmpty() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   return (
@@ -75,9 +76,9 @@ export default function ApplicationsEmpty() {
             <div className="stp" role="group" aria-label={t("applicationsEmpty.setupSteps")}>
               <Link to={`${base}/programs`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">1</span>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div>{t("applicationsEmpty.program")}</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
+                  <div className="small muted" style={{ fontWeight: 400, whiteSpace: "normal" }}>
                     {t("applicationsEmpty.budgetDefaultsOwner")}
                   </div>
                 </div>
@@ -85,9 +86,9 @@ export default function ApplicationsEmpty() {
               <div className="ln"></div>
               <Link to={`${base}/opportunities/new`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">2</span>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div>{t("applicationsEmpty.opportunity")}</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
+                  <div className="small muted" style={{ fontWeight: 400, whiteSpace: "normal" }}>
                     {t("applicationsEmpty.fundingDatesWhoCan")}
                   </div>
                 </div>
@@ -95,9 +96,9 @@ export default function ApplicationsEmpty() {
               <div className="ln"></div>
               <Link to={`${base}/forms`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">3</span>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div>{t("applicationsEmpty.form")}</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
+                  <div className="small muted" style={{ fontWeight: 400, whiteSpace: "normal" }}>
                     {t("applicationsEmpty.fieldsPassportPrefillsBudget")}
                   </div>
                 </div>
@@ -105,9 +106,9 @@ export default function ApplicationsEmpty() {
               <div className="ln"></div>
               <Link to={`${base}/opportunities`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">4</span>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div>{t("applicationsEmpty.launch")}</div>
-                  <div className="small muted" style={{ fontWeight: 400 }}>
+                  <div className="small muted" style={{ fontWeight: 400, whiteSpace: "normal" }}>
                     {t("applicationsEmpty.stagesReviewersChecklistPublic")}
                   </div>
                 </div>

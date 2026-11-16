@@ -19,12 +19,13 @@ import { timeAgo, usePeople } from "./shared.tsx";
 import { publishedNotTaking } from "./applicationsStatus.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { intlLocale } from "../../i18n/index.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
 const OPEN = ["submitted", "screening", "under_review", "revision_requested", "interview", "recommended"];
 
 export default function Dashboard() {
+  useFunderMessages();
   const { facilitatedPayments } = useAppConfig();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;

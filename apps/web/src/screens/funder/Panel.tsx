@@ -17,7 +17,7 @@ import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../compo
 import { formatMinor, parseDollars } from "../../lib/format.ts";
 import { DecisionSummary, PanelDetail, type DecisionTally } from "./PanelDetail.tsx";
 import { DocketDialog } from "./ReviewParity.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 interface Draft {
   outcome: DecisionOutcome | "";
@@ -31,6 +31,7 @@ const OUTCOMES = (): [DecisionOutcome, string][] => [
 const fmt = (n: number | null) => (n === null ? "—" : n.toFixed(1));
 
 export default function Panel() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { compId = "" } = useParams();

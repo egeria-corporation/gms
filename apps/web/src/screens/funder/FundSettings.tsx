@@ -16,7 +16,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { formatMinor, parseDollars, slugify } from "../../lib/format.ts";
 import { SettingsNav } from "./SettingsPassport.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
@@ -344,6 +344,7 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
 }
 
 export default function FundSettings() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const isAdmin = (ws.member.role ?? "admin") === "admin";

@@ -13,7 +13,7 @@ import { LetterAssistant } from "./LetterAssist.tsx";
 import { BulkSend } from "./BulkSend.tsx";
 import { actorLabel, dateTime, usePeople, timeAgo } from "./shared.tsx";
 import { ShareToGalleryButton } from "./ShareToGallery.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Fields every install can fill. The built-in templates name the rest (award dates, requirement and payment details), so the list shown is theirs plus these. */
 const BASE_MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
@@ -29,6 +29,7 @@ interface Draft {
 const draftOf = (tpl?: Template): Draft => ({ kind: tpl?.kind ?? "email", name: tpl?.name ?? "", subject: tpl?.subject ?? "", body: tpl?.body ?? "" });
 
 export default function Communications() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const { person } = usePeople();
   const templates = useApiQuery((api) => api.listTemplates(), []);

@@ -14,7 +14,7 @@ import { ErrorBanner, Field, Loading, Notice, PageHeader, errorMessage } from ".
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
 import { SettingsNav } from "./SettingsPassport.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Status is an icon and a label, never colour alone. */
 export function DomainStatus({ d }: { d: SsoDomain }) {
@@ -219,6 +219,7 @@ function ServiceProviderValues({ sp, workspaceName }: { sp: NonNullable<SsoSetti
 }
 
 export default function SettingsSecurity() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const api = useSsoApi();

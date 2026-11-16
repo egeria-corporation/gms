@@ -18,7 +18,7 @@ import { formatDate, parseDollars } from "../../lib/format.ts";
 import { CSV_MAX_ROWS, MAX_GROUP_BY, aggregateKey, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
 import { statusLook } from "../../components/status.tsx";
 import { OP_WORDS, aggregateLabel, cadenceWords, csvInPageLanguage, localizeDataSet, localizeView, localizedOutColumns, stoppedWords, weekdayName } from "./reportWords.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const OPS_FOR: Record<ColumnInfo["type"], Filter["op"][]> = { text: ["eq", "in"], status: ["eq", "in"], number: ["eq", "between"], money: ["between", "eq"], date: ["between", "eq"] };
 
@@ -302,6 +302,7 @@ function ViewButton({ view, active, onPick }: { view: ReportView; active: boolea
 }
 
 export default function ReportBuilder() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();

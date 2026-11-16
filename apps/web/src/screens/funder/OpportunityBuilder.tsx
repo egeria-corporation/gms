@@ -22,7 +22,7 @@ import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote }
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
 import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
 import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const STEPS = [
   { key: "basics", get title() { return t("opportunityBuilder.step.basics.title"); }, get hint() { return t("opportunityBuilder.step.basics.hint"); } },
@@ -566,6 +566,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
 }
 
 export default function OpportunityBuilder() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const { oppId } = useParams();
   const navigate = useNavigate();

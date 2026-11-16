@@ -19,7 +19,7 @@ import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const OPEN = ["due", "ready", "held"];
 const NOT_STARTED = ["scheduled", "due", "ready", "held"];
@@ -371,6 +371,7 @@ function RequirementList({ requirements, base }: { requirements: Requirement[]; 
 }
 
 export default function AwardPayments() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { awardId = "" } = useParams();

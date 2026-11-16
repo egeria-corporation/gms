@@ -15,7 +15,7 @@ import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Payee status in words and shape, never color alone. Bank name and last four digits only. */
 function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
@@ -407,6 +407,7 @@ function GranteeReports({ awardIds, base }: { awardIds: string[]; base: string }
 }
 
 export default function Grantees() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { granteeId } = useParams();

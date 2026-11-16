@@ -12,7 +12,7 @@ import { ErrorBanner, Loading, PageHeader, SaveNote } from "../../components/ui.
 import { poweredByLabel } from "../public/PublicFrame.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { AwardListingCard } from "./AwardListingSettings.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export function PoweredByCard() {
   const ws = useWorkspace("funder");
@@ -85,6 +85,7 @@ export function PoweredByCard() {
 }
 
 export default function SettingsPublicPage() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   return (

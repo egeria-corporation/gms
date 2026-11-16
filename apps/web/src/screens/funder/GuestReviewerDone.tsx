@@ -14,9 +14,10 @@ import { signInPath } from "../../auth/RequireAuth.tsx";
 import { ErrorBanner, Field, Loading, problemFor } from "../../components/ui.tsx";
 import { slugify } from "../../lib/format.ts";
 import { GuestFrame, NotAGuest } from "./GuestReviewerWelcome.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export default function GuestReviewerDone() {
+  useFunderMessages();
   const [params] = useSearchParams();
   const guest = useGuestMembership(params.get("ws"));
   const membership = guest.status === "ready" ? guest.membership : null;

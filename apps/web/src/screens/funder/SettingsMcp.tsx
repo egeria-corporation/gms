@@ -24,7 +24,7 @@ import { HumanGates } from "./HumanGates.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { actorLabel, dateTime, timeAgo, usePeople } from "./shared.tsx";
 import { roleTitle } from "../../api/client.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const WEBHOOK_EVENTS = ["application.submitted", "application.status.changed", "review.submitted", "decision.committed", "award.created", "award.status.changed", "agreement.executed", "tranche.due", "tranche.status.changed", "disbursement.status.changed", "requirement.due", "submission.received", "submission.accepted", "org.change.pending", "approval.requested"];
 const CLIENT_SCOPES = ["programs:read", "opportunities:read", "opportunities:write", "competitions:read", "forms:read", "applications:read", "applications:write", "reviews:read", "awards:read", "payments:read", "requirements:read", "requirements:write", "grantees:read", "analytics:read", "org:read"];
@@ -827,6 +827,7 @@ function ConnectAgent({ workspaceName }: { workspaceName: string }) {
 }
 
 export default function SettingsMcp() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   return (

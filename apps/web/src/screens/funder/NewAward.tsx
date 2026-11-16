@@ -13,9 +13,10 @@ import { InvitationError } from "../../components/InvitationError.tsx";
 import { Field, Notice, PageHeader, problemFor } from "../../components/ui.tsx";
 import { directAwardProblems, EMPTY_DIRECT_AWARD, MESSAGE_MAX, toDirectAwardInput, type DirectAwardField, type DirectAwardForm } from "../../lib/directAward.ts";
 import { canGiveDirectAward } from "../../lib/roles.ts";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export default function NewAward() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();

@@ -18,7 +18,7 @@ import { formatDate } from "../../lib/format.ts";
 import { ShareToGalleryButton } from "./ShareToGallery.tsx";
 import { formatList } from "@gms/i18n";
 import { getLocale } from "../../i18n/index.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const dateOf = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
 const opensAt = (date: string) => (date ? `${date}T00:00:00Z` : null);
@@ -223,6 +223,7 @@ interface Loaded {
 }
 
 export default function Competition() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { compId, oppId } = useParams();

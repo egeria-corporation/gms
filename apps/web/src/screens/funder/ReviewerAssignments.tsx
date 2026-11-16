@@ -15,7 +15,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { SignPolicyDialog } from "./ReviewParity.tsx";
-import { t } from "./i18n.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** How an assignment names its application: the code under anonymized review, else the title. */
 export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? t("reviewerAssignments.applicantCode", { code: a.applicantCode }) : (a.applicationTitle ?? t("reviewerAssignments.application")));
@@ -319,6 +319,7 @@ function AssignmentList() {
 }
 
 export default function ReviewerAssignments() {
+  useFunderMessages();
   return (
     <ReviewerFrame tab="assignments" title={t("reviewerAssignments.myAssignments")}>
       <AssignmentList />
