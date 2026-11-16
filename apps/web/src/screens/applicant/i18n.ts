@@ -5,7 +5,7 @@
 // loaded on demand: every screen (and every component shown outside the applicant screens, such as
 // the form renderer) calls `useApplicantText()` first, which suspends until the catalog is there.
 import { Fragment, createElement, type ReactNode } from "react";
-import { createTranslator, type Key, type Values } from "@gms/i18n";
+import { createTranslator, loadCatalog, type Key, type Values } from "@gms/i18n";
 import { getLocale, useT, type RichValues, type T } from "../../i18n/index.tsx";
 
 type K = Key<"applicant">;
@@ -21,6 +21,10 @@ Object.defineProperties(t, {
   },
   locale: { get: getLocale },
 });
+
+// Start loading the catalog as soon as a screen that uses it is imported, so it is usually there
+// before the first render and nothing waits for it. (A failed load is tried again by the hook.)
+void loadCatalog(getLocale(), "applicant").catch(() => undefined);
 
 /** Makes the applicant catalog ready (suspends the screen until it is) and returns its translator. */
 export function useApplicantText(): T<"applicant"> {

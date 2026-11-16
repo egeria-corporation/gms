@@ -6,7 +6,7 @@
 //   funder    read-only, with provenance
 //   print     read-only, flat, for the PDF snapshot
 // All rules, validation and masking come from `@gms/forms`; this file only draws.
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { BadgeCheck, BookOpen, Bot, EyeOff, FileText, Pencil, Plus, Trash2, TriangleExclamationPoint, Upload } from "lucide-react";
 import {
   clone,
@@ -195,7 +195,19 @@ interface Ctx {
   passportLinked: boolean;
 }
 
+/**
+ * The form. Its own words are in the applicant catalog, loaded on demand: while it arrives only the
+ * form waits, never the screen or dialog around it (a funder's preview, a gallery dialog).
+ */
 export function FormView(props: FormViewProps) {
+  return (
+    <Suspense fallback={null}>
+      <FormBody {...props} />
+    </Suspense>
+  );
+}
+
+function FormBody(props: FormViewProps) {
   useApplicantText();
   const { form, mode, onChange, onAutosave, autosaveDelayMs = 800 } = props;
   const uid = useId();
