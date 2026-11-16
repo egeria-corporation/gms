@@ -1034,5 +1034,15 @@
   "applicant.timeAgo.justNow": "just now",
   "applicant.timeAgo.minutes": "{count} min ago",
   "applicant.timeAgo.hours": "{count} h ago",
-  "applicant.timeAgo.yesterday": "yesterday"
+  "applicant.timeAgo.yesterday": "yesterday",
+  "role.admin": "Admin",
+  "role.program_officer": "Program officer",
+  "role.finance": "Finance",
+  "role.reviewer": "Reviewer",
+  "role.external_reviewer": "External reviewer",
+  "role.observer": "Observer",
+  "role.auditor": "Auditor",
+  "role.editor": "Editor",
+  "role.viewer": "Viewer",
+  "role.consultant": "Consultant"
 }

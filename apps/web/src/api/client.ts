@@ -2,7 +2,8 @@
 // The API port the web app talks to. `createHttpApi` calls the GMS Worker with the typed client
 // generated from the TypeSpec document (`pnpm --filter @gms/web gen:api`); `createMockApi`
 // (mocks/api.ts) implements the same interface in the browser.
-import { isLocale, type Locale } from "@gms/i18n";
+import { isLocale, type Key, type Locale } from "@gms/i18n";
+import { translate } from "../i18n/current.ts";
 import createClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./schema.d.ts";
 import type {
@@ -216,19 +217,20 @@ export function initialsOf(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
 }
 
-const ROLE_TITLES: Record<string, string> = {
-  admin: "Admin",
-  program_officer: "Program officer",
-  finance: "Finance",
-  reviewer: "Reviewer",
-  external_reviewer: "External reviewer",
-  observer: "Observer",
-  auditor: "Auditor",
-  editor: "Editor",
-  viewer: "Viewer",
-  consultant: "Consultant",
+/** How each role reads on screen, in the page's language (shared catalog, `role.*`). */
+const ROLE_TITLES: Record<string, Key<"shared">> = {
+  admin: "role.admin",
+  program_officer: "role.program_officer",
+  finance: "role.finance",
+  reviewer: "role.reviewer",
+  external_reviewer: "role.external_reviewer",
+  observer: "role.observer",
+  auditor: "role.auditor",
+  editor: "role.editor",
+  viewer: "role.viewer",
+  consultant: "role.consultant",
 };
-export const roleTitle = (role: string) => ROLE_TITLES[role] ?? role;
+export const roleTitle = (role: string) => (ROLE_TITLES[role] ? translate("shared", ROLE_TITLES[role]) : role);
 
 export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<paths> } {
   let workspaceId: string | null = null;

@@ -1034,5 +1034,15 @@
   "applicant.timeAgo.justNow": "hace un momento",
   "applicant.timeAgo.minutes": "hace {count} min",
   "applicant.timeAgo.hours": "hace {count} h",
-  "applicant.timeAgo.yesterday": "ayer"
+  "applicant.timeAgo.yesterday": "ayer",
+  "role.admin": "Administrador(a)",
+  "role.program_officer": "Oficial de programa",
+  "role.finance": "Finanzas",
+  "role.reviewer": "Revisor(a)",
+  "role.external_reviewer": "Revisor(a) externo(a)",
+  "role.observer": "Observador(a)",
+  "role.auditor": "Auditor(a)",
+  "role.editor": "Editor(a)",
+  "role.viewer": "Lector(a)",
+  "role.consultant": "Consultor(a)"
 }
