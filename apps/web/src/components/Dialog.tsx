@@ -21,13 +21,21 @@ export function Dialog({ open, onClose, labelledBy, size = "md", overlayStyle, c
   const panel = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Who opened the dialog, read as it opens: a field inside with autoFocus takes focus before any
+  // effect runs, so reading it in the effect would remember that field (gone after closing) and
+  // focus would fall to the page instead of returning to the opener (WCAG 2.4.3).
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  if (open && !wasOpen.current) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  wasOpen.current = open;
 
   useEffect(() => {
     if (!open) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const returnTo = opener.current;
     const node = panel.current;
     const focusables = () => Array.from(node?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
-    (focusables()[0] ?? node)?.focus();
+    // Keep a field the dialog focused itself (autoFocus); otherwise start at the first control.
+    if (!node?.contains(document.activeElement)) (focusables()[0] ?? node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -52,7 +60,7 @@ export function Dialog({ open, onClose, labelledBy, size = "md", overlayStyle, c
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      opener?.focus();
+      if (returnTo?.isConnected) returnTo.focus();
     };
   }, [open]);
 

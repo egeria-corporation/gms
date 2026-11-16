@@ -223,7 +223,8 @@ html:has(.stick-foot) { scroll-padding-bottom: 120px; }
 /* A link inside running text is underlined, so it is not told apart by color alone (WCAG 1.4.1). */
 /* Navigation lists (the rail, section lists, menus) are not running text and keep the design's plain links. */
 .gms :is(p, dd, li:not(nav li), .help, .d, .r, .who, .bd, .small, .muted, .notice, .meta span) > a:not([class]),
-.gms :is(p, dd, .help, .d) > a.small { text-decoration: underline; text-underline-offset: 2px; }
+.gms :is(p, dd, .help, .d) > a.small,
+.gms :is(.cb, .radio) > span > a:not([class]) { text-decoration: underline; text-underline-offset: 2px; }
 /* On a tinted banner the link takes the banner's own text color, which is chosen to pass on it. */
 .bnr a:not(.btn) { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 /* The funder mark is outlined in the tenant's own text color, which is contrast-checked against

@@ -59,6 +59,34 @@ describe("Dialog", () => {
   });
 });
 
+function AutoFocusHarness() {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <div className="gms">
+      <button onClick={() => setOpen(true)}>Add a funder</button>
+      {isOpen && (
+        <Dialog open onClose={() => setOpen(false)} labelledBy="af">
+          <h2 id="af">Add a funder</h2>
+          <button type="button">Close</button>
+          <input aria-label="Name" autoFocus />
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+describe("Dialog with a field that focuses itself", () => {
+  it("keeps the field's focus, and gives focus back to the opener on Escape (WCAG 2.4.3)", async () => {
+    render(<AutoFocusHarness />);
+    const opener = screen.getByRole("button", { name: "Add a funder" });
+    await userEvent.click(opener);
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+});
+
 describe("sign dialog", () => {
   it("opens from Review and sign and enables Sign only with a typed name and the attestation", async () => {
     open("/w/alder-creek/grants/awd_01J2Q7/offer");
