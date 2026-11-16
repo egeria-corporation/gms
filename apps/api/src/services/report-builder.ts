@@ -12,7 +12,8 @@
 import { scoreReview, type Scores } from "@gms/review";
 import { APPLICATION_STATUSES, AWARD_STATUSES, REQUIREMENT_STATUSES, TRANCHE_STATUSES } from "@gms/workflow";
 import type { TableName } from "@gms/db";
-import { escapeHtml } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { scheduledReportEmail } from "@gms/notify";
 import { z } from "zod";
 import { scopesForRole } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
@@ -22,6 +23,7 @@ import { audit, authorize, fundScopeOf, systemContext, type BaseContext, type Se
 import { namesShared, orgFacts, sharingWith, verificationShared } from "./profile.ts";
 import type { Row as DbRow, Where } from "./repos/types.ts";
 import { normalizePreferences } from "./notifications.ts";
+import { recipientLocales } from "./preferences.ts";
 import { toRubric } from "./reviews.ts";
 import {
   CSV_MAX_ROWS,
@@ -850,12 +852,6 @@ export async function downloadFile(ctx: ServiceContext, fileId: string, store: R
 
 // ------------------------------------------------------------------------------------ the job
 
-const periodWords = (key: string) => {
-  const w = /^(\d{4})-W(\d{2})$/.exec(key);
-  if (w) return `week ${Number(w[2])} of ${w[1]}`;
-  const [y, m] = key.split("-");
-  return `${new Date(Date.UTC(Number(y), Number(m) - 1, 1)).toLocaleString("en-US", { month: "long", timeZone: "UTC" })} ${y}`;
-};
 
 export interface ReportJobResult {
   due: number;
@@ -956,16 +952,17 @@ async function sendOne(base: BaseContext, store: ReportFileStore, s: Schedule, p
     return prefs.digest !== "off" && prefs.channels.report.email;
   };
   const link = `${base.config.webBaseUrl}/w/${ws.handle}/report-builder?file=${file!.id}`;
-  const subject = `${view.name}: your ${s.cadence} report`;
-  const counts = `${result.rows.length.toLocaleString("en-US")} ${result.rows.length === 1 ? "row" : "rows"}${result.truncated ? ` (the first ${CSV_MAX_ROWS.toLocaleString("en-US")} of ${result.total.toLocaleString("en-US")})` : ""}`;
-  const text = `Your report “${view.name}” from ${ws.display_name} for ${periodWords(period)} is ready: ${counts}.\n\nDownload it from the GMS (sign in required). The file is kept for ${FILE_DAYS} days.\n\n${link}\n\nYou get this because you were added to the report's schedule. The person who saved the view can change it.`;
-  const html = text.split(/\n{2,}/).map((p) => (p === link ? `<p><a href="${escapeHtml(link)}">Download the report</a></p>` : `<p>${escapeHtml(p)}</p>`)).join("");
+  // Each recipient in their own language; the view's and workspace's names as written.
+  const locales = await recipientLocales(base.ports, recipients);
+  const mailIn = (locale: Locale) => scheduledReportEmail({ view: view.name, workspace: ws.display_name, cadence: s.cadence as "weekly" | "monthly", period, rows: result.rows.length, truncated: result.truncated, max: CSV_MAX_ROWS, total: result.total, days: FILE_DAYS, link, locale });
   let emails = 0;
   for (const userId of recipients) {
     const to = people.get(userId)?.email;
     if (!to || !wantsEmail(userId)) continue;
+    const locale = locales.get(userId) ?? DEFAULT_LOCALE;
+    const { subject, text, html } = mailIn(locale);
     try {
-      await base.ports.mailer!.send({ from: base.config.mailFrom!, to: [to], subject, text, html, idempotencyKey: `report:${file!.id}:${userId}`, tags: [{ name: "kind", value: "scheduled_report" }] });
+      await base.ports.mailer!.send({ from: base.config.mailFrom!, to: [to], subject, text, html, locale, idempotencyKey: `report:${file!.id}:${userId}`, tags: [{ name: "kind", value: "scheduled_report" }] });
       emails++;
     } catch {
       // A failed email is not retried by this run; the file stays unsent and the next run tries again.

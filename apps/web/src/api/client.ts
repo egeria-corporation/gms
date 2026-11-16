@@ -173,14 +173,26 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, Direct
   evaluateEligibility(input: EvaluateInput): Promise<Evaluation>;
 }
 
-/** An error answered by the API in the CommonGrants error shape (`{ status, message, errors }`). */
+/** The API's message in the page's language, when it gave one (`errors[0].detailLocalized`, docs/i18n.md). */
+const detailLocalizedOf = (errors: unknown[]): string | null => {
+  const first = errors[0] as { detailLocalized?: unknown } | null | undefined;
+  return first && typeof first.detailLocalized === "string" && first.detailLocalized.trim() ? first.detailLocalized : null;
+};
+
+/**
+ * An error answered by the API in the CommonGrants error shape (`{ status, message, errors }`).
+ * `message` is what the person reads: the API's `detailLocalized` when the request was in another
+ * language and the API has the message in it, else the English `message`; `detail` keeps the English.
+ */
 export class ApiError extends Error {
+  readonly detail: string;
   constructor(
     readonly status: number,
     message: string,
     readonly errors: unknown[] = [],
   ) {
-    super(message);
+    super(detailLocalizedOf(errors) ?? message);
+    this.detail = message;
     this.name = "ApiError";
   }
 }

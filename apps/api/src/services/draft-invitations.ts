@@ -13,6 +13,7 @@
 // INVITATIONS_PER_DAY invitations in a rolling day, from this screen and Team & access together;
 // the database holds the same limit (0032, gms.invitations_per_day()).
 import { draftInvitationEmail } from "@gms/notify";
+import { addressLocale } from "./recipient-locale.ts";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { forbidden } from "../auth/verify.ts";
@@ -177,8 +178,9 @@ export async function createDraftInvitation(ctx: ServiceContext, input: z.output
   let emailed = false;
   if (ctx.ports.mailer && ctx.config.mailFrom) {
     try {
-      const [workspace, people] = await Promise.all([ctx.repos.table("workspaces").one({ id: ws.id }), ctx.ports.directory?.lookup([ctx.actor.userId!])]);
+      const [workspace, people, locale] = await Promise.all([ctx.repos.table("workspaces").one({ id: ws.id }), ctx.ports.directory?.lookup([ctx.actor.userId!]), addressLocale(ctx, email)]);
       const m = draftInvitationEmail({
+        locale,
         organization: workspace?.display_name ?? "",
         inviterName: people?.get(ctx.actor.userId!)?.name ?? null,
         draftTitle: title,
@@ -188,7 +190,7 @@ export async function createDraftInvitation(ctx: ServiceContext, input: z.output
         homeUrl: ctx.config.webBaseUrl,
         expiresOn: expiresAt.slice(0, 10),
       });
-      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [email], subject: m.subject, text: m.text, html: m.html, idempotencyKey: `invitation:${row.id}`, tags: [{ name: "template", value: "draft_invitation" }] });
+      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [email], subject: m.subject, text: m.text, html: m.html, locale, idempotencyKey: `invitation:${row.id}`, tags: [{ name: "template", value: "draft_invitation" }] });
       emailed = true;
     } catch {
       // The invitation stands; the admin gets the link to pass on.

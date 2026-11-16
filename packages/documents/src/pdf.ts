@@ -43,6 +43,11 @@ export interface PdfDocumentInput {
    * keep rendering exactly as before. pdf-lib cannot write a structure tree, so no PDF here is tagged.
    */
   lang?: string;
+  /**
+   * The page number in the footer, in the document's language ("Página 2 de 5"). "Page 2 of 5"
+   * when absent, so a document re-rendered to verify a stored hash keeps its bytes.
+   */
+  pageLabel?: (page: number, total: number) => string;
 }
 
 const PAGE = { width: 612, height: 792 }; // US Letter, points
@@ -269,7 +274,8 @@ class Writer {
   finish(): void {
     const pages = this.pdf.getPages();
     pages.forEach((p, i) => {
-      const label = this.safe(`${this.input.footer ? `${this.input.footer} · ` : ""}Page ${i + 1} of ${pages.length}`);
+      const page = this.input.pageLabel ? this.input.pageLabel(i + 1, pages.length) : `Page ${i + 1} of ${pages.length}`;
+      const label = this.safe(`${this.input.footer ? `${this.input.footer} · ` : ""}${page}`);
       p.drawText(label, { x: MARGIN.left, y: 36, size: 8, font: this.regular, color: MUTED });
     });
   }

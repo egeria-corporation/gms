@@ -15,7 +15,8 @@
 // the record. Numbers in the note that look like bank or identity numbers are removed first.
 import type { KvPort } from "@gms/mcp";
 import { stripSensitiveNumbers } from "@gms/importers";
-import { CONSULTING_REQUEST_TO, MIGRATION_NOTE_MAX, cleanLine, cleanText, migrationConfirmationEmail, migrationRequestEmail, type Mailer, type MigrationRequestContent } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { CONSULTING_REQUEST_TO, MIGRATION_NOTE_MAX, cleanLine, cleanText, migrationConfirmationEmail, migrationRequestEmail, migrationSystemPhrase, type Mailer, type MigrationRequestContent } from "@gms/notify";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { log } from "../lib/log.ts";
@@ -76,6 +77,11 @@ export interface MigrationRequestContext {
   webBaseUrl: string;
   /** The key the form tokens are signed with. */
   formKey: () => Promise<CryptoKey>;
+  /**
+   * The language the person filled the form in (the switch page's): their confirmation is written
+   * in it. The request to OpenGrants staff is always English.
+   */
+  locale?: Locale;
 }
 
 const recipient = (ctx: MigrationRequestContext) => ctx.requestTo?.trim() || CONSULTING_REQUEST_TO;
@@ -168,7 +174,8 @@ const pageUrl = (ctx: MigrationRequestContext, system: MigrationSystem) => `${ct
 export function previewMigrationRequest(ctx: MigrationRequestContext, input: MigrationRequestInput) {
   const content = contentOf(input);
   const mail = migrationRequestEmail(content);
-  const confirmation = migrationConfirmationEmail({ systemPhrase: MIGRATION_SYSTEMS[input.system].phrase, pageUrl: pageUrl(ctx, input.system) });
+  const locale = ctx.locale ?? DEFAULT_LOCALE;
+  const confirmation = migrationConfirmationEmail({ systemPhrase: migrationSystemPhrase(MIGRATION_SYSTEMS[input.system].phrase, locale), pageUrl: pageUrl(ctx, input.system), locale });
   return {
     to: recipient(ctx),
     replyTo: content.email,
@@ -212,10 +219,11 @@ export async function sendMigrationRequest(ctx: MigrationRequestContext, input: 
     await Promise.all(limits.map(async (l) => ctx.kv.put(l.key, String(Math.max(0, Number((await ctx.kv.get(l.key)) ?? "1") - 1)), { expirationTtl: TTL }))).catch(() => undefined);
     throw new ApiError(502, "mail_failed", "The request could not be sent. Try again in a few minutes");
   }
-  const confirmation = migrationConfirmationEmail({ systemPhrase: MIGRATION_SYSTEMS[input.system].phrase, pageUrl: pageUrl(ctx, input.system) });
+  const locale = ctx.locale ?? DEFAULT_LOCALE;
+  const confirmation = migrationConfirmationEmail({ systemPhrase: migrationSystemPhrase(MIGRATION_SYSTEMS[input.system].phrase, locale), pageUrl: pageUrl(ctx, input.system), locale });
   let confirmationSent = true;
   try {
-    await mailer.send({ from, to: [content.email], replyTo: recipient(ctx), subject: confirmation.subject, text: confirmation.text, html: confirmation.html, idempotencyKey: `migration-confirmation:${requestId}`, tags: [{ name: "kind", value: "migration_confirmation" }] });
+    await mailer.send({ from, to: [content.email], replyTo: recipient(ctx), subject: confirmation.subject, text: confirmation.text, html: confirmation.html, ...(locale === DEFAULT_LOCALE ? {} : { locale }), idempotencyKey: `migration-confirmation:${requestId}`, tags: [{ name: "kind", value: "migration_confirmation" }] });
   } catch {
     // The request reached OpenGrants; the reply will come all the same.
     confirmationSent = false;

@@ -7,8 +7,8 @@
 //
 // Addresses come from the auth provider through the UserDirectory port. Without a mailer, a
 // sender address or a directory, nothing is sent and nothing fails.
-import type { Locale } from "@gms/i18n";
-import { escapeHtml } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { emailDate, emailT, escapeHtml, memberDigestEmail, type EmailKey } from "@gms/notify";
 import { audit, type BaseContext, type ServiceContext } from "./context.ts";
 import { deriveFor, normalizePreferences, type Category } from "./notifications.ts";
 import { OUTSIDE_ROLES } from "./outside.ts";
@@ -24,6 +24,19 @@ async function upcomingOutsideDeadlines(base: Pick<BaseContext, "repos">, worksp
 }
 
 type Member = Row<"workspace_members">;
+
+const DEADLINE_LABEL: Record<string, EmailKey> = { loi: "digest.deadlineLabel.loi", full: "digest.deadlineLabel.full", internal: "digest.deadlineLabel.internal", app: "digest.deadlineLabel.stage", req: "digest.deadlineLabel.report" };
+
+/**
+ * A calendar deadline's label (services/pipeline.ts) in a language, by its key (`oa:<id>:<kind>:…`,
+ * `app:…`, `req:…`). English is the label as the calendar gives it.
+ */
+export function deadlineLabel(d: { key: string; label: string }, locale: Locale): string {
+  if (locale === DEFAULT_LOCALE) return d.label;
+  const [kind, , sub] = d.key.split(":");
+  const key = DEADLINE_LABEL[kind === "oa" ? (sub ?? "") : (kind ?? "")];
+  return key ? emailT(locale)(key) : d.label;
+}
 type Mailing = Pick<ServiceContext, "repos" | "ports" | "config" | "now" | "ledger">;
 
 const live = (m: Member, now: Date) => !m.expires_at || Date.parse(m.expires_at) > now.getTime();
@@ -108,6 +121,7 @@ export async function sendDigests(base: BaseContext, cadence: "daily" | "weekly"
   const day = now.toISOString().slice(0, 10);
   const members = (await base.repos.table("workspace_members").find({})).filter((m) => live(m, now) && normalizePreferences(m.notification_preferences as never).digest === cadence);
   const people = await directory.lookup(members.map((m) => m.user_id));
+  const locales = await recipientLocales(base.ports, members.map((m) => m.user_id));
   for (const m of members) {
     try {
       const to = people.get(m.user_id)?.email;
@@ -124,13 +138,12 @@ export async function sendDigests(base: BaseContext, cadence: "daily" | "weekly"
         out.empty++;
         continue;
       }
+      // In the member's language. The lines are the in-app notifications as the app words them.
+      const locale = locales.get(m.user_id) ?? DEFAULT_LOCALE;
       const lines = items.slice(0, 50).map((n) => `- ${n.title}${n.message ? `: ${n.message}` : ""}`);
-      const link = `${base.config.webBaseUrl}/notifications`;
-      const deadlines = upcoming.length ? `\n\nDeadlines in the next 14 days:\n${upcoming.slice(0, 50).map((d) => `- ${d.date} ${d.label}: ${d.title}${d.funder ? ` (${d.funder})` : ""}`).join("\n")}` : "";
-      const intro = items.length ? `Here is what happened in ${ws.display_name} since your last digest.\n\n${lines.join("\n")}${items.length > 50 ? `\n… and ${items.length - 50} more` : ""}` : `Nothing new happened in ${ws.display_name} since your last digest.`;
-      const text = `${intro}${deadlines}\n\n${link}`;
-      const subject = items.length ? `${ws.display_name}: ${items.length} update${items.length === 1 ? "" : "s"}` : `${ws.display_name}: ${upcoming.length} deadline${upcoming.length === 1 ? "" : "s"} in the next 14 days`;
-      await mailer.send({ from, to: [to], subject, text, html: paragraphs(text), idempotencyKey: `digest:${m.id}:${day}` });
+      const deadlines = upcoming.slice(0, 50).map((d) => `- ${emailDate(locale, d.date)} ${deadlineLabel(d, locale)}: ${d.title}${d.funder ? ` (${d.funder})` : ""}`);
+      const { subject, text } = memberDigestEmail({ workspace: ws.display_name, lines, total: items.length, deadlines, deadlineTotal: upcoming.length, days: 14, link: `${base.config.webBaseUrl}/notifications`, locale });
+      await mailer.send({ from, to: [to], subject, text, html: paragraphs(text), locale, idempotencyKey: `digest:${m.id}:${day}` });
       await audit({ ...base, actor: { kind: "system", userId: null, clientId: null, ledger: { kind: "system", job: "digest" }, id: "system:digest" }, workspace: null, scopes: [] }, "notification.digest_sent", "workspace_member", m.id, { cadence, day, count: items.length, deadlines: upcoming.length }, ws.id);
       out.sent++;
     } catch {

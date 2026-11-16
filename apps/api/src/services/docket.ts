@@ -11,6 +11,8 @@
 // "Reviewer 1", "Reviewer 2", ... in the order they were assigned.
 import { identifyingFields, fieldMetaFor, type JsonObject } from "@gms/forms";
 import { renderPdf, sha256Hex, type Block } from "@gms/documents";
+import { DEFAULT_LOCALE, INTL_LOCALE, type Locale } from "@gms/i18n";
+import { emailDate, emailT, type EmailKey, type EmailT } from "@gms/notify";
 import { toMoney } from "@gms/protocol";
 import { rankApplications, scoreReview, type Rubric, type Scores } from "@gms/review";
 import { z } from "zod";
@@ -43,8 +45,10 @@ export const docketInput = z
   })
   .strict();
 
-const OUTCOME: Record<string, string> = { approve: "Approve", decline: "Decline", waitlist: "Waitlist", defer: "Defer" };
-const RECOMMENDATION: Record<string, string> = { fund: "Fund", fund_with_conditions: "Fund with conditions", do_not_fund: "Do not fund", decline: "Do not fund", waitlist: "Waitlist" };
+// The docket's fixed words are in the `email` catalog (documents' fixed text, docs/i18n.md), in the
+// language of the person who asks for it. What reviewers and applicants wrote stays as written.
+const OUTCOME: Record<string, EmailKey> = { approve: "pdf.docket.outcome.approve", decline: "pdf.docket.outcome.decline", waitlist: "pdf.docket.outcome.waitlist", defer: "pdf.docket.outcome.defer" };
+const RECOMMENDATION: Record<string, EmailKey> = { fund: "pdf.docket.recommend.fund", fund_with_conditions: "pdf.docket.recommend.fund_with_conditions", do_not_fund: "pdf.docket.recommend.do_not_fund", decline: "pdf.docket.recommend.do_not_fund", waitlist: "pdf.docket.recommend.waitlist" };
 const money = (minor: number | null | undefined, currency: string) => {
   if (minor === null || minor === undefined) return "—";
   const m = toMoney(minor, currency);
@@ -52,7 +56,7 @@ const money = (minor: number | null | undefined, currency: string) => {
   return `${currency === "USD" ? "$" : `${currency} `}${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${cents && cents !== "00" ? `.${cents}` : ""}`;
 };
 const one = (x: number | null | undefined) => (x === null || x === undefined ? "—" : (Math.round(x * 10) / 10).toFixed(1));
-const human = (s: string) => RECOMMENDATION[s] ?? s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+const human = (t: EmailT, s: string) => (RECOMMENDATION[s] ? t(RECOMMENDATION[s]) : s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
 
 /**
  * Free text printed in the docket (summaries, comments) with every run of digits shaped like a tax,
@@ -97,7 +101,8 @@ export interface DocketApplication {
   requested: string;
   recommendedAmount: string;
   recommendation: string;
-  averageScore: string;
+  /** The mean score out of 100 ("72.5"); null when no review is scored. */
+  averageScore: string | null;
   reviews: number;
   budgetTotal: string;
   summary: string | null;
@@ -107,6 +112,8 @@ export interface DocketApplication {
 }
 
 export interface DocketModel {
+  /** The language the docket's fixed words are in. */
+  locale: Locale;
   title: string;
   funder: string;
   opportunity: string;
@@ -120,6 +127,8 @@ export interface DocketModel {
 
 /** Everything the docket says, before it becomes a PDF. */
 export async function docketModel(ctx: ServiceContext, competitionUuid: string, input: z.output<typeof docketInput>): Promise<DocketModel> {
+  const locale = ctx.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
   const ws = await authorize(ctx, { scope: "reviews:read", kind: "funder", roles: DOCKET_ROLES });
   const competition = required(await ctx.repos.table("competitions").one({ id: competitionUuid, workspace_id: ws.id }), "Competition");
   const stages = reviewStagesOf(competition);
@@ -183,9 +192,9 @@ export async function docketModel(ctx: ServiceContext, competitionUuid: string, 
       if (r) for (const [k, v] of Object.entries(scoreReview(r, review.scores as Scores).normalized)) perCriterion.set(k, [...(perCriterion.get(k) ?? []), v * 100]);
       const funderOnly = review.visibility === "funder_only";
       if (funderOnly && !input.includeFunderOnlyComments) continue;
-      const who = `Reviewer ${reviewerNo.get(a.reviewer_user_id) ?? "?"}`;
-      if (review.recommendation) reviewerRecommendations.push(`${who}: ${human(review.recommendation)}${funderOnly ? " (funder only)" : ""}`);
-      if (review.narrative?.trim()) comments.push({ reviewer: who, funderOnly, about: "Narrative", text: scrubNumbers(review.narrative.trim()) });
+      const who = t("pdf.docket.reviewer", { number: String(reviewerNo.get(a.reviewer_user_id) ?? "?") });
+      if (review.recommendation) reviewerRecommendations.push(`${who}: ${human(t, review.recommendation)}${funderOnly ? ` ${t("pdf.docket.funderOnly")}` : ""}`);
+      if (review.narrative?.trim()) comments.push({ reviewer: who, funderOnly, about: t("pdf.docket.narrative"), text: scrubNumbers(review.narrative.trim()) });
       for (const c of r?.criteria ?? []) {
         const v = (review.scores as Record<string, unknown>)[c.key];
         const comment = v && typeof v === "object" ? (v as { comment?: unknown }).comment : undefined;
@@ -204,14 +213,14 @@ export async function docketModel(ctx: ServiceContext, competitionUuid: string, 
     }
     out.push({
       applicationId: apiId("application", app.id),
-      title: app.title || "Untitled application",
-      applicant: applicant?.display_name ?? "Unknown applicant",
+      title: app.title || t("pdf.docket.untitled"),
+      applicant: applicant?.display_name ?? t("pdf.docket.unknownApplicant"),
       requested: money(app.requested_amount_minor, app.currency),
       recommendedAmount: money(recommended, latest?.currency ?? app.currency),
-      recommendation: latest ? `${OUTCOME[latest.outcome] ?? latest.outcome}${latest.committed_at ? " (committed)" : " (proposed)"}` : "Undecided",
-      averageScore: rank?.mean !== null && rank?.mean !== undefined ? `${one(rank.mean)} of 100` : "Not scored",
+      recommendation: latest ? t(latest.committed_at ? "pdf.docket.committed" : "pdf.docket.proposed", { outcome: OUTCOME[latest.outcome] ? t(OUTCOME[latest.outcome]!) : latest.outcome }) : t("pdf.docket.undecided"),
+      averageScore: rank?.mean !== null && rank?.mean !== undefined ? one(rank.mean) : null,
       reviews: rank?.n ?? 0,
-      budgetTotal: proposed ? money(lines.reduce((s, l) => s + (l.amountMinor ?? l.amount_minor ?? 0), 0), proposed.currency) : "No budget submitted",
+      budgetTotal: proposed ? money(lines.reduce((s, l) => s + (l.amountMinor ?? l.amount_minor ?? 0), 0), proposed.currency) : t("pdf.docket.noBudget"),
       summary: summaryOf(responses),
       criteria: (rubric?.criteria ?? []).map((c) => {
         const xs = perCriterion.get(c.key) ?? [];
@@ -223,7 +232,8 @@ export async function docketModel(ctx: ServiceContext, competitionUuid: string, 
   }
   const currency = apps[0]?.currency ?? "USD";
   return {
-    title: `Board docket: ${competition.title}`,
+    locale,
+    title: t("pdf.docket.title", { competition: competition.title }),
     funder: funder?.display_name ?? "",
     opportunity: opportunity?.title ?? "",
     competition: competition.title,
@@ -235,30 +245,33 @@ export async function docketModel(ctx: ServiceContext, competitionUuid: string, 
   };
 }
 
-/** The docket as PDF blocks: cover, summary table, a page per application. */
+/** The docket as PDF blocks: cover, summary table, a page per application, in the model's language. */
 export function docketBlocks(m: DocketModel): Block[] {
+  const locale = m.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const score = (a: DocketApplication) => (a.averageScore === null ? t("pdf.docket.notScored") : t("pdf.docket.scoreOf100", { score: a.averageScore }));
   const blocks: Block[] = [
-    { type: "heading", level: 1, text: "Board docket" },
+    { type: "heading", level: 1, text: t("pdf.docket.heading") },
     { type: "paragraph", text: m.competition },
-    { type: "fields", rows: [["Funder", m.funder], ["Opportunity", m.opportunity], ["Stage", m.stage], ["Prepared", m.generatedAt.slice(0, 10)], ["Applications", String(m.totals.applications)], ["Total requested", m.totals.requested], ["Total recommended", m.totals.recommended]] },
-    { type: "paragraph", text: "Confidential: prepared for the decision meeting. Recommended amounts and recommendations are the panel's proposals until the decisions are committed." },
-    { type: "paragraph", text: m.includeFunderOnlyComments ? "This docket includes reviewers' comments marked for program staff only. Do not share it beyond them." : "Reviewers' comments marked for program staff only are not included." },
+    { type: "fields", rows: [[t("pdf.docket.funder"), m.funder], [t("pdf.docket.opportunity"), m.opportunity], [t("pdf.docket.stage"), m.stage], [t("pdf.docket.prepared"), emailDate(locale, m.generatedAt.slice(0, 10))], [t("pdf.docket.applications"), String(m.totals.applications)], [t("pdf.docket.totalRequested"), m.totals.requested], [t("pdf.docket.totalRecommended"), m.totals.recommended]] },
+    { type: "paragraph", text: t("pdf.docket.confidential") },
+    { type: "paragraph", text: t(m.includeFunderOnlyComments ? "pdf.docket.withFunderOnly" : "pdf.docket.withoutFunderOnly") },
     { type: "pageBreak" },
-    { type: "heading", level: 2, text: "Summary" },
+    { type: "heading", level: 2, text: t("pdf.docket.summary") },
     {
       type: "table",
-      columns: [{ label: "Applicant", width: 3 }, { label: "Request", width: 1.6, align: "right" }, { label: "Recommended", width: 1.6, align: "right" }, { label: "Average score", width: 1.4, align: "right" }, { label: "Recommendation", width: 2 }],
-      rows: m.applications.map((a) => [`${a.applicant} · ${a.title}`, a.requested, a.recommendedAmount, a.averageScore.replace(" of 100", ""), a.recommendation]),
+      columns: [{ label: t("pdf.docket.applicant"), width: 3 }, { label: t("pdf.docket.request"), width: 1.6, align: "right" }, { label: t("pdf.docket.recommended"), width: 1.6, align: "right" }, { label: t("pdf.docket.averageScore"), width: 1.4, align: "right" }, { label: t("pdf.docket.recommendation"), width: 2 }],
+      rows: m.applications.map((a) => [`${a.applicant} · ${a.title}`, a.requested, a.recommendedAmount, a.averageScore ?? t("pdf.docket.notScored"), a.recommendation]),
     },
   ];
   for (const a of m.applications) {
-    blocks.push({ type: "pageBreak" }, { type: "heading", level: 2, text: a.title }, { type: "fields", rows: [["Applicant", a.applicant], ["Request", a.requested], ["Budget total", a.budgetTotal], ["Average score", `${a.averageScore} (${a.reviews} ${a.reviews === 1 ? "review" : "reviews"})`], ["Recommended amount", a.recommendedAmount], ["Recommendation", a.recommendation]] });
-    blocks.push({ type: "heading", level: 3, text: "Summary" }, { type: "paragraph", text: a.summary ?? "The application has no summary answer." });
-    if (a.criteria.length) blocks.push({ type: "heading", level: 3, text: "Scores by criterion" }, { type: "table", columns: [{ label: "Criterion", width: 4 }, { label: "Weight", width: 1, align: "right" }, { label: "Mean (0 to 100)", width: 1.6, align: "right" }, { label: "Reviews", width: 1, align: "right" }], rows: a.criteria.map((c) => [c.label, String(c.weight), c.mean, String(c.scored)]) });
-    if (a.reviewerRecommendations.length) blocks.push({ type: "heading", level: 3, text: "Reviewers' recommendations" }, { type: "list", ordered: false, items: a.reviewerRecommendations });
-    blocks.push({ type: "heading", level: 3, text: "Reviewer comments for the panel" });
-    if (a.comments.length) blocks.push({ type: "list", ordered: false, items: a.comments.map((c) => `${c.reviewer}${c.funderOnly ? " (funder only)" : ""}, ${c.about}: ${c.text}`) });
-    else blocks.push({ type: "paragraph", text: "No comments." });
+    blocks.push({ type: "pageBreak" }, { type: "heading", level: 2, text: a.title }, { type: "fields", rows: [[t("pdf.docket.applicant"), a.applicant], [t("pdf.docket.request"), a.requested], [t("pdf.docket.budgetTotal"), a.budgetTotal], [t("pdf.docket.averageScore"), t("pdf.docket.averageWithReviews", { score: score(a), count: a.reviews })], [t("pdf.docket.recommendedAmount"), a.recommendedAmount], [t("pdf.docket.recommendation"), a.recommendation]] });
+    blocks.push({ type: "heading", level: 3, text: t("pdf.docket.summary") }, { type: "paragraph", text: a.summary ?? t("pdf.docket.noSummary") });
+    if (a.criteria.length) blocks.push({ type: "heading", level: 3, text: t("pdf.docket.scores") }, { type: "table", columns: [{ label: t("pdf.docket.criterion"), width: 4 }, { label: t("pdf.docket.weight"), width: 1, align: "right" }, { label: t("pdf.docket.mean"), width: 1.6, align: "right" }, { label: t("pdf.docket.reviews"), width: 1, align: "right" }], rows: a.criteria.map((c) => [c.label, String(c.weight), c.mean, String(c.scored)]) });
+    if (a.reviewerRecommendations.length) blocks.push({ type: "heading", level: 3, text: t("pdf.docket.reviewerRecommendations") }, { type: "list", ordered: false, items: a.reviewerRecommendations });
+    blocks.push({ type: "heading", level: 3, text: t("pdf.docket.comments") });
+    if (a.comments.length) blocks.push({ type: "list", ordered: false, items: a.comments.map((c) => `${c.reviewer}${c.funderOnly ? ` ${t("pdf.docket.funderOnly")}` : ""}, ${c.about}: ${c.text}`) });
+    else blocks.push({ type: "paragraph", text: t("pdf.docket.noComments") });
   }
   return blocks;
 }
@@ -272,7 +285,8 @@ export async function createDocket(ctx: ServiceContext, competitionUuid: string,
   const ws = ctx.workspace!;
   const funder = await ctx.repos.table("workspaces").one({ id: ws.id });
   const accent = (funder?.brand as { accent?: unknown } | null)?.accent;
-  const bytes = await renderPdf({ title: model.title, header: `${model.funder} · Board docket`, footer: `${model.competition} · Confidential`, ...(typeof accent === "string" ? { accent } : {}), blocks: docketBlocks(model), createdAt: model.generatedAt, lang: "en-US" });
+  const t = emailT(model.locale);
+  const bytes = await renderPdf({ title: model.title, header: t("pdf.docket.header", { funder: model.funder }), footer: t("pdf.docket.footer", { competition: model.competition }), ...(typeof accent === "string" ? { accent } : {}), blocks: docketBlocks(model), createdAt: model.generatedAt, lang: INTL_LOCALE[model.locale], pageLabel: (page, total) => t("pdf.page", { page, total }) });
   const sha256 = await sha256Hex(bytes);
   const docketId = crypto.randomUUID();
   await ctx.ports.exportFiles.put(docketKey(ws.id, competitionUuid, docketId), bytes, "application/pdf");

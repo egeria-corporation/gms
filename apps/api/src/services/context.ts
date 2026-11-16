@@ -10,6 +10,7 @@ import type { PreferencesPort } from "./preferences.ts";
 import type { LlmClient } from "@gms/assist";
 import type { AirtableSource, BankFeed, FluxxPuller, McpDirectory, SheetsSource, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
+import type { Locale } from "@gms/i18n";
 import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
 import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
@@ -165,6 +166,12 @@ export interface ServiceContext {
   now: () => Date;
   config: ServiceConfig;
   ports: ServicePorts;
+  /**
+   * The language of the request (docs/i18n.md: `?lang=`, the `gms_lang` cookie, `Accept-Language`),
+   * for what is made for the person asking: a PDF's fixed labels, a package email they send. English
+   * when absent (jobs, agents). Emails to other people use the recipient's own language instead.
+   */
+  locale?: Locale;
 }
 
 export function makeActor(kind: "user" | "client" | "delegated", userId: string | null, clientId: string | null): ServiceActor {
