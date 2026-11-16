@@ -1159,7 +1159,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           onClose={() => setPasting(false)}
           onSaved={(n, docs = 0) => {
             setPasting(false);
-            setNote([n || !docs ? `${n} question${n === 1 ? "" : "s"} added` : null, docs ? `${docs} document${docs === 1 ? "" : "s"} added to the checklist` : null].filter(Boolean).join(" · "));
+            setNote([n || !docs ? t("outsideQuestionsTab.questionsAdded", { count: n }) : null, docs ? t("outsideQuestionsTab.documentsAdded", { count: docs }) : null].filter(Boolean).join(" · "));
             assist.reload();
             onChanged();
           }}
