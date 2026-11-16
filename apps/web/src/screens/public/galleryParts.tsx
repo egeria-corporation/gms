@@ -64,6 +64,30 @@ export function LicenceNote({ author }: { author?: GalleryAuthor }) {
   );
 }
 
+/** A tag value from the gallery's vocabulary in the page's language; a value it does not know shows as stored. */
+const TAG_VALUE: Record<string, () => string> = {
+  "Any field": () => tr("galleryParts.tag.fieldOfWork.anyField"),
+  "Arts and culture": () => tr("galleryParts.tag.fieldOfWork.artsAndCulture"),
+  "Community development": () => tr("galleryParts.tag.fieldOfWork.communityDevelopment"),
+  "Education": () => tr("galleryParts.tag.fieldOfWork.education"),
+  "Environment": () => tr("galleryParts.tag.fieldOfWork.environment"),
+  "Health": () => tr("galleryParts.tag.fieldOfWork.health"),
+  "Housing": () => tr("galleryParts.tag.fieldOfWork.housing"),
+  "Human services": () => tr("galleryParts.tag.fieldOfWork.humanServices"),
+  "Youth and families": () => tr("galleryParts.tag.fieldOfWork.youthAndFamilies"),
+  "Under $10,000": () => tr("galleryParts.tag.grantSize.under10k"),
+  "$10,000 to $50,000": () => tr("galleryParts.tag.grantSize.10kTo50k"),
+  "$50,000 to $250,000": () => tr("galleryParts.tag.grantSize.50kTo250k"),
+  "Over $250,000": () => tr("galleryParts.tag.grantSize.over250k"),
+  "Any size": () => tr("galleryParts.tag.grantSize.anySize"),
+  "Nonprofits": () => tr("galleryParts.tag.audience.nonprofits"),
+  "Community groups": () => tr("galleryParts.tag.audience.communityGroups"),
+  "Schools": () => tr("galleryParts.tag.audience.schools"),
+  "Small organizations": () => tr("galleryParts.tag.audience.smallOrganizations"),
+  "Faith-based organizations": () => tr("galleryParts.tag.audience.faithBasedOrganizations"),
+};
+export const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
+
 export function TagList({ tags }: { tags: GalleryTags }) {
   const all = [...tags.fieldOfWork, ...tags.grantSize, ...tags.audience];
   if (!all.length) return null;
@@ -71,7 +95,7 @@ export function TagList({ tags }: { tags: GalleryTags }) {
     <ul aria-label={tr("galleryParts.tags")} className="row" style={{ gap: "6px", flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }}>
       {all.map((t) => (
         <li key={t} className="tag">
-          {t}
+          {tagLabel(t)}
         </li>
       ))}
     </ul>

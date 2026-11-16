@@ -13,7 +13,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Field, Loading, Notice, problemFor } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
-import { StrippedList, SnapshotPreview, SubmissionBadge } from "../public/galleryParts.tsx";
+import { StrippedList, SnapshotPreview, SubmissionBadge, tagLabel } from "../public/galleryParts.tsx";
 import { t } from "./i18n.ts";
 import { usePublicMessages } from "../../i18n/index.tsx";
 
@@ -27,28 +27,6 @@ const TAG_GROUPS: { key: keyof GalleryTags; readonly label: string; values: stri
   { key: "grantSize", get label() { return t("shareToGallery.tags.grantSize"); }, values: ["Under $10,000", "$10,000 to $50,000", "$50,000 to $250,000", "Over $250,000", "Any size"] },
   { key: "audience", get label() { return t("shareToGallery.tags.audience"); }, values: ["Nonprofits", "Community groups", "Schools", "Small organizations", "Faith-based organizations"] },
 ];
-const TAG_VALUE: Record<string, () => string> = {
-  "Any field": () => t("shareToGallery.tag.fieldOfWork.anyField"),
-  "Arts and culture": () => t("shareToGallery.tag.fieldOfWork.artsAndCulture"),
-  "Community development": () => t("shareToGallery.tag.fieldOfWork.communityDevelopment"),
-  "Education": () => t("shareToGallery.tag.fieldOfWork.education"),
-  "Environment": () => t("shareToGallery.tag.fieldOfWork.environment"),
-  "Health": () => t("shareToGallery.tag.fieldOfWork.health"),
-  "Housing": () => t("shareToGallery.tag.fieldOfWork.housing"),
-  "Human services": () => t("shareToGallery.tag.fieldOfWork.humanServices"),
-  "Youth and families": () => t("shareToGallery.tag.fieldOfWork.youthAndFamilies"),
-  "Under $10,000": () => t("shareToGallery.tag.grantSize.under10k"),
-  "$10,000 to $50,000": () => t("shareToGallery.tag.grantSize.10kTo50k"),
-  "$50,000 to $250,000": () => t("shareToGallery.tag.grantSize.50kTo250k"),
-  "Over $250,000": () => t("shareToGallery.tag.grantSize.over250k"),
-  "Any size": () => t("shareToGallery.tag.grantSize.anySize"),
-  "Nonprofits": () => t("shareToGallery.tag.audience.nonprofits"),
-  "Community groups": () => t("shareToGallery.tag.audience.communityGroups"),
-  "Schools": () => t("shareToGallery.tag.audience.schools"),
-  "Small organizations": () => t("shareToGallery.tag.audience.smallOrganizations"),
-  "Faith-based organizations": () => t("shareToGallery.tag.audience.faithBasedOrganizations"),
-};
-const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
 const KIND: Record<GalleryKind, () => string> = {
   application_form: () => t("shareToGallery.kind.applicationForm"),
   report_form: () => t("shareToGallery.kind.reportForm"),

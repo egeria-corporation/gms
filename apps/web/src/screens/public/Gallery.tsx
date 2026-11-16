@@ -10,7 +10,7 @@ import { GALLERY_KINDS, KIND_PLURAL, LICENCE, type GalleryKind, type GalleryList
 import { useGalleryApi, useGalleryQuery } from "../../api/galleryHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
-import { AuthorLine, GalleryFrame, KindBadge, TagList } from "./galleryParts.tsx";
+import { AuthorLine, GalleryFrame, KindBadge, TagList, tagLabel } from "./galleryParts.tsx";
 
 import { translator } from "../../i18n/index.tsx";
 
@@ -107,17 +107,23 @@ export default function Gallery() {
                 <>
                   <optgroup label={tr("gallery.fieldOfWork")}>
                     {vocabulary.fieldOfWork.map((t) => (
-                      <option key={t}>{t}</option>
+                      <option key={t} value={t}>
+                        {tagLabel(t)}
+                      </option>
                     ))}
                   </optgroup>
                   <optgroup label={tr("gallery.grantSize")}>
                     {vocabulary.grantSize.map((t) => (
-                      <option key={t}>{t}</option>
+                      <option key={t} value={t}>
+                        {tagLabel(t)}
+                      </option>
                     ))}
                   </optgroup>
                   <optgroup label={tr("gallery.audience")}>
                     {vocabulary.audience.map((t) => (
-                      <option key={t}>{t}</option>
+                      <option key={t} value={t}>
+                        {tagLabel(t)}
+                      </option>
                     ))}
                   </optgroup>
                 </>
