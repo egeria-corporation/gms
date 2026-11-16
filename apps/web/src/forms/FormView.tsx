@@ -386,6 +386,9 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
   }
 
   const disabled = ctx.disabled.has(path);
+  // Each error shown under the field is part of the control's description (WCAG 3.3.1).
+  const shownErrors = dedupe(fieldErrors);
+  const errorIds = shownErrors.map((_, i) => `${id}-err-${i}`);
   const common: InputProps = {
     id,
     path,
@@ -394,7 +397,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
     value,
     disabled,
     invalid: fieldErrors.length > 0,
-    describedBy: `${id}-help`,
+    describedBy: [`${id}-help`, ...errorIds].join(" "),
     ctx,
     label,
     control,
@@ -448,8 +451,8 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
           </span>
         )}
       </div>
-      {dedupe(fieldErrors).map((e) => (
-        <span className="err-msg" role="alert" key={e.field + e.message}>
+      {shownErrors.map((e, i) => (
+        <span className="err-msg" role="alert" id={errorIds[i]} key={e.field + e.message}>
           <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
           {errorText(e, label)}
         </span>
@@ -905,7 +908,7 @@ function SignatureInput({ id, path, value, ctx, disabled, invalid }: InputProps)
   );
 }
 
-function FileInput({ id, path, value, ctx, disabled, describedBy }: InputProps) {
+function FileInput({ id, path, value, ctx, disabled, describedBy, label }: InputProps) {
   const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const input = useRef<HTMLInputElement>(null);
   const v = isPlainObject(value) ? value : null;
@@ -928,6 +931,8 @@ function FileInput({ id, path, value, ctx, disabled, describedBy }: InputProps) 
         id={id}
         type="file"
         className="sr"
+        // The button below is the keyboard's way in; a hidden input in the tab order shows no focus.
+        tabIndex={-1}
         disabled={disabled || !ctx.uploadFile || state.busy}
         aria-describedby={describedBy}
         onChange={async (e) => {
@@ -952,6 +957,9 @@ function FileInput({ id, path, value, ctx, disabled, describedBy }: InputProps) 
           type="button"
           disabled={disabled || !ctx.uploadFile || state.busy}
           onClick={() => input.current?.click()}
+          // Named by what it shows, then which field it fills; described by the field's help and errors.
+          aria-label={`${state.busy ? "Uploading…" : v ? "Replace file" : "Upload"}, ${label}`}
+          aria-describedby={describedBy}
         >
           <Upload className="ic" aria-hidden="true" />
           {state.busy ? "Uploading…" : v ? "Replace file" : "Upload"}

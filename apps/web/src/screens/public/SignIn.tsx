@@ -20,9 +20,12 @@ type Step = "email" | "code" | "mfa" | "first-run" | "sso";
 type Choice = "funder" | "applicant" | "invite";
 
 
+/** The one problem a sign-in step shows. Its id lets that step's field point at it (WCAG 3.3.1). */
+const PROBLEM_ID = "signin-problem";
+
 function Problem({ children }: { children: ReactNode }) {
   return (
-    <span className="err-msg" role="alert">
+    <span className="err-msg" role="alert" id={PROBLEM_ID}>
       <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
       {children}
     </span>
@@ -30,6 +33,7 @@ function Problem({ children }: { children: ReactNode }) {
 }
 
 function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v: string) => void; invalid: boolean }) {
+  const problem = invalid ? { "aria-invalid": true as const, "aria-describedby": PROBLEM_ID } : {};
   const refs = useRef<Array<HTMLInputElement | null>>([]);
   const set = (i: number, raw: string) => {
     const digits = raw.replace(/\D/g, "");
@@ -53,6 +57,7 @@ function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v:
           }}
           className={invalid ? "inp err userback-ignore" : "inp userback-ignore"}
           aria-label={`Digit ${i + 1}`}
+          {...problem}
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
           autoFocus={i === 0}
@@ -341,10 +346,16 @@ export default function SignIn() {
                       autoFocus
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      aria-invalid={error ? true : undefined}
+                      aria-describedby={error ? `${PROBLEM_ID} email-help email-help-2` : "email-help email-help-2"}
                       style={{ height: "44px", fontSize: "16px" }}
                     />
-                    <span className="help">We'll send a one-time code. No password to remember.</span>
-                    <span className="help">Admins add an authenticator app as a second step. It takes a minute.</span>
+                    <span className="help" id="email-help">
+                      We'll send a one-time code. No password to remember.
+                    </span>
+                    <span className="help" id="email-help-2">
+                      Admins add an authenticator app as a second step. It takes a minute.
+                    </span>
                   </div>
                   {error && <Problem>{error}</Problem>}
                   <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
@@ -413,9 +424,11 @@ export default function SignIn() {
                     autoFocus
                     value={ssoEmail}
                     onChange={(e) => setSsoEmail(e.target.value)}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? `${PROBLEM_ID} sso-email-help` : "sso-email-help"}
                     style={{ height: "44px", fontSize: "16px" }}
                   />
-                  <span className="help">We send you to your organization's sign-in page and you come back here signed in.</span>
+                  <span className="help" id="sso-email-help">We send you to your organization's sign-in page and you come back here signed in.</span>
                 </div>
                 {error && <Problem>{error}</Problem>}
                 <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !ssoEmail.trim()}>
@@ -600,6 +613,8 @@ export default function SignIn() {
                     id="totp"
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? PROBLEM_ID : undefined}
                     placeholder="000 000"
                     autoFocus
                     value={totp}

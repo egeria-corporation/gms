@@ -98,7 +98,7 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
               <label className="lbl" htmlFor="pay-amount">
                 Amount received ({currency})
               </label>
-              <input id="pay-amount" className="inp" inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              <input id="pay-amount" className={form.amount && !money ? "inp err" : "inp"} inputMode="decimal" value={form.amount} aria-invalid={form.amount && !money ? true : undefined} aria-describedby={form.amount && !money ? "pay-amount-err" : undefined} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
             </div>
             <div className="fld" style={{ flex: "1 1 140px" }}>
               <label className="lbl" htmlFor="pay-date">
@@ -112,7 +112,11 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
             </button>
           </form>
         )}
-        {form.amount && !money && <span className="err-msg">Enter the amount in dollars, such as 25000.</span>}
+        {form.amount && !money && (
+          <span className="err-msg" id="pay-amount-err" role="alert">
+            Enter the amount in dollars, such as 25000.
+          </span>
+        )}
         {add.error ? <ErrorBanner error={add.error} title="The payment was not recorded" /> : null}
       </div>
     </section>
