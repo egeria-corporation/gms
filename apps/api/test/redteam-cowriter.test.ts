@@ -85,6 +85,7 @@ const PERSONAL_ROUTES = new Set([
   "put /gms/me/notification-preferences",
   "get /gms/me/sessions",
   "delete /gms/me/sessions/{sessionId}",
+  "put /gms/me/preferences",
   "get /gms/notifications",
   "post /gms/notifications/read",
   "post /gms/invitations/accept",
