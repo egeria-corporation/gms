@@ -6,6 +6,7 @@
   "accountSettings.connectedByATeammate": "Connected by a teammate",
   "accountSettings.revokeIn": "Revoke {value} in {name}",
   "accountSettings.revoke": "Revoke",
+  "accountSettings.revokeConfirm": "Revoke {name}?",
   "accountSettings.theAgentLosesAccessTo": "The agent loses access to {name} at once and has to be connected again to come back. Work it already drafted stays.",
   "accountSettings.theAgentWasNotRevoked": "The agent was not revoked",
   "accountSettings.cancel": "Cancel",

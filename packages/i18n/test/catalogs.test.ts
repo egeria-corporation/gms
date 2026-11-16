@@ -66,6 +66,8 @@ const NOT_THE_GLOSSARY: [RegExp, string][] = [
   [/\bexpedientes? para la junta\b/i, "carpeta para la junta (board docket)"],
   [/\bcampos? de combinaci[oó]n\b/i, "campo combinado (merge field)"],
   [/\b(grants?|funders?|applicants?|workspaces?|deadlines?)\b/i, "the English word left in the Spanish text"],
+  // One quotation style in Spanish: «comillas latinas».
+  [/[“”]/, "«…» (quotation marks)"],
 ];
 
 // The software phrases where "aplicación" is the right word: an authenticator, calendar or connected

@@ -91,7 +91,7 @@ function Agents({ ws }: { ws: MeWorkspace }) {
       <Dialog open={!!confirm} onClose={() => setConfirm(null)} labelledBy={`revoke-${ws.handle}`}>
         <div className="hd">
           <h2 id={`revoke-${ws.handle}`} style={{ fontSize: "18px" }}>
-            {t("accountSettings.revoke")} {confirm?.clientName ?? confirm?.clientId}?
+            {t("accountSettings.revokeConfirm", { name: confirm?.clientName ?? confirm?.clientId ?? "" })}
           </h2>
         </div>
         <div className="bd">

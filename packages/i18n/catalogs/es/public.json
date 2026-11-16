@@ -6,6 +6,7 @@
   "accountSettings.connectedByATeammate": "Conectado por alguien de su equipo",
   "accountSettings.revokeIn": "Revocar {value} en {name}",
   "accountSettings.revoke": "Revocar",
+  "accountSettings.revokeConfirm": "¿Revocar {name}?",
   "accountSettings.theAgentLosesAccessTo": "El agente pierde de inmediato el acceso a {name} y tendrá que conectarse de nuevo para volver. El trabajo que ya redactó se conserva.",
   "accountSettings.theAgentWasNotRevoked": "No se revocó el agente",
   "accountSettings.cancel": "Cancelar",

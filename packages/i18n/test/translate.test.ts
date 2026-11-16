@@ -62,9 +62,11 @@ describe("messages", () => {
 });
 
 describe("catalog loading", () => {
-  it("has English public and shared from the start and loads the rest on demand", async () => {
-    expect(peekCatalog("en", "public")).toBeDefined();
+  it("has English shared from the start and loads the rest, English public included, on demand", async () => {
     expect(peekCatalog("en", "shared")).toBeDefined();
+    expect(peekCatalog("en", "public")).toBeUndefined();
+    await loadCatalog("en", "public");
+    expect(peekCatalog("en", "public")).toBeDefined();
     expect(peekCatalog("es", "shared")).toBeUndefined();
     const p1 = loadCatalog("es", "shared");
     expect(loadCatalog("es", "shared")).toBe(p1);
