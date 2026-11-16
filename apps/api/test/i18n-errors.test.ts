@@ -27,7 +27,7 @@ const get = async (path: string, headers: Record<string, string> = {}) => {
 describe("detailLocalized", () => {
   it("is added on a GMS route asked in Spanish, beside the unchanged code and English message", async () => {
     const english = await get(`/gms/applications/app_${MISSING}`);
-    for (const ask of [{ "Accept-Language": "es-MX,es;q=0.9,en;q=0.5" }, { Cookie: "gms_lang=es" }]) {
+    for (const ask of [{ "Accept-Language": "es-MX,es;q=0.9,en;q=0.5" }, { Cookie: "gms_lang=es" }] as Record<string, string>[]) {
       const r = await get(`/gms/applications/app_${MISSING}`, ask);
       expect(r.status).toBe(404);
       expect(r.body.message).toBe(english.body.message);
