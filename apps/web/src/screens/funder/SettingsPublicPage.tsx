@@ -9,7 +9,7 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Loading, PageHeader, SaveNote } from "../../components/ui.tsx";
-import { POWERED_BY_LABEL } from "../public/PublicFrame.tsx";
+import { poweredByLabel } from "../public/PublicFrame.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { AwardListingCard } from "./AwardListingSettings.tsx";
 import { t } from "./i18n.ts";
@@ -55,10 +55,10 @@ export function PoweredByCard() {
               {!isAdmin ? <Lock className="ic" aria-hidden="true" /> : on ? <CircleCheck className="ic" aria-hidden="true" /> : <Circle className="ic" aria-hidden="true" />}
               <div>
                 <div className="l" id="powered-label">
-                  {t("settingsPublicPage.show", { POWERED_BY_LABEL })}
+                  {t("settingsPublicPage.show", { label: poweredByLabel() })}
                 </div>
                 <div className="r">
-                  {on ? t("settingsPublicPage.on") : t("settingsPublicPage.off")} {t("settingsPublicPage.aLinkToThe")}
+                  {on ? t("settingsPublicPage.on") : t("settingsPublicPage.off")} · {t("settingsPublicPage.aLinkToThe")}
                 </div>
               </div>
               <button

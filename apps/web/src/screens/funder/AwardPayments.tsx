@@ -173,7 +173,7 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
         <StatusBadge kind="tranche" status={row.status} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        {row.status === "scheduled" && !note && <p className="muted small">{t("awardPayments.notDueYetIt", { replace: conditionLabel(row.condition, requirementTitle).replace(/^./, (c) => c.toLowerCase()) })}</p>}
+        {row.status === "scheduled" && !note && <p className="muted small">{t("awardPayments.notDueYetIt", { condition: conditionLabel(row.condition, requirementTitle).replace(/^./, (c) => c.toLowerCase()) })}</p>}
         {note && <Notice tone="ok" title={note} />}
         {(unhold.error !== null || hold.error !== null || cancel.error !== null) && <ErrorBanner error={unhold.error ?? hold.error ?? cancel.error} />}
         {open && readiness.status === "loading" && <Loading label={t("awardPayments.checkingReadiness")} />}

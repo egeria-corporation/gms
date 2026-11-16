@@ -52,7 +52,7 @@ export function EmbedPanel({ handle, funderName, opportunity, listed, taking }: 
                   </span>
                 </span>
               </label>
-              <CopyButton value={snippet} what="the embed code" label={t("embedPanel.copyEmbedCode")} />
+              <CopyButton value={snippet} what={t("embedPanel.theEmbedCode")} label={t("embedPanel.copyEmbedCode")} />
             </div>
             <div>
               <div className="lbl" style={{ marginBottom: "8px" }}>

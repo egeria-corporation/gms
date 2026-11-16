@@ -24,16 +24,16 @@ import { OpenDataPanel } from "./OpenDataPanel.tsx";
 import { t } from "./i18n.ts";
 
 type Tab = "due" | "received";
-const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : "Grantee");
+const nameOf = (r: { recipient?: Record<string, unknown> | null }) => (typeof r.recipient?.name === "string" ? r.recipient.name : t("funderReporting.grantee"));
 const planOf = (r: Requirement): number[] => (Array.isArray(r.reminderPlan) ? (r.reminderPlan as unknown[]).filter((n): n is number => typeof n === "number") : []);
-const planText = (plan: number[]) => plan.map((n) => (n === 0 ? "on the due date" : n < 0 ? `${-n} days before` : `${n} days after`)).join(", ");
+const planText = (plan: number[]) => plan.map((n) => (n === 0 ? t("funderReporting.plan.onDueDate") : n < 0 ? t("funderReporting.plan.before", { count: -n }) : t("funderReporting.plan.after", { count: n }))).join(", ");
 
 function dueText(r: Requirement, now: Date): string {
   const days = daysUntil(r.dueAt, now);
-  if (days === null) return "No due date";
-  if (days < 0) return `${-days} ${days === -1 ? "day" : "days"} late`;
-  if (days === 0) return "Due today";
-  return `In ${days} ${days === 1 ? "day" : "days"}`;
+  if (days === null) return t("funderReporting.due.none");
+  if (days < 0) return t("funderReporting.due.late", { count: -days });
+  if (days === 0) return t("funderReporting.due.today");
+  return t("funderReporting.due.in", { count: days });
 }
 
 function ReminderPlanDialog({ requirement, onClose, onSaved }: { requirement: Requirement; onClose: () => void; onSaved: () => void }) {
@@ -149,7 +149,7 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
             disabled={accept.state === "saving"}
             onClick={async () => {
               const out = await accept.run();
-              if (out) onChanged(out.trancheDue ? "Report accepted. The tranche it releases is now due in Payments." : "Report accepted.");
+              if (out) onChanged(out.trancheDue ? t("funderReporting.done.acceptedTranche") : t("funderReporting.done.accepted"));
             }}
           >
             <CircleCheck className="ic" aria-hidden="true" />
@@ -166,11 +166,11 @@ function Review({ id, releases, onChanged }: { id: string; releases: boolean; on
         <ReasonDialog
           title={t("funderReporting.returnThisReport")}
           label={t("funderReporting.whatShouldTheGrantee")}
-          action="Return report"
+          action={t("funderReporting.action.return")}
           onClose={() => setReturning(false)}
           onSubmit={async (note) => {
             setReturning(false);
-            if (await send.run(note)) onChanged("Report returned. The grantee can revise and resubmit.");
+            if (await send.run(note)) onChanged(t("funderReporting.done.returned"));
           }}
         />
       )}
@@ -205,14 +205,14 @@ export default function Reporting() {
   const overdue = owed.filter((r) => r.status === "overdue");
   const shown = day ? owed.filter((r) => r.dueAt?.slice(0, 10) === day) : owed;
   const calendarItems: CalendarItem[] = [
-    ...owed.filter((r) => r.dueAt).map((r) => ({ id: r.id, date: r.dueAt as string, label: `${nameOf(r)} · ${r.title}`, tone: (r.status === "overdue" ? "overdue" : r.status === "due" ? "due" : "scheduled") as CalendarItem["tone"] })),
-    ...received.filter((x) => x.submittedAt).map((x) => ({ id: x.id, date: x.submittedAt as string, label: t("funderReporting.received", { title: x.requirement?.title ?? "Report" }), tone: "received" as const })),
+    ...owed.filter((r) => r.dueAt).map((r) => ({ id: r.id, date: r.dueAt as string, label: t("funderReporting.calendarLabel", { name: nameOf(r), title: r.title }), tone: (r.status === "overdue" ? "overdue" : r.status === "due" ? "due" : "scheduled") as CalendarItem["tone"] })),
+    ...received.filter((x) => x.submittedAt).map((x) => ({ id: x.id, date: x.submittedAt as string, label: t("funderReporting.received", { title: x.requirement?.title ?? t("funderReporting.report") }), tone: "received" as const })),
   ];
   const reportForms = (forms.data ?? []).filter((f) => f.purpose === "report");
   const remindAll = async () => {
     let sent = 0;
     for (const r of overdue) if (await remind.run(r.id)) sent++;
-    if (sent) setNote(`Reminder sent to ${sent} ${sent === 1 ? "grantee" : "grantees"}.`);
+    if (sent) setNote(t("funderReporting.done.remindedCount", { count: sent }));
   };
   // A submission names its award; the award names the grantee. A report shared from another
   // funder has no award here.
@@ -221,7 +221,7 @@ export default function Reporting() {
     if (req) return nameOf(req);
     const award = d?.awards.find((a) => a.id === s.awardId);
     const name = award?.recipient?.name;
-    return typeof name === "string" && name ? name : s.shared ? "Another funder’s report" : "Grantee";
+    return typeof name === "string" && name ? name : s.shared ? t("funderReporting.anotherFundersReport") : t("funderReporting.grantee");
   };
   const requirementFor = (s: Submission) => d?.requirements.find((r) => r.id === s.requirementId);
   const changed = (message: string) => {
@@ -326,7 +326,7 @@ export default function Reporting() {
                               <div>
                                 <div className="b">{f.title}</div>
                                 <div className="small muted">
-                                  {t("funderReporting.v", { version: f.version })} {f.publishedAt ? t("funderReporting.published") : t("funderReporting.draft")} {t("funderReporting.reusesTheFormBuilder")}
+                                  {t(f.publishedAt ? "funderReporting.formPublished" : "funderReporting.formDraft", { version: f.version })}
                                 </div>
                               </div>
                               <Link to={`${base}/forms/${f.id}/edit`} className="small b">
@@ -396,17 +396,17 @@ export default function Reporting() {
                                 </td>
                                 <td>
                                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPlan(r)}>
-                                    {t.rich("funderReporting.plannedRemindersForEdit", { count: planOf(r).length, title: r.title, nameOf: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
+                                    {t.rich("funderReporting.plannedRemindersForEdit", { count: planOf(r).length, title: r.title, name: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
                                   </button>
                                 </td>
                                 <td>
                                   <div className="row">
-                                    <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(`Reminder sent to ${nameOf(r)}.`)} >
+                                    <button type="button" className="btn btn-sm btn-secondary" disabled={remind.state === "saving"} onClick={async () => (await remind.run(r.id)) && setNote(t("funderReporting.done.reminded", { name: nameOf(r) }))} >
                                       <Bell className="ic" aria-hidden="true" />
-                                      {t.rich("funderReporting.remindAbout", { nameOf: nameOf(r), title: r.title, span: (chunks) => <span className="sr">{chunks}</span> })}
+                                      {t.rich("funderReporting.remindAbout", { name: nameOf(r), title: r.title, span: (chunks) => <span className="sr">{chunks}</span> })}
                                     </button>
                                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => setWaiving(r)}>
-                                      {t.rich("funderReporting.waiveFor", { title: r.title, nameOf: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
+                                      {t.rich("funderReporting.waiveFor", { title: r.title, name: nameOf(r), span: (chunks) => <span className="sr">{chunks}</span> })}
                                     </button>
                                   </div>
                                 </td>
@@ -492,7 +492,7 @@ export default function Reporting() {
               onClose={() => setPlan(null)}
               onSaved={() => {
                 setPlan(null);
-                changed("Reminder plan saved.");
+                changed(t("funderReporting.done.planSaved"));
               }}
             />
           )}
@@ -500,12 +500,12 @@ export default function Reporting() {
             <ReasonDialog
               title={t("funderReporting.waive", { title: waiving.title })}
               label={t("funderReporting.whyIsThisRequirement")}
-              action="Waive requirement"
+              action={t("funderReporting.action.waive")}
               onClose={() => setWaiving(null)}
               onSubmit={async (reason) => {
                 const r = waiving;
                 setWaiving(null);
-                if (await waive.run(r.id, reason)) changed(`${r.title} waived for ${nameOf(r)}.`);
+                if (await waive.run(r.id, reason)) changed(t("funderReporting.done.waived", { title: r.title, name: nameOf(r) }));
               }}
             />
           )}

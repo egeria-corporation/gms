@@ -6,10 +6,17 @@ import { useApiQuery } from "../../api/hooks.ts";
 import type { Stage } from "../../api/types.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { usePeople } from "./shared.tsx";
+import { formatList } from "@gms/i18n";
+import { getLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const REVIEWING_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin"];
-const ROLE_LABEL: Record<string, string> = { reviewer: "Staff reviewer", external_reviewer: "External", program_officer: "Program officer", admin: "Admin" };
+const ROLE_LABEL: Record<string, () => string> = {
+  reviewer: () => t("reviewerPool.role.reviewer"),
+  external_reviewer: () => t("reviewerPool.role.external"),
+  program_officer: () => t("reviewerPool.role.programOfficer"),
+  admin: () => t("reviewerPool.role.admin"),
+};
 
 export function ReviewerPool({ competitionId, stages, base }: { competitionId: string; stages: Stage[]; base: string }) {
   const { people } = usePeople();
@@ -42,7 +49,7 @@ export function ReviewerPool({ competitionId, stages, base }: { competitionId: s
                   {p.name} {p.role === "external_reviewer" && <span className="tag">{t("reviewerPool.external")}</span>}
                 </div>
                 <div className="muted xs">
-                  {t("reviewerPool.assigned", { ROLE_LABEL: ROLE_LABEL[p.role] ?? p.role, count: mine.length })}{mine.length ? t("reviewerPool.stillToScore", { open }) : ""}
+                  {mine.length ? t("reviewerPool.assignedToScore", { role: ROLE_LABEL[p.role]?.() ?? p.role, count: mine.length, open }) : t("reviewerPool.assigned", { role: ROLE_LABEL[p.role]?.() ?? p.role, count: mine.length })}
                 </div>
               </div>
             </div>
@@ -58,8 +65,7 @@ export function ReviewerPool({ competitionId, stages, base }: { competitionId: s
           ) : (
             stages.slice(1).map((s) => (
               <div key={s.key} className="muted xs">
-                {t("reviewerPool.aProgramOfficerAdvances", { label: s.label })} {s.entryFrom.map((k) => stages.find((x) => x.key === k)?.label ?? k).join(" or ") || t("reviewerPool.thePreviousStage")}
-                {s.requiresSubmission ? t("reviewerPool.theApplicantThenSubmits") : "."}
+                {t(s.requiresSubmission ? "reviewerPool.advancesThenSubmits" : "reviewerPool.advances", { label: s.label, from: s.entryFrom.length ? formatList(getLocale(), s.entryFrom.map((k) => stages.find((x) => x.key === k)?.label ?? k), "disjunction") : t("reviewerPool.thePreviousStage") })}
               </div>
             ))
           )}

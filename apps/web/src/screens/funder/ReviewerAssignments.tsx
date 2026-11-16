@@ -18,20 +18,16 @@ import { SignPolicyDialog } from "./ReviewParity.tsx";
 import { t } from "./i18n.ts";
 
 /** How an assignment names its application: the code under anonymized review, else the title. */
-export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? `Applicant ${a.applicantCode}` : (a.applicationTitle ?? "Application"));
+export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? t("reviewerAssignments.applicantCode", { code: a.applicantCode }) : (a.applicationTitle ?? t("reviewerAssignments.application")));
 
-const COI_STATEMENTS = [
-  "I am not an employee, board member, or contractor of this organization, and have not been in the last three years.",
-  "No member of my household has a financial interest in this organization or this project.",
-  "I have not discussed this application with the applicant outside the review process.",
-];
+const COI_STATEMENTS = () => [t("reviewerAssignments.coi.notEmployee"), t("reviewerAssignments.coi.household"), t("reviewerAssignments.coi.notDiscussed")];
 
-export const ASSIGNMENT_LOOK: Record<ReviewAssignment["status"], { label: string; tone: string }> = {
-  assigned: { label: "Not started", tone: "neutral" },
-  coi_declared: { label: "Ready to score", tone: "info" },
-  in_progress: { label: "In progress", tone: "prog" },
-  submitted: { label: "Submitted", tone: "ok" },
-  recused: { label: "Recused", tone: "done" },
+export const ASSIGNMENT_LOOK: Record<ReviewAssignment["status"], { readonly label: string; tone: string }> = {
+  assigned: { get label() { return t("reviewerAssignments.look.assigned"); }, tone: "neutral" },
+  coi_declared: { get label() { return t("reviewerAssignments.look.coiDeclared"); }, tone: "info" },
+  in_progress: { get label() { return t("reviewerAssignments.look.inProgress"); }, tone: "prog" },
+  submitted: { get label() { return t("reviewerAssignments.look.submitted"); }, tone: "ok" },
+  recused: { get label() { return t("reviewerAssignments.look.recused"); }, tone: "done" },
 };
 
 interface Portal {
@@ -111,7 +107,7 @@ export function ReviewerFrame({ tab, title, children }: { tab: "assignments" | "
 }
 
 function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssignment; onClose: () => void; onDeclared: (a: ReviewAssignment) => void }) {
-  const [checks, setChecks] = useState<boolean[]>(() => COI_STATEMENTS.map(() => false));
+  const [checks, setChecks] = useState<boolean[]>(() => COI_STATEMENTS().map(() => false));
   const [conflict, setConflict] = useState(false);
   const [reason, setReason] = useState("");
   const declare = useApiMutation((api, hasConflict: boolean) => api.updateAssignment(assignment.id, { action: "declare_coi", hasConflict, ...(hasConflict && reason.trim() ? { reason: reason.trim() } : {}) }));
@@ -131,7 +127,7 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
         {!conflict ? (
           <>
             <p>{t("reviewerAssignments.confirmEachStatementBefore")}</p>
-            {COI_STATEMENTS.map((s, i) => (
+            {COI_STATEMENTS().map((s, i) => (
               <label key={s} className="cb">
                 <input type="checkbox" checked={checks[i]} onChange={(e) => setChecks((c) => c.map((v, j) => (j === i ? e.target.checked : v)))} />
                 <span>{s}</span>
@@ -204,7 +200,7 @@ function AssignmentList() {
             <span>{t("reviewerAssignments.signedInAs", { email })}</span>
             <span>·</span>
             <span>
-              {rows.length} {rows.length === 1 ? t("reviewerAssignments.assignment") : t("reviewerAssignments.assignments")}
+              {t("reviewerAssignments.assignmentCount", { count: rows.length })}
             </span>
           </div>
         </div>
@@ -233,7 +229,7 @@ function AssignmentList() {
           <div>
             <div className="t">{t("reviewerAssignments.signTheConflictOf")}</div>
             <div className="d">
-              {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length} {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length === 1 ? t("reviewerAssignments.applicationWaits") : t("reviewerAssignments.applicationsWait")} {t("reviewerAssignments.forYourSignatureApplications")}
+              {t("reviewerAssignments.waitForSignature", { count: rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length })}
             </div>
           </div>
           <button type="button" className="btn btn-primary btn-sm act" aria-haspopup="dialog" onClick={() => setSigning(competitionId)}>

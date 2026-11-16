@@ -156,7 +156,7 @@ export default function Communications() {
                   </div>
                   <div className="row" style={{ gap: "8px" }}>
                     <SaveNote state={save.state} savedText={t("funderCommunications.versionSaved")} />
-                    {current && !current.builtIn && !current.shared && current.kind === "email" && <ShareToGalleryButton small source={{ type: "template", id: current.id }} name={current.name} disabledReason={dirty ? "Save the template before you share it" : undefined} />}
+                    {current && !current.builtIn && !current.shared && current.kind === "email" && <ShareToGalleryButton small source={{ type: "template", id: current.id }} name={current.name} disabledReason={dirty ? t("funderCommunications.saveBeforeSharing") : undefined} />}
                     {current && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={render.state === "saving" || dirty} title={dirty ? t("funderCommunications.saveTheTemplateTo") : undefined} onClick={async () => setPreview((await render.run(current.id)) ?? null)}>
                         <Eye className="ic" aria-hidden="true" />

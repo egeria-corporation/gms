@@ -24,11 +24,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const MODE_TEXT: Record<StageReviewSettings["reviewMode"], string> = {
-  blind: "Not until the panel opens",
-  see_after_submit: "After they submit their own review",
-  open: "Always",
-};
+const MODE_TEXT = (): Record<StageReviewSettings["reviewMode"], string> => ({
+  blind: t("reviewParity.mode.blind"),
+  see_after_submit: t("reviewParity.mode.afterSubmit"),
+  open: t("reviewParity.mode.open"),
+});
 
 // ------------------------------------------------------------------------------------ staff: settings
 
@@ -68,7 +68,7 @@ export function ReviewSettingsCard({ competitionId, stageKey }: { competitionId:
       <div className="row" style={{ gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
         <Field id="review-mode" label={t("reviewParity.reviewersSeeEachOthers")}>
           <select className="sel" id="review-mode" value={stage.reviewMode} disabled={save.state === "saving"} onChange={(e) => apply({ reviewMode: e.target.value as StageReviewSettings["reviewMode"] })} style={{ width: "auto" }}>
-            {Object.entries(MODE_TEXT).map(([v, label]) => (
+            {Object.entries(MODE_TEXT()).map(([v, label]) => (
               <option key={v} value={v}>
                 {label}
               </option>
@@ -221,7 +221,7 @@ function RegisterDialog({ competitionId, onClose }: { competitionId: string; onC
                           </span>
                         )}
                       </td>
-                      <td>{r.signature?.declared.length ? r.signature.declared.map((d) => `${d.name}${d.matches.length ? ` (applied: ${d.matches.map((m) => m.name).join(", ")})` : ""}`).join("; ") : <span className="muted">{t("reviewParity.none")}</span>}</td>
+                      <td>{r.signature?.declared.length ? r.signature.declared.map((d) => (d.matches.length ? t("reviewParity.declaredApplied", { name: d.name, applied: d.matches.map((m) => m.name).join(", ") }) : d.name)).join("; ") : <span className="muted">{t("reviewParity.none")}</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -248,8 +248,7 @@ function RegisterDialog({ competitionId, onClose }: { competitionId: string; onC
                           {x.applicant ?? ""} · {x.applicationTitle}
                         </td>
                         <td>
-                          {x.source === "declared_at_signing" ? t("reviewParity.declaredWhenSigningThe") : x.source === "declared_conflict" ? t("reviewParity.declaredAConflict") : t("reviewParity.recused")}
-                          {x.reason ? `: ${x.reason}` : ""}
+                          {x.reason ? t("reviewParity.sourceReason", { source: x.source === "declared_at_signing" ? t("reviewParity.declaredWhenSigningThe") : x.source === "declared_conflict" ? t("reviewParity.declaredAConflict") : t("reviewParity.recused"), reason: x.reason }) : x.source === "declared_at_signing" ? t("reviewParity.declaredWhenSigningThe") : x.source === "declared_conflict" ? t("reviewParity.declaredAConflict") : t("reviewParity.recused")}
                         </td>
                       </tr>
                     ))}
@@ -301,8 +300,7 @@ export function DocketDialog({ competitionId, stage, onClose }: { competitionId:
         </label>
         {docket && (
           <Notice tone="ok" title={t("reviewParity.docketReady")}>
-            {docket.applications} {docket.applications === 1 ? t("reviewParity.application2") : t("reviewParity.applications")}
-            {docket.includeFunderOnlyComments ? t("reviewParity.withCommentsForProgram") : ""}{t("reviewParity.keptPrivatelyInThis")}
+            {t(docket.includeFunderOnlyComments ? "reviewParity.docketWithComments" : "reviewParity.docketKept", { count: docket.applications })}
           </Notice>
         )}
       </div>

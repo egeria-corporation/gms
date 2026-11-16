@@ -19,11 +19,35 @@ import { t } from "./i18n.ts";
 /** Only a workspace admin shares (the API refuses anyone else). */
 export const useCanShare = () => (useWorkspace("funder").member.role ?? "admin") === "admin";
 
-const TAG_GROUPS: { key: keyof GalleryTags; label: string; values: string[] }[] = [
-  { key: "fieldOfWork", label: "Field of work", values: ["Any field", "Arts and culture", "Community development", "Education", "Environment", "Health", "Housing", "Human services", "Youth and families"] },
-  { key: "grantSize", label: "Grant size", values: ["Under $10,000", "$10,000 to $50,000", "$50,000 to $250,000", "Over $250,000", "Any size"] },
-  { key: "audience", label: "Audience", values: ["Nonprofits", "Community groups", "Schools", "Small organizations", "Faith-based organizations"] },
+// The gallery's tag vocabulary: the values are stored and filtered on as written (English);
+// the labels are what people read.
+const TAG_GROUPS: { key: keyof GalleryTags; readonly label: string; values: string[] }[] = [
+  { key: "fieldOfWork", get label() { return t("shareToGallery.tags.fieldOfWork"); }, values: ["Any field", "Arts and culture", "Community development", "Education", "Environment", "Health", "Housing", "Human services", "Youth and families"] },
+  { key: "grantSize", get label() { return t("shareToGallery.tags.grantSize"); }, values: ["Under $10,000", "$10,000 to $50,000", "$50,000 to $250,000", "Over $250,000", "Any size"] },
+  { key: "audience", get label() { return t("shareToGallery.tags.audience"); }, values: ["Nonprofits", "Community groups", "Schools", "Small organizations", "Faith-based organizations"] },
 ];
+const TAG_VALUE: Record<string, () => string> = {
+  "Any field": () => t("shareToGallery.tag.fieldOfWork.anyField"),
+  "Arts and culture": () => t("shareToGallery.tag.fieldOfWork.artsAndCulture"),
+  "Community development": () => t("shareToGallery.tag.fieldOfWork.communityDevelopment"),
+  "Education": () => t("shareToGallery.tag.fieldOfWork.education"),
+  "Environment": () => t("shareToGallery.tag.fieldOfWork.environment"),
+  "Health": () => t("shareToGallery.tag.fieldOfWork.health"),
+  "Housing": () => t("shareToGallery.tag.fieldOfWork.housing"),
+  "Human services": () => t("shareToGallery.tag.fieldOfWork.humanServices"),
+  "Youth and families": () => t("shareToGallery.tag.fieldOfWork.youthAndFamilies"),
+  "Under $10,000": () => t("shareToGallery.tag.grantSize.under10k"),
+  "$10,000 to $50,000": () => t("shareToGallery.tag.grantSize.10kTo50k"),
+  "$50,000 to $250,000": () => t("shareToGallery.tag.grantSize.50kTo250k"),
+  "Over $250,000": () => t("shareToGallery.tag.grantSize.over250k"),
+  "Any size": () => t("shareToGallery.tag.grantSize.anySize"),
+  "Nonprofits": () => t("shareToGallery.tag.audience.nonprofits"),
+  "Community groups": () => t("shareToGallery.tag.audience.communityGroups"),
+  "Schools": () => t("shareToGallery.tag.audience.schools"),
+  "Small organizations": () => t("shareToGallery.tag.audience.smallOrganizations"),
+  "Faith-based organizations": () => t("shareToGallery.tag.audience.faithBasedOrganizations"),
+};
+const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
 
 function ShareDialog({ source, name, onClose }: { source: GallerySource; name: string; onClose: () => void }) {
   const ws = useWorkspace("funder");
@@ -116,7 +140,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
                       {g.values.map((v) => (
                         <label key={v} className="cb">
                           <input type="checkbox" checked={tags[g.key].includes(v)} onChange={() => toggle(g.key, v)} />
-                          <span>{v}</span>
+                          <span>{tagLabel(v)}</span>
                         </label>
                       ))}
                     </div>

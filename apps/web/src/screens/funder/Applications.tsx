@@ -353,7 +353,7 @@ export default function Applications() {
                             {proposal && (
                               <div className="attrib" style={{ marginTop: "4px" }}>
                                 <Bot className="ic" aria-hidden="true" />
-                                <span className="ag">{proposal.requestedBy.clientId ?? t("funderApplications.anAgent")}</span> {t("funderApplications.proposedADeclineAwaiting")}
+                                {t.rich("funderApplications.agentProposedDecline", { agent: proposal.requestedBy.clientId ?? t("funderApplications.anAgent"), ag: (chunks) => <span className="ag">{chunks}</span> })}
                                 <button type="button" className="btn btn-sm btn-primary" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, true)) && (approvals.reload(), list.reload(), totals.reload())}>
                                   {t("funderApplications.approve")}
                                 </button>

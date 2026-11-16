@@ -96,7 +96,7 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
           <div className="hd">
             <div>
               <h2 id="bulk-confirm-title" style={{ fontSize: "16px" }}>
-                {t("bulkSend.sendTo2", { name: template?.name, count })} {count === 1 ? t("bulkSend.recipient") : t("bulkSend.recipients2")}?
+                {t("bulkSend.sendToRecipients", { name: template?.name, count })}
               </h2>
               <p className="small muted" style={{ marginTop: "4px" }}>
                 {t("bulkSend.eachPersonGetsTheir")}

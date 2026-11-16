@@ -69,8 +69,8 @@ export function AwardListingCard() {
         {s && (
           <>
             <div className="rc">
-              <Row id="list-awards-label" label={t("awardListingSettings.listAwardsOnMy")} detail="Recipient, program, purpose and year of each award you list. Off until you turn it on." on={s.listAwards} disabled={!isAdmin || busy} onToggle={() => void toggle({ listAwards: !s.listAwards })} />
-              <Row id="show-amounts-label" label={t("awardListingSettings.showAwardAmounts")} detail="Amounts on your grants-awarded pages, share cards and the posts grantees are offered." on={s.showAmounts} disabled={!isAdmin || busy} onToggle={() => void toggle({ showAmounts: !s.showAmounts })} />
+              <Row id="list-awards-label" label={t("awardListingSettings.listAwardsOnMy")} detail={t("awardListingSettings.detail.listAwards")} on={s.listAwards} disabled={!isAdmin || busy} onToggle={() => void toggle({ listAwards: !s.listAwards })} />
+              <Row id="show-amounts-label" label={t("awardListingSettings.showAwardAmounts")} detail={t("awardListingSettings.detail.showAmounts")} on={s.showAmounts} disabled={!isAdmin || busy} onToggle={() => void toggle({ showAmounts: !s.showAmounts })} />
             </div>
             <p className="small" style={{ margin: 0 }}>
               {t("awardListingSettings.listedConfidentialKeptOff", { listed: s.counts.listed, confidential: s.counts.confidential, recipientUnlisted: s.counts.recipientUnlisted })}
@@ -86,7 +86,7 @@ export function AwardListingCard() {
                 <h3 style={{ fontSize: "15px", marginBottom: "8px" }}>{t("awardListingSettings.newAwardsStartConfidential")}</h3>
                 <div className="rc">
                   {s.programs.map((p) => (
-                    <Row key={p.id} id={`prog-conf-${p.id}`} label={p.name} detail="Awards made from now on in this program start confidential. Awards already made keep their setting." on={p.awardsConfidential} disabled={!canDefault || busy} onToggle={() => void toggleDefault(p.id, !p.awardsConfidential)} />
+                    <Row key={p.id} id={`prog-conf-${p.id}`} label={p.name} detail={t("awardListingSettings.detail.confidential")} on={p.awardsConfidential} disabled={!canDefault || busy} onToggle={() => void toggleDefault(p.id, !p.awardsConfidential)} />
                   ))}
                 </div>
               </div>

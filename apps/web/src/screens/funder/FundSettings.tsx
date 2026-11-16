@@ -204,7 +204,7 @@ function AdvisorDialog({ fund, onClose, onSent }: { fund: Fund; onClose: () => v
                 <div className="t">{t("fundSettings.invitationCreatedFor", { email: email.trim() })}</div>
                 {link ? (
                   <div className="d row" style={{ gap: "8px" }}>
-                    {t.rich("fundSettings.sendThemThisLink", { link, span: (chunks) => <span className="mono small">{chunks}</span> })} <CopyButton value={link} label={t("fundSettings.copyLink")} what="invitation link" className="btn btn-sm btn-secondary" />
+                    {t.rich("fundSettings.sendThemThisLink", { link, span: (chunks) => <span className="mono small">{chunks}</span> })} <CopyButton value={link} label={t("fundSettings.copyLink")} what={t("fundSettings.invitationLink")} className="btn btn-sm btn-secondary" />
                   </div>
                 ) : (
                   <div className="d">{t("fundSettings.weEmailedThemA")}</div>
@@ -363,7 +363,7 @@ export default function FundSettings() {
         <PageHeader
           crumbs={[{ label: ws.name, to: base }, { label: t("fundSettings.settings") }, { label: t("fundSettings.funds2") }]}
           title={t("fundSettings.settings")}
-          meta={funds.status === "ready" && <span>{funds.data.items.length === 1 ? t("fundSettings.n1Fund") : t("fundSettings.funds3", { count: funds.data.items.length })}</span>}
+          meta={funds.status === "ready" && <span>{t("fundSettings.fundCount", { count: funds.data.items.length })}</span>}
           actions={
             isAdmin && (
               <button type="button" className="btn btn-primary" onClick={() => setDialog({ kind: "fund", fund: null })}>

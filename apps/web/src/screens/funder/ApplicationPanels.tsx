@@ -140,7 +140,7 @@ export function DocumentsPanel({ app }: { app: InboxApplication }) {
     <div className="card">
       <div className="card-h">
         <h3>{t("applicationPanels.documents")}</h3>
-        <span className="small muted">{docs.length === 1 ? t("applicationPanels.n1File") : t("applicationPanels.files", { count: docs.length })}</span>
+        <span className="small muted">{t("applicationPanels.fileCount", { count: docs.length })}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {!docs.length && <p className="muted small">{t("applicationPanels.noFilesAreAttached")}</p>}

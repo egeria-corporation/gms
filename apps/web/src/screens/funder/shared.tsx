@@ -7,6 +7,7 @@ import { useApiQuery } from "../../api/hooks.ts";
 import type { FormPurpose } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { intlLocale } from "../../i18n/index.tsx";
+import { formatDateAs } from "../../lib/format.ts";
 import { t } from "./i18n.ts";
 
 export interface Person {
@@ -85,7 +86,7 @@ export function timeAgo(iso: string | null | undefined, now: Date = new Date()):
   if (s < 3600) return t("funderShared.timeAgo.minutes", { count: Math.round(s / 60) });
   if (s < 86400) return t("funderShared.timeAgo.hours", { count: Math.round(s / 3600) });
   if (s < 86400 * 14) return t("funderShared.timeAgo.days", { count: Math.round(s / 86400) });
-  return new Date(iso).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  return formatDateAs(iso, "short");
 }
 
 export const dateTime = (iso: string | null | undefined) =>

@@ -41,10 +41,10 @@ export function DomainStatus({ d }: { d: SsoDomain }) {
   );
 }
 
-const CHECK_TEXT: Record<Exclude<DnsCheckResult, "matched">, string> = {
-  not_found: "We could not find the record yet. DNS changes can take up to an hour to show; check again later.",
-  mismatch: "We found a gms-verify record with a different value. Copy the value again; it must match exactly.",
-  error: "The DNS lookup did not answer. Try again in a minute.",
+const CHECK_TEXT: Record<Exclude<DnsCheckResult, "matched">, () => string> = {
+  not_found: () => t("settingsSecurity.check.notFound"),
+  mismatch: () => t("settingsSecurity.check.mismatch"),
+  error: () => t("settingsSecurity.check.error"),
 };
 
 function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
@@ -106,14 +106,14 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
               <span className="mono" style={{ overflowWrap: "anywhere" }}>
                 {d.dns.recordName}
               </span>
-              <CopyButton value={d.dns.recordName} what="record name" className="btn btn-sm btn-secondary" />
+              <CopyButton value={d.dns.recordName} what={t("settingsSecurity.copyWhat.recordName")} className="btn btn-sm btn-secondary" />
             </dd>
             <dt>{t("settingsSecurity.value")}</dt>
             <dd className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
               <span className="mono" style={{ overflowWrap: "anywhere" }}>
                 {d.dns.recordValue}
               </span>
-              <CopyButton value={d.dns.recordValue} what="record value" className="btn btn-sm btn-secondary" />
+              <CopyButton value={d.dns.recordValue} what={t("settingsSecurity.copyWhat.recordValue")} className="btn btn-sm btn-secondary" />
             </dd>
           </dl>
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -125,7 +125,7 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
           </div>
           {(checked ?? d.lastCheckResult) && (checked ?? d.lastCheckResult) !== "matched" && (
             <span className="small" role="status">
-              {CHECK_TEXT[(checked ?? d.lastCheckResult) as Exclude<DnsCheckResult, "matched">]}
+              {CHECK_TEXT[(checked ?? d.lastCheckResult) as Exclude<DnsCheckResult, "matched">]?.()}
             </span>
           )}
         </>
@@ -137,7 +137,7 @@ function DomainRow({ d, onChanged }: { d: SsoDomain; onChanged: () => void }) {
       )}
       {d.stage === "active" && (
         <p className="small muted">
-          {t("settingsSecurity.yourIdentityProviderIs")}{d.activatedAt ? t("settingsSecurity.since", { date: formatDate(d.activatedAt) }) : ""}{t("settingsSecurity.peopleAtCanUse", { domain: d.domain })}
+          {d.activatedAt ? t("settingsSecurity.connectedSince", { date: formatDate(d.activatedAt), domain: d.domain }) : t("settingsSecurity.connected", { domain: d.domain })}
         </p>
       )}
       {problem && <ErrorBanner error={new Error(problem)} />}
@@ -180,13 +180,13 @@ function AddDomain({ disabled, onAdded }: { disabled: boolean; onAdded: () => vo
 
 function ServiceProviderValues({ sp, workspaceName }: { sp: NonNullable<SsoSettings["serviceProvider"]>; workspaceName: string }) {
   const rows: [string, string][] = [
-    ["Entity ID (audience)", sp.entityId],
-    ["Metadata URL", sp.metadataUrl],
-    ["ACS (reply) URL", sp.acsUrl],
-    ["NameID format", sp.nameIdFormat],
+    [t("settingsSecurity.sp.entityId"), sp.entityId],
+    [t("settingsSecurity.sp.metadataUrl"), sp.metadataUrl],
+    [t("settingsSecurity.sp.acsUrl"), sp.acsUrl],
+    [t("settingsSecurity.sp.nameIdFormat"), sp.nameIdFormat],
   ];
   const download = () => {
-    const text = [`Single sign-on (SAML 2.0) for ${workspaceName} on OpenGrants GMS`, "", ...rows.map(([k, v]) => `${k}: ${v}`), `Metadata file: ${sp.metadataDownloadUrl}`, "", "Send the user's email address in the assertion (an email attribute, or the NameID)."].join("\n");
+    const text = [t("settingsSecurity.sp.fileTitle", { workspace: workspaceName }), "", ...rows.map(([k, v]) => t("settingsSecurity.sp.fileRow", { name: k, value: v })), t("settingsSecurity.sp.metadataFile", { url: sp.metadataDownloadUrl }), "", t("settingsSecurity.sp.sendEmail")].join("\n");
     downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), "opengrants-gms-sso.txt");
   };
   return (

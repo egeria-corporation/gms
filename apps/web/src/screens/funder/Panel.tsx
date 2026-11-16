@@ -341,7 +341,7 @@ export default function Panel() {
               <div className="hd">
                 <div>
                   <h2 id="commit-title" style={{ fontSize: "16px" }}>
-                    {t("funderPanel.commit", { count: inputs.decisions.length })} {inputs.decisions.length === 1 ? t("funderPanel.decision") : t("funderPanel.decisions")}?
+                    {t("funderPanel.commitCount", { count: inputs.decisions.length })}
                   </h2>
                   <p className="small muted" style={{ marginTop: "4px" }}>
                     {t("funderPanel.decisionsAreFinalOnce")}

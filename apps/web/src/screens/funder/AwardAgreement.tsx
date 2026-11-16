@@ -229,7 +229,7 @@ function AgreementSignatures({ award, funderName }: { award: AwardDetail; funder
   const summary = award.agreement;
   const agreement = useApiQuery(async (api) => (summary ? api.getAgreement(summary.id) : null), [summary?.id, summary?.status]);
   if (!agreement.data) return null;
-  return <SignatureRecords awardId={award.id} agreement={agreement.data} recipientName={award.recipient?.name ?? "the recipient"} funderName={funderName} />;
+  return <SignatureRecords awardId={award.id} agreement={agreement.data} recipientName={award.recipient?.name ?? t("awardAgreement.theRecipient")} funderName={funderName} />;
 }
 
 export default function AwardAgreement() {

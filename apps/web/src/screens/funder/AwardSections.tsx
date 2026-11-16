@@ -195,7 +195,7 @@ export function AwardActivity({ award }: { award: AwardDetail }) {
       <div className="card-b">
         {ledger.status === "loading" && <Loading label={t("awardSections.loadingActivity")} />}
         {ledger.status === "error" && <ErrorBanner error={ledger.error} onRetry={ledger.reload} />}
-        {ledger.data && <ActivityTimeline events={ledger.data.items.filter((e) => subjects.has(bare(e.subjectId)))} personName={(id) => person(id)?.name} when={(iso) => dateTime(iso)} compact={false} empty="Nothing has been recorded for this award yet." />}
+        {ledger.data && <ActivityTimeline events={ledger.data.items.filter((e) => subjects.has(bare(e.subjectId)))} personName={(id) => person(id)?.name} when={(iso) => dateTime(iso)} compact={false} empty={t("awardSections.activityEmpty")} />}
       </div>
     </section>
   );
@@ -315,7 +315,7 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
         <ReasonDialog
           title={dialog === "suspend" ? t("awardSections.suspendThisAward") : t("awardSections.cancelThisAward")}
           label={dialog === "suspend" ? t("awardSections.whyIsItSuspended") : t("awardSections.whyIsItCancelled")}
-          action={dialog === "suspend" ? "Suspend award" : "Cancel award"}
+          action={dialog === "suspend" ? t("awardSections.action.suspend") : t("awardSections.action.cancel")}
           danger={dialog === "cancel"}
           onClose={() => setDialog(null)}
           onSubmit={async (reason) => {

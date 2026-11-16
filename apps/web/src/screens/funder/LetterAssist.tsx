@@ -100,7 +100,7 @@ export function LetterAssistant({ templateId, templateName }: { templateId: stri
               </ul>
             )}
             <div className="row wrap" style={{ gap: "10px" }}>
-              <CopyButton value={draft.subject ? `${draft.subject}\n\n${draft.body}` : draft.body} what="the draft" label={t("letterAssist.copyDraft")} className="btn btn-sm btn-primary" />
+              <CopyButton value={draft.subject ? `${draft.subject}\n\n${draft.body}` : draft.body} what={t("letterAssist.theDraft")} label={t("letterAssist.copyDraft")} className="btn btn-sm btn-primary" />
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDraft(null)}>
                 {t("letterAssist.discard")}
               </button>

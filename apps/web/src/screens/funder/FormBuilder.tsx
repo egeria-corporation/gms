@@ -419,7 +419,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
               <Clock className="ic" aria-hidden="true" />
               {t("formBuilder.versionHistory")}
             </button>
-            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : "Publish the form first: the gallery shares a published version"} />}
+            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : t("formBuilder.publishBeforeSharing")} />}
             {readOnly ? (
               // A shared library form is copied from the Forms list, never versioned in place.
               !form.shared && (

@@ -17,7 +17,13 @@ import { ReviewSettingsCard } from "./ReviewParity.tsx";
 import { t } from "./i18n.ts";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
-const STATUS_TEXT: Record<Assignment["status"], string> = { assigned: "Assigned", coi_declared: "No conflict declared", in_progress: "Scoring", submitted: "Submitted", recused: "Recused" };
+const STATUS_TEXT: Record<Assignment["status"], () => string> = {
+  assigned: () => t("reviewAssignment.status.assigned"),
+  coi_declared: () => t("reviewAssignment.status.coiDeclared"),
+  in_progress: () => t("reviewAssignment.status.inProgress"),
+  submitted: () => t("reviewAssignment.status.submitted"),
+  recused: () => t("reviewAssignment.status.recused"),
+};
 
 function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competitionId: string; stage: string; onClose: () => void; onDone: (r: AutoAssignResult) => void }) {
   const [per, setPer] = useState("2");
@@ -44,13 +50,14 @@ function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competiti
           />
         </Field>
         {plan && (
-          <Notice tone={plan.unfilled.length ? "warn" : "info"} title={t("reviewAssignment.newWouldBeMade", { count: plan.assignments.length, value: plan.assignments.length === 1 ? "assignment" : "assignments" })}>
+          <Notice tone={plan.unfilled.length ? "warn" : "info"} title={t("reviewAssignment.newWouldBeMade", { count: plan.assignments.length })}>
             {plan.unfilled.length > 0 && t("reviewAssignment.applicationSWouldStill", { count: plan.unfilled.length })}
+            {plan.unfilled.length > 0 && plan.coiFlags.length > 0 && " "}
             {plan.coiFlags.length > 0 && t("reviewAssignment.possibleConflictSWere", { count: plan.coiFlags.length })}
           </Notice>
         )}
         {plan && plan.coiHints.length > 0 && (
-          <Notice tone="warn" title={t("reviewAssignment.checkForAConflict", { count: plan.coiHints.length, value: plan.coiHints.length === 1 ? "assignment" : "assignments" })}>
+          <Notice tone="warn" title={t("reviewAssignment.checkForAConflict", { count: plan.coiHints.length })}>
             {t("reviewAssignment.theApplicantsOwnProfile")}
           </Notice>
         )}
@@ -129,7 +136,7 @@ export default function ReviewAssignment() {
   const [note, setNote] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const toggle = useApiMutation(async (api, applicationId: string, reviewer: Person, existing: Assignment | undefined) => {
-    if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: "Removed by program staff" });
+    if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: t("reviewAssignment.removedByStaff") });
     return api.createAssignment({ applicationId, reviewerUserId: reviewer.userId, ...(stage ? { stage: stage.key } : {}) });
   });
 
@@ -244,7 +251,7 @@ export default function ReviewAssignment() {
                         const coi = x?.status === "recused" && x.coi.declared === true;
                         const on = !!x && x.status !== "recused";
                         const locked = x?.status === "submitted" || x?.status === "in_progress";
-                        const label = `${r.name} on ${a.applicant.name ?? a.title}: ${coi ? "conflict of interest declared" : x ? STATUS_TEXT[x.status] : "not assigned"}`;
+                        const label = t("reviewAssignment.cellLabel", { reviewer: r.name, application: a.applicant.name ?? a.title, state: coi ? t("reviewAssignment.state.coi") : x ? STATUS_TEXT[x.status]() : t("reviewAssignment.state.notAssigned") });
                         return (
                           <td key={a.id}>
                             <button
@@ -263,7 +270,7 @@ export default function ReviewAssignment() {
                             >
                               {coi ? <Slash className="ic ic-sm" aria-hidden="true" /> : on ? <Check className="ic ic-sm" aria-hidden="true" /> : null}
                             </button>
-                            {x && !coi && x.status !== "assigned" && x.status !== "recused" && <div className="xs muted">{STATUS_TEXT[x.status]}</div>}
+                            {x && !coi && x.status !== "assigned" && x.status !== "recused" && <div className="xs muted">{STATUS_TEXT[x.status]()}</div>}
                           </td>
                         );
                       })}
@@ -284,7 +291,7 @@ export default function ReviewAssignment() {
           onClose={() => setDialog(null)}
           onDone={(r) => {
             setDialog(null);
-            setNote(`${r.created} ${r.created === 1 ? "assignment" : "assignments"} made${r.unfilled.length ? ` · ${r.unfilled.length} application(s) still short` : ""}`);
+            setNote(r.unfilled.length ? t("reviewAssignment.done.madeShort", { count: r.created, short: r.unfilled.length }) : t("reviewAssignment.done.made", { count: r.created }));
             assignments.reload();
           }}
         />
@@ -295,7 +302,7 @@ export default function ReviewAssignment() {
           onClose={() => setDialog(null)}
           onDone={(i) => {
             setDialog(null);
-            setNote(i.emailed ? `Invitation sent to ${i.email}` : `Invitation created for ${i.email}; the email could not be sent, share the link from Settings`);
+            setNote(i.emailed ? t("reviewAssignment.done.invited", { email: i.email }) : t("reviewAssignment.done.inviteNotSent", { email: i.email }));
           }}
         />
       )}

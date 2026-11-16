@@ -51,7 +51,7 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
             </div>
             {apps.length > 0 && (
               <div className="col" style={{ gap: "6px" }}>
-                <span className="eyebrow">{apps.length === 1 ? t("approvalDetail.n1ApplicationAffected") : t("approvalDetail.applicationsAffected", { count: apps.length })}</span>
+                <span className="eyebrow">{t("approvalDetail.affectedCount", { count: apps.length })}</span>
                 <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("approvalDetail.applicationsAffectedScrollable")}>
                   <table className="tbl mini" aria-label={t("approvalDetail.applicationsAffected2")}>
                     <thead>

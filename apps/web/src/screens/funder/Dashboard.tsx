@@ -337,7 +337,7 @@ export default function Dashboard() {
                     <div className="card-b">
                       {activity.status === "loading" && <Loading label={t("funderDashboard.loadingActivity")} />}
                       {activity.status === "error" && <ErrorBanner error={activity.error} onRetry={activity.reload} />}
-                      {activity.data && <ActivityTimeline events={activity.data.items.slice(0, 6)} personName={(id) => person(id)?.name} when={(iso) => timeAgo(iso)} empty="Nothing has happened in this workspace yet." />}
+                      {activity.data && <ActivityTimeline events={activity.data.items.slice(0, 6)} personName={(id) => person(id)?.name} when={(iso) => timeAgo(iso)} empty={t("funderDashboard.activityEmpty")} />}
                     </div>
                   </section>
                 </div>

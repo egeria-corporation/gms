@@ -258,7 +258,7 @@ export function OpenDataPanel() {
                 <span className="stat-l">{t("openDataPanel.commongrantsRecords")}</span>
                 <span className="stat-v">{d.commonGrants.opportunities + d.commonGrants.awards}</span>
                 <span className="stat-d">
-                  {d.commonGrants.opportunities} {d.commonGrants.opportunities === 1 ? t("openDataPanel.opportunity") : t("openDataPanel.opportunities")}, {d.commonGrants.awards} {d.commonGrants.awards === 1 ? t("openDataPanel.award") : t("openDataPanel.awards")}
+                  {t("openDataPanel.recordCounts", { opportunities: d.commonGrants.opportunities, awards: d.commonGrants.awards })}
                 </span>
               </div>
             </div>

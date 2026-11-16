@@ -119,6 +119,16 @@ function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (ro
   }
 }
 
+/** A fact's name in the page's language (lib/rules.ts names them in English for the stored rule). */
+const FACT_LABEL: Record<Exclude<FactKey, "custom">, () => string> = {
+  taxStatus: () => t("eligibilityEditor.fact.taxStatus"),
+  state: () => t("eligibilityEditor.fact.state"),
+  level: () => t("eligibilityEditor.fact.level"),
+  orgActive: () => t("eligibilityEditor.fact.orgActive"),
+  revenueUnder: () => t("eligibilityEditor.fact.revenueUnder"),
+};
+const factLabel = (key: Exclude<FactKey, "custom">) => FACT_LABEL[key]();
+
 /** A row that cannot be published yet, and why. */
 export function rowProblem(row: RuleRow): string | null {
   if ((row.fact === "taxStatus" || row.fact === "state") && row.values.length === 0) return t("eligibilityEditor.problem.noValue");
@@ -143,7 +153,7 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
           return (
             <li key={row.id} style={{ border: "1px solid #D6DEDE", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "#fff" }}>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.6fr) 32px", gap: "8px", alignItems: "center" }}>
-                <span className="b">{row.fact === "custom" ? t("eligibilityEditor.customRule") : FACTS.find((f) => f.key === row.fact)!.label}</span>
+                <span className="b">{row.fact === "custom" ? t("eligibilityEditor.customRule") : factLabel(row.fact)}</span>
                 <RowValue row={row} n={i + 1} onChange={(next) => onChange(rows.map((r) => (r.id === row.id ? next : r)))} />
                 <button type="button" className="iconbtn" style={{ width: "32px", height: "32px" }} aria-label={t("eligibilityEditor.removeRule", { i: i + 1 })} onClick={() => onChange(rows.filter((r) => r.id !== row.id))}>
                   <Trash2 className="ic" aria-hidden="true" />
@@ -173,7 +183,7 @@ export function RuleRows({ rows, onChange }: { rows: RuleRow[]; onChange: (rows:
         <select className="sel" id="add-rule-fact" style={{ width: "auto" }} value={adding} onChange={(e) => setAdding(e.target.value as typeof adding)}>
           {FACTS.map((f) => (
             <option key={f.key} value={f.key}>
-              {f.label} · {f.source}
+              {f.source === "Passport profile" ? t("eligibilityEditor.factFromProfile", { fact: factLabel(f.key) }) : t("eligibilityEditor.factFromRecord", { fact: factLabel(f.key) })}
             </option>
           ))}
         </select>

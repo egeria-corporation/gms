@@ -494,7 +494,7 @@ function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personN
         </button>
       </div>
       <div className="card-b">
-        <ActivityTimeline events={events} personName={personName} when={(iso) => dateTime(iso)} compact={false} empty="No payment events yet." />
+        <ActivityTimeline events={events} personName={personName} when={(iso) => dateTime(iso)} compact={false} empty={t("paymentsCenter.ledgerEmpty")} />
       </div>
     </section>
   );
@@ -742,7 +742,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                                 {b.proposals?.length ? (
                                   <>
                                     <span>·</span>
-                                    <span>{b.proposals.length === 1 ? t("paymentsCenter.n1ProposedMatch") : t("paymentsCenter.proposedMatches", { count: b.proposals.length })}</span>
+                                    <span>{t("paymentsCenter.proposedMatchCount", { count: b.proposals.length })}</span>
                                   </>
                                 ) : null}
                               </div>

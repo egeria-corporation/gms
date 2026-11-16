@@ -273,9 +273,10 @@ function ImportPanel() {
           </div>
         )}
         {result && (
-          <Notice tone={result.failed ? "warn" : "ok"} title={result.dryRun ? t("funderAnalytics.dryRunOfRows", { rows: result.rows - result.failed, rows2: result.rows }) : t("funderAnalytics.importedOfRows", { created: result.created, rows: result.rows })}>
-            {result.failed > 0 && t("funderAnalytics.rowsHaveProblemsFirst", { failed: result.failed, row: result.results.find((r) => !r.ok)?.row, error: result.results.find((r) => !r.ok)?.error })}
-            {result.unmatchedRecipients > 0 && t("funderAnalytics.recipientsAreNotOn", { unmatchedRecipients: result.unmatchedRecipients })}
+          <Notice tone={result.failed ? "warn" : "ok"} title={result.dryRun ? t("funderAnalytics.dryRunOfRows", { ok: result.rows - result.failed, total: result.rows }) : t("funderAnalytics.importedOfRows", { created: result.created, total: result.rows })}>
+            {result.failed > 0 && t("funderAnalytics.rowsHaveProblemsFirst", { failed: result.failed, row: String(result.results.find((r) => !r.ok)?.row ?? ""), error: result.results.find((r) => !r.ok)?.error })}
+            {result.failed > 0 && result.unmatchedRecipients > 0 && " "}
+            {result.unmatchedRecipients > 0 && t("funderAnalytics.recipientsAreNotOn", { count: result.unmatchedRecipients })}
           </Notice>
         )}
       </div>

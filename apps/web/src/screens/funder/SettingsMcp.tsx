@@ -23,12 +23,30 @@ import { DirectorySuggestions, GoogleWorkspaceCard } from "./GoogleWorkspace.tsx
 import { HumanGates } from "./HumanGates.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { actorLabel, dateTime, timeAgo, usePeople } from "./shared.tsx";
+import { roleTitle } from "../../api/client.ts";
 import { t } from "./i18n.ts";
 
 const WEBHOOK_EVENTS = ["application.submitted", "application.status.changed", "review.submitted", "decision.committed", "award.created", "award.status.changed", "agreement.executed", "tranche.due", "tranche.status.changed", "disbursement.status.changed", "requirement.due", "submission.received", "submission.accepted", "org.change.pending", "approval.requested"];
 const CLIENT_SCOPES = ["programs:read", "opportunities:read", "opportunities:write", "competitions:read", "forms:read", "applications:read", "applications:write", "reviews:read", "awards:read", "payments:read", "requirements:read", "requirements:write", "grantees:read", "analytics:read", "org:read"];
 const FUNDER_ROLES = ["admin", "program_officer", "finance", "reviewer", "observer", "auditor"];
 const words = (s: string) => s.replace(/_/g, " ");
+const DELIVERY: Record<string, () => string> = {
+  pending: () => t("settingsMcp.delivery.pending"),
+  delivered: () => t("settingsMcp.delivery.delivered"),
+  failed: () => t("settingsMcp.delivery.failed"),
+};
+const SUBJECTS = ["application", "award", "agreement", "tranche", "requirement", "submission", "workspace", "grantee"] as const;
+const SUBJECT: Record<string, () => string> = {
+  application: () => t("settingsMcp.subject.application"),
+  award: () => t("settingsMcp.subject.award"),
+  agreement: () => t("settingsMcp.subject.agreement"),
+  tranche: () => t("settingsMcp.subject.tranche"),
+  requirement: () => t("settingsMcp.subject.requirement"),
+  submission: () => t("settingsMcp.subject.submission"),
+  workspace: () => t("settingsMcp.subject.workspace"),
+  grantee: () => t("settingsMcp.subject.grantee"),
+};
+const subjectLabel = (s: string) => SUBJECT[s]?.() ?? words(s);
 
 /** A secret that is shown exactly once, with a copy button. */
 export function SecretOnce({ title, label, value, extra, onClose }: { title: string; label: string; value: string; extra?: React.ReactNode; onClose: () => void }) {
@@ -82,7 +100,7 @@ function ConnectedAgents() {
               <Bot className="ic" aria-hidden="true" />
               <span>{c.clientName ?? c.clientId}</span>
               <span className="small" style={{ fontWeight: 400 }}>
-                {t("settingsMcp.connectedBy")} {c.mine ? t("settingsMcp.you") : (person(c.userId)?.name ?? t("settingsMcp.aTeammate"))}
+                {c.mine ? t("settingsMcp.connectedByYou") : t("settingsMcp.connectedBy", { name: person(c.userId)?.name ?? t("settingsMcp.aTeammate") })}
               </span>
               <span className="small" style={{ marginLeft: "auto", fontWeight: 400 }}>
                 {c.lastUsedAt ? t("settingsMcp.lastUsed", { timeAgo: timeAgo(c.lastUsedAt) }) : t("settingsMcp.neverUsed")}
@@ -464,7 +482,7 @@ function Deliveries({ hook }: { hook: Webhook }) {
           <tr key={d.id}>
             <td className="mono">{d.eventType}</td>
             <td>
-              {words(d.status)}
+              {DELIVERY[d.status]?.() ?? words(d.status)}
               {d.lastStatusCode ? t("settingsMcp.http", { lastStatusCode: d.lastStatusCode }) : ""}
               {d.lastError ? ` · ${d.lastError}` : ""}
             </td>
@@ -591,7 +609,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
           </thead>
           <tbody>
             {list.data?.map((m) => {
-              const label = person(m.userId)?.name ?? m.email ?? "Member";
+              const label = person(m.userId)?.name ?? m.email ?? t("settingsMcp.member");
               return (
                 <tr key={m.userId}>
                   <td>
@@ -604,7 +622,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
                     <select className="sel" aria-label={t("settingsMcp.roleFor", { label })} value={m.role} disabled={change.state === "saving"} onChange={async (e) => (await change.run(m.userId, e.target.value)) && list.reload()} style={{ height: "30px", maxWidth: "200px" }}>
                       {[...new Set([...FUNDER_ROLES, m.role])].map((r) => (
                         <option key={r} value={r}>
-                          {words(r)}
+                          {roleTitle(r)}
                         </option>
                       ))}
                     </select>
@@ -632,7 +650,7 @@ function Team({ workspaceId }: { workspaceId: string }) {
         <select className="sel" aria-label={t("settingsMcp.roleForTheInvitation")} value={role} onChange={(e) => setRole(e.target.value)} style={{ maxWidth: "180px" }}>
           {FUNDER_ROLES.map((r) => (
             <option key={r} value={r}>
-              {words(r)}
+              {roleTitle(r)}
             </option>
           ))}
         </select>
@@ -679,9 +697,9 @@ function Ledger() {
             style={{ height: "30px", width: "170px" }}
           >
             <option value="">{t("settingsMcp.allSubjects")}</option>
-            {["application", "award", "agreement", "tranche", "requirement", "submission", "workspace", "grantee"].map((s) => (
+            {SUBJECTS.map((s) => (
               <option key={s} value={s}>
-                {words(s)}
+                {subjectLabel(s)}
               </option>
             ))}
           </select>
@@ -705,7 +723,7 @@ function Ledger() {
                     <div className="what mono">{e.eventType}</div>
                     <div className="who">
                       {who.name}
-                      {who.agent ? t("settingsMcp.agent") : ""} · {words(e.subjectType)} {e.subjectId.slice(0, 8)} · {dateTime(e.occurredAt)}
+                      {who.agent ? t("settingsMcp.agent") : ""} · {subjectLabel(e.subjectType)} {e.subjectId.slice(0, 8)} · {dateTime(e.occurredAt)}
                     </div>
                   </div>
                 </div>
@@ -758,7 +776,7 @@ function ConnectAgent({ workspaceName }: { workspaceName: string }) {
           </label>
           <div className="row" style={{ gap: "8px" }}>
             <input className="inp mono" id="mcp-url" value={mcpUrl} readOnly style={{ fontSize: "12px" }} />
-            <CopyButton value={mcpUrl} what="server URL" onCopied={() => setCopied(true)} />
+            <CopyButton value={mcpUrl} what={t("settingsMcp.copyWhat.serverUrl")} onCopied={() => setCopied(true)} />
           </div>
         </div>
         <ol className="stp-v" style={{ gap: "0" }}>
@@ -820,16 +838,16 @@ export default function SettingsMcp() {
               <SettingsNav base={base} active="mcp" />
               <nav className="card snav" style={{ padding: "8px" }} aria-label={t("settingsMcp.onThisPage")}>
                 {[
-                  ["agents", "Connected agents"],
-                  ["connect", "Connect an agent"],
-                  ["gates", "Human gates"],
-                  ["servers", "Custom MCP servers"],
-                  ["integrations", "Integrations"],
-                  ["api", "API clients"],
-                  ["webhooks", "Webhooks"],
-                  ["team", "Team & roles"],
-                  ["contacts", "Contacts for applicants"],
-                  ["audit", "Audit ledger"],
+                  ["agents", t("settingsMcp.nav.agents")],
+                  ["connect", t("settingsMcp.nav.connect")],
+                  ["gates", t("settingsMcp.nav.gates")],
+                  ["servers", t("settingsMcp.nav.servers")],
+                  ["integrations", t("settingsMcp.nav.integrations")],
+                  ["api", t("settingsMcp.nav.api")],
+                  ["webhooks", t("settingsMcp.nav.webhooks")],
+                  ["team", t("settingsMcp.nav.team")],
+                  ["contacts", t("settingsMcp.nav.contacts")],
+                  ["audit", t("settingsMcp.nav.audit")],
                 ].map(([id, label]) => (
                   <a key={id} href={`#${id}`}>
                     {label}

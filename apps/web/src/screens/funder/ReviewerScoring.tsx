@@ -13,7 +13,7 @@ import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.ts
 import { ResponseCard } from "./ApplicationDetail.tsx";
 import { ASSIGNMENT_LOOK, ReviewerFrame, assignmentName, usePortal } from "./ReviewerAssignments.tsx";
 import { AiSummaryPanel } from "./ApplicationPanels.tsx";
-import { intlLocale } from "../../i18n/index.tsx";
+import { formatDateAs } from "../../lib/format.ts";
 import { t } from "./i18n.ts";
 
 type ScoreValue = number | string;
@@ -140,12 +140,12 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             <span>{d.anonymized ? d.applicationTitle : app?.applicant.name}</span>
             <span>·</span>
             <span>
-              {t("reviewerScoring.v", { name: d.rubric.name, version: d.rubric.version })}
+              {t("reviewerScoring.rubricVersion", { name: d.rubric.name, version: d.rubric.version })}
             </span>
             {d.dueAt && (
               <>
                 <span>·</span>
-                <span>{t("reviewerScoring.due", { date: new Date(d.dueAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) })}</span>
+                <span>{t("reviewerScoring.due", { date: formatDateAs(d.dueAt, "short") })}</span>
               </>
             )}
           </div>
@@ -191,7 +191,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             <div className="hd">
               <div>
                 <h3 id="rec-h">{t("reviewerScoring.overallRecommendation")}</h3>
-                <div className="guide">{t("reviewerScoring.thePanelSeesYour")}{d.review?.overall !== null && d.review?.overall !== undefined ? t("reviewerScoring.currentlyOf100", { overall: d.review.overall.toFixed(1) }) : ""}.</div>
+                <div className="guide">{d.review?.overall !== null && d.review?.overall !== undefined ? t("reviewerScoring.panelSeesCurrently", { overall: d.review.overall.toFixed(1) }) : t("reviewerScoring.panelSees")}</div>
               </div>
             </div>
             {recommendations.length > 0 && (
