@@ -262,6 +262,18 @@ describe("front Worker: share images", () => {
     }
   }, 30_000);
 
+  it("draws the card in the page's language: a Spanish page points at a Spanish card", async () => {
+    const page = await (await get("/f/riverbend?lang=es")).text();
+    const image = contentOf(page, 'property="og:image"')!.replace(/&amp;/g, "&");
+    expect(image).toMatch(/^https:\/\/gms\.test\/og\/f\/riverbend\.png\?lang=es&v=[0-9a-z]+$/);
+    const es = await get(new URL(image).pathname + new URL(image).search);
+    const en = await get("/og/f/riverbend.png");
+    expect([es.status, en.status]).toEqual([200, 200]);
+    const [esPng, enPng] = [new Uint8Array(await es.arrayBuffer()), new Uint8Array(await en.arrayBuffer())];
+    expect(pngSize(esPng)).toEqual({ width: 1200, height: 627 });
+    expect(Buffer.from(esPng).equals(Buffer.from(enPng))).toBe(false);
+  }, 30_000);
+
   it("answers 404 for a page that does not exist and the default card when the API fails", async () => {
     expect((await get("/og/f/nobody.png")).status).toBe(404);
     const failed = await get("/og/f/broken.png");

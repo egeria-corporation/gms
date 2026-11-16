@@ -210,22 +210,25 @@ export function createFront(config: FrontConfig) {
     }
   }
 
-  async function cardFor(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<CardText | null> {
-    if (route.kind === "landing") return landingCard(config.host);
+  /** A card's text, in the language its address asks for (`?lang=es`, as the page's meta gives it). */
+  async function cardFor(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale = DEFAULT_LOCALE): Promise<CardText | null> {
+    // The status and amount words come from the public and shared catalogs, loaded once per isolate.
+    if (locale !== DEFAULT_LOCALE) await loadCatalogs(locale, ["public", "shared"]);
+    if (route.kind === "landing") return landingCard(config.host, locale);
     if (route.kind === "funder") {
       const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);
-      return d?.funder && Array.isArray(d.opportunities) ? funderCard(d, config.host) : null;
+      return d?.funder && Array.isArray(d.opportunities) ? funderCard(d, config.host, locale) : null;
     }
     if (route.kind === "awards") {
       const d = await pageData<FunderAwardsPageData>(apiPathOf(route), request, env, ctx);
-      return d?.funder && Array.isArray(d.awards) ? awardsCard(d, config.host) : null;
+      return d?.funder && Array.isArray(d.awards) ? awardsCard(d, config.host, locale) : null;
     }
     if (route.kind === "award") {
       const d = await pageData<AwardPageData>(apiPathOf(route), request, env, ctx);
-      return d?.funder && d.award ? awardCard(d, config.host) : null;
+      return d?.funder && d.award ? awardCard(d, config.host, locale) : null;
     }
     const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
-    return d?.funder && d.opportunity ? opportunityCard(d, config.host) : null;
+    return d?.funder && d.opportunity ? opportunityCard(d, config.host, new Date(), locale) : null;
   }
 
   /**
@@ -297,7 +300,7 @@ export function createFront(config: FrontConfig) {
     let card: CardText | null;
     let png: Uint8Array<ArrayBuffer>;
     try {
-      card = await cardFor(route, request, env, ctx);
+      card = await cardFor(route, request, env, ctx, localeFromTag(new URL(request.url).searchParams.get(LOCALE_QUERY)) ?? DEFAULT_LOCALE);
       if (!card) return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=60" } });
       png = await renderCard(card, await cardAssets());
     } catch {

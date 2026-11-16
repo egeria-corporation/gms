@@ -10,7 +10,9 @@
 // Languages (docs/i18n.md): a page asked for with `?lang=es` gets its title, description and image
 // text in Spanish, `<html lang="es">`, and every public page lists its English and Spanish addresses
 // (`hreflang`, with English as x-default). What the funder wrote stays as written.
-import { DEFAULT_LOCALE, INTL_LOCALE, LOCALES, LOCALE_QUERY, type Key, type Locale, type Values } from "@gms/i18n";
+import { DEFAULT_LOCALE, INTL_LOCALE, LOCALES, LOCALE_QUERY, createTranslator, type Key, type Locale, type Values } from "@gms/i18n";
+import enEmail from "@gms/i18n/catalogs/en/email.json";
+import esEmail from "@gms/i18n/catalogs/es/email.json";
 import { seoFor, switchEntry } from "../content/switch.ts";
 import { translate } from "../i18n/current.ts";
 import { daysUntil, formatAwardRange, formatDateAs, formatMoney } from "../lib/format.ts";
@@ -32,6 +34,13 @@ export const LANDING_CARD = { eyebrow: SITE_NAME, title: "Run grant programs, ap
 
 /** A fixed sentence of the page meta in a language (public catalog, `meta.*`). */
 const m = (locale: Locale, key: Key<"public">, values?: Values) => translate("public", key, values, locale);
+/**
+ * A share card's fixed words in a language (the `email` catalog's `card.*`: share-card text,
+ * docs/i18n.md). Imported whole: this module runs in the front Worker only, never in the browser,
+ * whose build leaves that catalog empty.
+ */
+const CARD_WORDS: Record<Locale, typeof enEmail> = { en: enEmail, es: esEmail };
+const w = (locale: Locale, key: Key<"email">, values?: Values) => createTranslator(locale, "email", CARD_WORDS[locale], CARD_WORDS.en)(key, values);
 const formatDate = (iso: string | null | undefined, locale: Locale) => formatDateAs(iso, "short", locale);
 
 /** Longest description sent; previews show about the first 160 characters. */
@@ -234,31 +243,43 @@ function funderSummary(d: FunderPageData, locale: Locale = DEFAULT_LOCALE): { se
 }
 
 // ---- share cards ----
-export const landingCard = (site: string): CardText => ({ site, ...LANDING_CARD });
+// A card's fixed words follow the page's language (`?lang=es` on the image's address); what the
+// funder wrote (names, mission, titles, purpose) stays as written. English is drawn as before.
+const notVerified = (f: PublicFunder, locale: Locale) => (isVerified(f) ? null : locale === DEFAULT_LOCALE ? NOT_VERIFIED : w(locale, "card.notVerified"));
 
-export function funderCard(d: FunderPageData, site: string): CardText {
+export const landingCard = (site: string, locale: Locale = DEFAULT_LOCALE): CardText => (locale === DEFAULT_LOCALE ? { site, ...LANDING_CARD } : { site, eyebrow: SITE_NAME, title: m(locale, "meta.landingCardTitle"), detail: w(locale, "card.landing.detail") });
+
+export function funderCard(d: FunderPageData, site: string, locale: Locale = DEFAULT_LOCALE): CardText {
   const s = funderSummary(d);
-  return { site, eyebrow: "Grants from", title: d.funder.name, detail: d.funder.mission ?? null, status: { label: s.label, tone: s.tone }, note: isVerified(d.funder) ? null : NOT_VERIFIED };
+  const open = d.opportunities.filter(accepting).length;
+  const forecasted = d.opportunities.filter((o) => o.status === "forecasted").length;
+  const label = locale === DEFAULT_LOCALE ? s.label : open ? w(locale, "card.funder.open", { count: open }) : forecasted ? w(locale, "card.funder.comingUp", { count: forecasted }) : w(locale, "card.funder.none");
+  return { site, eyebrow: w(locale, "card.funder.eyebrow"), title: d.funder.name, detail: d.funder.mission ?? null, status: { label, tone: s.tone }, note: notVerified(d.funder, locale) };
 }
 
-export function opportunityCard(d: OpportunityPageData, site: string, now: Date = new Date()): CardText {
-  const s = opportunityStatus(d.opportunity, now);
-  return { site, eyebrow: d.funder.name, title: d.opportunity.title, amount: amountOf(d.opportunity), status: { label: s.label, tone: s.tone }, note: isVerified(d.funder) ? null : NOT_VERIFIED };
+export function opportunityCard(d: OpportunityPageData, site: string, now: Date = new Date(), locale: Locale = DEFAULT_LOCALE): CardText {
+  const s = opportunityStatus(d.opportunity, now, locale);
+  const range = locale === DEFAULT_LOCALE ? amountOf(d.opportunity) : formatAwardRange(d.opportunity.funding ?? null, locale);
+  return { site, eyebrow: d.funder.name, title: d.opportunity.title, amount: range === "\u2014" ? null : range, status: { label: s.label, tone: s.tone }, note: notVerified(d.funder, locale) };
 }
 
 /** "{Funder} awarded {Recipient} a grant": the award card's title and the award page's heading. */
 export const awardHeadline = (d: AwardPageData) => `${cleanText(d.funder.name)} awarded ${cleanText(d.award.recipient.name)} a grant`;
 
-export function awardsCard(d: FunderAwardsPageData, site: string): CardText {
+export function awardsCard(d: FunderAwardsPageData, site: string, locale: Locale = DEFAULT_LOCALE): CardText {
   const n = d.awards.length;
-  return { site, eyebrow: "Grants awarded by", title: d.funder.name, detail: d.funder.mission ?? null, status: n ? { label: plural(n, "grant listed", "grants listed"), tone: "open" } : { label: "No grants listed yet", tone: "neutral" }, note: isVerified(d.funder) ? null : NOT_VERIFIED };
+  return { site, eyebrow: w(locale, "card.awards.eyebrow"), title: d.funder.name, detail: d.funder.mission ?? null, status: n ? { label: w(locale, "card.awards.listed", { count: n }), tone: "open" } : { label: w(locale, "card.awards.none"), tone: "neutral" }, note: notVerified(d.funder, locale) };
 }
 
 /** The award's share card: who awarded whom, what for, the amount if shown, the year. Never a logo. */
-export function awardCard(d: AwardPageData, site: string): CardText {
+export function awardCard(d: AwardPageData, site: string, locale: Locale = DEFAULT_LOCALE): CardText {
   const a = d.award;
-  return { site, eyebrow: "Grant awarded", title: awardHeadline(d), detail: a.purpose, amount: a.amount ? formatMoney(a.amount) : null, status: { label: `Awarded ${a.year}`, tone: "neutral" }, note: isVerified(d.funder) ? null : NOT_VERIFIED };
+  const title = locale === DEFAULT_LOCALE ? awardHeadline(d) : m(locale, "meta.award.headline", { funder: cleanText(d.funder.name), recipient: cleanText(a.recipient.name) });
+  return { site, eyebrow: w(locale, "card.award.eyebrow"), title, detail: a.purpose, amount: a.amount ? formatMoney(a.amount, locale) : null, status: { label: w(locale, "card.award.year", { year: String(a.year) }), tone: "neutral" }, note: notVerified(d.funder, locale) };
 }
+
+/** A card image's address: the page's language when it is not English (the Worker draws the card in it), and the card's version. */
+export const cardImageUrl = (origin: string, route: ImageRoute, card: CardText, locale: Locale = DEFAULT_LOCALE): string => `${origin}${imagePathOf(route)}?${locale === DEFAULT_LOCALE ? "" : `${LOCALE_QUERY}=${locale}&`}v=${cardVersion(card)}`;
 
 /** A short hash of a card's text, so its image address changes when what it shows does. */
 export function cardVersion(card: CardText): string {
@@ -302,7 +323,7 @@ export function landingMeta(origin: string, locale: Locale = DEFAULT_LOCALE): Pa
     title: m(locale, "meta.defaultTitle"),
     description,
     url: `${origin}/`,
-    image: `${origin}${imagePathOf({ kind: "landing" })}?v=${cardVersion(landingCard(new URL(origin).host))}`,
+    image: landingImage(origin, locale),
     imageAlt: `${SITE_NAME}: ${m(locale, "meta.landingCardTitle")}`,
     jsonLd: [{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: `${origin}/`, description, inLanguage: locale }],
     locale,
@@ -310,7 +331,7 @@ export function landingMeta(origin: string, locale: Locale = DEFAULT_LOCALE): Pa
 }
 
 /** The landing page's card, for pages that have no card of their own. */
-const landingImage = (origin: string) => `${origin}${imagePathOf({ kind: "landing" })}?v=${cardVersion(landingCard(new URL(origin).host))}`;
+const landingImage = (origin: string, locale: Locale = DEFAULT_LOCALE) => cardImageUrl(origin, { kind: "landing" }, landingCard(new URL(origin).host, locale), locale);
 
 /** `/switch` and `/switch/{system}`: the text the switch pages give for crawlers (content/switch.ts `seoFor`). */
 export function switchMeta(system: string | null, origin: string, locale: Locale = DEFAULT_LOCALE): PageMeta | null {
@@ -324,7 +345,7 @@ export function switchMeta(system: string | null, origin: string, locale: Locale
     ogTitle: seo.ogTitle,
     ogDescription: clip(seo.ogDescription, 320),
     url,
-    image: landingImage(origin),
+    image: landingImage(origin, locale),
     imageAlt: `${SITE_NAME}: ${m(locale, "meta.landingCardTitle")}`,
     jsonLd: [{ "@context": "https://schema.org", "@type": "WebPage", name: seo.title, description: clip(seo.description, 500), url, inLanguage: locale, isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${origin}/` } }],
     locale,
@@ -344,7 +365,7 @@ export function templatesMeta(origin: string, locale: Locale = DEFAULT_LOCALE): 
     title,
     description,
     url,
-    image: landingImage(origin),
+    image: landingImage(origin, locale),
     imageAlt: `${SITE_NAME}: ${m(locale, "meta.landingCardTitle")}`,
     jsonLd: [{ "@context": "https://schema.org", "@type": "CollectionPage", name: title, description, url, license: CC_BY, inLanguage: locale }],
     locale,
@@ -361,7 +382,7 @@ export function templateMeta(item: GalleryItemData, origin: string, locale: Loca
     title,
     description,
     url,
-    image: landingImage(origin),
+    image: landingImage(origin, locale),
     imageAlt: `${SITE_NAME}: ${cleanText(item.title)}`,
     jsonLd: [{ "@context": "https://schema.org", "@type": "CreativeWork", name: cleanText(item.title), description: clip(item.summary, 500), url, license: CC_BY, isAccessibleForFree: true, isPartOf: { "@type": "CollectionPage", name: galleryTitle, url: `${origin}/templates` } }],
     locale,
@@ -374,14 +395,14 @@ const organization = (f: PublicFunder) => ({ "@type": "Organization", name: f.na
 export function funderMeta(d: FunderPageData, origin: string, locale: Locale = DEFAULT_LOCALE): PageMeta {
   const route: PageRoute = { kind: "funder", handle: d.funder.handle };
   const url = `${origin}${pagePathOf(route)}`;
-  const card = funderCard(d, new URL(origin).host);
+  const card = funderCard(d, new URL(origin).host, locale);
   const summary = funderSummary(d, locale).sentence;
   const title = m(locale, "meta.funder.title", { name: cleanText(d.funder.name) });
   return {
     title,
     description: clip(`${summary} ${d.funder.mission ?? ""}`),
     url,
-    image: `${origin}${imagePathOf(route)}?v=${cardVersion(card)}`,
+    image: cardImageUrl(origin, route, card, locale),
     imageAlt: `${title}: ${summary}`,
     jsonLd: [{ "@context": "https://schema.org", ...organization(d.funder), ...(d.funder.mission ? { description: clip(d.funder.mission, 500) } : {}), mainEntityOfPage: url }],
     locale,
@@ -394,8 +415,8 @@ export function opportunityMeta(d: OpportunityPageData, origin: string, now: Dat
   const url = `${origin}${pagePathOf(route)}`;
   const status = opportunityStatus(o, now, locale);
   const amount = locale === DEFAULT_LOCALE ? amountOf(o) : formatAwardRange(o.funding ?? null, locale) === "\u2014" ? null : formatAwardRange(o.funding ?? null, locale);
-  const card = opportunityCard(d, new URL(origin).host, now);
-  const image = `${origin}${imagePathOf(route)}?v=${cardVersion(card)}`;
+  const card = opportunityCard(d, new URL(origin).host, now, locale);
+  const image = cardImageUrl(origin, route, card, locale);
   const min = o.funding?.minAwardAmount;
   const max = o.funding?.maxAwardAmount;
   const currency = max?.currency ?? min?.currency;
@@ -446,7 +467,7 @@ const AWARDS_IN_LIST = 100;
 export function awardsMeta(d: FunderAwardsPageData, origin: string, locale: Locale = DEFAULT_LOCALE): PageMeta {
   const route: PageRoute = { kind: "awards", handle: d.funder.handle };
   const url = `${origin}${pagePathOf(route)}`;
-  const card = awardsCard(d, new URL(origin).host);
+  const card = awardsCard(d, new URL(origin).host, locale);
   const name = cleanText(d.funder.name);
   const years = d.awards.map((a) => a.year).filter(Number.isFinite);
   const n = d.awards.length;
@@ -463,7 +484,7 @@ export function awardsMeta(d: FunderAwardsPageData, origin: string, locale: Loca
     title,
     description: clip(`${summary} ${d.funder.mission ?? ""}`),
     url,
-    image: `${origin}${imagePathOf(route)}?v=${cardVersion(card)}`,
+    image: cardImageUrl(origin, route, card, locale),
     imageAlt: `${title}: ${summary}`,
     locale,
     jsonLd: [
@@ -491,8 +512,8 @@ export function awardMeta(d: AwardPageData, origin: string, locale: Locale = DEF
   const a = d.award;
   const route: PageRoute = { kind: "award", handle: d.funder.handle, slug: a.slug };
   const url = `${origin}${pagePathOf(route)}`;
-  const card = awardCard(d, new URL(origin).host);
-  const image = `${origin}${imagePathOf(route)}?v=${cardVersion(card)}`;
+  const card = awardCard(d, new URL(origin).host, locale);
+  const image = cardImageUrl(origin, route, card, locale);
   const headline = locale === DEFAULT_LOCALE ? awardHeadline(d) : m(locale, "meta.award.headline", { funder: cleanText(d.funder.name), recipient: cleanText(a.recipient.name) });
   const amount = a.amount ? formatMoney(a.amount, locale) : null;
   const value = a.amount && Number.isFinite(Number(a.amount.amount)) ? Number(a.amount.amount) : undefined;
