@@ -14,6 +14,7 @@ import { ErrorBanner, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { AccessCard, ConnectedAppsCard, LockerCard, RepresentativesCard } from "./organizationExtras.tsx";
 import { VaultCard } from "./outside/keep.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 interface OrgData {
   org: MyOrganization;
@@ -30,9 +31,11 @@ type Json = Record<string, unknown>;
 const at = (obj: unknown, path: string): unknown => path.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Json)[k] : undefined), obj);
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : typeof v === "number" ? String(v) : null);
 
-const IRS_SUBSECTION: Record<string, string> = { "03": "501(c)(3) public charity", "04": "501(c)(4) social welfare organization", "06": "501(c)(6) business league" };
+/** An IRS subsection's name, in the page's language. */
+const irsSubsection = (code: string): string =>
+  code === "03" ? t("organization.irs.c3") : code === "04" ? t("organization.irs.c4") : code === "06" ? t("organization.irs.c6") : t("organization.irs.other", { code });
 
-function Value({ label, value, source = "From Passport", editUrl }: { label: string; value: string | null; source?: string; editUrl: string | null }) {
+function Value({ label, value, source = t("organization.fromPassport"), editUrl }: { label: string; value: string | null; source?: string; editUrl: string | null }) {
   return (
     <div className="fld">
       <span className="lbl">
@@ -49,7 +52,7 @@ function Value({ label, value, source = "From Passport", editUrl }: { label: str
       ) : (
         <div className="row muted" style={{ gap: "8px" }}>
           <CircleDashed className="ic" aria-hidden="true" />
-          Not set{editUrl ? <> · <a href={editUrl}>Add in Passport</a></> : null}
+          {t("organization.notSet")}{editUrl ? <> · <a href={editUrl}>{t("organization.addInPassport")}</a></> : null}
         </div>
       )}
     </div>
@@ -57,12 +60,13 @@ function Value({ label, value, source = "From Passport", editUrl }: { label: str
 }
 
 const STATE = {
-  pass: { cls: "rc-pass", icon: CircleCheck, word: "Passes" },
-  fail: { cls: "rc-fail", icon: CircleX, word: "Needs attention" },
-  unknown: { cls: "rc-unk", icon: CircleDashed, word: "Unknown" },
-} as const;
+  pass: { cls: "rc-pass", icon: CircleCheck, get word() { return t("organization.state.pass"); } },
+  fail: { cls: "rc-fail", icon: CircleX, get word() { return t("organization.state.fail"); } },
+  unknown: { cls: "rc-unk", icon: CircleDashed, get word() { return t("organization.state.unknown"); } },
+};
 
 export default function Organization() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const passportFlags = usePassportFlags();
   const base = `/w/${ws.handle}`;
@@ -76,14 +80,14 @@ export default function Organization() {
 
   return (
     <>
-      <title>{`Organization — ${ws.name}`}</title>
+      <title>{t("organization.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Organization">
         <main className="main">
-          <Loaded query={query} label="Loading your Passport record">
+          <Loaded query={query} label={t("organization.loadingYourPassportRecord")}>
             {({ org, readiness, consents }) => {
               const o = org.organization as unknown as Json | null;
               const profile = (org.profile ?? {}) as Json;
-              const src = (path: string) => (org.profileSources[path] ? `From Passport · ${sourceLabel(org.profileSources[path])}` : "From Passport");
+              const src = (path: string) => (org.profileSources[path] ? t("organization.fromPassportVia", { source: sourceLabel(org.profileSources[path]) }) : t("organization.fromPassport"));
               const address = [at(o, "addresses.primary.street1"), at(o, "addresses.primary.city"), at(o, "addresses.primary.stateOrProvince"), at(o, "addresses.primary.postalCode")].map(text).filter(Boolean).join(", ") || null;
               const money = (v: unknown) => (typeof v === "number" ? formatMinor(Math.round(v * 100)) : null);
               const subsection = text(at(profile, "commonApp.irs.subsection"));
@@ -93,43 +97,43 @@ export default function Organization() {
                   <div className="ph">
                     <div>
                       <div className="title">
-                        <h1>Organization</h1>
+                        <h1>{t("organization.organization")}</h1>
                         <LevelBadge level={org.level} />
                         {payee?.state === "pass" && (
                           <span className="pay pay-active">
                             <Check className="ic" aria-hidden="true" />
-                            Payee active
+                            {t("organization.payeeActive")}
                           </span>
                         )}
                       </div>
                       <div className="meta">
-                        <span>This is your OpenGrants Passport record as funders see it. Edit it in Passport; every application and report reads from it.</span>
+                        <span>{t("organization.thisIsYourOpengrantsPassportRecord")}</span>
                       </div>
                     </div>
                     <div className="actions">
                       {org.linked && (
                         <button className="btn btn-secondary" type="button" onClick={onRefresh} disabled={refresh.state === "saving"}>
                           <RefreshCw className="ic" aria-hidden="true" />
-                          {refresh.state === "saving" ? "Refreshing…" : "Refresh from Passport"}
+                          {refresh.state === "saving" ? t("organization.refreshing") : t("organization.refreshFromPassport")}
                         </button>
                       )}
                       {org.editUrl && (
                         <a href={org.editUrl} className="btn btn-secondary">
                           <ExternalLink className="ic" aria-hidden="true" />
-                          Open Passport
+                          {t("organization.openPassport")}
                         </a>
                       )}
                     </div>
                   </div>
 
-                  {refresh.error ? <ErrorBanner error={refresh.error} title="Passport could not be read" /> : null}
+                  {refresh.error ? <ErrorBanner error={refresh.error} title={t("organization.passportCouldNotBeRead")} /> : null}
                   {!org.linked && (
-                    <Notice tone="info" title="Not verified: this workspace is not linked to Passport">
-                      Funders see the details you entered in <Link to={`/w/${ws.handle}/settings#organization-details`}>Settings</Link>, marked as not verified.
+                    <Notice tone="info" title={t("organization.notVerifiedThisWorkspaceIsNot")}>
+                      {t.rich("organization.selfDeclaredNote", { link: (chunks) => <Link to={`/w/${ws.handle}/settings#organization-details`}>{chunks}</Link> })}
                       {passportFlags.linking && (
                         <>
                           {" "}
-                          <Link to="/onboarding/applicant">Continue with Passport</Link> to verify your organization and bring in your record.
+                          {t.rich("organization.continueNote", { link: (chunks) => <Link to="/onboarding/applicant">{chunks}</Link> })}
                         </>
                       )}
                     </Notice>
@@ -140,32 +144,32 @@ export default function Organization() {
                       <section className="card" aria-labelledby="identity-h">
                         <div className="card-h">
                           <h2 id="identity-h" style={{ fontSize: "18px" }}>
-                            Identity
+                            {t("organization.identity")}
                           </h2>
                           {org.editUrl && (
                             <a href={org.editUrl} className="small b">
-                              Edit in Passport
+                              {t("organization.editInPassport")}
                             </a>
                           )}
                         </div>
                         <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px 24px" }}>
-                          <Value label="Legal name" value={text(at(o, "name"))} editUrl={org.editUrl} />
-                          <Value label="Tax status" value={subsection ? (IRS_SUBSECTION[subsection] ?? `IRS subsection ${subsection}`) : null} source={src("/commonApp/irs/subsection")} editUrl={org.editUrl} />
+                          <Value label={t("organization.legalName")} value={text(at(o, "name"))} editUrl={org.editUrl} />
+                          <Value label={t("organization.taxStatus")} value={subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} editUrl={org.editUrl} />
                           <Value label="EIN" value={text(at(o, "identifiers.org:us:ein.id"))?.replace(/^(\d{2})(\d{7})$/, "$1-$2") ?? null} editUrl={org.editUrl} />
-                          <Value label="Mailing address" value={address} editUrl={org.editUrl} />
-                          <Value label="Website" value={text(at(o, "socials.website"))?.replace(/^https?:\/\//, "") ?? null} editUrl={org.editUrl} />
-                          <Value label="Founded" value={text(at(o, "yearFounded"))} editUrl={org.editUrl} />
+                          <Value label={t("organization.mailingAddress")} value={address} editUrl={org.editUrl} />
+                          <Value label={t("organization.website")} value={text(at(o, "socials.website"))?.replace(/^https?:\/\//, "") ?? null} editUrl={org.editUrl} />
+                          <Value label={t("organization.founded")} value={text(at(o, "yearFounded"))} editUrl={org.editUrl} />
                         </div>
                       </section>
 
                       <section className="card" aria-labelledby="mission-h">
                         <div className="card-h">
                           <h2 id="mission-h" style={{ fontSize: "18px" }}>
-                            Mission
+                            {t("organization.mission")}
                           </h2>
                           {org.editUrl && (
                             <a href={org.editUrl} className="small b">
-                              Edit in Passport
+                              {t("organization.editInPassport")}
                             </a>
                           )}
                         </div>
@@ -174,12 +178,12 @@ export default function Organization() {
                             <>
                               <span className="prov prov-passport" style={{ alignSelf: "flex-start" }}>
                                 <BadgeCheck className="ic" aria-hidden="true" />
-                                From Passport
+                                {t("organization.fromPassport")}
                               </span>
                               <p>{text(at(o, "mission"))}</p>
                             </>
                           ) : (
-                            <p className="muted">No mission statement in Passport yet.</p>
+                            <p className="muted">{t("organization.noMissionStatementInPassportYet")}</p>
                           )}
                         </div>
                       </section>
@@ -188,23 +192,23 @@ export default function Organization() {
                         <div className="card-h">
                           <div>
                             <h2 id="fin-h" style={{ fontSize: "18px" }}>
-                              Common App profile
+                              {t("organization.commonAppProfile")}
                             </h2>
-                            <p className="small muted">Confirmed values funders can use for prefill and eligibility. Unconfirmed values stay in Passport.</p>
+                            <p className="small muted">{t("organization.confirmedValuesFundersCanUseFor")}</p>
                           </div>
                           {org.editUrl && (
                             <a href={org.editUrl} className="small b">
-                              Edit in Passport
+                              {t("organization.editInPassport")}
                             </a>
                           )}
                         </div>
                         <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px 24px" }}>
-                          <Value label="Annual operating budget" value={money(at(profile, "commonApp.financials.budget"))} source={src("/commonApp/financials/budget")} editUrl={org.editUrl} />
-                          <Value label="Total revenue" value={money(at(profile, "commonApp.financials.totalRevenue"))} source={src("/commonApp/financials/totalRevenue")} editUrl={org.editUrl} />
-                          <Value label="Total expenses" value={money(at(profile, "commonApp.financials.totalExpenses"))} source={src("/commonApp/financials/totalExpenses")} editUrl={org.editUrl} />
-                          <Value label="Staff" value={text(at(profile, "commonApp.staffCount"))} source={src("/commonApp/staffCount")} editUrl={org.editUrl} />
-                          <Value label="Fiscal year end" value={text(at(profile, "commonApp.fiscalYearEnd"))} source={src("/commonApp/fiscalYearEnd")} editUrl={org.editUrl} />
-                          <Value label="NTEE code" value={text(at(profile, "commonApp.irs.ntee"))} source={src("/commonApp/irs/ntee")} editUrl={org.editUrl} />
+                          <Value label={t("organization.annualOperatingBudget")} value={money(at(profile, "commonApp.financials.budget"))} source={src("/commonApp/financials/budget")} editUrl={org.editUrl} />
+                          <Value label={t("organization.totalRevenue")} value={money(at(profile, "commonApp.financials.totalRevenue"))} source={src("/commonApp/financials/totalRevenue")} editUrl={org.editUrl} />
+                          <Value label={t("organization.totalExpenses")} value={money(at(profile, "commonApp.financials.totalExpenses"))} source={src("/commonApp/financials/totalExpenses")} editUrl={org.editUrl} />
+                          <Value label={t("organization.staff")} value={text(at(profile, "commonApp.staffCount"))} source={src("/commonApp/staffCount")} editUrl={org.editUrl} />
+                          <Value label={t("organization.fiscalYearEnd")} value={text(at(profile, "commonApp.fiscalYearEnd"))} source={src("/commonApp/fiscalYearEnd")} editUrl={org.editUrl} />
+                          <Value label={t("organization.nteeCode")} value={text(at(profile, "commonApp.irs.ntee"))} source={src("/commonApp/irs/ntee")} editUrl={org.editUrl} />
                         </div>
                       </section>
                       <VaultCard base={base} />
@@ -216,7 +220,7 @@ export default function Organization() {
                       <section className="card" aria-labelledby="ready-h">
                         <div className="card-h">
                           <h2 id="ready-h" style={{ fontSize: "18px" }}>
-                            Readiness
+                            {t("organization.readiness")}
                           </h2>
                           <LevelBadge level={readiness.level} />
                         </div>
@@ -233,7 +237,7 @@ export default function Organization() {
                                   </div>
                                   {c.fixHref ? (
                                     <a href={c.fixHref} className="fix">
-                                      Fix →
+                                      {t("organization.fix")}
                                     </a>
                                   ) : (
                                     <span />
@@ -243,8 +247,8 @@ export default function Organization() {
                             })}
                           </ul>
                           <p className="small muted" style={{ marginTop: "10px" }}>
-                            {org.syncedAt ? `Record last read from Passport ${timeAgo(org.syncedAt)}.` : "Not read from Passport yet."}
-                            {org.verifiedAt ? ` Verified ${formatDate(org.verifiedAt)}.` : ""}
+                            {org.syncedAt ? t("organization.lastRead", { ago: timeAgo(org.syncedAt) }) : t("organization.notReadFromPassportYet")}
+                            {org.verifiedAt ? ` ${t("organization.verifiedOn", { date: formatDate(org.verifiedAt) })}` : ""}
                           </p>
                         </div>
                       </section>
@@ -252,15 +256,15 @@ export default function Organization() {
                       <section className="card" aria-labelledby="payee-h">
                         <div className="card-h">
                           <h2 id="payee-h" style={{ fontSize: "18px" }}>
-                            Payee status
+                            {t("organization.payeeStatus")}
                           </h2>
                           {payee?.state === "pass" ? (
                             <span className="pay pay-active">
                               <Check className="ic" aria-hidden="true" />
-                              Payee active
+                              {t("organization.payeeActive")}
                             </span>
                           ) : (
-                            <span className="pay pay-none">{payee?.state === "unknown" ? "Unknown" : "Not verified"}</span>
+                            <span className="pay pay-none">{payee?.state === "unknown" ? t("organization.unknown") : t("organization.notVerified")}</span>
                           )}
                         </div>
                         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -269,16 +273,16 @@ export default function Organization() {
                             <Lock className="ic" aria-hidden="true" />
                             <div>
                               <div className="t" style={{ fontSize: "14px" }}>
-                                How destination changes work
+                                {t("organization.howDestinationChangesWork")}
                               </div>
                               <div className="d" style={{ fontSize: "13px" }}>
-                                Destination changes are made in Passport, cool off before they take effect and are visible to funders as “Pending change” while they do. The GMS never edits bank details and only ever shows the bank name and last four digits.
+                                {t("organization.destinationChangesAreMadeInPassport")}
                               </div>
                             </div>
                           </div>
                           {org.editUrl && (
                             <a href={org.editUrl} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                              Manage destination in Passport
+                              {t("organization.manageDestinationInPassport")}
                             </a>
                           )}
                         </div>

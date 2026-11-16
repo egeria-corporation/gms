@@ -34,7 +34,7 @@ export const byUrgency = (a: MyRequirement, b: MyRequirement) => (ORDER[a.status
 
 export function summaryLine(list: MyRequirement[], now: Date = new Date()): string[] {
   const funders = new Set(list.map((r) => r.funder?.workspaceId)).size;
-  const parts = [t("report.summary", { count: list.length, funders })];
+  const parts = [t("report.summary", { count: list.length, funderCount: funders })];
   const due = list.filter((r) => r.status === "due" || r.status === "overdue").sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""))[0];
   const days = due ? daysUntil(due.dueAt, now) : null;
   if (due && days !== null) parts.push(days < 0 ? t("report.overdueBy", { days: -days }) : t("report.dueIn", { days }));

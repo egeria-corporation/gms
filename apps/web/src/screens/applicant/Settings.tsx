@@ -14,29 +14,30 @@ import { DangerZone, ExportsCard, TokensCard } from "./settingsCards.tsx";
 import { CalendarFeedCard } from "./outside/CalendarFeedCard.tsx";
 import { GrantSettingsCard } from "./outside/GrantSettingsCard.tsx";
 import { WhatWeEmailYouCard } from "../public/whatWeEmailYou.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 /** The events an applicant workspace produces, in the order people meet them. */
-export const EVENTS: { key: string; label: string; detail: string }[] = [
-  { key: "application", label: "Application status changes", detail: "Submitted, under review, revision requested, withdrawn" },
-  { key: "decision", label: "Decisions", detail: "Accepted, declined or waitlisted" },
-  { key: "award", label: "Awards and amendments", detail: "Offers, acceptance, amendment decisions" },
-  { key: "agreement", label: "Agreements", detail: "Sent for signature, countersigned, executed" },
-  { key: "payment", label: "Payments", detail: "Sent, settled or paused; bank name and last four only" },
-  { key: "requirement", label: "Report reminders", detail: "A requirement is coming due or overdue" },
-  { key: "outside_deadline", label: "Application deadlines", detail: "Applications you track here: 14, 7 and 2 days before a deadline, and on the day" },
-  { key: "outside_obligation_due", label: "Grant reports and conditions", detail: "Outside awards: 30, 14 and 7 days before, on the day, and 3 and 14 days after if not done" },
-  { key: "outside_next_cycle", label: "Next cycle", detail: "The day a funder that said no opens its next cycle" },
-  { key: "document_expiring", label: "Documents expiring", detail: "A document in your vault expires within 30 days" },
-  { key: "submission", label: "Report reviews", detail: "A report was accepted or returned with comments" },
-  { key: "organization", label: "Organization and consent", detail: "Passport record changes, funders asking to read more" },
-  { key: "approval", label: "Approvals", detail: "An agent is waiting for your decision" },
-  { key: "agent", label: "Agent activity", detail: "Agents connected or disconnected" },
+export const EVENTS: { key: string; readonly label: string; readonly detail: string }[] = [
+  { key: "application", get label() { return t("settings.event.application"); }, get detail() { return t("settings.event.applicationDetail"); } },
+  { key: "decision", get label() { return t("settings.event.decision"); }, get detail() { return t("settings.event.decisionDetail"); } },
+  { key: "award", get label() { return t("settings.event.award"); }, get detail() { return t("settings.event.awardDetail"); } },
+  { key: "agreement", get label() { return t("settings.event.agreement"); }, get detail() { return t("settings.event.agreementDetail"); } },
+  { key: "payment", get label() { return t("settings.event.payment"); }, get detail() { return t("settings.event.paymentDetail"); } },
+  { key: "requirement", get label() { return t("settings.event.requirement"); }, get detail() { return t("settings.event.requirementDetail"); } },
+  { key: "outside_deadline", get label() { return t("settings.event.outsideDeadline"); }, get detail() { return t("settings.event.outsideDeadlineDetail"); } },
+  { key: "outside_obligation_due", get label() { return t("settings.event.outsideObligationDue"); }, get detail() { return t("settings.event.outsideObligationDueDetail"); } },
+  { key: "outside_next_cycle", get label() { return t("settings.event.outsideNextCycle"); }, get detail() { return t("settings.event.outsideNextCycleDetail"); } },
+  { key: "document_expiring", get label() { return t("settings.event.documentExpiring"); }, get detail() { return t("settings.event.documentExpiringDetail"); } },
+  { key: "submission", get label() { return t("settings.event.submission"); }, get detail() { return t("settings.event.submissionDetail"); } },
+  { key: "organization", get label() { return t("settings.event.organization"); }, get detail() { return t("settings.event.organizationDetail"); } },
+  { key: "approval", get label() { return t("settings.event.approval"); }, get detail() { return t("settings.event.approvalDetail"); } },
+  { key: "agent", get label() { return t("settings.event.agent"); }, get detail() { return t("settings.event.agentDetail"); } },
 ];
-const DIGESTS: { value: NotificationPreferences["digest"]; label: string }[] = [
-  { value: "immediate", label: "Send each email at once" },
-  { value: "daily", label: "Daily digest" },
-  { value: "weekly", label: "Weekly digest" },
-  { value: "off", label: "No email" },
+const DIGESTS = (): { value: NotificationPreferences["digest"]; label: string }[] => [
+  { value: "immediate", label: t("settings.digest.immediate") },
+  { value: "daily", label: t("settings.digest.daily") },
+  { value: "weekly", label: t("settings.digest.weekly") },
+  { value: "off", label: t("settings.digest.off") },
 ];
 
 function Preferences({ initial }: { initial: NotificationPreferences }) {
@@ -53,19 +54,19 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
     <div className="card" id="notifications">
       <div className="card-h">
         <div>
-          <h2 style={{ fontSize: "18px" }}>Notifications</h2>
-          <p className="small muted">Per event, for you, in this workspace. Email can be sent at once or in a digest.</p>
+          <h2 style={{ fontSize: "18px" }}>{t("settings.notifications")}</h2>
+          <p className="small muted">{t("settings.perEventForYouInThis")}</p>
         </div>
         <SaveNote state={save.state} />
       </div>
-      <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Notification preferences, scrollable">
+      <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label={t("settings.notificationPreferencesScrollable")}>
         <table className="tbl" style={{ fontSize: "15px" }}>
-          <caption className="sr">Notification preferences by event</caption>
+          <caption className="sr">{t("settings.notificationPreferencesByEvent")}</caption>
           <thead>
             <tr>
-              <th scope="col">Event</th>
-              <th scope="col">In-app</th>
-              <th scope="col">Email</th>
+              <th scope="col">{t("settings.event")}</th>
+              <th scope="col">{t("settings.inApp")}</th>
+              <th scope="col">{t("settings.email")}</th>
             </tr>
           </thead>
           <tbody>
@@ -78,10 +79,10 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
                   </div>
                 </td>
                 <td>
-                  <button type="button" className={`tog${channel(e.key).inApp ? " on" : ""}`} role="switch" aria-checked={channel(e.key).inApp} aria-label={`${e.label}, in-app`} onClick={() => toggle(e.key, "inApp")}></button>
+                  <button type="button" className={`tog${channel(e.key).inApp ? " on" : ""}`} role="switch" aria-checked={channel(e.key).inApp} aria-label={t("settings.eventInApp", { event: e.label })} onClick={() => toggle(e.key, "inApp")}></button>
                 </td>
                 <td>
-                  <button type="button" className={`tog${channel(e.key).email ? " on" : ""}`} role="switch" aria-checked={channel(e.key).email} aria-label={`${e.label}, email`} onClick={() => toggle(e.key, "email")}></button>
+                  <button type="button" className={`tog${channel(e.key).email ? " on" : ""}`} role="switch" aria-checked={channel(e.key).email} aria-label={t("settings.eventEmail", { event: e.label })} onClick={() => toggle(e.key, "email")}></button>
                 </td>
               </tr>
             ))}
@@ -90,20 +91,20 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
       </div>
       <div className="card-f" style={{ gap: "14px", flexWrap: "wrap" }}>
         <label className="lbl" htmlFor="digest">
-          Email digest
+          {t("settings.emailDigest")}
         </label>
         <select className="sel" id="digest" style={{ maxWidth: "260px" }} value={prefs.digest} onChange={(e) => void update({ ...prefs, digest: e.target.value as NotificationPreferences["digest"] })}>
-          {DIGESTS.map((d) => (
+          {DIGESTS().map((d) => (
             <option key={d.value} value={d.value}>
               {d.label}
             </option>
           ))}
         </select>
-        <span className="help">In-app choices take effect now. Email delivery follows these choices once email notifications are switched on for your workspace.</span>
+        <span className="help">{t("settings.inAppChoicesTakeEffectNow")}</span>
       </div>
       {save.error ? (
         <div style={{ padding: "0 20px 16px" }}>
-          <ErrorBanner error={save.error} title="Your preferences were not saved" />
+          <ErrorBanner error={save.error} title={t("settings.yourPreferencesWereNotSaved")} />
         </div>
       ) : null}
     </div>
@@ -111,29 +112,30 @@ function Preferences({ initial }: { initial: NotificationPreferences }) {
 }
 
 export default function Settings() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const query = useMoreQuery((api) => api.notificationPreferences(), [ws.id]);
   return (
     <>
-      <title>{`Settings — ${ws.name}`}</title>
+      <title>{t("settings.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Settings">
         <main className="main">
-          <nav className="crumbs" aria-label="Breadcrumb">
-            <Link to={base}>Dashboard</Link>
+          <nav className="crumbs" aria-label={t("settings.breadcrumb")}>
+            <Link to={base}>{t("settings.dashboard")}</Link>
             <span aria-hidden="true">›</span>
-            <span aria-current="page">Settings</span>
+            <span aria-current="page">{t("settings.settings")}</span>
           </nav>
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Workspace settings</h1>
+                <h1>{t("settings.workspaceSettings")}</h1>
               </div>
               <div className="meta">
                 <span>{ws.name}</span>
                 <span aria-hidden="true">·</span>
                 <span>
-                  Account-level settings (profile, authenticator, sessions, connected agents) live in <Link to="/account/agents">Account settings</Link>
+                  {t.rich("settings.accountLevel", { link: (chunks) => <Link to="/account/agents">{chunks}</Link> })}
                 </span>
               </div>
             </div>
@@ -141,7 +143,7 @@ export default function Settings() {
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <OrganizationProfileCard workspaceId={ws.id} connectTo="/onboarding/applicant" />
-              <Loaded query={query} label="Loading your preferences">
+              <Loaded query={query} label={t("settings.loadingYourPreferences")}>
                 {(prefs) => <Preferences initial={prefs} />}
               </Loaded>
             </div>
