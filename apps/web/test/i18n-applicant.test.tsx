@@ -9,7 +9,7 @@ import { FormView, type FormViewProps } from "../src/forms/FormView.tsx";
 import { changeLocale } from "../src/i18n/current.ts";
 import { LOI_FORM, LOI_PROVENANCE, LOI_RESPONSE } from "../src/mocks/forms.ts";
 import { DEADLINE_LABELS, dueIn } from "../src/screens/applicant/outside/shared.tsx";
-import { limitPhrase, monthName, stageLabel } from "../src/screens/applicant/labels.ts";
+import { fiscalYearName, limitPhrase, monthName, stageLabel } from "../src/screens/applicant/labels.ts";
 import { LANE_LABELS } from "../src/screens/applicant/Applications.tsx";
 
 function draw(props: Partial<FormViewProps> = {}) {
@@ -86,5 +86,14 @@ describe("the applicant screens' words in Spanish", () => {
     expect(limitPhrase("chars", 1500)).toBe("1,500 caracteres");
     expect(limitPhrase(null, null)).toBe("Sin límite");
     expect(monthName(7)).toBe("julio");
+  });
+});
+
+describe("fiscal years", () => {
+  it("read as the API words them in English, and in Spanish", async () => {
+    expect([fiscalYearName(2027, 1), fiscalYearName(2027, 7)]).toEqual(["FY 2027", "FY 2027 (Jul 2026 to Jun 2027)"]);
+    await changeLocale("es");
+    expect([fiscalYearName(2027, 1), fiscalYearName(2027, 7)]).toEqual(["Año fiscal 2027", "Año fiscal 2027 (jul 2026 a jun 2027)"]);
+    await changeLocale("en");
   });
 });

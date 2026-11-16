@@ -2443,5 +2443,6 @@
   "reportsPhone.srForFunder": "{title}, funder",
   "editor.thisForm": "This form",
   "outsideQuestionsTab.questionsAdded": "{count, plural, one {# question added} other {# questions added}}",
-  "outsideQuestionsTab.documentsAdded": "{count, plural, one {# document added to the checklist} other {# documents added to the checklist}}"
+  "outsideQuestionsTab.documentsAdded": "{count, plural, one {# document added to the checklist} other {# documents added to the checklist}}",
+  "labels.fiscalYear": "{range, select, none {FY {fy}} other {FY {fy} ({from} to {to})}}"
 }

@@ -74,6 +74,13 @@ export function criterionLabel(c: Criterion): { label: string; help: string } {
   }
 }
 
+/** "FY 2027", or "FY 2027 (Jul 2026 to Jun 2027)" when the year does not start in January, in the page's language (the API words it in English). */
+export function fiscalYearName(fy: number, startMonth: number): string {
+  if (startMonth <= 1) return t("labels.fiscalYear", { range: "none", fy: String(fy), from: "", to: "" });
+  const at = (year: number, month: number) => new Intl.DateTimeFormat(intlLocale(), { month: "short", year: "numeric", timeZone: "UTC" }).format(Date.UTC(year, month - 1, 1));
+  return t("labels.fiscalYear", { range: "months", fy: String(fy), from: at(fy - 1, startMonth), to: at(fy, startMonth - 1) });
+}
+
 /** A month's name (1 = January), in the page's language. */
 export const monthName = (m: number): string => new Intl.DateTimeFormat(intlLocale(), { month: "long", timeZone: "UTC" }).format(Date.UTC(2026, m - 1, 1));
 

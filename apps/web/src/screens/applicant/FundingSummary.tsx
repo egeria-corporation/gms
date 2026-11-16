@@ -13,7 +13,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, type Column } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatMoney } from "../../lib/format.ts";
-import { monthName } from "./labels.ts";
+import { fiscalYearName, monthName } from "./labels.ts";
 import { t, useApplicantText } from "./i18n.ts";
 
 export const winRateText = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
@@ -28,8 +28,8 @@ export default function FundingSummary() {
     downloadBlob(f.blob, f.filename);
     return true;
   });
-  const columns: Column<FundingYear>[] = [
-    { key: "fy", header: t("fundingSummary.col.fiscalYear"), cell: (y) => <span className="b">{y.label}</span>, sort: (y) => y.fiscalYear },
+  const columnsFor = (startMonth: number): Column<FundingYear>[] => [
+    { key: "fy", header: t("fundingSummary.col.fiscalYear"), cell: (y) => <span className="b">{fiscalYearName(y.fiscalYear, startMonth)}</span>, sort: (y) => y.fiscalYear },
     { key: "sub", header: t("fundingSummary.col.submitted"), numeric: true, cell: (y) => y.submitted, sort: (y) => y.submitted },
     { key: "dec", header: t("fundingSummary.col.decided"), numeric: true, cell: (y) => y.decided, sort: (y) => y.decided },
     { key: "aw", header: t("fundingSummary.col.awarded"), numeric: true, cell: (y) => y.awarded, sort: (y) => y.awarded },
@@ -76,9 +76,9 @@ export default function FundingSummary() {
               ) : (
                 <>
                   {current && (
-                    <section aria-label={t("fundingSummary.atAGlance", { year: current.label })} style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "14px" }}>
+                    <section aria-label={t("fundingSummary.atAGlance", { year: fiscalYearName(current.fiscalYear, s.fiscalYearStartMonth) })} style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "14px" }}>
                       <div className="stat">
-                        <span className="stat-l">{t("fundingSummary.submittedIn", { year: current.label })}</span>
+                        <span className="stat-l">{t("fundingSummary.submittedIn", { year: fiscalYearName(current.fiscalYear, s.fiscalYearStartMonth) })}</span>
                         <span className="stat-v">{current.submitted}</span>
                       </div>
                       <div className="stat">
@@ -98,7 +98,7 @@ export default function FundingSummary() {
                       </div>
                     </section>
                   )}
-                  <DataTable label={t("fundingSummary.fundingByFiscalYear")} columns={columns} rows={s.years} rowKey={(y) => String(y.fiscalYear)} empty={null} />
+                  <DataTable label={t("fundingSummary.fundingByFiscalYear")} columns={columnsFor(s.fiscalYearStartMonth)} rows={s.years} rowKey={(y) => String(y.fiscalYear)} empty={null} />
                   <p className="small muted">
                     {t.rich("fundingSummary.footnote", { month: monthName(s.fiscalYearStartMonth), link: (chunks) => <Link to={`${base}/settings`}>{chunks}</Link> })}
                   </p>

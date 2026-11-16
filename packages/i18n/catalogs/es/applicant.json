@@ -2443,5 +2443,6 @@
   "reportsPhone.openBelow": "Abierto abajo",
   "editor.thisForm": "Este formulario",
   "outsideQuestionsTab.questionsAdded": "{count, plural, one {# pregunta agregada} other {# preguntas agregadas}}",
-  "outsideQuestionsTab.documentsAdded": "{count, plural, one {# documento agregado a la lista de verificación} other {# documentos agregados a la lista de verificación}}"
+  "outsideQuestionsTab.documentsAdded": "{count, plural, one {# documento agregado a la lista de verificación} other {# documentos agregados a la lista de verificación}}",
+  "labels.fiscalYear": "{range, select, none {Año fiscal {fy}} other {Año fiscal {fy} ({from} a {to})}}"
 }
