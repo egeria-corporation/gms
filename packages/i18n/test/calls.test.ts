@@ -9,7 +9,7 @@ import { TYPE, parse, type MessageFormatElement } from "@formatjs/icu-messagefor
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { NAMESPACES } from "../src/index.ts";
-import { ALL_CATALOGS } from "../src/server.ts";
+import { ALL_CATALOGS } from "../src/all.ts";
 
 const src = fileURLToPath(new URL("../../../apps/web/src", import.meta.url));
 const files = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : /\.tsx?$/.test(n) ? [join(dir, n)] : []));

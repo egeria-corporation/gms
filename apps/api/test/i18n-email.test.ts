@@ -5,7 +5,7 @@
 import { constants, inflateSync } from "node:zlib";
 import { renderPdf } from "@gms/documents";
 import { beforeEach, describe, expect, it } from "vitest";
-import { sendNextCycleReminders } from "../src/jobs.ts";
+import { sendDigests, sendNextCycleReminders } from "../src/jobs.ts";
 import { docketBlocks, type DocketModel } from "../src/services/docket.ts";
 import { WS_APPLICANT, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
@@ -169,5 +169,43 @@ describe("documents for the person who asks", () => {
     expect(es).not.toMatch(/Board docket|Average score|No comments/);
     const en = await text("en");
     for (const label of ["Board docket", "Funder", "Prepared", "2027-04-16", "Average score", "81.5 of 100 (3 reviews)", "No comments."]) expect(en).toContain(label);
+  });
+});
+
+describe("notification titles", () => {
+  const started = async () => {
+    const app = (await s.call<{ data: { id: string } }>(s.applicant, "POST", "/common-grants/applications/start", { competitionId: s.uuid.comp })).body.data;
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/forms/${s.uuid.loi}`, { response: { projectTitle: "Mobile Health Navigation", requestedAmount: { amount: "150000.00", currency: "USD" }, need: "Families travel 46 miles." } });
+    await s.call(s.applicant, "PUT", `/common-grants/applications/${app.id}/submit`);
+    const asked = await s.call(s.funder, "POST", `/gms/applications/app_${app.id}/request-revision`, { message: "Please cite the county assessment." });
+    expect(asked.status).toBe(200);
+    return app.id;
+  };
+  type Item = { type: string; title: string; titleLocalized?: string };
+  const list = async (headers: Record<string, string> = {}) => (await s.call<{ data: { items: Item[] } }>({ ...s.applicant, ...headers }, "GET", "/gms/notifications")).body.data.items;
+
+  it("keep the English title as it always was, and add the reader's language only when it is not English", async () => {
+    await started();
+    const en = await list();
+    const revision = en.find((n) => n.type === "application.request_revision")!;
+    expect(revision.title).toMatch(/^Application request revision: /);
+    expect(en.every((n) => n.titleLocalized === undefined)).toBe(true);
+    const es = (await list({ Cookie: "gms_lang=es" })).find((n) => n.type === "application.request_revision")!;
+    expect(es.title).toBe(revision.title);
+    expect(es.titleLocalized).toBe(revision.title.replace("Application request revision", "Se pidió una revisión de la solicitud"));
+  });
+
+  it("are listed in each digest in its recipient's language", async () => {
+    const base = { repos: h.repos, ledger: h.ledger, webhooks: h.webhooks, now: () => h.clock.now, config: { baseUrl: "https://gms.test", webBaseUrl: "https://app.gms.test", passportBaseUrl: null, credentialsKey: null, passportClient: null, mailFrom: "OpenGrants GMS <notices@gms.test>" }, ports: { mailer: h.mailer, directory: h.directory, preferences: h.preferences } };
+    h.directory.users.set(USER_APPLICANT, { email: "maria.santos@aldercreek.example", name: "Maria Santos" });
+    await h.repos.table("workspace_members").update({ workspace_id: WS_APPLICANT, user_id: USER_APPLICANT }, { notification_preferences: { digest: "daily", channels: {} } as never });
+    await h.preferences.setLocale(USER_APPLICANT, "es");
+    await started();
+    h.mailer.sent.length = 0;
+    expect((await sendDigests(base, "daily")).sent).toBe(1);
+    const mail = h.mailer.sent[0]!;
+    expect(mail.locale).toBe("es");
+    expect(mail.text).toContain("- Se pidió una revisión de la solicitud: ");
+    expect(mail.text).not.toContain("Application request revision");
   });
 });

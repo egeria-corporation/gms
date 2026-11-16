@@ -131,16 +131,16 @@ export async function sendDigests(base: BaseContext, cadence: "daily" | "weekly"
       if (last && (last.data as { day?: string }).day === day) continue;
       const since = last?.occurredAt ?? new Date(now.getTime() - PERIOD_MS[cadence]).toISOString();
       const prefs = normalizePreferences(m.notification_preferences as never);
-      const items = (await deriveFor(base, m, ws)).filter((n) => n.at > since && prefs.channels[n.category].email);
+      // In the member's language: the lines are the in-app notifications, titled as the app words them.
+      const locale = locales.get(m.user_id) ?? DEFAULT_LOCALE;
+      const items = (await deriveFor(base, m, ws, locale)).filter((n) => n.at > since && prefs.channels[n.category].email);
       // The weekly digest also lists the outside applications' deadlines of the next 14 days (apply anywhere).
       const upcoming = cadence === "weekly" && ws.kind === "applicant" && OUTSIDE_ROLES.includes(m.role) && prefs.channels.outside_deadline.email ? await upcomingOutsideDeadlines(base, ws.id, now, 14) : [];
       if (!items.length && !upcoming.length) {
         out.empty++;
         continue;
       }
-      // In the member's language. The lines are the in-app notifications as the app words them.
-      const locale = locales.get(m.user_id) ?? DEFAULT_LOCALE;
-      const lines = items.slice(0, 50).map((n) => `- ${n.title}${n.message ? `: ${n.message}` : ""}`);
+      const lines = items.slice(0, 50).map((n) => `- ${n.titleLocalized ?? n.title}${n.message ? `: ${n.message}` : ""}`);
       const deadlines = upcoming.slice(0, 50).map((d) => `- ${emailDate(locale, d.date)} ${deadlineLabel(d, locale)}: ${d.title}${d.funder ? ` (${d.funder})` : ""}`);
       const { subject, text } = memberDigestEmail({ workspace: ws.display_name, lines, total: items.length, deadlines, deadlineTotal: upcoming.length, days: 14, link: `${base.config.webBaseUrl}/notifications`, locale });
       await mailer.send({ from, to: [to], subject, text, html: paragraphs(text), locale, idempotencyKey: `digest:${m.id}:${day}` });

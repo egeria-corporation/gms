@@ -14314,7 +14314,16 @@ export interface components {
             label: string;
             outcome: components["schemas"]["Models.TriState"];
             actual?: unknown;
+            /** @description The result in an English sentence. */
             explain: string;
+            /**
+             * @description Why `explain` reads as it does, so a client can word it in its reader's language: the funder's
+             *     own template (`custom`), a Passport-only fact for an organization without Passport, a rule met
+             *     on what the organization entered itself, a fact not available, a value that cannot be compared,
+             *     met, not met, or the outcome alone (another organization's record).
+             * @enum {string}
+             */
+            because?: "custom" | "passport_only" | "self_reported" | "unavailable" | "incomparable" | "met" | "not_met" | "outcome_only";
             /** @description The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
             selfReported?: boolean;
         };
@@ -16647,7 +16656,13 @@ export interface components {
             type: string;
             /** @enum {string} */
             category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
+            /** @description What happened, in English. */
             title: string;
+            /**
+             * @description The same title in the reader's language (the request's `gms_lang` cookie or Accept-Language),
+             *     present only when that is not English.
+             */
+            titleLocalized?: string;
             subjectType: string | null;
             subjectId: string | null;
             message: string | null;

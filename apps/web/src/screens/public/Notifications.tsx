@@ -132,7 +132,7 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
                 <div style={{ minWidth: "0" }}>
                   <div>
                     <Link to={hrefFor(n, ws)} className="b" onClick={() => !n.read && void markOne(list, n.id)}>
-                      {n.title}
+                      {n.titleLocalized ?? n.title}
                     </Link>
                     {n.message ? <span> {n.message}</span> : null}
                   </div>
@@ -144,7 +144,7 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
                   </div>
                 </div>
                 {!n.read ? (
-                  <button className="btn btn-sm btn-ghost" type="button" aria-label={t("notifications.markRead", { title: n.title })} onClick={() => void markOne(list, n.id)}>
+                  <button className="btn btn-sm btn-ghost" type="button" aria-label={t("notifications.markRead", { title: n.titleLocalized ?? n.title })} onClick={() => void markOne(list, n.id)}>
                     {t("notifications.markRead2")}
                   </button>
                 ) : (

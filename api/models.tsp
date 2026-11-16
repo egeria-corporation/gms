@@ -1012,7 +1012,16 @@ model MemberNotification {
 
   type: string;
   category: NotificationCategory;
+
+  /** What happened, in English. */
   title: string;
+
+  /**
+   * The same title in the reader's language (the request's `gms_lang` cookie or Accept-Language),
+   * present only when that is not English.
+   */
+  titleLocalized?: string;
+
   subjectType: string | null;
   subjectId: string | null;
   message: string | null;

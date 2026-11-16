@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TYPE, parse, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 import { NAMESPACES, type Namespace } from "../src/index.ts";
-import { ALL_CATALOGS } from "../src/server.ts";
+import { ALL_CATALOGS } from "../src/all.ts";
 
 const allow = JSON.parse(readFileSync(new URL("../catalogs/same-as-english.json", import.meta.url), "utf8")) as { values: string[]; keys: string[] };
 const SAME_VALUES = new Set(allow.values);

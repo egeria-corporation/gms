@@ -5,7 +5,7 @@
 // when the code is in the `errors` catalog. The web app shows `detailLocalized`, else the English.
 // The CommonGrants protocol routes, OAuth and MCP are machine interfaces and stay English only.
 import { DEFAULT_LOCALE, type Key, type Locale } from "@gms/i18n";
-import { ALL_CATALOGS, serverTranslator } from "@gms/i18n/server";
+import { SERVER_CATALOGS, serverTranslator } from "@gms/i18n/server";
 import type { ApiError, ErrorBody } from "./errors.ts";
 
 /** The languages `detailLocalized` is given in: every one but English, whose text is `message` itself. One place to widen. */
@@ -19,7 +19,7 @@ const resourceKey = (what: string) => `notFound.${what.toLowerCase().replace(/[^
 /** The catalog message for an error, or null when its code is not catalogued (or the language is English). */
 export function localizedDetail(err: Pick<ApiError, "code" | "resource">, locale: Locale): string | null {
   if (locale === DEFAULT_LOCALE || !LOCALIZED.has(locale)) return null;
-  const catalog = ALL_CATALOGS[locale].errors as Record<string, unknown>;
+  const catalog = SERVER_CATALOGS[locale].errors as Record<string, unknown>;
   const byResource = err.code === "not_found" && err.resource ? resourceKey(err.resource) : null;
   const key = byResource && byResource in catalog ? byResource : `code.${err.code}`;
   return key in catalog ? serverTranslator(locale, "errors")(key as Key<"errors">) : null;

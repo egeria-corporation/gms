@@ -4,7 +4,7 @@
 // in the `errors` catalog; the CommonGrants routes keep their error shape exactly.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { ALL_CATALOGS } from "@gms/i18n/server";
+import { ALL_CATALOGS } from "@gms/i18n/all";
 import { beforeEach, describe, expect, it } from "vitest";
 import { localizedDetail } from "../src/lib/error-locale.ts";
 import { harness, type Harness } from "./helpers.ts";
