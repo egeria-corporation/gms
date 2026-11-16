@@ -19,6 +19,7 @@ import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
 import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
 
 import { translator } from "../../i18n/index.tsx";
+import { readinessWords } from "../../lib/readinessText.ts";
 
 
 
@@ -353,8 +354,8 @@ export default function ApplicantOnboarding() {
                         <li key={c.key} className={`rc-row rc-${c.state === "unknown" ? "unk" : c.state}`} style={i === 0 ? { borderTop: 0 } : undefined}>
                           <Icon className="ic" role="img" aria-label={c.state === "pass" ? t("applicantOnboarding.passes") : c.state === "fail" ? t("applicantOnboarding.needsAttention") : t("applicantOnboarding.unknown")} />
                           <div>
-                            <div className="l">{c.label}</div>
-                            <div className="r">{c.reason}</div>
+                            <div className="l">{readinessWords(c).label}</div>
+                            <div className="r">{readinessWords(c).reason}</div>
                           </div>
                           <span />
                         </li>

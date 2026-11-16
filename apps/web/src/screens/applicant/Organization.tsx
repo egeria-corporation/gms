@@ -15,6 +15,7 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 import { AccessCard, ConnectedAppsCard, LockerCard, RepresentativesCard } from "./organizationExtras.tsx";
 import { VaultCard } from "./outside/keep.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { readinessWords } from "../../lib/readinessText.ts";
 
 interface OrgData {
   org: MyOrganization;
@@ -232,8 +233,8 @@ export default function Organization() {
                                 <li key={c.key} className={`rc-row ${look.cls}`} style={i === 0 ? { borderTop: 0 } : undefined}>
                                   <look.icon className="ic" role="img" aria-label={look.word} />
                                   <div>
-                                    <div className="l">{c.label}</div>
-                                    <div className="r">{c.reason}</div>
+                                    <div className="l">{readinessWords(c).label}</div>
+                                    <div className="r">{readinessWords(c).reason}</div>
                                   </div>
                                   {c.fixHref ? (
                                     <a href={c.fixHref} className="fix">
@@ -268,7 +269,7 @@ export default function Organization() {
                           )}
                         </div>
                         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                          {payee && <div className="b">{payee.reason}</div>}
+                          {payee && <div className="b">{readinessWords(payee).reason}</div>}
                           <div className="bnr bnr-neu" style={{ padding: "10px 12px" }}>
                             <Lock className="ic" aria-hidden="true" />
                             <div>

@@ -15,6 +15,7 @@ import { EmptyState, Notice } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { formatList } from "@gms/i18n";
 import { t, useApplicantText } from "./i18n.ts";
+import { readinessWords } from "../../lib/readinessText.ts";
 
 const OPEN: MyApplication["status"][] = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
@@ -81,8 +82,8 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
             <div key={c.key} className={`rc-row ${look.cls}`} style={{ display: "flex", gap: "10px", border: "0", padding: "0" }}>
               <look.icon className="ic" role="img" aria-label={look.word} />
               <div>
-                <div className="l">{c.label}</div>
-                <div className="r">{c.reason}</div>
+                <div className="l">{readinessWords(c).label}</div>
+                <div className="r">{readinessWords(c).reason}</div>
               </div>
             </div>
           );
@@ -116,7 +117,7 @@ function ReadinessCard({ readiness, base }: { readiness: ApplicantReadiness; bas
           )}
           <span className="help">
             {failing.key !== "payee_verified"
-              ? failing.reason
+              ? readinessWords(failing).reason
               : facilitatedPayments
                 ? t("dashboard.awardsCanBeOfferedButA")
                 : t("dashboard.fundersOnThisSitePayOutside")}

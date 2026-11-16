@@ -15,6 +15,7 @@ import { EmptyState } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { loadDashboard, Messages, Payments, ReportsDue, Tasks } from "../Dashboard.tsx";
 import { t, useApplicantText } from "../i18n.ts";
+import { readinessWords } from "../../../lib/readinessText.ts";
 
 const CHECK = {
   pass: { cls: "rc-pass", icon: CircleCheck, get word() { return t("dashboard.check.pass"); } },
@@ -40,8 +41,8 @@ function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: s
               <li key={c.key} className={`rc-row ${look.cls}`} style={{ padding: "8px 0", ...(i === 0 ? { borderTop: 0 } : {}) }}>
                 <look.icon className="ic" role="img" aria-label={look.word} />
                 <div>
-                  <div className="l">{c.label}</div>
-                  <div className="r">{c.reason}</div>
+                  <div className="l">{readinessWords(c).label}</div>
+                  <div className="r">{readinessWords(c).reason}</div>
                 </div>
                 <span></span>
               </li>
