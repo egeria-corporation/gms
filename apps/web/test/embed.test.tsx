@@ -202,7 +202,7 @@ describe("the embed panel in the opportunity builder", () => {
     await userEvent.click(within(panel).getByRole("checkbox", { name: /Resize to fit/ }));
     expect(code.value).toContain("<script>");
     expect(code.value).toContain(EMBED_MESSAGE);
-    expect(within(panel).getByRole("button", { name: "Copy the embed code" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Copy embed code" })).toBeInTheDocument();
     const preview = await within(panel).findByRole("region", { name: "Widget preview" });
     expect(within(preview).getByRole("link", { name: "Apply to Community Health Grants 2027 (opens in a new tab)" })).toBeInTheDocument();
     expect(within(preview).getByRole("link", { name: POWERED })).toBeInTheDocument();

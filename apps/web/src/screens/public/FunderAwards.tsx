@@ -130,7 +130,7 @@ export default function FunderAwards() {
                                 <td style={{ whiteSpace: "normal" }}>{a.purpose}</td>
                                 {amountsShown && <td className="num">{a.amount ? formatMoney(a.amount) : "—"}</td>}
                                 <td>
-                                  <Link to={`/f/${funder.handle}/awards/${a.slug}`} aria-label={`The grant to ${a.recipient.name}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 700 }}>
+                                  <Link to={`/f/${funder.handle}/awards/${a.slug}`} aria-label={`View the grant to ${a.recipient.name}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 700 }}>
                                     View <ArrowRight className="ic" aria-hidden="true" />
                                   </Link>
                                 </td>

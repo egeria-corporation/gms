@@ -329,7 +329,7 @@ describe("the assistant", () => {
     await userEvent.click(assistant.getByRole("button", { name: "Draft a letter" }));
     const draft = within(await assistant.findByRole("group", { name: "Letter draft" }));
     expect(draft.getByText(/Draft by/)).toBeInTheDocument();
-    expect(draft.getByRole("button", { name: "Copy the draft" })).toBeInTheDocument();
+    expect(draft.getByRole("button", { name: "Copy draft" })).toBeInTheDocument();
     expect(assistant.getByText("15 of 40 this month")).toBeInTheDocument();
     // Nothing was inserted or saved.
     expect((screen.getByLabelText(/^Body/) as HTMLTextAreaElement).value).toBe(body);

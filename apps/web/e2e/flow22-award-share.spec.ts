@@ -38,7 +38,7 @@ test("funder lists its awards and the grantee copies the share kit", async ({ ap
   });
 
   await test.step("the award has its own page", async () => {
-    await page.getByRole("link", { name: "The grant to Alder Creek Family Services" }).click();
+    await page.getByRole("link", { name: "View the grant to Alder Creek Family Services" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Riverbend Community Foundation awarded Alder Creek Family Services a grant" })).toBeVisible();
     await expect(page.getByText("Verified with OpenGrants Passport")).toBeVisible();
     await expect(page.getByText("Mobile Health Navigation for Rural Families").first()).toBeVisible();

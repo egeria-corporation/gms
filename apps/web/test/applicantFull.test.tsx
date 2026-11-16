@@ -173,7 +173,7 @@ describe("the assistant", () => {
     const before = structuredClone(store.answers);
     await userEvent.click(screen.getByRole("button", { name: "Adapt" }));
     expect(await screen.findByText(/Draft by/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy the draft" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy draft" })).toBeInTheDocument();
     expect(full.assist.quota?.used).toBe(15);
     // A draft changes nothing in the library.
     expect(store.answers).toEqual(before);
