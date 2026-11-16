@@ -1,5 +1,5 @@
 -- 0043_user_preferences.sql
--- A person's own preferences, starting with the language the GMS speaks to them in (v1.10.0,
+-- A person's own preferences, starting with the language the GMS speaks to them in (v1.11.0,
 -- docs/i18n.md): the web app's language once they sign in, and the language of the emails sent to
 -- them (apps/api/src/services/preferences.ts). One row per person, not per workspace.
 --
