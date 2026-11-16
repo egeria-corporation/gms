@@ -3,7 +3,8 @@
 // semantics, submit. These functions back the CommonGrants `/applications` routes and the applicant
 // MCP tools alike. Status changes go through the application machine in `@gms/workflow`.
 import { computeResponseStatus, extractSubmissionFields, maskForReviewer, mergeResponse, passportFieldPaths, prefill, buildPrefillSource, projectToCommonGrants, validateResponse, type FormDefinition, type JsonObject, type Provenance, type ProvenanceSource } from "@gms/forms";
-import { DEFAULT_TEMPLATES, renderEmail, withPoweredBy } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { DEFAULT_TEMPLATES, defaultTemplate, localizeFields, renderEmail, withPoweredBy, type MergeFields, type RenderedEmail } from "@gms/notify";
 import { filtered, matchesFilter, parseSearchRequest, projectApplication, projectFormResponse, readPath, sortByPath, toMinor, unionStageForms, type ApplicationBase, type ApplicationRow, type FormResponseRow, type StageJson } from "@gms/protocol";
 import { evaluate, parseRules, type Evaluation } from "@gms/rules";
 import { applicationCgStatus, applicationMachine, type ApplicationAction, type ApplicationContext, type ApplicationStatus } from "@gms/workflow";
@@ -13,6 +14,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { poweredByOf } from "./powered-by.ts";
+import { byLocale, memberAddressLocales } from "./recipient-locale.ts";
 import { toDefinition } from "./forms.ts";
 import { applicantOptionsOf } from "./opportunities.ts";
 import { orgFacts, recipientEmails, verificationOf } from "./profile.ts";
@@ -241,32 +243,58 @@ export async function transitionApp(ctx: ServiceContext, app: App, action: Appli
   return updated;
 }
 
-/** Send one templated letter. A missing mail port or address is reported, never thrown: mail must not undo a status change. */
+/** A letter's merge fields, or a function that writes them in a language (a fixed phrase among them). */
+export type LetterFields = MergeFields | ((locale: Locale) => MergeFields);
+const fieldsIn = (fields: LetterFields, locale: Locale) => (typeof fields === "function" ? fields(locale) : fields);
+
 /**
  * Render one of the built-in letters as it would be sent. A workspace overrides a built-in letter
  * by saving an email template under the same name ("Decline", "Award and agreement", …); email
- * templates are stored as `Subject: …` + body.
+ * templates are stored as `Subject: …` + body. An override is sent as the funder wrote it, in
+ * whatever language they wrote it; the GMS's own copy is in the recipient's language (`locale`).
  */
-export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: keyof typeof DEFAULT_TEMPLATES, fields: Parameters<typeof renderEmail>[1], workspaceId: string) {
+export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: keyof typeof DEFAULT_TEMPLATES, fields: MergeFields, workspaceId: string, locale: Locale = DEFAULT_LOCALE): Promise<RenderedEmail & { asWritten: boolean }> {
   const base = DEFAULT_TEMPLATES[kind];
   const custom = (await ctx.repos.table("templates").find({ workspace_id: workspaceId, kind: "email", name: base.name }, { orderBy: "version", ascending: false, limit: 1 }))[0];
-  const split = custom ? /^Subject: ([^\n]*)\n\n?([\s\S]*)$/.exec(custom.body) : null;
-  return renderEmail(custom ? { ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body } : base, fields);
+  if (custom) {
+    const split = /^Subject: ([^\n]*)\n\n?([\s\S]*)$/.exec(custom.body);
+    return { ...renderEmail({ ...base, subject: split?.[1] ?? base.subject, body: split?.[2] ?? custom.body }, fields), asWritten: true };
+  }
+  return { ...renderEmail(defaultTemplate(kind, locale), localizeFields(fields, locale)), asWritten: false };
 }
 
 /**
+ * The language of each address a letter goes to: the organization's members by their saved
+ * preference, English for any other address (the organization's own Passport address).
+ */
+export async function letterLocales(ctx: Pick<ServiceContext, "repos" | "ports" | "now">, recipients: readonly string[], recipientWorkspaceId: string | null | undefined): Promise<[Locale, string[]][]> {
+  return byLocale(recipients, await memberAddressLocales(ctx, recipientWorkspaceId, recipients));
+}
+
+/**
+ * Send one templated letter. A missing mail port or address is reported, never thrown: mail must not
+ * undo a status change. Each recipient gets it in their language (`recipientWorkspaceId` names the
+ * organization whose members' preferences decide it): one email per language, English first, so an
+ * organization whose people all read English gets exactly the one email it always did.
+ *
  * `poweredBy` adds "Powered by OpenGrants Grant Management System" under the letter, and only the
  * application receipt ever takes it (packages/notify `POWERED_BY_KINDS`); callers pass the
  * funder's setting. Off unless passed.
  */
-export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | readonly string[] | null | undefined, fields: Parameters<typeof renderEmail>[1], subject: { type: string; id: string; workspaceId: string }, opts: { poweredBy?: boolean } = {}): Promise<{ sent: boolean; reason?: string }> {
+export async function sendLetter(ctx: ServiceContext, kind: keyof typeof DEFAULT_TEMPLATES, to: string | readonly string[] | null | undefined, fields: LetterFields, subject: { type: string; id: string; workspaceId: string }, opts: { poweredBy?: boolean; recipientWorkspaceId?: string | null } = {}): Promise<{ sent: boolean; reason?: string }> {
   if (!ctx.ports.mailer || !ctx.config.mailFrom) return { sent: false, reason: "Outbound mail is not configured" };
   const recipients = (typeof to === "string" ? [to] : [...(to ?? [])]).filter(Boolean);
   if (!recipients.length) return { sent: false, reason: "No email address is known for this organization" };
   try {
-    const rendered = withPoweredBy(kind, await renderLetter(ctx, kind, fields, subject.workspaceId), { enabled: opts.poweredBy === true, landingUrl: `${ctx.config.webBaseUrl}/` });
-    const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: recipients, subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}` });
-    await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: id }, subject.workspaceId);
+    const ids: string[] = [];
+    for (const [locale, group] of await letterLocales(ctx, recipients, opts.recipientWorkspaceId)) {
+      const letter = await renderLetter(ctx, kind, fieldsIn(fields, locale), subject.workspaceId, locale);
+      const rendered = withPoweredBy(kind, letter, { enabled: opts.poweredBy === true, landingUrl: `${ctx.config.webBaseUrl}/`, locale });
+      const key = `${kind}:${subject.id}:${ctx.now().toISOString().slice(0, 10)}${locale === DEFAULT_LOCALE ? "" : `:${locale}`}`;
+      const { id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: group, subject: rendered.subject, html: rendered.html, text: rendered.text, ...(letter.asWritten ? {} : { locale }), idempotencyKey: key });
+      ids.push(id);
+    }
+    await audit(ctx, "communication.sent", subject.type, subject.id, { template: kind, messageId: ids[0], ...(ids.length > 1 ? { messageIds: ids } : {}) }, subject.workspaceId);
     return { sent: true };
   } catch (e) {
     await audit(ctx, "communication.failed", subject.type, subject.id, { template: kind, error: e instanceof Error ? e.name : "error" }, subject.workspaceId);
@@ -506,7 +534,7 @@ export async function submitApplication(ctx: ServiceContext, appId: string): Pro
       links: { status: `${ctx.config.webBaseUrl}/w/${applicant.handle}/applications/app_${submitted.id}` },
     },
     { type: "application", id: submitted.id, workspaceId: funder.id },
-    { poweredBy: poweredByOf(funder) },
+    { poweredBy: poweredByOf(funder), recipientWorkspaceId: applicant.id },
   );
   return project(ctx, submitted);
 }

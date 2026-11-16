@@ -16,7 +16,8 @@
 //
 // Turning a digest on is a person's own choice: agents and API clients may read the settings and
 // the preview, never change them. A person removed from a workspace stops getting its digests.
-import { CONTENT_DIGESTS, CONTENT_DIGEST_LABEL, CONTENT_DIGEST_TEMPLATE, DEADLINE_DIGEST_DAYS, MAX_DIGEST_MATCHES, OUTSIDE_DEADLINE_OFFSETS, deadlinesDigestEmail, funderActivityDigestEmail, newMatchesDigestEmail, type ContentDigest, type DigestDeadline, type DigestEmail, type DigestFrame, type DigestMatch, type FunderActivityCounts } from "@gms/notify";
+import { DEFAULT_LOCALE, formatNumber, type Locale } from "@gms/i18n";
+import { CONTENT_DIGESTS, CONTENT_DIGEST_LABEL, CONTENT_DIGEST_TEMPLATE, DEADLINE_DIGEST_DAYS, MAX_DIGEST_MATCHES, OUTSIDE_DEADLINE_OFFSETS, deadlinesDigestEmail, emailT, funderActivityDigestEmail, newMatchesDigestEmail, type ContentDigest, type DigestDeadline, type DigestEmail, type DigestFrame, type DigestMatch, type FunderActivityCounts } from "@gms/notify";
 import { z } from "zod";
 import { scopesForRole, type WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
@@ -25,7 +26,9 @@ import { apiId, uuidOf } from "../lib/ids.ts";
 import { discoverCompetitions, openGrants } from "./applicant.ts";
 import { authorize, fundScopeOf, isOutsideCowriter, makeActor, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { scopeToFunds } from "./fund-scope.ts";
+import { deadlineLabel } from "./member-mail.ts";
 import { normalizePreferences } from "./notifications.ts";
+import { recipientLocale, recipientLocales } from "./preferences.ts";
 // Where an outside deadline is still reminded (the daily reminder in jobs.ts reads the same list).
 import { OUTSIDE_REMINDABLE, OUTSIDE_ROLES } from "./outside.ts";
 import { workspaceDeadlines } from "./pipeline.ts";
@@ -61,8 +64,12 @@ const DESCRIPTION: Record<ContentDigest, string> = {
   deadlines: "Your deadlines in the next 3 weeks: applications you track here, application stages and reports due to funders.",
   funder_activity: "New applications, reviews due, payments due and reports overdue this week, as counts with links. Never an applicant's answers.",
 };
-const OPENGRANTS_UNAVAILABLE_NOTE = "We couldn't reach OpenGrants this week, so this email lists only opportunities on this site. Next week's will include OpenGrants again.";
-const OPENGRANTS_PROFILE_NOTE = "To get matches from OpenGrants too, add your mission to your organization profile.";
+const OPENGRANTS_UNAVAILABLE_NOTE = emailT()("digest.matches.openGrantsDown");
+const OPENGRANTS_PROFILE_NOTE = emailT()("digest.matches.profileIncomplete");
+/** The note under the matches in the reader's language. */
+const noteIn = (note: string | null, locale: Locale) => (note === OPENGRANTS_UNAVAILABLE_NOTE ? emailT(locale)("digest.matches.openGrantsDown") : note === OPENGRANTS_PROFILE_NOTE ? emailT(locale)("digest.matches.profileIncomplete") : note);
+/** "up to $50,000" in a language. */
+const upToIn = (amount: number, locale: Locale) => emailT(locale)("digest.matches.upTo", { amount: `$${formatNumber(locale, amount)}` });
 
 const DAY_MS = 86_400_000;
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -239,6 +246,8 @@ export const newRun = (maxOpenGrantsCalls = MAX_OPENGRANTS_CALLS_PER_RUN): Diges
 
 interface Candidate extends DigestMatch {
   key: string;
+  /** A GMS opportunity's largest award, written into `amount` in the reader's language. */
+  upTo?: number;
   /** Its GMS opportunity too, when an OpenGrants listing points back at one. */
   alsoKey: string | null;
 }
@@ -270,7 +279,8 @@ async function matchCandidates(ctx: ServiceContext, ws: Ws, run: DigestRun) {
     if (!c.acceptingApplications || !eligible || c.application || !c.url) continue;
     const funding = c.opportunity.funding as { maxAwardAmount?: { amount?: string } } | null;
     const max = Number(funding?.maxAwardAmount?.amount);
-    gms.push({ key: gmsKey(c.opportunity.id), alsoKey: null, title: c.opportunity.title, funder: c.funder.name, deadline: typeof c.stage?.closes === "string" ? c.stage.closes.slice(0, 10) : null, amount: Number.isFinite(max) && max > 0 ? `up to $${Math.round(max).toLocaleString("en-US")}` : null, source: "gms", link: c.url });
+    const upTo = Number.isFinite(max) && max > 0 ? Math.round(max) : null;
+    gms.push({ key: gmsKey(c.opportunity.id), alsoKey: null, title: c.opportunity.title, funder: c.funder.name, deadline: typeof c.stage?.closes === "string" ? c.stage.closes.slice(0, 10) : null, amount: upTo ? upToIn(upTo, DEFAULT_LOCALE) : null, ...(upTo ? { upTo } : {}), source: "gms", link: c.url });
   }
   gms.sort((a, b) => (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999"));
   const openGrantsResults: Candidate[] = [];
@@ -341,7 +351,7 @@ export async function buildNewMatches(ctx: ServiceContext, ws: Ws, userId: strin
  * daily reminder emailed this person today: an outside deadline on one of its reminder days for
  * someone the reminder goes to, and a report whose reminder went out today.
  */
-export async function buildDeadlines(base: BaseContext, ws: Ws, m: Member, run: DigestRun): Promise<DigestDeadline[]> {
+export async function buildDeadlines(base: BaseContext, ws: Ws, m: Member, run: DigestRun, locale: Locale = DEFAULT_LOCALE): Promise<DigestDeadline[]> {
   const now = base.now();
   const today = day(now);
   const until = day(plusDays(now, DEADLINE_DIGEST_DAYS));
@@ -362,13 +372,13 @@ export async function buildDeadlines(base: BaseContext, ws: Ws, m: Member, run: 
           if (oa.owner_user_id === m.user_id || open.some((q) => q.assignee_user_id === m.user_id)) continue;
         }
       }
-      out.push({ date: d.date, label: d.label, title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/outside/${id}` });
+      out.push({ date: d.date, label: deadlineLabel(d, locale), title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/outside/${id}` });
     } else if (kind === "req") {
       const sentToday = (await base.repos.table("reminder_sends").find({ requirement_id: id }, { limit: 50 })).some((r) => r.sent_at.slice(0, 10) === today);
       if (sentToday) continue;
-      out.push({ date: d.date, label: d.label, title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/reports` });
+      out.push({ date: d.date, label: deadlineLabel(d, locale), title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/reports` });
     } else {
-      out.push({ date: d.date, label: d.label, title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/applications/${apiId("application", id)}/edit` });
+      out.push({ date: d.date, label: deadlineLabel(d, locale), title: d.title, funder: d.funder, link: `${web}/w/${ws.handle}/applications/${apiId("application", id)}/edit` });
     }
   }
   return out;
@@ -413,15 +423,16 @@ interface Composed {
 }
 
 /** One digest for one member, or null when there is nothing new. */
-async function compose(ctx: ServiceContext, digest: ContentDigest, ws: Ws, m: Member, links: Pick<DigestFrame, "unsubscribeLink" | "oneClickUrl">, run: DigestRun): Promise<Composed | null> {
-  const frame: DigestFrame = { workspace: ws.display_name, settingsLink: `${ctx.config.webBaseUrl}/notifications`, ...links };
+async function compose(ctx: ServiceContext, digest: ContentDigest, ws: Ws, m: Member, links: Pick<DigestFrame, "unsubscribeLink" | "oneClickUrl">, run: DigestRun, locale: Locale = DEFAULT_LOCALE): Promise<Composed | null> {
+  const frame: DigestFrame = { workspace: ws.display_name, settingsLink: `${ctx.config.webBaseUrl}/notifications`, ...links, locale };
   if (digest === "new_matches") {
     const { items, note } = await buildNewMatches(ctx, ws, m.user_id, run);
     if (!items.length) return null;
-    return { email: newMatchesDigestEmail({ ...frame, items, note }), keys: items.flatMap((i) => [i.key, ...(i.alsoKey ? [i.alsoKey] : [])]) };
+    const shown = items.map((i) => (i.upTo ? { ...i, amount: upToIn(i.upTo, locale) } : i));
+    return { email: newMatchesDigestEmail({ ...frame, items: shown, note: noteIn(note, locale) }), keys: items.flatMap((i) => [i.key, ...(i.alsoKey ? [i.alsoKey] : [])]) };
   }
   if (digest === "deadlines") {
-    const items = await buildDeadlines(ctx, ws, m, run);
+    const items = await buildDeadlines(ctx, ws, m, run, locale);
     return items.length ? { email: deadlinesDigestEmail({ ...frame, items, today: day(ctx.now()) }), keys: [] } : null;
   }
   const counts = await buildFunderActivity(ctx, ws, run);
@@ -446,7 +457,8 @@ export async function previewDigest(ctx: ServiceContext, query: unknown) {
   await authorize(ctx, { scope: PREVIEW_SCOPE[digest] });
   const sub = await ctx.repos.table("digest_subscriptions").one({ member_id: member.id });
   const sample = `${ctx.config.webBaseUrl}/digests/unsubscribe`;
-  const made = await compose(ctx, digest, row, member, { unsubscribeLink: sample, oneClickUrl: `${ctx.config.baseUrl}/gms/digests/unsubscribe` }, newRun(1));
+  // Written as the person will get it: in the language of their emails.
+  const made = await compose(ctx, digest, row, member, { unsubscribeLink: sample, oneClickUrl: `${ctx.config.baseUrl}/gms/digests/unsubscribe` }, newRun(1), await recipientLocale(ctx.ports, member.user_id));
   return { digest, label: CONTENT_DIGEST_LABEL[digest], on: !!sub?.[COLUMN[digest]], sendsOn: nextSendOn(ctx.now()), willSend: !!made, subject: made?.email.subject ?? null, text: made?.email.text ?? null };
 }
 
@@ -492,6 +504,7 @@ export async function sendContentDigests(base: BaseContext, opts: { maxOpenGrant
   const members = new Map((await inChunks(subs.map((s) => s.member_id), 100, (ids) => base.repos.table("workspace_members").find({ id: ids }))).map((m) => [m.id, m]));
   const workspaces = new Map((await inChunks([...new Set(subs.map((s) => s.workspace_id))], 100, (ids) => base.repos.table("workspaces").find({ id: ids }))).map((w) => [w.id, w]));
   const people = await directory.lookup([...new Set([...members.values()].map((m) => m.user_id))]);
+  const locales = await recipientLocales(base.ports, [...new Set([...members.values()].map((m) => m.user_id))]);
   for (const sub of subs) {
     for (const digest of CONTENT_DIGESTS.filter((d) => sub[COLUMN[d]])) {
       try {
@@ -509,12 +522,13 @@ export async function sendContentDigests(base: BaseContext, opts: { maxOpenGrant
         }
         const token = await unsubscribeToken(secret, m.id, digest, new Date(now.getTime() + UNSUBSCRIBE_TTL_DAYS * DAY_MS));
         const links = { unsubscribeLink: `${base.config.webBaseUrl}/digests/unsubscribe#token=${token}`, oneClickUrl: `${base.config.baseUrl}/gms/digests/unsubscribe?token=${token}` };
-        const made = await compose(memberContext(base, m, ws), digest, ws, m, links, run);
+        const locale = locales.get(m.user_id) ?? DEFAULT_LOCALE;
+        const made = await compose(memberContext(base, m, ws), digest, ws, m, links, run, locale);
         if (!made) {
           out.empty++;
           continue;
         }
-        const sent = await mailer.send({ from, to: [to], subject: made.email.subject, text: made.email.text, html: made.email.html, headers: made.email.headers, idempotencyKey: `${CONTENT_DIGEST_TEMPLATE[digest]}:${m.id}:${week}`, tags: [{ name: "template", value: CONTENT_DIGEST_TEMPLATE[digest] }] });
+        const sent = await mailer.send({ from, to: [to], subject: made.email.subject, text: made.email.text, html: made.email.html, headers: made.email.headers, locale, idempotencyKey: `${CONTENT_DIGEST_TEMPLATE[digest]}:${m.id}:${week}`, tags: [{ name: "template", value: CONTENT_DIGEST_TEMPLATE[digest] }] });
         try {
           await base.repos.table("digest_sends").insert({ workspace_id: ws.id, user_id: m.user_id, digest, iso_week: week, item_keys: made.keys.slice(0, 40), message_id: sent.id.slice(0, 200), sent_at: now.toISOString() });
         } catch (e) {

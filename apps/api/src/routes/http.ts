@@ -8,6 +8,7 @@ import { trimSlash } from "../env.ts";
 import { restTool, workspaceGates } from "../auth/rest-gates.ts";
 import { forbidden } from "../auth/verify.ts";
 import { badRequest, notFound, parsePagination } from "../lib/errors.ts";
+import { requestLocale } from "../lib/locale.ts";
 import { monthlyQuotaOf } from "../services/assist.ts";
 import { makeActor, type ServiceConfig, type ServiceContext } from "../services/context.ts";
 import type { PublicContext } from "../services/public.ts";
@@ -43,7 +44,7 @@ export function config(c: C): ServiceConfig {
 
 const base = (c: C) => {
   const deps = c.get("deps");
-  return { repos: deps.repos, ledger: deps.ledger, webhooks: deps.webhooks, now: deps.now, config: config(c), ports: deps.ports?.(c.env) ?? {} };
+  return { repos: deps.repos, ledger: deps.ledger, webhooks: deps.webhooks, now: deps.now, config: config(c), ports: deps.ports?.(c.env) ?? {}, locale: requestLocale({ url: c.req.url, header: (n) => c.req.header(n) }) };
 };
 
 /** The context for a workspace-bound caller. Use after `authenticate()`. */

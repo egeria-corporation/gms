@@ -30,6 +30,8 @@ import {
 import { createLocalJWKSet, decodeProtectedHeader, jwtVerify, type JSONWebKeySet } from "jose";
 import { b64url, timingSafeEqual } from "../auth/crypto.ts";
 import { log } from "../lib/log.ts";
+import { passportLinkedEmail } from "@gms/notify";
+import { recipientLocale } from "./preferences.ts";
 import { audit, makeActor, type BaseContext, type ServiceContext } from "./context.ts";
 import { consentScopes, linkApplicantOrganization, readConsentedOrganization } from "./organization.ts";
 import { AccountMismatchError } from "./ports.ts";
@@ -259,8 +261,9 @@ export async function confirmPassportLink(ctx: ServiceContext, sessionId: string
   if (outcome !== "recorded") return false;
   // Tell the account's own address: a link the person did not make is something to act on.
   if (accountEmail && ctx.ports.mailer && ctx.config.mailFrom) {
-    const text = `Your OpenGrants GMS account can now be signed in to with OpenGrants Passport.\n\nThis was set up just now, after someone signed in with Passport using this email address and then confirmed it with this account's own two-step verification. From now on, signing in with Passport is enough.\n\nIf this was not you, sign in at ${ctx.config.webBaseUrl}, end your other sessions in Account settings, and contact support so the link can be removed.`;
-    await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [accountEmail], subject: "Passport sign-in was linked to your account", text, html: `<p>${text.replace(/\n\n/g, "</p><p>")}</p>`, idempotencyKey: `passport-linked:${userId}` }).catch(() => undefined);
+    const locale = await recipientLocale(ctx.ports, userId);
+    const mail = passportLinkedEmail({ webBaseUrl: ctx.config.webBaseUrl, locale });
+    await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [accountEmail], subject: mail.subject, text: mail.text, html: mail.html, locale, idempotencyKey: `passport-linked:${userId}` }).catch(() => undefined);
   }
   return true;
 }

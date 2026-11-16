@@ -14,3 +14,4 @@ export * from "./migration.ts";
 export * from "./send-package.ts";
 export * from "./digests.ts";
 export * from "./i18n.ts";
+export * from "./notices.ts";

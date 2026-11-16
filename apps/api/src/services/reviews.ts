@@ -3,6 +3,8 @@
 // exclusion), COI declaration, rubric scoring, blind mode, external reviewers, and the ranking the
 // panel reads. Scores are computed by `@gms/review`; nothing derived is stored.
 import { autoAssign, canSeeOtherReviews, DEFAULT_COI_POLICY, declaredMatches, detectCoi, emailDomain, matchDeclaredOrgs, rankApplications, redactText, scoreReview, type AssignableApplication, type Criterion, type DeclaredOrg, type ReviewerProfile, type Rubric, type Scores, type ViewerRole } from "@gms/review";
+import { reviewerInvitationEmail } from "@gms/notify";
+import { addressLocale } from "./recipient-locale.ts";
 import { toCsv } from "@gms/importers";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
@@ -467,9 +469,10 @@ export async function inviteExternalReviewer(ctx: ServiceContext, competitionUui
   let emailed = false;
   if (ctx.ports.mailer && ctx.config.mailFrom) {
     const funder = await ctx.repos.table("workspaces").one({ id: ws.id });
-    const who = funder?.display_name ?? "A funder";
+    const locale = await addressLocale(ctx, email);
+    const mail = reviewerInvitationEmail({ funder: funder?.display_name ?? null, competition: competition.title, acceptUrl, expiresOn: expiresAt.slice(0, 10), locale });
     try {
-      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [email], subject: `${who} invited you to review applications`, text: `${who} invited you to review applications for ${competition.title} on OpenGrants GMS.\n\nAccept the invitation: ${acceptUrl}\n\nThe link expires on ${expiresAt.slice(0, 10)}.`, html: `<p>${escape(who)} invited you to review applications for ${escape(competition.title)} on OpenGrants GMS.</p><p><a href="${acceptUrl}">Accept the invitation</a></p><p>The link expires on ${expiresAt.slice(0, 10)}.</p>`, idempotencyKey: `invite:${row.id}` });
+      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [email], subject: mail.subject, text: mail.text, html: mail.html, locale, idempotencyKey: `invite:${row.id}` });
       emailed = true;
     } catch {
       // The invitation stands; the link is returned so staff can pass it on.
@@ -477,8 +480,6 @@ export async function inviteExternalReviewer(ctx: ServiceContext, competitionUui
   }
   return { id: row.id, email, role: "external_reviewer", competitionId: apiId("competition", competition.id), expiresAt, token, acceptUrl, emailed };
 }
-
-const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // ------------------------------------------------------------------------------------ review parity (v1.8.0)
 //

@@ -8,6 +8,7 @@ import { apiId } from "../lib/ids.ts";
 import { access } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { mailMembers } from "./member-mail.ts";
+import { threadMessageSubject } from "@gms/notify";
 import { loadOutside } from "./outside.ts";
 import { NON_REVIEWER_ROLES } from "./review-privacy.ts";
 import type { Row } from "./repos/types.ts";
@@ -78,8 +79,10 @@ async function notifyThread(ctx: ServiceContext, thread: Thread, ws: ServiceWork
       // Reviewers cannot open threads, so they are never mailed one: the message would name the applicant.
       ...(workspaceId === thread.funder_workspace_id ? { roles: NON_REVIEWER_ROLES } : {}),
       category: "application",
-      subject: `New message${app?.title ? ` about ${app.title}` : ""} from ${sender?.display_name ?? "a collaborator"}`,
+      subject: threadMessageSubject({ title: app?.title ?? null, sender: sender?.display_name ?? null }),
       text: message.body.slice(0, 2000),
+      // The subject in each member's language; the message is as its author wrote it.
+      localized: (locale) => ({ subject: threadMessageSubject({ title: app?.title ?? null, sender: sender?.display_name ?? null, locale }), text: message.body.slice(0, 2000) }),
       link,
       exceptUserId: ctx.actor.userId,
       ...(replyTo ? { replyTo } : {}),

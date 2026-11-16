@@ -156,7 +156,7 @@ export async function sendAgreement(ctx: ServiceContext, agreementId: string, _i
   const path = await store(ctx, sent, "unsigned", bytes, sha256, award);
   if (path) await ctx.repos.table("agreements").update({ id: sent.id }, { rendered_pdf_path: path });
   const f = await awardFields(ctx, award);
-  const letter = await sendLetter(ctx, "award_agreement", f.recipientEmail, f.fields, { type: "agreement", id: sent.id, workspaceId: award.workspace_id });
+  const letter = await sendLetter(ctx, "award_agreement", f.recipientEmail, f.fields, { type: "agreement", id: sent.id, workspaceId: award.workspace_id }, { recipientWorkspaceId: award.recipient_workspace_id });
   return { ...agreementView(required(await ctx.repos.table("agreements").one({ id: sent.id }), "Agreement")), letter };
 }
 

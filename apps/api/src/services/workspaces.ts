@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Workspaces, members and invitations (build spec §9.2, workspace & team).
-import { escapeHtml } from "@gms/notify";
+import { workspaceInvitationEmail } from "@gms/notify";
+import { addressLocale } from "./recipient-locale.ts";
 import { z } from "zod";
 import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { APPLICANT_ROLES, FUNDER_ROLES, roleRequiresMfa, type WorkspaceKind } from "../auth/scopes.ts";
@@ -325,10 +326,11 @@ export async function createInvitation(ctx: ServiceContext, workspaceId: string,
   let emailed = false;
   if (ctx.ports.mailer && ctx.config.mailFrom) {
     const target = await ctx.repos.table("workspaces").one({ id: workspaceId });
-    const name = target?.display_name ?? "a workspace";
-    const text = `You have been invited to join ${name} on OpenGrants GMS as ${input.role.replace(/_/g, " ")}.\n\nAccept the invitation (it expires on ${expiresAt.slice(0, 10)}):\n${acceptUrl}\n\nIf you were not expecting this, you can ignore this email.`;
+    // The invitee's language when the address already has an account with a saved preference; English otherwise.
+    const locale = await addressLocale(ctx, row.email);
+    const mail = workspaceInvitationEmail({ workspace: target?.display_name ?? null, role: input.role, expiresOn: expiresAt.slice(0, 10), acceptUrl, locale });
     try {
-      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [row.email], subject: `You are invited to ${name} on OpenGrants GMS`, text, html: text.split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join(""), idempotencyKey: `invitation:${row.id}` });
+      await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [row.email], subject: mail.subject, text: mail.text, html: mail.html, locale, idempotencyKey: `invitation:${row.id}` });
       emailed = true;
     } catch {
       // The invitation stands; the admin can pass the link on.
