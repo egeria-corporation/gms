@@ -21,6 +21,11 @@ export function watchActions(doc: Document = document): () => void {
   };
 }
 
+/** Forgets the last action, as on a fresh page (tests). */
+export function forgetActions(): void {
+  lastAction = 0;
+}
+
 /** True when the person acted within the last few seconds: a message now is the result. */
 export const actedRecently = (withinMs = 8000): boolean => Date.now() - lastAction < withinMs;
 

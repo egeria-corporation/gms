@@ -274,7 +274,7 @@ export function Notice({ tone = "info", title, children }: { tone?: "info" | "ok
   const box = useRef<HTMLDivElement>(null);
   const said = typeof children === "string" ? children : null;
   useEffect(() => {
-    if (actedRecently()) announce(box.current?.textContent ?? title);
+    if (actedRecently()) announce([title, box.current?.querySelector(".d")?.textContent].filter(Boolean).join(". "));
   }, [title, said]);
   return (
     <div ref={box} className={`bnr bnr-${tone}`} role="status" aria-live="off">

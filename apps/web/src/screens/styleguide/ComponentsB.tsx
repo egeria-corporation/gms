@@ -125,7 +125,7 @@ export default function ComponentsB() {
                   </p>
                 </div>
               </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Component table, scrollable" style={{ border: "0", borderRadius: "0" }}>
                 <table className="tbl">
                   <thead>
                     <tr>
