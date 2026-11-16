@@ -645,7 +645,7 @@
   "galleryParts.instructionsForApplicants": "Instrucciones para solicitantes.",
   "galleryParts.rubric": "Rúbrica: {name}",
   "galleryParts.criteriaScrollable": "Criterios de {name}, con desplazamiento",
-  "galleryParts.criteria": "{count, plural, one {# criterio} other {# criterios}}",
+  "galleryParts.criteria": "Criterios de {name}",
   "galleryParts.criterion": "Criterio",
   "galleryParts.scale": "Escala",
   "galleryParts.weight": "Peso",
@@ -1047,5 +1047,6 @@
   "meta.award.plain": "Una subvención otorgada en {year}, para «{purpose}».",
   "meta.award.amount": "Una subvención de {amount} otorgada en {year}, para «{purpose}».",
   "meta.award.program": "Una subvención otorgada en {year} a través de {program}, para «{purpose}».",
-  "meta.award.amountProgram": "Una subvención de {amount} otorgada en {year} a través de {program}, para «{purpose}»."
+  "meta.award.amountProgram": "Una subvención de {amount} otorgada en {year} a través de {program}, para «{purpose}».",
+  "galleryParts.criteriaCount": "{count, plural, one {# criterio} other {# criterios}}"
 }

@@ -645,7 +645,7 @@
   "galleryParts.instructionsForApplicants": "Instructions for applicants.",
   "galleryParts.rubric": "Rubric: {name}",
   "galleryParts.criteriaScrollable": "{name} criteria, scrollable",
-  "galleryParts.criteria": "{count, plural, one {# criterion} other {# criteria}}",
+  "galleryParts.criteria": "{name} criteria",
   "galleryParts.criterion": "Criterion",
   "galleryParts.scale": "Scale",
   "galleryParts.weight": "Weight",
@@ -1047,5 +1047,6 @@
   "meta.award.plain": "A grant awarded in {year}, for “{purpose}”.",
   "meta.award.amount": "A {amount} grant awarded in {year}, for “{purpose}”.",
   "meta.award.program": "A grant awarded in {year} through {program}, for “{purpose}”.",
-  "meta.award.amountProgram": "A {amount} grant awarded in {year} through {program}, for “{purpose}”."
+  "meta.award.amountProgram": "A {amount} grant awarded in {year} through {program}, for “{purpose}”.",
+  "galleryParts.criteriaCount": "{count, plural, one {# criterion} other {# criteria}}"
 }

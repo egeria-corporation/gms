@@ -206,7 +206,7 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
             <div className="card-h">
               <h3>{r.name}</h3>
               <span className="tag">
-                {tr("galleryParts.criteria", { count: criteria.length })}
+                {tr("galleryParts.criteriaCount", { count: criteria.length })}
               </span>
             </div>
             <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("galleryParts.criteriaScrollable", { name: r.name })} style={{ border: 0, borderRadius: 0 }}>

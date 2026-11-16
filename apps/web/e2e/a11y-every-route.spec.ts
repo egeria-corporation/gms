@@ -4,6 +4,8 @@
 // Any WCAG A or AA violation fails, whatever its impact. The phone pass also fails on sideways
 // scrolling. A route added to App.tsx without an entry in a11y-routes.ts fails the first test.
 // The manual checks and the conformance report: docs/accessibility.md.
+// Every route runs again in Spanish (docs/i18n.md) at a desktop and a phone width, in the light
+// scheme: a language changes the words, their length and the page's `lang`, not its colours.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -38,9 +40,14 @@ function appRoutePatterns(): string[] {
   return [...out].sort();
 }
 
+/** The Spanish pass: the same routes at a desktop and a phone width (docs/i18n.md). */
+const SPANISH_COMBOS = [COMBOS[0]!, COMBOS[2]!];
+
 /** Opens a case in a fresh browser context, as its person, and waits for the screen's data. */
-async function openCase(browser: Browser, c: RouteCase, combo: (typeof COMBOS)[number]): Promise<{ page: Page; problems: string[]; close: () => Promise<void> }> {
+async function openCase(browser: Browser, c: RouteCase, combo: (typeof COMBOS)[number], locale: "en" | "es" = "en"): Promise<{ page: Page; problems: string[]; close: () => Promise<void> }> {
   const context = await browser.newContext({ viewport: combo.viewport, colorScheme: combo.colorScheme });
+  // The language a visitor chose: the cookie the switcher sets (docs/i18n.md).
+  if (locale !== "en") await context.addCookies([{ name: "gms_lang", value: locale, url: test.info().project.use.baseURL ?? "http://localhost:5179" }]);
   if (c.who === "signed-out" || c.who === "guest-reviewer") {
     // The mock keeps its session in sessionStorage; start this tab signed out.
     await context.addInitScript(() => {
@@ -93,6 +100,29 @@ for (const [pattern, cases] of Object.entries(ROUTES)) {
             if (combo.viewport.width < 500 && !FIXED_LAYOUT.test(c.path)) {
               const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
               expect(sideways, `${page.url()} scrolls sideways at ${combo.viewport.width}px`).toBeLessThanOrEqual(0);
+            }
+            expect(problems, "no console or page errors").toEqual([]);
+          } finally {
+            await close();
+          }
+        });
+      }
+    });
+  });
+}
+
+for (const [pattern, cases] of Object.entries(ROUTES)) {
+  cases.forEach((c, i) => {
+    test(`axe in Spanish: ${pattern} #${i + 1} (${c.who}, ${c.path})`, async ({ browser }) => {
+      for (const combo of SPANISH_COMBOS) {
+        await test.step(combo.name, async () => {
+          const { page, problems, close } = await openCase(browser, c, combo, "es");
+          try {
+            expect(await page.evaluate(() => document.documentElement.lang), "the page says it is in Spanish").toBe("es");
+            expect(await axeViolations(page), `${page.url()} in Spanish at ${combo.name}`).toEqual([]);
+            if (combo.viewport.width < 500 && !FIXED_LAYOUT.test(c.path)) {
+              const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+              expect(sideways, `${page.url()} scrolls sideways at ${combo.viewport.width}px in Spanish`).toBeLessThanOrEqual(0);
             }
             expect(problems, "no console or page errors").toEqual([]);
           } finally {
