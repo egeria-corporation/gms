@@ -38,6 +38,8 @@ import {
   type WidgetName,
   type WidgetOptions,
 } from "@gms/forms";
+import { getLocale, intlLocale } from "../i18n/index.tsx";
+import { t, useApplicantText } from "../screens/applicant/i18n.ts";
 
 export type FormMode = "edit" | "reviewer" | "funder" | "print";
 
@@ -109,7 +111,7 @@ function isRequired(root: FormSchema, path: string): boolean {
 function formatMoney(v: unknown): string {
   if (!isMoney(v)) return "";
   try {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(intlLocale(), {
       style: "currency",
       currency: v.currency,
       maximumFractionDigits: toMinor(v.amount) % 100 === 0 ? 0 : 2,
@@ -121,25 +123,28 @@ function formatMoney(v: unknown): string {
 
 function formatDate(v: string): string {
   const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00` : v);
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  // Spanish spells the month out ("15 de noviembre de 2026"), as lib/format.ts does.
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString(intlLocale(), { year: "numeric", month: getLocale() === "en" ? "short" : "long", day: "numeric" });
 }
 
-const PROVENANCE: Record<string, { cls: string; label: string; icon: typeof BadgeCheck }> = {
-  passport: { cls: "prov-passport", label: "From Passport", icon: BadgeCheck },
-  library: { cls: "prov-library", label: "From library", icon: BookOpen },
-  prior_submission: { cls: "prov-report", label: "From prior report", icon: FileText },
-  qbo: { cls: "prov-qb", label: "From QuickBooks", icon: FileText },
-  user: { cls: "prov-entered", label: "Entered", icon: Pencil },
+// Labels are getters, read in the page's language each time (docs/i18n.md).
+const PROVENANCE: Record<string, { cls: string; readonly label: string; icon: typeof BadgeCheck }> = {
+  passport: { cls: "prov-passport", get label() { return t("form.provenance.passport"); }, icon: BadgeCheck },
+  library: { cls: "prov-library", get label() { return t("form.provenance.library"); }, icon: BookOpen },
+  prior_submission: { cls: "prov-report", get label() { return t("form.provenance.priorReport"); }, icon: FileText },
+  qbo: { cls: "prov-qb", get label() { return t("form.provenance.quickbooks"); }, icon: FileText },
+  user: { cls: "prov-entered", get label() { return t("form.provenance.entered"); }, icon: Pencil },
   // Filled from the details the organization entered itself (no Passport record behind them).
-  self_declared: { cls: "prov-entered", label: "You entered", icon: Pencil },
+  self_declared: { cls: "prov-entered", get label() { return t("form.provenance.youEntered"); }, icon: Pencil },
 };
 
 /** What the applicant's own details are called for anyone else reading the form (review NP-15). */
-const FOR_OTHERS: Record<string, string> = { self_declared: "Self-reported" };
+const FOR_OTHERS: Record<string, () => string> = { self_declared: () => t("form.provenance.selfReported") };
 
 export function ProvenanceChip({ source, forApplicant = true }: { source: string; forApplicant?: boolean }) {
-  const base = PROVENANCE[source] ?? (source.startsWith("agent:") ? { cls: "prov-agent", label: "Agent draft", icon: Bot } : null);
-  const known = base && !forApplicant && FOR_OTHERS[source] ? { ...base, label: FOR_OTHERS[source]! } : base;
+  useApplicantText();
+  const base = PROVENANCE[source] ?? (source.startsWith("agent:") ? { cls: "prov-agent", label: t("form.provenance.agentDraft"), icon: Bot } : null);
+  const known = base && !forApplicant && FOR_OTHERS[source] ? { ...base, label: FOR_OTHERS[source]!() } : base;
   if (!known) return null;
   const Icon = known.icon;
   return (
@@ -191,6 +196,7 @@ interface Ctx {
 }
 
 export function FormView(props: FormViewProps) {
+  useApplicantText();
   const { form, mode, onChange, onAutosave, autosaveDelayMs = 800 } = props;
   const uid = useId();
   const [response, setResponse] = useState<JsonObject>(props.response);
@@ -321,7 +327,7 @@ function Categorization({ el, ctx }: { el: UiLayout; ctx: Ctx }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div className="tabs" role="tablist" aria-label={el.label ?? "Sections"}>
+      <div className="tabs" role="tablist" aria-label={el.label ?? t("form.sections")}>
         {categories.map((c, i) => {
           const n = countErrors(c);
           return (
@@ -376,7 +382,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
         {ctx.masked.has(path) ? (
           <span className="masked" style={{ alignSelf: "flex-start" }}>
             <EyeOff className="ic ic-sm" aria-hidden="true" />
-            Hidden from external reviewers
+            {t("form.hiddenFromExternalReviewers")}
           </span>
         ) : (
           <ReadValue schema={schema} widget={widget} value={value} />
@@ -430,15 +436,15 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
       <Input {...common} widget={widget} required={required} />
       {widget === "passportField" && source === "self_declared" && (
         <span className="help">
-          {ctx.profileUrl ? <a href={ctx.profileUrl}>Change it in Settings</a> : "Change it in Settings"} · these details are entered by you, not verified
+          {ctx.profileUrl ? <a href={ctx.profileUrl}>{t("form.changeItInSettings")}</a> : t("form.changeItInSettings")} · {t("form.selfDeclaredNote")}
         </span>
       )}
       {widget === "passportField" && source !== "self_declared" && ctx.passportLinked && (
         <span className="help">
           <a href={ctx.passportUrl} target="_blank" rel="noreferrer">
-            Edit in Passport
+            {t("form.editInPassport")}
           </a>{" "}
-          · values from your Passport record are read-only here
+          · {t("form.passportReadOnly")}
         </span>
       )}
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
@@ -447,7 +453,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
         </span>
         {wordLimit?.max !== undefined && (
           <span className={words > wordLimit.max ? "counter over" : "counter"} aria-live="polite">
-            {words} / {wordLimit.max} words
+            {t("form.wordCounter", { words, max: wordLimit.max })}
           </span>
         )}
       </div>
@@ -462,9 +468,9 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
 }
 
 const Required = () => (
-  <span className="req" title="Required">
+  <span className="req" title={t("form.required")}>
     <span aria-hidden="true">*</span>
-    <span className="sr">required</span>
+    <span className="sr">{t("form.requiredSr")}</span>
   </span>
 );
 
@@ -472,10 +478,50 @@ function dedupe(errors: ValidationError[]): ValidationError[] {
   const seen = new Set<string>();
   return errors.filter((e) => !seen.has(e.message) && seen.add(e.message));
 }
+/**
+ * A validation message under its field, in the page's language. The rules (@gms/forms) word their
+ * messages in English; each known one is shown from the catalog, anything else as written. A
+ * message that starts with a capital (from the API) is a sentence of its own.
+ */
 function errorText(e: ValidationError, label: string): string {
   const m = e.message;
-  return /^[A-Z]/.test(m) ? m : `${label} ${m}`;
+  if (/^[A-Z]/.test(m)) return m;
+  for (const [pattern, text] of ERROR_TEXT) {
+    const match = pattern.exec(m);
+    if (match) return text(match, label, e.type);
+  }
+  return `${label} ${m}`;
 }
+
+const FORMAT_KIND: Record<string, string> = { email: "email", uri: "uri", date: "date", "date-time": "datetime" };
+const ERROR_TEXT: [RegExp, (m: RegExpExecArray, label: string, type: string) => string][] = [
+  [/^is required$/, (_, label) => t("form.error.required", { label })],
+  [/^is not an expected field$/, (_, label) => t("form.error.unexpected", { label })],
+  [/^must be (string|number|integer|boolean|object|array|null)$/, (_, label) => t("form.error.type", { label, type: _[1] })],
+  [/^must be one of the allowed values$/, (_, label) => t("form.error.enum", { label })],
+  [/^must equal the required value$/, (_, label) => t("form.error.const", { label })],
+  [/^must be at least (\d+) characters$/, (m, label) => t("form.error.minLength", { label, min: Number(m[1]) })],
+  [/^must be at most (\d+) characters$/, (m, label) => t("form.error.maxLength", { label, max: Number(m[1]) })],
+  [/^is not in the expected format$/, (_, label) => t("form.error.pattern", { label })],
+  [/^must be a valid (\S+)$/, (m, label) => t("form.error.format", { label, kind: FORMAT_KIND[m[1]!] ?? "other", format: m[1] })],
+  [/^must be at most (\d+) words \(currently (\d+)\)$/, (m, label) => t("form.error.maxWords", { label, max: Number(m[1]), count: Number(m[2]) })],
+  [/^must be at least (\d+) words \(currently (\d+)\)$/, (m, label) => t("form.error.minWords", { label, min: Number(m[1]), count: Number(m[2]) })],
+  [/^must be at least (-?[\d.]+)$/, (m, label) => t("form.error.minimum", { label, min: m[1] })],
+  [/^must be at most (-?[\d.]+)$/, (m, label) => t("form.error.maximum", { label, max: m[1] })],
+  [/^must have at least (\d+) items?$/, (m, label) => t("form.error.minItems", { label, min: Number(m[1]) })],
+  [/^must have at most (\d+) items?$/, (m, label) => t("form.error.maxItems", { label, max: Number(m[1]) })],
+  [/^must not contain duplicates$/, (_, label) => t("form.error.unique", { label })],
+  [/^must be a phone number$/, (_, label) => t("form.error.phone", { label })],
+  [/^type your full legal name$/, (_, label) => t("form.error.signatureName", { label })],
+  [/^the attestation box must be checked$/, (_, label) => t("form.error.attestation", { label })],
+  [/^must be text$/, (_, label) => t("form.error.text", { label })],
+  [/^must be a decimal string such as "25000\.00"$/, (_, label) => t("form.error.decimal", { label })],
+  [/^must not be negative$/, (_, label) => t("form.error.negative", { label })],
+  [/^must be a three-letter ISO 4217 code$/, (_, label) => t("form.error.currencyCode", { label })],
+  [/^must be ([A-Z]{3})$/, (m, label) => t("form.error.currency", { label, currency: m[1] })],
+  [/^must be one of: (.+)$/, (m, label) => t("form.error.oneOf", { label, options: m[1] })],
+  [/^budget total (\S+) exceeds the requested amount (\S+)$/, (m, label) => t("form.error.budgetTotal", { label, total: m[1], max: m[2] })],
+];
 
 // ---------------------------------------------------------------------------------------------
 // read-only values
@@ -489,8 +535,8 @@ function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: Widg
   if (widget === "signature" && isPlainObject(value)) {
     return (
       <div>
-        Signed by <span className="b">{String(value.name ?? "")}</span>
-        {value.attested === true ? " · attestation confirmed" : ""}
+        {t.rich("form.signedBy", { name: String(value.name ?? ""), b: (chunks) => <span className="b">{chunks}</span> })}
+        {value.attested === true ? ` · ${t("form.attestationConfirmed")}` : ""}
       </div>
     );
   }
@@ -505,25 +551,25 @@ function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: Widg
   if (widget === "fileRef" && isPlainObject(value)) {
     return (
       <div className="doc">
-        <span className="ft">FILE</span>
+        <span className="ft">{t("form.file")}</span>
         <div className="grow">
-          <div className="nm">{String(value.name ?? value.documentId ?? value.passportDocumentId ?? "Attachment")}</div>
-          {value.passportDocumentId ? <div className="mt">Passport locker</div> : null}
+          <div className="nm">{String(value.name ?? value.documentId ?? value.passportDocumentId ?? t("form.attachment"))}</div>
+          {value.passportDocumentId ? <div className="mt">{t("form.passportLocker")}</div> : null}
         </div>
       </div>
     );
   }
-  if (typeof value === "boolean") return <div>{value ? "Yes" : "No"}</div>;
+  if (typeof value === "boolean") return <div>{t("form.yesNo", { value: value ? "yes" : "no" })}</div>;
   if (typeof value === "string") {
     if (schema.format === "date" || schema.format === "date-time") return <div>{formatDate(value)}</div>;
     return <div style={{ whiteSpace: "pre-wrap" }}>{value}</div>;
   }
-  if (typeof value === "number") return <div>{value.toLocaleString("en-US")}</div>;
+  if (typeof value === "number") return <div>{value.toLocaleString(intlLocale())}</div>;
   if (Array.isArray(value)) {
     if (value.every((v) => typeof v === "string" || typeof v === "number")) return <div>{value.join(", ")}</div>;
     const columns = Object.keys(schema.items?.properties ?? (isPlainObject(value[0]) ? value[0] : {}));
     return (
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("form.tableScrollable")}>
         <table className="tbl">
           <thead>
             <tr>
@@ -563,7 +609,7 @@ function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: Widg
 function formatCell(v: Json | undefined): string {
   if (v === undefined || v === null) return "";
   if (isMoney(v)) return formatMoney(v);
-  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "boolean") return t("form.yesNo", { value: v ? "yes" : "no" });
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
@@ -572,13 +618,13 @@ function BudgetRead({ rows }: { rows: Json }) {
   const list = Array.isArray(rows) ? rows.filter(isPlainObject) : [];
   const totals = computeBudgetTotals(rows);
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("form.tableScrollable")}>
       <table className="tbl bud">
         <thead>
           <tr>
-            <th>Category</th>
-            <th className="num">Amount</th>
-            <th>Notes</th>
+            <th>{t("form.category")}</th>
+            <th className="num">{t("form.amount")}</th>
+            <th>{t("form.notes")}</th>
           </tr>
         </thead>
         <tbody>
@@ -592,7 +638,7 @@ function BudgetRead({ rows }: { rows: Json }) {
         </tbody>
         <tfoot>
           <tr>
-            <td>Total</td>
+            <td>{t("form.total")}</td>
             <td className="num">{totals.total ? formatMoney(totals.total) : "—"}</td>
             <td></td>
           </tr>
@@ -706,7 +752,7 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
   if (schema.enum) {
     return (
       <select {...base} className={cls("sel", invalid)} value={text} onChange={(e) => ctx.set(path, e.target.value)}>
-        <option value="">Select…</option>
+        <option value="">{t("form.select")}</option>
         {schema.enum.map((o) => (
           <option key={String(o)} value={String(o)}>
             {String(o)}
@@ -849,15 +895,15 @@ function AddressInput({ id, path, value, ctx, disabled }: InputProps) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      {field("line1", "Street address", "address-line1")}
-      {field("line2", "Suite or unit (optional)", "address-line2")}
+      {field("line1", t("form.address.line1"), "address-line1")}
+      {field("line2", t("form.address.line2"), "address-line2")}
       <div className="fld-row">
-        {field("city", "City", "address-level2")}
-        {field("region", "State or region", "address-level1")}
+        {field("city", t("form.address.city"), "address-level2")}
+        {field("region", t("form.address.region"), "address-level1")}
       </div>
       <div className="fld-row">
-        {field("postalCode", "Postal code", "postal-code")}
-        {field("country", "Country", "country")}
+        {field("postalCode", t("form.address.postalCode"), "postal-code")}
+        {field("country", t("form.address.country"), "country")}
       </div>
     </div>
   );
@@ -870,7 +916,7 @@ function SignatureInput({ id, path, value, ctx, disabled, invalid }: InputProps)
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       <div className="fld">
         <label className="lbl" htmlFor={sub(id, "name")}>
-          Type your full legal name
+          {t("form.typeYourFullLegalName")}
         </label>
         <input
           id={sub(id, "name")}
@@ -902,7 +948,7 @@ function SignatureInput({ id, path, value, ctx, disabled, invalid }: InputProps)
           }}
         />
         <span className={v.attested === true ? "c on" : "c"} aria-hidden="true"></span>
-        <span>I am authorized to sign and I attest that this information is accurate.</span>
+        <span>{t("form.iAmAuthorizedToSignAnd")}</span>
       </label>
     </div>
   );
@@ -929,13 +975,13 @@ function FileInput({ id, path, value, ctx, disabled, describedBy, label }: Input
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {v && (
         <div className="doc">
-          <span className="ft">FILE</span>
+          <span className="ft">{t("form.file")}</span>
           <div className="grow">
             <div className="nm">{String(v.name ?? v.documentId ?? v.passportDocumentId)}</div>
-            {v.passportDocumentId ? <div className="mt">Passport locker</div> : null}
+            {v.passportDocumentId ? <div className="mt">{t("form.passportLocker")}</div> : null}
           </div>
           <button className="btn btn-sm btn-ghost" type="button" disabled={disabled} onClick={() => ctx.set(path, undefined)}>
-            Remove
+            {t("form.remove")}
           </button>
         </div>
       )}
@@ -957,7 +1003,7 @@ function FileInput({ id, path, value, ctx, disabled, describedBy, label }: Input
             ctx.set(path, { documentId: stored.documentId, name: stored.name });
             setState({ busy: false, error: null });
           } catch (err) {
-            setState({ busy: false, error: err instanceof Error ? err.message : "The file could not be uploaded." });
+            setState({ busy: false, error: err instanceof Error ? err.message : t("form.uploadFailed") });
           } finally {
             ctx.touch(path);
             if (input.current) input.current.value = "";
@@ -971,11 +1017,11 @@ function FileInput({ id, path, value, ctx, disabled, describedBy, label }: Input
           disabled={disabled || !ctx.uploadFile || state.busy}
           onClick={() => input.current?.click()}
           // Named by what it shows, then which field it fills; described by the field's help and errors.
-          aria-label={`${state.busy ? "Uploading…" : v ? "Replace file" : "Upload"}, ${label}`}
+          aria-label={state.busy ? t("form.uploadingField", { label }) : v ? t("form.replaceFileField", { label }) : t("form.uploadField", { label })}
           aria-describedby={describedBy}
         >
           <Upload className="ic" aria-hidden="true" />
-          {state.busy ? "Uploading…" : v ? "Replace file" : "Upload"}
+          {state.busy ? t("form.uploading") : v ? t("form.replaceFile") : t("form.upload")}
         </button>
       </div>
       {state.error && (
@@ -1019,13 +1065,13 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("form.tableScrollable")}>
         <table className="tbl bud">
           <thead>
             <tr>
-              <th>Category</th>
-              <th className="num">Amount ({currency})</th>
-              <th>Notes</th>
+              <th>{t("form.category")}</th>
+              <th className="num">{t("form.amountIn", { currency })}</th>
+              <th>{t("form.notes")}</th>
               {!fixed && <th></th>}
             </tr>
           </thead>
@@ -1041,7 +1087,7 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
                     ) : (
                       <input
                         className="inp"
-                        aria-label={`Category, row ${i + 1}`}
+                        aria-label={t("form.categoryRow", { row: i + 1 })}
                         disabled={disabled}
                         value={name}
                         onChange={(e) => patch(i, { category: e.target.value })}
@@ -1053,7 +1099,7 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
                       id={i === 0 ? id : undefined}
                       className="inp"
                       inputMode="decimal"
-                      aria-label={`Amount for ${name || `row ${i + 1}`}`}
+                      aria-label={name ? t("form.amountFor", { name }) : t("form.amountForRow", { row: i + 1 })}
                       disabled={disabled}
                       value={amount}
                       placeholder="0.00"
@@ -1068,7 +1114,7 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
                   <td>
                     <input
                       className="inp"
-                      aria-label={`Notes for ${name || `row ${i + 1}`}`}
+                      aria-label={name ? t("form.notesFor", { name }) : t("form.notesForRow", { row: i + 1 })}
                       disabled={disabled}
                       value={typeof row.notes === "string" ? row.notes : ""}
                       onChange={(e) => patch(i, { notes: e.target.value })}
@@ -1079,7 +1125,7 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
                       <button
                         className="iconbtn"
                         type="button"
-                        aria-label={`Remove row ${i + 1}`}
+                        aria-label={t("form.removeRow", { row: i + 1 })}
                         disabled={disabled}
                         onClick={() => patch(i, null)}
                       >
@@ -1093,13 +1139,13 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
           </tbody>
           <tfoot>
             <tr>
-              <td>Total</td>
+              <td>{t("form.total")}</td>
               <td className={over ? "num over" : "num"} data-testid="budget-total">
                 {formatMoney({ amount: (totals.totalMinor / 100).toFixed(2), currency })}
               </td>
               <td>
                 {cap !== null && (
-                  <span className="small muted">of {formatMoney({ amount: (cap / 100).toFixed(2), currency })} requested</span>
+                  <span className="small muted">{t("form.ofRequested", { amount: formatMoney({ amount: (cap / 100).toFixed(2), currency }) })}</span>
                 )}
               </td>
               {!fixed && <td></td>}
@@ -1116,14 +1162,14 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
             onClick={() => ctx.set(path, [...rows, { category: "" }])}
           >
             <Plus className="ic" aria-hidden="true" />
-            Add row
+            {t("form.addRow")}
           </button>
         </div>
       )}
       {over && (
         <span className="err-msg" role="alert">
           <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-          Budget total exceeds the requested amount by {formatMoney({ amount: ((totals.totalMinor - cap) / 100).toFixed(2), currency })}.
+          {t("form.budgetOver", { amount: formatMoney({ amount: ((totals.totalMinor - cap) / 100).toFixed(2), currency }) })}
         </span>
       )}
     </div>
@@ -1157,7 +1203,7 @@ function CellInput({
         onBlur={onBlur}
         onChange={(e) => onChange(e.target.value || undefined)}
       >
-        <option value="">Select…</option>
+        <option value="">{t("form.select")}</option>
         {schema.enum.map((o) => (
           <option key={String(o)} value={String(o)}>
             {String(o)}
@@ -1209,7 +1255,7 @@ function RepeatingGroup({ path, schema, value, ctx, disabled, label }: InputProp
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {rows.length > 0 && (
-        <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Table, scrollable">
+        <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("form.tableScrollable")}>
           <table className="tbl">
             <thead>
               <tr>
@@ -1227,7 +1273,7 @@ function RepeatingGroup({ path, schema, value, ctx, disabled, label }: InputProp
                       <CellInput
                         schema={s}
                         value={isPlainObject(row) ? row[key] : undefined}
-                        label={`${s.title ?? titleCase(key)}, row ${i + 1}`}
+                        label={t("form.cellRow", { column: s.title ?? titleCase(key), row: i + 1 })}
                         disabled={disabled}
                         onBlur={() => ctx.touch(path)}
                         onChange={(v) => setRow(i, key, v)}
@@ -1238,7 +1284,7 @@ function RepeatingGroup({ path, schema, value, ctx, disabled, label }: InputProp
                     <button
                       className="iconbtn"
                       type="button"
-                      aria-label={`Remove row ${i + 1}`}
+                      aria-label={t("form.removeRow", { row: i + 1 })}
                       disabled={disabled}
                       onClick={() => {
                         const next = rows.filter((_, j) => j !== i);
@@ -1263,9 +1309,9 @@ function RepeatingGroup({ path, schema, value, ctx, disabled, label }: InputProp
           onClick={() => ctx.set(path, [...rows, {}])}
         >
           <Plus className="ic" aria-hidden="true" />
-          Add {label.toLowerCase()}
+          {t("form.addItem", { label: label.toLowerCase() })}
         </button>
-        {schema.maxItems !== undefined && <span className="help">Up to {schema.maxItems}</span>}
+        {schema.maxItems !== undefined && <span className="help">{t("form.upToItems", { max: schema.maxItems })}</span>}
       </div>
     </div>
   );
