@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { CalendarClock, ChartColumn, Download, FileSpreadsheet, Lock, Play, Plus, Save, Trash2, Users, X } from "lucide-react";
-import type { Aggregate, Cell, ColumnInfo, DataSet, DataSetKey, Definition, Filter, ReportResult, ReportView, ViewList } from "../../api/reports.ts";
+import type { Aggregate, Cell, ColumnInfo, DataSet, DataSetKey, Definition, Filter, OutColumn, ReportResult, ReportView, ViewList } from "../../api/reports.ts";
 import { useReportsMutation, useReportsQuery } from "../../api/reportsHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -15,13 +15,19 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatDate, parseDollars } from "../../lib/format.ts";
-import { AGGREGATE_WORDS, CSV_MAX_ROWS, MAX_GROUP_BY, OP_WORDS, STOPPED_WORDS, WEEKDAYS, aggregateKey, cadenceWords, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
+import { CSV_MAX_ROWS, MAX_GROUP_BY, aggregateKey, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
+import { statusLook } from "../../components/status.tsx";
+import { OP_WORDS, aggregateLabel, cadenceWords, csvInPageLanguage, localizeDataSet, localizeView, localizedOutColumns, stoppedWords, weekdayName } from "./reportWords.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const OPS_FOR: Record<ColumnInfo["type"], Filter["op"][]> = { text: ["eq", "in"], status: ["eq", "in"], number: ["eq", "between"], money: ["between", "eq"], date: ["between", "eq"] };
 
 function defaultDefinition(ds: DataSet): Definition {
   return emptyDefinition(ds.key, ds.columns.slice(0, 4).map((c) => c.key));
 }
+
+/** A listed value as people read it: a status by its label, anything else as its words. */
+const valueLabel = (col: ColumnInfo, v: string) => (col.statusKind ? statusLook(col.statusKind, v).label : v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase()));
 
 /** A filter's value as a person types it: money in dollars, everything else as written. */
 function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; filter: Filter; index: number; onChange: (f: Filter) => void; onRemove: () => void }) {
@@ -42,61 +48,63 @@ function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; fil
   };
   const id = `rb-filter-${index}`;
   return (
-    <div className="row" style={{ gap: "8px", flexWrap: "wrap" }} role="group" aria-label={`Filter ${index + 1}`}>
-      <select className="sel" aria-label={`Filter ${index + 1} column`} value={filter.column} onChange={(e) => onChange(reset(e.target.value))} style={{ maxWidth: "200px" }}>
+    <div className="row" style={{ gap: "8px", flexWrap: "wrap" }} role="group" aria-label={t("reportBuilder.filter", { index: index + 1 })}>
+      <select className="sel" aria-label={t("reportBuilder.filterColumn", { index: index + 1 })} value={filter.column} onChange={(e) => onChange(reset(e.target.value))} style={{ maxWidth: "200px" }}>
         {ds.columns.map((c) => (
           <option key={c.key} value={c.key}>
             {c.label}
           </option>
         ))}
       </select>
-      <select className="sel" aria-label={`Filter ${index + 1} condition`} value={filter.op} onChange={(e) => onChange(reset(filter.column, e.target.value as Filter["op"]))} style={{ maxWidth: "150px" }}>
+      <select className="sel" aria-label={t("reportBuilder.filterCondition", { index: index + 1 })} value={filter.op} onChange={(e) => onChange(reset(filter.column, e.target.value as Filter["op"]))} style={{ maxWidth: "150px" }}>
         {ops.map((o) => (
           <option key={o} value={o}>
-            {OP_WORDS[o]}
+            {OP_WORDS()[o]}
           </option>
         ))}
       </select>
       {filter.op === "eq" && col.values && (
-        <select className="sel" aria-label={`Filter ${index + 1} value`} value={String(filter.value ?? "")} onChange={(e) => onChange({ ...filter, value: e.target.value })} style={{ maxWidth: "200px" }}>
+        <select className="sel" aria-label={t("reportBuilder.filterValue", { index: index + 1 })} value={String(filter.value ?? "")} onChange={(e) => onChange({ ...filter, value: e.target.value })} style={{ maxWidth: "200px" }}>
           {col.values.map((v) => (
             <option key={v} value={v}>
-              {v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}
+              {valueLabel(col, v)}
             </option>
           ))}
         </select>
       )}
-      {filter.op === "eq" && !col.values && <input className="inp" id={id} aria-label={`Filter ${index + 1} value`} value={toText(filter.value)} onChange={(e) => onChange({ ...filter, value: fromText(e.target.value) ?? null })} style={{ maxWidth: "200px" }} placeholder={col.type === "date" ? "YYYY-MM-DD" : money ? "Dollars" : ""} />}
+      {filter.op === "eq" && !col.values && <input className="inp" id={id} aria-label={t("reportBuilder.filterValue", { index: index + 1 })} value={toText(filter.value)} onChange={(e) => onChange({ ...filter, value: fromText(e.target.value) ?? null })} style={{ maxWidth: "200px" }} placeholder={col.type === "date" ? t("reportBuilder.yyyyMmDd") : money ? t("reportBuilder.dollars") : ""} />}
       {filter.op === "in" && col.values && (
-        <select className="sel" multiple aria-label={`Filter ${index + 1} values`} value={filter.values.map(String)} onChange={(e) => onChange({ ...filter, values: [...e.target.selectedOptions].map((o) => o.value) })} style={{ maxWidth: "220px", height: "84px" }}>
+        <select className="sel" multiple aria-label={t("reportBuilder.filterValues", { index: index + 1 })} value={filter.values.map(String)} onChange={(e) => onChange({ ...filter, values: [...e.target.selectedOptions].map((o) => o.value) })} style={{ maxWidth: "220px", height: "84px" }}>
           {col.values.map((v) => (
             <option key={v} value={v}>
-              {v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}
+              {valueLabel(col, v)}
             </option>
           ))}
         </select>
       )}
-      {filter.op === "in" && !col.values && <input className="inp" aria-label={`Filter ${index + 1} values, separated by commas`} value={filter.values.join(", ")} onChange={(e) => onChange({ ...filter, values: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} style={{ maxWidth: "260px" }} placeholder="One, another" />}
+      {filter.op === "in" && !col.values && <input className="inp" aria-label={t("reportBuilder.filterValuesSeparatedBy", { index: index + 1 })} value={filter.values.join(", ")} onChange={(e) => onChange({ ...filter, values: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} style={{ maxWidth: "260px" }} placeholder={t("reportBuilder.oneAnother")} />}
       {filter.op === "between" && (
         <>
-          <input className="inp" aria-label={`Filter ${index + 1} from`} value={toText(filter.from)} onChange={(e) => onChange({ ...filter, from: fromText(e.target.value) })} style={{ maxWidth: "150px" }} placeholder={col.type === "date" ? "From (YYYY-MM-DD)" : money ? "From ($)" : "From"} />
-          <span className="small muted">and</span>
-          <input className="inp" aria-label={`Filter ${index + 1} to`} value={toText(filter.to)} onChange={(e) => onChange({ ...filter, to: fromText(e.target.value) })} style={{ maxWidth: "150px" }} placeholder={col.type === "date" ? "To (YYYY-MM-DD)" : money ? "To ($)" : "To"} />
+          <input className="inp" aria-label={t("reportBuilder.filterFrom", { index: index + 1 })} value={toText(filter.from)} onChange={(e) => onChange({ ...filter, from: fromText(e.target.value) })} style={{ maxWidth: "150px" }} placeholder={col.type === "date" ? t("reportBuilder.fromYyyyMmDd") : money ? t("reportBuilder.from") : t("reportBuilder.from2")} />
+          <span className="small muted">{t("reportBuilder.and")}</span>
+          <input className="inp" aria-label={t("reportBuilder.filterTo", { index: index + 1 })} value={toText(filter.to)} onChange={(e) => onChange({ ...filter, to: fromText(e.target.value) })} style={{ maxWidth: "150px" }} placeholder={col.type === "date" ? t("reportBuilder.toYyyyMmDd") : money ? t("reportBuilder.to") : t("reportBuilder.to2")} />
         </>
       )}
-      <button type="button" className="iconbtn" aria-label={`Remove filter ${index + 1}`} onClick={onRemove}>
+      <button type="button" className="iconbtn" aria-label={t("reportBuilder.removeFilter", { index: index + 1 })} onClick={onRemove}>
         <X className="ic" aria-hidden="true" />
       </button>
     </div>
   );
 }
 
-function ResultTable({ result }: { result: ReportResult }) {
+function ResultTable({ result, names }: { result: ReportResult; names: OutColumn[] }) {
+  // The server names columns in English; the screen names them by key in the page's language.
+  const nameOf = (c: OutColumn) => names.find((x) => x.key === c.key)?.label ?? c.label;
   const currencyAt = result.columns.findIndex((c) => c.key === "currency");
   if (!result.rows.length)
     return (
-      <EmptyState icon={FileSpreadsheet} title="No rows match">
-        Loosen a filter or pick another data set.
+      <EmptyState icon={FileSpreadsheet} title={t("reportBuilder.noRowsMatch")}>
+        {t("reportBuilder.loosenAFilterOr")}
       </EmptyState>
     );
   const cell = (v: Cell, i: number, row: Cell[]) => {
@@ -105,13 +113,13 @@ function ResultTable({ result }: { result: ReportResult }) {
     return displayCell(c, v, currencyAt >= 0 ? (row[currencyAt] as string | null) : null);
   };
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Report preview, scrollable">
-      <table className="tbl tbl-compact" aria-label="Report preview">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("reportBuilder.reportPreviewScrollable")}>
+      <table className="tbl tbl-compact" aria-label={t("reportBuilder.reportPreview")}>
         <thead>
           <tr>
             {result.columns.map((c) => (
-              <th key={c.key} className={c.type === "money" || c.type === "number" ? "num" : undefined} title={c.note}>
-                {c.label}
+              <th key={c.key} className={c.type === "money" || c.type === "number" ? "num" : undefined} title={names.find((x) => x.key === c.key)?.note ?? c.note}>
+                {nameOf(c)}
               </th>
             ))}
           </tr>
@@ -146,35 +154,35 @@ function SaveDialog({ initial, onClose, onSaved }: { initial: { name: string; de
     <Dialog open onClose={onClose} labelledBy="rb-save-title">
       <form onSubmit={submit} noValidate>
         <div className="hd">
-          <h2 id="rb-save-title">Save view</h2>
+          <h2 id="rb-save-title">{t("reportBuilder.saveView")}</h2>
         </div>
         <div className="bd">
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <Field id="rb-save-name" label="Name" required>
+          <Field id="rb-save-name" label={t("reportBuilder.name")} required>
             <input className="inp" id="rb-save-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
           </Field>
-          <Field id="rb-save-description" label="Description" help="Optional. Shown with the view.">
+          <Field id="rb-save-description" label={t("reportBuilder.description")} help={t("reportBuilder.optionalShownWithThe")}>
             <textarea className="ta" id="rb-save-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={1000} />
           </Field>
           <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "8px" }}>
-            <legend className="lbl">Who sees it</legend>
+            <legend className="lbl">{t("reportBuilder.whoSeesIt")}</legend>
             <label className="row">
               <input type="radio" name="rb-visibility" checked={visibility === "private"} onChange={() => setVisibility("private")} />
-              <Lock className="ic ic-sm" aria-hidden="true" /> Only me
+              <Lock className="ic ic-sm" aria-hidden="true" /> {t("reportBuilder.onlyMe")}
             </label>
             <label className="row">
               <input type="radio" name="rb-visibility" checked={visibility === "workspace"} onChange={() => setVisibility("workspace")} />
-              <Users className="ic ic-sm" aria-hidden="true" /> Shared with the workspace
+              <Users className="ic ic-sm" aria-hidden="true" /> {t("reportBuilder.sharedWithTheWorkspace")}
             </label>
           </fieldset>
         </div>
         <div className="ft">
           <SaveNote state={save.state === "saving" ? "saving" : "idle"} />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("reportBuilder.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.state === "saving" || !name.trim()}>
-            Save view
+            {t("reportBuilder.saveView")}
           </button>
         </div>
       </form>
@@ -199,42 +207,42 @@ function ScheduleDialog({ view, onClose, onSaved }: { view: ReportView; onClose:
     <Dialog open onClose={onClose} labelledBy="rb-schedule-title">
       <form onSubmit={submit} noValidate>
         <div className="hd">
-          <h2 id="rb-schedule-title">Schedule “{view.name}”</h2>
+          <h2 id="rb-schedule-title">{t("reportBuilder.schedule", { name: view.name })}</h2>
         </div>
         <div className="bd">
           {(save.error ?? stop.error) !== null && <ErrorBanner error={save.error ?? stop.error} />}
           <p className="small muted" style={{ margin: 0 }}>
-            The CSV is kept for 30 days. Each person gets an email with the row count and a link to download it here, signed in. The file is never attached, and it goes only to members of this workspace who can read reports.
+            {t("reportBuilder.theCsvIsKept")}
           </p>
           <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "8px" }}>
-            <legend className="lbl">How often</legend>
+            <legend className="lbl">{t("reportBuilder.howOften")}</legend>
             <div className="row" style={{ gap: "16px" }}>
               <label className="row">
-                <input type="radio" name="rb-cadence" checked={cadence === "weekly"} onChange={() => setCadence("weekly")} /> Weekly
+                <input type="radio" name="rb-cadence" checked={cadence === "weekly"} onChange={() => setCadence("weekly")} /> {t("reportBuilder.weekly")}
               </label>
               <label className="row">
-                <input type="radio" name="rb-cadence" checked={cadence === "monthly"} onChange={() => setCadence("monthly")} /> Monthly
+                <input type="radio" name="rb-cadence" checked={cadence === "monthly"} onChange={() => setCadence("monthly")} /> {t("reportBuilder.monthly")}
               </label>
             </div>
           </fieldset>
           {cadence === "weekly" ? (
-            <Field id="rb-weekday" label="On">
+            <Field id="rb-weekday" label={t("reportBuilder.on")}>
               <select className="sel" id="rb-weekday" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-                {WEEKDAYS.map((w, i) => (
-                  <option key={w} value={i + 1}>
-                    {w}
+                {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                  <option key={day} value={day}>
+                    {weekdayName(day)}
                   </option>
                 ))}
               </select>
             </Field>
           ) : (
-            <Field id="rb-day" label="Day of the month" help="1 to 28, so every month has it. Files go out early in the morning (13:00 UTC).">
+            <Field id="rb-day" label={t("reportBuilder.dayOfTheMonth")} help={t("reportBuilder.n1To28So")}>
               <input className="inp" id="rb-day" type="number" min={1} max={28} value={dayOfMonth} onChange={(e) => setDayOfMonth(Math.min(28, Math.max(1, Number(e.target.value) || 1)))} />
             </Field>
           )}
           <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "6px" }}>
-            <legend className="lbl">Send to</legend>
-            {recipients.status === "loading" && <Loading label="Loading members" />}
+            <legend className="lbl">{t("reportBuilder.sendTo")}</legend>
+            {recipients.status === "loading" && <Loading label={t("reportBuilder.loadingMembers")} />}
             {recipients.status === "error" && <ErrorBanner error={recipients.error} onRetry={recipients.reload} />}
             {recipients.data?.map((r) => (
               <label key={r.userId} className="row">
@@ -242,7 +250,7 @@ function ScheduleDialog({ view, onClose, onSaved }: { view: ReportView; onClose:
                 {r.name} <span className="small muted">{r.role.replace(/_/g, " ")}</span>
               </label>
             ))}
-            {view.visibility === "private" && <span className="help">A private view goes only to you. Share it with the workspace to send it to colleagues.</span>}
+            {view.visibility === "private" && <span className="help">{t("reportBuilder.aPrivateViewGoes")}</span>}
           </fieldset>
         </div>
         <div className="ft">
@@ -256,14 +264,14 @@ function ScheduleDialog({ view, onClose, onSaved }: { view: ReportView; onClose:
                 if (v) onSaved(v);
               }}
             >
-              Stop schedule
+              {t("reportBuilder.stopSchedule")}
             </button>
           )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("reportBuilder.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={save.state === "saving" || !chosen.length}>
-            Save schedule
+            {t("reportBuilder.saveSchedule")}
           </button>
         </div>
       </form>
@@ -279,13 +287,13 @@ function ViewButton({ view, active, onPick }: { view: ReportView; active: boolea
         {!view.starter && (
           <span className="small muted row" style={{ gap: "4px" }}>
             {view.visibility === "workspace" ? <Users className="ic ic-sm" aria-hidden="true" /> : <Lock className="ic ic-sm" aria-hidden="true" />}
-            {view.visibility === "workspace" ? "Shared" : "Private"}
+            {view.visibility === "workspace" ? t("reportBuilder.shared") : t("reportBuilder.private")}
           </span>
         )}
         {view.schedule && (
           <span className="small muted row" style={{ gap: "4px", width: "100%" }}>
             <CalendarClock className="ic ic-sm" aria-hidden="true" />
-            {view.schedule.active ? cadenceWords(view.schedule) : "Schedule stopped"}
+            {view.schedule.active ? cadenceWords(view.schedule) : t("reportBuilder.scheduleStopped")}
           </span>
         )}
       </button>
@@ -294,27 +302,42 @@ function ViewButton({ view, active, onPick }: { view: ReportView; active: boolea
 }
 
 export default function ReportBuilder() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();
   const fileId = params.get("file");
   const page = useReportsQuery(async (a) => {
-    const [dataSets, views, files] = await Promise.all([a.dataSets(), a.listViews(), a.listFiles()]);
-    return { dataSets, views, files };
+    const [english, views, files] = await Promise.all([a.dataSets(), a.listViews(), a.listFiles()]);
+    // Shown in the page's language; the server's English is kept to check a CSV's header row.
+    return { dataSets: english.map(localizeDataSet), english, views: { ...views, starters: views.starters.map(localizeView) }, files };
   }, []);
   const [definition, setDefinition] = useState<Definition | null>(null);
   const [current, setCurrent] = useState<ReportView | null>(null);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [dialog, setDialog] = useState<"save" | "schedule" | null>(null);
   const preview = useReportsMutation((a, d: Definition) => a.preview(d));
+  /** The CSV's header row in the page's language, when the screen knows the definition behind it. */
+  const inLanguage = async (blob: Blob, d: Definition | undefined) => {
+    const en = page.data?.english.find((x) => x.key === d?.dataSet);
+    const local = page.data?.dataSets.find((x) => x.key === d?.dataSet);
+    if (!d || !en || !local) return blob;
+    try {
+      return await csvInPageLanguage(blob, outColumns(en, d), localizedOutColumns(local, d));
+    } catch {
+      return blob;
+    }
+  };
   const download = useReportsMutation(async (a, d: Definition, name: string) => {
     const f = await a.exportCsv(d, name);
-    downloadBlob(f.blob, f.filename);
+    downloadBlob(await inLanguage(f.blob, d), f.filename);
     return f;
   });
   const fileDownload = useReportsMutation(async (a, id: string) => {
     const f = await a.downloadFile(id);
-    downloadBlob(f.blob, f.filename);
+    const viewId = page.data?.files.find((x) => x.id === id)?.viewId;
+    const all = page.data ? [...page.data.views.starters, ...page.data.views.saved] : [];
+    downloadBlob(await inLanguage(f.blob, all.find((v) => v.id === viewId)?.definition), f.filename);
     return f;
   });
   const update = useReportsMutation((a, id: string, d: Definition) => a.updateView(id, { definition: d }));
@@ -333,7 +356,7 @@ export default function ReportBuilder() {
   const out = useMemo(() => {
     if (!ds || !definition) return [];
     try {
-      return outColumns(ds, definition);
+      return localizedOutColumns(ds, definition);
     } catch {
       return [];
     }
@@ -355,7 +378,7 @@ export default function ReportBuilder() {
     return (
       <FunderShell active="Analytics">
         <main className="main">
-          <Loading label="Loading the report builder" />
+          <Loading label={t("reportBuilder.loadingTheReportBuilder")} />
         </main>
       </FunderShell>
     );
@@ -375,7 +398,7 @@ export default function ReportBuilder() {
   const views = page.data!.views;
   const files = page.data!.files;
   const sentFile = fileId ? files.find((f) => f.id === fileId) : undefined;
-  const name = current?.name ?? `${set.label} report`;
+  const name = current?.name ?? t("reportBuilder.defaultName", { label: set.label });
   const changed = current && !current.starter && JSON.stringify(current.definition) !== JSON.stringify(d);
   const toggleColumn = (key: string) => change({ ...d, columns: d.columns.includes(key) ? d.columns.filter((k) => k !== key) : [...d.columns, key] });
   const setGroup = (i: number, key: string) => {
@@ -389,38 +412,38 @@ export default function ReportBuilder() {
 
   return (
     <>
-      <title>{`Report builder — ${ws.name}`}</title>
+      <title>{t("reportBuilder.reportBuilder", { name: ws.name })}</title>
       <FunderShell active="Analytics">
         <main className="main">
-          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Analytics", to: `${base}/analytics` }, { label: "Report builder" }]} title="Report builder" meta={<span>Your workspace’s own records. Amounts are as recorded in the GMS; Passport’s disbursed amounts are shown apart and never added up.</span>} />
+          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("reportBuilder.analytics"), to: `${base}/analytics` }, { label: t("reportBuilder.reportBuilder2") }]} title={t("reportBuilder.reportBuilder2")} meta={<span>{t("reportBuilder.yourWorkspacesOwnRecords")}</span>} />
           {fileId && (
             <div style={{ marginBottom: "16px" }}>
               {sentFile ? (
-                <Notice tone="ok" title={`Your scheduled report “${sentFile.viewName}” is ready`}>
+                <Notice tone="ok" title={t("reportBuilder.yourScheduledReportIs", { viewName: sentFile.viewName })}>
                   <span className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
-                    {sentFile.rows.toLocaleString("en-US")} rows · kept until {formatDate(sentFile.expiresAt)}
+                    {t("reportBuilder.rowsKeptUntil", { rows: sentFile.rows, date: formatDate(sentFile.expiresAt) })}
                     <button type="button" className="btn btn-primary btn-sm" onClick={() => void fileDownload.run(sentFile.id)}>
-                      <Download className="ic" aria-hidden="true" /> Download the file
+                      <Download className="ic" aria-hidden="true" /> {t("reportBuilder.downloadTheFile")}
                     </button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setParams({}, { replace: true })}>
-                      Dismiss
+                      {t("reportBuilder.dismiss")}
                     </button>
                   </span>
                 </Notice>
               ) : (
-                <Notice tone="warn" title="That scheduled file is not available">
-                  Scheduled files are kept for 30 days and only for the people they were sent to. Run the view again for a new file.
+                <Notice tone="warn" title={t("reportBuilder.thatScheduledFileIs")}>
+                  {t("reportBuilder.scheduledFilesAreKept")}
                 </Notice>
               )}
               {fileDownload.error !== null && <ErrorBanner error={fileDownload.error} />}
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 280px) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <aside className="card" aria-label="Report views">
+            <aside className="card" aria-label={t("reportBuilder.reportViews")}>
               <div className="card-b col" style={{ gap: "16px" }}>
                 <section aria-labelledby="rb-starters">
                   <h2 id="rb-starters" className="lbl">
-                    Starter views
+                    {t("reportBuilder.starterViews")}
                   </h2>
                   <ul className="col" style={{ listStyle: "none", padding: 0, margin: "8px 0 0", gap: "6px" }}>
                     {views.starters.map((v) => (
@@ -430,7 +453,7 @@ export default function ReportBuilder() {
                 </section>
                 <section aria-labelledby="rb-saved">
                   <h2 id="rb-saved" className="lbl">
-                    Saved views
+                    {t("reportBuilder.savedViews")}
                   </h2>
                   {views.saved.length ? (
                     <ul className="col" style={{ listStyle: "none", padding: 0, margin: "8px 0 0", gap: "6px" }}>
@@ -439,13 +462,13 @@ export default function ReportBuilder() {
                       ))}
                     </ul>
                   ) : (
-                    <p className="small muted">Nothing saved yet. Build a report and save it to find it here.</p>
+                    <p className="small muted">{t("reportBuilder.nothingSavedYetBuild")}</p>
                   )}
                 </section>
                 {files.length > 0 && (
                   <section aria-labelledby="rb-files">
                     <h2 id="rb-files" className="lbl">
-                      Sent to you
+                      {t("reportBuilder.sentToYou")}
                     </h2>
                     <ul className="col" style={{ listStyle: "none", padding: 0, margin: "8px 0 0", gap: "6px" }}>
                       {files.map((f) => (
@@ -453,7 +476,7 @@ export default function ReportBuilder() {
                           <span>
                             {f.viewName} · {f.period}
                           </span>
-                          <button type="button" className="iconbtn" aria-label={`Download ${f.viewName}, ${f.period}`} onClick={() => void fileDownload.run(f.id)}>
+                          <button type="button" className="iconbtn" aria-label={t("reportBuilder.download", { viewName: f.viewName, period: f.period })} onClick={() => void fileDownload.run(f.id)}>
                             <Download className="ic" aria-hidden="true" />
                           </button>
                         </li>
@@ -468,18 +491,18 @@ export default function ReportBuilder() {
               <section className="card" aria-labelledby="rb-build">
                 <div className="card-h">
                   <h2 id="rb-build" style={{ fontSize: "16px" }}>
-                    {current ? current.name : "Build a report"}
+                    {current ? current.name : t("reportBuilder.buildAReport")}
                   </h2>
-                  {current?.starter && <span className="tag">Starter view · read only</span>}
+                  {current?.starter && <span className="tag">{t("reportBuilder.starterViewReadOnly")}</span>}
                   {current && !current.starter && current.schedule && (
                     <span className="small muted row" style={{ gap: "4px" }}>
                       <CalendarClock className="ic ic-sm" aria-hidden="true" />
-                      {current.schedule.active ? `${cadenceWords(current.schedule)} to ${current.schedule.recipients.length} ${current.schedule.recipients.length === 1 ? "person" : "people"}` : (STOPPED_WORDS[current.schedule.stoppedReason ?? ""] ?? "Schedule stopped")}
+                      {current.schedule.active ? t("reportBuilder.to3", { cadence: cadenceWords(current.schedule), count: current.schedule.recipients.length }) : current.schedule.stoppedReason ? stoppedWords(current.schedule.stoppedReason) : t("reportBuilder.scheduleStopped")}
                     </span>
                   )}
                 </div>
                 <div className="card-b col" style={{ gap: "16px" }}>
-                  <Field id="rb-dataset" label="Data set" help={set.description}>
+                  <Field id="rb-dataset" label={t("reportBuilder.dataSet")} help={set.description}>
                     <select
                       className="sel"
                       id="rb-dataset"
@@ -492,43 +515,42 @@ export default function ReportBuilder() {
                     >
                       {dataSets.map((x) => (
                         <option key={x.key} value={x.key} disabled={!x.available}>
-                          {x.label}
-                          {x.available ? "" : " (not available to you)"}
+                          {x.available ? x.label : t("reportBuilder.notAvailableToYou", { label: x.label })}
                         </option>
                       ))}
                     </select>
                   </Field>
 
                   <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "8px" }}>
-                    <legend className="lbl">Columns</legend>
+                    <legend className="lbl">{t("reportBuilder.columns")}</legend>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "6px 16px" }}>
                       {set.columns.map((c) => (
                         <label key={c.key} className="row small" title={c.source}>
                           <input type="checkbox" checked={d.columns.includes(c.key)} onChange={() => toggleColumn(c.key)} disabled={d.columns.length === 1 && d.columns.includes(c.key)} />
                           {c.label}
-                          {c.note && <span className="muted">(read only)</span>}
+                          {c.note && <span className="muted">{t("reportBuilder.readOnly")}</span>}
                         </label>
                       ))}
                     </div>
                   </fieldset>
 
                   <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "8px" }}>
-                    <legend className="lbl">Filters</legend>
+                    <legend className="lbl">{t("reportBuilder.filters")}</legend>
                     {d.filters.map((f, i) => (
                       <FilterRow key={i} ds={set} filter={f} index={i} onChange={(nf) => change({ ...d, filters: d.filters.map((x, j) => (j === i ? nf : x)) })} onRemove={() => change({ ...d, filters: d.filters.filter((_, j) => j !== i) })} />
                     ))}
-                    <span className="help">Dates are YYYY-MM-DD, or relative to the day the report runs: today, today+90d, startOfYear, endOfYear.</span>
+                    <span className="help">{t("reportBuilder.datesAreYyyyMm")}</span>
                     <div>
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => change({ ...d, filters: [...d.filters, { column: set.columns[0]!.key, op: "eq", value: null }] })}>
-                        <Plus className="ic" aria-hidden="true" /> Add filter
+                        <Plus className="ic" aria-hidden="true" /> {t("reportBuilder.addFilter")}
                       </button>
                     </div>
                   </fieldset>
 
                   <div className="fld-row">
-                    <Field id="rb-group-1" label="Group by">
+                    <Field id="rb-group-1" label={t("reportBuilder.groupBy")}>
                       <select className="sel" id="rb-group-1" value={d.groupBy[0] ?? ""} onChange={(e) => setGroup(0, e.target.value)}>
-                        <option value="">No grouping</option>
+                        <option value="">{t("reportBuilder.noGrouping")}</option>
                         {set.columns.map((c) => (
                           <option key={c.key} value={c.key}>
                             {c.label}
@@ -536,9 +558,9 @@ export default function ReportBuilder() {
                         ))}
                       </select>
                     </Field>
-                    <Field id="rb-group-2" label="Then by">
+                    <Field id="rb-group-2" label={t("reportBuilder.thenBy")}>
                       <select className="sel" id="rb-group-2" value={d.groupBy[1] ?? ""} onChange={(e) => setGroup(1, e.target.value)} disabled={!d.groupBy.length}>
-                        <option value="">Nothing else</option>
+                        <option value="">{t("reportBuilder.nothingElse")}</option>
                         {set.columns
                           .filter((c) => c.key !== d.groupBy[0])
                           .map((c) => (
@@ -552,12 +574,12 @@ export default function ReportBuilder() {
 
                   {grouped && (
                     <fieldset className="col" style={{ border: 0, padding: 0, margin: 0, gap: "8px" }}>
-                      <legend className="lbl">Summaries</legend>
+                      <legend className="lbl">{t("reportBuilder.summaries")}</legend>
                       <div className="filterbar">
                         {d.aggregates.map((a) => (
                           <span key={aggregateKey(a)} className="chip">
-                            {a.fn === "count" ? "Count" : `${AGGREGATE_WORDS[a.fn]} ${set.columns.find((c) => c.key === a.column)?.label.toLowerCase() ?? a.column}`}
-                            <button type="button" className="iconbtn" aria-label={`Remove ${a.fn === "count" ? "count" : `${AGGREGATE_WORDS[a.fn].toLowerCase()} of ${a.column}`}`} onClick={() => change({ ...d, aggregates: d.aggregates.filter((x) => aggregateKey(x) !== aggregateKey(a)), sort: [] })} style={{ width: "20px", height: "20px" }}>
+                            {aggregateLabel(a.fn, set.columns.find((c) => c.key === a.column)?.label ?? a.column ?? "")}
+                            <button type="button" className="iconbtn" aria-label={t("reportBuilder.remove", { summary: aggregateLabel(a.fn, set.columns.find((c) => c.key === a.column)?.label ?? a.column ?? "").toLowerCase() })} onClick={() => change({ ...d, aggregates: d.aggregates.filter((x) => aggregateKey(x) !== aggregateKey(a)), sort: [] })} style={{ width: "20px", height: "20px" }}>
                               <X className="ic ic-sm" aria-hidden="true" />
                             </button>
                           </span>
@@ -565,7 +587,7 @@ export default function ReportBuilder() {
                       </div>
                       <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                         <label className="sr" htmlFor="rb-agg">
-                          Add a summary
+                          {t("reportBuilder.addASummary")}
                         </label>
                         <select
                           className="sel"
@@ -577,14 +599,14 @@ export default function ReportBuilder() {
                           }}
                           style={{ maxWidth: "320px" }}
                         >
-                          <option value="">Add a summary…</option>
-                          <option value="count">Count</option>
+                          <option value="">{t("reportBuilder.addASummary2")}</option>
+                          <option value="count">{t("reportBuilder.count")}</option>
                           {aggregatable.flatMap((c) => [
                             <option key={`sum:${c.key}`} value={`sum:${c.key}`}>
-                              Total {c.label.toLowerCase()}
+                              {aggregateLabel("sum", c.label)}
                             </option>,
                             <option key={`avg:${c.key}`} value={`avg:${c.key}`}>
-                              Average {c.label.toLowerCase()}
+                              {aggregateLabel("avg", c.label)}
                             </option>,
                           ])}
                         </select>
@@ -593,9 +615,9 @@ export default function ReportBuilder() {
                   )}
 
                   <div className="fld-row">
-                    <Field id="rb-sort" label="Sort by">
+                    <Field id="rb-sort" label={t("reportBuilder.sortBy")}>
                       <select className="sel" id="rb-sort" value={d.sort[0]?.column ?? ""} onChange={(e) => change({ ...d, sort: e.target.value ? [{ column: e.target.value, dir: d.sort[0]?.dir ?? "asc" }] : [] })}>
-                        <option value="">As stored</option>
+                        <option value="">{t("reportBuilder.asStored")}</option>
                         {out.map((c) => (
                           <option key={c.key} value={c.key}>
                             {c.label}
@@ -603,10 +625,10 @@ export default function ReportBuilder() {
                         ))}
                       </select>
                     </Field>
-                    <Field id="rb-dir" label="Order">
+                    <Field id="rb-dir" label={t("reportBuilder.order")}>
                       <select className="sel" id="rb-dir" value={d.sort[0]?.dir ?? "asc"} disabled={!d.sort.length} onChange={(e) => change({ ...d, sort: d.sort.map((s, i) => (i === 0 ? { ...s, dir: e.target.value as "asc" | "desc" } : s)) })}>
-                        <option value="asc">Smallest or earliest first</option>
-                        <option value="desc">Largest or latest first</option>
+                        <option value="asc">{t("reportBuilder.smallestOrEarliestFirst")}</option>
+                        <option value="desc">{t("reportBuilder.largestOrLatestFirst")}</option>
                       </select>
                     </Field>
                   </div>
@@ -614,14 +636,14 @@ export default function ReportBuilder() {
                   {(preview.error ?? download.error ?? update.error ?? remove.error) !== null && <ErrorBanner error={preview.error ?? download.error ?? update.error ?? remove.error} />}
                   <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                     <button type="button" className="btn btn-primary" onClick={() => void preview.run(d).then((r) => r && setResult(r))} disabled={preview.state === "saving"}>
-                      <Play className="ic" aria-hidden="true" /> Preview
+                      <Play className="ic" aria-hidden="true" /> {t("reportBuilder.preview")}
                     </button>
                     <button type="button" className="btn btn-secondary" onClick={() => void download.run(d, name)} disabled={download.state === "saving"}>
-                      <Download className="ic" aria-hidden="true" /> Download CSV
+                      <Download className="ic" aria-hidden="true" /> {t("reportBuilder.downloadCsv")}
                     </button>
                     {(!current || current.starter || !current.mine) && (
                       <button type="button" className="btn btn-secondary" onClick={() => setDialog("save")}>
-                        <Save className="ic" aria-hidden="true" /> {current ? "Save a copy" : "Save view"}
+                        <Save className="ic" aria-hidden="true" /> {current ? t("reportBuilder.saveACopy") : t("reportBuilder.saveView")}
                       </button>
                     )}
                     {current?.mine && changed && (
@@ -636,12 +658,12 @@ export default function ReportBuilder() {
                           }
                         }}
                       >
-                        <Save className="ic" aria-hidden="true" /> Save changes
+                        <Save className="ic" aria-hidden="true" /> {t("reportBuilder.saveChanges")}
                       </button>
                     )}
                     {current?.mine && (
                       <button type="button" className="btn btn-secondary" onClick={() => setDialog("schedule")}>
-                        <CalendarClock className="ic" aria-hidden="true" /> {current.schedule ? "Change schedule" : "Schedule"}
+                        <CalendarClock className="ic" aria-hidden="true" /> {current.schedule ? t("reportBuilder.changeSchedule") : t("reportBuilder.schedule2")}
                       </button>
                     )}
                     {current && !current.starter && (current.mine || current.visibility === "workspace") && (
@@ -649,7 +671,7 @@ export default function ReportBuilder() {
                         type="button"
                         className="btn btn-ghost"
                         onClick={async () => {
-                          if (!window.confirm(`Remove “${current.name}”? Its schedule stops and its files are removed.`)) return;
+                          if (!window.confirm(t("reportBuilder.confirmRemove", { name: current.name }))) return;
                           const r = await remove.run(current.id);
                           if (r) {
                             setViews((l) => ({ ...l, saved: l.saved.filter((x) => x.id !== current.id) }));
@@ -657,35 +679,35 @@ export default function ReportBuilder() {
                           }
                         }}
                       >
-                        <Trash2 className="ic" aria-hidden="true" /> Remove
+                        <Trash2 className="ic" aria-hidden="true" /> {t("reportBuilder.remove2")}
                       </button>
                     )}
-                    <SaveNote state={update.state} savedText="Changes saved" />
+                    <SaveNote state={update.state} savedText={t("reportBuilder.changesSaved")} />
                   </div>
-                  <span className="help">A download holds up to {CSV_MAX_ROWS.toLocaleString("en-US")} rows. Cells that start with = + - or @ are written so a spreadsheet does not run them.</span>
+                  <span className="help">{t("reportBuilder.aDownloadHoldsUp", { max: CSV_MAX_ROWS })}</span>
                 </div>
               </section>
 
               <section className="card" aria-labelledby="rb-preview">
                 <div className="card-h">
                   <h2 id="rb-preview" style={{ fontSize: "16px" }}>
-                    Preview
+                    {t("reportBuilder.preview")}
                   </h2>
-                  {result && <span className="small muted">{result.truncated ? `Showing the first ${result.rows.length.toLocaleString("en-US")} of ${result.total.toLocaleString("en-US")} ${grouped ? "groups" : "rows"}` : `${result.total.toLocaleString("en-US")} ${grouped ? (result.total === 1 ? "group" : "groups") : result.total === 1 ? "row" : "rows"}`}</span>}
+                  {result && <span className="small muted">{result.truncated ? t(grouped ? "reportBuilder.showingFirstGroups" : "reportBuilder.showingFirstRows", { shown: result.rows.length, total: result.total }) : t(grouped ? "reportBuilder.groupCount" : "reportBuilder.rowCount", { count: result.total })}</span>}
                 </div>
                 <div className="card-b col" style={{ gap: "12px" }}>
                   {result?.warnings.map((w) => (
-                    <Notice key={w} tone="warn" title="Note">
+                    <Notice key={w} tone="warn" title={t("reportBuilder.note")}>
                       {w}
                     </Notice>
                   ))}
-                  {preview.state === "saving" && <Loading label="Running the report" />}
+                  {preview.state === "saving" && <Loading label={t("reportBuilder.runningTheReport")} />}
                   {result ? (
-                    <ResultTable result={result} />
+                    <ResultTable result={result} names={out} />
                   ) : (
                     preview.state !== "saving" && (
-                      <EmptyState icon={ChartColumn} title="Nothing to show yet">
-                        Choose columns and filters, then press Preview to see the first 200 rows.
+                      <EmptyState icon={ChartColumn} title={t("reportBuilder.nothingToShowYet")}>
+                        {t("reportBuilder.chooseColumnsAndFilters")}
                       </EmptyState>
                     )
                   )}
@@ -695,7 +717,7 @@ export default function ReportBuilder() {
           </div>
           {dialog === "save" && (
             <SaveDialog
-              initial={{ name: current ? (current.starter ? current.name : `${current.name} (copy)`) : "", definition: d }}
+              initial={{ name: current ? (current.starter ? current.name : t("reportBuilder.copyName", { name: current.name })) : "", definition: d }}
               onClose={() => setDialog(null)}
               onSaved={(v) => {
                 setDialog(null);

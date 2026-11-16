@@ -4,17 +4,20 @@
 import { useNavigate, Link } from "react-router";
 import { FileText, LayoutTemplate, Plus } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import type { FormInput, FormSummary } from "../../api/types.ts";
+import type { FormInput, FormPurpose, FormSummary } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { GallerySubmissionsPanel } from "./ShareToGallery.tsx";
+import { PURPOSE_LABEL } from "./shared.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
-const PURPOSE: Record<string, string> = { application: "Application", loi: "Letter of intent", report: "Report", amendment: "Amendment", site_visit: "Site visit", other: "Other" };
+const purposeLabel = (purpose: string) => PURPOSE_LABEL[purpose as FormPurpose]?.() ?? purpose;
 
 export default function Forms() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
@@ -29,64 +32,64 @@ export default function Forms() {
   };
 
   const own: Column<FormSummary>[] = [
-    { key: "title", header: "Form", cell: (f) => <Link to={`${base}/forms/${f.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{f.title}</Link>, sort: (f) => f.title },
-    { key: "purpose", header: "Used for", cell: (f) => PURPOSE[f.purpose] ?? f.purpose, sort: (f) => f.purpose },
-    { key: "version", header: "Latest version", cell: (f) => <span className="tag">v{f.version}</span>, sort: (f) => f.version },
-    { key: "status", header: "Status", cell: (f) => <StatusBadge kind="form" status={f.status} /> },
-    { key: "updated", header: "Updated", cell: (f) => formatDate(f.updatedAt), sort: (f) => f.updatedAt },
+    { key: "title", header: t("funderForms.form"), cell: (f) => <Link to={`${base}/forms/${f.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{f.title}</Link>, sort: (f) => f.title },
+    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => purposeLabel(f.purpose), sort: (f) => f.purpose },
+    { key: "version", header: t("funderForms.latestVersion"), cell: (f) => <span className="tag">{t("funderForms.v", { version: f.version })}</span>, sort: (f) => f.version },
+    { key: "status", header: t("funderForms.status"), cell: (f) => <StatusBadge kind="form" status={f.status} /> },
+    { key: "updated", header: t("funderForms.updated"), cell: (f) => formatDate(f.updatedAt), sort: (f) => f.updatedAt },
   ];
   const library: Column<FormSummary>[] = [
-    { key: "title", header: "Library form", cell: (f) => <span className="b" style={{ color: "#0D2A43" }}>{f.title}</span>, sort: (f) => f.title },
-    { key: "about", header: "What it covers", cell: (f) => <span style={{ whiteSpace: "normal" }}>{f.description ?? "—"}</span> },
-    { key: "purpose", header: "Used for", cell: (f) => PURPOSE[f.purpose] ?? f.purpose },
+    { key: "title", header: t("funderForms.libraryForm"), cell: (f) => <span className="b" style={{ color: "#0D2A43" }}>{f.title}</span>, sort: (f) => f.title },
+    { key: "about", header: t("funderForms.whatItCovers"), cell: (f) => <span style={{ whiteSpace: "normal" }}>{f.description ?? "—"}</span> },
+    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => purposeLabel(f.purpose) },
     {
       key: "use",
       header: "",
       numeric: true,
       cell: (f) => (
         <button type="button" className="btn btn-sm btn-secondary" disabled={create.state === "saving"} onClick={() => start({ title: f.title, purpose: f.purpose, description: f.description, copyFrom: { id: f.id, version: f.version } })}>
-          Start from this<span className="sr">: {f.title}</span>
+          {t.rich("funderForms.startFromThis", { title: f.title, span: (chunks) => <span className="sr">{chunks}</span> })}
         </button>
       ),
     },
   ];
   const blank = (
-    <button type="button" className="btn btn-primary" disabled={create.state === "saving"} onClick={() => start({ title: "Untitled form" })}>
+    <button type="button" className="btn btn-primary" disabled={create.state === "saving"} onClick={() => start({ title: t("funderForms.untitledForm") })}>
       <Plus className="ic" aria-hidden="true" />
-      New blank form
+      {t("funderForms.newBlankForm")}
     </button>
   );
   // More ready-made forms, rubrics and emails to start from: the public template gallery.
   const gallery = (
     <Link to="/templates" className="btn btn-secondary">
       <LayoutTemplate className="ic" aria-hidden="true" />
-      Template gallery
+      {t("funderForms.templateGallery")}
     </Link>
   );
 
   return (
     <FunderShell active="Opportunities">
-      <title>{`Forms — ${ws.name}`}</title>
+      <title>{t("funderForms.forms", { name: ws.name })}</title>
       <main className="main">
-        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Opportunities", to: `${base}/opportunities` }, { label: "Forms" }]} title="Forms" meta={<span>Application, report and letter-of-intent forms. Competitions pin a published version.</span>} actions={<>{gallery}{blank}</>} />
-        {create.error !== null && <ErrorBanner error={create.error} title="The form could not be created" />}
-        {data.status === "loading" && <Loading label="Loading forms" />}
-        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title="Forms could not be loaded" />}
+        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("funderForms.opportunities"), to: `${base}/opportunities` }, { label: t("funderForms.forms2") }]} title={t("funderForms.forms2")} meta={<span>{t("funderForms.applicationReportAndLetter")}</span>} actions={<>{gallery}{blank}</>} />
+        {create.error !== null && <ErrorBanner error={create.error} title={t("funderForms.theFormCouldNot")} />}
+        {data.status === "loading" && <Loading label={t("funderForms.loadingForms")} />}
+        {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title={t("funderForms.formsCouldNotBe")} />}
         {data.status === "ready" && (
           <>
             <DataTable
-              label="Your forms"
+              label={t("funderForms.yourForms")}
               rows={data.data.forms}
               rowKey={(f) => f.id}
               columns={own}
               empty={
-                <EmptyState icon={FileText} title="No forms yet" actions={blank}>
-                  Build a form from scratch, or start from a library form below and change what you need.
+                <EmptyState icon={FileText} title={t("funderForms.noFormsYet")} actions={blank}>
+                  {t("funderForms.buildAFormFrom")}
                 </EmptyState>
               }
             />
-            <h2 style={{ marginTop: "8px" }}>Shared library</h2>
-            <DataTable label="Shared library forms" rows={data.data.library} rowKey={(f) => f.id} columns={library} empty={<EmptyState icon={FileText} title="The shared library is empty" />} />
+            <h2 style={{ marginTop: "8px" }}>{t("funderForms.sharedLibrary")}</h2>
+            <DataTable label={t("funderForms.sharedLibraryForms")} rows={data.data.library} rowKey={(f) => f.id} columns={library} empty={<EmptyState icon={FileText} title={t("funderForms.theSharedLibraryIs")} />} />
             <GallerySubmissionsPanel />
           </>
         )}

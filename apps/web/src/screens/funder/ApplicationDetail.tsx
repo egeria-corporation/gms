@@ -20,6 +20,7 @@ import { AiSummaryPanel, AssistantPanel, BudgetPanel, DocumentsPanel } from "./A
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Who on the applicant's team holds each section. Hidden when nothing is assigned or the caller may not see it. */
 function SectionAssignments({ applicationId }: { applicationId: string }) {
@@ -29,8 +30,8 @@ function SectionAssignments({ applicationId }: { applicationId: string }) {
   return (
     <div className="card">
       <div className="card-h">
-        <h3>Section assignments</h3>
-        <span className="small muted">Set by the applicant’s team</span>
+        <h3>{t("applicationDetail.sectionAssignments")}</h3>
+        <span className="small muted">{t("applicationDetail.setByTheApplicants")}</span>
       </div>
       <div className="card-b">
         <dl className="kv">
@@ -39,7 +40,7 @@ function SectionAssignments({ applicationId }: { applicationId: string }) {
               <dt>
                 {r.section.replace(/[-_]/g, " ")} <span className="xs muted">· {r.stage}</span>
               </dt>
-              <dd>Assigned to a team member</dd>
+              <dd>{t("applicationDetail.assignedToATeam")}</dd>
             </div>
           ))}
         </dl>
@@ -72,20 +73,20 @@ export function ResponseCard({ r, mode = "funder", external = false }: { r: Inbo
       <div className="card-h">
         <div>
           <h2 id={`${anchor}-title`} style={{ fontSize: "16px" }}>
-            {r.formTitle ?? "Form"}
+            {r.formTitle ?? t("applicationDetail.form")}
           </h2>
           <p className="small muted">
-            Version {r.formVersion}
-            {r.lockedAt ? ` · locked ${formatDate(r.lockedAt)}` : ""}
+            {t("applicationDetail.version", { formVersion: r.formVersion })}
+            {r.lockedAt ? t("applicationDetail.locked", { date: formatDate(r.lockedAt) }) : ""}
           </p>
         </div>
         <span className={r.status === "complete" ? "bdg bdg-ok" : "bdg bdg-neutral"}>
           {r.status === "complete" ? <CircleCheck className="ic" aria-hidden="true" /> : <Lock className="ic" aria-hidden="true" />}
-          {r.status === "complete" ? "Complete" : r.status === "inProgress" ? "In progress" : "Not started"}
+          {r.status === "complete" ? t("applicationDetail.complete") : r.status === "inProgress" ? t("applicationDetail.inProgress") : t("applicationDetail.notStarted")}
         </span>
       </div>
       <div className="card-b">
-        {form.status === "loading" && <Loading label="Loading form" />}
+        {form.status === "loading" && <Loading label={t("applicationDetail.loadingForm")} />}
         {form.status === "error" && <RawResponse response={r.response} />}
         {form.status === "ready" && (
           <FormView
@@ -96,7 +97,7 @@ export function ResponseCard({ r, mode = "funder", external = false }: { r: Inbo
             externalReviewer={external}
           />
         )}
-        {r.masked.length > 0 && <p className="notice">{r.masked.length} field(s) are masked for this reviewer.</p>}
+        {r.masked.length > 0 && <p className="notice">{t("applicationDetail.fieldSAreMasked", { count: r.masked.length })}</p>}
       </div>
     </section>
   );
@@ -108,10 +109,10 @@ function Messages({ applicationId }: { applicationId: string }) {
   const [body, setBody] = useState("");
   const post = useApiMutation(async (api, text: string) => {
     const visibility = internal ? "funder_internal" : "shared";
-    const thread = threads.data?.find((t) => t.visibility === visibility) ?? (await api.openThread(applicationId, internal ? "internal" : "shared"));
+    const thread = threads.data?.find((item) => item.visibility === visibility) ?? (await api.openThread(applicationId, internal ? "internal" : "shared"));
     return api.postMessage(thread.id, text);
   });
-  const thread: Thread | undefined = threads.data?.find((t) => t.visibility === (internal ? "funder_internal" : "shared"));
+  const thread: Thread | undefined = threads.data?.find((item) => item.visibility === (internal ? "funder_internal" : "shared"));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -124,21 +125,21 @@ function Messages({ applicationId }: { applicationId: string }) {
   return (
     <div className="card">
       <div className="card-h">
-        <h3>Messages</h3>
-        <div className="seg" role="group" aria-label="Thread filter">
+        <h3>{t("applicationDetail.messages")}</h3>
+        <div className="seg" role="group" aria-label={t("applicationDetail.threadFilter")}>
           <button type="button" className={internal ? "" : "on"} aria-pressed={!internal} onClick={() => setInternal(false)}>
-            Shared
+            {t("applicationDetail.shared")}
           </button>
           <button type="button" className={internal ? "on" : ""} aria-pressed={internal} onClick={() => setInternal(true)}>
             <Lock className="ic ic-sm" aria-hidden="true" />
-            Internal
+            {t("applicationDetail.internal")}
           </button>
         </div>
       </div>
       <div className="card-b th">
-        {threads.status === "loading" && <Loading label="Loading messages" />}
+        {threads.status === "loading" && <Loading label={t("applicationDetail.loadingMessages")} />}
         {threads.status === "error" && <ErrorBanner error={threads.error} onRetry={threads.reload} />}
-        {threads.status === "ready" && !thread?.messages.length && <p className="muted small">{internal ? "No internal notes yet. The applicant never sees these." : "No messages with the applicant yet."}</p>}
+        {threads.status === "ready" && !thread?.messages.length && <p className="muted small">{internal ? t("applicationDetail.noInternalNotesYet") : t("applicationDetail.noMessagesWithThe")}</p>}
         {thread?.messages.map((m) => (
           <div key={m.id} className={internal ? "msg msg-int" : "msg"}>
             <span className={m.authorUserId ? "av" : "av av-t"} aria-hidden="true">
@@ -156,10 +157,10 @@ function Messages({ applicationId }: { applicationId: string }) {
                 {internal ? (
                   <span className="int-mark">
                     <Lock className="ic" aria-hidden="true" />
-                    Internal
+                    {t("applicationDetail.internal")}
                   </span>
                 ) : (
-                  <span className="shared-mark">Shared</span>
+                  <span className="shared-mark">{t("applicationDetail.shared")}</span>
                 )}
               </div>
               <div className="bd">{m.body}</div>
@@ -168,10 +169,10 @@ function Messages({ applicationId }: { applicationId: string }) {
         ))}
         {post.error !== null && <ErrorBanner error={post.error} />}
         <form className="composer" onSubmit={submit}>
-          <textarea className="ta" style={{ minHeight: "44px" }} aria-label={internal ? "Write an internal note" : "Write a message to the applicant"} placeholder={internal ? "Internal note: the applicant never sees this" : "Message the applicant"} value={body} onChange={(e) => setBody(e.target.value)} />
+          <textarea className="ta" style={{ minHeight: "44px" }} aria-label={internal ? t("applicationDetail.writeAnInternalNote") : t("applicationDetail.writeAMessageTo")} placeholder={internal ? t("applicationDetail.internalNoteTheApplicant") : t("applicationDetail.messageTheApplicant")} value={body} onChange={(e) => setBody(e.target.value)} />
           <button type="submit" className="btn btn-primary" disabled={post.state === "saving" || !body.trim()}>
             <Send className="ic" aria-hidden="true" />
-            {internal ? "Add note" : "Send"}
+            {internal ? t("applicationDetail.addNote") : t("applicationDetail.send")}
           </button>
         </form>
       </div>
@@ -183,29 +184,29 @@ function Reviews({ app, base }: { app: InboxApplication; base: string }) {
   const { person } = usePeople();
   const reviews = useApiQuery((api) => api.listReviews(app.id, app.stage), [app.id, app.stage]);
   const assignments = useApiQuery((api) => api.listAssignments({ applicationId: app.id, stage: app.stage }), [app.id, app.stage]);
-  if (reviews.status === "loading") return <Loading label="Loading reviews" />;
+  if (reviews.status === "loading") return <Loading label={t("applicationDetail.loadingReviews")} />;
   if (reviews.status === "error") return <ErrorBanner error={reviews.error} onRetry={reviews.reload} />;
   const assigned = assignments.data?.filter((a) => a.status !== "recused") ?? [];
   return (
     <div className="card">
       <div className="card-h">
         <h3>
-          Reviews · {reviews.data.length} of {assigned.length} submitted
+          {t("applicationDetail.reviewsOfSubmitted", { count: reviews.data.length, count2: assigned.length })}
         </h3>
         <Link to={`${base}/reviews/assign`} className="small b">
-          Assign reviewers
+          {t("applicationDetail.assignReviewers")}
         </Link>
       </div>
       {reviews.data.length === 0 ? (
-        <div className="card-b muted small">No reviews submitted at this stage yet.</div>
+        <div className="card-b muted small">{t("applicationDetail.noReviewsSubmittedAt")}</div>
       ) : (
         <div className="card-b" style={{ padding: 0 }}>
-          <table className="tbl tbl-compact" aria-label="Submitted reviews">
+          <table className="tbl tbl-compact" aria-label={t("applicationDetail.submittedReviews")}>
             <thead>
               <tr>
-                <th>Reviewer</th>
-                <th className="num">Overall</th>
-                <th>Recommendation</th>
+                <th>{t("applicationDetail.reviewer")}</th>
+                <th className="num">{t("applicationDetail.overall")}</th>
+                <th>{t("applicationDetail.recommendation")}</th>
               </tr>
             </thead>
             <tbody>
@@ -238,7 +239,7 @@ function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication;
     if (action.kind === "revision") return api.requestRevision(app.id, { message: text.trim(), ...(Object.keys(fields).length ? { fields } : {}) });
     return api.declineApplication(app.id, { sendLetter, ...(text.trim() ? { rationale: text.trim() } : {}) });
   });
-  const title = action.kind === "advance" ? `Advance to ${action.label}` : action.kind === "revision" ? "Request a revision" : "Decline this application";
+  const title = action.kind === "advance" ? t("applicationDetail.advanceTo", { label: action.label }) : action.kind === "revision" ? t("applicationDetail.requestARevision") : t("applicationDetail.declineThisApplication");
   const needText = action.kind === "revision";
   const toggleField = (formId: string, path: string) =>
     setFields((f) => {
@@ -261,38 +262,38 @@ function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication;
         </div>
         <div className="bd">
           {run.error !== null && <ErrorBanner error={run.error} />}
-          {action.kind === "advance" && <p>The applicant is invited to the {action.label} stage. Their earlier responses are locked and stay visible to reviewers.</p>}
+          {action.kind === "advance" && <p>{t("applicationDetail.theApplicantIsInvited", { label: action.label })}</p>}
           {action.kind === "revision" && (
             <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-              <legend className="lbl">Fields to revise (optional)</legend>
+              <legend className="lbl">{t("applicationDetail.fieldsToReviseOptional")}</legend>
               <div className="col" style={{ marginTop: "6px" }}>
                 {(app.formResponses ?? []).flatMap((r) =>
                   Object.keys(r.response).map((k) => (
                     <label key={`${r.formId}/${k}`} className="row small">
                       <input type="checkbox" checked={(fields[r.formId] ?? []).includes(`/${k}`)} onChange={() => toggleField(r.formId, `/${k}`)} />
-                      {r.formTitle ?? "Form"} · {k}
+                      {r.formTitle ?? t("applicationDetail.form")} · {k}
                     </label>
                   )),
                 )}
               </div>
             </fieldset>
           )}
-          <Field id="action-text" label={action.kind === "revision" ? "What should change" : action.kind === "decline" ? "Reason (recorded with the decision)" : "Note (optional)"} required={needText} help={action.kind === "revision" ? "The applicant sees this message with the request." : undefined}>
+          <Field id="action-text" label={action.kind === "revision" ? t("applicationDetail.whatShouldChange") : action.kind === "decline" ? t("applicationDetail.reasonRecordedWithThe") : t("applicationDetail.noteOptional")} required={needText} help={action.kind === "revision" ? t("applicationDetail.theApplicantSeesThis") : undefined}>
             <textarea className="ta" id="action-text" value={text} onChange={(e) => setText(e.target.value)} required={needText} />
           </Field>
           {action.kind === "decline" && (
             <label className="row">
               <input type="checkbox" checked={sendLetter} onChange={(e) => setSendLetter(e.target.checked)} />
-              Send the standard decline letter
+              {t("applicationDetail.sendTheStandardDecline")}
             </label>
           )}
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("applicationDetail.cancel")}
           </button>
           <button type="submit" className={action.kind === "decline" ? "btn btn-danger-solid" : "btn btn-primary"} disabled={run.state === "saving" || (needText && !text.trim())}>
-            {action.kind === "advance" ? "Advance" : action.kind === "revision" ? "Send request" : "Decline"}
+            {action.kind === "advance" ? t("applicationDetail.advance") : action.kind === "revision" ? t("applicationDetail.sendRequest") : t("applicationDetail.decline")}
           </button>
         </div>
       </form>
@@ -301,6 +302,7 @@ function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication;
 }
 
 export default function ApplicationDetail() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { appId = "" } = useParams();
@@ -316,15 +318,15 @@ export default function ApplicationDetail() {
   const rerun = useApiMutation((api) => api.rerunEligibility(appId));
 
   useEffect(() => {
-    const t = window.location.hash.replace("#", "");
-    if (["applicant", "eligibility", "reviews", "budget", "documents", "messages", "activity"].includes(t)) setTab(t as RailTab);
+    const hashRow = window.location.hash.replace("#", "");
+    if (["applicant", "eligibility", "reviews", "budget", "documents", "messages", "activity"].includes(hashRow)) setTab(hashRow as RailTab);
   }, []);
 
   if (app.status === "loading") {
     return (
       <FunderShell active="Applications">
         <main className="main">
-          <Loading label="Loading application" />
+          <Loading label={t("applicationDetail.loadingApplication")} />
         </main>
       </FunderShell>
     );
@@ -333,7 +335,7 @@ export default function ApplicationDetail() {
     return (
       <FunderShell active="Applications">
         <main className="main">
-          <ErrorBanner error={app.error} onRetry={app.reload} title="This application could not be loaded" />
+          <ErrorBanner error={app.error} onRetry={app.reload} title={t("applicationDetail.thisApplicationCouldNot")} />
         </main>
       </FunderShell>
     );
@@ -354,13 +356,13 @@ export default function ApplicationDetail() {
 
   return (
     <>
-      <title>{`${a.title} — ${ws.name}`}</title>
+      <title>{t("applicationDetail.pageTitle", { title: a.title, workspace: ws.name })}</title>
       <FunderShell active="Applications">
         <main className="main">
           <div className="crumbs">
             <Link to={base}>{ws.name}</Link>
             <span>›</span>
-            <Link to={`${base}/applications`}>Applications</Link>
+            <Link to={`${base}/applications`}>{t("applicationDetail.applications")}</Link>
             <span>›</span>
             <span>{a.applicant.name}</span>
           </div>
@@ -376,18 +378,18 @@ export default function ApplicationDetail() {
                   {org?.levelChangedSinceSubmit && (
                     <span className="pill-warn">
                       <RefreshCw className="ic ic-sm" aria-hidden="true" />
-                      Level changed since submit (was {a.verificationLevelAtSubmit})
+                      {t("applicationDetail.levelChangedSinceSubmit", { verificationLevelAtSubmit: a.verificationLevelAtSubmit })}
                     </span>
                   )}
-                  {a.tags.map((t) => (
-                    <button key={t} type="button" className="tag" style={{ border: 0, cursor: "pointer" }} aria-label={`Remove tag ${t}`} onClick={async () => (await tagIt.run({ remove: [t] })) && app.reload()}>
-                      {t} ×
+                  {a.tags.map((item) => (
+                    <button key={item} type="button" className="tag" style={{ border: 0, cursor: "pointer" }} aria-label={t("applicationDetail.removeTag", { item })} onClick={async () => (await tagIt.run({ remove: [item] })) && app.reload()}>
+                      {item} ×
                     </button>
                   ))}
                 </div>
                 <h1>{a.title}</h1>
                 <div className="row wrap" style={{ gap: "6px 14px", fontSize: "13px", color: "#4A5C5A" }}>
-                  <span>{competition?.title ?? "Competition"}</span>
+                  <span>{competition?.title ?? t("applicationDetail.competition")}</span>
                   <span>·</span>
                   <span className="row" style={{ gap: "6px" }}>
                     {stage?.label ?? a.stage}
@@ -395,16 +397,16 @@ export default function ApplicationDetail() {
                   </span>
                   <span>·</span>
                   <span>
-                    Requested <b style={{ color: "#0D2A43" }}>{formatMinor(a.requestedAmountMinor, a.currency)}</b>
+                    {t.rich("applicationDetail.requested", { amount: formatMinor(a.requestedAmountMinor, a.currency), b: (chunks) => <b style={{ color: "#0D2A43" }}>{chunks}</b> })}
                   </span>
                   <span>·</span>
                   <span className="row" style={{ gap: "6px" }}>
-                    Eligibility <EligibilityMark value={a.eligibility} />
+                    {t("applicationDetail.eligibility")} <EligibilityMark value={a.eligibility} />
                   </span>
                   {a.submittedAt && (
                     <>
                       <span>·</span>
-                      <span>Submitted {formatDate(a.submittedAt)}</span>
+                      <span>{t("applicationDetail.submitted", { date: formatDate(a.submittedAt) })}</span>
                     </>
                   )}
                 </div>
@@ -413,31 +415,31 @@ export default function ApplicationDetail() {
                 {open &&
                   next.map((s) => (
                     <button key={s.key} type="button" className="btn btn-primary" onClick={() => setAction({ kind: "advance", toStage: s.key, label: s.label })}>
-                      Advance to {s.label}
+                      {t("applicationDetail.advanceTo", { label: s.label })}
                     </button>
                   ))}
                 {open && (
                   <>
                     <button type="button" className="btn btn-secondary" onClick={() => setAction({ kind: "revision" })}>
-                      Request revision
+                      {t("applicationDetail.requestRevision")}
                     </button>
                     <button type="button" className="btn btn-danger" onClick={() => setAction({ kind: "decline" })}>
-                      Decline
+                      {t("applicationDetail.decline")}
                     </button>
                   </>
                 )}
                 {competition && (
                   <Link to={`${base}/competitions/${competition.id}/panel`} className="btn btn-secondary">
-                    Panel
+                    {t("applicationDetail.panel")}
                   </Link>
                 )}
               </div>
             </div>
             <div className="row wrap" style={{ gap: "12px" }}>
               <label className="row small">
-                Assignee
+                {t("applicationDetail.assignee")}
                 <select className="sel" style={{ width: "auto", height: "30px" }} value={a.assignedToUserId ?? ""} onChange={async (e) => (await assign.run(e.target.value || null)) && app.reload()}>
-                  <option value="">Unassigned</option>
+                  <option value="">{t("applicationDetail.unassigned")}</option>
                   {people.map((p) => (
                     <option key={p.userId} value={p.userId}>
                       {p.name}
@@ -455,20 +457,20 @@ export default function ApplicationDetail() {
                   }
                 }}
               >
-                <input className="inp" style={{ width: "160px", height: "30px" }} aria-label="Add a tag" placeholder="Add a tag" value={tag} onChange={(e) => setTag(e.target.value)} />
+                <input className="inp" style={{ width: "160px", height: "30px" }} aria-label={t("applicationDetail.addATag")} placeholder={t("applicationDetail.addATag")} value={tag} onChange={(e) => setTag(e.target.value)} />
                 <button type="submit" className="btn btn-sm btn-secondary" disabled={!tag.trim()}>
-                  Add tag
+                  {t("applicationDetail.addTag")}
                 </button>
               </form>
-              {(tagIt.error !== null || assign.error !== null) && <span className="err-msg">That change did not save. Try again.</span>}
+              {(tagIt.error !== null || assign.error !== null) && <span className="err-msg">{t("applicationDetail.thatChangeDidNot")}</span>}
             </div>
           </div>
 
-          {a.status === "revision_requested" && <Notice tone="warn" title="A revision is with the applicant">Their responses unlock until they resubmit. The earlier version stays in the timeline.</Notice>}
+          {a.status === "revision_requested" && <Notice tone="warn" title={t("applicationDetail.aRevisionIsWith")}>{t("applicationDetail.theirResponsesUnlockUntil")}</Notice>}
 
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 380px", gap: "20px", alignItems: "start" }}>
             <div className="col" style={{ gap: "20px" }}>
-              {(a.formResponses ?? []).length === 0 && <div className="card card-b muted">No responses at this stage yet.</div>}
+              {(a.formResponses ?? []).length === 0 && <div className="card card-b muted">{t("applicationDetail.noResponsesAtThis")}</div>}
               {(a.formResponses ?? []).map((r) => (
                 <ResponseCard key={`${r.formId}:${r.formVersion}`} r={r} />
               ))}
@@ -477,46 +479,46 @@ export default function ApplicationDetail() {
             <aside className="col" style={{ gap: "16px" }}>
               <InterviewCard applicationId={a.id} canOffer={open} />
               <Tabs
-                label="Application panels"
+                label={t("applicationDetail.applicationPanels")}
                 idPrefix="rail"
                 active={tab}
                 onChange={setTab}
                 tabs={[
-                  { key: "applicant", label: "Applicant" },
-                  { key: "eligibility", label: "Eligibility" },
-                  { key: "reviews", label: "Reviews" },
-                  { key: "budget", label: "Budget" },
-                  { key: "documents", label: "Documents" },
-                  { key: "messages", label: "Messages" },
-                  { key: "activity", label: "Activity" },
+                  { key: "applicant", label: t("applicationDetail.applicant") },
+                  { key: "eligibility", label: t("applicationDetail.eligibility") },
+                  { key: "reviews", label: t("applicationDetail.reviews") },
+                  { key: "budget", label: t("applicationDetail.budget") },
+                  { key: "documents", label: t("applicationDetail.documents") },
+                  { key: "messages", label: t("applicationDetail.messages") },
+                  { key: "activity", label: t("applicationDetail.activity") },
                 ]}
               />
               <TabPanel idPrefix="rail" tab="applicant" active={tab}>
                 <div className="card">
                   <div className="card-h">
-                    <h3>Applicant</h3>
+                    <h3>{t("applicationDetail.applicant")}</h3>
                     <VerificationBadge verification={a.applicant.verification} level={org?.level ?? a.applicant.level} />
                   </div>
                   <div className="card-b">
                     {org ? (
                       <dl className="kv">
-                        <dt>Legal name</dt>
+                        <dt>{t("applicationDetail.legalName")}</dt>
                         <dd>{projection.name ?? a.applicant.name}</dd>
                         <dt>EIN</dt>
                         <dd className="mono">{projection.identifiers?.["org:us:ein"]?.id ?? "—"}</dd>
-                        <dt>Address</dt>
+                        <dt>{t("applicationDetail.address")}</dt>
                         <dd>{address ? [address.street1, address.city, address.stateOrProvince, address.postalCode].filter(Boolean).join(", ") : "—"}</dd>
-                        <dt>Mission</dt>
+                        <dt>{t("applicationDetail.mission")}</dt>
                         <dd>{projection.mission ?? "—"}</dd>
-                        <dt>Verified</dt>
+                        <dt>{t("applicationDetail.verified")}</dt>
                         <dd>{formatDate(org.verifiedAt)}</dd>
-                        <dt>Passport sync</dt>
+                        <dt>{t("applicationDetail.passportSync")}</dt>
                         <dd>{timeAgo(org.syncedAt)}</dd>
-                        <dt>Attestation</dt>
-                        <dd>{a.attestationUrl ? <a href={a.attestationUrl}>Attached at submit ({a.verificationLevelAtSubmit})</a> : "None"}</dd>
+                        <dt>{t("applicationDetail.attestation")}</dt>
+                        <dd>{a.attestationUrl ? <a href={a.attestationUrl}>{t("applicationDetail.attachedAtSubmit", { level: a.verificationLevelAtSubmit })}</a> : t("applicationDetail.none")}</dd>
                       </dl>
                     ) : (
-                      <p className="muted small">The applicant’s Passport record is visible while their consent stands. Level at submit: {a.verificationLevelAtSubmit ?? "unknown"}.</p>
+                      <p className="muted small">{t("applicationDetail.passportRecordLevel", { level: a.verificationLevelAtSubmit ?? t("applicationDetail.unknown") })}</p>
                     )}
                   </div>
                 </div>
@@ -524,7 +526,7 @@ export default function ApplicationDetail() {
               <TabPanel idPrefix="rail" tab="eligibility" active={tab}>
                 <div className="card">
                   <div className="card-h">
-                    <h3>Eligibility</h3>
+                    <h3>{t("applicationDetail.eligibility")}</h3>
                     <EligibilityMark value={a.eligibilityResults?.eligible ?? a.eligibility} />
                   </div>
                   <div className="card-b">
@@ -538,15 +540,15 @@ export default function ApplicationDetail() {
                             </div>
                             <div className="r">{r.explain}</div>
                           </div>
-                          <span className="small b">{r.outcome === "pass" ? "Pass" : r.outcome === "fail" ? "Fail" : "Unknown"}</span>
+                          <span className="small b">{r.outcome === "pass" ? t("applicationDetail.pass") : r.outcome === "fail" ? t("applicationDetail.fail") : t("applicationDetail.unknown2")}</span>
                         </li>
                       ))}
                     </ul>
-                    {!a.eligibilityResults?.results.length && <p className="muted small">This opportunity has no eligibility rules.</p>}
-                    <p className="help">An unknown result never declines an application; it flags it for a person.</p>
+                    {!a.eligibilityResults?.results.length && <p className="muted small">{t("applicationDetail.thisOpportunityHasNo")}</p>}
+                    <p className="help">{t("applicationDetail.anUnknownResultNever")}</p>
                     <button type="button" className="btn btn-sm btn-secondary" disabled={rerun.state === "saving"} onClick={async () => (await rerun.run()) && app.reload()}>
                       <RefreshCw className="ic" aria-hidden="true" />
-                      Run again
+                      {t("applicationDetail.runAgain")}
                     </button>
                     {rerun.error !== null && <ErrorBanner error={rerun.error} />}
                   </div>
@@ -568,7 +570,7 @@ export default function ApplicationDetail() {
                 <SectionAssignments applicationId={a.id} />
                 <div className="card" style={{ marginTop: "12px" }}>
                   <div className="card-h">
-                    <h3>Activity</h3>
+                    <h3>{t("applicationDetail.activity")}</h3>
                   </div>
                   <div className="card-b">
                     <div className="tl tl-sm">
@@ -581,7 +583,7 @@ export default function ApplicationDetail() {
                               <div className="what">{e.message ?? e.type.replace(/^application\./, "").replace(/[._]/g, " ")}</div>
                               <div className="who">
                                 {who.name} · {dateTime(e.at)}
-                                {e.toStage ? ` · to ${e.toStage}` : ""}
+                                {e.toStage ? t("applicationDetail.to", { toStage: e.toStage }) : ""}
                               </div>
                               {e.revision && e.revision.changes.length > 0 && (
                                 <div style={{ marginTop: "8px" }}>
@@ -592,7 +594,7 @@ export default function ApplicationDetail() {
                           </div>
                         );
                       })}
-                      {!a.timeline?.length && <p className="muted small">Nothing recorded yet.</p>}
+                      {!a.timeline?.length && <p className="muted small">{t("applicationDetail.nothingRecordedYet")}</p>}
                     </div>
                   </div>
                 </div>

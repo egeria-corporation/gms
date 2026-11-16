@@ -11,6 +11,7 @@ import { initialsOf } from "../../api/client.ts";
 import { useServices } from "../../app/services.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** The guest's own chrome: the reviewer portal's top bar, nothing else. */
 export function GuestFrame({ title, funder, children }: { title: string; funder: string | null; children: ReactNode }) {
@@ -18,7 +19,7 @@ export function GuestFrame({ title, funder, children }: { title: string; funder:
   const me = meState.status === "ready" ? meState.me : null;
   return (
     <>
-      <title>{`${title} — Reviewer portal`}</title>
+      <title>{t("guestReviewerWelcome.reviewerPortal", { title })}</title>
       <div className="gms gms-funder gms-frame">
         <header className="topbar">
           <Link to="/review/assignments" className="logo">
@@ -26,14 +27,14 @@ export function GuestFrame({ title, funder, children }: { title: string; funder:
             <span className="suffix">GMS</span>
           </Link>
           <span className="ws">
-            Reviewer portal{funder ? ` · ${funder}` : ""}
-            <span className="role">Guest reviewer</span>
+            {t("guestReviewerWelcome.reviewerPortal2")}{funder ? ` · ${funder}` : ""}
+            <span className="role">{t("guestReviewerWelcome.guestReviewer")}</span>
           </span>
           {me && (
             <div className="row" style={{ marginLeft: "auto" }}>
               <Link to="/account/agents" className="av av-t">
                 <span aria-hidden="true">{initialsOf(me.email)}</span>
-                <span className="sr">Account: {me.email}</span>
+                <span className="sr">{t("guestReviewerWelcome.account", { email: me.email })}</span>
               </Link>
             </div>
           )}
@@ -51,25 +52,26 @@ export function NotAGuest() {
   return (
     <EmptyState
       icon={ClipboardCheck}
-      title="This page is for invited reviewers"
+      title={t("guestReviewerWelcome.thisPageIsFor")}
       actions={
         <Link to="/workspaces" className="btn btn-primary">
-          Go to your workspaces
+          {t("guestReviewerWelcome.goToYourWorkspaces")}
         </Link>
       }
     >
-      An invitation to review from a funder brings you here.
+      {t("guestReviewerWelcome.anInvitationToReview")}
     </EmptyState>
   );
 }
 
 export default function GuestReviewerWelcome() {
+  useFunderMessages();
   const [params] = useSearchParams();
   const guest = useGuestMembership(params.get("ws"));
   const membership = guest.status === "ready" ? guest.membership : null;
   return (
-    <GuestFrame title="Welcome" funder={membership?.name ?? null}>
-      {guest.status === "loading" && <Loading label="Opening your invitation" />}
+    <GuestFrame title={t("guestReviewerWelcome.welcome")} funder={membership?.name ?? null}>
+      {guest.status === "loading" && <Loading label={t("guestReviewerWelcome.openingYourInvitation")} />}
       {guest.status === "ready" && !membership && <NotAGuest />}
       {membership && <Welcome workspaceId={membership.id} />}
     </GuestFrame>
@@ -79,7 +81,7 @@ export default function GuestReviewerWelcome() {
 function Welcome({ workspaceId }: { workspaceId: string }) {
   const navigate = useNavigate();
   const query = useGuestReviewQuery((api) => api.welcome(workspaceId), [workspaceId]);
-  if (query.status === "loading") return <Loading label="Opening your invitation" />;
+  if (query.status === "loading") return <Loading label={t("guestReviewerWelcome.openingYourInvitation")} />;
   if (query.status === "error") return <ErrorBanner error={query.error} onRetry={query.reload} />;
   const w = query.data;
   const comp = w.competitions[0];
@@ -87,36 +89,36 @@ function Welcome({ workspaceId }: { workspaceId: string }) {
     <section className="card" aria-labelledby="gw-title">
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <div>
-          <span className="eyebrow">You are reviewing for {w.funder.name}</span>
+          <span className="eyebrow">{t("guestReviewerWelcome.youAreReviewingFor", { name: w.funder.name })}</span>
           <h1 id="gw-title" style={{ fontSize: "22px", marginTop: "4px" }}>
-            Welcome. Thank you for reviewing.
+            {t("guestReviewerWelcome.welcomeThankYouFor")}
           </h1>
           <p className="muted" style={{ marginTop: "6px" }}>
-            You are a guest reviewer: you see only the applications assigned to you, and nothing to set up.
+            {t("guestReviewerWelcome.youAreAGuest")}
           </p>
         </div>
         <dl className="kv" style={{ fontSize: "14px" }}>
-          <dt>Funder</dt>
+          <dt>{t("guestReviewerWelcome.funder")}</dt>
           <dd>{w.funder.name}</dd>
-          <dt>Competition</dt>
-          <dd>{w.competitions.length > 1 ? w.competitions.map((c) => c.title).join(" · ") : (comp?.title ?? "Not named yet")}</dd>
-          <dt>Applications</dt>
+          <dt>{t("guestReviewerWelcome.competition")}</dt>
+          <dd>{w.competitions.length > 1 ? w.competitions.map((c) => c.title).join(" · ") : (comp?.title ?? t("guestReviewerWelcome.notNamedYet"))}</dd>
+          <dt>{t("guestReviewerWelcome.applications")}</dt>
           <dd>
-            {w.assigned} assigned to you{w.submitted > 0 ? ` · ${w.submitted} submitted` : ""}
+            {w.submitted > 0 ? t("guestReviewerWelcome.assignedSubmitted", { assigned: w.assigned, submitted: w.submitted }) : t("guestReviewerWelcome.assignedToYou", { assigned: w.assigned })}
           </dd>
-          <dt>Due</dt>
+          <dt>{t("guestReviewerWelcome.due")}</dt>
           <dd className="row" style={{ gap: "6px" }}>
             <CalendarClock className="ic ic-sm" aria-hidden="true" />
-            {w.dueAt ? formatDate(w.dueAt) : "No due date set"}
+            {w.dueAt ? formatDate(w.dueAt) : t("guestReviewerWelcome.noDueDateSet")}
           </dd>
         </dl>
-        <div className="bnr bnr-info" role="note" aria-label="Conflicts of interest">
+        <div className="bnr bnr-info" role="note" aria-label={t("guestReviewerWelcome.conflictsOfInterest")}>
           <ShieldCheck className="ic" aria-hidden="true" />
           <div>
-            <div className="b">Conflicts of interest</div>
+            <div className="b">{t("guestReviewerWelcome.conflictsOfInterest")}</div>
             <p className="small">{w.coi.note}</p>
             <Link to={w.coi.link} className="small">
-              Read and confirm the conflict-of-interest steps
+              {t("guestReviewerWelcome.readAndConfirmThe")}
             </Link>
           </div>
         </div>
@@ -124,17 +126,17 @@ function Welcome({ workspaceId }: { workspaceId: string }) {
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
             <span className="bdg bdg-ok">
               <CircleCheck className="ic" aria-hidden="true" />
-              All {w.submitted} reviews submitted
+              {t("guestReviewerWelcome.allReviewsSubmitted", { submitted: w.submitted })}
             </span>
             <Link to={`/review/done?ws=${encodeURIComponent(w.funder.handle)}`} className="btn btn-primary">
-              See what’s next
+              {t("guestReviewerWelcome.seeWhatsNext")}
               <ArrowRight className="ic" aria-hidden="true" />
             </Link>
           </div>
         ) : (
           <div>
             <button type="button" className="btn btn-primary" onClick={() => navigate(w.startUrl)}>
-              Start reviewing
+              {t("guestReviewerWelcome.startReviewing")}
               <ArrowRight className="ic" aria-hidden="true" />
             </button>
           </div>

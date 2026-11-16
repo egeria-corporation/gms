@@ -15,6 +15,7 @@ import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** Payee status in words and shape, never color alone. Bank name and last four digits only. */
 function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
@@ -23,7 +24,7 @@ function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
     return (
       <span className="pay pay-none">
         <EyeOff className="ic" aria-hidden="true" />
-        Not shared
+        {t("funderGrantees.notShared")}
       </span>
     );
   const { pendingDestinationChange: pending, active } = payee;
@@ -31,20 +32,20 @@ function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
     return (
       <span className="pay pay-held">
         <Lock className="ic" aria-hidden="true" />
-        Inactive
+        {t("funderGrantees.inactive")}
       </span>
     );
   if (pending)
     return (
       <span className="pay pay-cooling userback-block">
         <Clock className="ic" aria-hidden="true" />
-        Change pending
+        {t("funderGrantees.changePending")}
       </span>
     );
   return (
     <span className="pay pay-active userback-block">
       <CircleCheck className="ic" aria-hidden="true" />
-      Payee active
+      {t("funderGrantees.payeeActive")}
     </span>
   );
 }
@@ -66,17 +67,17 @@ function OrgChangeCard({ change, organization, onDone }: { change: OrgChange; or
   return (
     <div className="diff" data-change={change.id}>
       <div className="hd">
-        <span>Change at Passport · received {dateTime(change.receivedAt)}</span>
-        <span>{change.status === "pending" ? "Pending" : change.status === "accepted" ? "Accepted" : "Dismissed"}</span>
+        <span>{t("funderGrantees.changeAtPassportReceived", { dateTime: dateTime(change.receivedAt) })}</span>
+        <span>{change.status === "pending" ? t("funderGrantees.pending") : change.status === "accepted" ? t("funderGrantees.accepted") : t("funderGrantees.dismissed")}</span>
       </div>
       {rows.map((r) => (
         <div className="cols" key={r.path}>
           <div>
-            <div className="xs muted">{r.path} · on file here</div>
+            <div className="xs muted">{t("funderGrantees.onFileHere", { path: r.path })}</div>
             <span className="del">{read(organization, r.path)}</span>
           </div>
           <div>
-            <div className="xs muted">{r.path} · now at Passport</div>
+            <div className="xs muted">{t("funderGrantees.nowAtPassport", { path: r.path })}</div>
             <span className="ins">{r.value}</span>
           </div>
         </div>
@@ -88,13 +89,13 @@ function OrgChangeCard({ change, organization, onDone }: { change: OrgChange; or
       )}
       {change.status === "pending" && (
         <div className="sum">
-          <button type="button" className="btn btn-sm btn-primary" disabled={accept.state === "saving"} onClick={async () => (await accept.run()) && onDone("Change accepted. Your copy of the record now matches Passport, and eligibility was re-checked.")}>
-            Accept change
+          <button type="button" className="btn btn-sm btn-primary" disabled={accept.state === "saving"} onClick={async () => (await accept.run()) && onDone(t("funderGrantees.done.accepted"))}>
+            {t("funderGrantees.acceptChange")}
           </button>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={dismiss.state === "saving"} onClick={async () => (await dismiss.run()) && onDone("Change dismissed.")}>
-            Dismiss
+          <button type="button" className="btn btn-sm btn-secondary" disabled={dismiss.state === "saving"} onClick={async () => (await dismiss.run()) && onDone(t("funderGrantees.done.dismissed"))}>
+            {t("funderGrantees.dismiss")}
           </button>
-          <span>Accepting updates what this workspace shows; the record itself lives in Passport.</span>
+          <span>{t("funderGrantees.acceptingUpdatesWhatThis")}</span>
         </div>
       )}
     </div>
@@ -123,35 +124,35 @@ function ProposeDialog({ grantee, onClose, onDone }: { grantee: GranteeDetail; o
       >
         <div className="hd">
           <div>
-            <h2 id="propose-title">Propose a change to {grantee.name}</h2>
-            <p className="small muted">The proposal goes to the organization in Passport. Nothing changes unless they accept it.</p>
+            <h2 id="propose-title">{t("funderGrantees.proposeAChangeTo", { name: grantee.name })}</h2>
+            <p className="small muted">{t("funderGrantees.theProposalGoesTo")}</p>
           </div>
         </div>
         <div className="bd">
-          {propose.error !== null && <ErrorBanner error={propose.error} title="The proposal was not sent" />}
-          <Field id="propose-field" label="Field" required>
+          {propose.error !== null && <ErrorBanner error={propose.error} title={t("funderGrantees.theProposalWasNot")} />}
+          <Field id="propose-field" label={t("funderGrantees.field")} required>
             <select className="sel" id="propose-field" value={field} onChange={(e) => setField(e.target.value)}>
-              <option value="emails.primary">Primary email</option>
-              <option value="phones.primary.number">Primary phone</option>
-              <option value="addresses.primary.street1">Mailing address, street</option>
-              <option value="addresses.primary.city">Mailing address, city</option>
-              <option value="socials.website">Website</option>
-              <option value="mission">Mission</option>
+              <option value="emails.primary">{t("funderGrantees.primaryEmail")}</option>
+              <option value="phones.primary.number">{t("funderGrantees.primaryPhone")}</option>
+              <option value="addresses.primary.street1">{t("funderGrantees.mailingAddressStreet")}</option>
+              <option value="addresses.primary.city">{t("funderGrantees.mailingAddressCity")}</option>
+              <option value="socials.website">{t("funderGrantees.website")}</option>
+              <option value="mission">{t("funderGrantees.mission")}</option>
             </select>
           </Field>
-          <Field id="propose-value" label="Proposed value" required help="Bank and identity details can never be proposed here; they change only in Passport, by the organization.">
+          <Field id="propose-value" label={t("funderGrantees.proposedValue")} required help={t("funderGrantees.bankAndIdentityDetails")}>
             <input className="inp" id="propose-value" value={value} onChange={(e) => setValue(e.target.value)} required />
           </Field>
-          <Field id="propose-note" label="Note to the organization">
+          <Field id="propose-note" label={t("funderGrantees.noteToTheOrganization")}>
             <textarea className="ta" id="propose-note" value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("funderGrantees.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!value.trim() || propose.state === "saving"}>
-            Send proposal
+            {t("funderGrantees.sendProposal")}
           </button>
         </div>
       </form>
@@ -166,7 +167,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
   const [message, setMessage] = useState<string | null>(null);
   const [proposing, setProposing] = useState(false);
   const save = useApiMutation((api, patch: { notes?: string | null; tags?: string[] }) => api.updateGrantee(workspaceId, patch));
-  if (detail.status === "loading") return <Loading label="Loading the grantee record" />;
+  if (detail.status === "loading") return <Loading label={t("funderGrantees.loadingTheGranteeRecord")} />;
   if (detail.status === "error") return <ErrorBanner error={detail.error} onRetry={detail.reload} />;
   const g = detail.data;
   const org = g.organization;
@@ -196,43 +197,45 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               <PayeeChip payee={g.payee} />
             </div>
             <p className="small muted userback-block">
-              {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : "Payee details not available"} · record synced {g.lastSyncedAt ? dateTime(g.lastSyncedAt) : "never"}
+              {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : t("funderGrantees.payeeDetailsNotAvailable")}
+              {" · "}
+              {g.lastSyncedAt ? t("funderGrantees.recordSyncedAt", { date: dateTime(g.lastSyncedAt) }) : t("funderGrantees.recordNeverSynced")}
             </p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => setProposing(true)}>
-            Propose a change
+            {t("funderGrantees.proposeAChange")}
           </button>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {message && <Notice tone="ok" title={message} />}
-          {!g.consent && <Notice tone="warn" title="No consent to read this organization’s Passport record">You see only what the organization submitted with its applications. Ask them to grant access under Team &amp; access in their workspace.</Notice>}
+          {!g.consent && <Notice tone="warn" title={t("funderGrantees.noConsentToRead")}>{t("funderGrantees.youSeeOnlyWhat")}</Notice>}
           {org && (
             <dl className="kv">
-              <dt>Legal name</dt>
+              <dt>{t("funderGrantees.legalName")}</dt>
               <dd>
-                {read(org, "name")} <span className="prov prov-passport">From Passport</span>
+                {read(org, "name")} <span className="prov prov-passport">{t("funderGrantees.fromPassport")}</span>
               </dd>
               <dt>EIN</dt>
               <dd>{read(org, "identifiers.org:us:ein.id")}</dd>
-              <dt>Address</dt>
+              <dt>{t("funderGrantees.address")}</dt>
               <dd>
                 {read(org, "addresses.primary.street1")}, {read(org, "addresses.primary.city")}, {read(org, "addresses.primary.stateOrProvince")}
               </dd>
-              <dt>Email</dt>
+              <dt>{t("funderGrantees.email")}</dt>
               <dd>{read(org, "emails.primary")}</dd>
-              <dt>Mission</dt>
+              <dt>{t("funderGrantees.mission")}</dt>
               <dd>{read(org, "mission")}</dd>
             </dl>
           )}
-          <p className="help">This record is read from Passport and cannot be edited here. To correct something, propose a change; the organization decides.</p>
+          <p className="help">{t("funderGrantees.thisRecordIsRead")}</p>
         </div>
       </section>
 
       {g.orgChanges.length > 0 && (
         <section className="card" aria-labelledby="changes-h">
           <div className="card-h">
-            <h3 id="changes-h">Changes to the Passport record</h3>
-            <span className="small muted">{pending.length} pending</span>
+            <h3 id="changes-h">{t("funderGrantees.changesToThePassport")}</h3>
+            <span className="small muted">{t("funderGrantees.pending2", { count: pending.length })}</span>
           </div>
           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {g.orgChanges.map((c) => (
@@ -244,19 +247,19 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
 
       <section className="card" aria-labelledby="notes-h">
         <div className="card-h">
-          <h3 id="notes-h">Relationship notes</h3>
+          <h3 id="notes-h">{t("funderGrantees.relationshipNotes")}</h3>
           <SaveNote state={save.state} />
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <Field id="grantee-notes" label="Notes" help="Visible to your team only. Never shared with the organization.">
+          <Field id="grantee-notes" label={t("funderGrantees.notes")} help={t("funderGrantees.visibleToYourTeam")}>
             <textarea className="ta" id="grantee-notes" value={notes ?? g.notes ?? ""} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== null && notes !== (g.notes ?? "") && update({ notes: notes.trim() ? notes : null })} />
           </Field>
-          <div className="row wrap" role="group" aria-label="Tags">
-            {g.tags.map((t) => (
-              <span key={t} className="tag">
-                {t}
-                <button type="button" className="iconbtn" style={{ width: "18px", height: "18px", marginLeft: "4px" }} aria-label={`Remove tag ${t}`} onClick={() => update({ tags: g.tags.filter((x) => x !== t) })}>
+          <div className="row wrap" role="group" aria-label={t("funderGrantees.tags")}>
+            {g.tags.map((tag) => (
+              <span key={tag} className="tag">
+                {tag}
+                <button type="button" className="iconbtn" style={{ width: "18px", height: "18px", marginLeft: "4px" }} aria-label={t("funderGrantees.removeTag", { tag })} onClick={() => update({ tags: g.tags.filter((x) => x !== tag) })}>
                   ×
                 </button>
               </span>
@@ -265,15 +268,15 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               className="row"
               onSubmit={(e) => {
                 e.preventDefault();
-                const t = tagText.trim();
-                if (!t) return;
+                const item = tagText.trim();
+                if (!item) return;
                 setTagText("");
-                void update({ tags: [...g.tags, t] });
+                void update({ tags: [...g.tags, item] });
               }}
             >
-              <input className="inp" aria-label="Add a tag" placeholder="Add a tag" value={tagText} onChange={(e) => setTagText(e.target.value)} style={{ height: "28px", width: "140px", fontSize: "12px" }} />
+              <input className="inp" aria-label={t("funderGrantees.addATag")} placeholder={t("funderGrantees.addATag")} value={tagText} onChange={(e) => setTagText(e.target.value)} style={{ height: "28px", width: "140px", fontSize: "12px" }} />
               <button type="submit" className="btn btn-sm btn-secondary" disabled={!tagText.trim()}>
-                Add
+                {t("funderGrantees.add")}
               </button>
             </form>
           </div>
@@ -282,17 +285,17 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
 
       <section className="card" aria-labelledby="history-h">
         <div className="card-h">
-          <h3 id="history-h">Awards and applications</h3>
+          <h3 id="history-h">{t("funderGrantees.awardsAndApplications")}</h3>
         </div>
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Awards and applications, scrollable">
-          <table className="tbl" aria-label="Awards and applications">
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("funderGrantees.awardsAndApplicationsScrollable")}>
+          <table className="tbl" aria-label={t("funderGrantees.awardsAndApplications")}>
             <thead>
               <tr>
-                <th>Record</th>
-                <th>Kind</th>
-                <th>Status</th>
-                <th className="num">Awarded</th>
-                <th className="num">Disbursed</th>
+                <th>{t("funderGrantees.record")}</th>
+                <th>{t("funderGrantees.kind")}</th>
+                <th>{t("funderGrantees.status")}</th>
+                <th className="num">{t("funderGrantees.awarded")}</th>
+                <th className="num">{t("funderGrantees.disbursed")}</th>
               </tr>
             </thead>
             <tbody>
@@ -303,7 +306,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
                       {String(a.title)}
                     </Link>
                   </td>
-                  <td>Award</td>
+                  <td>{t("funderGrantees.award")}</td>
                   <td>
                     <StatusBadge kind="award" status={String(a.status)} />
                   </td>
@@ -318,7 +321,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
                       {String(a.title)}
                     </Link>
                   </td>
-                  <td>Application</td>
+                  <td>{t("funderGrantees.application")}</td>
                   <td>
                     <StatusBadge kind="application" status={String(a.status)} />
                   </td>
@@ -329,7 +332,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               {!g.awardList.length && !g.applicationList.length && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    No history yet.
+                    {t("funderGrantees.noHistoryYet")}
                   </td>
                 </tr>
               )}
@@ -359,9 +362,9 @@ function GranteeReports({ awardIds, base }: { awardIds: string[]; base: string }
   return (
     <section className="card" aria-labelledby="grantee-reports-h">
       <div className="card-h">
-        <h3 id="grantee-reports-h">Reports</h3>
+        <h3 id="grantee-reports-h">{t("funderGrantees.reports")}</h3>
         <Link to={`${base}/reporting`} className="small b">
-          Reporting
+          {t("funderGrantees.reporting")}
         </Link>
       </div>
       {submissions.status === "error" && (
@@ -369,24 +372,24 @@ function GranteeReports({ awardIds, base }: { awardIds: string[]; base: string }
           <ErrorBanner error={submissions.error} onRetry={submissions.reload} />
         </div>
       )}
-      {submissions.status === "ready" && !mine.length && <div className="card-b muted small">No reports yet.</div>}
+      {submissions.status === "ready" && !mine.length && <div className="card-b muted small">{t("funderGrantees.noReportsYet")}</div>}
       {mine.length > 0 && (
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Reports from this grantee, scrollable">
-          <table className="tbl" aria-label="Reports from this grantee">
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("funderGrantees.reportsFromThisGrantee")}>
+          <table className="tbl" aria-label={t("funderGrantees.reportsFromThisGrantee2")}>
             <thead>
               <tr>
-                <th>Report</th>
-                <th>Due</th>
-                <th>Received</th>
-                <th>Status</th>
+                <th>{t("funderGrantees.report")}</th>
+                <th>{t("funderGrantees.due")}</th>
+                <th>{t("funderGrantees.received")}</th>
+                <th>{t("funderGrantees.status")}</th>
               </tr>
             </thead>
             <tbody>
               {mine.map((r) => (
                 <tr key={r.id}>
                   <td className="b">
-                    {r.requirement?.title ?? "Report"}
-                    {r.shared && <span className="tag" style={{ marginLeft: "6px" }}>Shared by grantee</span>}
+                    {r.requirement?.title ?? t("funderGrantees.report")}
+                    {r.shared && <span className="tag" style={{ marginLeft: "6px" }}>{t("funderGrantees.sharedByGrantee")}</span>}
                   </td>
                   <td>{formatDate(r.requirement?.dueAt)}</td>
                   <td>{formatDate(r.submittedAt)}</td>
@@ -404,6 +407,7 @@ function GranteeReports({ awardIds, base }: { awardIds: string[]; base: string }
 }
 
 export default function Grantees() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { granteeId } = useParams();
@@ -419,48 +423,48 @@ export default function Grantees() {
 
   return (
     <>
-      <title>{`Grantees — ${ws.name}`}</title>
+      <title>{t("funderGrantees.grantees", { name: ws.name })}</title>
       <FunderShell active="Grantees">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Grantees" }]}
-            title="Grantees"
+            crumbs={[{ label: ws.name, to: base }, { label: t("funderGrantees.grantees2") }]}
+            title={t("funderGrantees.grantees2")}
             meta={
               <>
-                <span>{rows.length} organizations</span>
+                <span>{t("funderGrantees.organizations", { count: rows.length })}</span>
                 <span>·</span>
-                <span>{pendingTotal} pending record changes</span>
+                <span>{t("funderGrantees.pendingRecordChanges", { pendingTotal })}</span>
               </>
             }
           />
           <div className="filterbar">
             <div className="inp-icon" style={{ flex: "1 1 260px", maxWidth: "360px" }}>
               <Search className="ic" aria-hidden="true" />
-              <input className="inp" type="search" aria-label="Search grantees" placeholder="Search grantees" defaultValue={q} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })} />
+              <input className="inp" type="search" aria-label={t("funderGrantees.searchGrantees")} placeholder={t("funderGrantees.searchGrantees")} defaultValue={q} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })} />
             </div>
           </div>
-          {list.status === "loading" && <Loading label="Loading grantees" />}
+          {list.status === "loading" && <Loading label={t("funderGrantees.loadingGrantees")} />}
           {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
           {list.status === "ready" && !rows.length && (
             <div className="card">
-              <EmptyState icon={Users} title={q ? "No grantees match" : "No grantees yet"}>
-                Organizations appear here once they apply to one of your opportunities.
+              <EmptyState icon={Users} title={q ? t("funderGrantees.noGranteesMatch") : t("funderGrantees.noGranteesYet")}>
+                {t("funderGrantees.organizationsAppearHereOnce")}
               </EmptyState>
             </div>
           )}
           {rows.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)", gap: "20px", alignItems: "start" }}>
-              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Grantee directory, scrollable">
-                <table className="tbl" aria-label="Grantee directory">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderGrantees.granteeDirectoryScrollable")}>
+                <table className="tbl" aria-label={t("funderGrantees.granteeDirectory")}>
                   <thead>
                     <tr>
-                      <th>Organization</th>
-                      <th>Level</th>
-                      <th>Payee</th>
-                      <th className="num">Awards</th>
-                      <th className="num">Total awarded</th>
-                      <th>Owner</th>
-                      <th>Tags</th>
+                      <th>{t("funderGrantees.organization")}</th>
+                      <th>{t("funderGrantees.level")}</th>
+                      <th>{t("funderGrantees.payee")}</th>
+                      <th className="num">{t("funderGrantees.awards")}</th>
+                      <th className="num">{t("funderGrantees.totalAwarded")}</th>
+                      <th>{t("funderGrantees.owner")}</th>
+                      <th>{t("funderGrantees.tags")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -473,7 +477,7 @@ export default function Grantees() {
                             </Link>
                             {r.pendingChanges > 0 && (
                               <span className="sub">
-                                <span className="pill-warn">{r.pendingChanges} record change</span>
+                                <span className="pill-warn">{t("funderGrantees.recordChange", { pendingChanges: r.pendingChanges })}</span>
                               </span>
                             )}
                           </div>
@@ -487,12 +491,12 @@ export default function Grantees() {
                         </td>
                         <td className="num">{r.awards}</td>
                         <td className="num">{awards.status === "ready" ? formatMinor(awardedTo(r.workspaceId)) : "—"}</td>
-                        <td>{r.ownerUserId ? (person(r.ownerUserId)?.name ?? "A teammate") : <span className="muted">—</span>}</td>
+                        <td>{r.ownerUserId ? (person(r.ownerUserId)?.name ?? t("funderGrantees.aTeammate")) : <span className="muted">—</span>}</td>
                         <td>
                           <span className="row wrap" style={{ gap: "4px" }}>
-                            {r.tags.map((t) => (
-                              <span key={t} className="tag">
-                                {t}
+                            {r.tags.map((item) => (
+                              <span key={item} className="tag">
+                                {item}
                               </span>
                             ))}
                           </span>

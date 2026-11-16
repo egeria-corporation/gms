@@ -13,8 +13,10 @@ import { InvitationError } from "../../components/InvitationError.tsx";
 import { Field, Notice, PageHeader, problemFor } from "../../components/ui.tsx";
 import { directAwardProblems, EMPTY_DIRECT_AWARD, MESSAGE_MAX, toDirectAwardInput, type DirectAwardField, type DirectAwardForm } from "../../lib/directAward.ts";
 import { canGiveDirectAward } from "../../lib/roles.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export default function NewAward() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ export default function NewAward() {
     setForm((x) => ({ ...x, [f]: v }));
     if (create.error !== null) create.reset();
   };
-  const blur = (f: DirectAwardField) => () => setTouched((t) => ({ ...t, [f]: true }));
+  const blur = (f: DirectAwardField) => () => setTouched((item) => ({ ...item, [f]: true }));
   const field = (f: DirectAwardField) => ({ id: `na-${f}`, value: form[f], onChange: (e: { target: { value: string } }) => set(f, e.target.value), onBlur: blur(f), "aria-invalid": shown(f) ? (true as const) : undefined, "aria-describedby": shown(f) ? `na-${f}-err` : `na-${f}-help` });
 
   async function submit(e: FormEvent) {
@@ -48,42 +50,42 @@ export default function NewAward() {
 
   return (
     <>
-      <title>{`New award — ${ws.name}`}</title>
+      <title>{t("newAward.newAward", { name: ws.name })}</title>
       <FunderShell active="Awards">
         <main className="main">
-          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Awards", to: `${base}/awards` }, { label: "New award" }]} title="New award" meta={<span>Give an award to an organization that has not applied.</span>} />
+          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("newAward.awards"), to: `${base}/awards` }, { label: t("newAward.newAward2") }]} title={t("newAward.newAward2")} meta={<span>{t("newAward.giveAnAwardTo")}</span>} />
           {!allowed && (
-            <Notice tone="warn" title="You cannot give an award directly">
-              Only a workspace admin or program officer can. Ask one of them, or have them add you with that role.
+            <Notice tone="warn" title={t("newAward.youCannotGiveAn")}>
+              {t("newAward.onlyAWorkspaceAdmin")}
             </Notice>
           )}
-          <form className="card" onSubmit={submit} noValidate aria-label="New award" style={{ maxWidth: "720px" }}>
+          <form className="card" onSubmit={submit} noValidate aria-label={t("newAward.newAward2")} style={{ maxWidth: "720px" }}>
             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {create.error !== null && <InvitationError error={create.error} title="The invitation was not sent" />}
+              {create.error !== null && <InvitationError error={create.error} title={t("newAward.theInvitationWasNot")} />}
 
-              <Field id="na-organizationName" label="Organization name" required error={shown("organizationName")}>
+              <Field id="na-organizationName" label={t("newAward.organizationName")} required error={shown("organizationName")}>
                 <input className={shown("organizationName") ? "inp err" : "inp"} {...field("organizationName")} autoComplete="off" />
               </Field>
-              <Field id="na-contactEmail" label="Contact email" required error={shown("contactEmail")} help="We'll email this person a link. They sign in with this address, set up their organization (Passport not needed) and accept.">
+              <Field id="na-contactEmail" label={t("newAward.contactEmail")} required error={shown("contactEmail")} help={t("newAward.wellEmailThisPerson")}>
                 <input className={shown("contactEmail") ? "inp err" : "inp"} type="email" {...field("contactEmail")} autoComplete="off" />
               </Field>
-              <Field id="na-title" label="Award title" required error={shown("title")}>
+              <Field id="na-title" label={t("newAward.awardTitle")} required error={shown("title")}>
                 <input className={shown("title") ? "inp err" : "inp"} {...field("title")} />
               </Field>
-              <Field id="na-amount" label="Amount (US dollars)" required error={shown("amount")} help="Dollars and cents, for example 25000 or 25000.50.">
+              <Field id="na-amount" label={t("newAward.amountUsDollars")} required error={shown("amount")} help={t("newAward.dollarsAndCentsFor")}>
                 <input className={shown("amount") ? "inp err" : "inp"} inputMode="decimal" {...field("amount")} autoComplete="off" />
               </Field>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-                <Field id="na-startDate" label="Start date" error={shown("startDate")} help="Optional.">
+                <Field id="na-startDate" label={t("newAward.startDate")} error={shown("startDate")} help={t("newAward.optional")}>
                   <input className={shown("startDate") ? "inp err" : "inp"} type="date" {...field("startDate")} />
                 </Field>
-                <Field id="na-endDate" label="End date" error={shown("endDate")} help="Optional.">
+                <Field id="na-endDate" label={t("newAward.endDate")} error={shown("endDate")} help={t("newAward.optional")}>
                   <input className={shown("endDate") ? "inp err" : "inp"} type="date" {...field("endDate")} />
                 </Field>
               </div>
-              <Field id="na-programId" label="Program" help="Optional. Counts this award against the program's budget.">
+              <Field id="na-programId" label={t("newAward.program")} help={t("newAward.optionalCountsThisAward")}>
                 <select className="sel" id="na-programId" value={form.programId} onChange={(e) => set("programId", e.target.value)}>
-                  <option value="">No program</option>
+                  <option value="">{t("newAward.noProgram")}</option>
                   {(programs.data ?? []).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -91,18 +93,18 @@ export default function NewAward() {
                   ))}
                 </select>
               </Field>
-              <Field id="na-message" label="Message" error={shown("message")} help={`Optional. Plain text, shown in the invitation email. ${form.message.length} of ${MESSAGE_MAX} characters.`}>
+              <Field id="na-message" label={t("newAward.message")} error={shown("message")} help={t("newAward.optionalPlainTextShown", { count: form.message.length, MESSAGE_MAX })}>
                 <textarea className={shown("message") ? "ta err" : "ta"} rows={4} {...field("message")} />
               </Field>
-              <p className="small muted">The award is offered when you send. Nothing is paid, and no agreement or payment schedule can start, until the organization accepts.</p>
+              <p className="small muted">{t("newAward.theAwardIsOffered")}</p>
             </div>
             <div className="ft" style={{ display: "flex", gap: "8px", justifyContent: "flex-end", padding: "12px 20px" }}>
               <Link to={`${base}/awards`} className="btn btn-secondary">
-                Cancel
+                {t("newAward.cancel")}
               </Link>
               <button type="submit" className="btn btn-primary" disabled={!allowed || create.state === "saving"}>
                 <Send className="ic" aria-hidden="true" />
-                Send invitation
+                {t("newAward.sendInvitation")}
               </button>
             </div>
           </form>

@@ -9,9 +9,10 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Loading, PageHeader, SaveNote } from "../../components/ui.tsx";
-import { POWERED_BY_LABEL } from "../public/PublicFrame.tsx";
+import { poweredByLabel } from "../public/PublicFrame.tsx";
 import { SettingsNav } from "./SettingsPassport.tsx";
 import { AwardListingCard } from "./AwardListingSettings.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export function PoweredByCard() {
   const ws = useWorkspace("funder");
@@ -37,31 +38,27 @@ export function PoweredByCard() {
     <section className="card" aria-labelledby="powered-h">
       <div className="card-h">
         <div>
-          <h2 id="powered-h">Public page</h2>
+          <h2 id="powered-h">{t("settingsPublicPage.publicPage")}</h2>
           <p className="small muted">
-            Your opportunities are listed at{" "}
-            <Link to={`/f/${ws.handle}`} className="mono">
-              /f/{ws.handle}
-            </Link>
-            . Each one can also be embedded on your own website from its Publish step.
+            {t.rich("settingsPublicPage.yourOpportunitiesAreListed", { handle: ws.handle, link: (chunks) => <Link to={`/f/${ws.handle}`} className="mono">{chunks}</Link> })}
           </p>
         </div>
         <SaveNote state={save.state} />
       </div>
       <div className="card-b">
-        {record.status === "loading" && <Loading label="Loading the setting" />}
+        {record.status === "loading" && <Loading label={t("settingsPublicPage.loadingTheSetting")} />}
         {record.status === "error" && <ErrorBanner error={record.error} onRetry={record.reload} />}
-        {failed && save.error !== null && <ErrorBanner error={save.error} title="The setting did not change. The switch is back where it was." />}
+        {failed && save.error !== null && <ErrorBanner error={save.error} title={t("settingsPublicPage.theSettingDidNot")} />}
         {record.status === "ready" && (
           <div className="rc">
             <div className={on ? "rc-row rc-pass" : "rc-row rc-unk"}>
               {!isAdmin ? <Lock className="ic" aria-hidden="true" /> : on ? <CircleCheck className="ic" aria-hidden="true" /> : <Circle className="ic" aria-hidden="true" />}
               <div>
                 <div className="l" id="powered-label">
-                  Show “{POWERED_BY_LABEL}”
+                  {t("settingsPublicPage.show", { label: poweredByLabel() })}
                 </div>
                 <div className="r">
-                  {on ? "On" : "Off"} · A link to the OpenGrants GMS home page in the footer of your public pages, on your apply widgets and under the email applicants get when they apply. It never appears in review, decision or award emails.
+                  {on ? t("settingsPublicPage.on") : t("settingsPublicPage.off")} · {t("settingsPublicPage.aLinkToThe")}
                 </div>
               </div>
               <button
@@ -80,7 +77,7 @@ export function PoweredByCard() {
       {!isAdmin && (
         <div className="card-f small muted">
           <Info className="ic" aria-hidden="true" />
-          Only workspace admins can change this.
+          {t("settingsPublicPage.onlyWorkspaceAdminsCan")}
         </div>
       )}
     </section>
@@ -88,13 +85,14 @@ export function PoweredByCard() {
 }
 
 export default function SettingsPublicPage() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   return (
     <FunderShell active="Settings">
-      <title>{`Public page settings — ${ws.name}`}</title>
+      <title>{t("settingsPublicPage.publicPageSettings", { name: ws.name })}</title>
       <main className="main">
-        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Settings" }, { label: "Public page" }]} title="Settings" meta={<span>{ws.name}</span>} />
+        <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("settingsPublicPage.settings") }, { label: t("settingsPublicPage.publicPage") }]} title={t("settingsPublicPage.settings")} meta={<span>{ws.name}</span>} />
         <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
           <SettingsNav base={base} active="public-page" />
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

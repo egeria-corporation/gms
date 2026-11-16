@@ -14,9 +14,16 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../
 import { usePeople, type Person } from "./shared.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
 import { ReviewSettingsCard } from "./ReviewParity.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
-const STATUS_TEXT: Record<Assignment["status"], string> = { assigned: "Assigned", coi_declared: "No conflict declared", in_progress: "Scoring", submitted: "Submitted", recused: "Recused" };
+const STATUS_TEXT: Record<Assignment["status"], () => string> = {
+  assigned: () => t("reviewAssignment.status.assigned"),
+  coi_declared: () => t("reviewAssignment.status.coiDeclared"),
+  in_progress: () => t("reviewAssignment.status.inProgress"),
+  submitted: () => t("reviewAssignment.status.submitted"),
+  recused: () => t("reviewAssignment.status.recused"),
+};
 
 function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competitionId: string; stage: string; onClose: () => void; onDone: (r: AutoAssignResult) => void }) {
   const [per, setPer] = useState("2");
@@ -25,11 +32,11 @@ function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competiti
   return (
     <Dialog open onClose={onClose} labelledBy="auto-title">
       <div className="hd">
-        <h2 id="auto-title">Auto-assign reviewers</h2>
+        <h2 id="auto-title">{t("reviewAssignment.autoAssignReviewers")}</h2>
       </div>
       <div className="bd">
         {run.error !== null && <ErrorBanner error={run.error} />}
-        <Field id="auto-per" label="Reviewers per application" help="Fills the gaps only; existing assignments stay. Declared conflicts are skipped.">
+        <Field id="auto-per" label={t("reviewAssignment.reviewersPerApplication")} help={t("reviewAssignment.fillsTheGapsOnly")}>
           <input
             className="inp"
             id="auto-per"
@@ -43,24 +50,25 @@ function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competiti
           />
         </Field>
         {plan && (
-          <Notice tone={plan.unfilled.length ? "warn" : "info"} title={`${plan.assignments.length} new ${plan.assignments.length === 1 ? "assignment" : "assignments"} would be made`}>
-            {plan.unfilled.length > 0 && `${plan.unfilled.length} application(s) would still be short of reviewers. `}
-            {plan.coiFlags.length > 0 && `${plan.coiFlags.length} possible conflict(s) were skipped.`}
+          <Notice tone={plan.unfilled.length ? "warn" : "info"} title={t("reviewAssignment.newWouldBeMade", { count: plan.assignments.length })}>
+            {plan.unfilled.length > 0 && t("reviewAssignment.applicationSWouldStill", { count: plan.unfilled.length })}
+            {plan.unfilled.length > 0 && plan.coiFlags.length > 0 && " "}
+            {plan.coiFlags.length > 0 && t("reviewAssignment.possibleConflictSWere", { count: plan.coiFlags.length })}
           </Notice>
         )}
         {plan && plan.coiHints.length > 0 && (
-          <Notice tone="warn" title={`Check ${plan.coiHints.length} ${plan.coiHints.length === 1 ? "assignment" : "assignments"} for a conflict`}>
-            The applicant&rsquo;s own profile, which is not verified, gives the reviewer&rsquo;s email domain. These were not skipped: only a Passport record is used to exclude a reviewer.
+          <Notice tone="warn" title={t("reviewAssignment.checkForAConflict", { count: plan.coiHints.length })}>
+            {t("reviewAssignment.theApplicantsOwnProfile")}
           </Notice>
         )}
       </div>
       <div className="ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Cancel
+          {t("reviewAssignment.cancel")}
         </button>
         {!plan ? (
           <button type="button" className="btn btn-primary" disabled={run.state === "saving"} onClick={async () => setPlan((await run.run(true)) ?? null)}>
-            Preview
+            {t("reviewAssignment.preview")}
           </button>
         ) : (
           <button
@@ -72,7 +80,7 @@ function AutoAssignDialog({ competitionId, stage, onClose, onDone }: { competiti
               if (r) onDone(r);
             }}
           >
-            Assign {plan.assignments.length}
+            {t("reviewAssignment.assign", { count: plan.assignments.length })}
           </button>
         )}
       </div>
@@ -93,20 +101,20 @@ function InviteDialog({ competitionId, onClose, onDone }: { competitionId: strin
         }}
       >
         <div className="hd">
-          <h2 id="invite-title">Invite an external reviewer</h2>
+          <h2 id="invite-title">{t("reviewAssignment.inviteAnExternalReviewer")}</h2>
         </div>
         <div className="bd">
           {invite.error !== null && <ErrorBanner error={invite.error} />}
-          <Field id="invite-email" label="Email" required help="They see only the applications assigned to them in this competition, with personal details masked.">
+          <Field id="invite-email" label={t("reviewAssignment.email")} required help={t("reviewAssignment.theySeeOnlyThe")}>
             <input className="inp" id="invite-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("reviewAssignment.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={invite.state === "saving" || !email.trim()}>
-            Send invitation
+            {t("reviewAssignment.sendInvitation")}
           </button>
         </div>
       </form>
@@ -115,6 +123,7 @@ function InviteDialog({ competitionId, onClose, onDone }: { competitionId: strin
 }
 
 export default function ReviewAssignment() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();
@@ -128,7 +137,7 @@ export default function ReviewAssignment() {
   const [note, setNote] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const toggle = useApiMutation(async (api, applicationId: string, reviewer: Person, existing: Assignment | undefined) => {
-    if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: "Removed by program staff" });
+    if (existing) return api.updateAssignment(existing.id, { action: "recuse", reason: t("reviewAssignment.removedByStaff") });
     return api.createAssignment({ applicationId, reviewerUserId: reviewer.userId, ...(stage ? { stage: stage.key } : {}) });
   });
 
@@ -142,19 +151,19 @@ export default function ReviewAssignment() {
 
   return (
     <>
-      <title>{`Review assignment — ${ws.name}`}</title>
+      <title>{t("reviewAssignment.reviewAssignment", { name: ws.name })}</title>
       <FunderShell active="Reviews">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Reviews" }, { label: "Assign" }]}
-            title="Review assignment"
+            crumbs={[{ label: ws.name, to: base }, { label: t("reviewAssignment.reviews") }, { label: t("reviewAssignment.assign2") }]}
+            title={t("reviewAssignment.reviewAssignment2")}
             meta={
               competition && stage ? (
                 <>
                   <span>{competition.title}</span>
                   <span>·</span>
                   <label className="row">
-                    Stage
+                    {t("reviewAssignment.stage")}
                     <select className="sel" style={{ width: "auto", height: "28px" }} value={stage.key} onChange={(e) => setParams({ competition: competition.id, stage: e.target.value })}>
                       {competition.stages.map((s) => (
                         <option key={s.key} value={s.key}>
@@ -164,7 +173,7 @@ export default function ReviewAssignment() {
                     </select>
                   </label>
                   <span>·</span>
-                  <span>{rows.length} applications</span>
+                  <span>{t("reviewAssignment.applications", { count: rows.length })}</span>
                 </>
               ) : undefined
             }
@@ -173,17 +182,17 @@ export default function ReviewAssignment() {
                 <>
                   <button type="button" className="btn btn-secondary" onClick={() => setDialog("auto")}>
                     <Zap className="ic" aria-hidden="true" />
-                    Auto-assign…
+                    {t("reviewAssignment.autoAssign")}
                   </button>
                   <button type="button" className="btn btn-secondary" onClick={() => setDialog("invite")}>
                     <UserPlus className="ic" aria-hidden="true" />
-                    Invite external reviewer…
+                    {t("reviewAssignment.inviteExternalReviewer")}
                   </button>
                   <Link to="/review/assignments" className="btn btn-secondary">
-                    My assignments
+                    {t("reviewAssignment.myAssignments")}
                   </Link>
                   <Link to={`${base}/competitions/${competition.id}/panel`} className="btn btn-primary">
-                    Open panel
+                    {t("reviewAssignment.openPanel")}
                   </Link>
                 </>
               ) : undefined
@@ -194,39 +203,39 @@ export default function ReviewAssignment() {
               <div className="t">{note}</div>
             </div>
           )}
-          {hint && <Notice tone="warn" title="Check this assignment for a conflict">{hint}</Notice>}
-          {toggle.error !== null && <ErrorBanner error={toggle.error} title="That assignment was not changed" />}
+          {hint && <Notice tone="warn" title={t("reviewAssignment.checkThisAssignmentFor")}>{hint}</Notice>}
+          {toggle.error !== null && <ErrorBanner error={toggle.error} title={t("reviewAssignment.thatAssignmentWasNot")} />}
           {competition && stage && <ReviewSettingsCard key={`${competition.id}:${stage.key}`} competitionId={competition.id} stageKey={stage.key} />}
-          {loading && <Loading label="Loading assignments" />}
+          {loading && <Loading label={t("reviewAssignment.loadingAssignments")} />}
           {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
           {!loading && !competition && (
-            <EmptyState icon={ClipboardCheck} title="No competition to review yet">
-              Open a competition and reviews are assigned here once applications arrive.
+            <EmptyState icon={ClipboardCheck} title={t("reviewAssignment.noCompetitionToReview")}>
+              {t("reviewAssignment.openACompetitionAnd")}
             </EmptyState>
           )}
           {!loading && competition && rows.length === 0 && (
-            <EmptyState icon={ClipboardCheck} title="No applications at this stage">
-              Advance applications to this stage, then assign reviewers.
+            <EmptyState icon={ClipboardCheck} title={t("reviewAssignment.noApplicationsAtThis")}>
+              {t("reviewAssignment.advanceApplicationsToThis")}
             </EmptyState>
           )}
           {!loading && rows.length > 0 && (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Reviewers by application, scrollable">
-              <table className="tbl mx" aria-label="Reviewers by application">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("reviewAssignment.reviewersByApplicationScrollable")}>
+              <table className="tbl mx" aria-label={t("reviewAssignment.reviewersByApplication")}>
                 <thead>
                   <tr>
-                    <th>Reviewer</th>
+                    <th>{t("reviewAssignment.reviewer")}</th>
                     {rows.map((a) => (
                       <th key={a.id}>
                         <div className="col" style={{ gap: "2px", alignItems: "center" }}>
                           <Link to={`${base}/applications/${a.id}`}>{a.applicant.name ?? a.title}</Link>
                           <VerificationBadge verification={a.applicant.verification} level={a.applicant.level} />
                           <span className="xs muted" style={{ textTransform: "none", letterSpacing: 0 }}>
-                            {active(a.id)} assigned
+                            {t("reviewAssignment.assigned", { active: active(a.id) })}
                           </span>
                         </div>
                       </th>
                     ))}
-                    <th className="num">Load</th>
+                    <th className="num">{t("reviewAssignment.load")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -235,7 +244,7 @@ export default function ReviewAssignment() {
                       <td style={{ padding: "6px 12px" }}>
                         <div className="ent">
                           <span className="nm">{r.name}</span>
-                          <span className="small muted">{r.role.replace(/_/g, " ") || "reviewer"}</span>
+                          <span className="small muted">{r.role.replace(/_/g, " ") || t("reviewAssignment.reviewer2")}</span>
                         </div>
                       </td>
                       {rows.map((a) => {
@@ -243,7 +252,7 @@ export default function ReviewAssignment() {
                         const coi = x?.status === "recused" && x.coi.declared === true;
                         const on = !!x && x.status !== "recused";
                         const locked = x?.status === "submitted" || x?.status === "in_progress";
-                        const label = `${r.name} on ${a.applicant.name ?? a.title}: ${coi ? "conflict of interest declared" : x ? STATUS_TEXT[x.status] : "not assigned"}`;
+                        const label = t("reviewAssignment.cellLabel", { reviewer: r.name, application: a.applicant.name ?? a.title, state: coi ? t("reviewAssignment.state.coi") : x ? STATUS_TEXT[x.status]() : t("reviewAssignment.state.notAssigned") });
                         return (
                           <td key={a.id}>
                             <button
@@ -262,7 +271,7 @@ export default function ReviewAssignment() {
                             >
                               {coi ? <Slash className="ic ic-sm" aria-hidden="true" /> : on ? <Check className="ic ic-sm" aria-hidden="true" /> : null}
                             </button>
-                            {x && !coi && x.status !== "assigned" && x.status !== "recused" && <div className="xs muted">{STATUS_TEXT[x.status]}</div>}
+                            {x && !coi && x.status !== "assigned" && x.status !== "recused" && <div className="xs muted">{STATUS_TEXT[x.status]()}</div>}
                           </td>
                         );
                       })}
@@ -273,7 +282,7 @@ export default function ReviewAssignment() {
               </table>
             </div>
           )}
-          <p className="notice">A hatched cell is a declared conflict of interest. A reviewer who has started scoring cannot be removed here.</p>
+          <p className="notice">{t("reviewAssignment.aHatchedCellIs")}</p>
         </main>
       </FunderShell>
       {dialog === "auto" && competition && stage && (
@@ -283,7 +292,7 @@ export default function ReviewAssignment() {
           onClose={() => setDialog(null)}
           onDone={(r) => {
             setDialog(null);
-            setNote(`${r.created} ${r.created === 1 ? "assignment" : "assignments"} made${r.unfilled.length ? ` · ${r.unfilled.length} application(s) still short` : ""}`);
+            setNote(r.unfilled.length ? t("reviewAssignment.done.madeShort", { count: r.created, short: r.unfilled.length }) : t("reviewAssignment.done.made", { count: r.created }));
             assignments.reload();
           }}
         />
@@ -294,7 +303,7 @@ export default function ReviewAssignment() {
           onClose={() => setDialog(null)}
           onDone={(i) => {
             setDialog(null);
-            setNote(i.emailed ? `Invitation sent to ${i.email}` : `Invitation created for ${i.email}; the email could not be sent, share the link from Settings`);
+            setNote(i.emailed ? t("reviewAssignment.done.invited", { email: i.email }) : t("reviewAssignment.done.inviteNotSent", { email: i.email }));
           }}
         />
       )}

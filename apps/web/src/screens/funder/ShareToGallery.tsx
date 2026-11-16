@@ -7,22 +7,55 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { LayoutTemplate, Share2, Undo2 } from "lucide-react";
-import { KIND_LABEL, LICENCE, type GalleryPreview, type GallerySource, type GallerySubmission, type GalleryTags } from "../../api/gallery.ts";
+import { LICENCE, type GalleryKind, type GalleryPreview, type GallerySource, type GallerySubmission, type GalleryTags } from "../../api/gallery.ts";
 import { useGalleryMutation, useGalleryQuery } from "../../api/galleryHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Field, Loading, Notice, problemFor } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { StrippedList, SnapshotPreview, SubmissionBadge } from "../public/galleryParts.tsx";
+import { t } from "./i18n.ts";
 
 /** Only a workspace admin shares (the API refuses anyone else). */
 export const useCanShare = () => (useWorkspace("funder").member.role ?? "admin") === "admin";
 
-const TAG_GROUPS: { key: keyof GalleryTags; label: string; values: string[] }[] = [
-  { key: "fieldOfWork", label: "Field of work", values: ["Any field", "Arts and culture", "Community development", "Education", "Environment", "Health", "Housing", "Human services", "Youth and families"] },
-  { key: "grantSize", label: "Grant size", values: ["Under $10,000", "$10,000 to $50,000", "$50,000 to $250,000", "Over $250,000", "Any size"] },
-  { key: "audience", label: "Audience", values: ["Nonprofits", "Community groups", "Schools", "Small organizations", "Faith-based organizations"] },
+// The gallery's tag vocabulary: the values are stored and filtered on as written (English);
+// the labels are what people read.
+const TAG_GROUPS: { key: keyof GalleryTags; readonly label: string; values: string[] }[] = [
+  { key: "fieldOfWork", get label() { return t("shareToGallery.tags.fieldOfWork"); }, values: ["Any field", "Arts and culture", "Community development", "Education", "Environment", "Health", "Housing", "Human services", "Youth and families"] },
+  { key: "grantSize", get label() { return t("shareToGallery.tags.grantSize"); }, values: ["Under $10,000", "$10,000 to $50,000", "$50,000 to $250,000", "Over $250,000", "Any size"] },
+  { key: "audience", get label() { return t("shareToGallery.tags.audience"); }, values: ["Nonprofits", "Community groups", "Schools", "Small organizations", "Faith-based organizations"] },
 ];
+const TAG_VALUE: Record<string, () => string> = {
+  "Any field": () => t("shareToGallery.tag.fieldOfWork.anyField"),
+  "Arts and culture": () => t("shareToGallery.tag.fieldOfWork.artsAndCulture"),
+  "Community development": () => t("shareToGallery.tag.fieldOfWork.communityDevelopment"),
+  "Education": () => t("shareToGallery.tag.fieldOfWork.education"),
+  "Environment": () => t("shareToGallery.tag.fieldOfWork.environment"),
+  "Health": () => t("shareToGallery.tag.fieldOfWork.health"),
+  "Housing": () => t("shareToGallery.tag.fieldOfWork.housing"),
+  "Human services": () => t("shareToGallery.tag.fieldOfWork.humanServices"),
+  "Youth and families": () => t("shareToGallery.tag.fieldOfWork.youthAndFamilies"),
+  "Under $10,000": () => t("shareToGallery.tag.grantSize.under10k"),
+  "$10,000 to $50,000": () => t("shareToGallery.tag.grantSize.10kTo50k"),
+  "$50,000 to $250,000": () => t("shareToGallery.tag.grantSize.50kTo250k"),
+  "Over $250,000": () => t("shareToGallery.tag.grantSize.over250k"),
+  "Any size": () => t("shareToGallery.tag.grantSize.anySize"),
+  "Nonprofits": () => t("shareToGallery.tag.audience.nonprofits"),
+  "Community groups": () => t("shareToGallery.tag.audience.communityGroups"),
+  "Schools": () => t("shareToGallery.tag.audience.schools"),
+  "Small organizations": () => t("shareToGallery.tag.audience.smallOrganizations"),
+  "Faith-based organizations": () => t("shareToGallery.tag.audience.faithBasedOrganizations"),
+};
+const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
+const KIND: Record<GalleryKind, () => string> = {
+  application_form: () => t("shareToGallery.kind.applicationForm"),
+  report_form: () => t("shareToGallery.kind.reportForm"),
+  rubric: () => t("shareToGallery.kind.rubric"),
+  email_template: () => t("shareToGallery.kind.emailTemplate"),
+  program_kit: () => t("shareToGallery.kind.programKit"),
+};
+const kindLabel = (kind: GalleryKind) => KIND[kind]?.() ?? kind;
 
 function ShareDialog({ source, name, onClose }: { source: GallerySource; name: string; onClose: () => void }) {
   const ws = useWorkspace("funder");
@@ -41,7 +74,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
     const p = await preview.run(names);
     if (p) {
       setShown(p);
-      setTitle((t) => t || p.suggestedTitle);
+      setTitle((item) => item || p.suggestedTitle);
     }
   };
   useEffect(() => {
@@ -49,7 +82,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
     // Load once when the dialog opens; "Update preview" reloads with more names.
   }, []);
 
-  const toggle = (key: keyof GalleryTags, value: string) => setTags((t) => ({ ...t, [key]: t[key].includes(value) ? t[key].filter((v) => v !== value) : [...t[key], value] }));
+  const toggle = (key: keyof GalleryTags, value: string) => setTags((item) => ({ ...item, [key]: item[key].includes(value) ? item[key].filter((v) => v !== value) : [...item[key], value] }));
   const send = async () => {
     const out = await submit.run({ source, title: title.trim(), summary: summary.trim(), tags, extraNames, licence: "CC-BY-4.0" });
     if (out) setSent(out);
@@ -59,53 +92,53 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
   return (
     <Dialog open onClose={onClose} labelledBy="share-gallery-title" size="lg">
       <div className="hd">
-        <h2 id="share-gallery-title">{sent ? "Sent for review" : `Share “${name}” to the gallery`}</h2>
+        <h2 id="share-gallery-title">{sent ? t("shareToGallery.sentForReview") : t("shareToGallery.shareToTheGallery", { name })}</h2>
       </div>
       <div className="bd" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {sent ? (
           <>
-            <Notice tone="ok" title="A moderator will review it">
-              Nothing is public until it is approved. You will see the decision, and the reason if it is declined, under Forms, in “Shared to the gallery”.
+            <Notice tone="ok" title={t("shareToGallery.aModeratorWillReview")}>
+              {t("shareToGallery.nothingIsPublicUntil")}
             </Notice>
-            <p className="small muted">You can withdraw it at any time, before or after it is published.</p>
+            <p className="small muted">{t("shareToGallery.youCanWithdrawIt")}</p>
           </>
         ) : (
           <>
-            {preview.error !== null && <ErrorBanner error={preview.error} title="It cannot be shared yet" />}
-            {submit.error !== null && <ErrorBanner error={submit.error} title="It could not be sent" />}
-            {!shown && preview.state === "saving" && <Loading label="Preparing a copy to share" />}
+            {preview.error !== null && <ErrorBanner error={preview.error} title={t("shareToGallery.itCannotBeShared")} />}
+            {submit.error !== null && <ErrorBanner error={submit.error} title={t("shareToGallery.itCouldNotBe")} />}
+            {!shown && preview.state === "saving" && <Loading label={t("shareToGallery.preparingACopyTo")} />}
             {shown && (
               <>
                 <p>
-                  The gallery gets a copy of this {KIND_LABEL[shown.kind].toLowerCase()} (version {shown.source.version}), not a link: your own stays as it is, and later edits are not shared.
+                  {t("shareToGallery.theGalleryGetsA", { kind: shown.kind, version: shown.source.version })}
                 </p>
                 <section aria-labelledby="share-taken-out">
                   <h3 id="share-taken-out" style={{ fontSize: "14px" }}>
-                    What we took out
+                    {t("shareToGallery.whatWeTookOut")}
                   </h3>
                   <StrippedList stripped={shown.stripped} />
                   <p className="small muted" style={{ marginTop: "6px" }}>
-                    Email addresses, phone numbers and web addresses other than your own site are removed. These names become “{shown.placeholder}”: {shown.names.join(", ") || "none"}.
+                    {t("shareToGallery.emailAddressesPhoneNumbers", { placeholder: shown.placeholder })} {shown.names.join(", ") || t("shareToGallery.none")}.
                   </p>
                 </section>
                 <div className="fld-row" style={{ alignItems: "flex-end" }}>
-                  <Field id="share-extra" label="Other names to replace" help="Separate with commas: a program's name, a person's name, a town.">
+                  <Field id="share-extra" label={t("shareToGallery.otherNamesToReplace")} help={t("shareToGallery.separateWithCommasA")}>
                     <input className="inp" id="share-extra" value={extra} onChange={(e) => setExtra(e.target.value)} />
                   </Field>
                   <button type="button" className="btn btn-secondary" disabled={preview.state === "saving"} onClick={() => load(extraNames)}>
-                    Update preview
+                    {t("shareToGallery.updatePreview")}
                   </button>
                 </div>
                 <details>
-                  <summary className="b">See exactly what will be shared</summary>
+                  <summary className="b">{t("shareToGallery.seeExactlyWhatWill")}</summary>
                   <div style={{ marginTop: "12px" }}>
                     <SnapshotPreview snapshot={shown.snapshot} />
                   </div>
                 </details>
-                <Field id="share-title" label="Title in the gallery" required error={problemFor(submit.error, "title")}>
+                <Field id="share-title" label={t("shareToGallery.titleInTheGallery")} required error={problemFor(submit.error, "title")}>
                   <input className="inp" id="share-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
                 </Field>
-                <Field id="share-summary" label="Summary" required help="Two or three sentences: what it is for, and who it suits." error={problemFor(submit.error, "summary")}>
+                <Field id="share-summary" label={t("shareToGallery.summary")} required help={t("shareToGallery.twoOrThreeSentences")} error={problemFor(submit.error, "summary")}>
                   <textarea className="ta" id="share-summary" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={1000} />
                 </Field>
                 {TAG_GROUPS.map((g) => (
@@ -115,7 +148,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
                       {g.values.map((v) => (
                         <label key={v} className="cb">
                           <input type="checkbox" checked={tags[g.key].includes(v)} onChange={() => toggle(g.key, v)} />
-                          <span>{v}</span>
+                          <span>{tagLabel(v)}</span>
                         </label>
                       ))}
                     </div>
@@ -124,11 +157,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
                 <label className="cb">
                   <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
                   <span>
-                    I agree to share it under{" "}
-                    <a href={LICENCE.url} target="_blank" rel="license noreferrer">
-                      {LICENCE.name}
-                    </a>
-                    : anyone may use and change it, with credit to {ws.name}.
+                    {t.rich("shareToGallery.iAgreeToShare", { name: LICENCE.name, name2: ws.name, link: (chunks) => <a href={LICENCE.url} target="_blank" rel="license noreferrer">{chunks}</a> })}
                   </span>
                 </label>
               </>
@@ -139,16 +168,16 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
       <div className="ft">
         {sent ? (
           <button type="button" className="btn btn-primary" onClick={onClose}>
-            Done
+            {t("shareToGallery.done")}
           </button>
         ) : (
           <>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t("shareToGallery.cancel")}
             </button>
             <button type="button" className="btn btn-primary" disabled={!ready || submit.state === "saving"} onClick={send}>
               <Share2 className="ic" aria-hidden="true" />
-              Send for review
+              {t("shareToGallery.sendForReview")}
             </button>
           </>
         )}
@@ -166,7 +195,7 @@ export function ShareToGalleryButton({ source, name, small = false, disabledReas
     <>
       <button type="button" className={small ? "btn btn-sm btn-secondary" : "btn btn-secondary"} onClick={() => setOpen(true)} disabled={!!disabledReason} title={disabledReason}>
         <Share2 className="ic" aria-hidden="true" />
-        Share to the gallery<span className="sr">: {name}</span>
+        {t.rich("shareToGallery.shareToTheGallery2", { name, span: (chunks) => <span className="sr">{chunks}</span> })}
       </button>
       {open && <ShareDialog source={source} name={name} onClose={() => setOpen(false)} />}
     </>
@@ -183,35 +212,35 @@ export function GallerySubmissionsPanel() {
   return (
     <section className="card" aria-labelledby="shared-gallery-title">
       <div className="card-h">
-        <h3 id="shared-gallery-title">Shared to the gallery</h3>
+        <h3 id="shared-gallery-title">{t("shareToGallery.sharedToTheGallery")}</h3>
         <Link to="/templates" className="btn btn-sm btn-ghost">
           <LayoutTemplate className="ic" aria-hidden="true" />
-          Template gallery
+          {t("shareToGallery.templateGallery")}
         </Link>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {list.status === "loading" && <Loading label="Loading what you shared" />}
+        {list.status === "loading" && <Loading label={t("shareToGallery.loadingWhatYouShared")} />}
         {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
-        {withdraw.error !== null && <ErrorBanner error={withdraw.error} title="It could not be withdrawn" />}
+        {withdraw.error !== null && <ErrorBanner error={withdraw.error} title={t("shareToGallery.itCouldNotBe2")} />}
         {list.status === "ready" && (
-          <ul aria-label="Shared to the gallery" style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "12px" }}>
+          <ul aria-label={t("shareToGallery.sharedToTheGallery")} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "12px" }}>
             {list.data.map((s) => (
               <li key={s.id} style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid var(--og-gray-200)", paddingBottom: "10px" }}>
                 <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
                   <span className="b">{s.title}</span>
-                  <span className="tag">{KIND_LABEL[s.kind]}</span>
+                  <span className="tag">{kindLabel(s.kind)}</span>
                   <SubmissionBadge status={s.status} />
-                  <span className="small muted">Sent {formatDate(s.createdAt)}</span>
+                  <span className="small muted">{t("shareToGallery.sent", { date: formatDate(s.createdAt) })}</span>
                 </div>
                 {s.status === "rejected" && s.decisionReason && (
                   <p className="small">
-                    <span className="b">Why it was declined: </span>
+                    <span className="b">{t("shareToGallery.whyItWasDeclined")} </span>
                     {s.decisionReason}
                   </p>
                 )}
                 {s.status === "approved" && s.item?.live && (
                   <p className="small">
-                    Published at <Link to={`/templates/${s.item.slug}`}>/templates/{s.item.slug}</Link>
+                    {t.rich("shareToGallery.publishedAtTemplates", { slug: s.item.slug, link: (chunks) => <Link to={`/templates/${s.item?.slug}`}>{chunks}</Link> })}
                   </p>
                 )}
                 {canShare && (s.status === "pending" || s.status === "approved") && (
@@ -225,7 +254,7 @@ export function GallerySubmissionsPanel() {
                       }}
                     >
                       <Undo2 className="ic" aria-hidden="true" />
-                      Withdraw<span className="sr">: {s.title}</span>
+                      {t.rich("shareToGallery.withdraw", { title: s.title, span: (chunks) => <span className="sr">{chunks}</span> })}
                     </button>
                   </div>
                 )}

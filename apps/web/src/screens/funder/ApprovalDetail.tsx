@@ -10,6 +10,7 @@ import { ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { approvalTargets } from "./shared.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
+import { t } from "./i18n.ts";
 
 const TEMPLATE_FOR: Record<string, string> = { decline_application: "builtin:decline" };
 
@@ -34,30 +35,30 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
   return (
     <section className="card" aria-labelledby="request-detail-h">
       <div className="card-h">
-        <h3 id="request-detail-h">Request detail</h3>
+        <h3 id="request-detail-h">{t("approvalDetail.requestDetail")}</h3>
         <span className="small muted">{title}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        {detail.status === "loading" && <Loading label="Loading the request" />}
+        {detail.status === "loading" && <Loading label={t("approvalDetail.loadingTheRequest")} />}
         {detail.status === "error" && <ErrorBanner error={detail.error} onRetry={detail.reload} />}
         {detail.data && (
           <>
             <div className="col" style={{ gap: "6px" }}>
-              <span className="eyebrow">Exact inputs</span>
-              <pre tabIndex={0} role="region" aria-label="Tool input as the agent sent it" style={{ margin: 0, maxHeight: "200px", overflow: "auto" }}>
+              <span className="eyebrow">{t("approvalDetail.exactInputs")}</span>
+              <pre tabIndex={0} role="region" aria-label={t("approvalDetail.toolInputAsThe")} style={{ margin: 0, maxHeight: "200px", overflow: "auto" }}>
                 {JSON.stringify({ tool: detail.data.approval.tool, input: detail.data.approval.input }, null, 2)}
               </pre>
             </div>
             {apps.length > 0 && (
               <div className="col" style={{ gap: "6px" }}>
-                <span className="eyebrow">{apps.length === 1 ? "1 application affected" : `${apps.length} applications affected`}</span>
-                <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Applications affected, scrollable">
-                  <table className="tbl mini" aria-label="Applications affected">
+                <span className="eyebrow">{t("approvalDetail.affectedCount", { count: apps.length })}</span>
+                <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("approvalDetail.applicationsAffectedScrollable")}>
+                  <table className="tbl mini" aria-label={t("approvalDetail.applicationsAffected2")}>
                     <thead>
                       <tr>
-                        <th>Applicant</th>
-                        <th>Failed rule</th>
-                        <th className="num">Requested</th>
+                        <th>{t("approvalDetail.applicant")}</th>
+                        <th>{t("approvalDetail.failedRule")}</th>
+                        <th className="num">{t("approvalDetail.requested")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -68,11 +69,11 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
                           <tr key={a.id}>
                             <td>
                               <Link to={`${base}/applications/${a.id}`} className="b">
-                                {a.applicant.name ?? "Applicant"}
+                                {a.applicant.name ?? t("approvalDetail.applicant")}
                               </Link>{" "}
                               <VerificationBadge verification={a.applicant.verification} level={a.applicant.level} />
                             </td>
-                            <td>{failed.length ? failed.map((r) => r.label).join("; ") : unknown.length ? `Unknown: ${unknown.map((r) => r.label).join("; ")}` : "None — every rule passes"}</td>
+                            <td>{failed.length ? failed.map((r) => r.label).join("; ") : unknown.length ? t("approvalDetail.unknown", { map: unknown.map((r) => r.label).join("; ") }) : t("approvalDetail.noneEveryRulePasses")}</td>
                             <td className="num">{formatMinor(a.requestedAmountMinor, a.currency)}</td>
                           </tr>
                         );
@@ -86,26 +87,26 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
               <div className="col" style={{ gap: "6px" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <span className="eyebrow">
-                    Letter preview · {index + 1} of {apps.length}
+                    {t("approvalDetail.letterPreviewOf", { index: index + 1, count: apps.length })}
                   </span>
                   <span className="row" style={{ gap: "4px" }}>
-                    <button type="button" className="iconbtn" aria-label="Previous letter" disabled={index === 0} onClick={() => setLetter(index - 1)}>
+                    <button type="button" className="iconbtn" aria-label={t("approvalDetail.previousLetter")} disabled={index === 0} onClick={() => setLetter(index - 1)}>
                       <ChevronLeft className="ic" aria-hidden="true" />
                     </button>
-                    <button type="button" className="iconbtn" aria-label="Next letter" disabled={index >= apps.length - 1} onClick={() => setLetter(index + 1)}>
+                    <button type="button" className="iconbtn" aria-label={t("approvalDetail.nextLetter")} disabled={index >= apps.length - 1} onClick={() => setLetter(index + 1)}>
                       <ChevronRight className="ic" aria-hidden="true" />
                     </button>
                   </span>
                 </div>
-                {preview.status === "loading" && <Loading label="Rendering the letter" />}
-                {preview.status === "error" && <ErrorBanner error={preview.error} title="This letter could not be rendered" />}
+                {preview.status === "loading" && <Loading label={t("approvalDetail.renderingTheLetter")} />}
+                {preview.status === "error" && <ErrorBanner error={preview.error} title={t("approvalDetail.thisLetterCouldNot")} />}
                 {preview.data && (
-                  <div className="letter" aria-label={`Letter to ${current.applicant.name ?? "the applicant"}`} role="group">
+                  <div className="letter" aria-label={t("approvalDetail.letterTo", { name: current.applicant.name ?? t("approvalDetail.theApplicant") })} role="group">
                     {preview.data.subject && <div className="b">{preview.data.subject}</div>}
                     <div style={{ whiteSpace: "pre-wrap" }}>{preview.data.text}</div>
                   </div>
                 )}
-                <p className="small muted">Rendered by the server from the template with each applicant’s own fields. Identifiers are never merged into outgoing mail.</p>
+                <p className="small muted">{t("approvalDetail.renderedByTheServer")}</p>
               </div>
             )}
           </>
