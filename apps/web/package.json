@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@gms/forms": "workspace:*",
+    "@gms/i18n": "workspace:*",
     "@gms/importers": "workspace:*",
     "@gms/rules": "workspace:*",
     "@gms/social": "workspace:*",
