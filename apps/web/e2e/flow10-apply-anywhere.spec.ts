@@ -37,7 +37,7 @@ test("apply to a funder outside this GMS", async ({ app: page }) => {
     await expect(proposed.getByRole("listitem").nth(1)).toContainText("1,500 characters (found in the text)");
     await paste.getByRole("button", { name: "Save 2 questions" }).click();
     await expect(paste).toBeHidden();
-    await expect(page.getByText("2 questions added")).toBeVisible();
+    await expect(page.getByRole("main").getByText("2 questions added")).toBeVisible();
   });
 
   await test.step("write: one answer from the library, one typed against a character limit", async () => {

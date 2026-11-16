@@ -4,8 +4,12 @@
 // regions that already exist. `announce` speaks through a region that is always there.
 
 const REGION_ID = "gms-announcer";
+/** How long a message stays in the region: long enough to be queued for speech, then cleared. */
+const HOLD_MS = 3000;
 let lastAction = 0;
+let lastPage = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
+let clear: ReturnType<typeof setTimeout> | null = null;
 
 /** Notes when the person last pressed a key or a pointer, so only messages they caused are spoken. */
 export function watchActions(doc: Document = document): () => void {
@@ -24,10 +28,19 @@ export function watchActions(doc: Document = document): () => void {
 /** Forgets the last action, as on a fresh page (tests). */
 export function forgetActions(): void {
   lastAction = 0;
+  lastPage = 0;
 }
 
-/** True when the person acted within the last few seconds: a message now is the result. */
-export const actedRecently = (withinMs = 8000): boolean => Date.now() - lastAction < withinMs;
+/**
+ * The address changed: a new screen is being shown. Banners it renders are part of that screen,
+ * read with it, not announced, even though a click led here.
+ */
+export function pageChanged(): void {
+  lastPage = Date.now();
+}
+
+/** True when the person acted on this screen within the last few seconds: a message now is the result. */
+export const actedRecently = (withinMs = 8000): boolean => lastAction >= lastPage && Date.now() - lastAction < withinMs;
 
 function ensureRegion(doc: Document): HTMLElement {
   let region = doc.getElementById(REGION_ID);
@@ -50,7 +63,12 @@ export function announce(text: string, doc: Document = document): void {
   const region = ensureRegion(doc);
   region.textContent = "";
   if (timer) clearTimeout(timer);
+  if (clear) clearTimeout(clear);
   timer = setTimeout(() => {
     region.textContent = words;
+    // Cleared once spoken, so the words are not left on the page twice.
+    clear = setTimeout(() => {
+      if (region.textContent === words) region.textContent = "";
+    }, HOLD_MS);
   }, 60);
 }

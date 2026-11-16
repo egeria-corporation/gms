@@ -4,7 +4,7 @@
 import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
 import type { AwardDetail } from "../api/funder.ts";
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
@@ -12,7 +12,7 @@ import { UserbackBridge } from "./UserbackBridge.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
-import { watchActions } from "../lib/announce.ts";
+import { pageChanged, watchActions } from "../lib/announce.ts";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
@@ -225,7 +225,10 @@ function AppRoutes() {
   // The design reference boards and template previews carry demo content: demo (mock) mode only.
   const { mock } = useServices();
   // The apply widget runs inside other sites' pages: no feedback widget there, and a plain frame.
-  const embedded = useLocation().pathname.startsWith("/embed/");
+  const location = useLocation();
+  const embedded = location.pathname.startsWith("/embed/");
+  // A layout effect runs before any screen's banner effects: banners on a new screen are not announced.
+  useLayoutEffect(() => pageChanged(), [location.pathname, location.search]);
   return (
     <Suspense fallback={<div className={embedded ? "gms embed" : "gms gms-frame"} aria-busy="true" />}>
       {!embedded && <UserbackBridge />}

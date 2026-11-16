@@ -15,7 +15,7 @@ import { CopyButton } from "../src/components/CopyButton.tsx";
 import { NotFound } from "../src/components/NotFound.tsx";
 import { Field, Notice } from "../src/components/ui.tsx";
 import { organizationAutocomplete } from "../src/forms/FormView.tsx";
-import { actedRecently, announce, forgetActions, watchActions } from "../src/lib/announce.ts";
+import { actedRecently, announce, forgetActions, pageChanged, watchActions } from "../src/lib/announce.ts";
 import { contrastRatio } from "../src/lib/contrast.ts";
 import { demoSession } from "../src/mocks/auth.ts";
 
@@ -155,6 +155,18 @@ describe("status messages (4.1.3)", () => {
     for (const banner of screen.getAllByRole("status")) expect(banner).toHaveAttribute("aria-live", "off");
     act(() => announce("Imported 3 of 3"));
     await waitFor(() => expect(region).toHaveTextContent("Imported 3 of 3"));
+    stop();
+  });
+
+  it("a banner on a screen the person just opened is read with the screen, not announced", async () => {
+    forgetActions();
+    const stop = watchActions(document);
+    await userEvent.click(document.body);
+    pageChanged();
+    render(<Notice tone="info" title="Not available yet" />);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(document.getElementById("gms-announcer")!.textContent).toBe("");
+    expect(actedRecently()).toBe(false);
     stop();
   });
 });
