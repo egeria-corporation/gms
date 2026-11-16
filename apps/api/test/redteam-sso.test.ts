@@ -35,7 +35,7 @@ interface Doc {
 /** The person's own routes: no workspace is named, so no workspace's rule applies. */
 const PERSONAL = new Set(["/gms/me", "/gms/workspaces", "/gms/me/sessions", "/gms/config", "/gms/mcp-connections", "/gms/gallery/moderation/me", "/gms/gallery/moderation/queue", "/gms/passport/consent/callback"]);
 /** Routes anyone may read without signing in (a calendar feed is read by its secret address), and the sign-in flow. */
-const ANYONE = (path: string) => path.startsWith("/gms/public/") || path.startsWith("/gms/passport/signin/") || path.startsWith("/gms/cal/") || path === "/gms/gallery" || path === "/gms/gallery/{slug}" || path === "/gms/migration-requests/form" || path === "/gms/open-data/{handle}/360giving.json";
+const ANYONE = (path: string) => path.startsWith("/gms/public/") || path.startsWith("/gms/passport/signin/") || path.startsWith("/gms/cal/") || path === "/gms/gallery" || path === "/gms/gallery/{slug}" || path === "/gms/migration-requests/form" || path === "/gms/open-data/{handle}/360giving.json" || path === "/gms/digests/unsubscribe";
 
 let h: Harness;
 let doc: Doc;
@@ -74,6 +74,9 @@ describe.skipIf(!existsSync(SPEC))("single sign-on on every route of the documen
   beforeAll(async () => {
     h = await harness();
     h.env.SUPABASE_URL = SUPABASE;
+    // Social posting on (v1.9.0), so its routes reach authentication instead of answering 404 first.
+    h.env.ZERNIO_API_KEY = "zk_test_made_up";
+    h.env.ZERNIO_WEBHOOK_SECRET = "zernio-webhook-secret-for-unit-tests";
     doc = parse(readFileSync(SPEC, "utf8")) as Doc;
     await activeDomain(WS_FUNDER, RIVERBEND_DOMAIN, PROVIDER_A);
     await activeDomain(WS_OTHER, CASCADE_DOMAIN, PROVIDER_B);
@@ -82,10 +85,10 @@ describe.skipIf(!existsSync(SPEC))("single sign-on on every route of the documen
     h.directory.users.set(USER_OFFICER, { email: CASCADE_EMAIL, name: "Dana Ortiz" });
   });
 
-  it("covers the v1.8.0 routes", () => {
+  it("covers the v1.8.0 and v1.9.0 routes", () => {
     const paths = workspaceGets(WS_OTHER);
     expect(paths.length).toBeGreaterThan(150);
-    for (const p of ["/gms/sso/settings", "/gms/report-views", "/gms/open-data/summary", `/gms/competitions/${NOWHERE}/coi-policy`, `/gms/workspaces/${WS_OTHER}/gallery/submissions`]) expect(paths).toContain(p);
+    for (const p of ["/gms/sso/settings", "/gms/report-views", "/gms/open-data/summary", `/gms/competitions/${NOWHERE}/coi-policy`, `/gms/workspaces/${WS_OTHER}/gallery/submissions`, "/gms/social", "/gms/funds", "/gms/digests", "/gms/award-sharing/settings", "/gms/guest-review/welcome", `/gms/outside-applications/${NOWHERE}/package`, "/gms/imports/zengine/forms"]) expect(paths).toContain(p);
   });
 
   it("refuses provider A's session for an address on provider B's domain on every route, and admits B's", async () => {
