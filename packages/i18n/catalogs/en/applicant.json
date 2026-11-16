@@ -1479,7 +1479,7 @@
   "outsideQuestionsTab.counter.charsOf": "{count, number} / {limit, plural, one {# character} other {# characters}}",
   "outsideQuestionsTab.counter.noSpaces": "{count, number} without spaces",
   "outsideQuestionsTab.counter.noSpacesOf": "{count, number} / {limit, number} without spaces",
-  "outsideQuestionsTab.overBy": "{kind, select, words {{count, plural, one {Over the limit by # words} other {Over the limit by # words}}} chars {{count, plural, one {Over the limit by # characters} other {Over the limit by # characters}}} other {{count, plural, one {Over the limit by # characters without spaces} other {Over the limit by # characters without spaces}}}}",
+  "outsideQuestionsTab.overBy": "{kind, select, words {{count, plural, one {Over the limit by # word} other {Over the limit by # words}}} chars {{count, plural, one {Over the limit by # character} other {Over the limit by # characters}}} other {{count, plural, one {Over the limit by # character without spaces} other {Over the limit by # characters without spaces}}}}",
   "outsideQuestionsTab.limitNumber": "Enter the limit as a number",
   "outsideQuestionsTab.keepQuestion": "Keep question {n}",
   "outsideQuestionsTab.foundInText": "(found in the text)",

@@ -45,7 +45,7 @@ describe("counters", () => {
     rerender(<Counters counts={countText("one two three four five six seven")} limitKind="words" limitValue={5} />);
     expect(screen.getByText("Over the limit by 2 words")).toBeInTheDocument();
     rerender(<Counters counts={countText("abc def")} limitKind="chars_no_spaces" limitValue={5} />);
-    expect(screen.getByText("Over the limit by 1 characters without spaces")).toBeInTheDocument();
+    expect(screen.getByText("Over the limit by 1 character without spaces")).toBeInTheDocument();
     rerender(<Counters counts={countText("abc")} limitKind={null} limitValue={null} />);
     expect(screen.queryByText(/limit/)).not.toBeInTheDocument();
   });

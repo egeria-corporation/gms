@@ -88,9 +88,6 @@ export const countFor = (counts: TextCounts, kind: LimitKind) => counts[COUNT_KE
 export const isOverLimit = (counts: TextCounts, kind: LimitKind | null | undefined, value: number | null | undefined) =>
   !!kind && typeof value === "number" && value > 0 && countFor(counts, kind) > value;
 
-export const LIMIT_UNITS: Record<LimitKind, string> = { words: "words", chars: "characters", chars_no_spaces: "characters without spaces" };
-export const limitPhrase = (kind: LimitKind | null | undefined, value: number | null | undefined) =>
-  kind && value ? `${value.toLocaleString("en-US")} ${LIMIT_UNITS[kind]}` : "No limit";
 
 // ------------------------------------------------------------------------------------ parse
 

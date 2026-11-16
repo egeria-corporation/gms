@@ -7,6 +7,7 @@
 // `createHttpDigestsApi` calls the GMS Worker (api/digests.tsp); `createMockDigestsApi`
 // (mocks/digests.ts) implements the same interface in the browser.
 import { ApiError } from "./client.ts";
+import { intlLocale } from "../i18n/current.ts";
 
 export type DigestKey = "new_matches" | "deadlines" | "funder_activity";
 
@@ -96,8 +97,8 @@ export function unsubscribeTokenFrom(hash: string, search = ""): string | null {
   return fromHash || new URLSearchParams(search).get("token") || null;
 }
 
-/** "Monday, April 19" from YYYY-MM-DD. */
+/** "Monday, April 19" (Spanish: "lunes, 19 de abril") from YYYY-MM-DD, in the page's language. */
 export function mondayLabel(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);
-  return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
+  return Number.isNaN(d.getTime()) ? date : d.toLocaleDateString(intlLocale(), { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 }

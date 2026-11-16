@@ -2,6 +2,7 @@
 // The "New award" form: what the funder types, the checks that run before anything is sent, and the
 // request it becomes. Messages are plain words; each names the field it belongs to.
 import type { DirectAwardInput } from "../api/directAwards.ts";
+import { intlLocale } from "../i18n/current.ts";
 
 export const MESSAGE_MAX = 2000;
 export const TITLE_MAX = 300;
@@ -95,5 +96,5 @@ export function daysLeft(iso: string, now: Date = new Date()): number {
 export function formatDecimalAmount(value: string, currency = "USD"): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat(intlLocale(), { style: "currency", currency, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }).format(n);
 }

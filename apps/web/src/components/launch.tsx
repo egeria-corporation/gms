@@ -23,8 +23,6 @@ export function PaymentsOffNotice() {
 
 /** The label for recording a payment made elsewhere; the primary action while payments through Passport are off. */
 export const recordOutsideLabel = (): string => t("launch.recordOutsideLabel");
-/** @deprecated The English label; use `recordOutsideLabel()`, which follows the page's language. */
-export const RECORD_OUTSIDE_LABEL = "Record a payment made outside the GMS";
 
 /** One contact's name, address and telephone, as the funder listed them. */
 export function ContactLine({ contact }: { contact: FunderContact }) {

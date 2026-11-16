@@ -26,8 +26,6 @@ export function tenantStyle(funder: Pick<PublicFunder, "brand">): CSSProperties 
 
 /** The attribution line, in the page's language. */
 export const poweredByLabel = (): string => t("publicFrame.poweredBy");
-/** @deprecated The English line; use `poweredByLabel()`, which follows the page's language. */
-export const POWERED_BY_LABEL = "Powered by OpenGrants Grant Management System";
 
 /** On unless the funder turned it off; a server that does not send the setting yet means on. */
 export const showsPoweredBy = (funder: Pick<PublicFunder, "poweredBy">): boolean => funder.poweredBy !== false;
