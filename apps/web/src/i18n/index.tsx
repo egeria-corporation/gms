@@ -2,7 +2,7 @@
 // The web app's language: one current locale for the page, the hook screens translate with, and
 // the switch. Catalogs live in packages/i18n; docs/i18n.md says how to add and use a message.
 import { Fragment, createElement, use, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_QUERY, chooseLocale, cookieValue, createTranslator, loadCatalog, localeCookie, peekCatalog, type Key, type Locale, type Namespace, type Values } from "@gms/i18n";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_QUERY, chooseLocale, cookieValue, createTranslator, loadCatalog, localeCookie, type Key, type Locale, type Namespace, type Values } from "@gms/i18n";
 import { getLocale, subscribeLocale } from "./current.ts";
 
 export type { Key, Locale, Namespace, Values } from "@gms/i18n";
@@ -60,7 +60,9 @@ function bind<N extends Namespace>(locale: Locale, ns: N): T<N> {
  */
 export function useT<N extends Namespace>(ns: N): T<N> {
   const locale = useLocale();
-  const catalog = peekCatalog(locale, ns) ?? use(loadCatalog(locale, ns));
+  // Always `use`, never only when the catalog is missing (see loadCatalog): a loaded catalog's promise is
+  // already fulfilled, so this returns at once; a missing one suspends the screen until it arrives.
+  const catalog = use(loadCatalog(locale, ns));
   // The catalog is a dependency so the translator is rebuilt once a namespace arrives.
   return useMemo(() => bind(locale, ns), [locale, ns, catalog]);
 }

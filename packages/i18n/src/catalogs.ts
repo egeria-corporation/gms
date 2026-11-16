@@ -60,7 +60,18 @@ const LOADERS: Record<Locale, Record<Namespace, Loader>> = {
 
 const slot = (locale: Locale, ns: Namespace) => `${locale}:${ns}`;
 const loaded = new Map<string, Catalog>([[slot("en", "shared"), enShared]]);
-const pending = new Map<string, Promise<Catalog>>();
+
+/**
+ * A catalog's load, as React's `use` reads it: one promise per language and namespace, marked
+ * `fulfilled` (with its `value`) once the catalog is here, so `use` returns it at once instead of
+ * suspending. The web app calls `use` on it on every render, never only when the catalog is
+ * missing: a component that suspended is replayed when the catalog arrives, and a `use` skipped on
+ * the replay makes React run the hooks after it as updates of hooks that were never mounted
+ * (React error 467, recovered by re-rendering the whole page).
+ */
+type Load = Promise<Catalog> & { status?: "pending" | "fulfilled" | "rejected"; value?: Catalog; reason?: unknown };
+const settled = (catalog: Catalog): Load => Object.assign(Promise.resolve(catalog), { status: "fulfilled" as const, value: catalog });
+const pending = new Map<string, Load>([[slot("en", "shared"), settled(enShared)]]);
 
 /** The catalog when it is already loaded; undefined otherwise (never starts a load). */
 export function peekCatalog(locale: Locale, ns: Namespace): Catalog | undefined {
@@ -69,18 +80,20 @@ export function peekCatalog(locale: Locale, ns: Namespace): Catalog | undefined 
 
 /**
  * Loads one catalog (once: the same promise every call, which is what React's `use` needs). A
- * Spanish catalog also loads its English one, the fallback for any key not yet translated.
+ * Spanish catalog also loads its English one, the fallback for any key not yet translated, and its
+ * promise is fulfilled only when both are here.
  */
 export function loadCatalog(locale: Locale, ns: Namespace): Promise<Catalog> {
   const id = slot(locale, ns);
-  const ready = loaded.get(id);
-  if (ready && (locale === "en" || loaded.has(slot("en", ns)))) return pending.get(id) ?? Promise.resolve(ready);
   let promise = pending.get(id);
   if (!promise) {
-    promise = Promise.all([LOADERS[locale][ns](), locale === "en" ? null : loadCatalog("en", ns)]).then(([mod]) => {
+    const load: Load = Promise.all([LOADERS[locale][ns](), locale === "en" ? null : loadCatalog("en", ns)]).then(([mod]) => {
       loaded.set(id, mod.default);
+      Object.assign(load, { status: "fulfilled", value: mod.default });
       return mod.default;
     });
+    load.status = "pending";
+    promise = load;
     pending.set(id, promise);
     // A failed load (offline) may be tried again.
     promise.catch(() => pending.delete(id));

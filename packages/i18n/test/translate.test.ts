@@ -67,6 +67,21 @@ describe("catalog loading", () => {
     expect(peekCatalog("en", "public")).toBeUndefined();
     await loadCatalog("en", "public");
     expect(peekCatalog("en", "public")).toBeDefined();
+  });
+
+  it("gives React's use one promise per catalog, already fulfilled once it is loaded", async () => {
+    // The web app calls use() on every render (apps/web/src/i18n/index.tsx); a fulfilled promise is read at once.
+    const shared = loadCatalog("en", "shared") as Promise<unknown> & { status?: string; value?: unknown };
+    expect(loadCatalog("en", "shared")).toBe(shared);
+    expect(shared.status).toBe("fulfilled");
+    expect(shared.value).toBe(peekCatalog("en", "shared"));
+    const funder = loadCatalog("es", "funder") as Promise<unknown> & { status?: string; value?: unknown };
+    expect(funder.status).toBe("pending");
+    await funder;
+    expect(loadCatalog("es", "funder")).toBe(funder);
+    expect(funder.status).toBe("fulfilled");
+    // Fulfilled only with its English fallback.
+    expect(peekCatalog("en", "funder")).toBeDefined();
     expect(peekCatalog("es", "shared")).toBeUndefined();
     const p1 = loadCatalog("es", "shared");
     expect(loadCatalog("es", "shared")).toBe(p1);
