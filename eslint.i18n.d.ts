@@ -3,4 +3,5 @@
 import type { Rule } from "eslint";
 
 export declare const TRANSLATED: string[];
+export declare const NOT_TRANSLATED: string[];
 export declare const i18nPlugin: { rules: { "no-literal-strings": Rule.RuleModule } };
