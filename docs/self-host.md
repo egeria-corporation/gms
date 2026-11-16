@@ -152,7 +152,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `RESEND_INBOUND_SECRET` | api | Step 4 |
 | `ANTHROPIC_API_KEY` | api | Only with `ASSISTANT_ENABLED = "true"` |
 | `PAYMENTS_FACILITATED` | api, jobs | Plain variable, default `"false"`. `"true"` turns on release through Passport; otherwise payments are recorded after being paid outside the GMS |
-| `OPENGRANTS_API_KEY` | api | Optional |
+| `OPENGRANTS_API_KEY` | both | Optional. On the jobs Worker too (v1.9.0): the Monday "New matches" digest reads OpenGrants with it; without it on the jobs Worker, digests list this site's opportunities only |
 | `COMPOSIO_API_KEY` | api | Optional. Connected apps through Composio (`docs/connectors.md`); for imports it must be allowed to execute tools as well as manage connected accounts |
 | `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID`, `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` | api | Optional (v1.7.0). Read-only Composio auth configs for importing from Google Sheets and Airtable (`docs/connectors.md`). Without them imports offer CSV and Excel files only |
 | `GALLERY_MODERATORS` | api | Optional (v1.8.0). Who moderates the template gallery: comma-separated user ids or email addresses. A secret, never a `[vars]` entry, so the addresses are not published in `wrangler.toml`. Unset, nobody moderates and nothing new is published (the nine starters still show) |
@@ -166,6 +166,7 @@ Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_
 ## 4. Resend
 
 1. Add and verify a sending domain (SPF, DKIM, DMARC records). Set `RESEND_FROM` to an address on it.
+   Keep open and click tracking off for that domain: the digests promise no tracking (v1.9.0).
 2. Webhooks: add `https://<host>/webhooks/resend` for delivery events and inbound mail; put the
    signing secret in `RESEND_INBOUND_SECRET`.
 3. Inbound: receive mail for a domain or subdomain (for example `reply.example.org`) and set

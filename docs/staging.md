@@ -126,6 +126,10 @@ order: the database first, then the API, the jobs Worker and the web app.
 - A public opportunity's apply widget (`/embed/f/{handle}/o/{slug}`) answers with
   `frame-ancestors *` and no `X-Frame-Options`; the opportunity page itself keeps
   `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+- v1.9.0: `/badge/{slug}.svg` of a listed award is `image/svg+xml` with `Cache-Control:
+  public, max-age=3600`, and `/f/{handle}/awards` shows its own `<title>` in the page source (only
+  once a funder lists its awards). `/gms/config` shows `available.social: true` only once both Zernio
+  secrets are set, and a `POST /webhooks/zernio` with a wrong signature answers 401.
 
 ## Settings and secrets
 
@@ -148,13 +152,15 @@ order: the database first, then the API, the jobs Worker and the web app.
   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
   - `CREDENTIALS_ENCRYPTION_KEY` and `WEBHOOK_SECRET_KEY`;
   - `RESEND_API_KEY` and `RESEND_FROM`;
-  - `PASSPORT_GMS_CLIENT_ID` and `PASSPORT_GMS_CLIENT_SECRET`.
+  - `PASSPORT_GMS_CLIENT_ID` and `PASSPORT_GMS_CLIENT_SECRET`;
+  - new in v1.9.0: `OPENGRANTS_API_KEY` (for the Monday "New matches" digest).
 
 **Not set:** `PASSPORT_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET`; and, new in v1.7.0,
 `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID` and `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` (API). Until they are,
 imports offer CSV and Excel files only. New in v1.8.0: `GALLERY_MODERATORS` (API, a secret, not a
 `[vars]` entry). Until it is set, nobody moderates the template gallery and nothing new is published;
-the nine starter items still show.
+the nine starter items still show. New in v1.9.0: `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` (API);
+until both are set, social posting is hidden.
 
 ## Sign in with Passport
 
