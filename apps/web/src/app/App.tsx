@@ -199,6 +199,28 @@ export function App({ services }: { services?: Services }) {
   );
 }
 
+/**
+ * The first stop for the keyboard on every page: moves focus to the page's main content, past the
+ * top bar and the rail (WCAG 2.4.1). Screens render their own <main>, so the link finds it on use.
+ */
+function SkipLink() {
+  return (
+    <a
+      href="#main"
+      className="skip-link"
+      onClick={(e) => {
+        const main = document.querySelector<HTMLElement>("main, [role=main]");
+        if (!main) return;
+        e.preventDefault();
+        if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+        main.focus();
+      }}
+    >
+      Skip to main content
+    </a>
+  );
+}
+
 function AppRoutes() {
   // The design reference boards and template previews carry demo content: demo (mock) mode only.
   const { mock } = useServices();
@@ -207,6 +229,7 @@ function AppRoutes() {
   return (
     <Suspense fallback={<div className={embedded ? "gms embed" : "gms gms-frame"} aria-busy="true" />}>
       {!embedded && <UserbackBridge />}
+      {!embedded && <SkipLink />}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />

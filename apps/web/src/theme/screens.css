@@ -167,8 +167,9 @@ button.tab { font-family: inherit; }
   .ph .actions { width: 100%; }
   .stp { flex-direction: column; align-items: flex-start; }
   .stp .ln { display: none; }
-  /* A card's title and its actions wrap onto two lines instead of widening the page (WCAG 1.4.10). */
-  .card-h, .card-h > .row { flex-wrap: wrap; }
+  /* A card's title, footer and their action rows wrap instead of widening the page (WCAG 1.4.10). */
+  .card-h, .card-h > .row, .card-f, .card-f > .row, .ph .actions, .ph .actions > .row { flex-wrap: wrap; }
+  .crumbs, .crumbs > .row { flex-wrap: wrap; }
   /* A long status badge wraps inside the column instead of pushing past it (WCAG 1.4.10). */
   .bdg { white-space: normal; height: auto; min-height: 22px; padding-block: 3px; line-height: 1.25; max-width: 100%; }
   .bdg-lg { min-height: 26px; }
@@ -176,6 +177,10 @@ button.tab { font-family: inherit; }
 .fld-c > .tag { flex: none; white-space: nowrap; }
 
 /* ---- 5. accessibility ---- */
+/* Skip to main content: out of sight until it has focus (WCAG 2.4.1). */
+.skip-link { position: fixed; left: 8px; top: -60px; z-index: 100; padding: 10px 14px; border-radius: 6px; background: var(--og-navy-dark); color: var(--og-white); font-family: var(--font-body); font-weight: 700; font-size: 14px; text-decoration: none; }
+.skip-link:focus { top: 8px; outline: 2px solid var(--og-teal-dark); outline-offset: 2px; box-shadow: 0 0 0 2px var(--og-white); }
+main:focus { outline: none; }
 /* Focus ring (WCAG 2.4.7, 1.4.11): the brand teal was 2.95:1 on white. A dark teal ring with a white
    halo in the offset gap reads on white, tinted and dark surfaces (the bulk bar, tenant headers). */
 .gms :focus-visible { outline: 2px solid var(--og-teal-dark); outline-offset: 2px; box-shadow: 0 0 0 2px var(--og-white); }
@@ -188,6 +193,9 @@ button.tab { font-family: inherit; }
 .tog.on { background: var(--og-teal-dark); }
 .radio .r { border-color: var(--ctl-border, #748382); }
 .radio .r.on { border-color: var(--og-teal-dark); }
+/* A long address, link or letter line breaks rather than pushing the page sideways at 320px (WCAG 1.4.10). */
+.gms { overflow-wrap: break-word; }
+.gms :is(dd, .letter, a[href^="mailto:"], .mono) { overflow-wrap: anywhere; }
 /* A public page's header bar grows and wraps instead of clipping its links: at 390px the funder's
    section links were cut off above the bar (WCAG 1.4.10, 1.4.12). */
 .pub-hd .bar { height: auto; min-height: 64px; flex-wrap: wrap; row-gap: 8px; padding-block: 8px; }

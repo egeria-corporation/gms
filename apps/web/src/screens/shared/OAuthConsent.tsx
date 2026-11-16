@@ -97,7 +97,7 @@ export default function OAuthConsent() {
               {request.status === "error" && <ErrorBanner error={request.error} title="This connection request cannot be shown" />}
               {data && (
                 <>
-                  <div className="row" style={{ gap: "16px" }}>
+                  <div className="row wrap" style={{ gap: "16px" }}>
                     <div className="row" style={{ gap: "10px" }}>
                       <span className="av av-xl av-a" style={{ borderRadius: "12px" }}>
                         <Bot className="ic ic-md" aria-hidden="true" />
