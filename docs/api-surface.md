@@ -563,3 +563,45 @@ Tests: `apps/api/test/funds.test.ts`, `redteam-funds.test.ts`; database: migrati
 | `GET /gms/public/funders/{handle}/funds/{slug}` | Implemented | No token. The fund page: `funder`, `fund { name, slug, description, brand, isDefault }`, its published opportunity cards |
 | A fund advisor (a member whose scope names `fundIds`, not an admin) | Implemented | Every route and MCP tool reads and writes through their funds only (`fundScopeOf` in the one authorization path); other funds' records answer 404 |
 | MCP `list_funds` | Implemented | Funder `programs:read` |
+
+## Send to the funder, guest reviewers, digests and importer adapters (v1.9.0)
+
+Tests: `apps/api/test/send-package.test.ts`, `contract-send-package.test.ts`, `guest-reviewer.test.ts`,
+`content-digests.test.ts`, `contract-digests.test.ts`, `import-adapters.test.ts`,
+`redteam-funds.test.ts`, `redteam-cowriter.test.ts`, `human-only.test.ts`; database: migrations
+`0040_send_package.sql`, `0041_content_digests.sql`, `0042_importer_adapters.sql`.
+
+### Send to the funder (`docs/send-package.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/outside-applications/{id}/package` | Implemented | Applicant `applications:read`. What the package holds: cover, questions in order, budget summary, the files (this application's own and the vault documents used for its checklist), any answer that blocks it (named, never echoed), and whether email is available |
+| `GET /gms/outside-applications/{id}/package.pdf`, `GET …/package.zip` | Implemented | The PDF, or a ZIP with the PDF, the files and `answers.txt`. Up to 60 MB; `422 sensitive_answer` while an answer looks like a bank, card or identity number |
+| `POST /gms/outside-applications/{id}/package/email/preview`, `POST …/package/email` | Implemented | A signed-in admin or editor only (agents and API clients `403 human_only`). The preview is exactly what is sent (`409 preview_changed`); up to 20 MB of attachments (`422 package_too_large_to_email`: download it instead) and five emails a day per application; `503 mail_attachments_unavailable` on a mailer that cannot carry files |
+| `PUT /gms/send-package/settings` | Implemented | `{ poweredBy }`, the footer line, an applicant admin in person (also a `PATCH /gms/workspaces/{id}` settings key since v1.9.0) |
+| MCP `get_send_package` | Implemented | Read only (`applications:read`); no tool emails a package |
+
+### Guest reviewers
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/guest-review/welcome` | Implemented | An external reviewer, signed in: funder, competitions, counts, due date, the conflict-of-interest note and its link (`/review/assignments?ws=…&sign=1` opens the policy signing) |
+| `GET /gms/guest-review/done` | Implemented | Done when at least one review is submitted and none is open (recusals aside); the reviewer portal goes there after the last review |
+| `POST /gms/guest-review/offer` | Implemented | `{ event: shown \| clicked \| dismissed }`: the once-only offer to run a panel, counted in the GMS's own ledger |
+
+### Opt-in digests (`docs/digests.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/digests`, `PUT /gms/digests` | Implemented | The person's own choices in this workspace; turning a digest on or off is the person's (agents and API clients `403 person_required`) |
+| `GET /gms/digests/preview?digest=` | Implemented | Next Monday's email as it would be written now; a fund advisor's counts are their funds' only. MCP `get_digest_preview` (read only) |
+| `POST /gms/digests/unsubscribe`, `GET /gms/digests/unsubscribe` | Implemented | No token: the signed link is the proof (RFC 8058 one-click on POST; GET only redirects). `400 invalid_link`, `410 link_expired` |
+
+### Importer adapters (`docs/importers.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/imports/read`, `POST /gms/imports/preview` | Changed | Sources also `json` (OpenWater), `fluxx` and `zengine`; an export from Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or OpenWater is recognised loosely and the person confirms each field |
+| `GET/POST/DELETE /gms/imports/connections/{fluxx\|zengine}` | Implemented | Funder admin, a signed-in person to connect (agents and API clients `403 human_only`). Credentials checked with one read, stored encrypted, never returned; requests never follow a redirect |
+| `GET /gms/imports/zengine/forms` | Implemented | The forms the stored Zengine token can open |
+| `POST /gms/imports/runs/{id}/files/match`, `GET/POST /gms/imports/runs/{id}/files` | Implemented | After an import has finished: match a system's zip by paths, then attach each file (a person, 25 MB each). Stored as the funder's own documents, listed on the funder's award page, never the grantee's |

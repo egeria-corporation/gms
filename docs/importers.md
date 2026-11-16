@@ -69,6 +69,8 @@ for, and Zengine file and signature fields are skipped.
   in. Agents and API clients get 403 `human_only`: handing credentials to another system changes
   access. Fluxx takes the instance address (HTTPS on `*.fluxx.io` or `*.fluxxlabs.com` only, one
   constant, `FLUXX_HOST_SUFFIXES`) and the application id and secret; Zengine takes an access token.
+  No request follows a redirect (`redirect: "manual"`; a 3xx answer, or an answer from another
+  host, stops the pull), so the credentials and the records never leave the host that was checked.
   The credentials are checked with one read, stored as AES-GCM ciphertext under
   `CREDENTIALS_ENCRYPTION_KEY` in `connector_accounts.secret_enc` (a column no signed-in user may
   read), and never returned.

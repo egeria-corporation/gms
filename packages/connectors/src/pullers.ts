@@ -110,7 +110,16 @@ const day = (v: unknown): string => {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
 };
 
-/** The HTTP side both pullers share: rate window, 429 backoff, retries on server errors, error mapping. */
+const PROVIDER_NAME = { fluxx: "Fluxx", zengine: "Zengine" } as const satisfies Record<PullerProvider, string>;
+const sameHost = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).host === new URL(b).host;
+  } catch {
+    return false;
+  }
+};
+
+/** The HTTP side both pullers share: rate window, 429 backoff, retries on server errors, error mapping, no redirects. */
 class Http {
   requests = 0;
   constructor(
@@ -134,10 +143,13 @@ class Http {
       this.requests++;
       let res: Response;
       try {
-        res = await this.deps.fetch(url, init);
+        // Never followed: the credentials and the records stay on the host that was checked
+        // (a Fluxx instance on FLUXX_HOST_SUFFIXES, or Zengine's own API).
+        res = await this.deps.fetch(url, { ...init, redirect: "manual" });
       } catch {
         throw new ConnectorUnavailableError(this.provider);
       }
+      if ((res.status >= 300 && res.status < 400) || res.type === "opaqueredirect" || (res.url && !sameHost(res.url, url))) throw new ConnectorUnavailableError(this.provider, `${PROVIDER_NAME[this.provider]} tried to send the request to another address, so it was not followed`);
       if (res.status === 429) {
         const wait = retryAfterMs(res.headers.get("retry-after"), this.deps.now(), 2 ** attempt * 1000);
         if (waited + wait > this.deps.maxWaitMs) throw new ConnectorRateLimitedError(this.provider, Math.max(1, Math.ceil(wait / 1000)));

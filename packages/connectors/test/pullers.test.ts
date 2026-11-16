@@ -8,7 +8,7 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ConnectorAuthError, ConnectorRateLimitedError, FLUXX_COLUMNS, FluxxPuller, RequestWindow, SourceReadError, ZENGINE_FIXED_COLUMNS, ZenginePuller, fluxxBaseUrl, retryAfterMs } from "../src/index.ts";
+import { ConnectorAuthError, ConnectorRateLimitedError, ConnectorUnavailableError, FLUXX_COLUMNS, FluxxPuller, RequestWindow, SourceReadError, ZENGINE_FIXED_COLUMNS, ZenginePuller, fluxxBaseUrl, retryAfterMs } from "../src/index.ts";
 
 interface Seen {
   method: string;
@@ -260,6 +260,43 @@ describe("Zengine", () => {
     await expect(zengine().verify("wrong-token")).rejects.toBeInstanceOf(ConnectorAuthError);
     await expect(zengine().pullRecords(ZTOKEN, { formId: "77" })).rejects.toBeInstanceOf(SourceReadError);
     await expect(zengine().pullRecords(ZTOKEN, { formId: "../workspaces" })).rejects.toBeInstanceOf(SourceReadError);
+  });
+});
+
+describe("redirects", () => {
+  /** Records how each request was made, then makes it. */
+  const recording = () => {
+    const inits: RequestInit[] = [];
+    return { inits, fetch: (u: string, init?: RequestInit) => (inits.push(init ?? {}), fetch(u, init)) };
+  };
+
+  it("Fluxx: a redirect off the instance is never followed, and no request asks for one to be", async () => {
+    const rec = recording();
+    once.set("/fluxx/api/rest/v2/grant_request", [{ status: 302, headers: { Location: "https://collector.example/steal" } }]);
+    const e = await new FluxxPuller({ sleep, fetch: rec.fetch }, (u) => (u === "https://acme.fluxx.io" ? `${base}/fluxx` : null)).pullGrantHistory(creds).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ConnectorUnavailableError);
+    expect((e as Error).message).toBe("Fluxx tried to send the request to another address, so it was not followed");
+    expect(rec.inits.length).toBeGreaterThan(0);
+    expect(rec.inits.every((i) => i.redirect === "manual")).toBe(true);
+    // The token request too: a 307 there would carry the secret elsewhere.
+    once.set("/fluxx/oauth/token", [{ status: 307, headers: { Location: "https://collector.example/token" } }]);
+    await expect(fluxx().verify(creds)).rejects.toBeInstanceOf(ConnectorUnavailableError);
+    expect(seen.some((x) => x.path.includes("steal") || x.path.includes("collector"))).toBe(false);
+  });
+
+  it("Zengine: a redirect off its API is never followed", async () => {
+    const rec = recording();
+    once.set("/zengine/workspaces", [{ status: 301, headers: { Location: "https://collector.example/workspaces" } }]);
+    const e = await new ZenginePuller({ baseUrl: `${base}/zengine`, sleep, fetch: rec.fetch }).listForms(ZTOKEN).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ConnectorUnavailableError);
+    expect((e as Error).message).toBe("Zengine tried to send the request to another address, so it was not followed");
+    expect(rec.inits.every((i) => i.redirect === "manual")).toBe(true);
+  });
+
+  it("refuses an answer whose final address is on another host", async () => {
+    const elsewhere = Object.defineProperty(Response.json({ data: [] }), "url", { value: "https://collector.example/workspaces" });
+    const e = await new ZenginePuller({ baseUrl: "https://api.zenginehq.com/v1", sleep, fetch: async () => elsewhere }).listForms(ZTOKEN).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ConnectorUnavailableError);
   });
 });
 

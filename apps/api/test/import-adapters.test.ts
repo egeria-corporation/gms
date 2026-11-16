@@ -186,10 +186,14 @@ describe("files from a system's zip", () => {
     expect(docs.map((d) => [d.workspace_id, d.owner_workspace_id, d.subject_id, d.mime])).toEqual([[WS_FUNDER, WS_FUNDER, award.id, "application/pdf"]]);
     expect([...h.storage.files.keys()]).toEqual([expect.stringMatching(new RegExp(`^imports/${id}/[0-9a-f]{64}$`))]);
     expect((await data<{ name: string }[]>(funderAdmin, "GET", `/gms/imports/runs/${id}/files`)).map((f) => f.name)).toEqual(["Submission.pdf"]);
-    // The award's documents, as either party sees them, do not list it: it is the funder's file.
-    const listed = await call(funderAdmin, "GET", `/gms/awards/${first.body.data.file.award}/documents`);
+    // The funder sees it on the award page; the grantee never does, even once the award is theirs.
+    const listed = await call<{ name: string }[]>(funderAdmin, "GET", `/gms/awards/${first.body.data.file.award}/documents`);
     expect(listed.status).toBe(200);
-    expect(JSON.stringify(listed.body)).not.toContain("Submission.pdf");
+    expect(listed.body.data.map((d) => d.name)).toContain("Submission.pdf");
+    await h.repos.table("awards").update({ id: award.id }, { recipient_workspace_id: WS_APPLICANT, recipient_individual: null });
+    const grantee = await call(applicant, "GET", `/gms/my/awards/${first.body.data.file.award}/documents`);
+    expect(grantee.status).toBe(200);
+    expect(JSON.stringify(grantee.body)).not.toContain("Submission.pdf");
   });
 
   it("refuses a file that matches nothing, a bank document's name, and any caller but a person", async () => {

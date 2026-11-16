@@ -58,6 +58,8 @@ const SUBJECTS: Record<string, SetKey> = {
   submission: "submissions",
   amendment: "amendments",
   thread: "threads",
+  // A file imported from another grants system for an award (import-files.ts) is that award's.
+  imported_award_file: "awards",
 };
 const subjectInScope = async (v: FundView, type: unknown, id: unknown) => typeof type === "string" && type in SUBJECTS && has(v, SUBJECTS[type]!, id);
 const SUBJECT: Rule = { kind: "check", allowed: (r, v) => subjectInScope(v, r.subject_type, r.subject_id) };
