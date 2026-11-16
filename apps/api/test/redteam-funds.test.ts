@@ -75,6 +75,8 @@ interface Ids {
   threadB: string;
 }
 let ids: Ids;
+/** The other fund's v1.8.0 and v1.9.0 records (set in setUp). */
+let extra: { docketId: string; reportViewId: string; reportFileId: string; socialPostId: string; importRunId: string };
 /** Every id of the other fund's records, bare: a request naming one must be refused. */
 let otherIds: string[];
 
@@ -119,6 +121,11 @@ function paramsFor(path: string): Record<string, string> {
     qid: NOWHERE,
     oid: NOWHERE,
     sid: NOWHERE,
+    // v1.8.0 and v1.9.0 paths: the other fund's docket, a gallery item, the funder's own handle.
+    docketId: extra?.docketId ?? NOWHERE,
+    slug: "no-such-item",
+    handle: "riverbend",
+    workspaceId: WS_FUNDER,
   };
 }
 
@@ -186,6 +193,8 @@ function bodyFor(key: string): unknown {
     "patch /gms/competitions/{id}": { title: "Renamed" },
     "post /gms/workspaces/{id}/invitations": { email: "friend@example.org", role: "program_officer", scope: { fundIds: [ids.fundB] } },
     "patch /gms/workspaces/{id}/members/{userId}": { scope: { fundIds: [ids.fundB] } },
+    // v1.8.0 and v1.9.0 routes whose sample body the document alone does not make valid.
+    "put /gms/competitions/{id}/coi-policy": { required: true },
     "post /common-grants/applications/search": {},
     "post /common-grants/awards/search": {},
   };
@@ -330,6 +339,17 @@ async function setUp() {
   const task = await created<{ id: string }>(s.call(s.funder, "POST", "/gms/tasks", { title: `${MARK} task`, subjectType: "application", subjectId: appB }));
   const thread = await h.repos.table("threads").insert({ workspace_id: WS_FUNDER, funder_workspace_id: WS_FUNDER, applicant_workspace_id: null, subject_type: "application", subject_id: appB, title: `${MARK} thread`, visibility: "funder_internal" });
   await h.repos.table("messages").insert({ thread_id: thread.id, author: `user:${USER_OFFICER}`, author_user_id: USER_OFFICER, body: `${MARK} message` });
+
+  // v1.8.0 and v1.9.0 records of the other fund: a board docket, an admin's shared report view and a
+  // scheduled file of it, a social post about its award, an import run, and social posting on.
+  h.env.ZERNIO_API_KEY = "zk_test_made_up";
+  h.env.ZERNIO_WEBHOOK_SECRET = "zernio-webhook-secret-for-unit-tests";
+  const docket = await created<{ docketId: string }>(s.call(s.funder, "POST", `/gms/competitions/${s.compId}/dockets`, {}));
+  const view = await h.repos.table("report_views").insert({ workspace_id: WS_FUNDER, name: `${MARK} board view`, data_set: "awards", definition: { dataSet: "awards", columns: ["title", "amount", "fund"], filters: [], groupBy: [], aggregates: [], sort: [] } as never, visibility: "workspace", owner_user_id: USER_ADMIN });
+  const reportFile = await h.repos.table("report_files").insert({ workspace_id: WS_FUNDER, view_id: view.id, period_key: "2027-05", storage_key: `exports/${WS_FUNDER}/reports/${view.id}/2027-05.csv`, recipient_user_ids: [USER_ADMIN, ADVISOR], row_count: 1, expires_at: "2099-01-01T00:00:00Z", sent_at: "2027-05-01T13:00:00Z" } as never);
+  const socialPost = await h.repos.table("social_posts").insert({ workspace_id: WS_FUNDER, subject_type: "award", subject_id: awardB, idempotency_key: crypto.randomUUID(), payload_sha256: "a".repeat(64), platforms: ["linkedin"], status: "published", created_by: USER_ADMIN } as never);
+  const importRun = await h.repos.table("import_runs").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "csv", source_label: `${MARK}.csv`, mapping: {} as never, rows_total: 1 } as never);
+  extra = { docketId: docket.docketId, reportViewId: view.id, reportFileId: reportFile.id, socialPostId: socialPost.id, importRunId: importRun.id };
 
   // The advisor's own fund: a program, an opportunity and an award in it.
   const programA = await created<{ id: string }>(s.call(s.funder, "POST", "/gms/programs", { name: "Murals", fundId: fundA.id }));
@@ -515,5 +535,104 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
     const officerFunds = (await (await h.request("/gms/funds", { headers: s.funder })).json()) as { data: { scoped: boolean; items: unknown[] } };
     expect(officerFunds.data.scoped).toBe(false);
     expect(officerFunds.data.items.length).toBe(3);
+  });
+
+  it("reaches nothing of the other fund through reports, the docket, open data, social posts, the send package, imports or digests", async () => {
+    // The route run above reached every one of these areas, and none answered with the other fund.
+    const AREAS: Record<string, RegExp> = {
+      reports: /^\w+ \/gms\/(reports|report-views|report-files)(\/|$)/,
+      docket: /^\w+ \/gms\/competitions\/\{id\}\/dockets/,
+      "open data": /^\w+ \/gms\/open-data\//,
+      "social posts": /^\w+ \/gms\/social(\/|$)/,
+      "send package": /^\w+ \/gms\/(outside-applications\/\{id\}\/package|send-package)/,
+      imports: /^\w+ \/gms\/imports\//,
+      digests: /^\w+ \/gms\/digests(\/|$|\?)/,
+    };
+    for (const [area, re] of Object.entries(AREAS)) {
+      const mine = calls.filter((c) => re.test(c.key));
+      expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
+      expect(mine.filter((c) => leaks(c.text) || c.text.includes(ids.awardB) || c.text.includes(extra.reportViewId) || c.text.includes(extra.importRunId)).map((c) => `${area}: ${c.status} ${c.key} ${c.text.slice(0, 160)}`)).toEqual([]);
+    }
+    const get = async (path: string) => {
+      const res = await h.request(path, { headers: me });
+      return { status: res.status, text: await res.text() };
+    };
+    // Reports: the admin's shared view and its scheduled file are not the advisor's; running a report reads their fund only.
+    expect((await get("/gms/report-views")).text).not.toContain(extra.reportViewId);
+    expect((await get(`/gms/report-views/${extra.reportViewId}`)).status).toBe(404);
+    expect((await get("/gms/report-files")).text).not.toContain(extra.reportFileId);
+    expect((await get(`/gms/report-files/${extra.reportFileId}/download`)).status).toBe(404);
+    const preview = await h.request("/gms/reports/preview", { method: "POST", headers: me, body: JSON.stringify({ dataSet: "awards", columns: ["title", "amount", "fund"], filters: [], groupBy: [], aggregates: [], sort: [] }) });
+    const previewText = await preview.text();
+    expect(preview.status).toBe(200);
+    expect(previewText).toContain("Mural award");
+    expect(leaks(previewText)).toBe(false);
+    // The docket of the other fund's competition, by its own id.
+    expect([403, 404]).toContain((await get(`/gms/competitions/cmp_${ids.compB}/dockets/${extra.docketId}`)).status);
+    // Open data: nothing of the other fund's award in the summary or either export.
+    for (const path of ["/gms/open-data/summary", "/gms/open-data/360giving.json", "/gms/open-data/commongrants.json"]) {
+      const r = await get(path);
+      expect(leaks(r.text) || r.text.includes(ids.awardB), path).toBe(false);
+    }
+    // Social: the post about the other fund's award is not listed, and its award is not offered.
+    const posts = await get("/gms/social/posts");
+    expect(posts.status).toBe(200);
+    expect(posts.text).not.toContain(extra.socialPostId);
+    expect((await get(`/gms/social/posts?subjectType=award&subjectId=${ids.awardB}`)).status).toBe(404);
+    expect((await get(`/gms/social/compose?subjectType=award&subjectId=${ids.awardB}`)).status).toBe(404);
+    // Imports: closed to fund advisors.
+    expect((await get("/gms/imports/runs?target=award_history")).text).not.toContain(extra.importRunId);
+    expect([403, 404]).toContain((await get(`/gms/imports/runs/${extra.importRunId}`)).status);
+    // Send package: an applicant's own, never a funder member's.
+    expect([403, 404]).toContain((await get(`/gms/outside-applications/${NOWHERE}/package`)).status);
+    // Digests: the advisor's activity counts their fund only (the other fund's application is new this week).
+    const admin = { ...bearer(await h.session(USER_ADMIN)).headers, "X-GMS-Workspace": WS_FUNDER };
+    const count = (text: string) => Number(/(\d+) new application/.exec(text)?.[1] ?? 0);
+    const mineDigest = JSON.parse((await get("/gms/digests/preview?digest=funder_activity")).text) as { data: { text: string | null } };
+    const adminDigest = (await (await h.request("/gms/digests/preview?digest=funder_activity", { headers: admin })).json()) as { data: { text: string | null } };
+    expect(count(adminDigest.data.text ?? "")).toBeGreaterThan(0);
+    expect(count(mineDigest.data.text ?? "")).toBe(0);
+    const { buildFunderActivity, newRun } = await import("../src/services/content-digests.ts");
+    const { scopeToFunds } = await import("../src/services/fund-scope.ts");
+    const ws = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!;
+    const run = newRun(1);
+    const scoped = { repos: h.repos, now: () => h.clock.now, workspace: { id: WS_FUNDER, kind: "funder" as const, role: "program_officer", memberScope: { fundIds: [ids.fundA] } }, actor: { kind: "user", userId: ADVISOR }, ledger: h.ledger, ports: {} } as never;
+    scopeToFunds(scoped, WS_FUNDER, [ids.fundA]);
+    const whole = await buildFunderActivity({ repos: h.repos, now: () => h.clock.now }, ws, run);
+    const theirs = await buildFunderActivity(scoped, ws, run);
+    // One run, two answers: a fund advisor's counts are never the workspace's cached ones.
+    expect(whole.newApplications).toBeGreaterThan(0);
+    expect(theirs.newApplications).toBe(0);
+  });
+
+  it("the event digest, the workspace ledger and review assignment keep to the fund (the three cross-track leaks)", async () => {
+    const { deriveFor } = await import("../src/services/notifications.ts");
+    const member = (await h.repos.table("workspace_members").find({ workspace_id: WS_FUNDER, user_id: ADVISOR }))[0]!;
+    const ws = (await h.repos.table("workspaces").one({ id: WS_FUNDER }))!;
+    const base = { repos: h.repos, ledger: h.ledger, webhooks: h.webhooks, now: () => h.clock.now, config: { baseUrl: "https://gms.test", webBaseUrl: "https://app.gms.test", passportBaseUrl: null, credentialsKey: null, passportClient: null, mailFrom: null }, ports: {} } as never;
+    const digest = JSON.stringify(await deriveFor(base, member, ws));
+    expect(otherIds.filter((x) => digest.includes(x))).toEqual([]);
+    // The officer (every fund) sees the other fund's events in the same digest.
+    const officer = (await h.repos.table("workspace_members").find({ workspace_id: WS_FUNDER, user_id: USER_OFFICER }))[0]!;
+    const officerDigest = JSON.stringify(await deriveFor(base, officer, ws));
+    expect(otherIds.some((x) => officerDigest.includes(x))).toBe(true);
+    // The ledger: a member limited to some funds is refused, even as an auditor.
+    await h.repos.table("workspace_members").update({ id: member.id }, { role: "auditor" });
+    const ledger = await h.request("/gms/ledger", { headers: me });
+    expect(ledger.status).toBe(403);
+    expect(((await ledger.json()) as { code?: string; errors?: { code: string }[] }).errors?.[0]?.code ?? "").toMatch(/fund_scope/);
+    // Review assignment: a reviewer limited to the advisor's fund cannot be assigned the other fund's application.
+    await h.repos.table("workspace_members").update({ id: member.id }, { role: "reviewer" });
+    // An application of the other fund that is waiting for review (the scenario's one was awarded).
+    const before = (await h.repos.table("applications").one({ id: ids.appB }))!;
+    await h.repos.table("applications").update({ id: ids.appB }, { status: "submitted" });
+    const assign = await h.request("/gms/review-assignments", { method: "POST", headers: { ...s.funder, "Content-Type": "application/json" }, body: JSON.stringify({ applicationId: P("app", ids.appB), reviewerUserId: ADVISOR }) });
+    expect(assign.status).toBe(422);
+    expect(await assign.text()).toContain("reviewer_out_of_scope");
+    const auto = await h.request("/gms/review-assignments/auto", { method: "POST", headers: { ...s.funder, "Content-Type": "application/json" }, body: JSON.stringify({ competitionId: P("cmp", ids.compB), dryRun: true }) });
+    expect(auto.status).toBe(200);
+    expect(await auto.text()).not.toContain(ADVISOR);
+    await h.repos.table("applications").update({ id: ids.appB }, { status: before.status });
+    await h.repos.table("workspace_members").update({ id: member.id }, { role: "program_officer" });
   });
 });
