@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Modal dialog on the design's `.ovl` / `.mdl` classes: traps focus, closes on Escape and on a
-// click outside, and returns focus to whatever opened it.
+// completed click outside, and returns focus to whatever opened it.
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 const FOCUSABLE =
@@ -25,6 +25,7 @@ export function Dialog({ open, onClose, labelledBy, size = "md", overlayStyle, c
   // effect runs, so reading it in the effect would remember that field (gone after closing) and
   // focus would fall to the page instead of returning to the opener (WCAG 2.4.3).
   const opener = useRef<HTMLElement | null>(null);
+  const pressedOutside = useRef(false);
   const wasOpen = useRef(false);
   if (open && !wasOpen.current) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   wasOpen.current = open;
@@ -69,8 +70,17 @@ export function Dialog({ open, onClose, labelledBy, size = "md", overlayStyle, c
     <div
       className="ovl"
       style={overlayStyle}
+      // Closes on a completed click outside the panel, not on the press (WCAG 2.5.2): a press that
+      // starts outside and is released inside, or the other way round, closes nothing.
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        pressedOutside.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (!(pressedOutside.current && e.target === e.currentTarget)) pressedOutside.current = false;
+      }}
+      onClick={(e) => {
+        if (pressedOutside.current && e.target === e.currentTarget) onClose();
+        pressedOutside.current = false;
       }}
     >
       <div
