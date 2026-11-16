@@ -14,6 +14,13 @@ import { parse } from "@formatjs/icu-messageformat-parser";
 
 const CATALOG = /[\\/]packages[\\/]i18n[\\/]catalogs[\\/](en|es)[\\/]([a-z]+)\.json$/;
 
+/**
+ * Namespaces only Workers read (`@gms/i18n/server`): emails, documents' fixed text, share cards and
+ * API errors. In the web build each is an empty catalog with no short ids, so an English visitor's
+ * download carries none of their text and their keys never meet the web app's code.
+ */
+export const SERVER_ONLY_NAMESPACES: readonly string[] = ["email", "errors"];
+
 /** One catalog's JSON with each message that needs formatting replaced by its parsed elements, and each key by its short id when given. */
 export function precompileCatalog(json: string, file = "catalog", ids?: ReadonlyMap<string, string>): string {
   const messages = JSON.parse(json) as Record<string, string>;
@@ -33,7 +40,7 @@ export function precompileCatalog(json: string, file = "catalog", ids?: Readonly
 /** Every English key, in every namespace, with its short id. */
 export function keyIds(catalogDir: URL = new URL("../catalogs/en/", import.meta.url)): Map<string, string> {
   const keys = new Set<string>();
-  for (const f of readdirSync(catalogDir).filter((n) => n.endsWith(".json")).sort()) for (const k of Object.keys(JSON.parse(readFileSync(new URL(f, catalogDir), "utf8")))) keys.add(k);
+  for (const f of readdirSync(catalogDir).filter((n) => n.endsWith(".json") && !SERVER_ONLY_NAMESPACES.includes(n.slice(0, -5))).sort()) for (const k of Object.keys(JSON.parse(readFileSync(new URL(f, catalogDir), "utf8")))) keys.add(k);
   return new Map([...keys].sort().map((k, i) => [k, i.toString(36)]));
 }
 
@@ -96,7 +103,8 @@ export function i18nCatalogs(opts: { shortKeys?: boolean } = {}): CatalogPlugin 
     },
     transform(code, id) {
       const file = id.split("?")[0]!;
-      if (CATALOG.test(file)) return { code: precompileCatalog(code, file, ids), map: null };
+      const catalog = CATALOG.exec(file);
+      if (catalog) return { code: SERVER_ONLY_NAMESPACES.includes(catalog[2]!) ? "{}" : precompileCatalog(code, file, ids), map: null };
       if (ids && WEB_SOURCE.test(file) && !file.includes("node_modules")) return { code: shortenKeys(code, ids, file), map: null };
       return null;
     },

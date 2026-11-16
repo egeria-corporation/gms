@@ -37,5 +37,9 @@ describe("the web build's catalog step", () => {
     const plugin = i18nCatalogs();
     plugin.config({}, { command: "build" });
     expect(plugin.transform('t("app.skipLink")', "/r/apps/web/src/app/App.tsx")?.code).toBe(`t("${all.get("app.skipLink")}")`);
+    // The Workers' namespaces are empty in the web build and give no keys to shorten.
+    expect(plugin.transform('{"letter.decline.subject":"An update"}', "/r/packages/i18n/catalogs/en/email.json")?.code).toBe("{}");
+    expect(plugin.transform('{"code.not_found":"Not found"}', "/r/packages/i18n/catalogs/es/errors.json")?.code).toBe("{}");
+    expect(all.has("letter.decline.subject")).toBe(false);
   });
 });

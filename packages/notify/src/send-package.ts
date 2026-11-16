@@ -9,8 +9,8 @@ import { DEFAULT_LOCALE, emailT, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 /** The line under a package (PDF pages, answers.txt and the email), unless the workspace turned "Powered by" off; `packageFooter` in another language. */
-export const PACKAGE_FOOTER = emailT()("package.footer");
-export const packageFooter = (locale: Locale = DEFAULT_LOCALE): string => emailT(locale)("package.footer");
+export const PACKAGE_FOOTER = emailT()("sendPackage.footer");
+export const packageFooter = (locale: Locale = DEFAULT_LOCALE): string => emailT(locale)("sendPackage.footer");
 
 /** The person's own words above the package, at most this long. */
 export const PACKAGE_MESSAGE_MAX = 2000;
@@ -52,20 +52,20 @@ export function sendPackageEmail(c: PackageEmailContent): RenderedEmail {
   const locale = c.locale ?? DEFAULT_LOCALE;
   const t = emailT(locale);
   const footer = packageFooter(locale);
-  const subject = cleanLine(t("package.subject", { title, organization: org }));
+  const subject = cleanLine(t("sendPackage.subject", { title, organization: org }));
   const facts = [
-    t("package.organization", { value: org }),
-    t("package.application", { value: title }),
-    ...(funder ? [t("package.funder", { value: funder })] : []),
-    ...(c.program ? [t("package.program", { value: cleanLine(c.program) })] : []),
-    c.ask ? t("package.ask", { value: cleanLine(c.ask) }) : t("package.askNotStated"),
-    ...(c.deadline ? [t("package.deadline", { value: cleanLine(c.deadline) })] : []),
+    t("sendPackage.organization", { value: org }),
+    t("sendPackage.application", { value: title }),
+    ...(funder ? [t("sendPackage.funder", { value: funder })] : []),
+    ...(c.program ? [t("sendPackage.program", { value: cleanLine(c.program) })] : []),
+    c.ask ? t("sendPackage.ask", { value: cleanLine(c.ask) }) : t("sendPackage.askNotStated"),
+    ...(c.deadline ? [t("sendPackage.deadline", { value: cleanLine(c.deadline) })] : []),
   ];
-  const intro = t("package.intro", { hasFunder: funder ? "yes" : "no", name, organization: org, funder: funder ?? "" });
+  const intro = t("sendPackage.intro", { hasFunder: funder ? "yes" : "no", name, organization: org, funder: funder ?? "" });
   const message = c.message ? cleanText(c.message).slice(0, PACKAGE_MESSAGE_MAX) : "";
   const files = c.attachments.map((a) => `- ${cleanLine(a)}`);
-  const reply = t("package.reply", { name, email: cleanLine(c.sender.email) });
-  const attached = t("package.attached");
+  const reply = t("sendPackage.reply", { name, email: cleanLine(c.sender.email) });
+  const attached = t("sendPackage.attached");
   const text = [...(message ? [message] : []), intro, facts.join("\n"), `${attached}:\n${files.join("\n")}`, reply, ...(c.footer ? [`--\n${footer}`] : [])].join("\n\n");
   const html = [
     ...(message ? [paragraphs(message)] : []),
