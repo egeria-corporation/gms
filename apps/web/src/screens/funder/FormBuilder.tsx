@@ -26,9 +26,7 @@ import {
   compileForm,
   conditionSources,
   countForm,
-  describeCondition,
   FIELD_KINDS,
-  kindLabel,
   localProblems,
   moveField,
   newField,
@@ -41,6 +39,7 @@ import {
   type FormModel,
 } from "../../lib/form-model.ts";
 import { PURPOSE_LABEL } from "./shared.tsx";
+import { conditionText, fieldKindLabel, prefillLabel } from "./formWords.ts";
 import { t } from "./i18n.ts";
 
 const PURPOSES = (Object.keys(PURPOSE_LABEL) as FormPurpose[]).map((value) => ({ value, get label() { return PURPOSE_LABEL[value](); } }));
@@ -63,7 +62,7 @@ function Toggle({ id, label, checked, onChange, help }: { id: string; label: str
 export function PrefillPicker({ value, inUse, onChange }: { value: string | null; inUse: Set<string>; onChange: (path: string | null) => void }) {
   const [filter, setFilter] = useState("");
   const [open, setOpen] = useState(false);
-  const shown = PREFILL_PATHS.filter((p) => `${p.label} ${p.path}`.toLowerCase().includes(filter.trim().toLowerCase()));
+  const shown = PREFILL_PATHS.filter((p) => `${prefillLabel(p)} ${p.path}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const current = PREFILL_PATHS.find((p) => p.path === value);
   return (
     <div className="fld">
@@ -72,7 +71,7 @@ export function PrefillPicker({ value, inUse, onChange }: { value: string | null
       </span>
       <div className="row" style={{ gap: "6px" }}>
         <button type="button" className="inp" style={{ textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} aria-expanded={open} aria-controls="p-prefill-list" id="p-prefill-button" aria-labelledby="p-prefill-label p-prefill-button" onClick={() => setOpen((o) => !o)}>
-          {current ? <span>{current.label}</span> : <span className="muted">{t("formBuilder.chooseAPassportField")}</span>}
+          {current ? <span>{prefillLabel(current)}</span> : <span className="muted">{t("formBuilder.chooseAPassportField")}</span>}
         </button>
         {value && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(null)}>
@@ -100,7 +99,7 @@ export function PrefillPicker({ value, inUse, onChange }: { value: string | null
                 >
                   <span>
                     <span className="b" style={{ color: "#0D2A43", display: "block" }}>
-                      {p.label}
+                      {prefillLabel(p)}
                     </span>
                     <span className="mono muted">{p.path}</span>
                   </span>
@@ -231,7 +230,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
           {field.prefill && (
             <span className="prov prov-passport">
               <BadgeCheck className="ic" aria-hidden="true" />
-              {t("formBuilder.fromPassport", { label: prefill?.label ?? field.prefill })}
+              {t("formBuilder.fromPassport", { label: prefill ? prefillLabel(prefill) : field.prefill })}
             </span>
           )}
           {field.mapsTo && (
@@ -252,7 +251,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
         {field.showWhen && (
           <div className="row small" style={{ gap: "6px", marginTop: "6px", color: "#4A5C5A" }}>
             <Eye className="ic ic-sm" aria-hidden="true" />
-            {t.rich("formBuilder.shownWhen", { describeCondition: describeCondition(model, field.showWhen), span: (chunks) => <span className="b">{chunks}</span> })}
+            {t.rich("formBuilder.shownWhen", { condition: conditionText(model, field.showWhen), span: (chunks) => <span className="b">{chunks}</span> })}
           </div>
         )}
         {problem && (
@@ -261,7 +260,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
           </span>
         )}
       </div>
-      <span className="tag">{kindLabel(field.kind)}</span>
+      <span className="tag">{fieldKindLabel(field.kind)}</span>
       {!readOnly && (
         <span className="row" style={{ gap: "2px" }}>
           <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={t("formBuilder.moveUp", { label: field.label })} disabled={!canMove(model, field.key, -1)} onClick={() => onMove(-1)}>
@@ -472,7 +471,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
             {t("formBuilder.fieldPalette")}
           </div>
           <ul className="pal" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {FIELD_KINDS.map(({ kind, label }) => (
+            {FIELD_KINDS.map(({ kind }) => ({ kind, label: fieldKindLabel(kind) })).map(({ kind, label }) => (
               <li key={kind} style={{ padding: 0, cursor: "default", ...(kind === "passportField" ? { borderColor: "var(--og-teal-light)", background: "var(--og-teal-soft)", color: "var(--og-teal-dark)" } : {}) }}>
                 <button
                   type="button"
@@ -616,7 +615,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
             <h3 id="props-title" style={{ fontSize: "14px" }}>
               {field ? t("formBuilder.fieldProperties", { label: field.label || t("formBuilder.untitledField") }) : t("formBuilder.fieldProperties2")}
             </h3>
-            {field && <span className="tag">{kindLabel(field.kind)}</span>}
+            {field && <span className="tag">{fieldKindLabel(field.kind)}</span>}
           </div>
           {field ? (
             <Properties key={field.key} model={model} field={field} readOnly={readOnly} onChange={(change) => edit(updateField(model, field.key, change))} />
