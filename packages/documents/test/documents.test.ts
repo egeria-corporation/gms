@@ -87,6 +87,18 @@ describe("rendering", () => {
     expect(await sha256Hex(await renderAgreement(DEFAULT_AGREEMENT_TEMPLATE, FIELDS, { ...META, reference: "agr_0190 v2" }))).not.toBe(base);
   });
 
+  it("writes the language and shows the title when asked, and leaves hashed documents as they were", async () => {
+    const at = "2027-05-19T16:00:00.000Z";
+    const docket = ascii(await renderPdf({ title: "Board docket", blocks: [{ type: "heading", level: 1, text: "Board docket" }], createdAt: at, lang: "en-US" }));
+    expect(docket).toMatch(/\/Lang \(en-US\)/);
+    expect(docket).toMatch(/\/DisplayDocTitle true/);
+    expect(docket).toMatch(/\/Title </);
+    // Agreements are re-rendered to verify a stored hash: no language, so their bytes do not move.
+    const agreement = ascii(await renderAgreement(DEFAULT_AGREEMENT_TEMPLATE, FIELDS, META));
+    expect(agreement).not.toMatch(/\/Lang /);
+    expect(agreement).not.toMatch(/\/DisplayDocTitle/);
+  });
+
   it("refuses to render with a missing merge field", async () => {
     await expect(renderAwardLetter(DEFAULT_AWARD_LETTER_TEMPLATE, { funder: FIELDS.funder }, META)).rejects.toBeInstanceOf(MissingFieldError);
   });

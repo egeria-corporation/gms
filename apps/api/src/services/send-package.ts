@@ -216,7 +216,7 @@ async function packagePdf(row: Oa, g: Gathered): Promise<Uint8Array> {
   }
   blocks.push({ type: "heading", level: 2, text: "Attachments" });
   blocks.push(g.files.length ? { type: "list", ordered: true, items: g.files.map((f) => (f.requiredFor ? `${f.name} (${f.requiredFor})` : f.name)) } : { type: "paragraph", text: "No files are attached." });
-  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: PACKAGE_FOOTER } : {}), createdAt: g.asOf, blocks });
+  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: PACKAGE_FOOTER } : {}), createdAt: g.asOf, blocks, lang: "en-US" });
 }
 
 /** `answers.txt`: the questions and answers as plain text, to paste into a funder's portal. */

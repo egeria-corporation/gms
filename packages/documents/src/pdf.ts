@@ -36,6 +36,13 @@ export interface PdfDocumentInput {
   blocks: Block[];
   /** ISO timestamp written as the document's creation and modification date. */
   createdAt: string;
+  /**
+   * The document's language (BCP 47, e.g. `en-US`). When given, it is written to the catalog and
+   * the viewer is asked to show the title rather than the file name (WCAG 3.1.1, 2.4.2 for PDF).
+   * Optional so that documents whose bytes are re-rendered to verify a stored hash (agreements)
+   * keep rendering exactly as before. pdf-lib cannot write a structure tree, so no PDF here is tagged.
+   */
+  lang?: string;
 }
 
 const PAGE = { width: 612, height: 792 }; // US Letter, points
@@ -278,6 +285,10 @@ export async function renderPdf(input: PdfDocumentInput): Promise<Uint8Array> {
   pdf.setCreator("OpenGrants GMS");
   pdf.setCreationDate(at);
   pdf.setModificationDate(at);
+  if (input.lang) {
+    pdf.setLanguage(input.lang);
+    pdf.catalog.getOrCreateViewerPreferences().setDisplayDocTitle(true);
+  }
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const w = new Writer(pdf, regular, bold, input);
