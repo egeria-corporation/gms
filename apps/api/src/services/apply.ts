@@ -264,8 +264,9 @@ export async function renderLetter(ctx: Pick<ServiceContext, "repos">, kind: key
 }
 
 /**
- * The language of each address a letter goes to: the organization's members by their saved
- * preference, English for any other address (the organization's own Passport address).
+ * The language of each address a letter goes to: a member's address in that member's saved
+ * language; the organization's own address (its Passport record's) in its admins' language when
+ * they all chose the same one; English otherwise.
  */
 export async function letterLocales(ctx: Pick<ServiceContext, "repos" | "ports" | "now">, recipients: readonly string[], recipientWorkspaceId: string | null | undefined): Promise<[Locale, string[]][]> {
   return byLocale(recipients, await memberAddressLocales(ctx, recipientWorkspaceId, recipients));

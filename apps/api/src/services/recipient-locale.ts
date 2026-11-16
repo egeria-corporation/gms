@@ -15,7 +15,12 @@ export async function addressLocale(ctx: Pick<ServiceContext, "ports">, email: s
   return recipientLocale(ctx.ports, userId);
 }
 
-/** Each address's language among a workspace's live members, by their sign-in address; any other address is English. */
+/**
+ * Each address's language for a workspace's mail. A live member's sign-in address is in that
+ * member's language. Any other address (the organization's own, from its Passport record) is read
+ * by the organization's admins: it is in their language when every admin chose the same one, and
+ * English otherwise.
+ */
 export async function memberAddressLocales(ctx: Ctx, workspaceId: string | null | undefined, emails: readonly string[]): Promise<Map<string, Locale>> {
   const out = new Map(emails.map((e) => [e.toLowerCase(), DEFAULT_LOCALE as Locale]));
   if (!workspaceId || !emails.length || !ctx.ports.directory || !ctx.ports.preferences) return out;
@@ -23,13 +28,19 @@ export async function memberAddressLocales(ctx: Ctx, workspaceId: string | null 
     const now = ctx.now().getTime();
     const members = (await ctx.repos.table("workspace_members").find({ workspace_id: workspaceId })).filter((m) => !m.expires_at || Date.parse(m.expires_at) > now);
     const people = await ctx.ports.directory.lookup(members.map((m) => m.user_id));
+    const admins = members.filter((m) => m.role === "admin").map((m) => m.user_id);
     const byEmail = new Map<string, string>();
     for (const m of members) {
       const email = people.get(m.user_id)?.email?.toLowerCase();
       if (email && out.has(email)) byEmail.set(email, m.user_id);
     }
-    const locales = await recipientLocales(ctx.ports, [...byEmail.values()]);
-    for (const [email, userId] of byEmail) out.set(email, locales.get(userId) ?? DEFAULT_LOCALE);
+    const locales = await recipientLocales(ctx.ports, [...new Set([...byEmail.values(), ...admins])]);
+    const adminLocales = new Set(admins.map((id) => locales.get(id) ?? DEFAULT_LOCALE));
+    const organization = adminLocales.size === 1 ? [...adminLocales][0]! : DEFAULT_LOCALE;
+    for (const email of out.keys()) {
+      const userId = byEmail.get(email);
+      out.set(email, userId ? (locales.get(userId) ?? DEFAULT_LOCALE) : organization);
+    }
   } catch {
     // Unreadable: everyone in English.
   }
