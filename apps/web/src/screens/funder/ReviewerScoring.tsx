@@ -199,7 +199,8 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
               Narrative for the panel
             </label>
             <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => setNarrative(e.target.value)} />
-            <fieldset style={{ border: 0, padding: 0, margin: "4px 0 0" }}>
+            {/* .col spaces the two radios so each keeps a 24px target (WCAG 2.5.8). */}
+            <fieldset className="col" style={{ border: 0, padding: 0, margin: "4px 0 0" }}>
               <legend className="lbl">Who reads your narrative and comments</legend>
               <label className="radio">
                 <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => setVisibility("panel")} />

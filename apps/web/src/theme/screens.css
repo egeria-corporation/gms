@@ -163,6 +163,11 @@ button.tab { font-family: inherit; }
   .ph .actions { width: 100%; }
   .stp { flex-direction: column; align-items: flex-start; }
   .stp .ln { display: none; }
+  /* A card's title and its actions wrap onto two lines instead of widening the page (WCAG 1.4.10). */
+  .card-h, .card-h > .row { flex-wrap: wrap; }
+  /* A long status badge wraps inside the column instead of pushing past it (WCAG 1.4.10). */
+  .bdg { white-space: normal; height: auto; min-height: 22px; padding-block: 3px; line-height: 1.25; max-width: 100%; }
+  .bdg-lg { min-height: 26px; }
 }
 .fld-c > .tag { flex: none; white-space: nowrap; }
 
@@ -179,6 +184,9 @@ button.tab { font-family: inherit; }
 /* Switches keep their 36×20 look and gain a 24px-tall target (WCAG 2.5.8). */
 .gms-applicant .tog { box-sizing: content-box; padding: 0; border: solid transparent; border-width: 2px 0; background-clip: padding-box; border-radius: 12px; }
 
+/* A resolved comment stays readable (70% opacity took its text below 4.5:1): a dashed border and the
+   "Resolved" badge mark it instead (WCAG 1.4.3). */
+.cmt-res { opacity: 1; background: var(--og-gray-50); border-style: dashed; }
 /* Days outside the month stay readable (the design's 40% opacity fails contrast): marked by a dashed, unfilled cell instead. */
 .cal .d.dim { opacity: 1; background: transparent; border-style: dashed; }
 
