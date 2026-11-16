@@ -5,7 +5,7 @@
 // Publish step, Write a post: the text starts from the call with its deadline and shared link, and
 // the length shows per platform → Preview shows exactly what will go out → Post → the post shows
 // under Reach, Published, with its link on LinkedIn.
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 const OPP = "opp_50000000-0000-7000-8000-000000000001";
 const TEXT = "Applications are open for Community Health Grants 2027. Apply by April 30.";
@@ -19,7 +19,7 @@ test("funder connects an account, previews and posts an open call, and sees it i
     await panel.getByRole("link", { name: "Connect an account" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Social accounts" })).toBeVisible();
     await page.getByRole("button", { name: "Connect LinkedIn" }).click();
-    await expect(page.getByText("LinkedIn account connected")).toBeVisible();
+    await expect(shown(page, "LinkedIn account connected")).toBeVisible();
     const accounts = page.getByRole("list", { name: "Connected accounts" });
     await expect(accounts).toContainText("LinkedIn");
     await expect(accounts).toContainText("riverbend-foundation");

@@ -5,7 +5,7 @@
 // noted as AI use → a comment and the approval → the checklist uses the vault and plans milestones
 // → the library answer is verified → the vault refuses bank paperwork → the calendar shows the
 // deadline. A second test proves every AI action is hidden when the assistant is off.
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 const GUIDELINES = `Meadowlark Foundation — Senior Mobility Grants
 
@@ -42,7 +42,7 @@ test("write faster as a team, with the assistant on", async ({ app: page }) => {
     await expect(card.getByText("Score 3.88 of 5")).toBeVisible();
     await card.getByLabel("Why (optional)").fill("Close fit with our rides program; the funder knows our work.");
     await card.getByRole("button", { name: "Go: start the application" }).click();
-    await expect(page.getByText("Go. Moved to Drafting.")).toBeVisible();
+    await expect(shown(page, "Go. Moved to Drafting.")).toBeVisible();
     await expect(page.locator(".ph .title")).toContainText("Drafting");
     await expect(page.getByRole("region", { name: "Go/no-go" })).toContainText("3.88 of 5");
   });
@@ -60,7 +60,7 @@ test("write faster as a team, with the assistant on", async ({ app: page }) => {
     await expect(paste.getByRole("group", { name: "Documents the funder asks for" })).toContainText("IRS determination letter");
     await paste.getByRole("button", { name: "Save 2 questions and 2 documents" }).click();
     await expect(paste).toBeHidden();
-    await expect(page.getByText("2 questions added · 2 documents added to the checklist")).toBeVisible();
+    await expect(shown(page, "2 questions added · 2 documents added to the checklist")).toBeVisible();
   });
 
   await test.step("an AI draft from the library: cited, placeholders marked, a stale figure flagged, accepted", async () => {

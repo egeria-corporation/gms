@@ -6,7 +6,7 @@
 // the preview and the public page drop it.
 // Mock mode serves the app without the production `_headers`; the framing policy itself is
 // checked in test/embed-headers.test.ts.
-import { expect, rail, start, test } from "./helpers.ts";
+import { expect, rail, shown, start, test } from "./helpers.ts";
 
 const OPP = "opp_50000000-0000-7000-8000-000000000001";
 const POWERED = "Powered by OpenGrants Grant Management System";
@@ -83,6 +83,6 @@ test("funder embeds the apply widget on its own site", async ({ app: page }) => 
     await page.getByRole("link", { name: "Open public page" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Community Health Grants 2027" })).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
-    await expect(page.getByText(POWERED)).toHaveCount(0);
+    await expect(shown(page, POWERED)).toHaveCount(0);
   });
 });

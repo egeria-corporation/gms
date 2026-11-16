@@ -7,7 +7,7 @@
 // section picker invites too. Then the funder: the AI summary panel, marked "Review before
 // relying on it", is written once and read again without spending the quota, and it is gone when
 // the assistant is off.
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 test("invite a cowriter into a draft", async ({ app: page }) => {
   await start(page, "/invitations/draft?token=gms_inv_mock_cowriter");
@@ -37,7 +37,7 @@ test("invite a cowriter into a draft", async ({ app: page }) => {
     await invite.getByLabel(/Their email address/).fill("priya@writers.example");
     await invite.getByRole("button", { name: "Send invitation" }).click();
     await expect(invite).toBeHidden();
-    await expect(page.getByText("Invitation sent to p…@writers.example")).toBeVisible();
+    await expect(shown(page, "Invitation sent to p…@writers.example")).toBeVisible();
     // Assigned when they accept; until then the picker shows them waiting, masked.
     const picker = q2.getByRole("combobox", { name: "Who writes question 2" });
     await expect(picker.locator("option:checked")).toHaveText("Jamal Reed");
@@ -74,7 +74,7 @@ test("invite a cowriter into a built-in application's section", async ({ app: pa
   await invite.getByLabel(/Their email address/).fill("sam@writers.example");
   await invite.getByRole("button", { name: "Send invitation" }).click();
   await expect(invite).toBeHidden();
-  await expect(page.getByText("Invitation sent to s…@writers.example")).toBeVisible();
+  await expect(shown(page, "Invitation sent to s…@writers.example")).toBeVisible();
   await expect(project.getByRole("option", { name: "Invited: s…@writers.example (waiting)" })).toBeDisabled();
 });
 

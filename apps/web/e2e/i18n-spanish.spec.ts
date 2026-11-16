@@ -3,7 +3,7 @@
 // the footer switcher or the browser's language, signs in in Spanish, and a signed-in person
 // switches from the account menu; the page's `lang`, its words and the focus follow each choice.
 import type { Browser, Page } from "@playwright/test";
-import { expect, rail, start, test } from "./helpers.ts";
+import { expect, rail, shown, start, test } from "./helpers.ts";
 
 const html = (page: Page) => page.locator("html");
 /** A rail link in either language (the rail is named "Funder workspace" / "Espacio de trabajo del financiador"). */
@@ -56,9 +56,9 @@ test("a funder page asked for in Spanish shows its fixed text in Spanish and the
   await page.goto("/f/riverbend?lang=es");
   await expect(html(page)).toHaveAttribute("lang", "es");
   await expect(page.getByRole("link", { name: "Iniciar sesión" })).toBeVisible();
-  await expect(page.getByText("Con la tecnología de OpenGrants Grant Management System")).toBeVisible();
+  await expect(shown(page, "Con la tecnología de OpenGrants Grant Management System")).toBeVisible();
   // What the funder wrote stays in its language.
-  await expect(page.getByText("Riverbend Community Foundation").first()).toBeVisible();
+  await expect(shown(page, "Riverbend Community Foundation").first()).toBeVisible();
   await page.context().close();
 });
 

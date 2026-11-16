@@ -3,7 +3,7 @@
 // and date stamp), fill "Request a free migration", see the preview of exactly what will be sent,
 // and send it (mock mode). The send waits for a person's few seconds after the form was shown:
 // the page clock is moved on instead of waiting.
-import { expect, start, test } from "./helpers.ts";
+import { expect, shown, start, test } from "./helpers.ts";
 
 test("switch from Submittable and request a free migration", async ({ app: page }) => {
   await page.clock.install();
@@ -14,7 +14,7 @@ test("switch from Submittable and request a free migration", async ({ app: page 
     await page.getByRole("link", { name: "Submittable", exact: true }).click();
     await expect(page).toHaveURL(/\/switch\/submittable$/);
     await expect(page.getByRole("heading", { level: 1, name: "Moving from Submittable to the OpenGrants Grant Management System" })).toBeVisible();
-    await expect(page.getByText("Switching · facts as of November 2026")).toBeVisible();
+    await expect(shown(page, "Switching · facts as of November 2026")).toBeVisible();
     const sources = page.getByRole("list", { name: "Sources" }).getByRole("link");
     await expect(sources).toHaveCount(2);
     await expect(sources.first()).toHaveAttribute("href", "https://submittable.help/en/articles/904906");
@@ -47,8 +47,8 @@ test("switch from Submittable and request a free migration", async ({ app: page 
   await test.step("send it", async () => {
     await page.clock.fastForward(5_000);
     await page.getByRole("button", { name: "Send the request" }).click();
-    await expect(page.getByText("Request sent")).toBeVisible();
-    await expect(page.getByText("A person at OpenGrants will reply to ana@riverbendcf.example. Migration help can start right away.")).toBeVisible();
+    await expect(shown(page, "Request sent")).toBeVisible();
+    await expect(shown(page, "A person at OpenGrants will reply to ana@riverbendcf.example. Migration help can start right away.")).toBeVisible();
   });
 });
 

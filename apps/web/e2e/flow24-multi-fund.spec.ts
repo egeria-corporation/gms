@@ -4,7 +4,7 @@
 // list with the fund switcher, and invites an advisor for that fund. The advisor signs in with the
 // invitation and sees only that fund: its name in the rail and its program, none of the others.
 import type { Page } from "@playwright/test";
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 /** Moves within the app without a reload: the mock's state lives in the page. */
 async function go(page: Page, path: string) {
@@ -60,7 +60,7 @@ test("a second fund, a program in it, and an advisor who sees only that fund", a
     await d.getByRole("button", { name: "Create program" }).click();
     await expect(d).toBeHidden();
     await expect(page.getByRole("heading", { name: "Murals", level: 2 })).toBeVisible();
-    await expect(page.getByText(/Riverside Arts Fund · FY2027/)).toBeVisible();
+    await expect(shown(page, /Riverside Arts Fund · FY2027/)).toBeVisible();
     // With two funds, the list says which fund each program is in.
     await expect(page.getByRole("table", { name: "Programs" }).getByRole("row", { name: /Murals/ })).toContainText("Riverside Arts Fund");
   });

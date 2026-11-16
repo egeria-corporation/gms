@@ -5,7 +5,7 @@
 // new matches and a link to stop it → Deadlines is turned on from the same card. The funder
 // dashboard offers this week's activity once, and "Not now" puts it away. An email's "Stop getting
 // this email" link turns that digest off with no sign-in, and a link that was not signed here fails.
-import { expect, rail, start, switchWorkspace, test } from "./helpers.ts";
+import { expect, rail, shown, start, switchWorkspace, test } from "./helpers.ts";
 
 test("turn on new matches and preview next Monday's email", async ({ app: page }) => {
   await start(page, "/w/alder-creek/find");
@@ -59,7 +59,7 @@ test("turn on new matches and preview next Monday's email", async ({ app: page }
 test("an email's stop link turns that digest off without signing in", async ({ app: page }) => {
   await start(page, "/digests/unsubscribe#token=mock_unsubscribe_new_matches");
   await expect(page.getByRole("heading", { level: 1, name: "You won't get this email anymore" })).toBeVisible();
-  await expect(page.getByText('"New matches" for Alder Creek Family Services is off.')).toBeVisible();
+  await expect(shown(page, '"New matches" for Alder Creek Family Services is off.')).toBeVisible();
   await start(page, "/digests/unsubscribe#token=v1.forged");
   await expect(page.getByRole("heading", { level: 1, name: "This link did not work" })).toBeVisible();
 });

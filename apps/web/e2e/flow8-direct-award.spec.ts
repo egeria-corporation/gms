@@ -3,7 +3,7 @@
 // applied, by naming it and a contact address. The contact signs in with that address, sets up the
 // organization without Passport, accepts, and both sides then show the award as accepted.
 import type { Page } from "@playwright/test";
-import { expect, start, test } from "./helpers.ts";
+import { expect, shown, start, test } from "./helpers.ts";
 
 /** Moves within the app without a reload: the mock's state lives in the page. */
 async function go(page: Page, path: string) {
@@ -40,10 +40,10 @@ test("a funder gives an award directly and the organization claims it without Pa
   await test.step("the funder fills in New award; each missing field is named in plain words", async () => {
     await page.getByRole("link", { name: "New award" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "New award" })).toBeVisible();
-    await expect(page.getByText(/We'll email this person a link/)).toBeVisible();
+    await expect(shown(page, /We'll email this person a link/)).toBeVisible();
     await page.getByRole("button", { name: "Send invitation" }).click();
-    await expect(page.getByText("Enter the organization's name.")).toBeVisible();
-    await expect(page.getByText("Give the award a title.")).toBeVisible();
+    await expect(shown(page, "Enter the organization's name.")).toBeVisible();
+    await expect(shown(page, "Give the award a title.")).toBeVisible();
     await page.getByLabel(/^Organization name/).fill("Pine Ridge Youth Alliance");
     await page.getByLabel(/^Contact email/).fill("sam@newcomer.example");
     await page.getByLabel(/^Award title/).fill("Summer Youth Programs");
@@ -80,9 +80,9 @@ test("a funder gives an award directly and the organization claims it without Pa
     await expect(page.getByRole("heading", { level: 1, name: "Accept an award from Riverbend Community Foundation" })).toBeVisible();
     // The token never stays in the address.
     expect(page.url()).toMatch(/\/awards\/claim$/);
-    await expect(page.getByText("Summer Youth Programs", { exact: true })).toBeVisible();
-    await expect(page.getByText("$25,000", { exact: true })).toBeVisible();
-    await expect(page.getByText("We are glad to support your work.")).toBeVisible();
+    await expect(shown(page, "Summer Youth Programs", { exact: true })).toBeVisible();
+    await expect(shown(page, "$25,000", { exact: true })).toBeVisible();
+    await expect(shown(page, "We are glad to support your work.")).toBeVisible();
   });
 
   await test.step("there is no organization yet: set one up without Passport", async () => {
@@ -101,7 +101,7 @@ test("a funder gives an award directly and the organization claims it without Pa
 
   await test.step("back at the claim, accepting asks for the second step an admin needs, then goes through", async () => {
     await expect(page.getByRole("radio", { name: /Pine Ridge Youth Alliance/ })).toBeChecked();
-    await expect(page.getByText("Accepting shares your organization's record with Riverbend Community Foundation.")).toBeVisible();
+    await expect(shown(page, "Accepting shares your organization's record with Riverbend Community Foundation.")).toBeVisible();
     await page.getByRole("button", { name: "Accept award" }).click();
     await page.getByRole("link", { name: "Finish the second step" }).click();
     await expect(page.getByRole("heading", { name: "Set Up Two-Step Verification" })).toBeVisible();

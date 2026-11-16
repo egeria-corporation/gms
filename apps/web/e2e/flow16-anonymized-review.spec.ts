@@ -3,7 +3,7 @@
 // the full proposal stage and change the competition's conflict-of-interest policy; the reviewer
 // must sign the new version before anything opens, then sees "Applicant A-…" in place of who
 // applied. Staff build the board docket for the decision meeting.
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 test("anonymized review", async ({ app: page }) => {
   await start(page, "/w/riverbend/reviews/assign");
@@ -41,7 +41,7 @@ test("anonymized review", async ({ app: page }) => {
   await test.step("the reviewer signs the new policy before anything opens", async () => {
     await page.getByRole("link", { name: "My assignments" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "My assignments" })).toBeVisible();
-    await expect(page.getByText("Sign the conflict-of-interest policy first")).toBeVisible();
+    await expect(shown(page, "Sign the conflict-of-interest policy first")).toBeVisible();
     await expect(page.getByRole("article").first()).toContainText("Waiting for your signature");
     await page.getByRole("button", { name: "Read and sign…" }).click();
     const d = dialog(page, "Conflict-of-interest policy");
@@ -52,7 +52,7 @@ test("anonymized review", async ({ app: page }) => {
     await d.getByRole("checkbox", { name: "I have read this policy and agree to it" }).check();
     await signButton.click();
     await expect(d).toBeHidden();
-    await expect(page.getByText("Sign the conflict-of-interest policy first")).toBeHidden();
+    await expect(shown(page, "Sign the conflict-of-interest policy first")).toBeHidden();
   });
 
   await test.step("the reviewer sees a code, never the organization", async () => {
@@ -64,7 +64,7 @@ test("anonymized review", async ({ app: page }) => {
     await expect(main).not.toContainText("Lakeside Senior Center");
     await cards.filter({ hasText: "Continue scoring" }).getByRole("button", { name: "Continue scoring" }).click();
     await expect(page.getByRole("heading", { level: 1, name: /^Applicant A-\d{4}$/ })).toBeVisible();
-    await expect(page.getByText("You do not see who applied.")).toBeVisible();
+    await expect(shown(page, "You do not see who applied.")).toBeVisible();
     await expect(main).not.toContainText("Harbor Light Shelter");
   });
 

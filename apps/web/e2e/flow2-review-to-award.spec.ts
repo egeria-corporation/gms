@@ -2,7 +2,7 @@
 // Flow 2 — Funder: review to award. Applications inbox → application detail → advance → assign
 // reviewers (one external) → score → panel: rank, allocate, commit → award offered → the applicant
 // accepts and signs → the funder countersigns → active.
-import { expect, rail, start, switchWorkspace, test } from "./helpers.ts";
+import { expect, rail, shown, start, switchWorkspace, test } from "./helpers.ts";
 
 test("review to award", async ({ app: page }) => {
   await start(page, "/w/riverbend/applications");
@@ -16,7 +16,7 @@ test("review to award", async ({ app: page }) => {
     await page.getByLabel("Eligibility").selectOption({ label: "Pass" });
     await page.getByRole("table", { name: "Applications" }).getByRole("link", { name: "Community Health Worker Corps" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Community Health Worker Corps" })).toBeVisible();
-    await expect(page.getByText("L3").first()).toBeVisible();
+    await expect(shown(page, "L3").first()).toBeVisible();
   });
 
   await test.step("advance to the full proposal", async () => {

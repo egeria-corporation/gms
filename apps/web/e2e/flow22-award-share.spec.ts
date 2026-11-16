@@ -6,7 +6,7 @@
 // the grantee chooses "Don't list us publicly" and the kit is gone.
 // Mock mode serves the app without the front Worker: the share card and the badge image are checked
 // in test/award-share-front.test.ts.
-import { expect, rail, start, switchWorkspace, test } from "./helpers.ts";
+import { expect, rail, shown, start, switchWorkspace, test } from "./helpers.ts";
 
 const AWARD = "awd_b0000000-0000-7000-8000-000000000001";
 
@@ -40,8 +40,8 @@ test("funder lists its awards and the grantee copies the share kit", async ({ ap
   await test.step("the award has its own page", async () => {
     await page.getByRole("link", { name: "View the grant to Alder Creek Family Services" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Riverbend Community Foundation awarded Alder Creek Family Services a grant" })).toBeVisible();
-    await expect(page.getByText("Verified with OpenGrants Passport")).toBeVisible();
-    await expect(page.getByText("Mobile Health Navigation for Rural Families").first()).toBeVisible();
+    await expect(shown(page, "Verified with OpenGrants Passport")).toBeVisible();
+    await expect(shown(page, "Mobile Health Navigation for Rural Families").first()).toBeVisible();
   });
 
   await test.step("the grantee copies the short post from its share kit", async () => {

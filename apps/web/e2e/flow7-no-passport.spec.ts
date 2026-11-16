@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 // Flow 7 — Using the GMS without Passport. A newcomer sets up an applicant organization from a
 // short profile; an install without Passport offers no Passport step anywhere; a funder sees
 // "Not verified" beside an applicant that has no Passport record and sets the two opportunity toggles.
-import { expect, start, test } from "./helpers.ts";
+import { expect, shown, start, test } from "./helpers.ts";
 
 /** The mock starts signed in as the demo funder: sign out, go to the landing page, and start as a grantee. */
 async function signIn(page: Page, passportOff = false) {
@@ -34,13 +34,13 @@ test("applicant sets up without Passport", async ({ app: page }) => {
 
   await test.step("both choices are offered, Passport recommended", async () => {
     await expect(page.getByRole("heading", { name: "Continue with Passport" })).toBeVisible();
-    await expect(page.getByText("Recommended")).toBeVisible();
+    await expect(shown(page, "Recommended")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Set up without Passport" })).toBeVisible();
   });
 
   await test.step("a short profile: legal name and contact email are required", async () => {
     await page.getByRole("button", { name: "Create my workspace" }).click();
-    await expect(page.getByText("Enter your organization’s legal name")).toBeVisible();
+    await expect(shown(page, "Enter your organization’s legal name")).toBeVisible();
     await page.getByLabel(/^Legal name/).fill("Pine Ridge Youth Alliance");
     await page.getByLabel(/^Contact email/).fill("hello@pineridge.example");
     await page.getByRole("button", { name: "Create my workspace" }).click();
@@ -56,7 +56,7 @@ test("applicant sets up without Passport", async ({ app: page }) => {
   await test.step("settings: the details are the organization's own, shown as not verified", async () => {
     await page.getByRole("navigation", { name: /workspace$/ }).getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Organization details" })).toBeVisible();
-    await expect(page.getByText(/Funders see this organization as not verified/)).toBeVisible();
+    await expect(shown(page, /Funders see this organization as not verified/)).toBeVisible();
     await expect(page.getByLabel(/^Legal name/)).toHaveValue("Pine Ridge Youth Alliance");
     await page.getByLabel(/^Legal name/).fill("Pine Ridge Youth Alliance Inc.");
     await page.getByRole("button", { name: "Save details" }).click();
@@ -72,10 +72,10 @@ test.describe("an install without Passport", () => {
 
   test("no Passport button or step anywhere", async ({ app: page }) => {
     await signInAsNewcomer(page, true);
-    await expect(page.getByText(/Link your Passport record/)).toHaveCount(0);
+    await expect(shown(page, /Link your Passport record/)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Set up without Passport" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Continue with Passport" })).toHaveCount(0);
-    await expect(page.getByText("Recommended")).toHaveCount(0);
+    await expect(shown(page, "Recommended")).toHaveCount(0);
   });
 });
 
