@@ -19,6 +19,7 @@ import { MOCK_CODE } from "../../mocks/auth.ts";
 import { translator } from "../../i18n/index.tsx";
 
 
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
 const t = translator("public");
 type Step = "email" | "code" | "mfa" | "first-run" | "sso";
 type Choice = "funder" | "applicant" | "invite";
@@ -747,6 +748,9 @@ export default function SignIn() {
             <span>{t("signIn.opengrantsGmsIsFreeAnd")}</span>
             <a href="https://github.com/egeria-corporation/gms">{t("signIn.source")}</a>
             <Link to="/agents">{t("signIn.forAgents")}</Link>
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", fontSize: "13px" }}>
+            <LanguageSwitcher />
           </div>
         </main>
       </div>

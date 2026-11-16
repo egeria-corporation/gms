@@ -9,6 +9,7 @@ import { env } from "../../env.ts";
 
 import { translator } from "../../i18n/index.tsx";
 
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
 const t = translator("public");
 const ORIGIN = env.apiBaseUrl || "https://gms.opengrants.io";
 
@@ -191,6 +192,9 @@ export default function Agents() {
               <Link to="/">{t("agents.home")}</Link>
               <a href={`${ORIGIN}/openapi.json`}>{t("agents.openapi")}</a>
             </div>
+          </div>
+          <div className="wrap-c lang-row">
+            <LanguageSwitcher />
           </div>
         </footer>
       </div>

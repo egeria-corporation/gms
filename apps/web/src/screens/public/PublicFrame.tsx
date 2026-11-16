@@ -8,6 +8,7 @@ import { checkBrand, SYSTEM_BRAND } from "../../lib/contrast.ts";
 
 import { translator } from "../../i18n/index.tsx";
 
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
 const t = translator("public");
 /** Up to three initials for the logo mark when the funder has not uploaded a logo. */
 export function markOf(name: string): string {
@@ -90,6 +91,9 @@ export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder:
               <a href={jsonHref}>{t("publicFrame.commongrantsJson")}</a>
             </div>
           )}
+        </div>
+        <div className="wrap-c lang-row">
+          <LanguageSwitcher />
         </div>
       </footer>
     </div>

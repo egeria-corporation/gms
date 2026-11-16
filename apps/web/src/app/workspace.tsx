@@ -78,7 +78,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 /** The current workspace. Shells render only under `/w/:ws`, behind the kind guards in App.tsx. */
 export function useWorkspace(kind: WorkspaceKind): Workspace {
   const current = useContext(WorkspaceContext);
-  if (!current || current.kind !== kind) throw new Error(t("workspace.noWorkspaceInContext", { kind }));
+  if (!current || current.kind !== kind) throw new Error(`No ${kind} workspace in context`);
   return current;
 }
 

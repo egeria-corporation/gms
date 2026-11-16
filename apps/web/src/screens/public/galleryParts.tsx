@@ -12,6 +12,7 @@ import { FormView } from "../../forms/FormView.tsx";
 
 import { translator } from "../../i18n/index.tsx";
 
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
 const tr = translator("public");
 export const KIND_ICON: Record<GalleryKind, LucideIcon> = { application_form: FileText, report_form: ClipboardCheck, rubric: ListChecks, email_template: Mail, program_kit: Package };
 
@@ -303,6 +304,9 @@ export function GalleryFrame({ children }: { children: ReactNode }) {
             </a>
             <Link to="/">{tr("galleryParts.aboutOpengrantsGms")}</Link>
           </div>
+        </div>
+        <div className="wrap-c lang-row">
+          <LanguageSwitcher />
         </div>
       </footer>
     </div>

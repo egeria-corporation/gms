@@ -12,6 +12,7 @@ import { ArrowRight, Bot, Check, ChevronDown, Download, ExternalLink, Menu, Shie
 
 import { translator } from "../../i18n/index.tsx";
 
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
 const tr = translator("public");
 const DEPLOY_GUIDE = "https://github.com/egeria-corporation/gms/blob/main/DEPLOY_WITH_AGENT.md";
 /** The WCAG 2.2 AA conformance report (VPAT 2.5 format) that buyers ask for. */
@@ -246,12 +247,15 @@ export default function Landing() {
                     <li>
                       <ShieldCheck className="ic" aria-hidden="true" />
                       <span>
-                        {tr.rich("landing.yourOrganizationShowsAsVerified", { span: (chunks) => <span className="lvl lvl-3">{chunks}</span> })}
-                        <span className="lvl lvl-na">
-                          <ShieldOff className="ic" aria-hidden="true" />
-                          {tr("landing.notVerified")}
-                        </span>
-                        .
+                        {tr.rich("landing.yourOrganizationShowsAsVerified", {
+                          verified: (chunks) => <span className="lvl lvl-3">{chunks}</span>,
+                          unverified: (chunks) => (
+                            <span className="lvl lvl-na">
+                              <ShieldOff className="ic" aria-hidden="true" />
+                              {chunks}
+                            </span>
+                          ),
+                        })}
                       </span>
                     </li>
                     <li>
@@ -334,6 +338,9 @@ export default function Landing() {
               <a href="https://github.com/egeria-corporation/gms">{tr("landing.source")}</a>
               <a href={ACCESSIBILITY_REPORT}>{tr("landing.accessibility")}</a>
             </div>
+          </div>
+          <div className="wrap-c lang-row">
+            <LanguageSwitcher />
           </div>
         </footer>
       </div>

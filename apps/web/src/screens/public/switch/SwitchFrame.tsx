@@ -8,6 +8,7 @@ import { TRADEMARK_NOTE } from "../../../content/switch.ts";
 
 import { translator } from "../../../i18n/index.tsx";
 
+import { LanguageSwitcher } from "../../../components/LanguageSwitcher.tsx";
 const t = translator("public");
 export function SwitchFrame({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -52,6 +53,9 @@ export function SwitchFrame({ title, children }: { title: string; children: Reac
                 </a>
               </div>
             </div>
+          </div>
+          <div className="wrap-c lang-row">
+            <LanguageSwitcher />
           </div>
         </footer>
       </div>

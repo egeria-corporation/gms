@@ -131,7 +131,7 @@ export default function SettingsSocial() {
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
-                            aria-label={t("settingsSocial.disconnect", { label: a.label, value: a.username ? ` ${a.username}` : "" })}
+                            aria-label={a.username ? t("settingsSocial.disconnectAccount", { label: a.label, username: a.username }) : t("settingsSocial.disconnect", { label: a.label })}
                             disabled={disconnect.state === "saving"}
                             onClick={async () => {
                               if (await disconnect.run(a.id)) {

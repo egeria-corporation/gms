@@ -98,7 +98,7 @@ export function ReachPanel({ reach, subjectType }: { reach: SocialReach; subject
           <li key={p.id} className="card card-b-tight" style={{ boxShadow: "none", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
             <div className="row wrap" style={{ gap: "8px", alignItems: "center" }}>
               <PostStatusBadge status={p.status} />
-              <span className="small muted">{p.status === "scheduled" && p.scheduledFor ? tr("reachPanel.for", { scheduledFor: when(p.scheduledFor), value: p.timezone ? ` (${p.timezone})` : "" }) : tr("reachPanel.sent", { when: when(p.sentAt ?? p.createdAt) })}</span>
+              <span className="small muted">{p.status === "scheduled" && p.scheduledFor ? p.timezone ? tr("reachPanel.forZone", { scheduledFor: when(p.scheduledFor), zone: p.timezone }) : tr("reachPanel.for", { scheduledFor: when(p.scheduledFor) }) : tr("reachPanel.sent", { when: when(p.sentAt ?? p.createdAt) })}</span>
             </div>
             <ul aria-label={tr("reachPanel.accounts")} style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
               {p.accounts.map((a) => {

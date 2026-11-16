@@ -486,6 +486,7 @@
 .pub-foot { background: var(--og-gray-50); border-top: 1px solid var(--og-gray-200); padding: 20px 0; font-size: 13px; color: var(--og-gray-600); }
 .pub-foot .wrap-c { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 /* The language switcher (components/LanguageSwitcher.tsx): footer links, and the account menu's radio items. */
+.pub-foot .lang-row { margin-top: 10px; justify-content: flex-start; }
 .lang-switch ul { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
 .lang-switch li + li::before { content: "·"; margin-right: 4px; color: var(--og-gray-600); }
 .lang-switch a { display: inline-flex; align-items: center; min-height: 24px; color: var(--og-gray-600); font-weight: 600; }

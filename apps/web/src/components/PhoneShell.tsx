@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { Bell, Menu, X } from "lucide-react";
 import { useWorkspace } from "../app/workspace.tsx";
 import { APPLICANT_RAIL, APPLICANT_TABS, railLabel, tenantStyle } from "./shells.tsx";
+import { LanguageSwitcher } from "./LanguageSwitcher.tsx";
 
 import { translator } from "../i18n/index.tsx";
 
@@ -74,6 +75,9 @@ export function PhoneShell({ title, active, sheet, overlay, children }: PhoneShe
               </Link>
             </li>
           </ul>
+          <div style={{ padding: "8px 12px 12px" }}>
+            <LanguageSwitcher id="lang-phone" />
+          </div>
         </nav>
       )}
       {/* The page scrolls inside the frame; the sheet and the tabs are siblings below it, not overlays. */}

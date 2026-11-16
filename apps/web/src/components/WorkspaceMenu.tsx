@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router";
 import { Check, ChevronDown, LogOut, Plus } from "lucide-react";
 import { roleTitle, type MeWorkspace } from "../api/client.ts";
 import { useServices } from "../app/services.tsx";
+import { LanguageMenuItems, useMenuRefocus } from "./LanguageSwitcher.tsx";
 
 import { translator } from "../i18n/index.tsx";
 
@@ -62,7 +63,7 @@ function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPi
             {ws.name}
           </span>
           <span className="small muted">
-            {current ? t("workspaceMenu.current") : ""}
+            {current ? `${t("workspaceMenu.current")} · ` : ""}
             {roleTitle(ws.role)}
           </span>
         </span>
@@ -75,22 +76,26 @@ function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPi
   );
 }
 
+/** The menu's items, the language choice included, in the order the arrow keys move through them. */
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
+
 export function WorkspaceMenu({ currentHandle, children }: { currentHandle: string; children: ReactNode }) {
   const { meState, auth } = useServices();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  useMenuRefocus();
 
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    menu.current?.querySelector<HTMLElement>(MENU_ITEMS)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         button.current?.focus();
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        const items = Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+        const items = Array.from(menu.current?.querySelectorAll<HTMLElement>(MENU_ITEMS) ?? []);
         const i = items.indexOf(document.activeElement as HTMLElement);
         items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
         e.preventDefault();
@@ -105,6 +110,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
     <div style={{ position: "relative" }}>
       <button
         ref={button}
+        id="ws-menu-button"
         type="button"
         className="ws"
         aria-haspopup="menu"
@@ -208,6 +214,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 {t("workspaceMenu.signOut")}
               </button>
             </div>
+            <LanguageMenuItems onChosen={() => setOpen(false)} />
           </div>
         </>
       )}

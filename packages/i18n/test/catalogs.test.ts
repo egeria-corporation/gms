@@ -48,9 +48,12 @@ const parsed = (ns: Namespace, locale: "en" | "es", key: string): MessageFormatE
   return parse(message);
 };
 
-// Words the glossary rules out, and what to write instead (docs/i18n.md).
+// Words the glossary rules out, and what to write instead (docs/i18n.md). "Aplicación" is right for
+// software (an authenticator app, connected apps) and wrong for an application to a funder.
 const NOT_THE_GLOSSARY: [RegExp, string][] = [
-  [/\baplicaci[oó]n(es)?\b/i, "solicitud (application)"],
+  [/\baplicaci[oó]n(es)? (a|para|de) (la|una|esta|su|el|un) (convocatoria|subvenci[oó]n|financiador|programa)/i, "solicitud (application)"],
+  [/\b(enviar|presentar|revisar|retirar) (la|una|su) aplicaci[oó]n\b/i, "solicitud (application)"],
+  [/\baplicar\b/i, "presentar una solicitud (apply)"],
   [/\baplicantes?\b/i, "solicitante (applicant)"],
   [/\bbecas?\b/i, "subvención (grant)"],
   [/\boportunidad(es)?\b/i, "convocatoria (opportunity)"],
@@ -96,7 +99,8 @@ describe.each(NAMESPACES)("the %s catalog", (ns) => {
   it("keeps to the glossary", () => {
     // Product names ("OpenGrants Grant Management System") are not translated, so they are not checked.
     const names = [...SAME_VALUES].sort((a, b) => b.length - a.length);
-    const prose = (v: string) => names.reduce((text, name) => text.split(name).join(" "), v);
+    // Placeholders, tag names and code (`/w/your-workspace/`) are not prose either.
+    const prose = (v: string) => names.reduce((text, name) => text.split(name).join(" "), v.replace(/<code\d*>.*?<\/code\d*>/g, " ").replace(/\{[^{}]*\}/g, " ").replace(/<\/?[a-z0-9]+>/g, " ").replace(/\/[\w./-]+/g, " ").replace(/\S+@\S+/g, " "));
     const off = Object.entries(es).flatMap(([k, v]) => NOT_THE_GLOSSARY.filter(([re]) => re.test(prose(String(v)))).map(([, instead]) => `${k}: use ${instead}`));
     expect(off).toEqual([]);
   });
