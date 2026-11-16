@@ -146,8 +146,8 @@ Counted once per issue under its main criterion; an issue is one component or on
 | 2.5.2 Pointer Cancellation | 1 | 1 | Dialogs closed on the press outside |
 | 2.5.3 Label in Name | 4 | 4 | Copy buttons named differently from their label; the awards list's View link |
 | 2.5.8 Target Size | 1 | 1 | The reviewer's two visibility radios |
-| 3.2.2 On Input | 1 | 1 | Arrowing through an assignee picker could open the invitation dialog unasked |
 | 3.1.1 Language of Page | 3 | 3 | Emails, board docket PDF, send package PDF |
+| 3.2.2 On Input | 1 | 1 | Arrowing through an assignee picker could open the invitation dialog unasked |
 | 3.3.1 Error Identification | 6 | 6 | Field help and errors not tied to controls; application form errors; sign-in fields; scoring; an amount field; help ids that did not exist |
 | 4.1.3 Status Messages | 2 | 2 | Banners after an action not reliably spoken; import and attach progress |
 | **Total (product)** | **75** | **75** | |
