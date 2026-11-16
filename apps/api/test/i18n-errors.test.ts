@@ -72,10 +72,23 @@ describe("the errors catalog", () => {
     return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([code]) => code);
   }
 
-  it("holds the 80 most common user-facing codes, each in English and Spanish", () => {
+  /**
+   * Codes only an API client or agent can meet, never a person using the app: a bearer token's
+   * checks, the OAuth authorize endpoint, the OpenAPI document, the social-posting API's
+   * Idempotency-Key header, and payload checks the app's own controls never fail. Their English
+   * `message` is the whole answer.
+   */
+  const MACHINE_ONLY = ["untrusted_issuer", "invalid_signature", "invalid_audience", "invalid_request", "openapi_unavailable", "idempotency_key_required", "invalid_setting", "invalid_role"];
+
+  it("holds every code a person can meet, each in English and Spanish", () => {
     const es = ALL_CATALOGS.es.errors as Record<string, string>;
-    const top = rankedCodes().slice(0, 80);
-    expect(top.length).toBe(80);
-    expect(top.filter((code) => !(`code.${code}` in es))).toEqual([]);
+    const codes = rankedCodes();
+    expect(codes.length).toBeGreaterThan(200);
+    expect(codes.filter((code) => !MACHINE_ONLY.includes(code) && !(`code.${code}` in es))).toEqual([]);
+    // The machine-only list holds only codes the API still raises, and none of them is catalogued.
+    for (const code of MACHINE_ONLY) {
+      expect(codes, code).toContain(code);
+      expect(`code.${code}` in es, code).toBe(false);
+    }
   });
 });
