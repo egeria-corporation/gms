@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Shared building blocks for live screens. Markup and class names come from the design canvas
 // stylesheet (theme/app.css): .crumbs, .ph, .tabs, .tbl, .empty, .rc, .bnr.
-import { useMemo, useState, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowDown, ArrowUp, CircleCheck, CircleDashed, CircleX, Info, RefreshCw, TriangleExclamationPoint, type LucideIcon } from "lucide-react";
 import type { Checklist, FieldProblem } from "../api/types.ts";
@@ -299,6 +299,29 @@ export function Loading({ label = "Loading" }: { label?: string }) {
 }
 
 /** A labelled form field on the design's `.fld` markup. `children` is the control; give it `id`. */
+/** The ARIA a Field's control carries: what the label's asterisk and the messages below say, in words. */
+type ControlAria = { id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean | "true" | "false"; "aria-required"?: boolean | "true" | "false"; required?: boolean };
+
+/**
+ * Ties the field's control (the child whose id is the label's `htmlFor`) to what the field says
+ * about it: required (the asterisk is only visual), invalid, and the help or error text below it
+ * (WCAG 1.3.1, 3.3.1, 3.3.2). Ids the control already points at are kept, except this field's own
+ * help and error ids, which only point at text that is on the page.
+ */
+function wireControl(children: ReactNode, id: string, { required, help, error }: { required: boolean; help: boolean; error: boolean }): ReactNode {
+  return Children.map(children, (child) => {
+    if (!isValidElement<ControlAria>(child) || child.props.id !== id) return child;
+    const own = [`${id}-help`, `${id}-err`];
+    const kept = (child.props["aria-describedby"] ?? "").split(/\s+/).filter((t) => t && !own.includes(t));
+    const describedBy = [...kept, ...(error ? [`${id}-err`] : help ? [`${id}-help`] : [])].join(" ") || undefined;
+    return cloneElement(child as ReactElement<ControlAria>, {
+      "aria-describedby": describedBy,
+      ...(error ? { "aria-invalid": true } : {}),
+      ...(required && !child.props.required ? { "aria-required": true } : {}),
+    });
+  });
+}
+
 export function Field({ id, label, help, error, required = false, children }: { id: string; label: string; help?: ReactNode; error?: string | null; required?: boolean; children: ReactNode }) {
   return (
     <div className="fld">
@@ -310,7 +333,7 @@ export function Field({ id, label, help, error, required = false, children }: { 
           </span>
         )}
       </label>
-      {children}
+      {wireControl(children, id, { required, help: !!help, error: !!error })}
       {help && !error && (
         <span className="help" id={`${id}-help`}>
           {help}
