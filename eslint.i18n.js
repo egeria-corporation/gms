@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The "no literal user-visible strings" rule (docs/i18n.md), and the files it applies to: those
-// already translated. Each translation track adds its directories to TRANSLATED when they are done.
+// The "no literal user-visible strings" rule (docs/i18n.md), and the files it applies to: every
+// screen, component and app shell file, less the short NOT_TRANSLATED list below.
 
-/**
- * Files whose user-visible text comes from the catalogs (packages/i18n/catalogs). Add a directory
- * here once every string in it is a message; the rule then keeps it that way.
- */
+/** Files whose user-visible text comes from the catalogs (packages/i18n/catalogs). */
 export const TRANSLATED = [
-  // D2a: the framework, the switcher, the public and shared screens.
   "apps/web/src/i18n/**/*.{ts,tsx}",
   "apps/web/src/app/**/*.tsx",
   "apps/web/src/components/**/*.tsx",
-  "apps/web/src/screens/public/**/*.tsx",
-  "apps/web/src/screens/shared/**/*.tsx",
-  // D2b: the applicant screens and the form renderer.
   "apps/web/src/forms/**/*.tsx",
-  "apps/web/src/screens/applicant/**/*.tsx",
-  // D2c: the funder and reviewer screens, the form and report builders, the funder's settings.
-  "apps/web/src/screens/funder/**/*.tsx",
+  "apps/web/src/screens/**/*.tsx",
+];
+
+/**
+ * The only files under TRANSLATED the rule skips. Keep this list short, and say why for each.
+ */
+export const NOT_TRANSLATED = [
+  // The style guide (/styleguide/*) is the design canvas's component reference. It is routed only in
+  // mock mode (App.tsx), never in a deployed build, and its sample text is specimen copy.
+  "apps/web/src/screens/styleguide/**/*.tsx",
 ];
 
 // Text that is the same in every language: product names and the formats people know by name.
