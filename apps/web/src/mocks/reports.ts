@@ -26,35 +26,35 @@ export const MOCK_DATA_SETS: DataSet[] = [
     label: "Applications",
     description: "Submitted applications, with their opportunity, program, stage, status, request and review scores.",
     available: true,
-    columns: [t("title", "Application", "applications.title"), t("applicant", "Applicant", "the applicant workspace's name"), t("opportunity", "Opportunity", "opportunities.title"), t("competition", "Competition", "competitions.title"), t("program", "Program", "programs.name"), t("stage", "Stage", "the competition's stage label"), s("status", "Status", APPLICATION, "application"), m("requested", "Requested amount", "applications.requested_amount_minor"), t("currency", "Currency", "applications.currency"), d("submittedOn", "Submitted on", "applications.submitted_at"), t("submittedYear", "Year submitted", "applications.submitted_at"), n("averageScore", "Average score", "submitted reviews at the current stage, 0-100"), n("reviews", "Reviews submitted", "reviews at the current stage"), t("decision", "Decision", "the latest committed decision"), t("declineReason", "Decline reason", "the rationale of the committed decline")],
+    columns: [t("title", "Application", "applications.title"), t("applicant", "Applicant", "the applicant workspace's name"), t("opportunity", "Opportunity", "opportunities.title"), t("competition", "Competition", "competitions.title"), t("program", "Program", "programs.name"), t("fund", "Fund", "funds.name, through the program"), t("stage", "Stage", "the competition's stage label"), s("status", "Status", APPLICATION, "application"), m("requested", "Requested amount", "applications.requested_amount_minor"), t("currency", "Currency", "applications.currency"), d("submittedOn", "Submitted on", "applications.submitted_at"), t("submittedYear", "Year submitted", "applications.submitted_at"), n("averageScore", "Average score", "submitted reviews at the current stage, 0-100"), n("reviews", "Reviews submitted", "reviews at the current stage"), t("decision", "Decision", "the latest committed decision"), t("declineReason", "Decline reason", "the rationale of the committed decline")],
   },
   {
     key: "awards",
     label: "Awards",
     description: "Awards with their program, recipient, amount, dates and what the payment schedule says is paid and still owed.",
     available: true,
-    columns: [t("title", "Award", "awards.title"), t("program", "Program", "programs.name"), t("recipient", "Recipient", "the recipient workspace's name"), t("recipientVerified", "Recipient verified", "Passport verification, or a self-declared profile"), s("status", "Status", AWARD, "award"), m("amount", "Awarded amount", "awards.funding.awardedAmount"), t("currency", "Currency", "awards.funding.awardedAmount.currency"), d("awardDate", "Award date", "awards.key_dates.awardDate"), t("awardYear", "Award year", "the award date"), d("startDate", "Start", "period of performance"), d("endDate", "End", "period of performance"), m("paidElsewhere", "Paid elsewhere (recorded)", "settled payments recorded as paid outside the GMS"), m("scheduledRemaining", "Scheduled, not yet paid", "payments not yet paid"), d("nextPaymentDate", "Next payment date", "the earliest due date of a payment not yet paid"), n("overdueReports", "Overdue reports", "requirements of the award that are overdue"), m("disbursedThroughPassport", "Disbursed through Passport", "awards.funding.disbursedAmount", false, "Read from Passport, not a GMS figure; never added up")],
+    columns: [t("title", "Award", "awards.title"), t("program", "Program", "programs.name"), t("fund", "Fund", "funds.name, through the program"), t("recipient", "Recipient", "the recipient workspace's name"), t("recipientVerified", "Recipient verified", "Passport verification, or a self-declared profile"), s("status", "Status", AWARD, "award"), m("amount", "Awarded amount", "awards.funding.awardedAmount"), t("currency", "Currency", "awards.funding.awardedAmount.currency"), d("awardDate", "Award date", "awards.key_dates.awardDate"), t("awardYear", "Award year", "the award date"), d("startDate", "Start", "period of performance"), d("endDate", "End", "period of performance"), m("paidElsewhere", "Paid elsewhere (recorded)", "settled payments recorded as paid outside the GMS"), m("scheduledRemaining", "Scheduled, not yet paid", "payments not yet paid"), d("nextPaymentDate", "Next payment date", "the earliest due date of a payment not yet paid"), n("overdueReports", "Overdue reports", "requirements of the award that are overdue"), m("disbursedThroughPassport", "Disbursed through Passport", "awards.funding.disbursedAmount", false, "Read from Passport, not a GMS figure; never added up")],
   },
   {
     key: "payments",
     label: "Payments",
     description: "Scheduled payments (tranches) of each award: when they are due, where they stand, and what was recorded as paid elsewhere.",
     available: true,
-    columns: [t("tranche", "Payment", "the payment's place in the schedule"), t("award", "Award", "awards.title"), t("program", "Program", "programs.name"), t("recipient", "Recipient", "the recipient workspace's name"), m("amount", "Amount", "tranches.amount_minor"), t("currency", "Currency", "tranches.currency"), d("dueDate", "Due", "tranches.due_at"), s("status", "Status", TRANCHE, "tranche"), t("howPaid", "How it is paid", "through Passport, or recorded as paid elsewhere"), m("paidElsewhere", "Recorded paid elsewhere", "the amount of a payment recorded as paid outside the GMS"), d("paidOn", "Paid on", "the date recorded for a payment made elsewhere")],
+    columns: [t("tranche", "Payment", "the payment's place in the schedule"), t("award", "Award", "awards.title"), t("program", "Program", "programs.name"), t("fund", "Fund", "funds.name, through the program"), t("recipient", "Recipient", "the recipient workspace's name"), m("amount", "Amount", "tranches.amount_minor"), t("currency", "Currency", "tranches.currency"), d("dueDate", "Due", "tranches.due_at"), s("status", "Status", TRANCHE, "tranche"), t("howPaid", "How it is paid", "through Passport, or recorded as paid elsewhere"), m("paidElsewhere", "Recorded paid elsewhere", "the amount of a payment recorded as paid outside the GMS"), d("paidOn", "Paid on", "the date recorded for a payment made elsewhere")],
   },
   {
     key: "requirements",
     label: "Reports and requirements",
     description: "What each award asks of its grantee: reports, documents and milestones, when they are due and how late they are.",
     available: true,
-    columns: [t("title", "Requirement", "requirements.title"), t("type", "Type", "requirements.type"), t("award", "Award", "awards.title"), t("program", "Program", "programs.name"), t("recipient", "Recipient", "the recipient workspace's name"), d("dueDate", "Due", "requirements.due_at"), s("status", "Status", REQUIREMENT, "requirement"), n("overdueDays", "Days overdue", "days since the due date, for a requirement not yet received")],
+    columns: [t("title", "Requirement", "requirements.title"), t("type", "Type", "requirements.type"), t("award", "Award", "awards.title"), t("program", "Program", "programs.name"), t("fund", "Fund", "funds.name, through the program"), t("recipient", "Recipient", "the recipient workspace's name"), d("dueDate", "Due", "requirements.due_at"), s("status", "Status", REQUIREMENT, "requirement"), n("overdueDays", "Days overdue", "days since the due date, for a requirement not yet received")],
   },
   {
     key: "organizations",
     label: "Organizations",
     description: "Organizations that applied to or were awarded by this funder: whether they are verified, where they are, and what they were awarded.",
     available: true,
-    columns: [t("name", "Organization", "the workspace's name"), t("verified", "Verified", "Passport verification, or a self-declared profile"), t("location", "Location", "city and state, while the organization shares its record"), t("region", "State or region", "state, while the organization shares its record"), n("applications", "Applications submitted", "submitted applications to this funder"), n("awardCount", "Awards", "awards from this funder"), m("totalAwarded", "Total awarded", "awarded amounts of committed awards"), t("currency", "Currency", "the currency of those awards, or Mixed")],
+    columns: [t("name", "Organization", "the workspace's name"), t("verified", "Verified", "Passport verification, or a self-declared profile"), t("fund", "Funds", "funds.name of the programs it applied to or was awarded from"), t("location", "Location", "city and state, while the organization shares its record"), t("region", "State or region", "state, while the organization shares its record"), n("applications", "Applications submitted", "submitted applications to this funder"), n("awardCount", "Awards", "awards from this funder"), m("totalAwarded", "Total awarded", "awarded amounts of committed awards"), t("currency", "Currency", "the currency of those awards, or Mixed")],
   },
 ];
 
@@ -101,7 +101,9 @@ export function mockRows(now = new Date()): Record<DataSetKey, Rows> {
     { name: "Harbor Light Shelter", verified: "Verified with Passport", location: "Port Marlow, OR", region: "OR", applications: 1, awardCount: 1, totalAwarded: 7_600_000, currency: "USD" },
     { name: "Copper Valley Clinic", verified: "Self-declared, not verified", location: "Copper Valley, OR", region: "OR", applications: 1, awardCount: 1, totalAwarded: 6_000_000, currency: "USD" },
   ];
-  return { applications, awards, payments, requirements, organizations };
+  // Every program in mock mode is in the workspace's Default fund (mocks/funds.ts).
+  const withFund = (rows: Rows): Rows => rows.map((r) => ({ ...r, fund: "Default fund" }));
+  return { applications: withFund(applications), awards: withFund(awards), payments: withFund(payments), requirements: withFund(requirements), organizations: withFund(organizations) };
 }
 
 const def = (d: Partial<Definition> & Pick<Definition, "dataSet" | "columns">): Definition => ({ ...emptyDefinition(d.dataSet), ...d });

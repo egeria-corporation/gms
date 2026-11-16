@@ -223,6 +223,30 @@ describe("the data sets", () => {
     expect(JSON.stringify(r)).not.toContain("chk 1001");
   });
 
+  it("every data set has a Fund column, through the program", async () => {
+    const t = h.repos.table.bind(h.repos);
+    const arts = await t("funds").insert({ workspace_id: WS_FUNDER, name: "Riverside Arts Fund", slug: "riverside-arts" });
+    const care = await t("funds").insert({ workspace_id: WS_FUNDER, name: "Elder Care Fund", slug: "elder-care" });
+    await t("programs").update({ id: P_HEALTH }, { fund_id: arts.id });
+    await t("programs").update({ id: P_HOUSING }, { fund_id: care.id });
+    await t("awards").insert({ id: id(13), workspace_id: WS_FUNDER, title: "No program here", recipient_workspace_id: WS_APPLICANT, status: "active", funding: { awardedAmount: { amount: "1.00", currency: "USD" } } } as never);
+    for (const d of Object.values(reports.DATA_SETS)) expect(d.columns.map((c) => c.key), d.key).toContain("fund");
+    const awards = await reports.previewReport(admin(), def({ dataSet: "awards", columns: ["title", "fund"] }));
+    expect(Object.fromEntries(awards.rows.map((r) => [r[0], r[1]]))).toEqual({ "Clinic navigators": "Riverside Arts Fund", "Exchange visit": "Riverside Arts Fund", "Pantry shelving": "Elder Care Fund", "No program here": "No fund" });
+    const apps = await reports.previewReport(admin(), def({ dataSet: "applications", columns: ["title", "fund"] }));
+    expect(new Set(apps.rows.map((r) => r[1]))).toEqual(new Set(["Riverside Arts Fund"]));
+    const pays = await reports.previewReport(admin(), def({ dataSet: "payments", columns: ["award", "fund"] }));
+    expect(pays.rows.find((r) => r[0] === "Pantry shelving")?.[1]).toBe("Elder Care Fund");
+    const reqs = await reports.previewReport(admin(), def({ dataSet: "requirements", columns: ["title", "fund"] }));
+    expect(reqs.rows.find((r) => r[0] === "Photos")?.[1]).toBe("Elder Care Fund");
+    const orgs = await reports.previewReport(admin(), def({ dataSet: "organizations", columns: ["name", "fund"] }));
+    expect(orgs.columns.find((c) => c.key === "fund")?.label).toBe("Funds");
+    expect(Object.fromEntries(orgs.rows.map((r) => [r[0], r[1]]))).toEqual({ "Alder Creek Family Services": "Riverside Arts Fund", "Birch Hollow Food Bank": "Elder Care Fund, Riverside Arts Fund" });
+    // Grouped by fund, as a board report would be.
+    const grouped = await reports.previewReport(admin(), def({ dataSet: "awards", columns: ["fund"], groupBy: ["fund"], aggregates: [{ fn: "count" }] }));
+    expect(grouped.rows.length).toBe(3);
+  });
+
   it("applications: submitted only, with the inbox's average score and the decline reason", async () => {
     const r = await reports.previewReport(admin(), def({ dataSet: "applications", columns: ["title", "program", "stage", "status", "requested", "averageScore", "reviews", "declineReason"], sort: [{ column: "title", dir: "asc" }] }));
     expect(r.rows.map((x) => x[0])).toEqual(["Application 20", "Application 21", "Application 22"]);
@@ -394,6 +418,13 @@ describe("scheduled files", () => {
     // Scheduling is a person's act, never an agent's, and the owner's.
     expect((await refusal(reports.setSchedule(ctxAs(USER_OFFICER, "program_officer", { kind: "delegated" }), v.id, { cadence: "weekly", weekday: 1, recipientUserIds: [USER_ADMIN] }))).code).toBe("person_required");
     expect((await refusal(reports.setSchedule(admin(), v.id, { cadence: "weekly", weekday: 1, recipientUserIds: [USER_ADMIN] }))).code).toBe("not_owner");
+    // A member limited to some funds neither receives nor schedules one: the job reads every fund.
+    const advisor = (await h.repos.table("workspace_members").find({ workspace_id: WS_FUNDER, user_id: USER_AUDITOR }))[0]!;
+    await h.repos.table("workspace_members").update({ id: advisor.id }, { scope: { fundIds: [id(99)] } as never });
+    expect((await bad([USER_AUDITOR])).code).toBe("recipient_not_allowed");
+    const scopedOfficer = { ...officer(), workspace: { ...officer().workspace!, memberScope: { fundIds: [id(99)] } } };
+    expect((await refusal(reports.setSchedule(scopedOfficer, v.id, { cadence: "monthly", dayOfMonth: 1, recipientUserIds: [USER_ADMIN] }))).code).toBe("fund_scope");
+    await h.repos.table("workspace_members").update({ id: advisor.id }, { scope: null });
     const ok = await reports.setSchedule(officer(), v.id, { cadence: "monthly", dayOfMonth: 1, recipientUserIds: [USER_ADMIN, USER_AUDITOR] });
     expect(ok.schedule?.recipients.map((r) => r.name)).toEqual(["Helen Ortiz", "Ana Lee"]);
     expect(ok.schedule?.nextSendAt).toBe("2027-05-01T13:00:00.000Z");
