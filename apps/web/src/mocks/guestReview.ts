@@ -72,7 +72,7 @@ export function createMockGuestReviewApi(opts: MockGuestReviewOptions): GuestRev
         submitted: f.submitted,
         open,
         dueAt: f.dueAt,
-        coi: { note: "Before an application opens, you are asked whether you have a conflict of interest with the organization. If you do, you step aside from it and it never opens for you.", link: start },
+        coi: { note: "Before an application opens, you are asked whether you have a conflict of interest with the organization. If you do, you step aside from it and it never opens for you.", link: `${start}&sign=1` },
         startUrl: start,
         done: open === 0 && f.submitted > 0,
       };

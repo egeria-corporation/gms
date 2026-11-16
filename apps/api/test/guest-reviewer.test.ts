@@ -58,6 +58,8 @@ describe("the welcome", () => {
     expect(w.competitions).toHaveLength(1);
     expect(w.competitions[0]).toMatchObject({ title: comp.title, assigned: 2, dueAt: "2027-03-10T23:59:00.000Z" });
     expect(w).toMatchObject({ assigned: 2, open: 2, dueAt: "2027-03-10T23:59:00.000Z", done: false, startUrl: `/review/assignments?ws=${funder.handle}` });
+    // The conflict-of-interest link opens the reviewer portal's policy signing.
+    expect(w.coi.link).toBe(`/review/assignments?ws=${funder.handle}&sign=1`);
     expect(w.coi.note).toContain("conflict of interest");
     // A recused application no longer counts.
     const [first] = await h.repos.table("review_assignments").find({ application_id: apps[1]! });

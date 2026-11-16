@@ -13,6 +13,7 @@ import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
 import { OUTSIDE_IDS } from "../src/mocks/outside.ts";
 import { mockSensitive } from "../src/mocks/sendPackage.ts";
+import { guestReviewDone } from "../src/screens/funder/ReviewerScoring.tsx";
 
 const guestMemberships = MOCK_MEMBERSHIPS.filter((m) => m.kind === "funder").map((m) => ({ ...m, role: "external_reviewer", requiresMfa: false }));
 
@@ -53,6 +54,13 @@ describe("send to the funder", () => {
 });
 
 describe("the guest reviewer", () => {
+  it("is done after the last review: one submitted and none open, recusals aside", () => {
+    expect(guestReviewDone([{ status: "submitted" }, { status: "recused" }])).toBe(true);
+    expect(guestReviewDone([{ status: "submitted" }, { status: "in_progress" }])).toBe(false);
+    expect(guestReviewDone([{ status: "recused" }])).toBe(false);
+    expect(guestReviewDone([])).toBe(false);
+  });
+
   it("the welcome is for an external reviewer only", async () => {
     // The demo person is a staff reviewer at Cascade County, not a guest.
     open("/review/welcome?ws=cascade-county");
@@ -64,6 +72,8 @@ describe("the guest reviewer", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Welcome. Thank you for reviewing." })).toBeInTheDocument();
     expect(screen.getByText("3 assigned to you")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start reviewing" })).toBeInTheDocument();
+    // The conflict-of-interest link opens the reviewer portal's policy signing.
+    expect(screen.getByRole("link", { name: "Read and confirm the conflict-of-interest steps" })).toHaveAttribute("href", "/review/assignments?ws=riverbend&sign=1");
     await waitFor(() => expect(document.querySelector(".loading, [aria-busy=true]")).toBeNull());
     expect(await seriousViolations()).toEqual([]);
   });

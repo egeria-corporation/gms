@@ -89,13 +89,15 @@ export async function guestWelcome(ctx: ServiceContext) {
   });
   const totals = countsOf(assignments);
   const start = `/review/assignments?ws=${encodeURIComponent(funder.handle)}`;
+  // The reviewer portal's conflict-of-interest signing (the assignments screen opens the first policy waiting for a signature).
+  const sign = `${start}&sign=1`;
   return {
     funder: { name: funder.display_name, handle: funder.handle },
     competitions,
     ...totals,
     coi: {
       note: "Before an application opens, you are asked whether you have a conflict of interest with the organization. If you do, you step aside from it and it never opens for you.",
-      link: start,
+      link: sign,
     },
     startUrl: start,
     done: totals.assigned > 0 && totals.open === 0 && totals.submitted > 0,

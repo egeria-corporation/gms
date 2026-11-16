@@ -3,10 +3,11 @@
 // funder hid from reviewers are absent; personal fields are masked for external reviewers), beside
 // a score card built from the stage's rubric. Scores save as a draft and lock on submit.
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { Check, EyeOff, Lock } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import type { InboxApplication, ReviewAssignmentDetail, ReviewAssignmentPatch } from "../../api/funder.ts";
+import type { InboxApplication, ReviewAssignment, ReviewAssignmentDetail, ReviewAssignmentPatch } from "../../api/funder.ts";
+import { useServices } from "../../app/services.tsx";
 import type { RubricCriterion } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.tsx";
 import { ResponseCard } from "./ApplicationDetail.tsx";
@@ -63,8 +64,21 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
   );
 }
 
+/** A guest reviewer is done when at least one review is submitted and none is still open (recusals aside). */
+export const guestReviewDone = (rows: Pick<ReviewAssignment, "status">[]) => rows.some((r) => r.status === "submitted") && rows.every((r) => r.status === "submitted" || r.status === "recused");
+
 function Scoring({ assignmentId }: { assignmentId: string }) {
-  const { userId } = usePortal();
+  const { userId, workspace } = usePortal();
+  const { api } = useServices();
+  const navigate = useNavigate();
+  /** After a submit: a guest reviewer whose last review this was goes to the done screen. */
+  const afterSubmit = async () => {
+    if (workspace.member.role === "external_reviewer") {
+      const mine = await api.listAssignments({ reviewerUserId: userId }).catch(() => null);
+      if (mine && guestReviewDone(mine)) return navigate(`/review/done?ws=${encodeURIComponent(workspace.handle)}`);
+    }
+    detail.reload();
+  };
   const detail = useApiQuery((api) => api.getAssignment(assignmentId), [assignmentId]);
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [narrative, setNarrative] = useState("");
@@ -219,7 +233,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
                 <button type="button" className="btn btn-secondary" disabled={save.state === "saving"} onClick={async () => (await save.run("save")) && setSavedAt(new Date().toISOString())}>
                   Save draft
                 </button>
-                <button type="button" className="btn btn-primary" disabled={save.state === "saving"} onClick={async () => (await save.run("submit")) && detail.reload()}>
+                <button type="button" className="btn btn-primary" disabled={save.state === "saving"} onClick={async () => (await save.run("submit")) && (await afterSubmit())}>
                   Submit review
                 </button>
               </div>

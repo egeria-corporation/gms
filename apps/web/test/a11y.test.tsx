@@ -17,6 +17,7 @@ import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore } from "../sr
 import { createMockApplicantMoreApi, MORE_IDS, seedMoreStore } from "../src/mocks/applicantMore.ts";
 import { fullStoreFor } from "../src/mocks/applicantFull.ts";
 import { demoSession } from "../src/mocks/auth.ts";
+import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
 import { mockWriteKeepStore } from "../src/api/writeKeepHooks.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 import { MONEY_IDS } from "../src/mocks/funderMoney.ts";
@@ -144,6 +145,24 @@ describe("axe: no serious or critical violations", () => {
   it.each(PHONE)("phone %s", async (path) => {
     viewport.phone = true;
     expect(await violations(path)).toEqual([]);
+  });
+});
+
+describe("axe: the guest reviewer's welcome and done screens", () => {
+  // As an external reviewer: the screens are for guests only.
+  const guestMemberships = MOCK_MEMBERSHIPS.filter((m) => m.kind === "funder").map((m) => ({ ...m, role: "external_reviewer", requiresMfa: false }));
+  it.each(["/review/welcome?ws=riverbend", "/review/done?ws=cascade-county"])("%s", async (path) => {
+    const services = createMockServices({ session: demoSession("aal1", "sam@city-foundation.example"), memberships: guestMemberships });
+    const { container } = render(
+      <MemoryRouter initialEntries={[path]}>
+        <App services={services} />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(container.querySelector("main, [role=main]")).not.toBeNull();
+      expect(container.querySelector(".loading, [aria-busy=true]")).toBeNull();
+    });
+    expect(await check()).toEqual([]);
   });
 });
 
