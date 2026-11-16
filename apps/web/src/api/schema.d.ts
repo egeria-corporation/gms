@@ -16009,7 +16009,7 @@ export interface components {
         "Models.ImportPreviewInput": {
             target: components["schemas"]["Models.ImportTarget"];
             source: components["schemas"]["Models.ImportSource"];
-            /** @description As for the read step: the system whose never-awarded rows are set aside. v1.8.0. */
+            /** @description As for the read step: the system whose never-awarded rows are set aside. v1.9.0. */
             adapter?: components["schemas"]["Models.ImportAdapterKey"];
             /** @description Field key → column header. Required fields must be mapped. */
             mapping: {
@@ -16082,15 +16082,15 @@ export interface components {
              */
             savedMapping: "this_source" | "similar_source" | null;
             fields: components["schemas"]["Models.ImportField"][];
-            /** @description The system whose preset filled the mapping (named, or recognised), or null. v1.8.0. */
+            /** @description The system whose preset filled the mapping (named, or recognised), or null. v1.9.0. */
             adapter: components["schemas"]["Models.ImportAdapterRef"] | null;
-            /** @description The system the header row matches, which may differ from the one named. v1.8.0. */
+            /** @description The system the header row matches, which may differ from the one named. v1.9.0. */
             detected: components["schemas"]["Models.ImportDetected"] | null;
         };
         "Models.ImportReadInput": {
             target: components["schemas"]["Models.ImportTarget"];
             source: components["schemas"]["Models.ImportSource"];
-            /** @description Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.8.0. */
+            /** @description Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.9.0. */
             adapter?: components["schemas"]["Models.ImportAdapterKey"];
         };
         "Models.ImportReconciliation": {
@@ -16127,11 +16127,11 @@ export interface components {
             finishedAt: string | null;
             /** Format: date-time */
             expiresAt: string;
-            /** @description The grants system whose export the run read, or null. v1.8.0. */
+            /** @description The grants system whose export the run read, or null. v1.9.0. */
             adapter: components["schemas"]["Models.ImportAdapterRef"] | null;
             /**
              * Format: int32
-             * @description Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.8.0.
+             * @description Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.9.0.
              */
             nextPage: number | null;
             progress?: components["schemas"]["Models.ImportProgress"];
@@ -16178,7 +16178,7 @@ export interface components {
             table?: string | null;
             /**
              * Format: int32
-             * @description Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.8.0.
+             * @description Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.9.0.
              */
             nextPage?: number | null;
             /** Format: int32 */
@@ -16193,7 +16193,7 @@ export interface components {
             fields: components["schemas"]["Models.ImportField"][];
             /** @description CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them; Fluxx and Zengine for grant history where the server can store credentials. */
             sources: components["schemas"]["Models.ImportSourceOption"][];
-            /** @description The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.8.0. */
+            /** @description The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.9.0. */
             adapters: components["schemas"]["Models.ImportAdapter"][];
         };
         /** @enum {string} */
