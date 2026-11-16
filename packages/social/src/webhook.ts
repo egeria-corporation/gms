@@ -21,7 +21,7 @@ export async function verifyZernioSignature(secret: string, rawBody: string, hea
 }
 
 /** The events the GMS acts on. Any other verified event is acknowledged and dropped. */
-export const HANDLED_EVENTS = ["account.connected", "account.disconnected", "post.scheduled", "post.published", "post.partial", "post.failed"] as const;
+export const HANDLED_EVENTS = ["account.connected", "account.disconnected", "post.scheduled", "post.published", "post.partial", "post.failed", "post.cancelled"] as const;
 export type HandledEvent = (typeof HANDLED_EVENTS)[number];
 export const isHandledEvent = (t: string): t is HandledEvent => (HANDLED_EVENTS as readonly string[]).includes(t);
 
@@ -32,6 +32,8 @@ export interface ZernioEvent {
   occurredAt: string | null;
   profileExternalId: string | null;
   profileId: string | null;
+  /** Every profile the event names (`profiles[]`: Zernio's `id` and our `externalId`, the workspace id). */
+  profiles: { id: string | null; externalId: string | null }[];
   account: ZernioAccount | null;
   /** For an account event with only an id. */
   accountId: string | null;
@@ -62,7 +64,8 @@ export async function parseZernioEvent(rawBody: string): Promise<ZernioEvent | n
   const type = str(root.event) ?? str(root.type) ?? str(data.event);
   if (!type || !/^[a-z][a-z0-9_.]{0,80}$/.test(type)) return null;
   const profiles = Array.isArray(root.profiles) ? root.profiles : Array.isArray(data.profiles) ? data.profiles : [];
-  const profile = obj(profiles[0]) ?? obj(data.profile);
+  const listed = (profiles.length ? profiles : [data.profile]).map(obj).filter((p): p is Json => !!p).slice(0, 20);
+  const profile = listed[0] ?? null;
   const accountRaw = obj(data.account);
   const account = accountRaw ? accountOf(accountRaw) : null;
   const accountId = account?.id ?? str(accountRaw?._id) ?? str(accountRaw?.id) ?? str(data.accountId);
@@ -73,6 +76,7 @@ export async function parseZernioEvent(rawBody: string): Promise<ZernioEvent | n
     occurredAt: timeOf(root.timestamp ?? root.createdAt ?? root.occurredAt),
     profileExternalId: str(profile?.externalId),
     profileId: str(profile?._id) ?? str(profile?.id) ?? str(data.profileId),
+    profiles: listed.map((p) => ({ id: str(p._id) ?? str(p.id), externalId: str(p.externalId) })),
     account: account ?? (accountId && accountRaw && isPlatform(accountRaw.platform) ? { id: accountId, platform: accountRaw.platform, username: null, profileId: null } : null),
     accountId,
     post,

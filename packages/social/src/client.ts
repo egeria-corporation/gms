@@ -18,7 +18,8 @@ export interface ZernioAccount {
 
 export interface ZernioPostTarget {
   platform: Platform;
-  accountId: string;
+  /** Null when Zernio names only the platform (its webhook body does: `{ platform, status, platformPostUrl }`). */
+  accountId: string | null;
   status: string | null;
   url: string | null;
 }
@@ -109,7 +110,6 @@ export function postOf(v: unknown): ZernioPost | null {
     const t = obj(p);
     if (!t || !isPlatform(t.platform)) continue;
     const accountId = str(t.accountId) ?? idOf(t.accountId) ?? idOf(t.account);
-    if (!accountId) continue;
     const url = str(t.platformPostUrl) ?? str(t.url);
     platforms.push({ platform: t.platform, accountId, status: str(t.status), url: url && /^https:\/\//.test(url) ? url : null });
   }

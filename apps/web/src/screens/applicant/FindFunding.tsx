@@ -24,6 +24,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { FundingAlerts } from "./fundingAlerts.tsx";
+import { socialSourceFor } from "../../lib/socialLanding.ts";
 
 type Tab = "here" | "index" | "saved" | "alerts";
 
@@ -542,7 +543,11 @@ export default function FindFunding() {
     wantedCard.current?.scrollIntoView?.({ block: "center" });
   }, [wanted, loaded]);
   const [startingId, setStartingId] = useState<string | null>(null);
-  const start = useApplicantMutation((api, competitionId: string) => api.startApplication(competitionId));
+  const start = useApplicantMutation((api, competitionId: string) => {
+    const item = query.status === "ready" ? query.data.competitions.find((c) => c.competitionId === competitionId) : undefined;
+    const utmSource = socialSourceFor(item?.funder.handle, item?.opportunity.slug);
+    return api.startApplication(competitionId, utmSource ? { utmSource } : undefined);
+  });
   const saveGms = useApplicantMutation((api, item: DiscoverItem) => api.save({ source: "gms", externalId: item.opportunity.id, title: item.opportunity.title, ...(item.url ? { url: item.url } : {}) }));
   const startOutside = useOutsideMutation((api, l: OpenGrantsListing) => outsideFromListing(api, l, "drafting"));
   const saveOutside = useOutsideMutation((api, l: OpenGrantsListing) => outsideFromListing(api, l, "prospect"));

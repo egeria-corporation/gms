@@ -6,7 +6,7 @@
 // Apply appears only while a competition is open; until then the page says it is not taking
 // applications, and a signed-in applicant can save it to come back to.
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { ArrowRight, BadgeCheck, Bookmark, BookmarkCheck, Calendar, Check, ChevronDown, CircleCheck, Clock, CodeXml, Info, ShieldCheck } from "lucide-react";
 import { useApplicantApi } from "../../api/applicantHooks.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
@@ -15,6 +15,7 @@ import { ApiError } from "../../api/client.ts";
 import { useApiQuery } from "../../api/hooks.ts";
 import type { CgForm, OpportunityPageData, PublicStage } from "../../api/types.ts";
 import { NotFound } from "../../components/NotFound.tsx";
+import { rememberSocialLanding } from "../../lib/socialLanding.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
@@ -151,6 +152,9 @@ function FormPreview({ form }: { form: CgForm }) {
 export default function OpportunityPage() {
   const passportFlags = usePassportFlags();
   const { handle = "", slug = "" } = useParams();
+  const location = useLocation();
+  // A visit from a shared social link is remembered, so an application started from it counts.
+  useEffect(() => rememberSocialLanding(handle, slug, location.search), [handle, slug, location.search]);
   const { mock, sessionState, meState } = useServices();
   const page = useApiQuery((api) => api.publicOpportunity(handle, slug), [handle, slug]);
   // The open competition when there is one; otherwise the first, for its stages and forms.

@@ -436,7 +436,9 @@ function overall(targets: Target[], zernioStatus: string | null): PostStatus {
 function mergeTargets(current: Target[], post: ZernioPost | null, accounts: Account[], scheduled: boolean): Target[] {
   return current.map((t) => {
     const acc = accounts.find((a) => a.id === t.accountId);
-    const z = post?.platforms.find((p) => acc && p.accountId === acc.zernio_id);
+    // By account when Zernio names it; else by platform, when this post has one account on that platform.
+    const onPlatform = current.filter((x) => x.platform === t.platform).length === 1;
+    const z = post?.platforms.find((p) => acc && p.accountId === acc.zernio_id) ?? (onPlatform ? post?.platforms.find((p) => p.accountId === null && p.platform === t.platform) : undefined);
     if (!z) return t;
     const status = targetStatus(z.status ?? post?.status ?? null, scheduled);
     return { ...t, status, url: z.url ?? t.url };
@@ -623,6 +625,9 @@ export async function reachReport(ctx: ServiceContext, q: z.output<typeof reachQ
 
 export type ZernioReceived = { status: 200; outcome: "processed" | "duplicate" | "ignored" } | { status: 400 | 401 | 404 | 413; outcome: string };
 
+/** Our sentence for a post Zernio cancelled (never Zernio's own words). */
+export const CANCELLED_TEXT = "Zernio cancelled this scheduled post because an account it was going to was disconnected. Connect the account again and post it anew.";
+
 /** The largest webhook body read. */
 export const MAX_WEBHOOK_BYTES = 256 * 1024;
 
@@ -651,10 +656,18 @@ export async function receiveZernioEvent(base: BaseContext, headers: { get(name:
   }
   const done = (error: string | null = null) => base.repos.table("inbound_events").update({ id: inbound.id }, { processed_at: base.now().toISOString(), error });
 
-  const wsId = e.profileExternalId && UUID_RE.test(e.profileExternalId) ? e.profileExternalId.toLowerCase() : null;
-  const profile = wsId ? await base.repos.table("social_profiles").one({ workspace_id: wsId }) : null;
-  if (!profile || (e.profileId && e.profileId !== profile.zernio_profile_id)) {
-    await done("unknown_profile");
+  // Routed by profiles[].externalId (the workspace id), and only to a workspace whose own Zernio
+  // profile it is: a listed profile whose Zernio id is another's is not this workspace's. An event
+  // that names more than one of our workspaces is not applied to any.
+  const matches: Row<"social_profiles">[] = [];
+  for (const p of e.profiles.length ? e.profiles : [{ id: e.profileId, externalId: e.profileExternalId }]) {
+    const wsId = p.externalId && UUID_RE.test(p.externalId) ? p.externalId.toLowerCase() : null;
+    const row = wsId ? await base.repos.table("social_profiles").one({ workspace_id: wsId }) : null;
+    if (row && (!p.id || p.id === row.zernio_profile_id) && !matches.some((m) => m.id === row.id)) matches.push(row);
+  }
+  const profile = matches.length === 1 ? matches[0]! : null;
+  if (!profile) {
+    await done(matches.length > 1 ? "several_profiles" : "unknown_profile");
     return { status: 200, outcome: "ignored" };
   }
   const home = await base.repos.table("workspaces").one({ id: profile.workspace_id });
@@ -695,6 +708,12 @@ export async function receiveZernioEvent(base: BaseContext, headers: { get(name:
   }
   const accounts = await base.repos.table("social_accounts").find({ workspace_id: home.id });
   const targets = mergeTargets(targetsOf(row), post, accounts, !!row.scheduled_at);
+  if (e.type === "post.cancelled") {
+    // Zernio cancels a scheduled post when its account is disconnected: it will not go out.
+    await settle(ctx, row, "failed", { targets: targets.map((t) => (t.status === "published" ? t : { ...t, status: "failed" })) as unknown as Post["targets"], error: CANCELLED_TEXT }, { via: "webhook" });
+    await done();
+    return { status: 200, outcome: "processed" };
+  }
   const named = e.type.slice("post.".length) as PostStatus;
   await settle(ctx, row, named === "scheduled" || named === "published" || named === "partial" || named === "failed" ? named : overall(targets, post.status), { targets: targets as unknown as Post["targets"] }, { via: "webhook" });
   await done();

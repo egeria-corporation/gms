@@ -303,7 +303,12 @@ export async function hasLivePassportLink(ctx: ServiceContext, ws: Ws): Promise<
   return !!ws.passport_org_id && !!(await ctx.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }));
 }
 
-export async function startApplication(ctx: ServiceContext, input: z.output<typeof startInput>): Promise<{ application: ApplicationBase; created: boolean }> {
+/** The one source an application start records: a shared social link (services/social.ts counts it). */
+export const START_SOURCES = ["social"] as const;
+export type StartSource = { utmSource?: (typeof START_SOURCES)[number] };
+export const startSourceOf = (utm: string | undefined): StartSource => ((START_SOURCES as readonly string[]).includes(utm ?? "") ? { utmSource: utm as StartSource["utmSource"] } : {});
+
+export async function startApplication(ctx: ServiceContext, input: z.output<typeof startInput>, source: StartSource = {}): Promise<{ application: ApplicationBase; created: boolean }> {
   const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant" });
   const applicant = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const named = input.organizationId ?? input.applicantOrgId;
@@ -332,7 +337,7 @@ export async function startApplication(ctx: ServiceContext, input: z.output<type
   await createStageResponses(ctx, app, competition, stage, applicant);
   const preview = await runRules(ctx, opp.id, applicant, await responsesOf(ctx, app.id));
   [app] = (await ctx.repos.table("applications").update({ id: app.id }, { eligibility: { ...preview, preview: true } as unknown as J })) as [App];
-  await recordEvent(ctx, app, "started", { toStatus: "draft", toStage: stage });
+  await recordEvent(ctx, app, "started", { toStatus: "draft", toStage: stage, ...(source.utmSource ? { payload: { utmSource: source.utmSource } } : {}) });
   await audit(ctx, "application.started", "application", app.id, { competitionId: competition.id, applicantWorkspaceId: ws.id }, competition.workspace_id);
   return { application: await project(ctx, app), created: true };
 }

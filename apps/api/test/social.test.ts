@@ -6,6 +6,7 @@
 import { prefixedId } from "@gms/protocol";
 import { FakeZernio, sealToken, signZernioBody } from "@gms/social";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CANCELLED_TEXT } from "../src/services/social.ts";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, WEB, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
 
@@ -425,6 +426,54 @@ describe("webhook", () => {
     // Riverbend's externalId with Cascade's profile id.
     expect((await deliver({ id: "evt_y", event: "post.failed", profiles: [{ _id: otherProfile._id, externalId: WS_FUNDER }], post: { _id: zernioPost._id, status: "failed" } })).body.message).toBe("ignored");
     expect(await h.repos.table("social_posts").one({ id: row.id })).toMatchObject({ status: "scheduled" });
+  });
+
+  it("reads Zernio's documented body: post at the top, platforms by name, profiles with id and externalId", async () => {
+    const { row, zernioPost } = await scheduledPost();
+    const r = await deliver({ id: "evt_doc_1", event: "post.published", post: { id: zernioPost._id, status: "published", platforms: [{ platform: "linkedin", status: "published", platformPostUrl: "https://www.linkedin.com/feed/update/urn:li:share:1" }] }, profiles: [{ id: fake.profiles[0]!._id, externalId: WS_FUNDER }] });
+    expect(r.body.message).toBe("processed");
+    const after = (await h.repos.table("social_posts").one({ id: row.id }))!;
+    expect(after.status).toBe("published");
+    expect(after.targets).toMatchObject([{ platform: "linkedin", status: "published", url: "https://www.linkedin.com/feed/update/urn:li:share:1" }]);
+  });
+
+  it("post.cancelled: a scheduled post Zernio cancelled shows as not sent, in our words", async () => {
+    const { row, zernioPost } = await scheduledPost();
+    const r = await deliver({ id: "evt_cancel_1", event: "post.cancelled", post: { id: zernioPost._id, status: "cancelled", platforms: [{ platform: "linkedin", status: "cancelled" }] }, profiles: [{ id: fake.profiles[0]!._id, externalId: WS_FUNDER }] });
+    expect(r.body.message).toBe("processed");
+    expect(await h.repos.table("social_posts").one({ id: row.id })).toMatchObject({ status: "failed", error: CANCELLED_TEXT });
+    expect(h.ledger.events.filter((e) => e.eventType === "social.post.failed")).toHaveLength(1);
+  });
+
+  it("a valid signature for one workspace's profile never changes another workspace's posts", async () => {
+    // Riverbend (A) and Cascade (B) each have a profile and a scheduled post.
+    const a = await scheduledPost();
+    const bAccount = (await connect(OTHER_ADMIN, WS_OTHER, "twitter", "cascade")).account;
+    const bWho = await person(OTHER_ADMIN, WS_OTHER);
+    const bInput = { subject: { type: "opportunity", id: OTHER_OPP }, content: "County call is open. https://app.gms.test/f/cascade/o/county-call?utm_source=social", accountIds: [bAccount.id], schedule: { scheduledFor: "2027-05-02T09:00", timezone: "America/Chicago" } };
+    const { sent } = await previewAndPost(bWho, bInput);
+    const bRow = (await h.repos.table("social_posts").one({ id: data(sent).id as string }))!;
+    const aProfile = fake.profiles.find((p) => p.externalId === WS_FUNDER)!;
+    const bProfile = fake.profiles.find((p) => p.externalId === WS_OTHER)!;
+    const bZernio = bRow.zernio_post_id!;
+    const before = await h.repos.table("social_posts").one({ id: bRow.id });
+    // A's profile, signed, naming B's post: every event type that touches a post.
+    for (const [i, event] of ["post.published", "post.failed", "post.partial", "post.cancelled", "post.scheduled"].entries()) {
+      const r = await deliver({ id: `evt_cross_${i}`, event, post: { id: bZernio, status: "failed", platforms: [{ platform: "twitter", status: "failed" }] }, profiles: [{ id: aProfile._id, externalId: WS_FUNDER }] });
+      expect([event, r.status, r.body.message]).toEqual([event, 200, "ignored"]);
+    }
+    // B's workspace id with A's Zernio profile id, and an event naming both workspaces.
+    expect((await deliver({ id: "evt_cross_mix", event: "post.failed", post: { id: bZernio, status: "failed" }, profiles: [{ id: aProfile._id, externalId: WS_OTHER }] })).body.message).toBe("ignored");
+    expect((await deliver({ id: "evt_cross_both", event: "post.failed", post: { id: bZernio, status: "failed" }, profiles: [{ id: aProfile._id, externalId: WS_FUNDER }, { id: bProfile._id, externalId: WS_OTHER }] })).body.message).toBe("ignored");
+    // A's profile disconnecting B's account.
+    const bZid = (await h.repos.table("social_accounts").one({ id: bAccount.id }))!.zernio_id;
+    expect((await deliver({ id: "evt_cross_acc", event: "account.disconnected", profiles: [{ id: aProfile._id, externalId: WS_FUNDER }], account: { _id: bZid, platform: "twitter" } })).body.message).toBe("ignored");
+    expect(await h.repos.table("social_posts").one({ id: bRow.id })).toEqual(before);
+    expect(await h.repos.table("social_accounts").one({ id: bAccount.id })).toMatchObject({ status: "active" });
+    expect(await h.repos.table("social_posts").one({ id: a.row.id })).toMatchObject({ status: "scheduled" });
+    // B's own event still applies to B.
+    expect((await deliver({ id: "evt_b_own", event: "post.failed", post: { id: bZernio, status: "failed", platforms: [{ platform: "twitter", status: "failed" }] }, profiles: [{ id: bProfile._id, externalId: WS_OTHER }] })).body.message).toBe("processed");
+    expect(await h.repos.table("social_posts").one({ id: bRow.id })).toMatchObject({ status: "failed" });
   });
 
   it("an account disconnected at Zernio shows as disconnected", async () => {

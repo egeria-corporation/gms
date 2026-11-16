@@ -117,10 +117,14 @@ describe("webhook signature", () => {
       occurredAt: "2027-04-16T17:00:00.000Z",
       profileExternalId: "ws-1",
       profileId: "prof_1",
+      profiles: [{ id: "prof_1", externalId: "ws-1" }],
       account: null,
       accountId: null,
       post: { id: "post_1", status: "partial", scheduledFor: null, platforms: [{ platform: "linkedin", accountId: "acc_1", status: "published", url: "https://linkedin.example/p/1" }, { platform: "twitter", accountId: "acc_2", status: "failed", url: null }] },
     });
+    // Zernio's documented shape: `id` ids, platforms by name only, every profile listed.
+    const documented = await parseZernioEvent(JSON.stringify({ id: "evt_2", event: "post.cancelled", post: { id: "post_2", status: "cancelled", platforms: [{ platform: "bluesky", status: "cancelled", platformPostUrl: null }] }, profiles: [{ id: "prof_2", externalId: "ws-2" }, { id: "prof_3", externalId: "ws-3" }] }));
+    expect(documented).toMatchObject({ type: "post.cancelled", profiles: [{ id: "prof_2", externalId: "ws-2" }, { id: "prof_3", externalId: "ws-3" }], post: { id: "post_2", platforms: [{ platform: "bluesky", accountId: null, status: "cancelled", url: null }] } });
     // Without an id, an exact replay of the body has the same one.
     const noId = JSON.stringify({ event: "account.disconnected", account: { _id: "acc_1", platform: "x-unknown" } });
     expect((await parseZernioEvent(noId))?.id).toBe((await parseZernioEvent(noId))?.id);

@@ -108,10 +108,17 @@ can never send.
     profile, account and post ids.
   - A replay answers `duplicate`.
   - A delivery whose timestamp is more than a day old is refused (`REPLAY_WINDOW_MS`).
-  - An event is applied only to the workspace whose profile it names (`profiles[0].externalId`, and
-    the profile id when given), and only to that workspace's accounts and posts.
+  - The body, as Zernio's docs give it (checked 2026-11-15): `{ id, event, post: { id, status,
+    platforms: [{ platform, status, platformPostUrl }] }, profiles: [{ id, externalId }] }`. A
+    platform entry without an account id is matched to the post's one account on that platform.
+  - An event is routed by `profiles[].externalId` (the workspace id) and applied only to a workspace
+    whose own Zernio profile it is (the listed profile id must be that workspace's when given); an
+    event naming more than one of our workspaces is applied to none. It touches only that workspace's
+    accounts and posts.
   - Events used: `account.connected`, `account.disconnected`, `post.scheduled`, `post.published`,
-    `post.partial`, `post.failed`. Others are acknowledged and dropped.
+    `post.partial`, `post.failed` and `post.cancelled` (a scheduled post Zernio cancelled because its
+    account was disconnected: it shows as not sent, with our own sentence). Others are acknowledged
+    and dropped.
 - **Counts.** Zernio's counts are read during the reach report:
   - at most ten Zernio calls per report;
   - kept for half an hour (`METRICS_TTL_MS`).
@@ -148,10 +155,13 @@ Staff of the workspace read the rows (RLS, `gms.is_staff`). Every write goes thr
 
 ## Applications started from social
 
-Shared links carry `utm_source=social`. The reach report counts the call's applications whose
-`started` event has `payload.utmSource = "social"`. Recording that on the public page and at the
-start of an application is a two-line hook outside this feature, listed for the integrator. Until it
-lands, the count is 0.
+Shared links carry `utm_source=social`. The opportunity page remembers such a visit in that browser
+tab only (`apps/web/src/lib/socialLanding.ts`, sessionStorage, per funder and opportunity), and an
+application started there is started with `POST /common-grants/applications/start?utm_source=social`:
+the source travels in the query string because the CommonGrants start body takes no other field.
+Only `social` is recorded (`START_SOURCES` in `services/apply.ts`), as the `started` event's
+`payload.utmSource`; the reach report counts the call's applications whose `started` event has it.
+Nothing else about the visit is kept.
 
 ## Setting it up (the owner)
 
@@ -160,10 +170,11 @@ lands, the count is 0.
 2. In Zernio's dashboard, add a webhook endpoint:
    - **URL:** `{GMS_BASE_URL}/webhooks/zernio`, for example `https://gms.opengrants.io/webhooks/zernio`.
    - **Events:** `account.connected`, `account.disconnected`, `post.scheduled`, `post.published`,
-     `post.partial`, `post.failed`.
+     `post.partial`, `post.failed`, `post.cancelled`.
    - **Profiles:** all. Each workspace's profile is created on its first connection, so a list of
      profile ids would miss new ones.
-3. Copy the endpoint's signing secret. Store it as `wrangler secret put ZERNIO_WEBHOOK_SECRET`.
+3. Choose the endpoint's signing secret (Zernio never generates one: you set it on the endpoint) and
+   store the same value as `wrangler secret put ZERNIO_WEBHOOK_SECRET`.
 4. Deploy the API (it holds migration 0038) and the web app. Once both secrets are set,
    `/gms/config` reports `available.social: true`.
 

@@ -212,7 +212,7 @@ export function createMockSocialApi(opts: MockSocialOptions): SocialApi {
         status,
         platforms: [...new Set(c.accounts.map((a) => a.platform))],
         accounts: c.accounts.map((a) => {
-          const t = zp?.platforms.find((p) => p.accountId === a.zernioAccountId);
+          const t = zp?.platforms.find((p) => p.accountId === a.zernioAccountId) ?? zp?.platforms.find((p) => p.accountId === null && p.platform === a.platform);
           return { accountId: a.id, platform: a.platform, label: PLATFORM_LABEL[a.platform], username: a.username, status: status === "scheduled" ? "scheduled" : t?.status === "failed" ? "failed" : "published", url: t?.url ?? null };
         }),
         scheduledFor: c.check.scheduledAt?.toISOString() ?? null,

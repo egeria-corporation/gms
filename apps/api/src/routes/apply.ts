@@ -23,7 +23,10 @@ export const cgApplications = new Hono<AppEnv>();
 cgApplications.use("/applications/*", authenticate());
 
 cgApplications.post("/applications/start", async (c) => {
-  const { application, created: isNew } = await apply.startApplication(await svc(c), parse(apply.startInput, await jsonBody(c)));
+  // Where the person came from, for social posting's reach report: only `utm_source=social`, in the
+  // query string (the CommonGrants start body takes no other field).
+  const source = apply.startSourceOf(c.req.query("utm_source"));
+  const { application, created: isNew } = await apply.startApplication(await svc(c), parse(apply.startInput, await jsonBody(c)), source);
   return isNew ? c.json(created(application), 201) : c.json(ok(application));
 });
 cgApplications.post("/applications/search", async (c) => {
