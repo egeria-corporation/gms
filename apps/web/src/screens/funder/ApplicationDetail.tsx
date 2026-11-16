@@ -19,6 +19,7 @@ import { ErrorBanner, Field, Loading, Notice, Tabs, TabPanel } from "../../compo
 import { AiSummaryPanel, AssistantPanel, BudgetPanel, DocumentsPanel } from "./ApplicationPanels.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { explainResult } from "../../lib/eligibilityText.ts";
 import { actorLabel, dateTime, EligibilityMark, timeAgo, usePeople } from "./shared.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
 
@@ -538,7 +539,7 @@ export default function ApplicationDetail() {
                             <div className="l">
                               {r.label} <SelfReportedTag result={r} />
                             </div>
-                            <div className="r">{r.explain}</div>
+                            <div className="r">{explainResult(r)}</div>
                           </div>
                           <span className="small b">{r.outcome === "pass" ? t("applicationDetail.pass") : r.outcome === "fail" ? t("applicationDetail.fail") : t("applicationDetail.unknown2")}</span>
                         </li>

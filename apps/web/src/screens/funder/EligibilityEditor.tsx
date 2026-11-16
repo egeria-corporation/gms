@@ -8,6 +8,7 @@ import { useApiMutation } from "../../api/hooks.ts";
 import type { Evaluation } from "../../api/types.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { APPLICANT_TYPE_LABELS } from "../../lib/format.ts";
+import { explainResult } from "../../lib/eligibilityText.ts";
 import { describeRow, FACTS, IRS_SUBSECTIONS, LEVELS, newRow, rowsToRules, US_STATES, type FactKey, type RuleRow } from "../../lib/rules.ts";
 import { t } from "./i18n.ts";
 
@@ -350,7 +351,7 @@ export function EligibilityDryRun({ rows }: { rows: RuleRow[] }) {
                     <o.icon className="ic" role="img" aria-label={o.word} />
                     <div>
                       <div className="l">{r.label}</div>
-                      <div className="r">{r.explain}</div>
+                      <div className="r">{explainResult(r)}</div>
                     </div>
                     <span className="fix">{o.word}</span>
                   </li>

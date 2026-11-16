@@ -217,6 +217,7 @@
   "findFunding.outcome.unknown": "No se pudo verificar",
   "findFunding.stageCloses": "{stage}: cierra el {date}",
   "findFunding.outOfDate": "Si los datos de su organización están desactualizados, <link>actualícelos</link> y el resultado se vuelve a calcular.",
+  "findFunding.ruleExplained": "«{label}»: {explain}",
   "findFunding.rulesUnchecked": "{count, plural, one {No se pudo verificar una regla} other {No se pudieron verificar # reglas}}",
   "findFunding.openOriginalListing": "Abrir el anuncio original",
   "findFunding.results": "{count, plural, one {# resultado} other {# resultados}}",

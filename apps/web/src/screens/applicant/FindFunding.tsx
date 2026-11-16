@@ -23,6 +23,7 @@ import { DigestPrompt } from "../../components/DigestPrompt.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
+import { explainResult } from "../../lib/eligibilityText.ts";
 import { FundingAlerts } from "./fundingAlerts.tsx";
 import { socialSourceFor } from "../../lib/socialLanding.ts";
 import { t, useApplicantText } from "./i18n.ts";
@@ -168,7 +169,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
               {failed[0].label}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              {failed[0].explain} {t.rich("findFunding.outOfDate", { link: (chunks) => <Link to={`${base}/organization`}>{chunks}</Link> })}
+              {explainResult(failed[0])} {t.rich("findFunding.outOfDate", { link: (chunks) => <Link to={`${base}/organization`}>{chunks}</Link> })}
             </div>
           </div>
         </div>
@@ -181,7 +182,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
               {t("findFunding.rulesUnchecked", { count: unknown.length })}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              {unknown[0] ? `“${unknown[0].label}”: ${unknown[0].explain}` : t("findFunding.aProgramOfficerReviewsThisBy")}
+              {unknown[0] ? t("findFunding.ruleExplained", { label: unknown[0].label, explain: explainResult(unknown[0]) }) : t("findFunding.aProgramOfficerReviewsThisBy")}
             </div>
           </div>
         </div>

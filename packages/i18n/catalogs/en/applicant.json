@@ -356,6 +356,7 @@
   "findFunding.outcome.unknown": "Could not be checked",
   "findFunding.stageCloses": "{stage} closes {date}",
   "findFunding.outOfDate": "If your organization details are out of date, <link>update them</link> and the result re-evaluates.",
+  "findFunding.ruleExplained": "“{label}”: {explain}",
   "findFunding.rulesUnchecked": "{count, plural, one {One rule could not be checked} other {# rules could not be checked}}",
   "findFunding.openOriginalListing": "Open original listing",
   "findFunding.results": "{count, plural, one {# result} other {# results}}",

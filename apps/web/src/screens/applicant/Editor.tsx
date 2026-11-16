@@ -30,6 +30,7 @@ import type { DraftInvitation } from "../../api/invites.ts";
 import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
 import { validationMessage } from "../../forms/FormView.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { explainResult } from "../../lib/eligibilityText.ts";
 
 interface EditorData {
   app: Application;
@@ -645,7 +646,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       const Icon = r.outcome === "pass" ? CircleCheck : r.outcome === "fail" ? CircleX : CircleDashed;
                       const color = r.outcome === "pass" ? "var(--s-ok-fg)" : r.outcome === "fail" ? "var(--s-dng-fg)" : "var(--og-gray-600)";
                       return (
-                        <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={r.explain}>
+                        <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={explainResult(r)}>
                           <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? t("editor.passes") : r.outcome === "fail" ? t("editor.doesNotPass") : t("editor.couldNotBeChecked")} style={{ marginTop: "3px" }} />
                           {r.label} <SelfReportedTag result={r} />
                         </li>

@@ -745,7 +745,17 @@ model EligibilityRuleResult {
 
   outcome: TriState;
   actual?: unknown;
+
+  /** The result in an English sentence. */
   explain: string;
+
+  /**
+   * Why `explain` reads as it does, so a client can word it in its reader's language: the funder's
+   * own template (`custom`), a Passport-only fact for an organization without Passport, a rule met
+   * on what the organization entered itself, a fact not available, a value that cannot be compared,
+   * met, not met, or the outcome alone (another organization's record).
+   */
+  because?: "custom" | "passport_only" | "self_reported" | "unavailable" | "incomparable" | "met" | "not_met" | "outcome_only";
 
   /** The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
   selfReported?: boolean;
