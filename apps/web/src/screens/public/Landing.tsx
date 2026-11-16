@@ -11,6 +11,8 @@ import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, ChevronDown, Download, ExternalLink, Menu, ShieldCheck, ShieldOff, X } from "lucide-react";
 
 const DEPLOY_GUIDE = "https://github.com/egeria-corporation/gms/blob/main/DEPLOY_WITH_AGENT.md";
+/** The WCAG 2.2 AA conformance report (VPAT 2.5 format) that buyers ask for. */
+const ACCESSIBILITY_REPORT = "https://github.com/egeria-corporation/gms/blob/main/docs/accessibility.md";
 
 const FUNDER_STEPS: Array<[string, string]> = [
   ["Sign up with your email", "We send a code. No password."],
@@ -327,6 +329,7 @@ export default function Landing() {
               <a href="/openapi.json">API</a>
               <a href="https://commongrants.org">CommonGrants spec</a>
               <a href="https://github.com/egeria-corporation/gms">Source</a>
+              <a href={ACCESSIBILITY_REPORT}>Accessibility</a>
             </div>
           </div>
         </footer>

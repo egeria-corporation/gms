@@ -67,6 +67,7 @@ Database tests (pgTAP) need a local Supabase stack: `supabase start`, then `supa
 - [CHANGELOG.md](CHANGELOG.md): releases and upgrade notes
 - [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md): working rules for contributors and coding agents
 - [docs/decisions.md](docs/decisions.md): decisions and why
+- [docs/accessibility.md](docs/accessibility.md): accessibility conformance report (WCAG 2.2 AA, VPAT 2.5 format)
 
 ## License
 

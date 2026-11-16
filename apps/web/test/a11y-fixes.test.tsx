@@ -110,6 +110,18 @@ describe("landmarks, headings and roles (1.3.1, 4.1.2)", () => {
   });
 });
 
+describe("the conformance report", () => {
+  it("is linked from the landing page's footer", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App services={createMockServices({ session: null })} />
+      </MemoryRouter>,
+    );
+    const footer = await screen.findByRole("contentinfo");
+    expect(within(footer).getByRole("link", { name: "Accessibility" })).toHaveAttribute("href", "https://github.com/egeria-corporation/gms/blob/main/docs/accessibility.md");
+  });
+});
+
 describe("skip link (2.4.1)", () => {
   it("is the first link and moves focus to the main content", async () => {
     render(
