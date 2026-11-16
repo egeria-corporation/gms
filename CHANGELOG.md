@@ -10,8 +10,9 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 - **Español (beta).** The whole app can be used in Spanish: the public pages, sign-in, the applicant
   and funder screens, the reviewer portal, the form, report and email builders, emails, the fixed
   text of generated documents, share cards, and error messages. The language switcher in every
-  footer, the sign-in page and the account menu offers "English" and "Español (beta)". The Spanish
-  is neutral Latin American Spanish with "usted", written against one glossary (`docs/i18n.md`).
+  public page's footer, the sign-in page, the account menu and the phone menu offers "English" and
+  "Español (beta)". The Spanish is neutral Latin American Spanish with "usted", written against one
+  glossary (`docs/i18n.md`).
   **A native speaker's review is welcome:** `docs/i18n.md` says how to find a message and propose a
   better wording.
 - A signed-in person's language is saved with their account (`PUT /gms/me/preferences`, migration
