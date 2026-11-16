@@ -638,7 +638,7 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
     case "passportField":
       // No Passport record to follow: the applicant types the value like any other field.
       if (!ctx.passportLinked && ctx.mode === "edit")
-        return <input {...base} className={cls("inp", invalid)} value={text} onChange={(e) => ctx.set(path, e.target.value === "" ? undefined : e.target.value)} />;
+        return <input {...base} className={cls("inp", invalid)} autoComplete={organizationAutocomplete(path)} value={text} onChange={(e) => ctx.set(path, e.target.value === "" ? undefined : e.target.value)} />;
       return (
         <input
           {...base}
@@ -906,6 +906,19 @@ function SignatureInput({ id, path, value, ctx, disabled, invalid }: InputProps)
       </label>
     </div>
   );
+}
+
+/**
+ * The browser's autofill purpose for an organization field the applicant types (WCAG 1.3.5), from
+ * the last part of its path; nothing when the purpose is not one the browser knows.
+ */
+export function organizationAutocomplete(path: string): string | undefined {
+  const key = (path.split("/").pop() ?? "").toLowerCase();
+  if (/^(name|legalname|organizationname|orgname)$/.test(key)) return "organization";
+  if (/email/.test(key)) return "email";
+  if (/phone/.test(key)) return "tel";
+  if (/website|url/.test(key)) return "url";
+  return undefined;
 }
 
 function FileInput({ id, path, value, ctx, disabled, describedBy, label }: InputProps) {

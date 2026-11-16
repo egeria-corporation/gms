@@ -320,7 +320,7 @@ export default function FunderOnboarding() {
               >
                 {create.error !== null && <ErrorBanner error={create.error} title="The workspace could not be created" />}
                 <Field id="org-name" label="Organization name" required>
-                  <input className="inp" id="org-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!!workspace} required />
+                  <input className="inp" id="org-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!!workspace} required autoComplete="organization" />
                 </Field>
                 <Field id="org-handle" label="Handle" required help={`Your public page will be /f/${handle || "your-handle"}. Lowercase letters, digits and hyphens.`} error={problemFor(create.error, "handle")}>
                   <div className="row" style={{ gap: "0" }}>

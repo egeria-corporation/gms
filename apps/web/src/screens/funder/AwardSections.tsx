@@ -130,7 +130,7 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
               </span>
             </div>
           </div>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void letter.run()} disabled={letter.state === "saving"}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void letter.run()} disabled={letter.state === "saving"} aria-label="Open the award letter">
             <Download className="ic" aria-hidden="true" />
             Open
           </button>
@@ -153,7 +153,7 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
                 )}
               </div>
             </div>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => void pdf.run()} disabled={pdf.state === "saving"}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => void pdf.run()} disabled={pdf.state === "saving"} aria-label="Open the grant agreement">
               <Download className="ic" aria-hidden="true" />
               Open
             </button>

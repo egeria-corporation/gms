@@ -255,7 +255,7 @@ export default function FunderPage() {
                         {formatAwardRange(o.funding) !== "—" ? ` Expected range ${formatAwardRange(o.funding)}.` : ""}
                       </p>
                     </div>
-                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary">
+                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={`Details of ${o.title}`}>
                       Details
                     </Link>
                   </div>
