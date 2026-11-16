@@ -13,9 +13,14 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, problemFor, SaveNote } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { countText } from "../../lib/outside.ts";
-import { STALE_AFTER_MONTHS, VARIANT_KEYS, VARIANT_LABELS, VARIANT_WORDS, type VariantKey, type Variants } from "../../lib/writeKeep.ts";
+import { STALE_AFTER_MONTHS, VARIANT_KEYS, VARIANT_WORDS, type VariantKey, type Variants } from "../../lib/writeKeep.ts";
 import { AdaptPanel } from "./answerAdapt.tsx";
 import { StaleBadge } from "./outside/writeFaster.tsx";
+import { t, useApplicantText } from "./i18n.ts";
+
+/** Each version's name, in the page's language (lib/writeKeep.ts keeps the English one). */
+export const variantLabel = (k: VariantKey | "full"): string =>
+  k === "short" ? t("answerLibrary.variant.short") : k === "medium" ? t("answerLibrary.variant.medium") : k === "long" ? t("answerLibrary.variant.long") : t("answerLibrary.variant.full");
 
 /** When the answer was last checked, the short, medium and long versions, and its tags. */
 function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: (saved: LibraryAnswer | null) => void }) {
@@ -30,11 +35,11 @@ function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: 
       <div className="card-h">
         <div>
           <h2 id={`keep-${answer.id}`} style={{ fontSize: "18px" }}>
-            Keep it current
+            {t("answerLibrary.keepItCurrent")}
           </h2>
-          <p className="small muted">An answer not checked in {STALE_AFTER_MONTHS} months is flagged before its figures go into a new application.</p>
+          <p className="small muted">{t("answerLibrary.staleNote", { months: STALE_AFTER_MONTHS })}</p>
         </div>
-        <SaveNote state={save.state === "saved" && !dirty ? "saved" : verify.state === "saved" ? "saved" : "idle"} savedText={verify.state === "saved" && save.state !== "saved" ? "Marked as verified" : "Saved"} />
+        <SaveNote state={save.state === "saved" && !dirty ? "saved" : verify.state === "saved" ? "saved" : "idle"} savedText={verify.state === "saved" && save.state !== "saved" ? t("answerLibrary.markedAsVerified") : t("answerLibrary.saved")} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -49,24 +54,26 @@ function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: 
             }}
           >
             <CalendarCheck className="ic" aria-hidden="true" />
-            {verify.state === "saving" ? "Saving…" : "Mark as verified"}
+            {verify.state === "saving" ? t("answerLibrary.saving") : t("answerLibrary.markAsVerified")}
           </button>
-          <span className="small muted">{answer.lastVerifiedAt ? `Last checked ${formatDate(answer.lastVerifiedAt)}.` : "Never checked."} Mark it once the facts and figures in it are still true.</span>
+          <span className="small muted">
+            {answer.lastVerifiedAt ? t("answerLibrary.lastChecked", { date: formatDate(answer.lastVerifiedAt) }) : t("answerLibrary.neverChecked")} {t("answerLibrary.markOnce")}
+          </span>
         </div>
-        {verify.error ? <ErrorBanner error={verify.error} title="It was not marked as verified" /> : null}
+        {verify.error ? <ErrorBanner error={verify.error} title={t("answerLibrary.itWasNotMarkedAsVerified")} /> : null}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <span className="eyebrow">Shorter and longer versions</span>
-          <p className="small muted" style={{ margin: 0 }}>When a question has a limit, inserting from the library offers the version that fits best.</p>
+          <span className="eyebrow">{t("answerLibrary.shorterAndLongerVersions")}</span>
+          <p className="small muted" style={{ margin: 0 }}>{t("answerLibrary.whenAQuestionHasALimit")}</p>
           {VARIANT_KEYS.map((k: VariantKey) => (
-            <Field key={k} id={`var-${k}-${answer.id}`} label={`${VARIANT_LABELS[k]} (about ${VARIANT_WORDS[k]} words)`} help={`${countText(variants[k] ?? "").words} words`}>
+            <Field key={k} id={`var-${k}-${answer.id}`} label={t("answerLibrary.variantField", { name: variantLabel(k), words: VARIANT_WORDS[k] })} help={t("answerLibrary.wordsCount", { count: countText(variants[k] ?? "").words })}>
               <textarea id={`var-${k}-${answer.id}`} className="ta" style={{ minHeight: k === "short" ? "56px" : "88px" }} value={variants[k] ?? ""} onChange={(e) => setVariants({ ...variants, [k]: e.target.value })} />
             </Field>
           ))}
         </div>
-        <Field id={`tags-${answer.id}`} label="Tags" help="Separate them with commas, such as health, rural, evaluation.">
+        <Field id={`tags-${answer.id}`} label={t("answerLibrary.tags")} help={t("answerLibrary.separateThemWithCommasSuchAs")}>
           <input id={`tags-${answer.id}`} className="inp" value={tags} onChange={(e) => setTags(e.target.value)} />
         </Field>
-        {save.error ? <ErrorBanner error={save.error} title="The versions and tags were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("answerLibrary.theVersionsAndTagsWereNot")} /> : null}
       </div>
       <div className="card-f">
         <button
@@ -79,7 +86,7 @@ function KeepCurrent({ answer, onChanged }: { answer: LibraryAnswer; onChanged: 
             if (saved) onChanged(saved);
           }}
         >
-          Save versions and tags
+          {t("answerLibrary.saveVersionsAndTags")}
         </button>
       </div>
     </section>
@@ -102,7 +109,7 @@ function AnswerEditor({ answer, onSaved, onCancel }: { answer: Answer | null; on
   return (
     <form
       className="card"
-      aria-label={answer ? `Edit ${answer.title}` : "New answer"}
+      aria-label={answer ? t("answerLibrary.editTitle", { title: answer.title }) : t("answerLibrary.newAnswer")}
       onSubmit={async (e) => {
         e.preventDefault();
         const saved = await save.run();
@@ -111,31 +118,31 @@ function AnswerEditor({ answer, onSaved, onCancel }: { answer: Answer | null; on
     >
       <div className="card-h">
         <div>
-          <h2 style={{ fontSize: "18px" }}>{answer ? answer.title : "New answer"}</h2>
+          <h2 style={{ fontSize: "18px" }}>{answer ? answer.title : t("answerLibrary.newAnswer")}</h2>
           {answer && (
             <p className="small muted">
-              Version {answer.version} · updated {timeAgo(answer.updatedAt)}
+              {t("answerLibrary.versionUpdated", { version: String(answer.version), ago: timeAgo(answer.updatedAt) })}
             </p>
           )}
         </div>
-        <SaveNote state={save.state} savedText={answer ? "Saved as a new version" : "Saved"} />
+        <SaveNote state={save.state} savedText={answer ? t("answerLibrary.savedAsANewVersion") : t("answerLibrary.saved")} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {save.error && !problemFor(save.error, "title") ? <ErrorBanner error={save.error} /> : null}
-        <Field id="ans-title" label="Title" required error={problemFor(save.error, "title")}>
+        <Field id="ans-title" label={t("answerLibrary.title")} required error={problemFor(save.error, "title")}>
           <input className="inp" id="ans-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </Field>
-        <Field id="ans-body" label="Answer" help="Plain text. Adjust it to each funder’s question after inserting.">
+        <Field id="ans-body" label={t("answerLibrary.answer")} help={t("answerLibrary.plainTextAdjustItToEach")}>
           <textarea className="ta" id="ans-body" style={{ minHeight: "220px" }} value={body} onChange={(e) => setBody(e.target.value)} />
         </Field>
-        <div className="counter">{countWords(body)} words</div>
+        <div className="counter">{t("answerLibrary.wordsCount", { count: countWords(body) })}</div>
         {answer && (
           <div>
             <div className="eyebrow" style={{ marginBottom: "6px" }}>
-              Used in
+              {t("answerLibrary.usedIn")}
             </div>
             {used.length === 0 ? (
-              <p className="small muted">Not used in an application yet.</p>
+              <p className="small muted">{t("answerLibrary.notUsedInAnApplicationYet")}</p>
             ) : (
               <ul style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "14px" }}>
                 {used.map((u, i) => (
@@ -148,10 +155,10 @@ function AnswerEditor({ answer, onSaved, onCancel }: { answer: Answer | null; on
       </div>
       <div className="card-f">
         <button className="btn btn-primary" type="submit" disabled={save.state === "saving" || !dirty || !title.trim()}>
-          {answer ? "Save new version" : "Save answer"}
+          {answer ? t("answerLibrary.saveNewVersion") : t("answerLibrary.saveAnswer")}
         </button>
         <button className="btn btn-ghost" type="button" onClick={onCancel}>
-          {answer ? "Discard changes" : "Cancel"}
+          {answer ? t("answerLibrary.discardChanges") : t("answerLibrary.cancel")}
         </button>
       </div>
     </form>
@@ -159,6 +166,7 @@ function AnswerEditor({ answer, onSaved, onCancel }: { answer: Answer | null; on
 }
 
 export default function AnswerLibrary() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const applicant = useApplicantApi();
   // The library with each answer's last check, versions and tags (v1.6).
@@ -167,26 +175,26 @@ export default function AnswerLibrary() {
 
   return (
     <>
-      <title>{`Answer library — ${ws.name}`}</title>
+      <title>{t("answerLibrary.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Answer library">
         <main className="main">
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Answer library</h1>
+                <h1>{t("answerLibrary.answerLibrary")}</h1>
               </div>
               <div className="meta">
-                <span>Write it once, insert it into any application, and adapt it to the question.</span>
+                <span>{t("answerLibrary.writeItOnceInsertItInto")}</span>
               </div>
             </div>
             <div className="actions">
               <button className="btn btn-primary" type="button" onClick={() => setSelected("new")}>
                 <Plus className="ic" aria-hidden="true" />
-                New answer
+                {t("answerLibrary.newAnswer")}
               </button>
             </div>
           </div>
-          <Loaded query={query} label="Loading your answers">
+          <Loaded query={query} label={t("answerLibrary.loadingYourAnswers")}>
             {(answers) => {
               const current = selected === "new" ? null : (answers.find((a) => a.id === selected) ?? answers[0] ?? null);
               const editing = selected === "new" || current;
@@ -194,19 +202,19 @@ export default function AnswerLibrary() {
                 <div className="card">
                   <EmptyState
                     icon={BookOpen}
-                    title="No saved answers yet"
+                    title={t("answerLibrary.noSavedAnswersYet")}
                     actions={
                       <button className="btn btn-primary" type="button" onClick={() => setSelected("new")}>
-                        Write your first answer
+                        {t("answerLibrary.writeYourFirstAnswer")}
                       </button>
                     }
                   >
-                    Mission, need, evaluation approach: the paragraphs every funder asks for in slightly different words.
+                    {t("answerLibrary.missionNeedEvaluationApproachTheParagraphs")}
                   </EmptyState>
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.6fr)", gap: "20px", alignItems: "start" }}>
-                  <ul className="card" aria-label="Answers" style={{ display: "flex", flexDirection: "column", padding: "8px" }}>
+                  <ul className="card" aria-label={t("answerLibrary.answers")} style={{ display: "flex", flexDirection: "column", padding: "8px" }}>
                     {answers.map((a) => {
                       const on = selected !== "new" && current?.id === a.id;
                       return (
@@ -221,7 +229,7 @@ export default function AnswerLibrary() {
                             <span style={{ display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
                               <span className="b">{a.title}</span>
                               <span className="small muted" style={{ fontWeight: 400 }}>
-                                v{a.version} · {a.words} words · used in {(a.usedIn ?? []).length}
+                                {t("answerLibrary.listMeta", { version: String(a.version), words: a.words, used: (a.usedIn ?? []).length })}
                               </span>
                               <span style={{ fontWeight: 400 }}>
                                 <StaleBadge lastVerifiedAt={a.lastVerifiedAt} compact />

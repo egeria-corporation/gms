@@ -493,6 +493,13 @@ function errorText(e: ValidationError, label: string): string {
   return `${label} ${m}`;
 }
 
+/** A validation message without its field's label, for a list that names the field beside it. */
+export function validationMessage(e: ValidationError): string {
+  if (/^[A-Z]/.test(e.message)) return e.message;
+  const text = errorText(e, "").replace(/^[\s:]+/, "");
+  return text || e.message;
+}
+
 const FORMAT_KIND: Record<string, string> = { email: "email", uri: "uri", date: "date", "date-time": "datetime" };
 const ERROR_TEXT: [RegExp, (m: RegExpExecArray, label: string, type: string) => string][] = [
   [/^is required$/, (_, label) => t("form.error.required", { label })],
