@@ -4,6 +4,7 @@
 // the applicant typed, so each is plain text: cleaned, escaped in the HTML part, never a link. The
 // only links are the GMS's own.
 import { cleanLine, cleanText } from "./direct-award.ts";
+import { DEFAULT_LOCALE, emailDate, emailT, type EmailKey, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 export const OUTSIDE_DEADLINE_TEMPLATE = "outside_deadline";
@@ -12,8 +13,8 @@ export const OUTSIDE_DEADLINE_TEMPLATE = "outside_deadline";
 export const OUTSIDE_DEADLINE_OFFSETS: readonly number[] = [14, 7, 2, 0];
 
 export type OutsideDeadlineKind = "loi" | "full" | "internal";
-const KIND_LABEL: Record<OutsideDeadlineKind, string> = { loi: "Letter of inquiry", full: "Full application", internal: "Internal deadline" };
-export const outsideDeadlineLabel = (kind: OutsideDeadlineKind): string => KIND_LABEL[kind];
+const KIND_LABEL: Record<OutsideDeadlineKind, EmailKey> = { loi: "outsideDeadline.kind.loi", full: "outsideDeadline.kind.full", internal: "outsideDeadline.kind.internal" };
+export const outsideDeadlineLabel = (kind: OutsideDeadlineKind, locale: Locale = DEFAULT_LOCALE): string => emailT(locale)(KIND_LABEL[kind]);
 
 export interface OutsideDeadlineFields {
   organization: string;
@@ -27,6 +28,8 @@ export interface OutsideDeadlineFields {
   openQuestions: number;
   /** The outside application in the GMS. */
   link: string;
+  /** The recipient's language (English when absent). */
+  locale?: Locale;
 }
 
 const SAFE_LINK = /^https:\/\/[^\s"'<>]+$/;
@@ -38,22 +41,26 @@ const paragraphs = (text: string) =>
     .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
     .join("\n");
 
-const when = (days: number) => (days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`);
+const when = (days: number) => ({ when: days <= 0 ? "today" : days === 1 ? "tomorrow" : "future", days });
 
 export function outsideDeadlineEmail(f: OutsideDeadlineFields): RenderedEmail {
   if (!SAFE_LINK.test(f.link)) throw new Error("The link must be an https URL");
   const title = cleanLine(f.title);
   const funder = f.funder ? cleanLine(f.funder) : null;
   const org = cleanLine(f.organization);
-  const label = KIND_LABEL[f.kind];
-  const subject = cleanLine(`${label} due ${when(f.daysLeft)}: ${title}`);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const subject = cleanLine(t("outsideDeadline.subject", { kind: f.kind, ...when(f.daysLeft), title }));
   const lines = [
-    `${label} for ${title}${funder ? ` (${funder})` : ""} is due ${when(f.daysLeft)}, on ${cleanLine(f.dueOn)}.`,
-    f.openQuestions > 0 ? `${f.openQuestions} question${f.openQuestions === 1 ? " is" : "s are"} not yet approved.` : "Every question is approved.",
-    f.kind === "internal" ? "This is your team's own deadline, set in the GMS." : "Submit it to the funder directly; the GMS keeps your record of it.",
+    t("outsideDeadline.line", { kind: f.kind, title: `${title}${funder ? ` (${funder})` : ""}`, ...when(f.daysLeft), date: emailDate(locale, cleanLine(f.dueOn)) }),
+    t("outsideDeadline.questions", { count: f.openQuestions }),
+    t(f.kind === "internal" ? "outsideDeadline.internal" : "outsideDeadline.submit"),
   ];
-  const text = [`Hello,`, lines.join("\n"), `Open the application: ${f.link}`, `You get this because you own the application or a question on it in ${org}. Change which emails you get in your notification settings.`].join("\n\n");
-  const html = [paragraphs("Hello,"), paragraphs(lines.join("\n")), `<p><a href="${escapeHtml(f.link)}">Open the application</a></p>`, paragraphs(`You get this because you own the application or a question on it in ${org}. Change which emails you get in your notification settings.`)].join("\n");
+  const open = t("outsideDeadline.link");
+  const why = t("outsideDeadline.why", { organization: org });
+  const hello = t("common.hello");
+  const text = [hello, lines.join("\n"), `${open}: ${f.link}`, why].join("\n\n");
+  const html = [paragraphs(hello), paragraphs(lines.join("\n")), `<p><a href="${escapeHtml(f.link)}">${escapeHtml(open)}</a></p>`, paragraphs(why)].join("\n");
   return { subject, text, html };
 }
 

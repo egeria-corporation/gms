@@ -6,16 +6,22 @@
 // names come from OpenGrants or from what people typed: cleaned, escaped in the HTML part, never a
 // link. The only links are the GMS's own. The funder digest carries counts, never applicants' answers.
 import { cleanLine } from "./direct-award.ts";
+import { DEFAULT_LOCALE, emailDate, emailT, type EmailKey, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 export const CONTENT_DIGESTS = ["new_matches", "deadlines", "funder_activity"] as const;
 export type ContentDigest = (typeof CONTENT_DIGESTS)[number];
 
-/** What each digest is called on screen and in the email. */
+const LABEL_KEY: Record<ContentDigest, EmailKey> = { new_matches: "digest.label.newMatches", deadlines: "digest.label.deadlines", funder_activity: "digest.label.funderActivity" };
+
+/** What a digest is called in a language. */
+export const contentDigestLabel = (digest: ContentDigest, locale: Locale = DEFAULT_LOCALE): string => emailT(locale)(LABEL_KEY[digest]);
+
+/** What each digest is called on screen and in the email (English; `contentDigestLabel` for another language). */
 export const CONTENT_DIGEST_LABEL: Record<ContentDigest, string> = {
-  new_matches: "New matches",
-  deadlines: "Deadlines",
-  funder_activity: "This week's activity",
+  new_matches: contentDigestLabel("new_matches"),
+  deadlines: contentDigestLabel("deadlines"),
+  funder_activity: contentDigestLabel("funder_activity"),
 };
 
 /** Template names (idempotency keys and tags). */
@@ -41,6 +47,8 @@ export interface DigestFrame {
   oneClickUrl: string;
   /** Where the person changes which emails they get. */
   settingsLink: string;
+  /** The recipient's language (English when absent). Titles and names stay as written. */
+  locale?: Locale;
 }
 
 export interface DigestEmail extends RenderedEmail {
@@ -52,7 +60,6 @@ const assertLink = (link: string) => {
   if (!SAFE_LINK.test(link)) throw new Error("The link must be an https URL");
 };
 const esc = (v: string) => escapeHtml(v);
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** The two headers that let a mail app offer "Unsubscribe" and do it with one POST. */
 export function unsubscribeHeaders(oneClickUrl: string): Record<string, string> {
@@ -63,16 +70,17 @@ export function unsubscribeHeaders(oneClickUrl: string): Record<string, string> 
 function frame(digest: ContentDigest, f: DigestFrame, subject: string, intro: string, bodyText: string[], bodyHtml: string, note?: string | null): DigestEmail {
   for (const link of [f.unsubscribeLink, f.oneClickUrl, f.settingsLink]) assertLink(link);
   const ws = cleanLine(f.workspace);
-  const label = CONTENT_DIGEST_LABEL[digest];
-  const why = `You get this because you turned on "${label}" for ${ws}. It comes on Mondays, and only when there is something new.`;
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const why = t("digest.why", { label: contentDigestLabel(digest, locale), workspace: ws });
   const cleanNote = note ? cleanLine(note) : null;
-  const text = ["Hello,", intro, ...bodyText, ...(cleanNote ? [cleanNote] : []), `Change which emails you get: ${f.settingsLink}`, `Stop getting this email: ${f.unsubscribeLink}`, why].join("\n\n");
+  const text = [t("common.hello"), intro, ...bodyText, ...(cleanNote ? [cleanNote] : []), t("digest.settings.text", { link: f.settingsLink }), t("digest.unsubscribe.text", { link: f.unsubscribeLink }), why].join("\n\n");
   const html = [
-    "<p>Hello,</p>",
+    `<p>${esc(t("common.hello"))}</p>`,
     `<p>${esc(intro)}</p>`,
     bodyHtml,
     ...(cleanNote ? [`<p>${esc(cleanNote)}</p>`] : []),
-    `<p><a href="${esc(f.settingsLink)}">Change which emails you get</a> · <a href="${esc(f.unsubscribeLink)}">Stop getting this email</a></p>`,
+    `<p><a href="${esc(f.settingsLink)}">${esc(t("digest.settings.link"))}</a> · <a href="${esc(f.unsubscribeLink)}">${esc(t("digest.unsubscribe.link"))}</a></p>`,
     `<p>${esc(why)}</p>`,
   ].join("\n");
   return { subject: cleanLine(subject), text, html, headers: unsubscribeHeaders(f.oneClickUrl) };
@@ -103,13 +111,15 @@ export function newMatchesDigestEmail(f: NewMatchesFields): DigestEmail {
   if (!items.length) throw new Error("A digest with nothing new is not sent");
   for (const m of items) assertLink(m.link);
   const ws = cleanLine(f.workspace);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
   const n = items.length;
-  const intro = `${n === 1 ? "Here is a new funding opportunity" : `Here are ${n} new funding opportunities`} that ${n === 1 ? "fits" : "fit"} ${ws}. ${n === 1 ? "It was not in an earlier email and is not saved yet." : "None of them was in an earlier email or is saved yet."}`;
-  const detail = (m: DigestMatch) => [m.deadline ? `Deadline ${cleanLine(m.deadline)}` : null, m.amount ? cleanLine(m.amount) : null, m.source === "gms" ? "Open for applications here" : "From the OpenGrants index"].filter(Boolean).join(" · ");
+  const intro = t("digest.matches.intro", { count: n, workspace: ws });
+  const detail = (m: DigestMatch) => [m.deadline ? t("digest.matches.deadline", { date: emailDate(locale, cleanLine(m.deadline)) }) : null, m.amount ? cleanLine(m.amount) : null, m.source === "gms" ? t("digest.matches.here") : t("digest.matches.index")].filter(Boolean).join(" · ");
   const head = (m: DigestMatch) => `${cleanLine(m.title)}${m.funder ? ` (${cleanLine(m.funder)})` : ""}`;
   const text = items.map((m, i) => `${i + 1}. ${head(m)}\n   ${detail(m)}\n   ${m.link}`);
   const html = `<ol>\n${items.map((m) => `<li><a href="${esc(m.link)}">${esc(cleanLine(m.title))}</a>${m.funder ? ` (${esc(cleanLine(m.funder))})` : ""}<br>${esc(detail(m))}</li>`).join("\n")}\n</ol>`;
-  return frame("new_matches", f, `${plural(n, "new funding match", "new funding matches")} for ${ws}`, intro, [text.join("\n\n")], html, f.note);
+  return frame("new_matches", f, t("digest.matches.subject", { count: n, workspace: ws }), intro, [text.join("\n\n")], html, f.note);
 }
 
 // ------------------------------------------------------------------------------------ deadlines
@@ -131,20 +141,25 @@ export interface DeadlinesFields extends DigestFrame {
 }
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-const relative = (days: number) => (days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`);
+const relative = (t: ReturnType<typeof emailT>, days: number) => t("digest.deadlines.when", { when: days <= 0 ? "today" : days === 1 ? "tomorrow" : "future", days });
 
 export function deadlinesDigestEmail(f: DeadlinesFields): DigestEmail {
   if (!f.items.length) throw new Error("A digest with nothing new is not sent");
   const items = [...f.items].sort((a, b) => a.date.localeCompare(b.date));
   for (const d of items) assertLink(d.link);
   const ws = cleanLine(f.workspace);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const weeks = DEADLINE_DIGEST_DAYS / 7;
   const shown = items.slice(0, MAX_DEADLINE_LINES);
   const more = items.length - shown.length;
-  const line = (d: DigestDeadline) => `${cleanLine(d.date)} (${relative(daysBetween(f.today, d.date))}): ${cleanLine(d.label)}, ${cleanLine(d.title)}${d.funder ? ` (${cleanLine(d.funder)})` : ""}`;
-  const intro = `${items.length === 1 ? "One deadline is" : `${items.length} deadlines are`} coming up for ${ws} in the next ${DEADLINE_DIGEST_DAYS / 7} weeks.`;
-  const text = [...shown.map((d) => `- ${line(d)}\n  ${d.link}`), ...(more > 0 ? [`… and ${more} more`] : [])].join("\n");
-  const html = `<ul>\n${shown.map((d) => `<li><a href="${esc(d.link)}">${esc(line(d))}</a></li>`).join("\n")}${more > 0 ? `\n<li>… and ${more} more</li>` : ""}\n</ul>`;
-  return frame("deadlines", f, `${plural(items.length, "deadline", "deadlines")} in the next ${DEADLINE_DIGEST_DAYS / 7} weeks: ${ws}`, intro, [text], html);
+  // A date, how far off it is, the label, the title (and funder): data and punctuation, in the same order in every language.
+  const line = (d: DigestDeadline) => `${emailDate(locale, cleanLine(d.date))} (${relative(t, daysBetween(f.today, d.date))}): ${cleanLine(d.label)}, ${cleanLine(d.title)}${d.funder ? ` (${cleanLine(d.funder)})` : ""}`;
+  const intro = t("digest.deadlines.intro", { count: items.length, workspace: ws, weeks });
+  const moreLine = t("digest.deadlines.more", { count: more });
+  const text = [...shown.map((d) => `- ${line(d)}\n  ${d.link}`), ...(more > 0 ? [moreLine] : [])].join("\n");
+  const html = `<ul>\n${shown.map((d) => `<li><a href="${esc(d.link)}">${esc(line(d))}</a></li>`).join("\n")}${more > 0 ? `\n<li>${esc(moreLine)}</li>` : ""}\n</ul>`;
+  return frame("deadlines", f, t("digest.deadlines.subject", { count: items.length, workspace: ws, weeks }), intro, [text], html);
 }
 
 // ------------------------------------------------------------------------------------ funder activity
@@ -166,11 +181,11 @@ export interface FunderActivityFields extends DigestFrame {
   links: Record<keyof FunderActivityCounts, string>;
 }
 
-const ACTIVITY: { key: keyof FunderActivityCounts; one: string; many: string; open: string }[] = [
-  { key: "newApplications", one: "new application", many: "new applications", open: "Open applications" },
-  { key: "reviewsDue", one: "review due", many: "reviews due", open: "Open review assignments" },
-  { key: "paymentsDue", one: "payment due", many: "payments due", open: "Open payments due" },
-  { key: "reportsOverdue", one: "report overdue", many: "reports overdue", open: "Open reporting" },
+const ACTIVITY: { key: keyof FunderActivityCounts; count: EmailKey; open: EmailKey }[] = [
+  { key: "newApplications", count: "digest.activity.newApplications", open: "digest.activity.openNewApplications" },
+  { key: "reviewsDue", count: "digest.activity.reviewsDue", open: "digest.activity.openReviewsDue" },
+  { key: "paymentsDue", count: "digest.activity.paymentsDue", open: "digest.activity.openPaymentsDue" },
+  { key: "reportsOverdue", count: "digest.activity.reportsOverdue", open: "digest.activity.openReportsOverdue" },
 ];
 
 /** Counts and links only: no applicant, title or answer is ever named. */
@@ -179,9 +194,10 @@ export function funderActivityDigestEmail(f: FunderActivityFields): DigestEmail 
   if (!rows.length) throw new Error("A digest with nothing new is not sent");
   for (const a of rows) assertLink(f.links[a.key]);
   const ws = cleanLine(f.workspace);
-  const parts = rows.map((a) => plural(f.counts[a.key], a.one, a.many));
-  const intro = `Here is what needs your attention at ${ws} this week.`;
-  const text = rows.map((a) => `- ${plural(f.counts[a.key], a.one, a.many)}\n  ${a.open}: ${f.links[a.key]}`).join("\n");
-  const html = `<ul>\n${rows.map((a) => `<li>${esc(plural(f.counts[a.key], a.one, a.many))}: <a href="${esc(f.links[a.key])}">${esc(a.open)}</a></li>`).join("\n")}\n</ul>`;
-  return frame("funder_activity", f, `${ws} this week: ${parts.join(", ")}`, intro, [text], html);
+  const t = emailT(f.locale ?? DEFAULT_LOCALE);
+  const count = (a: (typeof ACTIVITY)[number]) => t(a.count, { count: f.counts[a.key] });
+  const intro = t("digest.activity.intro", { workspace: ws });
+  const text = rows.map((a) => `- ${count(a)}\n  ${t(a.open)}: ${f.links[a.key]}`).join("\n");
+  const html = `<ul>\n${rows.map((a) => `<li>${esc(count(a))}: <a href="${esc(f.links[a.key])}">${esc(t(a.open))}</a></li>`).join("\n")}\n</ul>`;
+  return frame("funder_activity", f, t("digest.activity.subject", { workspace: ws, parts: rows.map(count).join(", ") }), intro, [text], html);
 }

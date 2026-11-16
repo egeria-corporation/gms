@@ -5,6 +5,7 @@
 // (`outside_next_cycle`). Every value is what the applicant typed: cleaned, escaped in the HTML
 // part, never a link. The only links are the GMS's own.
 import { cleanLine } from "./direct-award.ts";
+import { DEFAULT_LOCALE, emailDate, emailT, whenOf, type EmailT, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 export const DOCUMENT_EXPIRING_TEMPLATE = "document_expiring";
@@ -27,12 +28,12 @@ const paragraphs = (text: string) =>
 const assertLink = (link: string) => {
   if (!SAFE_LINK.test(link)) throw new Error("The link must be an https URL");
 };
-const render = (subject: string, lines: string[], linkLabel: string, link: string, why: string): RenderedEmail => {
-  const text = ["Hello,", lines.join("\n"), `${linkLabel}: ${link}`, why].join("\n\n");
-  const html = [paragraphs("Hello,"), paragraphs(lines.join("\n")), `<p><a href="${escapeHtml(link)}">${escapeHtml(linkLabel)}</a></p>`, paragraphs(why)].join("\n");
+const render = (t: EmailT, subject: string, lines: string[], linkLabel: string, link: string, why: string): RenderedEmail => {
+  const hello = t("common.hello");
+  const text = [hello, lines.join("\n"), `${linkLabel}: ${link}`, why].join("\n\n");
+  const html = [paragraphs(hello), paragraphs(lines.join("\n")), `<p><a href="${escapeHtml(link)}">${escapeHtml(linkLabel)}</a></p>`, paragraphs(why)].join("\n");
   return { subject: cleanLine(subject), text, html };
 };
-const relative = (days: number) => (days === 0 ? "today" : days === 1 ? "tomorrow" : days > 1 ? `in ${days} days` : days === -1 ? "yesterday" : `${-days} days ago`);
 
 export interface DocumentExpiringFields {
   organization: string;
@@ -44,16 +45,18 @@ export interface DocumentExpiringFields {
   daysLeft: number;
   /** The vault in the GMS. */
   link: string;
+  /** The recipient's language (English when absent); `typeLabel` must already be in it. */
+  locale?: Locale;
 }
 
 export function documentExpiringEmail(f: DocumentExpiringFields): RenderedEmail {
   assertLink(f.link);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
   const name = cleanLine(f.documentName);
-  const lines = [
-    `${cleanLine(f.typeLabel)} "${name}" in your document vault expires ${relative(f.daysLeft)}, on ${cleanLine(f.expiresOn)}.`,
-    "Upload the current version so applications use it, and set its new expiry date.",
-  ];
-  return render(`Document expiring ${relative(f.daysLeft)}: ${name}`, lines, "Open the document vault", f.link, `You get this because you manage documents for ${cleanLine(f.organization)}. Change which emails you get in your notification settings.`);
+  const when = whenOf(f.daysLeft);
+  const lines = [t("keep.document.line", { type: cleanLine(f.typeLabel), name, ...when, date: emailDate(locale, cleanLine(f.expiresOn)) }), t("keep.document.upload")];
+  return render(t, t("keep.document.subject", { ...when, name }), lines, t("keep.document.link"), f.link, t("keep.document.why", { organization: cleanLine(f.organization) }));
 }
 
 export type ObligationReminderKind = "report" | "condition";
@@ -70,20 +73,21 @@ export interface ObligationDueFields {
   /** Positive before the due date, 0 on it, negative after. */
   daysLeft: number;
   link: string;
+  /** The recipient's language (English when absent). */
+  locale?: Locale;
 }
 
 export function outsideObligationEmail(f: ObligationDueFields): RenderedEmail {
   assertLink(f.link);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
   const what = cleanLine(f.obligationTitle);
   const award = `${cleanLine(f.title)}${f.funder ? ` (${cleanLine(f.funder)})` : ""}`;
-  const noun = f.kind === "report" ? "report" : "condition";
-  const due = f.daysLeft >= 0 ? `is due ${relative(f.daysLeft)}, on ${cleanLine(f.dueOn)}` : `was due ${relative(f.daysLeft)}, on ${cleanLine(f.dueOn)}, and is not marked ${f.kind === "report" ? "submitted" : "done"}`;
-  const lines = [
-    `The ${noun} "${what}" for ${award} ${due}.`,
-    f.kind === "report" ? "Write it in the GMS, send it to the funder, then mark it submitted." : "Mark it done in the GMS once it is met.",
-  ];
-  const subject = f.daysLeft >= 0 ? `${f.kind === "report" ? "Report" : "Condition"} due ${relative(f.daysLeft)}: ${what}` : `Overdue ${noun}: ${what}`;
-  return render(subject, lines, "Open the award", f.link, `You get this because you own this award or are assigned to it in ${cleanLine(f.organization)}. Change which emails you get in your notification settings.`);
+  const when = whenOf(f.daysLeft);
+  const values = { kind: f.kind, title: what, award, ...when, date: emailDate(locale, cleanLine(f.dueOn)) };
+  const lines = [t(f.daysLeft >= 0 ? "keep.obligation.due" : "keep.obligation.overdue", values), t(f.kind === "report" ? "keep.obligation.nextReport" : "keep.obligation.nextCondition")];
+  const subject = t(f.daysLeft >= 0 ? "keep.obligation.subjectDue" : "keep.obligation.subjectOverdue", values);
+  return render(t, subject, lines, t("keep.obligation.link"), f.link, t("keep.obligation.why", { organization: cleanLine(f.organization) }));
 }
 
 export interface NextCycleFields {
@@ -94,15 +98,16 @@ export interface NextCycleFields {
   /** YYYY-MM-DD. */
   nextCycleOn: string;
   link: string;
+  /** The recipient's language (English when absent). */
+  locale?: Locale;
 }
 
 export function outsideNextCycleEmail(f: NextCycleFields): RenderedEmail {
   assertLink(f.link);
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
   const title = cleanLine(f.title);
   const what = f.programName ? cleanLine(f.programName) : title;
-  const lines = [
-    `You asked to be reminded today, ${cleanLine(f.nextCycleOn)}, that ${what}${f.funder ? ` from ${cleanLine(f.funder)}` : ""} may open again.`,
-    "Your earlier application, its answers and the funder's feedback are kept in the GMS. Reopen it, or start a new one from it, when the funder's next round opens.",
-  ];
-  return render(`Next funding cycle: ${what}`, lines, "Open the earlier application", f.link, `You get this because you own this application in ${cleanLine(f.organization)}. Change which emails you get in your notification settings.`);
+  const lines = [t("keep.nextCycle.line", { hasFunder: f.funder ? "yes" : "no", date: emailDate(locale, cleanLine(f.nextCycleOn)), what, funder: f.funder ? cleanLine(f.funder) : "" }), t("keep.nextCycle.kept")];
+  return render(t, t("keep.nextCycle.subject", { what }), lines, t("keep.nextCycle.link"), f.link, t("keep.nextCycle.why", { organization: cleanLine(f.organization) }));
 }

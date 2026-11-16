@@ -5,6 +5,7 @@
 // plain text, and any that would read as a link is left out (the email then says less, never
 // more). The only links are the accept link and the GMS home.
 import { cleanLine, containsLink } from "./direct-award.ts";
+import { DEFAULT_LOCALE, emailDate, emailT, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 export const DRAFT_INVITATION_TEMPLATE = "draft_invitation";
@@ -27,6 +28,8 @@ export interface DraftInvitationFields {
   homeUrl: string;
   /** YYYY-MM-DD. */
   expiresOn: string;
+  /** The recipient's language (English when absent). The names stay as typed. */
+  locale?: Locale;
 }
 
 const SAFE_URL = /^https:\/\/[^\s"'<>]+$/;
@@ -53,24 +56,27 @@ export function draftInvitationEmail(f: DraftInvitationFields): RenderedEmail {
   const title = shown(f.draftTitle, 300);
   const part = shown(f.part, DRAFT_INVITATION_PART_MAX);
   const email = cleanLine(f.invitedEmail);
-  const team = org ?? "a team";
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const hasTitle = title ? "yes" : "no";
 
-  const subject = cleanLine(title ? `Help write ${title}` : `You are invited to help write an application`);
-  const who = inviter ? `${inviter}${org ? ` of ${org}` : ""}` : org ? `Someone at ${org}` : "Someone";
-  const intro = `${who} invited you to help write ${title ? `the application ${title}` : "an application"} on OpenGrants GMS.`;
-  const ask = part ? `They would like you to write: ${part}` : null;
-  const access = `You will be able to open this one application and write its answers, and nothing else of ${team}'s workspace.`;
-  const how = `To accept, open the link below and sign in with ${email}. The link works once and expires on ${cleanLine(f.expiresOn)}.`;
-  const close = "This invitation is sent once, with no reminders. If you were not expecting it, you can ignore this email.";
+  const subject = cleanLine(t("draftInvitation.subject", { hasTitle, title: title ?? "" }));
+  const who = inviter && org ? "both" : inviter ? "inviter" : org ? "organization" : "nobody";
+  const intro = t("draftInvitation.intro", { who, inviter: inviter ?? "", organization: org ?? "", hasTitle, title: title ?? "" });
+  const ask = part ? t("draftInvitation.ask", { part }) : null;
+  const access = t("draftInvitation.access", { hasOrganization: org ? "yes" : "no", organization: org ?? "" });
+  const how = t("draftInvitation.how", { email, date: emailDate(locale, cleanLine(f.expiresOn)) });
+  const close = t("draftInvitation.close");
+  const hello = t("common.hello");
 
-  const text = ["Hello,", intro, ...(ask ? [ask] : []), access, `${how}\n${f.acceptUrl}`, close, `OpenGrants GMS: ${f.homeUrl}`].join("\n\n");
+  const text = [hello, intro, ...(ask ? [ask] : []), access, `${how}\n${f.acceptUrl}`, close, `OpenGrants GMS: ${f.homeUrl}`].join("\n\n");
   const html = [
-    paragraphs("Hello,"),
+    paragraphs(hello),
     paragraphs(intro),
     ...(ask ? [paragraphs(ask)] : []),
     paragraphs(access),
     paragraphs(how),
-    `<p><a href="${escapeHtml(f.acceptUrl)}">Accept the invitation</a></p>`,
+    `<p><a href="${escapeHtml(f.acceptUrl)}">${escapeHtml(t("draftInvitation.link"))}</a></p>`,
     paragraphs(close),
     `<p><a href="${escapeHtml(f.homeUrl)}">OpenGrants GMS</a></p>`,
   ].join("\n");

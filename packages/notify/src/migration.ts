@@ -5,6 +5,7 @@
 // confirmation carries no free text from the form at all (only the system they chose from a
 // list), so the form cannot be used to send someone else a message through the GMS.
 import { cleanLine, cleanText } from "./direct-award.ts";
+import { DEFAULT_LOCALE, emailT, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
 /** The note is at most this long, as typed. */
@@ -67,7 +68,13 @@ export interface MigrationConfirmationFields {
   systemPhrase: string;
   /** The switch page for that system on this GMS; left out unless it is an https URL. */
   pageUrl: string | null;
+  /** The language the person asked in (English when absent); `systemPhrase` must already be in it. */
+  locale?: Locale;
 }
+
+/** How "spreadsheets" and "your current system" read in a language; the other systems are names. */
+export const migrationSystemPhrase = (phrase: string, locale: Locale = DEFAULT_LOCALE): string =>
+  phrase === "spreadsheets" ? emailT(locale)("migration.phrase.spreadsheets") : phrase === "your current system" ? emailT(locale)("migration.phrase.other") : phrase;
 
 const SAFE_LINK = /^https:\/\/[^\s"'<>]+$/;
 
@@ -75,11 +82,14 @@ const SAFE_LINK = /^https:\/\/[^\s"'<>]+$/;
 export function migrationConfirmationEmail(f: MigrationConfirmationFields): RenderedEmail {
   const system = cleanLine(f.systemPhrase);
   const link = f.pageUrl && SAFE_LINK.test(f.pageUrl) ? f.pageUrl : null;
-  const subject = "We received your migration request";
-  const body = `Thank you for asking OpenGrants to help you move from ${system} to the OpenGrants Grant Management System. A person at OpenGrants will reply to this address, and migration help can start right away.`;
-  const free = "The migration help is free, and so is the GMS. You do not need to do anything else for now.";
-  const why = "You get this email because this address was entered on the OpenGrants GMS switch page. If that was not you, ignore it: nothing else will be sent.";
-  const text = ["Hello,", body, free, ...(link ? [`What moves over and how: ${link}`] : []), why].join("\n\n");
-  const html = [paragraphs("Hello,"), paragraphs(body), paragraphs(free), ...(link ? [`<p><a href="${escapeHtml(link)}">What moves over and how</a></p>`] : []), paragraphs(why)].join("\n");
+  const t = emailT(f.locale ?? DEFAULT_LOCALE);
+  const subject = t("migration.subject");
+  const body = t("migration.body", { system });
+  const free = t("migration.free");
+  const why = t("migration.why");
+  const hello = t("common.hello");
+  const moves = t("migration.link");
+  const text = [hello, body, free, ...(link ? [`${moves}: ${link}`] : []), why].join("\n\n");
+  const html = [paragraphs(hello), paragraphs(body), paragraphs(free), ...(link ? [`<p><a href="${escapeHtml(link)}">${escapeHtml(moves)}</a></p>`] : []), paragraphs(why)].join("\n");
   return { subject, text, html };
 }
