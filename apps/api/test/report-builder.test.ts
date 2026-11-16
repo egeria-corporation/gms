@@ -353,6 +353,18 @@ describe("grouping, sums and the CSV", () => {
     expect(preview.rows.length).toBe(200);
   });
 
+  it("writes the header row in the requester's language, and only the header row", async () => {
+    const asEs = { ...admin(), locale: "es" as const };
+    const plain = await reports.exportReport(asEs, def({ dataSet: "awards", columns: ["title", "amount"] }));
+    expect(plain.columns.map((c) => c.label)).toEqual(["Subvención", "Monto otorgado"]);
+    const text = await new Response(csvStream(plain)).text();
+    expect(text).toMatch(/^Subvención,Monto otorgado\r\nClinic navigators,100000\.00\r\n/);
+    const grouped = await reports.exportReport(asEs, def({ dataSet: "awards", columns: ["title"], groupBy: ["program"], aggregates: [{ fn: "sum", column: "amount" }, { fn: "count" }] }));
+    expect(grouped.columns.map((c) => c.label)).toEqual(["Programa", "Total de monto otorgado", "Cantidad"]);
+    // English as always.
+    expect((await reports.exportReport(admin(), def({ dataSet: "awards", columns: ["title", "amount"] }))).columns.map((c) => c.label)).toEqual(["Award", "Awarded amount"]);
+  });
+
   it("an export is ledgered with counts only", async () => {
     const out = await reports.exportReport(admin(), def({ dataSet: "awards", columns: ["title", "amount"] }), "Awards by program");
     expect(out.filename).toBe("awards-by-program-2027-04-16.csv");
@@ -521,6 +533,12 @@ describe("scheduled files", () => {
     const got = await reports.downloadFile(ctxAs(USER_ADMIN, "admin"), file!.id, store);
     expect(String(got.body)).toContain("Clinic navigators");
     expect(got.filename).toBe("board-pack-2027-W16.csv");
+    // Stored once in English; a recipient who reads Spanish gets the header row in Spanish.
+    const es = await reports.downloadFile({ ...ctxAs(USER_ADMIN, "admin"), locale: "es" }, file!.id, store);
+    expect(String(es.body)).toMatch(/^Subvención,Monto otorgado\r\nClinic navigators,/);
+    const streamed = { ...store, get: async (k: string) => new Response(files.get(k) ?? "").body };
+    const fromR2 = await reports.downloadFile({ ...ctxAs(USER_ADMIN, "admin"), locale: "es" }, file!.id, streamed);
+    expect(await new Response(fromR2.body as ReadableStream).text()).toBe(String(es.body));
     expect((await refusal(reports.downloadFile(auditor(), file!.id, store))).status).toBe(404);
     expect((await refusal(reports.downloadFile(ctxAs(USER_ADMIN, "admin", { ws: WS_OTHER }), file!.id, store))).status).toBe(404);
     expect((await reports.listMyFiles(ctxAs(USER_ADMIN, "admin"))).map((f) => f.viewName)).toEqual(["Board pack"]);

@@ -24,6 +24,7 @@ import { namesShared, orgFacts, sharingWith, verificationShared } from "./profil
 import type { Row as DbRow, Where } from "./repos/types.ts";
 import { normalizePreferences } from "./notifications.ts";
 import { recipientLocales } from "./preferences.ts";
+import { columnsIn, withHeaderIn } from "./report-words.ts";
 import { toRubric } from "./reviews.ts";
 import {
   CSV_MAX_ROWS,
@@ -477,7 +478,8 @@ export async function exportReport(ctx: ServiceContext, definition: Definition, 
   const d = needDataSet(ctx, definition.dataSet);
   const result = await compute(ctx, ws.id, definition, ctx.now(), CSV_MAX_ROWS);
   await audit(ctx, "report.exported", "workspace", ws.id, { dataSet: d.key, rows: result.rows.length, truncated: result.truncated });
-  return { ...result, filename: csvFilename(name ?? d.label, ctx.now()), limit: CSV_MAX_ROWS };
+  // The header row in the requester's language (the cells are data, as stored).
+  return { ...result, columns: columnsIn(ctx.locale, definition, result.columns), filename: csvFilename(name ?? d.label, ctx.now()), limit: CSV_MAX_ROWS };
 }
 
 // ------------------------------------------------------------------------------------ views
@@ -847,7 +849,10 @@ export async function downloadFile(ctx: ServiceContext, fileId: string, store: R
   const body = await store.get(f.storage_key);
   if (body === null) throw new ApiError(410, "file_expired", `Scheduled reports are kept for ${FILE_DAYS} days. Run the view again for a new file`);
   await audit(ctx, "report.file_downloaded", "report_view", view.id, { fileId: f.id, period: f.period_key });
-  return { body, filename: `${csvFilename(view.name, new Date(f.created_at)).replace(/-\d{4}-\d{2}-\d{2}\.csv$/, "")}-${f.period_key}.csv` };
+  // Stored once with English headers; each recipient downloads it with the header row in their language.
+  const definition = definitionInput.parse(view.definition);
+  const english = plan(DATA_SETS[definition.dataSet], definition).columns;
+  return { body: withHeaderIn(body, english, columnsIn(ctx.locale, definition, english)), filename: `${csvFilename(view.name, new Date(f.created_at)).replace(/-\d{4}-\d{2}-\d{2}\.csv$/, "")}-${f.period_key}.csv` };
 }
 
 // ------------------------------------------------------------------------------------ the job

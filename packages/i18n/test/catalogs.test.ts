@@ -149,3 +149,17 @@ describe.each(NAMESPACES)("the %s catalog", (ns) => {
     expect(off).toEqual([]);
   });
 });
+
+describe("the CSV header words the server writes", () => {
+  // email.json `csv.*` is the server's copy of the report builder's column words (funder.json
+  // `reportBuilder.col.*` and the aggregates): the API Worker does not carry the funder catalog.
+  it.each(["en", "es"] as const)("are the report builder's words in %s", (locale) => {
+    const email = ALL_CATALOGS[locale].email as Record<string, string>;
+    const funder = ALL_CATALOGS[locale].funder as Record<string, string>;
+    const columns = Object.keys(funder).filter((k) => k.startsWith("reportBuilder.col."));
+    expect(columns.length).toBeGreaterThan(50);
+    for (const k of columns) expect(email[`csv.col.${k.slice("reportBuilder.col.".length)}`], k).toBe(funder[k]);
+    for (const fn of ["count", "sumOf", "avgOf"]) expect(email[`csv.aggregate.${fn}`]).toBe(funder[`reportBuilder.aggregate.${fn}`]);
+    expect(Object.keys(email).filter((k) => k.startsWith("csv.")).length).toBe(columns.length + 3);
+  });
+});
