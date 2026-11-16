@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Send to the funder: the package email, the sender name and the attachment guard.
 import { describe, expect, it } from "vitest";
-import { base64Of, fromWithName, mailAddressOf, MemoryMailer, PACKAGE_FOOTER, sendPackageEmail, sendsAttachments, type PackageEmailContent } from "../src/index.ts";
+import { base64Of, fromWithName, mailAddressOf, MemoryMailer, PACKAGE_FOOTER, ResendMailer, sendPackageEmail, sendsAttachments, type PackageEmailContent } from "../src/index.ts";
 
 const content: PackageEmailContent = {
   sender: { name: "Ana Ruiz", email: "ana.ruiz@aldercreekfs.example" },
@@ -56,8 +56,11 @@ describe("sender", () => {
 
 describe("attachments", () => {
   it("only a mailer that says it passes attachments on is used", () => {
-    expect(sendsAttachments(new MemoryMailer())).toBe(false);
-    expect(sendsAttachments(Object.assign(new MemoryMailer(), { sendsAttachments: true }))).toBe(true);
+    // Both mailers pass attachments on (v1.9.0); a mailer that does not say so is not used.
+    expect(sendsAttachments(new MemoryMailer())).toBe(true);
+    expect(sendsAttachments(new ResendMailer("test-key"))).toBe(true);
+    expect(sendsAttachments(Object.assign(new MemoryMailer(), { sendsAttachments: false }))).toBe(false);
+    expect(sendsAttachments({ send: async () => ({ id: "x" }) })).toBe(false);
     expect(sendsAttachments(undefined)).toBe(false);
   });
   it("encodes bytes as base64 without Buffer", () => {

@@ -78,8 +78,8 @@ beforeEach(async () => {
   h = await harness();
   s = await scenario(h);
   clearDiscoveryCache();
-  // A mailer that passes attachments on (the Resend mailer does once mailer.ts forwards them).
-  (h.mailer as unknown as { sendsAttachments: boolean }).sendsAttachments = true;
+  // The in-memory mailer passes attachments on, as the Resend mailer does (packages/notify mailer.ts).
+  expect(h.mailer.sendsAttachments).toBe(true);
   h.directory.users.set(USER_APPLICANT, { email: "ana.ruiz@aldercreekfs.example", name: "Ana Ruiz" });
   await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: USER_VIEWER, role: "viewer" });
   const oa = await data<{ id: string }>(s.applicant, "POST", "/gms/outside-applications", {

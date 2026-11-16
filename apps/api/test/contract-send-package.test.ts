@@ -47,7 +47,6 @@ describe.skipIf(!existsSync(SPEC))("send to the funder and guest reviewer contra
     ajv.addSchema({ $id: "openapi", ...(withoutExamples(parse(readFileSync(SPEC, "utf8"))) as object) });
     h = await harness();
     s = await scenario(h);
-    (h.mailer as unknown as { sendsAttachments: boolean }).sendsAttachments = true;
     h.directory.users.set("ffffffff-ffff-4fff-8fff-ffffffffffff", { email: "ana.ruiz@aldercreekfs.example", name: "Ana Ruiz" });
   });
 
