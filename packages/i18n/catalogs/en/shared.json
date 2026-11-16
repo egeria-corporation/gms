@@ -1030,5 +1030,9 @@
   "payments.whenTheReportIsAccepted": "When the report is accepted",
   "language.label": "Language",
   "reachPanel.forZone": "For {scheduledFor} ({zone})",
-  "settingsSocial.disconnectAccount": "Disconnect {label} {username}"
+  "settingsSocial.disconnectAccount": "Disconnect {label} {username}",
+  "applicant.timeAgo.justNow": "just now",
+  "applicant.timeAgo.minutes": "{count} min ago",
+  "applicant.timeAgo.hours": "{count} h ago",
+  "applicant.timeAgo.yesterday": "yesterday"
 }

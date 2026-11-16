@@ -63,11 +63,11 @@ export function timeAgo(iso: string, now: Date = new Date()): string {
   // A time ahead of this clock (another machine's, or seeded data) is shown as its date.
   if (ms < -60_000) return formatDate(iso);
   const min = Math.floor(ms / 60_000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min} min ago`;
+  if (min < 1) return t("applicant.timeAgo.justNow");
+  if (min < 60) return t("applicant.timeAgo.minutes", { count: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h} h ago`;
-  if (h < 48) return "yesterday";
+  if (h < 24) return t("applicant.timeAgo.hours", { count: h });
+  if (h < 48) return t("applicant.timeAgo.yesterday");
   return formatDate(iso);
 }
 
