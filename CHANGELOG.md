@@ -38,7 +38,8 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
   everything an English visitor can download by 47.3 KB, most of it the text that moved out of the
   screens into the catalogs. Nothing Spanish is downloaded in English.
 - The API and jobs Workers carry only the email and error messages (5,900 KiB and 3,106 KiB before
-  compression; 1,264 KiB and 667 KiB gzipped).
+  compression; 1,264 KiB and 667 KiB gzipped), and the front Worker only the messages its pages' meta
+  and share cards use (8,437 KiB; 3,013 KiB gzipped, with the web app it serves).
 - Small English wording fixes: "Program officer" capitalised in role lists; "In flight" (was
   "InFlight"); counts that can be one are proper plurals ("1 record change", "in 1 day", "Over the
   limit by 1 character"); a readiness check spells out when the Passport record was last read

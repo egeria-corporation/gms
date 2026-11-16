@@ -101,6 +101,16 @@ export function loadCatalog(locale: Locale, ns: Namespace): Promise<Catalog> {
   return promise;
 }
 
+/**
+ * Puts a catalog that is already in hand where the translators find it: for the front Worker, which
+ * imports the few catalogs it reads instead of loading them, so its script carries no others.
+ */
+export function provideCatalog(locale: Locale, ns: Namespace, catalog: Catalog): void {
+  const id = slot(locale, ns);
+  loaded.set(id, catalog);
+  pending.set(id, settled(catalog));
+}
+
 /** Loads several namespaces of one language. */
 export const loadCatalogs = (locale: Locale, namespaces: readonly Namespace[] = NAMESPACES): Promise<Catalog[]> =>
   Promise.all(namespaces.map((ns) => loadCatalog(locale, ns)));

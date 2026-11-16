@@ -8,7 +8,10 @@
 // Page data comes from the API's public routes over the service binding and is kept at the edge for
 // EDGE_TTL_SECONDS. Anything that fails, is slow or is not found leaves the page as it was built,
 // with the default meta: a preview is never worth a broken page.
-import { DEFAULT_LOCALE, LOCALE_QUERY, loadCatalogs, localeFromTag, type Locale } from "@gms/i18n";
+import { DEFAULT_LOCALE, LOCALE_QUERY, localeFromTag, provideCatalog, type Locale } from "@gms/i18n";
+import enPublic from "@gms/i18n/catalogs/en/public.json";
+import esPublic from "@gms/i18n/catalogs/es/public.json";
+import esShared from "@gms/i18n/catalogs/es/shared.json";
 import {
   apiPathOf,
   awardCard,
@@ -42,6 +45,12 @@ import {
   type PublicRoute,
 } from "./meta.ts";
 import { loadCardAssets, renderCard, type CardAssets, type CardText } from "./og/card.ts";
+
+// The only catalogs the front Worker reads: its pages' meta and cards (`public`, `shared`; English
+// `shared` is always there). Imported, not loaded, so the Worker's script carries no others.
+provideCatalog("en", "public", enPublic);
+provideCatalog("es", "public", esPublic);
+provideCatalog("es", "shared", esShared);
 
 export interface EmbeddedFile {
   type: string;
@@ -177,8 +186,6 @@ export function createFront(config: FrontConfig) {
   }
 
   async function metaFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale): Promise<PageMeta | null> {
-    // Each language's catalogs load once per isolate (a language other than English loads English too).
-    await loadCatalogs(locale, ["public", "shared"]);
     switch (route.kind) {
       case "landing":
         return landingMeta(origin, locale);
@@ -212,8 +219,7 @@ export function createFront(config: FrontConfig) {
 
   /** A card's text, in the language its address asks for (`?lang=es`, as the page's meta gives it). */
   async function cardFor(route: ImageRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale = DEFAULT_LOCALE): Promise<CardText | null> {
-    // The status and amount words come from the public and shared catalogs, loaded once per isolate.
-    await loadCatalogs(locale, ["public", "shared"]);
+    // The status and amount words come from the public and shared catalogs (provided below).
     if (route.kind === "landing") return landingCard(config.host, locale);
     if (route.kind === "funder") {
       const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);

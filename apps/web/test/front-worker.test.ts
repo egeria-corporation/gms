@@ -28,6 +28,8 @@ interface Mf {
   dispose(): Promise<void>;
 }
 let mf: Mf;
+/** The bundled Worker script, as deployed. */
+let script = "";
 let work: string;
 let h: ApiHarness;
 const apiCalls: string[] = [];
@@ -101,9 +103,10 @@ beforeAll(async () => {
   execFileSync(process.execPath, [join(web, "..", "..", "scripts", "build-front-worker.mjs"), "--name", "front-test", "--host", HOST, "--api", "api-test", "--redirect-from", "old.gms.test", "--dist", dist, "--out", out], { stdio: "pipe" });
   const esbuild = (await import(fromWrangler.resolve("esbuild"))) as { build(o: Record<string, unknown>): Promise<{ outputFiles: { text: string }[] }> };
   const bundle = await esbuild.build({ entryPoints: [join(out, "index.js")], bundle: true, format: "esm", platform: "neutral", target: "es2022", write: false, logLevel: "silent" });
+  script = bundle.outputFiles[0]!.text;
 
   const { Miniflare, convertV4MiniflareOptions } = (await import(fromWrangler.resolve("miniflare"))) as { Miniflare: new (o: unknown) => Mf; convertV4MiniflareOptions: (o: unknown) => unknown };
-  mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script: bundle.outputFiles[0]!.text, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
+  mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
 }, 60_000);
 
 // Shutting the runtime down costs about what starting it does, so it gets the same allowance; the
@@ -118,6 +121,15 @@ const get = (path: string, init?: RequestInit) => mf.dispatchFetch(`https://${HO
 const count = (html: string, needle: string) => html.split(needle).length - 1;
 const ldOf = (html: string) => JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1]!) as unknown;
 const contentOf = (html: string, attr: string) => new RegExp(`<meta ${attr} content="([^"]*)"`).exec(html)?.[1];
+
+describe("front Worker: its script", () => {
+  it("carries the catalogs its pages' meta and cards read, and no screen's catalog", () => {
+    expect(script).toContain('"accountSettings.revokeConfirm"'); // public
+    expect(script).toContain('"readiness.connectToSee"'); // shared
+    expect(script).not.toContain('"outsideDecide.scoreOfMax"'); // applicant
+    expect(script).not.toContain('"reviewParity.boardDocket"'); // funder
+  });
+});
 
 describe("front Worker: public pages", () => {
   it("gives an opportunity page its own title, description, canonical, share image and JSON-LD", async () => {
