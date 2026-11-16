@@ -34,6 +34,16 @@ type Answer = Row<"outside_answers">;
  * applications are not among them. One place to relax.
  */
 export const OUTSIDE_ROLES: readonly string[] = ["admin", "editor", "finance", "viewer"];
+/**
+ * Stages in which each outside deadline still matters: a letter of inquiry before it is sent, the
+ * full application before submission. The daily reminders (jobs.ts) and the Monday deadlines digest
+ * (content-digests.ts) both read it, so the digest leaves out what a reminder already sent today.
+ */
+export const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]> = {
+  loi: ["prospect", "deciding", "loi"],
+  full: ["prospect", "deciding", "loi", "invited", "drafting"],
+  internal: ["prospect", "deciding", "loi", "invited", "drafting"],
+};
 export const MAX_QUESTIONS_PER_APPLICATION = 300;
 export const MAX_IMPORT_ROWS = 500;
 const MAX_UPLOAD = 25 * 1024 * 1024;

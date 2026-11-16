@@ -15,7 +15,7 @@ import { latestAgreement, retryAwardMirrors } from "./services/awards.ts";
 import { audit, changeStatus, systemContext, type BaseContext, type ServiceContext } from "./services/context.ts";
 import { pollOrgChanges } from "./services/grantees.ts";
 import { mailMembers } from "./services/member-mail.ts";
-import { OUTSIDE_ROLES } from "./services/outside.ts";
+import { OUTSIDE_REMINDABLE, OUTSIDE_ROLES } from "./services/outside.ts";
 import { VAULT_TYPE_LABEL, type VaultType } from "./services/vault.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
@@ -28,6 +28,8 @@ import { applyTrancheUpdate, toPaymentsTranche } from "./services/tranches.ts";
 
 export type { BaseContext } from "./services/context.ts";
 export { processInbound } from "./services/inbound.ts";
+/** Where an outside deadline is still reminded, shared with the deadlines digest. */
+export { OUTSIDE_REMINDABLE } from "./services/outside.ts";
 export { sendDigests } from "./services/member-mail.ts";
 export { CONTENT_DIGEST_SCHEDULE, sendContentDigests } from "./services/content-digests.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
@@ -217,12 +219,6 @@ export async function importWorkspaceBundle(base: BaseContext, workspaceId: stri
 
 // ------------------------------------------------------------------------------------ apply anywhere
 
-/** Stages in which each deadline still matters: a letter of inquiry before it is sent, the full application before submission. */
-const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]> = {
-  loi: ["prospect", "deciding", "loi"],
-  full: ["prospect", "deciding", "loi", "invited", "drafting"],
-  internal: ["prospect", "deciding", "loi", "invited", "drafting"],
-};
 
 /**
  * Outside application deadlines (letter of inquiry, full, internal) 14, 7 and 2 days ahead and on

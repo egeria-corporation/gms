@@ -23,9 +23,11 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId, uuidOf } from "../lib/ids.ts";
 import { discoverCompetitions, openGrants } from "./applicant.ts";
-import { authorize, isOutsideCowriter, makeActor, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { authorize, fundScopeOf, isOutsideCowriter, makeActor, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { scopeToFunds } from "./fund-scope.ts";
 import { normalizePreferences } from "./notifications.ts";
-import { OUTSIDE_ROLES } from "./outside.ts";
+// Where an outside deadline is still reminded (the daily reminder in jobs.ts reads the same list).
+import { OUTSIDE_REMINDABLE, OUTSIDE_ROLES } from "./outside.ts";
 import { workspaceDeadlines } from "./pipeline.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
@@ -52,15 +54,6 @@ export const DIGEST_ROLES: Record<ContentDigest, { kind: WorkspaceKind; roles: r
 };
 /** Only opportunities whose eligibility check says yes count as fitting; "unknown" does not. */
 const MATCH_UNKNOWN_ELIGIBILITY = false;
-/**
- * Stages in which each outside deadline is still reminded (as `OUTSIDE_REMINDABLE` in jobs.ts), so
- * the deadlines digest can leave out what the daily reminder already sent the person today.
- */
-const OUTSIDE_REMINDABLE: Record<"loi" | "full" | "internal", readonly string[]> = {
-  loi: ["prospect", "deciding", "loi"],
-  full: ["prospect", "deciding", "loi", "invited", "drafting"],
-  internal: ["prospect", "deciding", "loi", "invited", "drafting"],
-};
 
 const COLUMN: Record<ContentDigest, "new_matches" | "deadlines" | "funder_activity"> = { new_matches: "new_matches", deadlines: "deadlines", funder_activity: "funder_activity" };
 const DESCRIPTION: Record<ContentDigest, string> = {
@@ -252,8 +245,20 @@ interface Candidate extends DigestMatch {
 
 /** What the person would read in Discover: the same service calls under their own role. */
 function memberContext(base: BaseContext, m: Member, ws: Ws): ServiceContext {
-  return { ...base, actor: makeActor("user", m.user_id, null), workspace: { id: ws.id, kind: ws.kind as WorkspaceKind, role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null }, scopes: scopesForRole(ws.kind as WorkspaceKind, m.role) };
+  const workspace: ServiceWorkspace = { id: ws.id, kind: ws.kind as WorkspaceKind, role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null };
+  const ctx: ServiceContext = { ...base, actor: makeActor("user", m.user_id, null), workspace, scopes: scopesForRole(ws.kind as WorkspaceKind, m.role) };
+  // The job has no request, so no authorize() puts a fund advisor behind their funds: done here, so
+  // their digest counts only their funds' records, as their screens do.
+  const funds = fundScopeOf(workspace);
+  if (funds) scopeToFunds(ctx, ws.id, funds);
+  return ctx;
 }
+
+/** Whose counts a funder activity digest holds: the whole workspace, or a fund advisor's funds. */
+const activityKey = (ctx: Pick<ServiceContext, "workspace">, wsId: string) => {
+  const funds = ctx.workspace ? fundScopeOf(ctx.workspace) : null;
+  return funds ? `${wsId}:funds:${[...funds].sort().join(",")}` : wsId;
+};
 
 const gmsKey = (opportunityId: string) => `gms:${uuidOf("opportunity", opportunityId, "Opportunity")}`;
 
@@ -370,8 +375,10 @@ export async function buildDeadlines(base: BaseContext, ws: Ws, m: Member, run: 
 }
 
 /** The week's counts for a funder workspace. Counts only: nothing an applicant wrote is read. */
-export async function buildFunderActivity(base: Pick<BaseContext, "repos" | "now">, ws: Ws, run: DigestRun): Promise<FunderActivityCounts> {
-  let pending = run.activity.get(ws.id);
+export async function buildFunderActivity(base: Pick<ServiceContext, "repos" | "now"> & Partial<Pick<ServiceContext, "workspace">>, ws: Ws, run: DigestRun): Promise<FunderActivityCounts> {
+  // One count per workspace and run, except that a fund advisor's counts are their funds' own.
+  const key = activityKey(base as Pick<ServiceContext, "workspace">, ws.id);
+  let pending = run.activity.get(key);
   if (!pending) {
     pending = (async () => {
       const now = base.now();
@@ -387,7 +394,7 @@ export async function buildFunderActivity(base: Pick<BaseContext, "repos" | "now
         reportsOverdue: await base.repos.table("requirements").count({ workspace_id: ws.id, status: "overdue" }),
       };
     })();
-    run.activity.set(ws.id, pending);
+    run.activity.set(key, pending);
   }
   return pending;
 }

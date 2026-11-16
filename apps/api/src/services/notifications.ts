@@ -6,7 +6,8 @@
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { authorize, fundScopeOf, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { scopeToFunds } from "./fund-scope.ts";
 import type { Row } from "./repos/types.ts";
 
 const WINDOW = 200;
@@ -118,7 +119,12 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
 export async function deriveFor(base: Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">, m: Row<"workspace_members">, ws: Row<"workspaces">) {
   const actor = { kind: "user" as const, userId: m.user_id, clientId: null, ledger: { kind: "user" as const, userId: m.user_id }, id: `user:${m.user_id}` };
   const workspace: ServiceWorkspace = { id: ws.id, kind: ws.kind as ServiceWorkspace["kind"], role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null };
-  return derive({ ...base, actor, workspace, scopes: [] }, workspace);
+  const ctx = { ...base, actor, workspace, scopes: [] } as ServiceContext;
+  // The digest job runs without a request, so no authorize() puts a fund advisor behind their funds:
+  // done here, so their digest names only events about their funds' records.
+  const funds = fundScopeOf(workspace);
+  if (funds) scopeToFunds(ctx, ws.id, funds);
+  return derive(ctx, workspace);
 }
 
 export async function listNotifications(ctx: ServiceContext, opts: { unread?: boolean } = {}) {

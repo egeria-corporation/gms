@@ -4,12 +4,14 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
+import { forbidden } from "../auth/verify.ts";
 import { secondStepVerified } from "../auth/second-step.ts";
 import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
 import { bareUuid } from "../lib/ids.ts";
 import { confirmPassportLink } from "../services/passport-signin.ts";
 import * as sessions from "../services/sessions.ts";
+import { fundScopeOf } from "../services/context.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
 import { awardSharingRoutes } from "./gms/award-sharing.ts";
@@ -115,6 +117,9 @@ gms.get("/whoami", authenticate(), (c) => {
 /** Workspace-visible audit ledger: admins and auditors; API clients need `workspace:admin`. */
 gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
   const p = c.get("principal");
+  // The workspace ledger reads the whole workspace: never a member limited to some funds (a fund
+  // advisor reads their funds' activity on each record instead).
+  if (fundScopeOf({ kind: "funder", role: p.role, memberScope: p.memberScope })) throw forbidden("fund_scope", "The workspace ledger is for admins and auditors of every fund");
   const { page, pageSize, offset } = parsePagination({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
   const iso = (k: "from" | "to") => {
     const v = c.req.query(k);
