@@ -3,10 +3,11 @@
 // starts an application to a funder outside this GMS from an OpenGrants listing, pastes the
 // funder's questions and saves an answer. The screens' own words are Spanish; what the funder
 // wrote (the listing, the questions) stays as written.
+import type { Page } from "@playwright/test";
 import { expect, start, test } from "./helpers.ts";
 
 const LISTING = "Rural Health Network Development Planning";
-const railLink = (page: import("@playwright/test").Page, label: string) => page.getByRole("navigation", { name: /^Espacio de trabajo/ }).getByRole("link", { name: label, exact: true });
+const railLink = (page: Page, label: string) => page.getByRole("navigation", { name: /^Espacio de trabajo/ }).getByRole("link", { name: label, exact: true });
 
 test("an applicant finds a listing, starts an outside application and saves an answer, in Spanish", async ({ app: page }) => {
   await page.context().addCookies([{ name: "gms_lang", value: "es", url: test.info().project.use.baseURL ?? "http://localhost:5179" }]);
