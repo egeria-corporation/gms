@@ -11,6 +11,7 @@ import type { AiSummary, ComparisonDraft } from "../../api/funderFull.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 interface BudgetRow {
@@ -50,7 +51,7 @@ export function findBudgets(app: InboxApplication): FoundBudget[] {
     for (const [field, value] of Object.entries(r.response ?? {})) {
       if (!Array.isArray(value) || !value.length) continue;
       const rows = value.map(budgetRow);
-      if (rows.every((x): x is BudgetRow => x !== null)) out.push({ form: r.formTitle ?? "Form", field: words(field), rows });
+      if (rows.every((x): x is BudgetRow => x !== null)) out.push({ form: r.formTitle ?? t("applicationPanels.form"), field: words(field), rows });
     }
   }
   return out;
@@ -60,7 +61,7 @@ function documentOf(v: unknown): Omit<FoundDocument, "form" | "field"> | null {
   if (!isObject(v)) return null;
   const passport = typeof v.passportDocumentId === "string";
   if (!passport && typeof v.documentId !== "string") return null;
-  return { name: typeof v.name === "string" ? v.name : passport ? "Passport locker document" : "Uploaded document", source: passport ? "passport" : "upload", sha256: typeof v.sha256 === "string" ? v.sha256 : null };
+  return { name: typeof v.name === "string" ? v.name : passport ? t("applicationPanels.passportLockerDocument") : t("applicationPanels.uploadedDocument"), source: passport ? "passport" : "upload", sha256: typeof v.sha256 === "string" ? v.sha256 : null };
 }
 
 /** Every file reference in the application's responses, whether a single field or a list. */
@@ -70,7 +71,7 @@ export function findDocuments(app: InboxApplication): FoundDocument[] {
     for (const [field, value] of Object.entries(r.response ?? {})) {
       for (const candidate of Array.isArray(value) ? value : [value]) {
         const doc = documentOf(candidate);
-        if (doc) out.push({ form: r.formTitle ?? "Form", field: words(field), ...doc });
+        if (doc) out.push({ form: r.formTitle ?? t("applicationPanels.form"), field: words(field), ...doc });
       }
     }
   }
@@ -88,7 +89,7 @@ export function BudgetPanel({ app }: { app: InboxApplication }) {
       </div>
       {!budgets.length && (
         <div className="card-b">
-          <p className="muted small">{t("applicationPanels.noneOfThisApplications")}{requested !== null ? t("applicationPanels.theRequestedAmountIs") : "."}</p>
+          <p className="muted small">{requested !== null ? t("applicationPanels.noBudgetTableRequestedOnly") : t("applicationPanels.noBudgetTable")}</p>
         </div>
       )}
       {budgets.map((b) => {
@@ -226,7 +227,7 @@ export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
             ))}
             <Cautions items={s.cautions} />
             <p className="small muted">
-              {t("applicationPanels.writtenByTheAssistant")}{view?.generatedAt ? t("applicationPanels.on", { date: formatDate(view.generatedAt) }) : ""} {t("applicationPanels.fromThisVersionOf")}
+              {view?.generatedAt ? t("applicationPanels.writtenOnFromThisVersion", { date: formatDate(view.generatedAt) }) : t("applicationPanels.writtenFromThisVersion")}
             </p>
           </div>
         ) : view ? (
@@ -245,7 +246,7 @@ export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
               <Sparkles className="ic" aria-hidden="true" />
               {write.state === "saving" ? t("applicationPanels.writing") : t("applicationPanels.writeTheSummary")}
             </button>
-            {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(view.quota.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
+            {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(view.quota.resetsAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
           </>
         ) : null}
         {write.error !== null && <ErrorBanner error={write.error} title={t("applicationPanels.theAssistantCouldNot")} />}
@@ -294,7 +295,7 @@ export function AssistantPanel({ app, rubricId, criterionLabel }: { app: InboxAp
             {compare.state === "saving" ? t("applicationPanels.drafting") : t("applicationPanels.compareToRubric")}
           </button>
         </div>
-        {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(latest.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
+        {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(latest.resetsAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
         {compare.error !== null && <ErrorBanner error={compare.error} title={t("applicationPanels.theAssistantCouldNot2")} />}
         {comparison && (
           <div className="col" style={{ gap: "8px" }} aria-label={t("applicationPanels.rubricComparisonDraft")} role="group">

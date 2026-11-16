@@ -25,9 +25,9 @@ export const offersApply = (o: Pick<Opportunity, "id" | "published" | "status"> 
 /** Published as open, but no competition is open: applicants can find it and cannot apply. */
 export const publishedNotTaking = (o: Opportunity, competitions: readonly Competition[]) => o.published && o.status === "open" && !takingApplications(o.id, competitions);
 
-export const NOT_TAKING_LABEL = "Published, not taking applications";
+export const notTakingLabel = (): string => t("applicationsStatus.notTaking");
 /** A forecasted opportunity is published to show what is coming; it takes no applications by design. */
-export const FORECASTED_LABEL = "Forecasted, not taking applications yet";
+export const forecastedLabel = (): string => t("applicationsStatus.forecasted");
 
 /**
  * The opportunity's status badge, icon and label. `competitions` undefined (still loading) shows
@@ -38,7 +38,7 @@ export function OpportunityStatusBadge({ opportunity, competitions }: { opportun
     return (
       <span className="bdg bdg-warn">
         <CirclePause className="ic" aria-hidden="true" />
-        {NOT_TAKING_LABEL}
+        {notTakingLabel()}
       </span>
     );
   }

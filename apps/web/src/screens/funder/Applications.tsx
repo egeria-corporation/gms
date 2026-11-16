@@ -15,6 +15,7 @@ import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../compo
 import { formatMinor } from "../../lib/format.ts";
 import ApplicationsEmpty from "./ApplicationsEmpty.tsx";
 import { approvalTargets, Avatar, EligibilityMark, usePeople } from "./shared.tsx";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const PAGE_SIZE = 25;
@@ -23,20 +24,20 @@ type FilterKey = (typeof FILTER_KEYS)[number];
 
 interface View {
   key: string;
-  label: string;
+  readonly label: string;
   filter: Partial<Record<FilterKey, string>>;
 }
 const VIEWS: View[] = [
-  { key: "all", label: "All", filter: {} },
-  { key: "needs-screening", label: "Needs screening", filter: { status: "submitted" } },
-  { key: "under-review", label: "Under review", filter: { status: "under_review" } },
-  { key: "review-complete", label: "Review complete", filter: { status: "recommended" } },
-  { key: "flagged", label: "Flagged", filter: { tag: "flagged" } },
-  { key: "eligibility-fail", label: "Eligibility fail", filter: { eligibility: "false" } },
-  { key: "unassigned", label: "Unassigned", filter: { assignee: "unassigned" } },
+  { key: "all", get label() { return t("funderApplications.view.all"); }, filter: {} },
+  { key: "needs-screening", get label() { return t("funderApplications.view.needsScreening"); }, filter: { status: "submitted" } },
+  { key: "under-review", get label() { return t("funderApplications.view.underReview"); }, filter: { status: "under_review" } },
+  { key: "review-complete", get label() { return t("funderApplications.view.reviewComplete"); }, filter: { status: "recommended" } },
+  { key: "flagged", get label() { return t("funderApplications.view.flagged"); }, filter: { tag: "flagged" } },
+  { key: "eligibility-fail", get label() { return t("funderApplications.view.eligibilityFail"); }, filter: { eligibility: "false" } },
+  { key: "unassigned", get label() { return t("funderApplications.view.unassigned"); }, filter: { assignee: "unassigned" } },
 ];
 
-const SORTABLE: Record<string, string> = { Title: "title", Status: "status", Requested: "requestedAmount", Submitted: "submittedAt" };
+const SORTABLE = { title: "title", status: "status", requested: "requestedAmount", submitted: "submittedAt" } as const;
 
 function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample: InboxApplication | undefined; onClose: () => void; onDone: (message: string) => void }) {
   const templates = useApiQuery((api) => api.listTemplates("email"), []);
@@ -52,7 +53,7 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
     <Dialog open onClose={onClose} labelledBy="decline-title" size="lg">
       <div className="hd">
         <div>
-          <h2 id="decline-title">{t("funderApplications.decline")} {ids.length === 1 ? t("funderApplications.n1Application") : t("funderApplications.applications", { count: ids.length })}</h2>
+          <h2 id="decline-title">{t("funderApplications.declineCount", { count: ids.length })}</h2>
           <p className="small muted">{t("funderApplications.eachApplicantReceivesThe")}</p>
         </div>
       </div>
@@ -93,7 +94,7 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
         </div>
         {preview && (
           <section aria-label={t("funderApplications.letterPreview")} className="letter">
-            <div className="small muted">{t("funderApplications.previewFor")} {sample?.applicant.name ?? t("funderApplications.theFirstApplicant")}</div>
+            <div className="small muted">{t("funderApplications.previewFor", { name: sample?.applicant.name ?? t("funderApplications.theFirstApplicant") })}</div>
             {preview.subject && <div className="b">{preview.subject}</div>}
             <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
           </section>
@@ -114,10 +115,10 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
             disabled={decline.state === "saving"}
             onClick={async () => {
               const r = await decline.run();
-              if (r) onDone(`${r.succeeded.length} declined · ${r.lettersSent} ${r.lettersSent === 1 ? "letter" : "letters"} sent${r.failed.length ? ` · ${r.failed.length} could not be declined` : ""}`);
+              if (r) onDone(r.failed.length ? t("funderApplications.declinedSomeFailed", { declined: r.succeeded.length, letters: r.lettersSent, failed: r.failed.length }) : t("funderApplications.declinedSent", { declined: r.succeeded.length, letters: r.lettersSent }));
             }}
           >
-            {t("funderApplications.declineAndSend")} {ids.length === 1 ? t("funderApplications.letter") : t("funderApplications.letters", { count: ids.length })}
+            {t("funderApplications.declineAndSendLetters", { count: ids.length })}
           </button>
         )}
       </div>
@@ -206,8 +207,8 @@ export default function Applications() {
       </select>
     </label>
   );
-  const sortHeader = (label: string, numeric = false) => {
-    const k = SORTABLE[label]!;
+  const sortHeader = (id: keyof typeof SORTABLE, label: string, numeric = false) => {
+    const k = SORTABLE[id];
     const on = sortBy === k;
     return (
       <th className={numeric ? "num" : undefined} aria-sort={on ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
@@ -260,12 +261,12 @@ export default function Applications() {
           </div>
 
           <div className="filterbar">
-            {select("stage", "Stage", [...new Map(stages.map((s) => [s.key, s.label])).entries()])}
-            {select("status", "Status", Object.entries(STATUS.application).filter(([k]) => k !== "draft").map(([k, v]) => [k, v.label]))}
-            {select("eligibility", "Eligibility", [["true", "Pass"], ["false", "Fail"], ["unknown", "Unknown"]])}
-            {select("level", "Passport level", [["L3", "L3"], ["L2", "L2"], ["L1", "L1"], ["L0", "L0"]])}
-            {select("tag", "Tag", [...new Set([...tags, ...(params.get("tag") ? [params.get("tag")!] : [])])].map((item) => [item, item]))}
-            {select("assignee", "Assignee", [["unassigned", "Unassigned"], ...people.map((p): [string, string] => [p.userId, p.name])])}
+            {select("stage", t("funderApplications.filter.stage"), [...new Map(stages.map((s) => [s.key, s.label])).entries()])}
+            {select("status", t("funderApplications.filter.status"), Object.entries(STATUS.application).filter(([k]) => k !== "draft").map(([k, v]) => [k, v.label]))}
+            {select("eligibility", t("funderApplications.filter.eligibility"), [["true", t("funderApplications.filter.pass")], ["false", t("funderApplications.filter.fail")], ["unknown", t("funderApplications.filter.unknown")]])}
+            {select("level", t("funderApplications.filter.passportLevel"), [["L3", "L3"], ["L2", "L2"], ["L1", "L1"], ["L0", "L0"]])}
+            {select("tag", t("funderApplications.filter.tag"), [...new Set([...tags, ...(params.get("tag") ? [params.get("tag")!] : [])])].map((item) => [item, item]))}
+            {select("assignee", t("funderApplications.filter.assignee"), [["unassigned", t("funderApplications.filter.unassigned")], ...people.map((p): [string, string] => [p.userId, p.name])])}
             {filtered && (
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setParams({})}>
                 {t("funderApplications.clearFilters")}
@@ -307,13 +308,13 @@ export default function Applications() {
                       <input type="checkbox" aria-label={t("funderApplications.selectAllOnThis")} checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((r) => r.id))} />
                     </th>
                     <th>{t("funderApplications.applicant")}</th>
-                    {sortHeader("Title")}
+                    {sortHeader("title", t("funderApplications.column.title"))}
                     <th>{t("funderApplications.stage")}</th>
-                    {sortHeader("Status")}
+                    {sortHeader("status", t("funderApplications.column.status"))}
                     <th>{t("funderApplications.eligibility")}</th>
-                    {sortHeader("Requested", true)}
+                    {sortHeader("requested", t("funderApplications.column.requested"), true)}
                     <th className="num">{t("funderApplications.score")}</th>
-                    {sortHeader("Submitted")}
+                    {sortHeader("submitted", t("funderApplications.column.submitted"))}
                     <th className="num">{t("funderApplications.daysInStage")}</th>
                     <th>{t("funderApplications.assignee")}</th>
                   </tr>
@@ -381,7 +382,7 @@ export default function Applications() {
                           </td>
                           <td className="num">{formatMinor(r.requestedAmountMinor, r.currency)}</td>
                           <td className="num">{scores.data?.has(r.id) ? <span title={t("funderApplications.meanOfSubmittedReviews", { n: scores.data.get(r.id)!.n })}>{scores.data.get(r.id)!.mean.toFixed(1)}</span> : <span className="muted">—</span>}</td>
-                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
+                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
                           <td className="num">{["draft", "accepted", "declined", "withdrawn"].includes(r.status) ? <span className="muted">—</span> : (daysInStage(r) ?? "—")}</td>
                           <td>
                             <Avatar person={person(r.assignedToUserId)} />

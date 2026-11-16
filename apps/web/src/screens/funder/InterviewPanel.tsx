@@ -7,11 +7,12 @@ import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Field } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const slotText = (iso: string) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(intlLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 };
 
 function OfferDialog({ applicationId, onClose, onDone }: { applicationId: string; onClose: () => void; onDone: () => void }) {

@@ -18,6 +18,7 @@ import { ApprovalCard } from "./Approvals.tsx";
 import { timeAgo, usePeople } from "./shared.tsx";
 import { publishedNotTaking } from "./applicationsStatus.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const STAGE_COLORS = ["#4A5C5A", "#145450", "#2470B3", "#1E4F8F"];
@@ -75,7 +76,7 @@ export default function Dashboard() {
             title={t("funderDashboard.dashboard2")}
             meta={
               <>
-                <span>{today.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</span>
+                <span>{today.toLocaleDateString(intlLocale(), { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</span>
                 <span>·</span>
                 <span>{t("funderDashboard.openCompetitions", { count: fundCompetitions?.filter((c) => c.status === "open").length ?? 0 })}</span>
                 {fund.current && (
@@ -178,7 +179,7 @@ export default function Dashboard() {
                               {c.stages.map((s, i) => {
                                 const n = mine.filter((a) => a.stage === s.key && !["accepted", "declined", "waitlisted"].includes(a.status)).length;
                                 return (
-                                  <Link key={s.key} to={`${base}/applications?stage=${encodeURIComponent(s.key)}`} style={{ flex: Math.max(n, 1), background: STAGE_COLORS[i % STAGE_COLORS.length] }} title={`${s.label}: ${n}`}>
+                                  <Link key={s.key} to={`${base}/applications?stage=${encodeURIComponent(s.key)}`} style={{ flex: Math.max(n, 1), background: STAGE_COLORS[i % STAGE_COLORS.length] }} title={t("funderDashboard.stageCount", { label: s.label, n })}>
                                     {s.label} {n}
                                   </Link>
                                 );
@@ -320,7 +321,7 @@ export default function Dashboard() {
                       {alerts.data && !alerts.data.length && <p className="muted small">{t("funderDashboard.noHoldsDestinationChanges")}</p>}
                       {payments.data && (
                         <p className="small muted">
-                          {t("funderDashboard.due", { amount: formatMinor(payments.data.totals.dueMinor) })} {facilitatedPayments ? t("funderDashboard.readyToReleaseBlocked", { releasable: payments.data.totals.releasable, blocked: payments.data.totals.blocked }) : t("funderDashboard.withAReadinessCheck", { blocked: payments.data.totals.blocked })}
+                          {facilitatedPayments ? t("funderDashboard.dueReadyBlocked", { amount: formatMinor(payments.data.totals.dueMinor), releasable: payments.data.totals.releasable, blocked: payments.data.totals.blocked }) : t("funderDashboard.dueToFix", { amount: formatMinor(payments.data.totals.dueMinor), blocked: payments.data.totals.blocked })}
                         </p>
                       )}
                     </div>

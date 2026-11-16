@@ -8,9 +8,10 @@ import type { Member } from "../../api/types.ts";
 import type { ProgramOwner } from "../../api/launch.ts";
 import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
-const number = new Intl.NumberFormat("en-US");
+const number = { format: (n: number) => new Intl.NumberFormat(intlLocale()).format(n) };
 
 /** Owner per program id, for the list's Owner column and the detail header. */
 export function useProgramOwners() {

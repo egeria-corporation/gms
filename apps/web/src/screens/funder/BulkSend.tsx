@@ -48,7 +48,7 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {result && (
           <Notice tone={result.sent === result.requested ? "ok" : "warn"} title={t("bulkSend.ofSent", { sent: result.sent, requested: result.requested })}>
-            {result.sent < result.requested ? result.results.filter((r) => !r.sent).map((r) => r.reason ?? "Not sent").join("; ") : t("bulkSend.eachSendIsIn")}
+            {result.sent < result.requested ? result.results.filter((r) => !r.sent).map((r) => r.reason ?? t("bulkSend.notSent")).join("; ") : t("bulkSend.eachSendIsIn")}
           </Notice>
         )}
         {recipients.status === "error" && <ErrorBanner error={recipients.error} onRetry={recipients.reload} />}
@@ -83,7 +83,7 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
         </div>
         <div className="row wrap" style={{ justifyContent: "space-between", gap: "12px" }}>
           <span className="small muted" role="status">
-            {recipients.status === "loading" ? t("bulkSend.countingRecipients") : count === 0 ? t("bulkSend.nobodyIsInThis") : `${count} ${count === 1 ? t("bulkSend.recipient") : t("bulkSend.recipients2")}: ${(recipients.data ?? []).slice(0, 3).map((r) => r.name).join(", ")}${count > 3 ? t("bulkSend.andMore", { count: count - 3 }) : ""}`}
+            {recipients.status === "loading" ? t("bulkSend.countingRecipients") : count === 0 ? t("bulkSend.nobodyIsInThis") : t(count > 3 ? "bulkSend.recipientsListMore" : "bulkSend.recipientsList", { count, names: (recipients.data ?? []).slice(0, 3).map((r) => r.name).join(", "), more: count - 3 })}
           </span>
           <button type="button" className="btn btn-primary" disabled={!chosen || count === 0} aria-haspopup="dialog" onClick={() => setConfirming(true)}>
             <Send className="ic" aria-hidden="true" />

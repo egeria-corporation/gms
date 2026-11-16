@@ -16,6 +16,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote }
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatDate, parseDollars } from "../../lib/format.ts";
 import { AGGREGATE_WORDS, CSV_MAX_ROWS, MAX_GROUP_BY, OP_WORDS, STOPPED_WORDS, WEEKDAYS, aggregateKey, cadenceWords, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const OPS_FOR: Record<ColumnInfo["type"], Filter["op"][]> = { text: ["eq", "in"], status: ["eq", "in"], number: ["eq", "between"], money: ["between", "eq"], date: ["between", "eq"] };
@@ -399,7 +400,7 @@ export default function ReportBuilder() {
               {sentFile ? (
                 <Notice tone="ok" title={t("reportBuilder.yourScheduledReportIs", { viewName: sentFile.viewName })}>
                   <span className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
-                    {t("reportBuilder.rowsKeptUntil", { rows: sentFile.rows.toLocaleString("en-US"), date: formatDate(sentFile.expiresAt) })}
+                    {t("reportBuilder.rowsKeptUntil", { rows: sentFile.rows.toLocaleString(intlLocale()), date: formatDate(sentFile.expiresAt) })}
                     <button type="button" className="btn btn-primary btn-sm" onClick={() => void fileDownload.run(sentFile.id)}>
                       <Download className="ic" aria-hidden="true" /> {t("reportBuilder.downloadTheFile")}
                     </button>
@@ -663,7 +664,7 @@ export default function ReportBuilder() {
                     )}
                     <SaveNote state={update.state} savedText={t("reportBuilder.changesSaved")} />
                   </div>
-                  <span className="help">{t("reportBuilder.aDownloadHoldsUp", { CSV_MAX_ROWS: CSV_MAX_ROWS.toLocaleString("en-US") })}</span>
+                  <span className="help">{t("reportBuilder.aDownloadHoldsUp", { CSV_MAX_ROWS: CSV_MAX_ROWS.toLocaleString(intlLocale()) })}</span>
                 </div>
               </section>
 
@@ -672,7 +673,7 @@ export default function ReportBuilder() {
                   <h2 id="rb-preview" style={{ fontSize: "16px" }}>
                     {t("reportBuilder.preview")}
                   </h2>
-                  {result && <span className="small muted">{result.truncated ? t("reportBuilder.showingTheFirstOf", { count: result.rows.length.toLocaleString("en-US"), total: result.total.toLocaleString("en-US"), value: grouped ? "groups" : "rows" }) : `${result.total.toLocaleString("en-US")} ${grouped ? (result.total === 1 ? t("reportBuilder.group") : t("reportBuilder.groups")) : result.total === 1 ? t("reportBuilder.row") : t("reportBuilder.rows")}`}</span>}
+                  {result && <span className="small muted">{result.truncated ? t("reportBuilder.showingTheFirstOf", { count: result.rows.length.toLocaleString(intlLocale()), total: result.total.toLocaleString(intlLocale()), value: grouped ? "groups" : "rows" }) : `${result.total.toLocaleString(intlLocale())} ${grouped ? (result.total === 1 ? t("reportBuilder.group") : t("reportBuilder.groups")) : result.total === 1 ? t("reportBuilder.row") : t("reportBuilder.rows")}`}</span>}
                 </div>
                 <div className="card-b col" style={{ gap: "12px" }}>
                   {result?.warnings.map((w) => (

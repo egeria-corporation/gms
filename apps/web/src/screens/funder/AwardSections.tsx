@@ -22,16 +22,16 @@ import { t } from "./i18n.ts";
 export type AwardTab = "agreement" | "payments" | "requirements" | "budget" | "amendments" | "documents" | "messages" | "activity" | "closeout";
 type Owner = "agreement" | "payments";
 
-const TABS: { key: AwardTab; label: string; owner: Owner }[] = [
-  { key: "agreement", label: "Agreement", owner: "agreement" },
-  { key: "payments", label: "Payments", owner: "payments" },
-  { key: "requirements", label: "Requirements", owner: "payments" },
-  { key: "budget", label: "Budget", owner: "payments" },
-  { key: "amendments", label: "Amendments", owner: "agreement" },
-  { key: "documents", label: "Documents", owner: "agreement" },
-  { key: "messages", label: "Messages / Notes", owner: "agreement" },
-  { key: "activity", label: "Activity", owner: "agreement" },
-  { key: "closeout", label: "Closeout", owner: "agreement" },
+const TABS: { key: AwardTab; readonly label: string; owner: Owner }[] = [
+  { key: "agreement", get label() { return t("awardSections.tab.agreement"); }, owner: "agreement" },
+  { key: "payments", get label() { return t("awardSections.tab.payments"); }, owner: "payments" },
+  { key: "requirements", get label() { return t("awardSections.tab.requirements"); }, owner: "payments" },
+  { key: "budget", get label() { return t("awardSections.tab.budget"); }, owner: "payments" },
+  { key: "amendments", get label() { return t("awardSections.tab.amendments"); }, owner: "agreement" },
+  { key: "documents", get label() { return t("awardSections.tab.documents"); }, owner: "agreement" },
+  { key: "messages", get label() { return t("awardSections.tab.messages"); }, owner: "agreement" },
+  { key: "activity", get label() { return t("awardSections.tab.activity"); }, owner: "agreement" },
+  { key: "closeout", get label() { return t("awardSections.tab.closeout"); }, owner: "agreement" },
 ];
 
 /** The current tab for one of the two award routes, kept in `?tab=` so a tab can be linked to. */
@@ -66,11 +66,11 @@ export function SignatureRecords({ awardId, agreement, recipientName, funderName
     const r = record(party);
     if (r?.ip) return <span className="mono">{r.ip}</span>;
     if (r && !r.ipVisible) return <span className="muted">{t("awardSections.recordedShownToAdmins")}</span>;
-    return "Recorded";
+    return t("awardSections.recorded");
   };
   const rows = [
-    { signature: agreement.granteeSignature, role: `Grantee · ${recipientName}`, party: "grantee" as const },
-    { signature: agreement.funderSignature, role: `Funder · ${funderName}`, party: "funder" as const },
+    { signature: agreement.granteeSignature, role: t("awardSections.role.grantee", { name: recipientName }), party: "grantee" as const },
+    { signature: agreement.funderSignature, role: t("awardSections.role.funder", { name: funderName }), party: "funder" as const },
   ];
   return (
     <section className="card" aria-labelledby="signatures-h">
@@ -127,7 +127,7 @@ export function AwardDocuments({ award }: { award: AwardDetail }) {
             <div className="nm">{t("awardSections.awardLetterPdf")}</div>
             <div className="mt">
               <span>
-                {t("awardSections.to", { amount: formatMinor(award.awardedAmountMinor, award.currency) })} {award.recipient?.name ?? t("awardSections.theRecipient")}
+                {t("awardSections.amountTo", { amount: formatMinor(award.awardedAmountMinor, award.currency), name: award.recipient?.name ?? t("awardSections.theRecipient") })}
               </span>
             </div>
           </div>
@@ -224,19 +224,19 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
   const awarded = award.awardedAmountMinor ?? 0;
   const disbursed = award.disbursedAmountMinor;
   const checks: { key: string; state: CheckState; label: string; reason: string }[] = [
-    { key: "agreement", state: award.agreement?.status === "executed" ? "pass" : "fail", label: t("awardSections.agreementExecuted"), reason: award.agreement?.status === "executed" ? "Both parties have signed." : "The agreement is not executed." },
-    { key: "tranches", state: live.length === 0 ? "unknown" : open.length ? "fail" : "pass", label: t("awardSections.everyTrancheSettled"), reason: live.length === 0 ? "No payment schedule." : open.length ? `${open.length} of ${live.length} still open.` : `${live.length} of ${live.length} settled.` },
+    { key: "agreement", state: award.agreement?.status === "executed" ? "pass" : "fail", label: t("awardSections.agreementExecuted"), reason: award.agreement?.status === "executed" ? t("awardSections.check.signed") : t("awardSections.check.notExecuted") },
+    { key: "tranches", state: live.length === 0 ? "unknown" : open.length ? "fail" : "pass", label: t("awardSections.everyTrancheSettled"), reason: live.length === 0 ? t("awardSections.check.noSchedule") : open.length ? t("awardSections.check.stillOpen", { open: open.length, total: live.length }) : t("awardSections.check.allSettled", { total: live.length }) },
     {
       key: "requirements",
       state: requirements.status !== "ready" ? "unknown" : owed.length ? "fail" : "pass",
       label: t("awardSections.everyRequirementAcceptedOr"),
-      reason: requirements.status !== "ready" ? "Requirements could not be read." : owed.length ? `${owed.length} still owed: ${owed.map((r) => r.title).join(", ")}.` : requirements.data.length ? "All reports and documents are in." : "No requirements on this award.",
+      reason: requirements.status !== "ready" ? t("awardSections.check.unreadable") : owed.length ? t("awardSections.check.owed", { count: owed.length, titles: owed.map((r) => r.title).join(", ") }) : requirements.data.length ? t("awardSections.check.allIn") : t("awardSections.check.none"),
     },
     {
       key: "disbursed",
       state: disbursed === null ? "unknown" : disbursed >= awarded ? "pass" : "fail",
       label: t("awardSections.disbursedEqualsAwarded"),
-      reason: disbursed === null ? "Passport has not reported a disbursed amount yet." : `${formatMinor(disbursed, award.currency)} of ${formatMinor(awarded, award.currency)} disbursed, as read from Passport.`,
+      reason: disbursed === null ? t("awardSections.check.noDisbursed") : t("awardSections.check.disbursed", { disbursed: formatMinor(disbursed, award.currency), awarded: formatMinor(awarded, award.currency) }),
     },
   ];
   const blocking = checks.filter((c) => c.state !== "pass").length;
@@ -280,7 +280,7 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
                 className="btn btn-primary"
                 disabled={blocking > 0 || complete.state === "saving"}
                 onClick={async () => {
-                  if (await complete.run()) finished("Award completed. Passport has been told.");
+                  if (await complete.run()) finished(t("awardSections.done.completed"));
                 }}
               >
                 {t("awardSections.completeAward")}
@@ -296,7 +296,7 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
               className="btn btn-primary"
               disabled={resume.state === "saving"}
               onClick={async () => {
-                if (await resume.run()) finished("Award resumed.");
+                if (await resume.run()) finished(t("awardSections.done.resumed"));
               }}
             >
               {t("awardSections.resumeAward")}
@@ -322,7 +322,7 @@ export function AwardCloseout({ award, onChanged }: { award: AwardDetail; onChan
             const kind = dialog;
             const ok = await stop.run(kind, reason);
             setDialog(null);
-            if (ok) finished(kind === "suspend" ? "Award suspended. No tranche can be released until it is resumed." : "Award cancelled.");
+            if (ok) finished(kind === "suspend" ? t("awardSections.done.suspended") : t("awardSections.done.cancelled"));
           }}
         />
       )}

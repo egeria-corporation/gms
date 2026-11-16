@@ -5,7 +5,7 @@
 // from Passport; this screen never adds to it.
 import { useState } from "react";
 import { useAppConfig } from "../../api/launchHooks.ts";
-import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
+import { PaymentsOffNotice, recordOutsideLabel } from "../../components/launch.tsx";
 import { Link, useParams } from "react-router";
 import { Banknote, Calendar, CircleCheck, Hand, Plus, Send, Trash2 } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -113,7 +113,7 @@ function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule
             {t("awardPayments.addTranche")}
           </button>
           <p className={total === left ? "help" : "err-msg"} role="status">
-            {t("awardPayments.ofScheduled", { amount: formatMinor(total, schedule.currency), amount2: formatMinor(left, schedule.currency) })}{total === left ? "" : t("awardPayments.amountsMustAddUp")}
+            {total === left ? t("awardPayments.ofScheduled", { scheduled: formatMinor(total, schedule.currency), left: formatMinor(left, schedule.currency) }) : t("awardPayments.ofScheduledMustAddUp", { scheduled: formatMinor(total, schedule.currency), left: formatMinor(left, schedule.currency) })}
           </p>
         </div>
         <div className="ft">
@@ -135,10 +135,10 @@ function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule
  * elsewhere" with no bank line.
  */
 export function releasedLine(row: Pick<TrancheRow, "mode" | "external">): { what: string; detail: string } {
-  if (row.mode !== "resolve") return { what: "Released through Passport", detail: "" };
+  if (row.mode !== "resolve") return { what: t("awardPayments.released.passport"), detail: "" };
   const ext = row.external;
-  if (!ext?.last4) return { what: "Paid elsewhere", detail: ext?.reference ? ` · ${ext.reference}` : "" };
-  return { what: "Recorded as paid outside Passport", detail: ` · ${ext.reference} · destination •••• ${ext.last4}` };
+  if (!ext?.last4) return { what: t("awardPayments.released.elsewhere"), detail: ext?.reference ? ` · ${ext.reference}` : "" };
+  return { what: t("awardPayments.released.outside"), detail: t("awardPayments.released.outsideDetail", { reference: ext.reference, last4: ext.last4 }) };
 }
 
 function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row: TrancheRow; requirementTitle: (id: string) => string | undefined; recipientName: string; onChanged: () => void }) {
@@ -150,7 +150,7 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
   const unhold = useApiMutation((api) => api.releaseHold(row.id));
   const cancel = useApiMutation((api, reason: string) => api.cancelTranche(row.id, reason));
   const r = readiness.data ?? null;
-  const blocked = r ? releaseBlockedReason(r) : "Checking readiness";
+  const blocked = r ? releaseBlockedReason(r) : t("awardPayments.checkingReadiness");
   const { facilitatedPayments } = useAppConfig();
   const done = (message: string | null) => {
     setDialog(null);
@@ -221,11 +221,11 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
             {row.status !== "held" && (
               <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} onClick={() => setDialog("external")}>
                 <Banknote className="ic" aria-hidden="true" />
-                {facilitatedPayments ? t("awardPayments.recordExternalPayment") : RECORD_OUTSIDE_LABEL}
+                {facilitatedPayments ? t("awardPayments.recordExternalPayment") : recordOutsideLabel()}
               </button>
             )}
             {row.status === "held" && row.holdReason === "manual" && (
-              <button type="button" className="btn btn-secondary" disabled={unhold.state === "saving"} onClick={async () => (await unhold.run()) && done("Hold lifted")}>
+              <button type="button" className="btn btn-secondary" disabled={unhold.state === "saving"} onClick={async () => (await unhold.run()) && done(t("awardPayments.done.holdLifted"))}>
                 {t("awardPayments.liftHold")}
               </button>
             )}
@@ -246,16 +246,16 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
           </div>
         )}
       </div>
-      {dialog === "release" && r && <ReleaseDialog readiness={r} awardTitle={row.award?.title ?? ""} recipientName={recipientName} onClose={() => setDialog(null)} onDone={() => done("Released. Passport will confirm when it settles.")} />}
-      {dialog === "external" && <RecordExternalDialog tranche={row} recipientName={recipientName} onClose={() => setDialog(null)} onDone={(unverified) => done(unverified ? "Recorded here as unverified: Passport could not match the destination." : "Recorded as paid")} />}
+      {dialog === "release" && r && <ReleaseDialog readiness={r} awardTitle={row.award?.title ?? ""} recipientName={recipientName} onClose={() => setDialog(null)} onDone={() => done(t("awardPayments.done.released"))} />}
+      {dialog === "external" && <RecordExternalDialog tranche={row} recipientName={recipientName} onClose={() => setDialog(null)} onDone={(unverified) => done(unverified ? t("awardPayments.done.unverified") : t("awardPayments.done.recorded"))} />}
       {dialog === "hold" && (
         <ReasonDialog
           title={t("awardPayments.holdTranche", { seq: row.seq })}
           label={t("awardPayments.whyIsThisTranche")}
-          action="Hold tranche"
+          action={t("awardPayments.action.hold")}
           onClose={() => setDialog(null)}
           onSubmit={async (reason) => {
-            if (await hold.run(reason)) done("Tranche held");
+            if (await hold.run(reason)) done(t("awardPayments.done.held"));
             else setDialog(null);
           }}
         />
@@ -264,11 +264,11 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
         <ReasonDialog
           title={t("awardPayments.cancelTranche2", { seq: row.seq })}
           label={t("awardPayments.whyIsThisTranche2")}
-          action="Cancel tranche"
+          action={t("awardPayments.action.cancel")}
           danger
           onClose={() => setDialog(null)}
           onSubmit={async (reason) => {
-            if (await cancel.run(reason)) done("Tranche cancelled");
+            if (await cancel.run(reason)) done(t("awardPayments.done.cancelled"));
             else setDialog(null);
           }}
         />
@@ -383,8 +383,8 @@ export default function AwardPayments() {
   }, [awardId]);
   const d = page.data;
   const first = d?.rows[0];
-  const recipientName = first?.recipient?.name ?? "the grantee";
-  const title = first?.award?.title ?? "Award";
+  const recipientName = first?.recipient?.name ?? t("awardPayments.theGrantee");
+  const title = first?.award?.title ?? t("awardPayments.award");
   const requirementTitle = (id: string) => d?.requirements.find((r) => r.id === id)?.title.toLowerCase();
   const live: Tranche[] = d?.schedule.tranches.filter((item) => item.status !== "cancelled") ?? [];
 

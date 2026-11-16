@@ -25,7 +25,7 @@ interface OrgFacts {
 function regionOf(organization: Record<string, unknown> | null): string {
   const projection = (organization?.projection ?? organization) as { addresses?: { primary?: { stateOrProvince?: unknown } } } | null | undefined;
   const code = projection?.addresses?.primary?.stateOrProvince;
-  return typeof code === "string" && code ? (US_STATES[code] ?? code) : "Not shared";
+  return typeof code === "string" && code ? (US_STATES[code] ?? code) : t("analyticsExtras.notShared");
 }
 
 function Bars({ rows, total, format }: { rows: { label: string; value: number }[]; total: number; format: (n: number) => string }) {

@@ -239,7 +239,7 @@ function ActionDialog({ app, action, onClose, onDone }: { app: InboxApplication;
     if (action.kind === "revision") return api.requestRevision(app.id, { message: text.trim(), ...(Object.keys(fields).length ? { fields } : {}) });
     return api.declineApplication(app.id, { sendLetter, ...(text.trim() ? { rationale: text.trim() } : {}) });
   });
-  const title = action.kind === "advance" ? `Advance to ${action.label}` : action.kind === "revision" ? "Request a revision" : "Decline this application";
+  const title = action.kind === "advance" ? t("applicationDetail.advanceTo", { label: action.label }) : action.kind === "revision" ? t("applicationDetail.requestARevision") : t("applicationDetail.declineThisApplication");
   const needText = action.kind === "revision";
   const toggleField = (formId: string, path: string) =>
     setFields((f) => {
@@ -355,7 +355,7 @@ export default function ApplicationDetail() {
 
   return (
     <>
-      <title>{`${a.title} — ${ws.name}`}</title>
+      <title>{t("applicationDetail.pageTitle", { title: a.title, workspace: ws.name })}</title>
       <FunderShell active="Applications">
         <main className="main">
           <div className="crumbs">
@@ -514,10 +514,10 @@ export default function ApplicationDetail() {
                         <dt>{t("applicationDetail.passportSync")}</dt>
                         <dd>{timeAgo(org.syncedAt)}</dd>
                         <dt>{t("applicationDetail.attestation")}</dt>
-                        <dd>{a.attestationUrl ? <a href={a.attestationUrl}>{t("applicationDetail.attachedAtSubmit", { verificationLevelAtSubmit: a.verificationLevelAtSubmit })}</a> : t("applicationDetail.none")}</dd>
+                        <dd>{a.attestationUrl ? <a href={a.attestationUrl}>{t("applicationDetail.attachedAtSubmit", { level: a.verificationLevelAtSubmit })}</a> : t("applicationDetail.none")}</dd>
                       </dl>
                     ) : (
-                      <p className="muted small">{t("applicationDetail.theApplicantsPassportRecord")} {a.verificationLevelAtSubmit ?? t("applicationDetail.unknown")}.</p>
+                      <p className="muted small">{t("applicationDetail.passportRecordLevel", { level: a.verificationLevelAtSubmit ?? t("applicationDetail.unknown") })}</p>
                     )}
                   </div>
                 </div>

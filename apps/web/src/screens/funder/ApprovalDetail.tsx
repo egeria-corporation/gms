@@ -101,7 +101,7 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
                 {preview.status === "loading" && <Loading label={t("approvalDetail.renderingTheLetter")} />}
                 {preview.status === "error" && <ErrorBanner error={preview.error} title={t("approvalDetail.thisLetterCouldNot")} />}
                 {preview.data && (
-                  <div className="letter" aria-label={t("approvalDetail.letterTo", { name: current.applicant.name ?? "the applicant" })} role="group">
+                  <div className="letter" aria-label={t("approvalDetail.letterTo", { name: current.applicant.name ?? t("approvalDetail.theApplicant") })} role="group">
                     {preview.data.subject && <div className="b">{preview.data.subject}</div>}
                     <div style={{ whiteSpace: "pre-wrap" }}>{preview.data.text}</div>
                   </div>

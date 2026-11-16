@@ -97,7 +97,7 @@ export function AwardListingCard() {
       {!isAdmin && (
         <div className="card-f small muted">
           <Info className="ic" aria-hidden="true" />
-          {t("awardListingSettings.onlyWorkspaceAdminsCan")}{canDefault ? t("awardListingSettings.programOfficersCanSet") : "."}
+          {canDefault ? t("awardListingSettings.onlyAdminsOfficersDefault") : t("awardListingSettings.onlyAdmins")}
         </div>
       )}
     </section>

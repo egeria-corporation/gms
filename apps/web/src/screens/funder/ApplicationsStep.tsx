@@ -9,14 +9,15 @@ import { useState } from "react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Competition, Opportunity, QuickSetupResult } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, ReadinessChecklist } from "../../components/ui.tsx";
-import { FORECASTED_LABEL, NOT_TAKING_LABEL } from "./applicationsStatus.tsx";
+import { forecastedLabel, notTakingLabel } from "./applicationsStatus.tsx";
 import { t } from "./i18n.ts";
 
 function madeSummary(r: QuickSetupResult): { title: string; detail: string } {
-  const made = [r.created.competition && "a one-stage competition", r.created.form && "the application form", r.created.rubric && "the rubric"].filter((x): x is string => !!x);
-  if (!made.length) return { title: t("applicationsStep.alreadySetUp"), detail: "Quick setup found the competition, form and rubric it made before and kept them as they are." };
-  const list = made.length === 1 ? made[0]! : `${made.slice(0, -1).join(", ")} and ${made[made.length - 1]}`;
-  return { title: t("applicationsStep.quickSetupIsDone"), detail: `It made ${list}. Each is a draft you can edit until you open for applications.` };
+  const made = [r.created.competition && t("applicationsStep.made.competition"), r.created.form && t("applicationsStep.made.form"), r.created.rubric && t("applicationsStep.made.rubric")].filter((x): x is string => !!x);
+  if (!made.length) return { title: t("applicationsStep.alreadySetUp"), detail: t("applicationsStep.foundAndKept") };
+  const [a = "", b = "", c = ""] = made;
+  const list = made.length === 1 ? a : made.length === 2 ? t("applicationsStep.list2", { a, b }) : t("applicationsStep.list3", { a, b, c });
+  return { title: t("applicationsStep.quickSetupIsDone"), detail: t("applicationsStep.itMade", { list }) };
 }
 
 export function ApplicationsStep({ opportunity, competition, base, publicPath, onChanged }: { opportunity: Opportunity | undefined; competition: Competition | undefined; base: string; publicPath: string | null; onChanged: () => void }) {
@@ -57,7 +58,7 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
       <div className="bnr bnr-warn" role="status">
         <CirclePause className="ic" aria-hidden="true" />
         <div>
-          <div className="t">{FORECASTED_LABEL}</div>
+          <div className="t">{forecastedLabel()}</div>
           <div className="d">{t("applicationsStep.isOpenButThe", { title: competition.title })}</div>
         </div>
       </div>
@@ -95,7 +96,7 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
         <div className="bnr bnr-warn" role="status">
           <CirclePause className="ic" aria-hidden="true" />
           <div>
-            <div className="t">{opportunity.status === "forecasted" ? FORECASTED_LABEL : NOT_TAKING_LABEL}</div>
+            <div className="t">{opportunity.status === "forecasted" ? forecastedLabel() : notTakingLabel()}</div>
             <div className="d">
               {opportunity.status === "forecasted"
                 ? t("applicationsStep.applicantsCanSeeWhat")

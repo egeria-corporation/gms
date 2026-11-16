@@ -83,7 +83,7 @@ export function ContactsEditor({ canEdit = true }: { canEdit?: boolean }) {
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
-                    aria-label={t("contactsEditor.removeContact", { n, value: c.name ? `, ${c.name}` : "" })}
+                    aria-label={c.name ? t("contactsEditor.removeContactNamed", { n, name: c.name }) : t("contactsEditor.removeContact", { n })}
                     onClick={() => {
                       save.reset();
                       setRows(list.filter((_, at) => at !== i));

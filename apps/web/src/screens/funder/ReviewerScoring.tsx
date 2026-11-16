@@ -13,6 +13,7 @@ import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.ts
 import { ResponseCard } from "./ApplicationDetail.tsx";
 import { ASSIGNMENT_LOOK, ReviewerFrame, assignmentName, usePortal } from "./ReviewerAssignments.tsx";
 import { AiSummaryPanel } from "./ApplicationPanels.tsx";
+import { intlLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 type ScoreValue = number | string;
@@ -144,7 +145,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             {d.dueAt && (
               <>
                 <span>·</span>
-                <span>{t("reviewerScoring.due", { date: new Date(d.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) })}</span>
+                <span>{t("reviewerScoring.due", { date: new Date(d.dueAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) })}</span>
               </>
             )}
           </div>

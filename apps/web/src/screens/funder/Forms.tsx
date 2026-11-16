@@ -4,16 +4,17 @@
 import { useNavigate, Link } from "react-router";
 import { FileText, LayoutTemplate, Plus } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
-import type { FormInput, FormSummary } from "../../api/types.ts";
+import type { FormInput, FormPurpose, FormSummary } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { GallerySubmissionsPanel } from "./ShareToGallery.tsx";
+import { PURPOSE_LABEL } from "./shared.tsx";
 import { t } from "./i18n.ts";
 
-const PURPOSE: Record<string, string> = { application: "Application", loi: "Letter of intent", report: "Report", amendment: "Amendment", site_visit: "Site visit", other: "Other" };
+const purposeLabel = (purpose: string) => PURPOSE_LABEL[purpose as FormPurpose]?.() ?? purpose;
 
 export default function Forms() {
   const ws = useWorkspace("funder");
@@ -31,7 +32,7 @@ export default function Forms() {
 
   const own: Column<FormSummary>[] = [
     { key: "title", header: t("funderForms.form"), cell: (f) => <Link to={`${base}/forms/${f.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{f.title}</Link>, sort: (f) => f.title },
-    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => PURPOSE[f.purpose] ?? f.purpose, sort: (f) => f.purpose },
+    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => purposeLabel(f.purpose), sort: (f) => f.purpose },
     { key: "version", header: t("funderForms.latestVersion"), cell: (f) => <span className="tag">{t("funderForms.v", { version: f.version })}</span>, sort: (f) => f.version },
     { key: "status", header: t("funderForms.status"), cell: (f) => <StatusBadge kind="form" status={f.status} /> },
     { key: "updated", header: t("funderForms.updated"), cell: (f) => formatDate(f.updatedAt), sort: (f) => f.updatedAt },
@@ -39,7 +40,7 @@ export default function Forms() {
   const library: Column<FormSummary>[] = [
     { key: "title", header: t("funderForms.libraryForm"), cell: (f) => <span className="b" style={{ color: "#0D2A43" }}>{f.title}</span>, sort: (f) => f.title },
     { key: "about", header: t("funderForms.whatItCovers"), cell: (f) => <span style={{ whiteSpace: "normal" }}>{f.description ?? "—"}</span> },
-    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => PURPOSE[f.purpose] ?? f.purpose },
+    { key: "purpose", header: t("funderForms.usedFor"), cell: (f) => purposeLabel(f.purpose) },
     {
       key: "use",
       header: "",

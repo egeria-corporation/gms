@@ -12,7 +12,7 @@ import { invitationOf } from "../../api/directAwards.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
+import { StatusBadge, VerificationBadge, WorkspaceName, statusLook } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { canCancelAward, canGiveDirectAward, canResendInvitation } from "../../lib/roles.ts";
@@ -24,12 +24,7 @@ import { SocialPanel } from "../../components/SocialPanel.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { t } from "./i18n.ts";
 
-const STEPS: [Agreement["status"], string][] = [
-  ["draft", "Draft"],
-  ["sent", "Sent"],
-  ["signed_by_grantee", "Signed by grantee"],
-  ["executed", "Executed"],
-];
+const STEPS: Agreement["status"][] = ["draft", "sent", "signed_by_grantee", "executed"];
 const shortHash = (h: string | null) => (h ? `${h.slice(0, 8)}…${h.slice(-4)}` : "—");
 
 function CountersignDialog({ agreement, award, onClose, onDone }: { agreement: Agreement; award: AwardDetail; onClose: () => void; onDone: () => void }) {
@@ -92,7 +87,7 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
   });
   const [signing, setSigning] = useState(false);
   const g = agreement.data;
-  const at = g ? STEPS.findIndex(([s]) => s === (g.status === "countersigned" ? "executed" : g.status)) : -1;
+  const at = g ? STEPS.findIndex((s) => s === (g.status === "countersigned" ? "executed" : g.status)) : -1;
 
   return (
     <section className="card" aria-labelledby="agreement-h">
@@ -129,11 +124,11 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
         {g && (
           <>
             <ol className="stp" aria-label={t("awardAgreement.agreementProgress")} style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {STEPS.map(([key, label], i) => (
+              {STEPS.map((key, i) => (
                 <li key={key} style={{ display: "contents" }}>
                   <span className={i < at || g.status === "executed" ? "s done" : i === at ? "s on" : "s"} aria-current={i === at ? "step" : undefined}>
                     <span className="n">{i < at || g.status === "executed" ? <Check className="ic ic-sm" aria-hidden="true" /> : i + 1}</span>
-                    {label}
+                    {statusLook("agreement", key).label}
                   </span>
                   {i < STEPS.length - 1 && <span className={i < at ? "ln done" : "ln"} aria-hidden="true"></span>}
                 </li>
@@ -143,9 +138,9 @@ function AgreementPanel({ award, onChanged }: { award: AwardDetail; onChanged: (
               <dt>{t("awardAgreement.document")}</dt>
               <dd className="mono">{t("awardAgreement.sha256", { shortHash: shortHash(g.documentSha256) })}</dd>
               <dt>{t("awardAgreement.granteeSignature")}</dt>
-              <dd>{g.granteeSignature ? `${g.granteeSignature.name} · ${dateTime(g.granteeSignature.at)}` : t("awardAgreement.notSignedYet")}</dd>
+              <dd>{g.granteeSignature ? t("awardAgreement.signedByAt", { name: g.granteeSignature.name, date: dateTime(g.granteeSignature.at) }) : t("awardAgreement.notSignedYet")}</dd>
               <dt>{t("awardAgreement.funderSignature")}</dt>
-              <dd>{g.funderSignature ? `${g.funderSignature.name} · ${dateTime(g.funderSignature.at)}` : t("awardAgreement.notSignedYet")}</dd>
+              <dd>{g.funderSignature ? t("awardAgreement.signedByAt", { name: g.funderSignature.name, date: dateTime(g.funderSignature.at) }) : t("awardAgreement.notSignedYet")}</dd>
               <dt>{t("awardAgreement.executed")}</dt>
               <dd>{g.executedAt ? dateTime(g.executedAt) : "—"}</dd>
             </dl>
@@ -258,8 +253,8 @@ export default function AwardAgreement() {
   const nextDue = (id: string) => {
     const open = (tranches.data ?? []).filter((item) => item.awardId === id && ["scheduled", "due", "ready", "held"].includes(item.status));
     const dated = open.filter((item) => item.dueAt).sort((a, b) => a.dueAt!.localeCompare(b.dueAt!))[0];
-    if (dated) return `Tranche ${dated.seq} · ${formatDate(dated.dueAt)}`;
-    return open[0] ? `Tranche ${open[0].seq} · when its condition is met` : "—";
+    if (dated) return t("awardAgreement.nextTrancheDated", { seq: dated.seq, date: formatDate(dated.dueAt) });
+    return open[0] ? t("awardAgreement.nextTrancheCondition", { seq: open[0].seq }) : "—";
   };
   const total = (awards.data ?? []).reduce((n, a) => n + (a.awardedAmountMinor ?? 0), 0);
   const reload = () => {
@@ -296,7 +291,7 @@ export default function AwardAgreement() {
             }
             meta={
               <span>
-                {awards.data?.length === 1 ? t("awardAgreement.n1Award") : t("awardAgreement.awards3", { count: awards.data?.length ?? 0 })} {t("awardAgreement.awarded", { amount: formatMinor(total) })}
+                {t("awardAgreement.countAwarded", { count: awards.data?.length ?? 0, amount: formatMinor(total) })}
                 {fund.current ? ` · ${fund.current.name}` : ""}
               </span>
             }
@@ -403,7 +398,7 @@ export default function AwardAgreement() {
                 <div>
                   <div className="stat-l">{t("awardAgreement.passportMirror")}</div>
                   <div className="stat-d" style={{ marginTop: "8px" }}>
-                    {{ synced: "Synced", pending: "Not synced yet", not_applicable: "Not applicable", disabled: "Connect Passport to pay" }[award.data.passport.mirror]}
+                    {{ synced: () => t("awardAgreement.mirror.synced"), pending: () => t("awardAgreement.mirror.pending"), not_applicable: () => t("awardAgreement.mirror.notApplicable"), disabled: () => t("awardAgreement.mirror.disabled") }[award.data.passport.mirror]()}
                   </div>
                 </div>
               </div>

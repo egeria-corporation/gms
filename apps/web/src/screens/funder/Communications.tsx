@@ -18,7 +18,7 @@ import { t } from "./i18n.ts";
 /** Fields every install can fill. The built-in templates name the rest (award dates, requirement and payment details), so the list shown is theirs plus these. */
 const BASE_MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
 const mergeField = (name: string) => `{{${name}}}`;
-const KIND_LABEL: Record<Template["kind"], string> = { email: "Email", letter: "Letter", agreement: "Agreement" };
+const KIND_LABEL: Record<Template["kind"], () => string> = { email: () => t("funderCommunications.kind.email"), letter: () => t("funderCommunications.kind.letter"), agreement: () => t("funderCommunications.kind.agreement") };
 
 interface Draft {
   kind: Template["kind"];
@@ -34,7 +34,7 @@ export default function Communications() {
   const templates = useApiQuery((api) => api.listTemplates(), []);
   const log = useApiQuery((api) => api.listCommunications(), []);
   // The log stores the subject's id; the applications list supplies the name people recognize.
-  const subjects = useApiQuery(async (api) => new Map((await api.listApplications({ pageSize: 100 })).items.map((a) => [a.id.replace(/^app_/, ""), `${a.applicant.name} · ${a.title}`])), []);
+  const subjects = useApiQuery(async (api) => new Map((await api.listApplications({ pageSize: 100 })).items.map((a) => [a.id.replace(/^app_/, ""), t("funderCommunications.subjectName", { name: a.applicant.name, title: a.title })])), []);
   const sample = useApiQuery(async (api) => (await api.listApplications({ pageSize: 1 })).items[0] ?? null, []);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(draftOf());
@@ -53,7 +53,7 @@ export default function Communications() {
       .at(-1) ?? null;
   const channelOf = (c: { template: string | null; templateName: string | null }) => {
     const tpl = all.find((x) => x.id === c.template || x.name === c.templateName);
-    return tpl?.kind === "letter" ? "Email with letter (PDF)" : tpl?.kind === "agreement" ? "Email with agreement" : "Email";
+    return tpl?.kind === "letter" ? t("funderCommunications.channel.letter") : tpl?.kind === "agreement" ? t("funderCommunications.channel.agreement") : t("funderCommunications.channel.email");
   };
   const current = all.find((item) => item.id === selected) ?? null;
 
@@ -132,7 +132,7 @@ export default function Communications() {
                     <tbody>
                       {all.map((tpl) => (
                         <tr key={tpl.id} className={tpl.id === selected ? "sel" : undefined}>
-                          <td>{KIND_LABEL[tpl.kind]}</td>
+                          <td>{KIND_LABEL[tpl.kind]()}</td>
                           <td>
                             <button type="button" className="b" style={{ border: 0, background: "transparent", font: "inherit", fontWeight: 700, color: "#0D2A43", cursor: "pointer", padding: 0 }} aria-pressed={tpl.id === selected} onClick={() => setSelected(tpl.id)}>
                               {tpl.name}
@@ -152,7 +152,7 @@ export default function Communications() {
                 <div className="card-h">
                   <div className="row" style={{ gap: "10px" }}>
                     <h3 id="editor-h">{current ? current.name : t("funderCommunications.newTemplate")}</h3>
-                    {current && <span className="tag">{`${KIND_LABEL[current.kind]} · ${current.builtIn ? t("funderCommunications.builtIn2") : t("funderCommunications.v", { version: current.version })}`}</span>}
+                    {current && <span className="tag">{current.builtIn ? t("funderCommunications.kindBuiltIn", { kind: KIND_LABEL[current.kind]() }) : t("funderCommunications.kindVersion", { kind: KIND_LABEL[current.kind](), version: current.version })}</span>}
                   </div>
                   <div className="row" style={{ gap: "8px" }}>
                     <SaveNote state={save.state} savedText={t("funderCommunications.versionSaved")} />
@@ -222,7 +222,7 @@ export default function Communications() {
                     )}
                     {preview && (
                       <section className="letter" aria-label={t("funderCommunications.renderedPreview")}>
-                        <div className="small muted">{t("funderCommunications.renderedFor")} {sample.data?.applicant.name ?? t("funderCommunications.aSampleRecipient")}</div>
+                        <div className="small muted">{t("funderCommunications.renderedFor", { name: sample.data?.applicant.name ?? t("funderCommunications.aSampleRecipient") })}</div>
                         {preview.subject && <div className="b">{preview.subject}</div>}
                         <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
                       </section>

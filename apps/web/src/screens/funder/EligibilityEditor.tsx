@@ -121,8 +121,8 @@ function RowValue({ row, n, onChange }: { row: RuleRow; n: number; onChange: (ro
 
 /** A row that cannot be published yet, and why. */
 export function rowProblem(row: RuleRow): string | null {
-  if ((row.fact === "taxStatus" || row.fact === "state") && row.values.length === 0) return "Choose at least one value or remove this rule. Rules with no value can't be published.";
-  if (row.fact === "revenueUnder" && row.amount <= 0) return "Enter an amount or remove this rule. Rules with no value can't be published.";
+  if ((row.fact === "taxStatus" || row.fact === "state") && row.values.length === 0) return t("eligibilityEditor.problem.noValue");
+  if (row.fact === "revenueUnder" && row.amount <= 0) return t("eligibilityEditor.problem.noAmount");
   return null;
 }
 
@@ -197,16 +197,16 @@ interface Facts {
   active: boolean;
   revenue: string;
 }
-const PRESETS: { label: string; facts: Facts }[] = [
-  { label: "Verified 501(c)(3)", facts: { subsection: "03", state: "OR", level: "L3", active: true, revenue: "2400000" } },
-  { label: "New record, nothing shared", facts: { subsection: "", state: "OR", level: "L1", active: true, revenue: "" } },
-  { label: "Out-of-state business", facts: { subsection: "", state: "NV", level: "L0", active: true, revenue: "7800000" } },
+const PRESETS: { readonly label: string; facts: Facts }[] = [
+  { get label() { return t("eligibilityEditor.preset.verified"); }, facts: { subsection: "03", state: "OR", level: "L3", active: true, revenue: "2400000" } },
+  { get label() { return t("eligibilityEditor.preset.newRecord"); }, facts: { subsection: "", state: "OR", level: "L1", active: true, revenue: "" } },
+  { get label() { return t("eligibilityEditor.preset.outOfState"); }, facts: { subsection: "", state: "NV", level: "L0", active: true, revenue: "7800000" } },
 ];
 
 const OUTCOME = {
-  pass: { icon: CircleCheck, cls: "rc-pass", word: "Pass" },
-  fail: { icon: CircleX, cls: "rc-fail", word: "Fail" },
-  unknown: { icon: CircleDashed, cls: "rc-unk", word: "Unknown" },
+  pass: { icon: CircleCheck, cls: "rc-pass", get word() { return t("eligibilityEditor.outcome.pass"); } },
+  fail: { icon: CircleX, cls: "rc-fail", get word() { return t("eligibilityEditor.outcome.fail"); } },
+  unknown: { icon: CircleDashed, cls: "rc-unk", get word() { return t("eligibilityEditor.outcome.unknown"); } },
 } as const;
 
 function Verdict({ result }: { result: Evaluation }) {

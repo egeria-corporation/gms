@@ -15,24 +15,24 @@ import { approvalTargets, dateTime, timeAgo, usePeople } from "./shared.tsx";
 import { t } from "./i18n.ts";
 
 const TOOL_TEXT: Record<string, (n: number) => string> = {
-  decline_application: (n) => `Decline ${n === 1 ? "1 application" : `${n} applications`} and send the decline letter`,
-  send_communication: () => "Send a templated message",
-  commit_decisions: () => "Commit panel decisions",
-  release_tranche: () => "Release a payment",
+  decline_application: (count) => t("funderApprovals.tool.decline", { count }),
+  send_communication: () => t("funderApprovals.tool.send"),
+  commit_decisions: () => t("funderApprovals.tool.commit"),
+  release_tranche: () => t("funderApprovals.tool.release"),
 };
 export const approvalTitle = (a: Approval) => TOOL_TEXT[a.tool]?.(Math.max(1, approvalTargets(a.input).length)) ?? a.description ?? a.tool.replace(/_/g, " ");
 const impactOf = (a: Approval) => {
   const n = approvalTargets(a.input).length;
-  if (a.tool === "decline_application") return `Will send ${n} ${n === 1 ? "letter" : "letters"} and set ${n} ${n === 1 ? "status" : "statuses"} to Declined`;
-  return "Runs once, as you, when approved";
+  if (a.tool === "decline_application") return t("funderApprovals.impact.decline", { count: n });
+  return t("funderApprovals.impact.once");
 };
 
-const RESOLVED_LOOK: Record<string, { label: string; tone: string; icon: typeof Check }> = {
-  approved: { label: "Approved", tone: "ok", icon: CircleCheck },
-  executed: { label: "Approved and done", tone: "ok", icon: CircleCheck },
-  failed: { label: "Approved, but the action failed", tone: "dng", icon: TriangleExclamationPoint },
-  rejected: { label: "Rejected", tone: "neutral", icon: CircleX },
-  expired: { label: "Expired", tone: "neutral", icon: Clock },
+const RESOLVED_LOOK: Record<string, { readonly label: string; tone: string; icon: typeof Check }> = {
+  approved: { get label() { return t("funderApprovals.resolved.approved"); }, tone: "ok", icon: CircleCheck },
+  executed: { get label() { return t("funderApprovals.resolved.executed"); }, tone: "ok", icon: CircleCheck },
+  failed: { get label() { return t("funderApprovals.resolved.failed"); }, tone: "dng", icon: TriangleExclamationPoint },
+  rejected: { get label() { return t("funderApprovals.resolved.rejected"); }, tone: "neutral", icon: CircleX },
+  expired: { get label() { return t("funderApprovals.resolved.expired"); }, tone: "neutral", icon: Clock },
 };
 
 /** One pending request. Also shown on the dashboard. */
@@ -45,7 +45,7 @@ export function ApprovalCard({ approval, base, onResolved, onOpen }: { approval:
     <article className="apr" aria-label={t("funderApprovals.approvalRequest", { approvalTitle: approvalTitle(approval) })}>
       <div className="hd">
         <Bot className="ic" aria-hidden="true" />
-        {approval.requestedBy.clientId ?? t("funderApprovals.anAgent")} {t.rich("funderApprovals.requestsApproval", { timeAgo: timeAgo(approval.createdAt), span: (chunks) => <span style={{ marginLeft: "auto", fontWeight: 400, color: "#3C2380" }}>{chunks}</span> })}
+        {t.rich("funderApprovals.agentRequestsApproval", { agent: approval.requestedBy.clientId ?? t("funderApprovals.anAgent"), timeAgo: timeAgo(approval.createdAt), span: (chunks) => <span style={{ marginLeft: "auto", fontWeight: 400, color: "#3C2380" }}>{chunks}</span> })}
       </div>
       <div className="bd">
         <div className="b" style={{ fontSize: "15px", color: "#0D2A43" }}>
@@ -68,7 +68,7 @@ export function ApprovalCard({ approval, base, onResolved, onOpen }: { approval:
               <dd>
                 {targets.map((id, i) => (
                   <Link key={id} to={`${base}/applications/${id}`} style={{ marginRight: "8px" }}>
-                    {t("funderApprovals.open")} {targets.length > 1 ? i + 1 : t("funderApprovals.application")}
+                    {targets.length > 1 ? t("funderApprovals.openNumber", { n: String(i + 1) }) : t("funderApprovals.openApplication")}
                   </Link>
                 ))}
               </dd>
@@ -177,7 +177,7 @@ export default function Approvals() {
                             <span className="ag">{a.requestedBy.clientId ?? t("funderApprovals.anAgent")}</span>
                             {a.decidedAt && (
                               <span>
-                                {t("funderApprovals.decidedBy")} {person(a.decidedBy)?.name ?? t("funderApprovals.aMember")} · {dateTime(a.decidedAt)}
+                                {t("funderApprovals.decidedByAt", { name: person(a.decidedBy)?.name ?? t("funderApprovals.aMember"), date: dateTime(a.decidedAt) })}
                               </span>
                             )}
                           </div>

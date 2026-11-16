@@ -6,7 +6,7 @@ import { downloadBlob } from "../../lib/browser.ts";
 import { useState } from "react";
 import { ChartColumn, Download, FileSpreadsheet, TriangleExclamationPoint, Upload } from "lucide-react";
 import { Link } from "react-router";
-import { VerificationBadge } from "../../components/status.tsx";
+import { STATUS, VerificationBadge, statusLook } from "../../components/status.tsx";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CsvImportResult, CycleReport, Portfolio } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -20,17 +20,34 @@ import { t } from "./i18n.ts";
 type Tab = "portfolio" | "cycle" | "exports";
 const pct = (part: number, whole: number) => (whole > 0 ? `${Math.min(100, Math.round((part / whole) * 1000) / 10)}%` : "0%");
 const words = (key: string) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-const TARGETS: { key: string; label: string; required?: boolean }[] = [
-  { key: "recipientName", label: "Recipient name", required: true },
-  { key: "title", label: "Award title", required: true },
-  { key: "awardedAmount", label: "Awarded amount", required: true },
-  { key: "recipientEin", label: "Recipient EIN" },
-  { key: "startDate", label: "Period start" },
-  { key: "endDate", label: "Period end" },
-  { key: "status", label: "Status" },
+const TARGETS: { key: string; readonly label: string; required?: boolean }[] = [
+  { key: "recipientName", get label() { return t("funderAnalytics.target.recipientName"); }, required: true },
+  { key: "title", get label() { return t("funderAnalytics.target.title"); }, required: true },
+  { key: "awardedAmount", get label() { return t("funderAnalytics.target.awardedAmount"); }, required: true },
+  { key: "recipientEin", get label() { return t("funderAnalytics.target.recipientEin"); } },
+  { key: "startDate", get label() { return t("funderAnalytics.target.startDate"); } },
+  { key: "endDate", get label() { return t("funderAnalytics.target.endDate"); } },
+  { key: "status", get label() { return t("funderAnalytics.target.status"); } },
 ];
 
-function Counts({ title, counts }: { title: string; counts: Record<string, unknown> }) {
+/** A count's name: an application or report status, a payment bucket, or the words of its key. */
+const applicationCount = (k: string) => (k in STATUS.application ? statusLook("application", k).label : words(k));
+const reportCount = (k: string) => (k in STATUS.requirement ? statusLook("requirement", k).label : words(k));
+const PAYMENT_COUNT: Record<string, () => string> = {
+  due: () => t("funderAnalytics.payment.due"),
+  held: () => t("funderAnalytics.payment.held"),
+  inFlight: () => t("funderAnalytics.payment.inFlight"),
+  settled: () => t("funderAnalytics.payment.settled"),
+};
+const paymentCount = (k: string) => PAYMENT_COUNT[k]?.() ?? words(k);
+const ELIGIBILITY_COUNT: Record<string, () => string> = {
+  true: () => t("funderAnalytics.eligibility.eligible"),
+  false: () => t("funderAnalytics.eligibility.notEligible"),
+  unknown: () => t("funderAnalytics.eligibility.unknown"),
+};
+const asWritten = (k: string) => k;
+
+function Counts({ title, counts, name = words }: { title: string; counts: Record<string, unknown>; name?: (key: string) => string }) {
   const rows = Object.entries(counts).filter((e): e is [string, number] => typeof e[1] === "number");
   const max = Math.max(1, ...rows.map(([, n]) => n));
   return (
@@ -41,8 +58,8 @@ function Counts({ title, counts }: { title: string; counts: Record<string, unkno
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {rows.map(([k, n]) => (
           <div className="bar-h" key={k}>
-            <span>{words(k)}</span>
-            <div className="trk" role="img" aria-label={`${words(k)}: ${n}`}>
+            <span>{name(k)}</span>
+            <div className="trk" role="img" aria-label={t("funderAnalytics.countOf", { label: name(k), n })}>
               <div className="f1" style={{ width: pct(n, max) }} />
             </div>
             <span className="num b">{n}</span>
@@ -93,7 +110,7 @@ function PortfolioPanel({ data }: { data: Portfolio }) {
                   {over && <TriangleExclamationPoint className="ic" aria-hidden="true" />}
                   {p.name}
                 </span>
-                <div className="trk" role="img" aria-label={t("funderAnalytics.paidCommittedAndNot", { name: p.name, amount: formatMinor(p.paidMinor), amount2: formatMinor(p.committedNotPaidMinor), value: p.budgetMinor !== null ? `, of a ${formatMinor(p.budgetMinor)} budget` : "" })} style={over ? { outline: "2px solid #C53030", outlineOffset: "1px" } : undefined}>
+                <div className="trk" role="img" aria-label={p.budgetMinor !== null ? t("funderAnalytics.paidCommittedOfBudget", { name: p.name, paid: formatMinor(p.paidMinor), committed: formatMinor(p.committedNotPaidMinor), budget: formatMinor(p.budgetMinor) }) : t("funderAnalytics.paidCommitted", { name: p.name, paid: formatMinor(p.paidMinor), committed: formatMinor(p.committedNotPaidMinor) })} style={over ? { outline: "2px solid #C53030", outlineOffset: "1px" } : undefined}>
                   <div className="f1" style={{ width: pct(p.paidMinor, scale) }} />
                   <div className="f2" style={{ width: pct(p.committedNotPaidMinor, scale) }} />
                 </div>
@@ -113,9 +130,9 @@ function PortfolioPanel({ data }: { data: Portfolio }) {
         </div>
       </section>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
-        <Counts title={t("funderAnalytics.applications")} counts={data.applications} />
-        <Counts title={t("funderAnalytics.reporting")} counts={data.reporting} />
-        <Counts title={t("funderAnalytics.payments")} counts={data.payments} />
+        <Counts title={t("funderAnalytics.applications")} counts={data.applications} name={applicationCount} />
+        <Counts title={t("funderAnalytics.reporting")} counts={data.reporting} name={reportCount} />
+        <Counts title={t("funderAnalytics.payments")} counts={data.payments} name={paymentCount} />
       </div>
     </div>
   );
@@ -150,10 +167,10 @@ function CyclePanel({ competitionId }: { competitionId: string }) {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
-        <Counts title={t("funderAnalytics.byStage")} counts={Object.fromEntries(c.stages.map((s) => [s.label, s.applications]))} />
-        <Counts title={t("funderAnalytics.byStatus")} counts={c.byStatus} />
-        <Counts title={t("funderAnalytics.eligibilityResult")} counts={{ Eligible: c.eligibility.true ?? 0, "Not eligible": c.eligibility.false ?? 0, Unknown: c.eligibility.unknown ?? 0 }} />
-        <Counts title={t("funderAnalytics.passportLevelAtSubmission")} counts={c.byLevel} />
+        <Counts title={t("funderAnalytics.byStage")} counts={Object.fromEntries(c.stages.map((s) => [s.label, s.applications]))} name={asWritten} />
+        <Counts title={t("funderAnalytics.byStatus")} counts={c.byStatus} name={applicationCount} />
+        <Counts title={t("funderAnalytics.eligibilityResult")} counts={{ true: c.eligibility.true ?? 0, false: c.eligibility.false ?? 0, unknown: c.eligibility.unknown ?? 0 }} name={(k) => ELIGIBILITY_COUNT[k]!()} />
+        <Counts title={t("funderAnalytics.passportLevelAtSubmission")} counts={c.byLevel} name={asWritten} />
       </div>
     </div>
   );

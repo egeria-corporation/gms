@@ -16,6 +16,8 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Loading, PageHeader, problemFor, ReadinessChecklist } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { ShareToGalleryButton } from "./ShareToGallery.tsx";
+import { formatList } from "@gms/i18n";
+import { getLocale } from "../../i18n/index.tsx";
 import { t } from "./i18n.ts";
 
 const dateOf = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
@@ -32,7 +34,7 @@ const keyFrom = (label: string) =>
 type StageRow = Stage & { rowId: string; isNew: boolean };
 
 function newStage(n: number, previous: StageRow | undefined): StageRow {
-  const label = n === 1 ? "Application" : `Stage ${n}`;
+  const label = n === 1 ? t("funderCompetition.newStage.application") : t("funderCompetition.newStage.numbered", { n: String(n) });
   return { rowId: `new-${n}-${Date.now()}`, isNew: true, key: n === 1 ? "application" : `stage_${n}`, label, forms: {}, opens: null, closes: null, rubricId: null, reviewers: null, entryFrom: previous ? [previous.key] : [], requiresSubmission: true, decisionRequired: true };
 }
 
@@ -41,7 +43,7 @@ function StagesDialog({ competition, forms, rubrics, onClose, onSaved }: { compe
   const save = useApiMutation((api, stages: Stage[]) => api.putStages(competition.id, stages));
   const patch = (rowId: string, change: Partial<StageRow>) => setRows((rs) => rs.map((r) => (r.rowId === rowId ? { ...r, ...change } : r)));
   const published = forms.filter((f) => f.status === "published");
-  const formName = (id: string) => forms.find((f) => f.id === id)?.title ?? "Unknown form";
+  const formName = (id: string) => forms.find((f) => f.id === id)?.title ?? t("funderCompetition.unknownForm");
 
   async function submit() {
     // Entry rules follow the order: each stage is entered from the one before it.
@@ -201,7 +203,7 @@ function StageTimeline({ stages }: { stages: Stage[] }) {
               <div>
                 <div>{s.label}</div>
                 <div className="small muted" style={{ fontWeight: 400 }}>
-                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : t("funderCompetition.noDatesYet")} · {done ? t("funderCompetition.closed2") : on ? t("funderCompetition.open") : t("funderCompetition.upcoming")}
+                  {s.opens || s.closes ? t("funderCompetition.dateRange", { opens: formatDate(s.opens), closes: formatDate(s.closes) }) : t("funderCompetition.noDatesYet")} · {done ? t("funderCompetition.closed2") : on ? t("funderCompetition.open") : t("funderCompetition.upcoming")}
                 </div>
               </div>
             </div>
@@ -254,7 +256,7 @@ export default function Competition() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{t("funderCompetition.competition", { title: opportunity?.title ?? "Competition" })}</title>
+      <title>{t("funderCompetition.competition", { title: opportunity?.title ?? t("funderCompetition.competition2") })}</title>
       <main className="main">
         {data.status === "loading" && <Loading label={t("funderCompetition.loadingTheCompetition")} />}
         {data.status === "error" && <ErrorBanner error={data.error} onRetry={data.reload} title={t("funderCompetition.theCompetitionCouldNot")} />}
@@ -278,7 +280,7 @@ export default function Competition() {
                     <>
                       <span>·</span>
                       <span>
-                        {t("funderCompetition.stage", { count: competition.stages.length })}{competition.stages.length === 1 ? "" : t("funderCompetition.s")}
+                        {t("funderCompetition.stageCount", { count: competition.stages.length })}
                       </span>
                     </>
                   )}
@@ -367,11 +369,11 @@ export default function Competition() {
                             <td>{s.closes ? formatDate(s.closes) : "—"}</td>
                             <td style={{ whiteSpace: "normal" }}>
                               {Object.entries(s.forms)
-                                .map(([id, version]) => `${formOf(id)?.title ?? "Unknown form"} v${version}`)
+                                .map(([id, version]) => t("funderCompetition.formVersion", { title: formOf(id)?.title ?? t("funderCompetition.unknownForm"), version }))
                                 .join(", ") || <span className="muted">{t("funderCompetition.noForm")}</span>}
                             </td>
                             <td>{rubricOf(s.rubricId)?.name ?? <span className="muted">{s.decisionRequired ? t("funderCompetition.noneYet") : t("funderCompetition.notScored")}</span>}</td>
-                            <td style={{ whiteSpace: "normal" }}>{i === 0 ? t("funderCompetition.openToEveryEligible") : t("funderCompetition.advancedFrom", { map: s.entryFrom.map((k) => competition.stages.find((x) => x.key === k)?.label ?? k).join(" or ") || "the previous stage" })}</td>
+                            <td style={{ whiteSpace: "normal" }}>{i === 0 ? t("funderCompetition.openToEveryEligible") : s.entryFrom.length ? t("funderCompetition.advancedFrom", { stages: formatList(getLocale(), s.entryFrom.map((k) => competition.stages.find((x) => x.key === k)?.label ?? k), "disjunction") }) : t("funderCompetition.advancedFromPrevious")}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -407,7 +409,7 @@ export default function Competition() {
                                 )}
                                 <div className="row small muted" style={{ gap: "6px" }}>
                                   {t.rich("funderCompetition.vPinned", { version, label: s.label, span: (chunks) => <span className="tag">{chunks}</span> })}
-                                  {f && f.version > version ? t("funderCompetition.v4", { version: f.version, value: f.status === "draft" ? "draft in progress" : "available" }) : ""}
+                                  {f && f.version > version ? t(f.status === "draft" ? "funderCompetition.newerDraft" : "funderCompetition.newerAvailable", { version: f.version }) : ""}
                                 </div>
                               </div>
                             );

@@ -25,7 +25,7 @@ function ChangeAddressDialog({ award, onClose, onDone }: { award: AwardDetail; o
   const [email, setEmail] = useState("");
   const [touched, setTouched] = useState(false);
   const resend = useApiMutation((api, contactEmail: string) => api.resendInvitation(award.id, { contactEmail }));
-  const problem = !email.trim() ? "Enter the new email address." : !EMAIL.test(email.trim()) ? "Enter a full email address, like name@example.org." : null;
+  const problem = !email.trim() ? t("directAwardPanels.problem.noEmail") : !EMAIL.test(email.trim()) ? t("directAwardPanels.problem.fullEmail") : null;
   return (
     <Dialog open onClose={onClose} labelledBy="change-address-title">
       <form
@@ -68,7 +68,7 @@ function WithdrawDialog({ award, onClose, onDone }: { award: AwardDetail; onClos
   const [reason, setReason] = useState("");
   const [touched, setTouched] = useState(false);
   const cancel = useApiMutation((api, why: string) => api.cancelAward(award.id, why));
-  const problem = reason.trim() ? null : "Say why you are withdrawing this award.";
+  const problem = reason.trim() ? null : t("directAwardPanels.problem.noReason");
   return (
     <Dialog open onClose={onClose} labelledBy="withdraw-title">
       <form
@@ -111,11 +111,11 @@ function WithdrawDialog({ award, onClose, onDone }: { award: AwardDetail; onClos
 export type MailNote = "sent" | "failed" | null;
 
 const WHAT_NEXT: Record<AwardInvitation["status"], (name: string, inv: AwardInvitation) => string> = {
-  sent: (name, inv) => `Waiting for ${name}. The link works until ${formatDate(inv.expiresAt)} (${daysLeft(inv.expiresAt)} days). The agreement and payment schedule start once they accept.`,
-  expired: (name, inv) => `The link expired on ${formatDate(inv.expiresAt)}. Send a new one, or withdraw the award.`,
-  declined: (name) => `${name} declined this award. Withdraw it, or send the invitation again to a different address.`,
-  accepted: (name) => `${name} accepted. The agreement and payments continue as for any award.`,
-  revoked: () => "You withdrew this award, and its link no longer works.",
+  sent: (name, inv) => t("directAwardPanels.next.sent", { name, date: formatDate(inv.expiresAt), days: daysLeft(inv.expiresAt) }),
+  expired: (_name, inv) => t("directAwardPanels.next.expired", { date: formatDate(inv.expiresAt) }),
+  declined: (name) => t("directAwardPanels.next.declined", { name }),
+  accepted: (name) => t("directAwardPanels.next.accepted", { name }),
+  revoked: () => t("directAwardPanels.next.revoked"),
 };
 
 /** Where the invitation stands, with the actions the funder may take. `canAct` is admin or finance. */
@@ -126,7 +126,7 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
   // Held by the page, because reloading the award rebuilds this panel.
   const unsent = mail === "failed";
   const resent = mail === "sent";
-  const name = award.recipient?.name ?? "the organization";
+  const name = award.recipient?.name ?? t("directAwardPanels.theOrganization");
   const open = award.status === "offered" && invitation.status !== "accepted" && invitation.status !== "revoked";
   // Resend is refused once the invitation is accepted, declined or withdrawn.
   const canResend = open && (invitation.status === "sent" || invitation.status === "expired");
@@ -149,7 +149,7 @@ export function InvitationPanel({ award, invitation, canAct, canWithdraw, mail, 
         {unsent && (
           <div role="alert">
             <Notice tone="warn" title={t("directAwardPanels.theAwardWasSaved")}>
-              {t("directAwardPanels.hasNotBeenTold", { name })}{canAct ? "" : t("directAwardPanels.orAskAWorkspace")}.
+              {canAct ? t("directAwardPanels.notToldResend", { name }) : t("directAwardPanels.notToldAsk", { name })}
             </Notice>
           </div>
         )}

@@ -40,16 +40,10 @@ import {
   type FieldModel,
   type FormModel,
 } from "../../lib/form-model.ts";
+import { PURPOSE_LABEL } from "./shared.tsx";
 import { t } from "./i18n.ts";
 
-const PURPOSES: { value: FormPurpose; label: string }[] = [
-  { value: "application", label: "Application" },
-  { value: "loi", label: "Letter of intent" },
-  { value: "report", label: "Report" },
-  { value: "amendment", label: "Amendment" },
-  { value: "site_visit", label: "Site visit" },
-  { value: "other", label: "Other" },
-];
+const PURPOSES = (Object.keys(PURPOSE_LABEL) as FormPurpose[]).map((value) => ({ value, get label() { return PURPOSE_LABEL[value](); } }));
 
 function Toggle({ id, label, checked, onChange, help }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; help?: string }) {
   return (
@@ -396,14 +390,14 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   return (
     <main className="main" style={{ gap: "16px" }}>
       <PageHeader
-        crumbs={[{ label: ws.name, to: base }, { label: t("formBuilder.forms"), to: `${base}/forms` }, { label: t("formBuilder.v", { title: title || "Untitled form", version: form.version }) }]}
-        title={t("formBuilder.v2", { title: title || "Untitled form", version: form.version })}
+        crumbs={[{ label: ws.name, to: base }, { label: t("formBuilder.forms"), to: `${base}/forms` }, { label: t("formBuilder.v", { title: title || t("formBuilder.untitledForm"), version: form.version }) }]}
+        title={t("formBuilder.v2", { title: title || t("formBuilder.untitledForm"), version: form.version })}
         badge={<StatusBadge kind="form" status={form.status} />}
         meta={
           <>
             <span>
-              {counts.sections} section{counts.sections === 1 ? "" : t("formBuilder.s")} {t("formBuilder.field", { fields: counts.fields })}{counts.fields === 1 ? "" : t("formBuilder.s")} {t("formBuilder.passportPrefill", { prefills: counts.prefills })}{counts.prefills === 1 ? "" : t("formBuilder.s")}
-              {counts.conditionals ? t("formBuilder.conditional", { conditionals: counts.conditionals }) : ""}
+              {t("formBuilder.counts", { sections: counts.sections, fields: counts.fields, prefills: counts.prefills })}
+              {counts.conditionals ? ` · ${t("formBuilder.conditionalCount", { count: counts.conditionals })}` : ""}
             </span>
             {dirty ? (
               <span className="pill-warn">
@@ -569,7 +563,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                     </div>
                     <span className="row" style={{ gap: "8px" }}>
                       <span className="small muted">
-                        {t("formBuilder.field2", { count: s.fields.length })}{s.fields.length === 1 ? "" : t("formBuilder.s")}
+                        {t("formBuilder.fieldCount", { count: s.fields.length })}
                       </span>
                       {!readOnly && (
                         <button type="button" className="btn btn-sm btn-ghost" aria-label={t("formBuilder.removeSection", { i: i + 1, label: s.label })} onClick={() => edit(removeSection(model, s.id))}>
@@ -620,7 +614,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
         <aside className="card" style={{ minWidth: "0" }} aria-labelledby="props-title">
           <div className="card-h" style={{ padding: "12px 16px" }}>
             <h3 id="props-title" style={{ fontSize: "14px" }}>
-              {field ? t("formBuilder.fieldProperties", { label: field.label || "Untitled field" }) : t("formBuilder.fieldProperties2")}
+              {field ? t("formBuilder.fieldProperties", { label: field.label || t("formBuilder.untitledField") }) : t("formBuilder.fieldProperties2")}
             </h3>
             {field && <span className="tag">{kindLabel(field.kind)}</span>}
           </div>
@@ -651,7 +645,7 @@ export default function FormBuilder() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{t("formBuilder.formBuilder", { value: data.status === "ready" ? data.data.title : "Form" })}</title>
+      <title>{t("formBuilder.formBuilder", { title: data.status === "ready" ? data.data.title : t("formBuilder.form") })}</title>
       {data.status === "loading" && (
         <main className="main">
           <Loading label={t("formBuilder.loadingTheForm")} />
