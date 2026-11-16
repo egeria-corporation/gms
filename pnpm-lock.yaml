@@ -74,6 +74,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@gms/importers':
         specifier: workspace:*
         version: link:../../packages/importers
@@ -313,7 +316,11 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
-  packages/notify: {}
+  packages/notify:
+    dependencies:
+      '@gms/i18n':
+        specifier: workspace:*
+        version: link:../i18n
 
   packages/passport-client: {}
 

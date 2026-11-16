@@ -33,6 +33,8 @@ export { OUTSIDE_REMINDABLE } from "./services/outside.ts";
 export { sendDigests } from "./services/member-mail.ts";
 export { CONTENT_DIGEST_SCHEDULE, sendContentDigests } from "./services/content-digests.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
+// A person's language for the emails jobs send (docs/i18n.md): wire `preferences` into the jobs' ports.
+export { MemoryPreferences, SupabasePreferences, recipientLocale, recipientLocales, type PreferencesPort } from "./services/preferences.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";
 export { RestOpenGrantsClient, R2FileStorage } from "./services/ports.ts";

@@ -2,6 +2,7 @@
 // The API port the web app talks to. `createHttpApi` calls the GMS Worker with the typed client
 // generated from the TypeSpec document (`pnpm --filter @gms/web gen:api`); `createMockApi`
 // (mocks/api.ts) implements the same interface in the browser.
+import { isLocale, type Locale } from "@gms/i18n";
 import createClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./schema.d.ts";
 import type {
@@ -67,6 +68,8 @@ export interface Me {
   displayName?: string | null;
   /** How this session was started. */
   signInMethod?: "passport" | "email";
+  /** The language the person chose (docs/i18n.md); null when they never chose. */
+  locale?: Locale | null;
   mfaVerified: boolean;
   workspaces: MeWorkspace[];
 }
@@ -89,6 +92,8 @@ export interface Workspace {
 
 export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, DirectAwardsApi, FundsApi {
   me(): Promise<Me>;
+  /** Save the signed-in person's language; null clears it. */
+  savePreferences(input: { locale: Locale | null }): Promise<{ locale: Locale | null }>;
   /**
    * After a Passport sign-in: present the one-time token this session was redeemed from, so that
    * Passport's authenticator counts as this session's second step. `verified: false` is not an
@@ -246,9 +251,15 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
       email: data.email ?? (await opts.identity()).email,
       displayName: data.displayName ?? null,
       ...(data.signInMethod ? { signInMethod: data.signInMethod } : {}),
+      locale: isLocale(data.locale) ? data.locale : null,
       mfaVerified: data.mfaVerified,
       workspaces: data.workspaces.map((w) => ({ id: w.id, handle: w.handle, name: w.name, kind: w.kind, role: w.role, requiresMfa: w.requiresMfa })),
     };
+  };
+
+  const savePreferences = async (input: { locale: Locale | null }): Promise<{ locale: Locale | null }> => {
+    const data: components["schemas"]["Models.Preferences"] = unwrap(await http.PUT("/gms/me/preferences", { body: { locale: input.locale } }));
+    return { locale: isLocale(data.locale) ? data.locale : null };
   };
 
   const claimPassportSecondStep = async (tokenHash: string): Promise<{ verified: boolean }> => {
@@ -300,6 +311,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     ...createHttpDirectAwardsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpFundsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
+    savePreferences,
     claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),

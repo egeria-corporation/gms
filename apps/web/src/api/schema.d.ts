@@ -3442,6 +3442,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Save the signed-in person's preferences (their language). A person only: an API client or agent is refused. 501 `preferences_unavailable` where the server cannot store them. */
+        put: operations["Workspaces_updatePreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/me/readiness": {
         parameters: {
             query?: never;
@@ -16463,6 +16480,11 @@ export interface components {
         };
         /** @enum {string} */
         "Models.LimitKind": "words" | "chars" | "chars_no_spaces";
+        /**
+         * @description A language the GMS speaks.
+         * @enum {string}
+         */
+        "Models.Locale": "en" | "es";
         /** @description Either the file itself (up to 25 MB, base64) or a reference into the Passport locker, which is never copied.A reference to a document in the organization's Passport locker. The GMS holds no copy. */
         "Models.LockerDocumentRef": {
             /** @description Passport's document id; pass it as `passportDocumentId` to attach the document. */
@@ -16574,6 +16596,8 @@ export interface components {
              * @enum {string}
              */
             signInMethod?: "passport" | "email";
+            /** @description The language the person chose for the interface and their emails (docs/i18n.md); null when they never chose. */
+            locale?: components["schemas"]["Models.Locale"] | null;
             /** @description Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
             mfaVerified: boolean;
             workspaces: components["schemas"]["Models.MyWorkspace"][];
@@ -18401,6 +18425,11 @@ export interface components {
             payments: {
                 [key: string]: unknown;
             };
+        };
+        /** @description A person's own preferences. */
+        "Models.Preferences": {
+            /** @description The language of the interface and of the person's emails; null clears it (the browser's language, English for emails). */
+            locale: components["schemas"]["Models.Locale"] | null;
         };
         /**
          * @description A human-prefixed GMS identifier: a UUIDv7 behind a type prefix, e.g. `app_0192f0c1-…`.
@@ -34342,6 +34371,60 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Workspaces_updatePreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.Preferences"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Preferences"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,6 +3,7 @@
 // Worker's rules closely enough for screens to behave the same in mock mode: published form
 // versions are immutable, eligibility rules are parsed before saving, a competition opens only
 // when its launch checklist passes.
+import type { Locale } from "@gms/i18n";
 import { validateFormDefinition, testFill, type FormDefinition, type JsonObject } from "@gms/forms";
 import { evaluate, parseRules } from "@gms/rules";
 import { ApiError, type GmsApi, type Me, type MeWorkspace, type Workspace } from "../api/client.ts";
@@ -97,11 +98,19 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
 
   /** Invitations already used (by id): a link works once. */
   const accepted = new Set<string>();
+  /** Each person's saved language (migration 0043), by user id; none until they choose. */
+  const locales = new Map<string, Locale | null>();
   const me = async (): Promise<Me> => {
     const session = await opts.session();
     if (!session) throw new ApiError(401, "Sign in to continue");
     memberships = /@newcomer\.example$/i.test(session.email) ? newcomerMemberships : fixtureMemberships;
-    return { userId: session.userId, email: session.email, mfaVerified: session.aal === "aal2" || passportVerified === session.accessToken, workspaces: memberships };
+    return { userId: session.userId, email: session.email, locale: locales.get(session.userId) ?? null, mfaVerified: session.aal === "aal2" || passportVerified === session.accessToken, workspaces: memberships };
+  };
+  const savePreferences = async (input: { locale: Locale | null }): Promise<{ locale: Locale | null }> => {
+    const session = await opts.session();
+    if (!session) throw new ApiError(401, "Sign in to continue");
+    locales.set(session.userId, input.locale);
+    return { locale: input.locale };
   };
 
   // The session (by its token) that claimed Passport's second step; another sign-in does not inherit it.
@@ -242,6 +251,7 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
 
   const api: Omit<GmsApi, keyof FundsApi> = {
     me,
+    savePreferences,
     claimPassportSecondStep,
     async workspace(handle) {
       const profile = await me();

@@ -219,6 +219,9 @@ describe("mailer", () => {
     expect(body.text).toBe("Hello,");
     // A part that is already a document is sent as it is.
     expect(emailDocument('<!DOCTYPE html><html lang="es"><body>x</body></html>', "s")).toBe('<!DOCTYPE html><html lang="es"><body>x</body></html>');
+    // An email written in Spanish says so (docs/i18n.md).
+    await mailer.send({ from: "a@gms.example", to: ["b@gms.example"], subject: "Su solicitud", html: "<p>Hola,</p>", text: "Hola,", locale: "es" });
+    expect((JSON.parse(String(seen[1]!.body)) as { html: string }).html).toMatch(/^<!doctype html>\n<html lang="es" dir="ltr">/);
   });
 
   it("passes attachments to Resend as filename, base64 content and content_type, under the size cap", async () => {
