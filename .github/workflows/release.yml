@@ -78,8 +78,10 @@ jobs:
         run: |
           set -euo pipefail
           # CHANGELOG.md comes from the checked-out ref (main), even when backfilling an older commit.
+          # The heading is "## vX.Y.Z", optionally followed by a space and a date, as the deploy
+          # tool reads it (scripts/deploy/steps/upgrade.ts).
           awk -v h="## v$VERSION" '
-            /^## / { if (on) exit; if ($0 == h) { on = 1; next } }
+            /^## / { if (on) exit; if ($0 == h || index($0, h " ") == 1) { on = 1; next } }
             on { print }
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "No section for $VERSION in CHANGELOG.md" >&2; exit 1; fi
