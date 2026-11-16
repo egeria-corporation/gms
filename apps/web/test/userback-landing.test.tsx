@@ -8,6 +8,8 @@ import { USERBACK_DISCLOSURE } from "../src/lib/userback.ts";
 async function landing(token: string, useMocks: boolean) {
   vi.resetModules();
   vi.doMock("../src/env.ts", async (orig) => ({ env: { ...((await orig()) as { env: object }).env, userbackToken: token, useMocks } }));
+  // A fresh module graph: load its English catalogs, as test/setup.ts does for the first one.
+  await (await import("@gms/i18n")).loadCatalogs("en");
   const { App } = await import("../src/app/App.tsx");
   const { createMockServices } = await import("../src/app/services.tsx");
   render(

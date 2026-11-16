@@ -2,7 +2,7 @@
 // The web app's language: one current locale for the page, the hook screens translate with, and
 // the switch. Catalogs live in packages/i18n; docs/i18n.md says how to add and use a message.
 import { Fragment, createElement, use, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_QUERY, chooseLocale, cookieValue, createTranslator, loadCatalog, localeCookie, type Key, type Locale, type Namespace, type Values } from "@gms/i18n";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_QUERY, chooseLocale, cookieValue, createTranslator, loadCatalog, localeCookie, peekCatalog, type Key, type Locale, type Namespace, type Values } from "@gms/i18n";
 import { getLocale, subscribeLocale } from "./current.ts";
 
 export type { Key, Locale, Namespace, Values } from "@gms/i18n";
@@ -56,13 +56,16 @@ function bind<N extends Namespace>(locale: Locale, ns: N): T<N> {
 /**
  * The translator for one namespace: `const t = useT("public"); t("signIn.title")`. Keys are typed
  * from the English catalog. A namespace not loaded yet suspends the screen until it is (the routes
- * already render inside Suspense); `public` and `shared` are always loaded.
+ * already render inside Suspense); `shared` is always loaded.
  */
 export function useT<N extends Namespace>(ns: N): T<N> {
   const locale = useLocale();
-  // Always `use`, never only when the catalog is missing (see loadCatalog): a loaded catalog's promise is
-  // already fulfilled, so this returns at once; a missing one suspends the screen until it arrives.
-  const catalog = use(loadCatalog(locale, ns));
+  // Whether this component waits for the catalog is decided once, when it first renders in this
+  // language, and kept: a component that suspended in `use` is replayed when the catalog arrives, and
+  // the replay must call `use` again, or React runs the hooks after it as updates of hooks never
+  // mounted (React error 467; see loadCatalog). The memo is carried over to the replay.
+  const wait = useMemo(() => !peekCatalog(locale, ns), [locale, ns]);
+  const catalog = wait ? use(loadCatalog(locale, ns)) : peekCatalog(locale, ns);
   // The catalog is a dependency so the translator is rebuilt once a namespace arrives.
   return useMemo(() => bind(locale, ns), [locale, ns, catalog]);
 }
