@@ -15,6 +15,7 @@ export const TRANSLATED = [
   "apps/web/src/screens/shared/**/*.tsx",
   // D2b: the applicant screens and the form renderer.
   "apps/web/src/forms/**/*.tsx",
+  "apps/web/src/screens/applicant/**/*.tsx",
 ];
 
 // Text that is the same in every language: product names and the formats people know by name.
