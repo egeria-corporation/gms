@@ -6,6 +6,10 @@ import { Link } from "react-router";
 import type { PublicFunder } from "../../api/types.ts";
 import { checkBrand, SYSTEM_BRAND } from "../../lib/contrast.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
+const t = translator("public");
 /** Up to three initials for the logo mark when the funder has not uploaded a logo. */
 export function markOf(name: string): string {
   const words = name.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w) && !/^(of|the|and|for)$/i.test(w));
@@ -20,6 +24,9 @@ export function tenantStyle(funder: Pick<PublicFunder, "brand">): CSSProperties 
   return { "--tenant": effective.accent, "--on-tenant": effective.onAccent, display: "flex", flexDirection: "column", minHeight: "100vh", background: "#FFFFFF" } as CSSProperties;
 }
 
+/** The attribution line, in the page's language. */
+export const poweredByLabel = (): string => t("publicFrame.poweredBy");
+/** @deprecated The English line; use `poweredByLabel()`, which follows the page's language. */
 export const POWERED_BY_LABEL = "Powered by OpenGrants Grant Management System";
 
 /** On unless the funder turned it off; a server that does not send the setting yet means on. */
@@ -33,7 +40,7 @@ export function PoweredBy({ href, newTab = false }: { href?: string; newTab?: bo
   const content = (
     <>
       <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-      <span>{POWERED_BY_LABEL}</span>
+      <span>{poweredByLabel()}</span>
     </>
   );
   const style = { display: "inline-flex", alignItems: "center", gap: "10px", color: "inherit" } as const;
@@ -65,10 +72,10 @@ export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder:
               )}
               {funder.name}
             </Link>
-            <nav aria-label="Funder page" style={{ display: "flex", alignItems: "center", gap: "22px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
+            <nav aria-label={t("publicFrame.funderPage")} style={{ display: "flex", alignItems: "center", gap: "22px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
               {nav}
               <Link to="/signin" className="btn btn-secondary" style={{ background: "transparent", color: "var(--on-tenant)", borderColor: "color-mix(in srgb, var(--on-tenant) 45%, transparent)" }}>
-                Sign in
+                {t("publicFrame.signIn")}
               </Link>
             </nav>
           </div>
@@ -81,9 +88,12 @@ export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder:
           {showsPoweredBy(funder) ? <PoweredBy /> : <span />}
           {jsonHref && (
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-              <a href={jsonHref}>CommonGrants JSON</a>
+              <a href={jsonHref}>{t("publicFrame.commongrantsJson")}</a>
             </div>
           )}
+        </div>
+        <div className="wrap-c lang-row">
+          <LanguageSwitcher />
         </div>
       </footer>
     </div>

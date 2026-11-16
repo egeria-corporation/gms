@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { ShieldCheck } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function PdfAgreement() {
   return (
     <>
-      <title>{"PDF — executed grant agreement"}</title>
+      <title>{t("pdfAgreement.pdfExecutedGrantAgreement")}</title>
       <div className="gms print" style={{ width: "816px", minHeight: "100vh", padding: "56px 72px 48px", gap: "14px" }}>
         <div
           className="row"
@@ -19,14 +22,14 @@ export default function PdfAgreement() {
             paddingBottom: "8px",
           }}
         >
-          <span>Riverbend Community Foundation · Community Health Grants 2027</span>
-          <span>Grant agreement · executed</span>
+          <span>{t("pdfAgreement.riverbendCommunityFoundationCommunityHealth")}</span>
+          <span>{t("pdfAgreement.grantAgreementExecuted")}</span>
         </div>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginTop: "8px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <h1 style={{ fontSize: "22px" }}>Grant Agreement</h1>
+            <h1 style={{ fontSize: "22px" }}>{t("pdfAgreement.grantAgreement")}</h1>
             <div style={{ fontSize: "13px", color: "#4A5C5A" }}>
-              Standard grant agreement v4 · Award awd_01J2Q7 · Agreement agr_01J2Q7-1
+              {t("pdfAgreement.standardGrantAgreementV4Award")}
             </div>
           </div>
           <div
@@ -46,130 +49,121 @@ export default function PdfAgreement() {
             }}
           >
             <ShieldCheck className="ic" aria-hidden="true" />
-            Executed May 24, 2027
+            {t("pdfAgreement.executedMay242027")}
           </div>
         </div>
-        <div className="sec-h">Parties</div>
+        <div className="sec-h">{t("pdfAgreement.parties")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px", fontSize: "12.5px" }}>
           <div>
             <div className="b" style={{ color: "#0D2A43" }}>
-              Funder
+              {t("pdfAgreement.funder")}
             </div>
-            <div>Riverbend Community Foundation</div>
-            <div className="muted">120 River Street, Riverbend, OR · grants@riverbendcf.example</div>
+            <div>{t("pdfAgreement.riverbendCommunityFoundation")}</div>
+            <div className="muted">{t("pdfAgreement.n120RiverStreetRiverbendOr")}</div>
           </div>
           <div>
             <div className="b" style={{ color: "#0D2A43" }}>
-              Grantee
+              {t("pdfAgreement.grantee")}
             </div>
-            <div>Alder Creek Family Services · 501(c)(3)</div>
-            <div className="muted">418 Mill Road, Alder Creek, OR · Passport level L3, payee verified</div>
+            <div>{t("pdfAgreement.alderCreekFamilyServices501")}</div>
+            <div className="muted">{t("pdfAgreement.n418MillRoadAlderCreek")}</div>
           </div>
         </div>
-        <div className="sec-h">Award</div>
+        <div className="sec-h">{t("pdfAgreement.award")}</div>
         <dl style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: "4px 16px", fontSize: "12.5px", margin: "0" }}>
-          <dt className="muted">Amount</dt>
+          <dt className="muted">{t("pdfAgreement.amount")}</dt>
           <dd style={{ margin: "0" }} className="b">
-            $150,000 (one hundred fifty thousand US dollars)
+            {t("pdfAgreement.n150000OneHundredFifty")}
           </dd>
-          <dt className="muted">Purpose</dt>
+          <dt className="muted">{t("pdfAgreement.purpose")}</dt>
           <dd style={{ margin: "0" }}>
-            Mobile Health Navigation for Rural Families, as described in application app_01HZX4 and its approved budget.
+            {t("pdfAgreement.mobileHealthNavigationForRural")}
           </dd>
-          <dt className="muted">Grant period</dt>
-          <dd style={{ margin: "0" }}>July 1, 2027 – June 30, 2028</dd>
-          <dt className="muted">Program</dt>
-          <dd style={{ margin: "0" }}>Community Health 2027 · Community Health Grants 2027</dd>
+          <dt className="muted">{t("pdfAgreement.grantPeriod")}</dt>
+          <dd style={{ margin: "0" }}>{t("pdfAgreement.july12027June30")}</dd>
+          <dt className="muted">{t("pdfAgreement.program")}</dt>
+          <dd style={{ margin: "0" }}>{t("pdfAgreement.communityHealth2027CommunityHealth")}</dd>
         </dl>
-        <div className="sec-h">Payment schedule</div>
+        <div className="sec-h">{t("pdfAgreement.paymentSchedule")}</div>
         <table className="tbl" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
               <th>#</th>
-              <th className="num">Amount</th>
-              <th>Condition</th>
-              <th>Scheduled</th>
+              <th className="num">{t("pdfAgreement.amount")}</th>
+              <th>{t("pdfAgreement.condition")}</th>
+              <th>{t("pdfAgreement.scheduled")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>1</td>
               <td className="num">$75,000</td>
-              <td>On execution of this agreement</td>
-              <td>May 24, 2027</td>
+              <td>{t("pdfAgreement.onExecutionOfThisAgreement")}</td>
+              <td>{t("pdfAgreement.may242027")}</td>
             </tr>
             <tr>
               <td>2</td>
               <td className="num">$60,000</td>
-              <td>On acceptance of the interim report</td>
-              <td>Report due Dec 15, 2027</td>
+              <td>{t("pdfAgreement.onAcceptanceOfTheInterim")}</td>
+              <td>{t("pdfAgreement.reportDueDec152027")}</td>
             </tr>
             <tr>
               <td>3</td>
               <td className="num">$15,000</td>
-              <td>On acceptance of the final report</td>
-              <td>Report due Jul 15, 2028</td>
+              <td>{t("pdfAgreement.onAcceptanceOfTheFinal")}</td>
+              <td>{t("pdfAgreement.reportDueJul152028")}</td>
             </tr>
           </tbody>
         </table>
         <p style={{ fontSize: "12px", color: "#4A5C5A" }}>
-          Payments are made through OpenGrants Passport to the destination the Grantee has verified there (currently River City Credit Union
-          •••• 4821). The Funder does not hold or change the Grantee's bank details. A payment is released only when its readiness check
-          passes.
+          {t("pdfAgreement.paymentsAreMadeThroughOpengrants")}
         </p>
-        <div className="sec-h">Reporting</div>
+        <div className="sec-h">{t("pdfAgreement.reporting")}</div>
         <p style={{ fontSize: "12.5px" }}>
-          Interim progress and financial report covering Jul 1 – Nov 30, 2027, due <span className="b">Dec 15, 2027</span>. Final report
-          covering the full grant period, due <span className="b">Jul 15, 2028</span>. Reports use the Funder's forms in OpenGrants GMS and
-          may be shared by the Grantee with other funders at the Grantee's discretion.
+          {t.rich("pdfAgreement.interimProgressAndFinancialReport", { span: (chunks) => <span className="b">{chunks}</span>, span2: (chunks) => <span className="b">{chunks}</span> })}
         </p>
-        <div className="sec-h">Terms</div>
+        <div className="sec-h">{t("pdfAgreement.terms")}</div>
         <div className="cl">
           <span className="n">1.</span>
           <span>
-            <span className="b">Use of funds.</span> The Grantee uses the funds only for the purpose above and within the approved budget.
-            Moving more than 10% between budget categories requires an approved amendment.
+            {t.rich("pdfAgreement.useOfFundsTheGrantee", { span: (chunks) => <span className="b">{chunks}</span> })}
           </span>{" "}
           <span className="n">2.</span>
           <span>
-            <span className="b">Records.</span> The Grantee keeps financial records for this grant for four years after the period ends and
-            makes them available to the Funder on reasonable request.
+            {t.rich("pdfAgreement.recordsTheGranteeKeepsFinancial", { span: (chunks) => <span className="b">{chunks}</span> })}
           </span>{" "}
           <span className="n">3.</span>
           <span>
-            <span className="b">Amendments.</span> Changes to scope, schedule or budget are requested and approved in OpenGrants GMS; both
-            parties' approvals are recorded there.
+            {t.rich("pdfAgreement.amendmentsChangesToScopeSchedule", { span: (chunks) => <span className="b">{chunks}</span> })}
           </span>{" "}
           <span className="n">4.</span>
           <span>
-            <span className="b">Termination.</span> Either party may end this agreement with 30 days' written notice. Unspent funds are
-            returned within 60 days of termination; scheduled payments not yet released are cancelled.
+            {t.rich("pdfAgreement.terminationEitherPartyMayEnd", { span: (chunks) => <span className="b">{chunks}</span> })}
           </span>
         </div>
-        <div className="sec-h">Signatures</div>
+        <div className="sec-h">{t("pdfAgreement.signatures")}</div>
         <div className="sig">
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            <span className="sg">Maria Santos</span>
-            <span className="b">Maria Santos · Executive Director</span>
-            <span>Alder Creek Family Services</span>
-            <span className="muted">Signed May 21, 2027 10:14 PT · IP recorded · typed name, attestation accepted</span>
+            <span className="sg">{t("pdfAgreement.mariaSantos")}</span>
+            <span className="b">{t("pdfAgreement.mariaSantosExecutiveDirector")}</span>
+            <span>{t("pdfAgreement.alderCreekFamilyServices")}</span>
+            <span className="muted">{t("pdfAgreement.signedMay21202710")}</span>
             <span className="mono" style={{ fontSize: "10.5px" }}>
-              doc sha256 4d7a02…e93c
+              {t("pdfAgreement.docSha2564d7a02E93c")}
             </span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            <span className="sg">Dana Ortiz</span>
-            <span className="b">Dana Ortiz · Program Officer</span>
-            <span>Riverbend Community Foundation</span>
-            <span className="muted">Countersigned May 24, 2027 09:02 PT · IP recorded · typed name, attestation accepted</span>
+            <span className="sg">{t("pdfAgreement.danaOrtiz")}</span>
+            <span className="b">{t("pdfAgreement.danaOrtizProgramOfficer")}</span>
+            <span>{t("pdfAgreement.riverbendCommunityFoundation")}</span>
+            <span className="muted">{t("pdfAgreement.countersignedMay24202709")}</span>
             <span className="mono" style={{ fontSize: "10.5px" }}>
-              doc sha256 4d7a02…e93c
+              {t("pdfAgreement.docSha2564d7a02E93c")}
             </span>
           </div>
         </div>
         <p style={{ fontSize: "11.5px", color: "#4A5C5A" }}>
-          Each signature was captured by click-to-sign in OpenGrants GMS. The record for each signer holds the typed name, the time, the
-          signer's IP address and the hash of this document as it stood when signed. Agents cannot sign agreements.
+          {t("pdfAgreement.eachSignatureWasCapturedBy")}
         </p>
         <div
           className="row"
@@ -182,8 +176,8 @@ export default function PdfAgreement() {
             color: "#4A5C5A",
           }}
         >
-          <span>Generated by OpenGrants GMS · executed May 24, 2027 09:02 PT · sha256 4d7a02…e93c</span>
-          <span>Page 1 of 1</span>
+          <span>{t("pdfAgreement.generatedByOpengrantsGmsExecuted")}</span>
+          <span>{t("pdfAgreement.page1Of1")}</span>
         </div>
       </div>
     </>

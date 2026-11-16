@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { CircleCheck } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function PdfCloseout() {
   return (
     <>
-      <title>{"PDF — closeout summary"}</title>
+      <title>{t("pdfCloseout.pdfCloseoutSummary")}</title>
       <div className="gms print" style={{ width: "816px", minHeight: "100vh", padding: "56px 72px 48px", gap: "14px" }}>
         <div
           className="row"
@@ -19,13 +22,13 @@ export default function PdfCloseout() {
             paddingBottom: "8px",
           }}
         >
-          <span>Riverbend Community Foundation · Community Health Grants 2026</span>
-          <span>Closeout summary</span>
+          <span>{t("pdfCloseout.riverbendCommunityFoundationCommunityHealth")}</span>
+          <span>{t("pdfCloseout.closeoutSummary")}</span>
         </div>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginTop: "8px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <h1 style={{ fontSize: "22px" }}>Closeout Summary</h1>
-            <div style={{ fontSize: "13px", color: "#4A5C5A" }}>Harbor Light Shelter · Shelter Health Clinic Hours · Award awd_01HQ22</div>
+            <h1 style={{ fontSize: "22px" }}>{t("pdfCloseout.closeoutSummary2")}</h1>
+            <div style={{ fontSize: "13px", color: "#4A5C5A" }}>{t("pdfCloseout.harborLightShelterShelterHealth")}</div>
           </div>
           <div
             style={{
@@ -44,7 +47,7 @@ export default function PdfCloseout() {
             }}
           >
             <CircleCheck className="ic" aria-hidden="true" />
-            Completed Aug 12, 2027
+            {t("pdfCloseout.completedAug122027")}
           </div>
         </div>
         <div
@@ -60,115 +63,115 @@ export default function PdfCloseout() {
           }}
         >
           <div>
-            <span className="muted">Awarded</span> · <span className="b">$95,000</span>
+            <span className="muted">{t("pdfCloseout.awarded")}</span> · <span className="b">$95,000</span>
           </div>
           <div>
-            <span className="muted">Disbursed</span> · <span className="b">$95,000</span> (3 of 3 tranches settled)
+            {t.rich("pdfCloseout.disbursed950003Of", { span: (chunks) => <span className="muted">{chunks}</span>, span2: (chunks) => <span className="b">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Returned</span> · $0
+            <span className="muted">{t("pdfCloseout.returned")}</span> · $0
           </div>
           <div>
-            <span className="muted">Grant period</span> · Jul 1, 2026 – Jun 30, 2027
+            {t.rich("pdfCloseout.grantPeriodJul12026", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Agreement</span> · agr_01HQ22-1 · executed Jun 18, 2026
+            {t.rich("pdfCloseout.agreementAgr01hq221Executed", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Program officer</span> · Dana Ortiz
+            {t.rich("pdfCloseout.programOfficerDanaOrtiz", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
         </div>
-        <div className="sec-h">Closeout checklist</div>
+        <div className="sec-h">{t("pdfCloseout.closeoutChecklist")}</div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div className="ck-row">
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="b">Final report accepted</div>
-              <div className="muted">Submitted Jul 28, 2027 · accepted by Dana Ortiz Aug 4, 2027</div>
+              <div className="b">{t("pdfCloseout.finalReportAccepted")}</div>
+              <div className="muted">{t("pdfCloseout.submittedJul282027Accepted")}</div>
             </div>
-            <span className="muted">Aug 4</span>
+            <span className="muted">{t("pdfCloseout.aug4")}</span>
           </div>
           <div className="ck-row">
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="b">All tranches settled or cancelled</div>
+              <div className="b">{t("pdfCloseout.allTranchesSettledOrCancelled")}</div>
               <div className="muted">
-                3 settled ($47,500 · $38,000 · $9,500), 0 cancelled · last settlement Aug 6, 2027 after the destination freeze cleared
+                {t("pdfCloseout.n3Settled4750038")}
               </div>
             </div>
-            <span className="muted">Aug 6</span>
+            <span className="muted">{t("pdfCloseout.aug6")}</span>
           </div>
           <div className="ck-row">
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="b">Budget reconciled</div>
+              <div className="b">{t("pdfCloseout.budgetReconciled")}</div>
               <div className="muted">
-                Actuals from QuickBooks confirmed by grantee · variance −$1,240 (1.3%), under the 10% threshold, no return required
+                {t("pdfCloseout.actualsFromQuickbooksConfirmedBy")}
               </div>
             </div>
-            <span className="muted">Aug 10</span>
+            <span className="muted">{t("pdfCloseout.aug10")}</span>
           </div>
           <div className="ck-row">
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="b">Documents complete</div>
-              <div className="muted">Agreement, 3 payment records, interim and final reports, 1 amendment (schedule)</div>
+              <div className="b">{t("pdfCloseout.documentsComplete")}</div>
+              <div className="muted">{t("pdfCloseout.agreement3PaymentRecordsInterim")}</div>
             </div>
-            <span className="muted">Aug 12</span>
+            <span className="muted">{t("pdfCloseout.aug12")}</span>
           </div>
           <div className="ck-row" style={{ borderBottom: "0" }}>
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="b">Award marked Completed</div>
-              <div className="muted">By Dana Ortiz · mirrored to Passport as a completed award for Harbor Light Shelter</div>
+              <div className="b">{t("pdfCloseout.awardMarkedCompleted")}</div>
+              <div className="muted">{t("pdfCloseout.byDanaOrtizMirroredTo")}</div>
             </div>
-            <span className="muted">Aug 12</span>
+            <span className="muted">{t("pdfCloseout.aug12")}</span>
           </div>
         </div>
-        <div className="sec-h">Budget · approved vs actual</div>
+        <div className="sec-h">{t("pdfCloseout.budgetApprovedVsActual")}</div>
         <table className="tbl bud" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
-              <th>Category</th>
-              <th className="num">Approved</th>
-              <th className="num">Actual</th>
-              <th className="num">Variance</th>
-              <th>Source</th>
+              <th>{t("pdfCloseout.category")}</th>
+              <th className="num">{t("pdfCloseout.approved")}</th>
+              <th className="num">{t("pdfCloseout.actual")}</th>
+              <th className="num">{t("pdfCloseout.variance")}</th>
+              <th>{t("pdfCloseout.source")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Personnel</td>
+              <td>{t("pdfCloseout.personnel")}</td>
               <td className="num">$62,000</td>
               <td className="num">$63,100</td>
               <td className="num var-neg">+$1,100</td>
-              <td>QuickBooks</td>
+              <td>{t("pdfCloseout.quickbooks")}</td>
             </tr>
             <tr>
-              <td>Clinic supplies</td>
+              <td>{t("pdfCloseout.clinicSupplies")}</td>
               <td className="num">$18,000</td>
               <td className="num">$16,460</td>
               <td className="num var-pos">−$1,540</td>
-              <td>QuickBooks</td>
+              <td>{t("pdfCloseout.quickbooks")}</td>
             </tr>
             <tr>
-              <td>Training</td>
+              <td>{t("pdfCloseout.training")}</td>
               <td className="num">$6,000</td>
               <td className="num">$5,200</td>
               <td className="num var-pos">−$800</td>
-              <td>QuickBooks</td>
+              <td>{t("pdfCloseout.quickbooks")}</td>
             </tr>
             <tr>
-              <td>Indirect (10%)</td>
+              <td>{t("pdfCloseout.indirect10")}</td>
               <td className="num">$9,000</td>
               <td className="num">$9,000</td>
               <td className="num">$0</td>
-              <td>Entered</td>
+              <td>{t("pdfCloseout.entered")}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
-              <td>Total</td>
+              <td>{t("pdfCloseout.total")}</td>
               <td className="num">$95,000</td>
               <td className="num">$93,760</td>
               <td className="num var-pos">−$1,240</td>
@@ -176,51 +179,50 @@ export default function PdfCloseout() {
             </tr>
           </tfoot>
         </table>
-        <div className="sec-h">Outcomes reported</div>
+        <div className="sec-h">{t("pdfCloseout.outcomesReported")}</div>
         <table className="tbl" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
-              <th>Measure</th>
-              <th className="num">Target</th>
-              <th className="num">Reported</th>
-              <th>Note</th>
+              <th>{t("pdfCloseout.measure")}</th>
+              <th className="num">{t("pdfCloseout.target")}</th>
+              <th className="num">{t("pdfCloseout.reported")}</th>
+              <th>{t("pdfCloseout.note")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Clinic hours offered at the shelter</td>
+              <td>{t("pdfCloseout.clinicHoursOfferedAtThe")}</td>
               <td className="num">520</td>
               <td className="num">548</td>
-              <td>Two evening sessions added in spring</td>
+              <td>{t("pdfCloseout.twoEveningSessionsAddedIn")}</td>
             </tr>
             <tr>
-              <td>Guests seen by a clinician</td>
+              <td>{t("pdfCloseout.guestsSeenByAClinician")}</td>
               <td className="num">300</td>
               <td className="num">334</td>
-              <td>Unduplicated</td>
+              <td>{t("pdfCloseout.unduplicated")}</td>
             </tr>
             <tr>
-              <td>Referrals completed within 30 days</td>
+              <td>{t("pdfCloseout.referralsCompletedWithin30Days")}</td>
               <td className="num">60%</td>
               <td className="num">66%</td>
-              <td>Tracked with partner clinic</td>
+              <td>{t("pdfCloseout.trackedWithPartnerClinic")}</td>
             </tr>
           </tbody>
         </table>
-        <div className="sec-h">Documents</div>
+        <div className="sec-h">{t("pdfCloseout.documents")}</div>
         <ul
           style={{ fontSize: "12px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "4px 16px", color: "#1E2D2B" }}
         >
-          <li>Executed agreement agr_01HQ22-1 · PDF · sha256 71be…0c4a</li>
-          <li>Interim report · accepted Jan 20, 2027</li>
-          <li>Final report · accepted Aug 4, 2027</li>
-          <li>Amendment 1 · schedule change · approved Mar 3, 2027</li>
-          <li>Payment records · pay_01HQ22-1, -2, -3</li>
-          <li>Closeout summary (this document)</li>
+          <li>{t("pdfCloseout.executedAgreementAgr01hq221")}</li>
+          <li>{t("pdfCloseout.interimReportAcceptedJan20")}</li>
+          <li>{t("pdfCloseout.finalReportAcceptedAug4")}</li>
+          <li>{t("pdfCloseout.amendment1ScheduleChangeApproved")}</li>
+          <li>{t("pdfCloseout.paymentRecordsPay01hq221")}</li>
+          <li>{t("pdfCloseout.closeoutSummaryThisDocument")}</li>
         </ul>
         <p style={{ fontSize: "12px", color: "#4A5C5A" }}>
-          Closed by Dana Ortiz, Program Officer, on Aug 12, 2027. The grantee received a copy of this summary; the award record stays
-          readable to both parties.
+          {t("pdfCloseout.closedByDanaOrtizProgram")}
         </p>
         <div
           className="row"
@@ -233,8 +235,8 @@ export default function PdfCloseout() {
             color: "#4A5C5A",
           }}
         >
-          <span>Generated by OpenGrants GMS · Aug 12, 2027 · sha256 b02f6d…48e1</span>
-          <span>Page 1 of 1</span>
+          <span>{t("pdfCloseout.generatedByOpengrantsGmsAug")}</span>
+          <span>{t("pdfCloseout.page1Of1")}</span>
         </div>
       </div>
     </>

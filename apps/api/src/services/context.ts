@@ -6,6 +6,7 @@ import type { CreationLimiter } from "../lib/rate-limit.ts";
 import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
+import type { PreferencesPort } from "./preferences.ts";
 import type { LlmClient } from "@gms/assist";
 import type { AirtableSource, BankFeed, FluxxPuller, McpDirectory, SheetsSource, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
@@ -137,6 +138,8 @@ export interface ServicePorts {
   llm?: LlmClient;
   /** A person's own sign-in sessions (Supabase Auth). */
   sessions?: SessionsPort;
+  /** A person's own preferences (their language); absent, everyone has none and emails go in English. */
+  preferences?: PreferencesPort;
   /** Accounts by verified email, for Sign in with Passport (Supabase Auth admin). */
   identity?: IdentityPort;
   /** Passport's authenticator accepted as the second step for one session; absent, the app asks for its own. */

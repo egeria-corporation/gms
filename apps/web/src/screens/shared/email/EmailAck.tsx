@@ -3,10 +3,13 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ArrowRight } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function EmailAck() {
   return (
     <>
-      <title>{"Email — application received"}</title>
+      <title>{t("emailAck.emailApplicationReceived")}</title>
       <div
         className="gms email"
         style={
@@ -34,24 +37,14 @@ export default function EmailAck() {
           }}
         >
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              Subject:
-            </span>{" "}
-            We received your application — Community Health Grants 2027
+            {t.rich("emailAck.subjectWeReceivedYourApplication", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              To:
-            </span>{" "}
-            Maria Santos {"<"}maria@aldercreekfs.example{">"} ·{" "}
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              From:
-            </span>{" "}
-            Riverbend Community Foundation via OpenGrants GMS {"<"}grants@riverbendcf.example{">"}
+            {t.rich("emailAck.toMariaSantosMariaAldercreekfs", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span>, span2: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
         </div>
         <div className="hd">
-          <span
+          {t.rich("emailAck.rcfRiverbendCommunityFoundation", { span: (chunks) => <span
             style={{
               width: "36px",
               height: "36px",
@@ -65,25 +58,20 @@ export default function EmailAck() {
               fontSize: "12px",
               letterSpacing: ".04em",
             }}
-          >
-            RCF
-          </span>
-          Riverbend Community Foundation
+          >{chunks}</span> })}
         </div>
         <div className="bd">
-          <h2 style={{ fontSize: "20px" }}>We received your application</h2>
-          <p>Hello Maria,</p>
+          <h2 style={{ fontSize: "20px" }}>{t("emailAck.weReceivedYourApplication")}</h2>
+          <p>{t("emailAck.helloMaria")}</p>
           <p>
-            Alder Creek Family Services submitted <span className="b">Mobile Health Navigation for Rural Families</span> to Community Health
-            Grants 2027 on <span className="b">April 16, 2027 at 2:02 PM PT</span>. A PDF snapshot of the application as submitted is
-            attached, along with your Passport attestation (level L3, payee verified).
+            {t.rich("emailAck.alderCreekFamilyServicesSubmitted", { span: (chunks) => <span className="b">{chunks}</span>, span2: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <div
             className="card"
             style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px", background: "#F7FAFA" }}
           >
             <div className="b" style={{ fontSize: "14px", color: "#0D2A43" }}>
-              What happens next
+              {t("emailAck.whatHappensNext")}
             </div>
             <ol
               style={{
@@ -96,52 +84,50 @@ export default function EmailAck() {
                 color: "#1E2D2B",
               }}
             >
-              <li>Screening for eligibility and completeness, usually within 10 business days.</li>
-              <li>Review by the Community Health panel, April 30 – May 14.</li>
+              <li>{t("emailAck.screeningForEligibilityAndCompleteness")}</li>
+              <li>{t("emailAck.reviewByTheCommunityHealth")}</li>
               <li>
-                A decision from Riverbend by <span className="b">June 15, 2027</span>, sent to this address and shown in your status page.
+                {t.rich("emailAck.aDecisionFromRiverbendBy", { span: (chunks) => <span className="b">{chunks}</span> })}
               </li>
             </ol>
           </div>
           <p>
-            You can follow every step, read messages from the program officer, and respond to any revision request from your application
-            status page. If you need to withdraw, you can do that there too.
+            {t("emailAck.youCanFollowEveryStep")}
           </p>
           <Link to="/w/alder-creek/applications/app_01HZX4" className="btn btn-tenant btn-lg">
-            View application status
+            {t("emailAck.viewApplicationStatus")}
             <ArrowRight className="ic" aria-hidden="true" />
           </Link>
           <div className="doc" style={{ marginTop: "4px" }}>
             <span className="ft ft-pdf">PDF</span>
             <div className="grow">
-              <div className="nm">Application snapshot — app_01HZX4.pdf</div>
+              <div className="nm">{t("emailAck.applicationSnapshotApp01hzx4Pdf")}</div>
               <div className="mt">
-                <span>186 KB</span>
+                <span>{t("emailAck.n186Kb")}</span>
                 <span>·</span>
-                <span className="mono">sha256 9c4e…1a7b</span>
+                <span className="mono">{t("emailAck.sha2569c4e1a7b")}</span>
               </div>
             </div>
           </div>
           <div className="doc">
-            <span className="ft">ATT</span>
+            <span className="ft">{t("emailAck.att")}</span>
             <div className="grow">
-              <div className="nm">Passport attestation — L3.json</div>
+              <div className="nm">{t("emailAck.passportAttestationL3Json")}</div>
               <div className="mt">
-                <span>4 KB</span>
+                <span>{t("emailAck.n4Kb")}</span>
                 <span>·</span>
-                <span>Issued by OpenGrants Passport · valid through Mar 2028</span>
+                <span>{t("emailAck.issuedByOpengrantsPassportValid")}</span>
               </div>
             </div>
           </div>
           <p style={{ fontSize: "14px", color: "#4A5C5A" }}>
-            Questions? Reply to this email or write to grants@riverbendcf.example. Replies go to the program officer, Dana Ortiz, and appear
-            in your shared message thread.
+            {t("emailAck.questionsReplyToThisEmail")}
           </p>
         </div>
         <div className="ft" style={{ marginTop: "auto" }}>
-          <span>Sent by OpenGrants GMS on behalf of Riverbend Community Foundation</span>
+          <span>{t("emailAck.sentByOpengrantsGmsOn")}</span>
           <span>
-            <Link to="/notifications">Manage notifications</Link> · gms.opengrants.io
+            {t.rich("emailAck.manageNotificationsGmsOpengrantsIo", { link: (chunks) => <Link to="/notifications">{chunks}</Link> })}
           </span>
         </div>
       </div>

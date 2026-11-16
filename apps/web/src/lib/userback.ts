@@ -4,6 +4,8 @@
 // Elements with the class `userback-block` are left out of screenshots and replays, and typing in
 // elements with `userback-ignore` is not recorded (see the privacy markers on secrets, sign-in
 // codes and payout facts).
+import { translate } from "../i18n/current.ts";
+
 
 export const USERBACK_SCRIPT = "https://static.userback.io/widget/v1.js";
 export const USERBACK_SCRIPT_ID = "userback-widget";
@@ -29,9 +31,8 @@ type UserbackWindow = { Userback?: UserbackApi };
 /** The widget loads only with a token and outside mock mode. */
 export const userbackActive = (cfg: { token: string; useMocks: boolean }): boolean => cfg.token.trim() !== "" && !cfg.useMocks;
 
-/** The landing page answer, with the disclosure appended only when the widget is active. */
-export const whoCanSeeAnswer = (active: boolean): string =>
-  `Only funders you apply to or accept an award from.${active ? ` ${USERBACK_DISCLOSURE}` : ""}`;
+/** The landing page answer, in the page's language, with the disclosure only when the widget is active. */
+export const whoCanSeeAnswer = (active: boolean): string => translate("public", active ? "landing.whoCanSee.withFeedback" : "landing.whoCanSee.plain");
 
 const userData = (u: FeedbackUser) => ({ id: u.id, info: { name: u.name, email: u.email } });
 

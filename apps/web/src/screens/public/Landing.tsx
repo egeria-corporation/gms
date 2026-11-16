@@ -10,49 +10,53 @@ import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { ArrowRight, Bot, Check, ChevronDown, Download, ExternalLink, Menu, ShieldCheck, ShieldOff, X } from "lucide-react";
 
+import { translator } from "../../i18n/index.tsx";
+
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
+const tr = translator("public");
 const DEPLOY_GUIDE = "https://github.com/egeria-corporation/gms/blob/main/DEPLOY_WITH_AGENT.md";
 /** The WCAG 2.2 AA conformance report (VPAT 2.5 format) that buyers ask for. */
 const ACCESSIBILITY_REPORT = "https://github.com/egeria-corporation/gms/blob/main/docs/accessibility.md";
 
-const FUNDER_STEPS: Array<[string, string]> = [
-  ["Sign up with your email", "We send a code. No password."],
-  ["Name your organization", "Then invite your team."],
-  ["Create an award or open a grant round", "Award an organization directly by email, or publish an opportunity and review applications."],
-];
-const GRANTEE_STEPS: Array<[string, string]> = [
-  ["Sign up with your email", "We send a code. No password."],
-  ["Enter your organization", "Its name and a contact email."],
-  ["Accept, apply and report", "Accept an award a funder sends you, or apply to open opportunities. Then sign the agreement and send reports."],
-];
+const FUNDER_STEPS = (): Array<[string, string]> => ([
+  [tr("landing.funderSteps.n0.n0"), tr("landing.funderSteps.n0.n1")],
+  [tr("landing.funderSteps.n1.n0"), tr("landing.funderSteps.n1.n1")],
+  [tr("landing.funderSteps.n2.n0"), tr("landing.funderSteps.n2.n1")],
+]);
+const GRANTEE_STEPS = (): Array<[string, string]> => ([
+  [tr("landing.granteeSteps.n0.n0"), tr("landing.granteeSteps.n0.n1")],
+  [tr("landing.granteeSteps.n1.n0"), tr("landing.granteeSteps.n1.n1")],
+  [tr("landing.granteeSteps.n2.n0"), tr("landing.granteeSteps.n2.n1")],
+]);
 
-const FUNDER_CAN = [
-  "Give an award directly: enter the organization's name and a contact email",
-  "Publish opportunities on your own page, with application and report forms",
-  "Review, score and decide, then send award letters",
-  "Agreements, payment schedules and reporting requirements",
-  "Record payments you make your usual way (cheque, bank transfer)",
-  "Export everything (CommonGrants JSON, CSV)",
-];
-const GRANTEE_CAN = [
-  "Apply to opportunities, with your team",
-  "Accept awards sent to your email, and sign agreements in the app",
-  "See your payment schedule and the payments your funder records",
-  "Send reports and request changes to an award",
-  "Message your funder in one thread",
-  "Keep one status view across funders",
-];
+const FUNDER_CAN = () => ([
+  tr("landing.funderCan.n0"),
+  tr("landing.funderCan.n1"),
+  tr("landing.funderCan.n2"),
+  tr("landing.funderCan.n3"),
+  tr("landing.funderCan.n4"),
+  tr("landing.funderCan.n5"),
+]);
+const GRANTEE_CAN = () => ([
+  tr("landing.granteeCan.n0"),
+  tr("landing.granteeCan.n1"),
+  tr("landing.granteeCan.n2"),
+  tr("landing.granteeCan.n3"),
+  tr("landing.granteeCan.n4"),
+  tr("landing.granteeCan.n5"),
+]);
 
 /** How the page presents Passport: an add-on worth having, and optional. */
-const PASSPORT_PITCH = "Add OpenGrants Passport, a free, verified profile for your organization that you set up once and share with the funders you choose. It's optional.";
+const PASSPORT_PITCH = () => tr("landing.passportPitch");
 
-const FAQ: Array<[string, string]> = [
-  ["Do I need OpenGrants Passport?", "No. Sign up with your email. Passport is optional and adds verification and payments through Passport."],
-  ["Is it really free?", "Yes, for funders and grantees, hosted or self-hosted."],
-  ["How do payments work without Passport?", "The funder pays the way they already do and records the payment here; the grantee sees it. The GMS never holds bank details."],
-  ["What does “Not verified” mean?", "The organization entered its own details. Funders see that label so they know to check. Connecting Passport later replaces it."],
-  ["Why does an admin need an authenticator app?", "Admins can change awards and payment records, so we ask for a second step at sign-in. It takes a minute with any authenticator app."],
-  ["Who can see my organization's information?", whoCanSeeAnswer(userbackActive({ token: env.userbackToken, useMocks: env.useMocks }))],
-];
+const FAQ = (): Array<[string, string]> => ([
+  [tr("landing.faq.n0.n0"), tr("landing.faq.n0.n1")],
+  [tr("landing.faq.n1.n0"), tr("landing.faq.n1.n1")],
+  [tr("landing.faq.n2.n0"), tr("landing.faq.n2.n1")],
+  [tr("landing.faq.n3.n0"), tr("landing.faq.n3.n1")],
+  [tr("landing.faq.n4.n0"), tr("landing.faq.n4.n1")],
+  [tr("landing.faq.n5.n0"), whoCanSeeAnswer(userbackActive({ token: env.userbackToken, useMocks: env.useMocks }))],
+]);
 
 function Header() {
   const [open, setOpen] = useState(false);
@@ -77,19 +81,19 @@ function Header() {
           <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
           <span className="suffix">GMS</span>
         </Link>
-        <nav aria-label="Main" className="landing-links" id="landing-links" data-open={open} onClick={(e) => (e.target as HTMLElement).closest("a") && close()}>
-          <a href="#funders">For funders</a>
-          <a href="#grantees">For grantees</a>
-          <a href="#how">How it works</a>
-          <a href="#selfhost">Self-host</a>
+        <nav aria-label={tr("landing.main")} className="landing-links" id="landing-links" data-open={open} onClick={(e) => (e.target as HTMLElement).closest("a") && close()}>
+          <a href="#funders">{tr("landing.forFunders")}</a>
+          <a href="#grantees">{tr("landing.forGrantees")}</a>
+          <a href="#how">{tr("landing.howItWorks")}</a>
+          <a href="#selfhost">{tr("landing.selfHost")}</a>
         </nav>
         <div className="landing-tools">
           <button ref={menuRef} type="button" className="btn btn-ghost landing-menu-btn" aria-expanded={open} aria-controls="landing-links" onClick={() => setOpen((v) => !v)}>
             {open ? <X className="ic" aria-hidden="true" /> : <Menu className="ic" aria-hidden="true" />}
-            Menu
+            {tr("landing.menu")}
           </button>
           <Link to="/signin" className="btn btn-secondary">
-            Sign in
+            {tr("landing.signIn")}
           </Link>
         </div>
       </div>
@@ -118,7 +122,7 @@ export default function Landing() {
   const flags = usePassportFlags();
   return (
     <>
-      <title>{"OpenGrants GMS: free grants management for funders and grantees"}</title>
+      <title>{tr("landing.opengrantsGmsFreeGrantsManagement")}</title>
       <div className="gms pub" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <Header />
         <main>
@@ -126,30 +130,30 @@ export default function Landing() {
             <div className="wrap-c landing-stack">
               <span className="og-eyebrow">
                 <ShieldCheck className="ic" aria-hidden="true" />
-                Free and open source
+                {tr("landing.freeAndOpenSource")}
               </span>
-              <h1 id="landing-h1">Give and manage grants, free. Sign up with your email.</h1>
+              <h1 id="landing-h1">{tr("landing.giveAndManageGrantsFree")}</h1>
               <p className="landing-lede">
-                Funders create opportunities and awards, collect reports and keep track of payments. Grantees accept awards, sign agreements and send reports.
+                {tr("landing.fundersCreateOpportunitiesAndAwards")}
               </p>
               <div className="landing-cta">
                 <Link to="/signin?as=funder" className="btn btn-cta btn-lg">
-                  I’m a funder: start free
+                  {tr("landing.iMAFunderStart")}
                   <ArrowRight className="ic" aria-hidden="true" />
                 </Link>
                 <Link to="/signin?as=grantee" className="btn btn-cta btn-lg">
-                  I’m a grantee or applicant: start free
+                  {tr("landing.iMAGranteeOr")}
                   <ArrowRight className="ic" aria-hidden="true" />
                 </Link>
               </div>
               {flags.signIn && (
                 <div className="landing-passport-line">
-                  <span>Already use OpenGrants Passport?</span>
+                  <span>{tr("landing.alreadyUseOpengrantsPassport")}</span>
                   <PassportButton className="btn btn-secondary btn-sm" />
                 </div>
               )}
-              <ul className="landing-facts" aria-label="At a glance">
-                {["Free for funders", "Free for grantees", "Email sign-in, no password", "Open source"].map((f) => (
+              <ul className="landing-facts" aria-label={tr("landing.atAGlance")}>
+                {[tr("landing.freeForFunders"), tr("landing.freeForGrantees"), tr("landing.emailSignInNoPassword"), tr("landing.openSource")].map((f) => (
                   <li key={f}>
                     <Check className="ic" aria-hidden="true" />
                     {f}
@@ -158,9 +162,9 @@ export default function Landing() {
               </ul>
               {demo && (
                 <div className="landing-links-row">
-                  <Link to="/f/riverbend">See an example funder page</Link>
-                  <Link to="/f/riverbend/o/community-health-2027">View a live opportunity</Link>
-                  <Link to="/w/alder-creek/find">Find funding</Link>
+                  <Link to="/f/riverbend">{tr("landing.seeAnExampleFunderPage")}</Link>
+                  <Link to="/f/riverbend/o/community-health-2027">{tr("landing.viewALiveOpportunity")}</Link>
+                  <Link to="/w/alder-creek/find">{tr("landing.findFunding")}</Link>
                 </div>
               )}
             </div>
@@ -168,22 +172,22 @@ export default function Landing() {
 
           <section className="landing-sec" id="how" aria-labelledby="how-h">
             <div className="wrap-c">
-              <h2 id="how-h">Start in three steps</h2>
-              <p className="landing-sub">Pick the side you are on. Both start with an email address.</p>
+              <h2 id="how-h">{tr("landing.startInThreeSteps")}</h2>
+              <p className="landing-sub">{tr("landing.pickTheSideYouAre")}</p>
               <div className="landing-cols">
                 <div className="card landing-card" id="funders">
-                  <h3>Funders</h3>
-                  <Steps items={FUNDER_STEPS} />
+                  <h3>{tr("landing.funders")}</h3>
+                  <Steps items={FUNDER_STEPS()} />
                   <Link to="/signin?as=funder" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                    Start as a funder
+                    {tr("landing.startAsAFunder")}
                   </Link>
-                  <Link to="/switch" className="small">Switching from another system? See what moves over and get a free migration</Link>
+                  <Link to="/switch" className="small">{tr("landing.switchingFromAnotherSystemSee")}</Link>
                 </div>
                 <div className="card landing-card" id="grantees">
-                  <h3>Grantees and applicants</h3>
-                  <Steps items={GRANTEE_STEPS} />
+                  <h3>{tr("landing.granteesAndApplicants")}</h3>
+                  <Steps items={GRANTEE_STEPS()} />
                   <Link to="/signin?as=grantee" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                    Start as a grantee
+                    {tr("landing.startAsAGrantee")}
                   </Link>
                 </div>
               </div>
@@ -192,32 +196,32 @@ export default function Landing() {
 
           <section className="landing-sec" aria-labelledby="can-h">
             <div className="wrap-c">
-              <h2 id="can-h">What you can do without Passport</h2>
-              <p className="landing-sub">Everything here works with just an email sign-in.</p>
-              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="What you can do without Passport, scrollable">
+              <h2 id="can-h">{tr("landing.whatYouCanDoWithout")}</h2>
+              <p className="landing-sub">{tr("landing.everythingHereWorksWithJust")}</p>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("landing.whatYouCanDoWithout2")}>
                 <table className="tbl landing-tbl" aria-labelledby="can-h">
                   <thead>
                     <tr>
-                      <th scope="col">Funders</th>
-                      <th scope="col">Grantees</th>
+                      <th scope="col">{tr("landing.funders")}</th>
+                      <th scope="col">{tr("landing.grantees")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.from({ length: Math.max(FUNDER_CAN.length, GRANTEE_CAN.length) }, (_, i) => (
+                    {Array.from({ length: Math.max(FUNDER_CAN().length, GRANTEE_CAN().length) }, (_, i) => (
                       <tr key={i}>
                         <td>
-                          {FUNDER_CAN[i] && (
+                          {FUNDER_CAN()[i] && (
                             <>
                               <Check className="ic" aria-hidden="true" />
-                              {FUNDER_CAN[i]}
+                              {FUNDER_CAN()[i]}
                             </>
                           )}
                         </td>
                         <td>
-                          {GRANTEE_CAN[i] && (
+                          {GRANTEE_CAN()[i] && (
                             <>
                               <Check className="ic" aria-hidden="true" />
-                              {GRANTEE_CAN[i]}
+                              {GRANTEE_CAN()[i]}
                             </>
                           )}
                         </td>
@@ -234,34 +238,37 @@ export default function Landing() {
               <div className="wrap-c">
                 <div className="card landing-adds">
                   <h2 id="adds-h" style={{ marginBottom: 0 }}>
-                    What Passport adds, if you want it
+                    {tr("landing.whatPassportAddsIfYou")}
                   </h2>
                   <p className="landing-sub" style={{ marginBottom: 0 }}>
-                    {PASSPORT_PITCH}
+                    {PASSPORT_PITCH()}
                   </p>
                   <ul>
                     <li>
                       <ShieldCheck className="ic" aria-hidden="true" />
                       <span>
-                        Your organization shows as <span className="lvl lvl-3">Verified</span>. Without Passport it shows as{" "}
-                        <span className="lvl lvl-na">
-                          <ShieldOff className="ic" aria-hidden="true" />
-                          Not verified
-                        </span>
-                        .
+                        {tr.rich("landing.yourOrganizationShowsAsVerified", {
+                          verified: (chunks) => <span className="lvl lvl-3">{chunks}</span>,
+                          unverified: (chunks) => (
+                            <span className="lvl lvl-na">
+                              <ShieldOff className="ic" aria-hidden="true" />
+                              {chunks}
+                            </span>
+                          ),
+                        })}
                       </span>
                     </li>
                     <li>
                       <Check className="ic" aria-hidden="true" />
-                      Forms fill themselves from one record you keep up to date.
+                      {tr("landing.formsFillThemselvesFromOne")}
                     </li>
                     <li>
                       <Check className="ic" aria-hidden="true" />
-                      Funders can send payments through Passport to a bank account the organization verified, with safeguards on changes.
+                      {tr("landing.fundersCanSendPaymentsThrough")}
                     </li>
                   </ul>
                   <a href="https://passport.opengrants.io" className="landing-links-row" style={{ fontWeight: 700 }}>
-                    Learn about OpenGrants Passport
+                    {tr("landing.learnAboutOpengrantsPassport")}
                     <ExternalLink className="ic" aria-hidden="true" />
                   </a>
                 </div>
@@ -272,19 +279,19 @@ export default function Landing() {
           <section className="landing-sec" id="selfhost" aria-labelledby="oss-h">
             <div className="wrap-c landing-stack">
               <h2 id="oss-h" style={{ marginBottom: 0 }}>
-                Open source, and you can run your own
+                {tr("landing.openSourceAndYouCan")}
               </h2>
               <p className="landing-sub" style={{ marginBottom: 0 }}>
-                Point Claude Code or another coding agent at the repository and it sets up the GMS on your own Supabase and Cloudflare accounts, asking before it creates anything. Our test deploys took about 10 minutes.
+                {tr("landing.pointClaudeCodeOrAnother")}
               </p>
               <div className="landing-links-row">
                 <a href={DEPLOY_GUIDE}>
                   <Download className="ic" aria-hidden="true" />
-                  Deploy with an agent
+                  {tr("landing.deployWithAnAgent")}
                 </a>
                 <a href="https://github.com/egeria-corporation/gms">
                   <ExternalLink className="ic" aria-hidden="true" />
-                  Source (AGPL)
+                  {tr("landing.sourceAgpl")}
                 </a>
                 <a href="/openapi.json">
                   <ExternalLink className="ic" aria-hidden="true" />
@@ -296,7 +303,7 @@ export default function Landing() {
                 </a>
                 <Link to="/agents">
                   <Bot className="ic" aria-hidden="true" />
-                  For agents (MCP)
+                  {tr("landing.forAgentsMcp")}
                 </Link>
               </div>
             </div>
@@ -304,8 +311,8 @@ export default function Landing() {
 
           <section className="landing-sec" aria-labelledby="faq-h">
             <div className="wrap-c landing-faq" style={{ maxWidth: "820px" }}>
-              <h2 id="faq-h">Questions people ask</h2>
-              {FAQ.map(([q, a]) => (
+              <h2 id="faq-h">{tr("landing.questionsPeopleAsk")}</h2>
+              {FAQ().map(([q, a]) => (
                 <details key={q}>
                   <summary>
                     {q}
@@ -321,16 +328,19 @@ export default function Landing() {
           <div className="wrap-c">
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-              <span>OpenGrants GMS · gms.opengrants.io</span>
+              <span>{tr("landing.opengrantsGmsGmsOpengrantsIo")}</span>
             </div>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-              <Link to="/agents">For agents</Link>
-              <Link to="/templates">Template gallery</Link>
+              <Link to="/agents">{tr("landing.forAgents")}</Link>
+              <Link to="/templates">{tr("landing.templateGallery")}</Link>
               <a href="/openapi.json">API</a>
-              <a href="https://commongrants.org">CommonGrants spec</a>
-              <a href="https://github.com/egeria-corporation/gms">Source</a>
-              <a href={ACCESSIBILITY_REPORT}>Accessibility</a>
+              <a href="https://commongrants.org">{tr("landing.commongrantsSpec")}</a>
+              <a href="https://github.com/egeria-corporation/gms">{tr("landing.source")}</a>
+              <a href={ACCESSIBILITY_REPORT}>{tr("landing.accessibility")}</a>
             </div>
+          </div>
+          <div className="wrap-c lang-row">
+            <LanguageSwitcher />
           </div>
         </footer>
       </div>

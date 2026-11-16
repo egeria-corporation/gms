@@ -5,10 +5,13 @@
 import { Link, useParams } from "react-router";
 import { ArrowRight, CalendarClock, Check, Download, FileInput, ShieldCheck, Tag } from "lucide-react";
 import { NotFound } from "../../components/NotFound.tsx";
-import { COMMON_FAQ, DIFFERENCES, FACTS_AS_OF, IMPORT_WIZARD_SEGMENT, LIST_PRICE_LABEL, OUR_NAME, OUR_PRICE, PRICED_BY_QUOTE, STAYS_BEHIND, STEPS, seoFor, switchEntry, type SwitchEntry } from "../../content/switch.ts";
+import { IMPORT_WIZARD_SEGMENT, seoFor, switchEntry, switchText, type SwitchEntry } from "../../content/switch.ts";
 import { MigrationRequestForm } from "./switch/MigrationRequestForm.tsx";
 import { FaqList, SourceLink, SwitchFrame } from "./switch/SwitchFrame.tsx";
 
+import { getLocale, translator } from "../../i18n/index.tsx";
+
+const tr = translator("public");
 function Checks({ items }: { items: string[] }) {
   return (
     <ul style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }}>
@@ -23,33 +26,34 @@ function Checks({ items }: { items: string[] }) {
 }
 
 function Page({ entry }: { entry: SwitchEntry }) {
-  const heading = `Moving from ${entry.name} to ${OUR_NAME}`;
+  const text = switchText();
+  const heading = tr("switchSystem.movingFromTo", { name: entry.name, OUR_NAME: text.ourName });
   return (
-    <SwitchFrame title={seoFor(entry).title}>
+    <SwitchFrame title={seoFor(entry, getLocale()).title}>
       <section className="landing-sec landing-hero" aria-labelledby="switch-h1">
         <div className="wrap-c landing-stack">
           <span className="og-eyebrow">
             <CalendarClock className="ic" aria-hidden="true" />
-            Switching · facts as of {FACTS_AS_OF}
+            {tr("switchSystem.switchingFactsAsOf", { FACTS_AS_OF: text.factsAsOf })}
           </span>
           <h1 id="switch-h1">{heading}</h1>
           <p className="landing-lede">{entry.summary}</p>
           {entry.news.length > 0 && (
-            <ul aria-label="Who owns it" style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "680px" }}>
+            <ul aria-label={tr("switchSystem.whoOwnsIt")} style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "680px" }}>
               {entry.news.map((n) => (
                 <li key={n.text} data-claim="ownership">
-                  {n.text} <span className="muted">Source:</span> <SourceLink {...n.source} />
+                  {n.text} <span className="muted">{tr("switchSystem.source")}</span> <SourceLink {...n.source} />
                 </li>
               ))}
             </ul>
           )}
           <div className="landing-links-row">
             <a href="#request" className="btn btn-cta">
-              Request a free migration
+              {tr("switchSystem.requestAFreeMigration")}
               <ArrowRight className="ic" aria-hidden="true" />
             </a>
             <Link to="/signin?as=funder" className="btn btn-secondary">
-              Start free
+              {tr("switchSystem.startFree")}
             </Link>
           </div>
         </div>
@@ -57,19 +61,19 @@ function Page({ entry }: { entry: SwitchEntry }) {
 
       <section className="landing-sec" aria-labelledby="exports-h">
         <div className="wrap-c">
-          <h2 id="exports-h">What you can export, and what comes over</h2>
+          <h2 id="exports-h">{tr("switchSystem.whatYouCanExportAnd")}</h2>
           <div className="landing-cols">
             <div className="card landing-card">
               <h3>
-                <Download className="ic" aria-hidden="true" /> From {entry.kind === "spreadsheets" ? "your spreadsheets" : entry.name}
+                <Download className="ic" aria-hidden="true" /> {entry.kind === "spreadsheets" ? tr("switchSystem.fromSpreadsheets") : tr("switchSystem.fromSystem", { name: entry.name })}
               </h3>
               <Checks items={entry.exports} />
               {entry.sources.length > 0 && (
                 <div>
                   <p className="muted" style={{ fontSize: "14px" }}>
-                    Source{entry.sources.length > 1 ? "s" : ""}, as of {FACTS_AS_OF}:
+                    {tr("switchSystem.sourcesAsOf", { count: entry.sources.length, date: text.factsAsOf })}
                   </p>
-                  <ul className="landing-links-row" aria-label="Sources" style={{ marginTop: "4px" }}>
+                  <ul className="landing-links-row" aria-label={tr("switchSystem.sources")} style={{ marginTop: "4px" }}>
                     {entry.sources.map((s) => (
                       <li key={s.url}>
                         <SourceLink {...s} />
@@ -81,11 +85,11 @@ function Page({ entry }: { entry: SwitchEntry }) {
             </div>
             <div className="card landing-card">
               <h3>
-                <FileInput className="ic" aria-hidden="true" /> What comes over
+                <FileInput className="ic" aria-hidden="true" /> {tr("switchSystem.whatComesOver")}
               </h3>
               <Checks items={entry.movesOver} />
               <p className="muted" style={{ fontSize: "14px" }}>
-                Past payments are recorded as paid elsewhere. Nothing moves money.
+                {tr("switchSystem.pastPaymentsAreRecordedAs")}
               </p>
             </div>
           </div>
@@ -96,16 +100,16 @@ function Page({ entry }: { entry: SwitchEntry }) {
         <div className="wrap-c">
           <div className="card landing-adds">
             <h2 id="behind-h" style={{ marginBottom: 0 }}>
-              What stays behind
+              {tr("switchSystem.whatStaysBehind")}
             </h2>
             <ul>
               <li>
                 <ShieldCheck className="ic" aria-hidden="true" />
-                <span>{STAYS_BEHIND.what}</span>
+                <span>{text.staysBehind.what}</span>
               </li>
             </ul>
             <p className="landing-sub" style={{ marginBottom: 0 }}>
-              {STAYS_BEHIND.why}
+              {text.staysBehind.why}
             </p>
           </div>
         </div>
@@ -113,12 +117,12 @@ function Page({ entry }: { entry: SwitchEntry }) {
 
       <section className="landing-sec" aria-labelledby="steps-h">
         <div className="wrap-c">
-          <h2 id="steps-h">The steps</h2>
+          <h2 id="steps-h">{tr("switchSystem.theSteps")}</h2>
           <p className="landing-sub">
-            The import wizard is under Import in your workspace (<code>/w/your-workspace/{IMPORT_WIZARD_SEGMENT}</code>).
+            {tr.rich("switchSystem.theImportWizardIsUnder", { IMPORT_WIZARD_SEGMENT, code: (chunks) => <code>{chunks}</code> })}
           </p>
           <ol className="landing-steps" style={{ maxWidth: "720px" }}>
-            {STEPS(entry).map(([t, d]) => (
+            {text.steps(entry).map(([t, d]) => (
               <li key={t}>
                 <span>
                   <span className="t">{t}</span>
@@ -132,9 +136,9 @@ function Page({ entry }: { entry: SwitchEntry }) {
 
       <section className="landing-sec" aria-labelledby="differ-h">
         <div className="wrap-c">
-          <h2 id="differ-h">How the GMS differs</h2>
+          <h2 id="differ-h">{tr("switchSystem.howTheGmsDiffers")}</h2>
           <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
-            {DIFFERENCES.map(([t, d]) => (
+            {text.differences.map(([t, d]) => (
               <li key={t} className="card landing-card">
                 <h3>
                   <Check className="ic" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} /> {t}
@@ -144,13 +148,13 @@ function Page({ entry }: { entry: SwitchEntry }) {
             ))}
           </ul>
           {entry.price && (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Price, scrollable" style={{ marginTop: "24px", maxWidth: "760px" }}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("switchSystem.priceScrollable")} style={{ marginTop: "24px", maxWidth: "760px" }}>
               <table className="tbl landing-tbl">
-                <caption className="sr">Price</caption>
+                <caption className="sr">{tr("switchSystem.price")}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">System</th>
-                    <th scope="col">Price, as of {FACTS_AS_OF}</th>
+                    <th scope="col">{tr("switchSystem.system")}</th>
+                    <th scope="col">{tr("switchSystem.priceAsOf", { FACTS_AS_OF: text.factsAsOf })}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,20 +163,20 @@ function Page({ entry }: { entry: SwitchEntry }) {
                     {entry.price.kind === "list" ? (
                       <td data-claim="price">
                         <Tag className="ic" aria-hidden="true" />
-                        {entry.price.text} <span className="muted">({LIST_PRICE_LABEL})</span>. <span className="muted">Source:</span> <SourceLink {...entry.price.source} />
+                        {entry.price.text} <span className="muted">({text.listPriceLabel})</span>. <span className="muted">{tr("switchSystem.source")}</span> <SourceLink {...entry.price.source} />
                       </td>
                     ) : (
                       <td>
                         <Tag className="ic" aria-hidden="true" />
-                        {PRICED_BY_QUOTE}
+                        {text.pricedByQuote}
                       </td>
                     )}
                   </tr>
                   <tr>
-                    <td>OpenGrants GMS</td>
+                    <td>{tr("switchSystem.opengrantsGms")}</td>
                     <td>
                       <Check className="ic" aria-hidden="true" />
-                      {OUR_PRICE}
+                      {text.ourPrice}
                     </td>
                   </tr>
                 </tbody>
@@ -184,17 +188,17 @@ function Page({ entry }: { entry: SwitchEntry }) {
 
       <section className="landing-sec" aria-labelledby="faq-h">
         <div className="wrap-c landing-faq" style={{ maxWidth: "820px" }}>
-          <h2 id="faq-h">Questions people ask</h2>
-          <FaqList items={[...entry.faq, ...COMMON_FAQ]} />
+          <h2 id="faq-h">{tr("switchSystem.questionsPeopleAsk")}</h2>
+          <FaqList items={[...entry.faq, ...text.commonFaq]} />
         </div>
       </section>
 
       <section className="landing-sec" id="request" aria-labelledby="request-h">
         <div className="wrap-c landing-stack">
           <div>
-            <h2 id="request-h">Request a free migration</h2>
+            <h2 id="request-h">{tr("switchSystem.requestAFreeMigration")}</h2>
             <p className="landing-sub" style={{ marginBottom: 0 }}>
-              A person at OpenGrants plans the move with you and checks the dry run before anything is imported. There is no charge. You see exactly what is sent before it goes.
+              {tr("switchSystem.aPersonAtOpengrantsPlans")}
             </p>
           </div>
           <MigrationRequestForm defaultSystem={entry.slug} labelledBy="request-h" />

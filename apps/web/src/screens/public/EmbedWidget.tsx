@@ -14,6 +14,10 @@ import { postEmbedHeight } from "../../lib/embed.ts";
 import { applicantTypeLabel, formatDate } from "../../lib/format.ts";
 import { markOf, PoweredBy } from "./PublicFrame.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+
+const t = translator("public");
 /** An address on this site as an absolute URL (the widget's links open outside the frame). */
 const absolute = (href: string) => new URL(href, window.location.origin).toString();
 
@@ -29,7 +33,7 @@ function EmbedStatus({ data }: { data: EmbedWidgetData }) {
     return (
       <span className="bdg bdg-done">
         <CircleMinus className="ic" aria-hidden="true" />
-        Closed
+        {t("embedWidget.closed")}
       </span>
     );
   }
@@ -37,32 +41,32 @@ function EmbedStatus({ data }: { data: EmbedWidgetData }) {
     return (
       <span className="bdg bdg-neutral">
         <Calendar className="ic" aria-hidden="true" />
-        Forecasted
+        {t("embedWidget.forecasted")}
       </span>
     );
   }
   return data.acceptingApplications ? (
     <span className="bdg bdg-ok">
       <CircleCheck className="ic" aria-hidden="true" />
-      Taking applications
+      {t("embedWidget.takingApplications")}
     </span>
   ) : (
     <span className="bdg bdg-neutral">
       <Clock className="ic" aria-hidden="true" />
-      Not taking applications yet
+      {t("embedWidget.notTakingApplicationsYet")}
     </span>
   );
 }
 
 function dateLine(o: EmbedWidgetData["opportunity"]): string | null {
-  if (o.status === "closed") return "No longer taking applications";
-  if (o.status === "forecasted") return o.opensDate ? `Opens ${formatDate(o.opensDate)}` : "Opening date to be announced";
-  return o.closeDate ? `${o.closeDate.name} ${formatDate(o.closeDate.date)}` : "No fixed deadline";
+  if (o.status === "closed") return t("embedWidget.noLongerTakingApplications");
+  if (o.status === "forecasted") return o.opensDate ? t("embedWidget.opens", { opensDate: formatDate(o.opensDate) }) : t("embedWidget.openingDateToBeAnnounced");
+  return o.closeDate ? `${o.closeDate.name} ${formatDate(o.closeDate.date)}` : t("embedWidget.noFixedDeadline");
 }
 
 /** "Who can apply": the first rule labels, else the applicant types. */
 function eligibilityLine(o: EmbedWidgetData["opportunity"]): string | null {
-  if (o.eligibility.length) return `${o.eligibility.join(" · ")}${o.moreEligibility ? ` · and ${o.moreEligibility} more` : ""}`;
+  if (o.eligibility.length) return o.moreEligibility ? t("embedWidget.eligibilityAndMore", { list: o.eligibility.join(" · "), count: o.moreEligibility }) : o.eligibility.join(" · ");
   if (o.acceptedApplicantTypes.length) return o.acceptedApplicantTypes.map(applicantTypeLabel).join(" · ");
   return null;
 }
@@ -89,7 +93,7 @@ export function EmbedCard({ data, headingLevel = 1 }: { data: EmbedWidgetData; h
       {!funder.verified && (
         <div className="embed-meta">
           <ShieldOff className="ic ic-sm" aria-hidden="true" />
-          <span>Organization not verified with OpenGrants Passport</span>
+          <span>{t("embedWidget.organizationNotVerifiedWithOpengrants")}</span>
         </div>
       )}
       <Heading className="embed-title">{o.title}</Heading>
@@ -99,18 +103,18 @@ export function EmbedCard({ data, headingLevel = 1 }: { data: EmbedWidgetData; h
       </div>
       {who && (
         <p className="embed-elig">
-          <span className="b">Who can apply:</span> {who}
+          <span className="b">{t("embedWidget.whoCanApply")}</span> {who}
         </p>
       )}
       <div className="embed-acts">
         {data.acceptingApplications ? (
-          <a className="btn btn-tenant" href={page} target="_blank" rel="noopener" aria-label={`Apply to ${o.title} (opens in a new tab)`}>
-            Apply
+          <a className="btn btn-tenant" href={page} target="_blank" rel="noopener" aria-label={t("embedWidget.applyToOpensInA", { title: o.title })}>
+            {t("embedWidget.apply")}
             <ExternalLink className="ic" aria-hidden="true" />
           </a>
         ) : (
-          <a className="btn btn-secondary" href={page} target="_blank" rel="noopener" aria-label={`View details of ${o.title} (opens in a new tab)`}>
-            View details
+          <a className="btn btn-secondary" href={page} target="_blank" rel="noopener" aria-label={t("embedWidget.viewDetailsOfOpensIn", { title: o.title })}>
+            {t("embedWidget.viewDetails")}
             <ExternalLink className="ic" aria-hidden="true" />
           </a>
         )}
@@ -145,15 +149,15 @@ export default function EmbedWidget() {
     <main className="gms embed" ref={root}>
       {widget.status === "loading" && (
         <div className="embed-card" aria-busy="true">
-          <span className="muted">Loading…</span>
+          <span className="muted">{t("embedWidget.loading")}</span>
         </div>
       )}
       {widget.status === "error" && (
         <div className="embed-card" role="status">
-          <title>Opportunity not available</title>
+          <title>{t("embedWidget.opportunityNotAvailable")}</title>
           <div className="embed-meta">
             <SearchX className="ic" aria-hidden="true" />
-            <span>{widget.error instanceof ApiError && widget.error.status === 404 ? "This opportunity is not available." : "This opportunity could not be loaded. Try again later."}</span>
+            <span>{widget.error instanceof ApiError && widget.error.status === 404 ? t("embedWidget.thisOpportunityIsNotAvailable") : t("embedWidget.thisOpportunityCouldNotBe")}</span>
           </div>
         </div>
       )}

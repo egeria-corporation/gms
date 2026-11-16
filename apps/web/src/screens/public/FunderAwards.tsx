@@ -15,7 +15,11 @@ import { formatMoney } from "../../lib/format.ts";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { UnverifiedFunderBanner } from "./publicExtras.tsx";
 
-const OTHER = "Other grants";
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
+/** The group of awards without a program (shown last, as "Other grants"). */
+const OTHER = "";
 
 /** Awards of one year, grouped by program (A to Z, "Other grants" last). */
 function byProgram(awards: PublicAward[]): [string, PublicAward[]][] {
@@ -29,11 +33,11 @@ export default function FunderAwards() {
   const page = useAwardSharingQuery((api) => api.funderAwards(handle), [handle]);
   const [year, setYear] = useState<number | "all">("all");
 
-  if (page.status === "loading") return <PublicState title="Loading…" />;
+  if (page.status === "loading") return <PublicState title={t("funderAwards.loading")} />;
   if (page.status === "error") {
     if (page.error instanceof ApiError && page.error.status === 404) return <NotFound />;
     return (
-      <PublicState title="This page could not be loaded">
+      <PublicState title={t("funderAwards.thisPageCouldNotBe")}>
         <ErrorBanner error={page.error} onRetry={page.reload} />
       </PublicState>
     );
@@ -45,27 +49,31 @@ export default function FunderAwards() {
 
   return (
     <>
-      <title>{`Grants awarded by ${funder.name}`}</title>
+      <title>{t("funderAwards.grantsAwardedBy", { name: funder.name })}</title>
       <PublicFrame
         funder={funder}
         nav={
           <>
-            <Link to={`/f/${funder.handle}`}>Funding opportunities</Link>
+            <Link to={`/f/${funder.handle}`}>{t("funderAwards.fundingOpportunities")}</Link>
             <Link to={`/f/${funder.handle}/awards`} aria-current="page">
-              Grants awarded
+              {t("funderAwards.grantsAwarded")}
             </Link>
           </>
         }
         hero={
           <div className="mission">
-            <h1>Grants awarded by {funder.name}</h1>
+            <h1>{t("funderAwards.grantsAwardedBy", { name: funder.name })}</h1>
             <p className="sub" style={{ color: "var(--on-tenant)" }}>
-              {awards.length === 0 ? "No grants are listed yet." : `${awards.length} ${awards.length === 1 ? "grant" : "grants"} listed${years.length > 1 ? `, ${years[years.length - 1]} to ${years[0]}` : years.length ? ` in ${years[0]}` : ""}.`}
+              {awards.length === 0 ? t("funderAwards.noGrantsAreListedYet") : years.length > 1
+                  ? t("funderAwards.listedYears", { count: awards.length, from: String(years[years.length - 1]), to: String(years[0]) })
+                  : years.length
+                    ? t("funderAwards.listedYear", { count: awards.length, year: String(years[0]) })
+                    : t("funderAwards.listedCount", { count: awards.length })}
             </p>
             {fromPassport && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "14px", opacity: ".9" }}>
                 <ShieldCheck className="ic" aria-hidden="true" />
-                Claimed in OpenGrants Passport
+                {t("funderAwards.claimedInOpengrantsPassport")}
               </span>
             )}
           </div>
@@ -76,16 +84,16 @@ export default function FunderAwards() {
           {awards.length === 0 ? (
             <div className="card empty" style={{ minHeight: "200px", justifyContent: "center" }}>
               <AwardIcon className="ic" aria-hidden="true" />
-              <h3>No grants listed yet</h3>
-              <p>{funder.name} lists its grants here once they are accepted.</p>
+              <h3>{t("funderAwards.noGrantsListedYet")}</h3>
+              <p>{t("funderAwards.listsItsGrantsHereOnce", { name: funder.name })}</p>
             </div>
           ) : (
             <>
               {years.length > 1 && (
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", flexWrap: "wrap", marginBottom: "8px" }}>
-                  <span className="seg" role="group" aria-label="Year">
+                  <span className="seg" role="group" aria-label={t("funderAwards.year")}>
                     <button type="button" className={year === "all" ? "on" : undefined} aria-pressed={year === "all"} onClick={() => setYear("all")}>
-                      All years
+                      {t("funderAwards.allYears")}
                     </button>
                     {years.map((y) => (
                       <button key={y} type="button" className={y === year ? "on" : undefined} aria-pressed={y === year} onClick={() => setYear(y)}>
@@ -97,29 +105,31 @@ export default function FunderAwards() {
               )}
               {shown.map((y) => (
                 <section key={y} aria-labelledby={`awards-${y}`}>
-                  <span className="eyebrow">Awarded in</span>
+                  <span className="eyebrow">{t("funderAwards.awardedIn")}</span>
                   <h2 id={`awards-${y}`} style={{ marginTop: "6px" }}>
                     {y}
                   </h2>
-                  {byProgram(awards.filter((a) => a.year === y)).map(([program, rows]) => (
+                  {byProgram(awards.filter((a) => a.year === y)).map(([group, rows]) => {
+                    const program = group || t("funderAwards.otherGrants");
+                    return (
                     <div key={program} style={{ marginBottom: "20px" }}>
                       <h3 style={{ fontSize: "17px", marginBottom: "10px" }}>{program}</h3>
-                      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`${program}, ${y}, scrollable`}>
+                      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderAwards.scrollable", { program, y: String(y) })}>
                         <table className="tbl" style={{ fontSize: "15px" }}>
                           <caption className="sr">
-                            Grants awarded in {y}, {program}
+                            {t("funderAwards.grantsAwardedIn", { y: String(y), program })}
                           </caption>
                           <thead>
                             <tr>
-                              <th scope="col">Recipient</th>
-                              <th scope="col">Purpose</th>
+                              <th scope="col">{t("funderAwards.recipient")}</th>
+                              <th scope="col">{t("funderAwards.purpose")}</th>
                               {amountsShown && (
                                 <th scope="col" className="num">
-                                  Amount
+                                  {t("funderAwards.amount")}
                                 </th>
                               )}
                               <th scope="col">
-                                <span className="sr">Award page</span>
+                                <span className="sr">{t("funderAwards.awardPage")}</span>
                               </th>
                             </tr>
                           </thead>
@@ -130,8 +140,8 @@ export default function FunderAwards() {
                                 <td style={{ whiteSpace: "normal" }}>{a.purpose}</td>
                                 {amountsShown && <td className="num">{a.amount ? formatMoney(a.amount) : "—"}</td>}
                                 <td>
-                                  <Link to={`/f/${funder.handle}/awards/${a.slug}`} aria-label={`View the grant to ${a.recipient.name}`} style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 700 }}>
-                                    View <ArrowRight className="ic" aria-hidden="true" />
+                                  <Link to={`/f/${funder.handle}/awards/${a.slug}`} aria-label={t("funderAwards.viewTheGrantTo", { name: a.recipient.name })} style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 700 }}>
+                                    {t("funderAwards.view")} <ArrowRight className="ic" aria-hidden="true" />
                                   </Link>
                                 </td>
                               </tr>
@@ -140,7 +150,8 @@ export default function FunderAwards() {
                         </table>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </section>
               ))}
             </>

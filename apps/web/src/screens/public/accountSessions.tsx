@@ -9,6 +9,9 @@ import { timeAgo } from "../../components/applicant.tsx";
 import { ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 const isPhone = (device: string | null) => /iphone|ipad|ios|android|mobile/i.test(device ?? "");
 
 export function SessionsCard({ email, onSignOut }: { email: string | null; onSignOut: () => void }) {
@@ -30,23 +33,23 @@ export function SessionsCard({ email, onSignOut }: { email: string | null; onSig
     <section className="card" id="sessions" aria-labelledby="sessions-h">
       <div className="card-h">
         <h2 id="sessions-h" style={{ fontSize: "15px" }}>
-          Sessions
+          {t("accountSessions.sessions")}
         </h2>
         <div className="row wrap">
           {others.length > 0 && (
             <button className="btn btn-sm btn-danger" type="button" disabled={end.state === "saving"} onClick={endOthers}>
-              Sign out of all other sessions
+              {t("accountSessions.signOutOfAllOther")}
             </button>
           )}
           <button className="btn btn-sm btn-secondary" type="button" onClick={onSignOut}>
             <LogOut className="ic" aria-hidden="true" />
-            Sign out
+            {t("accountSessions.signOut")}
           </button>
         </div>
       </div>
       {sessions.status === "loading" && (
         <div className="card-b">
-          <Loading label="Loading sessions" />
+          <Loading label={t("accountSessions.loadingSessions")} />
         </div>
       )}
       {sessions.status === "error" && (
@@ -61,22 +64,22 @@ export function SessionsCard({ email, onSignOut }: { email: string | null; onSig
       )}
       {sessions.status === "ready" && sessions.data.length === 0 && (
         <div className="card-b">
-          <div className="b">This browser</div>
-          <div className="help">Signed in as {email ?? "you"}. Sessions on other devices are not listed by this server.</div>
+          <div className="b">{t("accountSessions.thisBrowser")}</div>
+          <div className="help">{email ? t("accountSessions.thisBrowserAs", { email }) : t("accountSessions.thisBrowserYou")}</div>
         </div>
       )}
       {sessions.status === "ready" && sessions.data.length > 0 && (
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: "0 0 12px 12px" }} tabIndex={0} role="region" aria-label="Sessions, scrollable">
-          <table className="tbl" aria-label="Sessions">
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: "0 0 12px 12px" }} tabIndex={0} role="region" aria-label={t("accountSessions.sessionsScrollable")}>
+          <table className="tbl" aria-label={t("accountSessions.sessions")}>
             <thead>
               <tr>
-                <th scope="col">Device</th>
-                <th scope="col">Network address</th>
-                <th scope="col">Last active</th>
-                <th scope="col">Signed in</th>
-                <th scope="col">Second factor</th>
+                <th scope="col">{t("accountSessions.device")}</th>
+                <th scope="col">{t("accountSessions.networkAddress")}</th>
+                <th scope="col">{t("accountSessions.lastActive")}</th>
+                <th scope="col">{t("accountSessions.signedIn")}</th>
+                <th scope="col">{t("accountSessions.secondFactor")}</th>
                 <th scope="col" style={{ width: "100px" }}>
-                  <span className="sr">Actions</span>
+                  <span className="sr">{t("accountSessions.actions")}</span>
                 </th>
               </tr>
             </thead>
@@ -88,23 +91,23 @@ export function SessionsCard({ email, onSignOut }: { email: string | null; onSig
                     <td>
                       <span className="row" style={{ gap: "8px" }}>
                         <Icon className="ic" aria-hidden="true" />
-                        {s.device ?? "Unknown device"}
+                        {s.device ?? t("accountSessions.unknownDevice")}
                         {s.current && (
                           <span className="bdg bdg-ok" style={{ marginLeft: "4px" }}>
                             <Check className="ic" aria-hidden="true" />
-                            This device
+                            {t("accountSessions.thisDevice")}
                           </span>
                         )}
                       </span>
                     </td>
                     <td className="mono">{s.ip ?? "—"}</td>
-                    <td>{s.current ? "Now" : s.lastActiveAt ? timeAgo(s.lastActiveAt) : "—"}</td>
+                    <td>{s.current ? t("accountSessions.now") : s.lastActiveAt ? timeAgo(s.lastActiveAt) : "—"}</td>
                     <td>{formatDate(s.createdAt)}</td>
-                    <td>{s.mfa ? "Verified" : "Not verified"}</td>
+                    <td>{s.mfa ? t("accountSessions.verified") : t("accountSessions.notVerified")}</td>
                     <td>
                       {!s.current && (
-                        <button className="btn btn-sm btn-secondary" type="button" disabled={end.state === "saving"} onClick={() => endOne(s)} aria-label={`Revoke the session on ${s.device ?? "an unknown device"}`}>
-                          Revoke
+                        <button className="btn btn-sm btn-secondary" type="button" disabled={end.state === "saving"} onClick={() => endOne(s)} aria-label={s.device ? t("accountSessions.revokeTheSessionOn", { device: s.device }) : t("accountSessions.revokeUnknownDevice")}>
+                          {t("accountSessions.revoke")}
                         </button>
                       )}
                     </td>

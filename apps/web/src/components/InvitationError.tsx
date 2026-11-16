@@ -4,20 +4,52 @@
 import { errorCode } from "../api/directAwards.ts";
 import { ErrorBanner } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
+
 const WORDS: Record<string, { title: string; detail: string }> = {
   funder_name_looks_like_link: {
-    title: "Your organization's name reads like a web or email address",
-    detail: "Invitations are sent under your organization's name, and a name that looks like a link cannot be used. Rename the workspace in Settings (or, if it comes from Passport, correct it there), then try again.",
+    get title() {
+      return t("invitationError.words.funder_name_looks_like_link.title");
+    },
+    get detail() {
+      return t("invitationError.words.funder_name_looks_like_link.detail");
+    },
   },
   too_many_invitations: {
-    title: "Too many invitations today",
-    detail: "This workspace has reached its limit for invitations in 24 hours. The limit is lower for funders that are not verified with OpenGrants Passport. Try again tomorrow, or link Passport to raise it.",
+    get title() {
+      return t("invitationError.words.too_many_invitations.title");
+    },
+    get detail() {
+      return t("invitationError.words.too_many_invitations.detail");
+    },
   },
-  too_many_invitations_from_you: { title: "You have sent a lot of invitations today", detail: "You have reached the most invitations one person can send in 24 hours, across all your workspaces. Try again tomorrow." },
-  too_many_invitations_from_network: { title: "Too many invitations from this network", detail: "A lot of invitations were sent from your network in the last 24 hours. Try again later." },
-  too_many_invitations_to_recipient: { title: "This address has had several invitations", detail: "This email address has been sent the most invitations allowed in a week. Try again later, or use a different contact." },
-  invitations_paused: { title: "Invitations are paused for now", detail: "Many invitations were sent across OpenGrants GMS in the last 24 hours, so sending is paused. Try again later." },
-  insufficient_scope: { title: "Your role cannot give awards", detail: "Giving an award directly is for workspace admins and program officers. Ask one of them." },
+  too_many_invitations_from_you: { get title() {
+    return t("invitationError.words.too_many_invitations_from_you.title");
+  }, get detail() {
+    return t("invitationError.words.too_many_invitations_from_you.detail");
+  } },
+  too_many_invitations_from_network: { get title() {
+    return t("invitationError.words.too_many_invitations_from_network.title");
+  }, get detail() {
+    return t("invitationError.words.too_many_invitations_from_network.detail");
+  } },
+  too_many_invitations_to_recipient: { get title() {
+    return t("invitationError.words.too_many_invitations_to_recipient.title");
+  }, get detail() {
+    return t("invitationError.words.too_many_invitations_to_recipient.detail");
+  } },
+  invitations_paused: { get title() {
+    return t("invitationError.words.invitations_paused.title");
+  }, get detail() {
+    return t("invitationError.words.invitations_paused.detail");
+  } },
+  insufficient_scope: { get title() {
+    return t("invitationError.words.insufficient_scope.title");
+  }, get detail() {
+    return t("invitationError.words.insufficient_scope.detail");
+  } },
 };
 
 export function InvitationError({ error, title }: { error: unknown; title: string }) {

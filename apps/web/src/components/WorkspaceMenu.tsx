@@ -5,7 +5,11 @@ import { Link, useNavigate } from "react-router";
 import { Check, ChevronDown, LogOut, Plus } from "lucide-react";
 import { roleTitle, type MeWorkspace } from "../api/client.ts";
 import { useServices } from "../app/services.tsx";
+import { LanguageMenuItems, useMenuRefocus } from "./LanguageSwitcher.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 function acronym(name: string): string {
   return name
     .split(/\s+/)
@@ -59,12 +63,12 @@ function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPi
             {ws.name}
           </span>
           <span className="small muted">
-            {current ? "Current · " : ""}
+            {current ? `${t("workspaceMenu.current")} · ` : ""}
             {roleTitle(ws.role)}
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span className="role">{funder ? "Funder" : "Applicant"}</span>
+          <span className="role">{funder ? t("workspaceMenu.funder") : t("workspaceMenu.applicant")}</span>
           {current && <Check className="ic" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />}
         </span>
       </Link>
@@ -72,22 +76,26 @@ function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPi
   );
 }
 
+/** The menu's items, the language choice included, in the order the arrow keys move through them. */
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
+
 export function WorkspaceMenu({ currentHandle, children }: { currentHandle: string; children: ReactNode }) {
   const { meState, auth } = useServices();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  useMenuRefocus();
 
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    menu.current?.querySelector<HTMLElement>(MENU_ITEMS)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         button.current?.focus();
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        const items = Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+        const items = Array.from(menu.current?.querySelectorAll<HTMLElement>(MENU_ITEMS) ?? []);
         const i = items.indexOf(document.activeElement as HTMLElement);
         items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
         e.preventDefault();
@@ -102,6 +110,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
     <div style={{ position: "relative" }}>
       <button
         ref={button}
+        id="ws-menu-button"
         type="button"
         className="ws"
         aria-haspopup="menu"
@@ -119,7 +128,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
             ref={menu}
             id="ws-menu"
             role="menu"
-            aria-label="Switch workspace"
+            aria-label={t("workspaceMenu.switchWorkspace")}
             className="card"
             style={{
               position: "absolute",
@@ -143,7 +152,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 gap: "8px",
               }}
             >
-              <span className="eyebrow">Your workspaces</span>
+              <span className="eyebrow">{t("workspaceMenu.yourWorkspaces")}</span>
               <span className="small muted">{me?.email}</span>
             </div>
             {/* A menu owns menu items only: the list is layout here (role none), not a list. */}
@@ -153,12 +162,12 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
               ))}
               {meState.status === "loading" && (
                 <li role="none" className="small muted" style={{ padding: "10px" }} aria-busy="true">
-                  Loading workspaces…
+                  {t("workspaceMenu.loadingWorkspaces")}
                 </li>
               )}
               {meState.status === "error" && (
                 <li role="none" className="err-msg" style={{ padding: "10px" }}>
-                  <span role="alert">Your workspaces could not be loaded.</span>
+                  <span role="alert">{t("workspaceMenu.yourWorkspacesCouldNotBe")}</span>
                 </li>
               )}
             </ul>
@@ -180,7 +189,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Plus className="ic" aria-hidden="true" />
-                Create a funder workspace
+                {t("workspaceMenu.createAFunderWorkspace")}
               </Link>
               <Link
                 to="/onboarding/applicant"
@@ -189,7 +198,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Plus className="ic" aria-hidden="true" />
-                Link an applicant organization
+                {t("workspaceMenu.linkAnApplicantOrganization")}
               </Link>
               <button
                 type="button"
@@ -202,9 +211,10 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 }}
               >
                 <LogOut className="ic" aria-hidden="true" />
-                Sign out
+                {t("workspaceMenu.signOut")}
               </button>
             </div>
+            <LanguageMenuItems onChosen={() => setOpen(false)} />
           </div>
         </>
       )}

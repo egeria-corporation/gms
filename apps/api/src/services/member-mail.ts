@@ -7,11 +7,13 @@
 //
 // Addresses come from the auth provider through the UserDirectory port. Without a mailer, a
 // sender address or a directory, nothing is sent and nothing fails.
+import type { Locale } from "@gms/i18n";
 import { escapeHtml } from "@gms/notify";
 import { audit, type BaseContext, type ServiceContext } from "./context.ts";
 import { deriveFor, normalizePreferences, type Category } from "./notifications.ts";
 import { OUTSIDE_ROLES } from "./outside.ts";
 import { workspaceDeadlines } from "./pipeline.ts";
+import { recipientLocales } from "./preferences.ts";
 import type { Row } from "./repos/types.ts";
 
 /** Outside applications' deadlines from today through `days` ahead (UTC dates). */
@@ -48,6 +50,11 @@ export interface MemberMail {
   replyTo?: string;
   /** Made unique per recipient; a retried send is not delivered twice. */
   idempotencyKey: string;
+  /**
+   * The notice in each recipient's language (docs/i18n.md): when given, each member is written to in
+   * their saved language (English without one) and `subject`, `text` and `html` above are unused.
+   */
+  localized?: (locale: Locale) => { subject: string; text: string; html?: string };
 }
 
 export async function mailMembers(ctx: Mailing, mail: MemberMail): Promise<{ sent: number; deferred: number; skipped: number }> {
@@ -57,7 +64,8 @@ export async function mailMembers(ctx: Mailing, mail: MemberMail): Promise<{ sen
   if (!mailer || !from || !directory) return out;
   const members = (await ctx.repos.table("workspace_members").find({ workspace_id: mail.workspaceId })).filter((m) => live(m, ctx.now()) && m.user_id !== mail.exceptUserId && (!mail.roles || mail.roles.includes(m.role)) && (!mail.userIds || mail.userIds.includes(m.user_id)));
   const people = await directory.lookup(members.map((m) => m.user_id));
-  const body = mail.link ? `${mail.text}\n\n${mail.link}` : mail.text;
+  const locales = mail.localized ? await recipientLocales(ctx.ports, members.map((m) => m.user_id)) : null;
+  const withLink = (text: string) => (mail.link ? `${text}\n\n${mail.link}` : text);
   for (const m of members) {
     const prefs = normalizePreferences(m.notification_preferences as never);
     const to = people.get(m.user_id)?.email;
@@ -69,8 +77,11 @@ export async function mailMembers(ctx: Mailing, mail: MemberMail): Promise<{ sen
       out.deferred++;
       continue;
     }
+    const locale = locales?.get(m.user_id);
+    const content = locale && mail.localized ? mail.localized(locale) : { subject: mail.subject, text: mail.text, html: mail.html };
+    const body = withLink(content.text);
     try {
-      await mailer.send({ from, to: [to], subject: mail.subject, text: body, html: mail.html ?? paragraphs(body), ...(mail.replyTo ? { replyTo: mail.replyTo } : {}), idempotencyKey: `${mail.idempotencyKey}:${m.user_id}` });
+      await mailer.send({ from, to: [to], subject: content.subject, text: body, html: content.html ?? paragraphs(body), ...(locale ? { locale } : {}), ...(mail.replyTo ? { replyTo: mail.replyTo } : {}), idempotencyKey: `${mail.idempotencyKey}:${m.user_id}` });
       out.sent++;
     } catch {
       // A failed notice never fails the action that caused it; the in-app notification remains.

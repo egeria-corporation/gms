@@ -7,6 +7,9 @@ import { useNavigate } from "react-router";
 import { useServices } from "../app/services.tsx";
 import { beginPassportHop, passportBrowser, passportSignInUrl } from "../lib/passportSignIn.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export function PassportButton({ returnTo = null, className = "btn btn-cta btn-lg", children }: { returnTo?: string | null; className?: string; children?: ReactNode }) {
   const { mock } = useServices();
   const navigate = useNavigate();
@@ -28,7 +31,7 @@ export function PassportButton({ returnTo = null, className = "btn btn-cta btn-l
   return (
     <button type="button" className={className} onClick={go} disabled={busy} aria-busy={busy}>
       <ShieldCheck className="ic" aria-hidden="true" />
-      {busy ? "Opening Passport…" : (children ?? "Continue with Passport")}
+      {busy ? t("passportButton.openingPassport") : (children ?? t("passportButton.continueWithPassport"))}
     </button>
   );
 }

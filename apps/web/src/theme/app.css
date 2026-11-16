@@ -485,6 +485,15 @@
 .oc .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--og-gray-600); }
 .pub-foot { background: var(--og-gray-50); border-top: 1px solid var(--og-gray-200); padding: 20px 0; font-size: 13px; color: var(--og-gray-600); }
 .pub-foot .wrap-c { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* The language switcher (components/LanguageSwitcher.tsx): footer links, and the account menu's radio items. */
+.pub-foot .lang-row { margin-top: 10px; justify-content: flex-start; }
+.lang-switch ul { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.lang-switch li + li::before { content: "·"; margin-right: 4px; color: var(--og-gray-600); }
+.lang-switch a { display: inline-flex; align-items: center; min-height: 24px; color: var(--og-gray-600); font-weight: 600; }
+.lang-switch a[aria-current="true"] { color: var(--og-navy-dark); font-weight: 800; text-decoration: none; }
+.lang-menu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 16px; border-top: 1px solid var(--og-gray-200); }
+.lang-menu .eyebrow { margin-right: 4px; }
+.lang-menu [aria-checked="true"] { color: var(--og-navy-dark); font-weight: 800; }
 .band { background: var(--og-gray-50); border: 1px solid var(--og-gray-200); border-radius: 16px; padding: 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .band .k { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--og-gray-600); }
 .band .v { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--og-navy-dark); margin-top: 4px; }

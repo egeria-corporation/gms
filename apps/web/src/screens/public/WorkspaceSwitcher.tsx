@@ -9,6 +9,9 @@ import { signInPath } from "../../auth/RequireAuth.tsx";
 import { AccountShell } from "../../components/AccountShell.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 function Card({ ws }: { ws: MeWorkspace }) {
   const funder = ws.kind === "funder";
   const Icon = funder ? Landmark : Building;
@@ -24,11 +27,11 @@ function Card({ ws }: { ws: MeWorkspace }) {
           </span>
           <span className="small muted">
             {roleTitle(ws.role)}
-            {ws.requiresMfa ? " · authenticator required" : ""}
+            {ws.requiresMfa ? ` · ${t("workspaceSwitcher.authenticatorRequired")}` : ""}
           </span>
         </span>
         <span className="row" style={{ gap: "10px" }}>
-          <span className="role">{funder ? "Funder" : "Applicant"}</span>
+          <span className="role">{funder ? t("workspaceSwitcher.funder") : t("workspaceSwitcher.applicant")}</span>
           <ArrowRight className="ic" aria-hidden="true" />
         </span>
       </Link>
@@ -42,15 +45,15 @@ export default function WorkspaceSwitcher() {
   const signedOut = sessionState.status === "signedOut";
   return (
     <>
-      <title>Workspaces — OpenGrants GMS</title>
+      <title>{t("workspaceSwitcher.workspacesOpengrantsGms")}</title>
       <AccountShell active="workspaces">
         <div className="ph">
           <div>
             <div className="title">
-              <h1>Workspaces</h1>
+              <h1>{t("workspaceSwitcher.workspaces")}</h1>
             </div>
             <div className="meta">
-              <span>An organization that both funds and applies has one workspace for each side.</span>
+              <span>{t("workspaceSwitcher.anOrganizationThatBothFunds")}</span>
             </div>
           </div>
           {!signedOut && (
@@ -64,24 +67,24 @@ export default function WorkspaceSwitcher() {
                 }}
               >
                 <LogOut className="ic" aria-hidden="true" />
-                Sign out
+                {t("workspaceSwitcher.signOut")}
               </button>
             </div>
           )}
         </div>
         {signedOut && (
           <div className="card">
-            <EmptyState icon={Building} title="Sign in to see your workspaces" actions={<Link to={signInPath("/workspaces")} className="btn btn-primary">Sign in</Link>} />
+            <EmptyState icon={Building} title={t("workspaceSwitcher.signInToSeeYour")} actions={<Link to={signInPath("/workspaces")} className="btn btn-primary">{t("workspaceSwitcher.signIn")}</Link>} />
           </div>
         )}
-        {!signedOut && (meState.status === "loading" || sessionState.status === "loading") && <Loading label="Loading your workspaces" />}
+        {!signedOut && (meState.status === "loading" || sessionState.status === "loading") && <Loading label={t("workspaceSwitcher.loadingYourWorkspaces")} />}
         {!signedOut && meState.status === "error" && <ErrorBanner error={meState.error} onRetry={reloadMe} />}
         {!signedOut && meState.status === "ready" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "760px" }}>
             {meState.me.workspaces.length === 0 ? (
               <div className="card">
-                <EmptyState icon={Building} title="You are not in a workspace yet">
-                  Create a funder workspace, or connect your organization from Passport to apply.
+                <EmptyState icon={Building} title={t("workspaceSwitcher.youAreNotInA")}>
+                  {t("workspaceSwitcher.createAFunderWorkspaceOr")}
                 </EmptyState>
               </div>
             ) : (
@@ -94,11 +97,11 @@ export default function WorkspaceSwitcher() {
             <div className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
               <Link to="/onboarding/funder" className="btn btn-secondary">
                 <Plus className="ic" aria-hidden="true" />
-                Create a funder workspace
+                {t("workspaceSwitcher.createAFunderWorkspace")}
               </Link>
               <Link to="/onboarding/applicant" className="btn btn-secondary">
                 <Plus className="ic" aria-hidden="true" />
-                Set up an applicant organization
+                {t("workspaceSwitcher.setUpAnApplicantOrganization")}
               </Link>
             </div>
           </div>

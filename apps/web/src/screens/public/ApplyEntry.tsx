@@ -8,6 +8,9 @@ import { useServices } from "../../app/services.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { rememberWanted, wantedQuery } from "../../lib/wantedOpportunity.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 export default function ApplyEntry() {
   const { handle = "", slug = "" } = useParams();
   const { meState, reloadMe } = useServices();
@@ -15,8 +18,8 @@ export default function ApplyEntry() {
   if (meState.status === "error") {
     return (
       <main className="gms gms-frame" style={{ padding: "32px" }}>
-        <title>Apply — OpenGrants GMS</title>
-        <ErrorBanner error={meState.error} onRetry={reloadMe} title="We could not load your workspaces" />
+        <title>{t("applyEntry.applyOpengrantsGms")}</title>
+        <ErrorBanner error={meState.error} onRetry={reloadMe} title={t("applyEntry.weCouldNotLoadYour")} />
       </main>
     );
   }

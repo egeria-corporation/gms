@@ -25,6 +25,9 @@ import { openBlob } from "../../lib/browser.ts";
 import { OpportunityDocuments, PublishedFaq, UnverifiedFunderBanner } from "./publicExtras.tsx";
 import { useServices } from "../../app/services.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 /**
  * Apply also needs the opportunity itself to be published as open (not forecasted). The stricter
  * reading; set false to offer Apply whenever a competition is open on a published opportunity.
@@ -72,11 +75,11 @@ function SaveButton({ workspaceId, opportunity, pageUrl }: { workspaceId: string
         }}
       >
         {already ? <BookmarkCheck className="ic" aria-hidden="true" /> : <Bookmark className="ic" aria-hidden="true" />}
-        {already ? "Saved" : "Save"}
+        {already ? t("opportunityPage.saved") : t("opportunityPage.save")}
       </button>
       {state === "failed" && (
         <span className="small" role="alert">
-          It could not be saved. Try again.
+          {t("opportunityPage.itCouldNotBeSaved")}
         </span>
       )}
     </>
@@ -93,18 +96,18 @@ function stageState(s: PublicStage, now: number): StageState {
 function Stages({ stages }: { stages: PublicStage[] }) {
   const now = Date.now();
   return (
-    <ol className="stp" aria-label="Stages" style={{ flexWrap: "wrap", rowGap: "12px" }}>
+    <ol className="stp" aria-label={t("opportunityPage.stages")} style={{ flexWrap: "wrap", rowGap: "12px" }}>
       {stages.map((s, i) => {
         const state = stageState(s, now);
         return (
           <li key={s.key} style={{ display: "contents" }}>
             {i > 0 && <span className={state === "todo" ? "ln" : "ln done"} aria-hidden="true"></span>}
             <div className={state === "done" ? "s done" : state === "on" ? "s on" : "s"} aria-current={state === "on" ? "step" : undefined}>
-              <span className="n">{state === "done" ? <Check className="ic ic-sm" role="img" aria-label="Closed" /> : i + 1}</span>
+              <span className="n">{state === "done" ? <Check className="ic ic-sm" role="img" aria-label={t("opportunityPage.closed")} /> : i + 1}</span>
               <div>
                 <div>{s.label}</div>
                 <div className="muted" style={{ fontWeight: 400, fontSize: "12px" }}>
-                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : s.requiresSubmission ? "Dates to be announced" : "By invitation"}
+                  {s.opens || s.closes ? `${formatDate(s.opens)} – ${formatDate(s.closes)}` : s.requiresSubmission ? t("opportunityPage.datesToBeAnnounced") : t("opportunityPage.byInvitation")}
                 </div>
               </div>
             </div>
@@ -123,21 +126,24 @@ function FormPreview({ form }: { form: CgForm }) {
     <details>
       <summary>
         <span>
-          {form.title} <span className="muted" style={{ fontWeight: 400 }}>· v{form.version ?? "1"}</span>
+          {form.title} <span className="muted" style={{ fontWeight: 400 }}>{t("opportunityPage.version", { version: String(form.version ?? "1") })}</span>
         </span>
         <ChevronDown className="ic" aria-hidden="true" />
       </summary>
       <p style={{ fontSize: "14px", color: "#4A5C5A" }}>
-        {controls.length} question{controls.length === 1 ? "" : "s"}.
+        {t("opportunityPage.questions", { count: controls.length })}
         {prefilled > 0 && (
           <>
             {" "}
-            {prefilled} {prefilled === 1 ? "is" : "are"}{" "}
-            <span className="prov prov-passport">
-              <BadgeCheck className="ic" aria-hidden="true" />
-              pre-filled from Passport
-            </span>
-            .
+            {t.rich("opportunityPage.prefilled", {
+              count: prefilled,
+              prov: (chunks) => (
+                <span className="prov prov-passport">
+                  <BadgeCheck className="ic" aria-hidden="true" />
+                  {chunks}
+                </span>
+              ),
+            })}
           </>
         )}{" "}
         {form.description}
@@ -162,11 +168,11 @@ export default function OpportunityPage() {
   const competitionId = shown?.id;
   const forms = useApiQuery(async (api) => (competitionId ? Object.values((await api.publicCompetition(competitionId)).forms.forms) : []), [competitionId]);
 
-  if (page.status === "loading") return <PublicState title="Loading…" />;
+  if (page.status === "loading") return <PublicState title={t("opportunityPage.loading")} />;
   if (page.status === "error") {
     if (page.error instanceof ApiError && page.error.status === 404) return <NotFound />;
     return (
-      <PublicState title="This opportunity could not be loaded">
+      <PublicState title={t("opportunityPage.thisOpportunityCouldNotBe")}>
         <ErrorBanner error={page.error} onRetry={page.reload} />
       </PublicState>
     );
@@ -187,9 +193,9 @@ export default function OpportunityPage() {
   return (
     <>
       <title>{`${o.title} — ${funder.name}`}</title>
-      <link rel="alternate" type="application/json" href={data.links.json} title="CommonGrants record" />
+      <link rel="alternate" type="application/json" href={data.links.json} title={t("opportunityPage.commongrantsRecord")} />
       <link rel="canonical" href={data.links.page} />
-      <PublicFrame funder={funder} jsonHref={data.links.json} nav={<Link to={home}>All opportunities</Link>}>
+      <PublicFrame funder={funder} jsonHref={data.links.json} nav={<Link to={home}>{t("opportunityPage.allOpportunities")}</Link>}>
         <div className="sticky-cta">
           <div className="wrap-c" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -201,12 +207,12 @@ export default function OpportunityPage() {
                 {/* A fund other than the default is named, with its page (sent once the public data carries funds). */}
                 {o.fund && !o.fund.isDefault ? (
                   <>
-                    <Link to={`/f/${funder.handle}/${o.fund.slug}`}>{o.fund.name}</Link> · A fund of {funder.name}
+                    {t.rich("opportunityPage.aFundOf", { fund: o.fund.name, funder: funder.name, link: (chunks) => <Link to={`/f/${funder.handle}/${o.fund!.slug}`}>{chunks}</Link> })}
                   </>
                 ) : (
                   funder.name
                 )}
-                {o.publishedAt ? ` · Published ${formatDate(o.publishedAt)}` : ""}
+                {o.publishedAt ? ` · ${t("opportunityPage.published", { publishedAt: formatDate(o.publishedAt) })}` : ""}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
@@ -221,19 +227,19 @@ export default function OpportunityPage() {
                 }}
               >
                 <CodeXml className="ic" aria-hidden="true" />
-                View as CommonGrants JSON
+                {t("opportunityPage.viewAsCommongrantsJson")}
               </a>
               {taking && (
                 <Link to={applyPath} className="btn btn-tenant btn-lg">
                   <ArrowRight className="ic" aria-hidden="true" />
-                  Apply
+                  {t("opportunityPage.apply")}
                 </Link>
               )}
               {!taking && o.status !== "closed" && (
                 <>
                   <span className="bdg bdg-neutral bdg-lg" role="status">
                     <Clock className="ic" aria-hidden="true" />
-                    Not taking applications yet
+                    {t("opportunityPage.notTakingApplicationsYet")}
                   </span>
                   {applicantWs && <SaveButton workspaceId={applicantWs.id} opportunity={o} pageUrl={data.links.page} />}
                 </>
@@ -253,8 +259,8 @@ export default function OpportunityPage() {
               <div className="bnr bnr-neu" role="status" style={{ marginBottom: "20px" }}>
                 <Calendar className="ic" aria-hidden="true" />
                 <div>
-                  <div className="t">This opportunity is forecasted</div>
-                  <div className="d">Details below may change before applications open.</div>
+                  <div className="t">{t("opportunityPage.thisOpportunityIsForecasted")}</div>
+                  <div className="d">{t("opportunityPage.detailsBelowMayChangeBefore")}</div>
                 </div>
               </div>
             )}
@@ -262,22 +268,22 @@ export default function OpportunityPage() {
               <div className="bnr bnr-neu" role="status" style={{ marginBottom: "20px" }}>
                 <CircleCheck className="ic" aria-hidden="true" />
                 <div>
-                  <div className="t">This opportunity is closed</div>
+                  <div className="t">{t("opportunityPage.thisOpportunityIsClosed")}</div>
                   <div className="d">
-                    Applications are no longer accepted. <Link to={home}>See what {funder.name} has open.</Link>
+                    {t.rich("opportunityPage.applicationsAreNoLongerAccepted", { name: funder.name, link: (chunks) => <Link to={home}>{chunks}</Link> })}
                   </div>
                 </div>
               </div>
             )}
             <dl className="band" style={{ margin: 0 }}>
               <div>
-                <dt className="k">Funding range</dt>
+                <dt className="k">{t("opportunityPage.fundingRange")}</dt>
                 <dd className="v" style={{ marginLeft: 0 }}>
                   {formatAwardRange(o.funding)}
                 </dd>
               </div>
               <div>
-                <dt className="k">Estimated awards</dt>
+                <dt className="k">{t("opportunityPage.estimatedAwards")}</dt>
                 <dd className="v" style={{ marginLeft: 0 }}>
                   {awards}
                 </dd>
@@ -296,8 +302,8 @@ export default function OpportunityPage() {
           </section>
 
           <section>
-            <span className="eyebrow">Generated from this opportunity's rules</span>
-            <h2 style={{ marginTop: "6px" }}>Who Can Apply</h2>
+            <span className="eyebrow">{t("opportunityPage.generatedFromThisOpportunityS")}</span>
+            <h2 style={{ marginTop: "6px" }}>{t("opportunityPage.whoCanApply")}</h2>
             <ul className="elig">
               {o.eligibility.map((label) => (
                 <li key={label}>
@@ -311,13 +317,13 @@ export default function OpportunityPage() {
                 <li>
                   <ShieldCheck className="ic" aria-hidden="true" />
                   <div>
-                    <b>This opportunity lists no eligibility rules.</b> Check the description for who it is meant for.
+                    {t.rich("opportunityPage.thisOpportunityListsNoEligibility", { b: (chunks) => <b>{chunks}</b> })}
                   </div>
                 </li>
               )}
               <li style={{ background: "#F7FAFA" }}>
                 <Info className="ic" aria-hidden="true" />
-                <div>When you apply, each rule is checked against your organization’s details and shown as Pass, Fail, or Unknown before you start writing. Details you entered yourself are marked as self-reported.</div>
+                <div>{t("opportunityPage.whenYouApplyEachRule")}</div>
               </li>
             </ul>
           </section>
@@ -325,9 +331,9 @@ export default function OpportunityPage() {
           {competition && competition.stages.length > 0 && (
             <section>
               <span className="eyebrow">
-                {competition.stages.length === 1 ? "One stage" : `${competition.stages.length} stages`}
+                {t("opportunityPage.stageCount", { count: competition.stages.length })}
               </span>
-              <h2 style={{ marginTop: "6px" }}>How the Competition Runs</h2>
+              <h2 style={{ marginTop: "6px" }}>{t("opportunityPage.howTheCompetitionRuns")}</h2>
               <div className="card" style={{ padding: "24px 28px" }}>
                 <Stages stages={competition.stages} />
                 {(competition.instructions ?? competition.description) && (
@@ -339,10 +345,10 @@ export default function OpportunityPage() {
 
           {forms.status === "ready" && forms.data.length > 0 && (
             <section>
-              <span className="eyebrow">Prepare ahead</span>
-              <h2 style={{ marginTop: "6px" }}>What You'll Need</h2>
+              <span className="eyebrow">{t("opportunityPage.prepareAhead")}</span>
+              <h2 style={{ marginTop: "6px" }}>{t("opportunityPage.whatYouLlNeed")}</h2>
               <p className="muted" style={{ fontSize: "15px", marginBottom: "12px" }}>
-                Open a form to preview its questions as an applicant sees them.
+                {t("opportunityPage.openAFormToPreview")}
               </p>
               {forms.data.map((f) => (
                 <FormPreview key={f.id} form={f} />
@@ -351,42 +357,42 @@ export default function OpportunityPage() {
           )}
 
           <section>
-            <span className="eyebrow">Guidelines</span>
-            <h2 style={{ marginTop: "6px" }}>Documents</h2>
+            <span className="eyebrow">{t("opportunityPage.guidelines")}</span>
+            <h2 style={{ marginTop: "6px" }}>{t("opportunityPage.documents")}</h2>
             <OpportunityDocuments handle={funder.handle} slug={o.slug} />
           </section>
 
           <section>
-            <span className="eyebrow">Common questions</span>
-            <h2 style={{ marginTop: "6px" }}>FAQ</h2>
+            <span className="eyebrow">{t("opportunityPage.commonQuestions")}</span>
+            <h2 style={{ marginTop: "6px" }}>{t("opportunityPage.faq")}</h2>
             <PublishedFaq handle={funder.handle} />
             <details open>
               <summary>
-                Do I need Passport to apply?
+                {t("opportunityPage.doINeedPassportTo")}
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
               <p>
-                No. You can set up a workspace with details you enter yourself; it is shown to {funder.name} as not verified.
+                {t("opportunityPage.noYouCanSetUp", { name: funder.name })}
                 {passportFlags.linking &&
-                  ` Linking OpenGrants Passport is recommended: your organization is verified, forms fill themselves in from its record${passportFlags.payments ? ", and you can receive payments through Passport" : ""}. You grant ${funder.name} read access to your profile and can revoke it at any time from your workspace. An opportunity can require a linked Passport; the Apply step tells you if it does.`}
+                  t(passportFlags.payments ? "opportunityPage.passportRecommendedPayments" : "opportunityPage.passportRecommended", { name: funder.name })}
               </p>
             </details>
             <details>
               <summary>
-                Can a consultant help us write the proposal?
+                {t("opportunityPage.canAConsultantHelpUs")}
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
-              <p>Yes. From Team &amp; access you can invite a consultant to specific applications with an expiry date. Submission always requires a person from your organization.</p>
+              <p>{t("opportunityPage.yesFromTeamAccessYou")}</p>
             </details>
             <details>
               <summary>
-                How are payments made?
+                {t("opportunityPage.howArePaymentsMade")}
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
               <p>
                 {passportFlags.payments
-                  ? `Awards are paid in scheduled tranches. ${funder.name} can pay through OpenGrants Passport to the destination your organization has verified there, and never collects bank details directly; payment readiness is checked before each release.`
-                  : `Awards are paid in scheduled tranches. You see each payment in your workspace, and ${funder.name} records when it has been paid.`}
+                  ? t("opportunityPage.awardsArePaidInScheduled", { name: funder.name })
+                  : t("opportunityPage.awardsArePaidInScheduled2", { name: funder.name })}
               </p>
             </details>
           </section>

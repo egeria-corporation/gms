@@ -12,6 +12,10 @@ import { EmptyState, ErrorBanner, Loading, Notice } from "../../components/ui.ts
 import { formatDate } from "../../lib/format.ts";
 import { AuthorLine, GalleryFrame, KindBadge, SnapshotPreview, StrippedList, TagList } from "./galleryParts.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+
+const t = translator("public");
 function QueueCard({ item, onDone }: { item: GalleryQueueItem; onDone: (message: string) => void }) {
   const [reason, setReason] = useState("");
   const [declining, setDeclining] = useState(false);
@@ -28,7 +32,7 @@ function QueueCard({ item, onDone }: { item: GalleryQueueItem; onDone: (message:
             {item.title}
           </h2>
           <AuthorLine author={item.author} />
-          <span className="small muted">Sent {formatDate(item.createdAt)}</span>
+          <span className="small muted">{t("galleryModeration.sent", { createdAt: formatDate(item.createdAt) })}</span>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -36,23 +40,23 @@ function QueueCard({ item, onDone }: { item: GalleryQueueItem; onDone: (message:
         <p>{item.summary}</p>
         <TagList tags={item.tags} />
         <div>
-          <h3 style={{ fontSize: "14px" }}>Taken out before it was sent</h3>
+          <h3 style={{ fontSize: "14px" }}>{t("galleryModeration.takenOutBeforeItWas")}</h3>
           <StrippedList stripped={item.stripped} />
         </div>
         <details>
-          <summary className="b">Preview the content</summary>
+          <summary className="b">{t("galleryModeration.previewTheContent")}</summary>
           <div style={{ marginTop: "12px" }}>
             <SnapshotPreview snapshot={item.snapshot} />
           </div>
         </details>
-        <p className="small muted">Check that it names no real person, holds no contact details, and is good enough for another funder to use as it is.</p>
+        <p className="small muted">{t("galleryModeration.checkThatItNamesNo")}</p>
         {declining && (
           <div className="fld">
             <label className="lbl" htmlFor={`${titleId}-reason`}>
-              Why it is declined
+              {t("galleryModeration.whyItIsDeclined")}
             </label>
             <textarea className="ta" id={`${titleId}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} />
-            <span className="help">The author reads this beside the submission, so say what to change.</span>
+            <span className="help">{t("galleryModeration.theAuthorReadsThisBeside")}</span>
           </div>
         )}
       </div>
@@ -60,25 +64,25 @@ function QueueCard({ item, onDone }: { item: GalleryQueueItem; onDone: (message:
         {declining ? (
           <>
             <button type="button" className="btn btn-secondary" onClick={() => setDeclining(false)} disabled={busy}>
-              Cancel
+              {t("galleryModeration.cancel")}
             </button>
             <button
               type="button"
               className="btn btn-danger"
               disabled={busy || reason.trim().length < 3}
               onClick={async () => {
-                if (await reject.run(reason.trim())) onDone(`Declined “${item.title}”. The author can see why.`);
+                if (await reject.run(reason.trim())) onDone(t("galleryModeration.declinedTheAuthorCanSee", { title: item.title }));
               }}
             >
               <CircleX className="ic" aria-hidden="true" />
-              Decline
+              {t("galleryModeration.decline")}
             </button>
           </>
         ) : (
           <>
             <button type="button" className="btn btn-secondary" onClick={() => setDeclining(true)} disabled={busy}>
               <CircleX className="ic" aria-hidden="true" />
-              Decline…
+              {t("galleryModeration.decline2")}
             </button>
             <button
               type="button"
@@ -86,11 +90,11 @@ function QueueCard({ item, onDone }: { item: GalleryQueueItem; onDone: (message:
               disabled={busy}
               onClick={async () => {
                 const out = await approve.run();
-                if (out) onDone(`Published “${item.title}” at /templates/${out.item.slug}.`);
+                if (out) onDone(t("galleryModeration.publishedAtTemplates", { title: item.title, slug: out.item.slug }));
               }}
             >
               <CircleCheck className="ic" aria-hidden="true" />
-              Approve and publish
+              {t("galleryModeration.approveAndPublish")}
             </button>
           </>
         )}
@@ -105,37 +109,37 @@ export default function GalleryModeration() {
   const [note, setNote] = useState<string | null>(null);
   return (
     <GalleryFrame>
-      <title>Review shared templates — OpenGrants GMS</title>
+      <title>{t("galleryModeration.reviewSharedTemplatesOpengrantsGms")}</title>
       <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "16px", paddingTop: "28px", paddingBottom: "48px" }}>
-        <nav aria-label="Breadcrumb" className="crumbs">
-          <Link to="/templates">Template gallery</Link>
+        <nav aria-label={t("galleryModeration.breadcrumb")} className="crumbs">
+          <Link to="/templates">{t("galleryModeration.templateGallery")}</Link>
         </nav>
         <h1 style={{ fontSize: "28px", color: "var(--og-navy-dark)" }} className="row">
           <ShieldCheck className="ic ic-lg" aria-hidden="true" />
-          Review shared templates
+          {t("galleryModeration.reviewSharedTemplates")}
         </h1>
         {moderator.status === "loading" && <Loading />}
         {moderator.status === "error" && <ErrorBanner error={moderator.error} onRetry={moderator.reload} />}
         {moderator.status === "ready" && !moderator.data && (
-          <Notice tone="neu" title="Only the gallery's moderators can see this page">
-            Templates shared by funders are reviewed by the OpenGrants team before they are published.
+          <Notice tone="neu" title={t("galleryModeration.onlyTheGallerySModerators")}>
+            {t("galleryModeration.templatesSharedByFundersAre")}
           </Notice>
         )}
         {moderator.status === "ready" && moderator.data && (
           <>
-            <p className="muted">Nothing is public until you approve it. Approved templates are published under CC BY 4.0, credited to the funder that shared them.</p>
+            <p className="muted">{t("galleryModeration.nothingIsPublicUntilYou")}</p>
             {note && (
-              <Notice tone="ok" title="Done">
+              <Notice tone="ok" title={t("galleryModeration.done")}>
                 {note}
               </Notice>
             )}
-            {queue.status === "loading" && <Loading label="Loading the queue" />}
+            {queue.status === "loading" && <Loading label={t("galleryModeration.loadingTheQueue")} />}
             {queue.status === "error" && <ErrorBanner error={queue.error} onRetry={queue.reload} />}
             {queue.status === "ready" &&
               (queue.data.length === 0 ? (
-                <EmptyState icon={ShieldCheck} title="Nothing waiting for review" />
+                <EmptyState icon={ShieldCheck} title={t("galleryModeration.nothingWaitingForReview")} />
               ) : (
-                <ul aria-label="Waiting for review" style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
+                <ul aria-label={t("galleryModeration.waitingForReview")} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
                   {queue.data.map((item) => (
                     <QueueCard
                       key={item.id}

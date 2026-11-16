@@ -46,13 +46,21 @@ export async function navigate(page: Page, href: string): Promise<void> {
   }, href);
 }
 
+/** The sign-in screen's controls in either language (the every-route check runs in English and in Spanish). */
+export const SIGN_IN = {
+  email: /^(Work email|Correo de trabajo)$/,
+  send: /^(Send code|Enviar el código)$/,
+  code: /code|código/i,
+  verify: /^(Verify and continue|Verificar y continuar)$/,
+};
+
 /** Signs in with the emailed code, as the mock accepts it. */
 export async function signInWithCode(page: Page, email: string): Promise<void> {
-  await page.getByLabel("Work email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
-  const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
+  await page.getByLabel(SIGN_IN.email).fill(email);
+  await page.getByRole("button", { name: SIGN_IN.send }).click();
+  const digits = page.getByRole("group", { name: SIGN_IN.code }).getByRole("textbox");
   for (let i = 0; i < 6; i++) await digits.nth(i).fill(String(i + 1));
-  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await page.getByRole("button", { name: SIGN_IN.verify }).click();
 }
 
 /** A guest reviewer: someone new who accepts an invitation to review and signs in with a code. */
@@ -124,9 +132,9 @@ export const ROUTES: Record<string, RouteCase[]> = {
     one("/signin?as=funder", "signed-out"),
     one("/signin?step=sso", "signed-out"),
     one("/signin", "signed-out", async (page) => {
-      await page.getByLabel("Work email").fill("sam@newcomer.example");
-      await page.getByRole("button", { name: "Send code" }).click();
-      await page.getByRole("group", { name: /code/i }).waitFor();
+      await page.getByLabel(SIGN_IN.email).fill("sam@newcomer.example");
+      await page.getByRole("button", { name: SIGN_IN.send }).click();
+      await page.getByRole("group", { name: SIGN_IN.code }).waitFor();
     }),
   ],
   "/auth/passport": [one("/auth/passport#token_hash=used-already&type=magiclink", "signed-out")],

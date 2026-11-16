@@ -13,6 +13,9 @@ import { toPatch } from "../lib/profile.ts";
 import { ProfileForm } from "./ProfileForm.tsx";
 import { ErrorBanner, Loading, Notice, SaveNote } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceId: string; connectTo: string }) {
   const ws = useCurrentWorkspace();
   const flags = usePassportFlags();
@@ -21,8 +24,8 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
   const canEdit = ws?.member.role === "admin";
 
   let body;
-  if (record.status === "loading") body = <Loading label="Loading your organization details" />;
-  else if (record.status === "error") body = <ErrorBanner error={record.error} onRetry={record.reload} title="Your organization details could not be loaded" />;
+  if (record.status === "loading") body = <Loading label={t("organizationProfileCard.loadingYourOrganizationDetails")} />;
+  else if (record.status === "error") body = <ErrorBanner error={record.error} onRetry={record.reload} title={t("organizationProfileCard.yourOrganizationDetailsCouldNot")} />;
   else {
     const r = record.data;
     const fromPassport = r.profileSource === "passport";
@@ -32,15 +35,15 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
           <p className="row" style={{ gap: "8px" }}>
             <span className="prov prov-passport">
               <BadgeCheck className="ic" aria-hidden="true" />
-              From Passport
+              {t("organizationProfileCard.fromPassport")}
             </span>
             <span>{r.legalName ?? r.displayName}</span>
           </p>
-          <p className="small muted">Your organization’s details come from OpenGrants Passport, so they can’t be changed here. Edit them once in Passport and every funder sees the update.</p>
+          <p className="small muted">{t("organizationProfileCard.yourOrganizationSDetailsCome")}</p>
           <div>
             <a className="btn btn-secondary" href={r.passportOrgId ? `${env.passportWebUrl}/orgs/${r.passportOrgId}` : env.passportWebUrl}>
               <ExternalLink className="ic" aria-hidden="true" />
-              Edit in Passport
+              {t("organizationProfileCard.editInPassport")}
             </a>
           </div>
         </>
@@ -48,16 +51,16 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
     } else {
       body = (
         <>
-          <Notice tone="info" title="Not verified">
-            These details are entered by you. Funders see this organization as not verified.
-            {flags.linking && " Linking Passport verifies it, fills in forms for you, and replaces what is entered here with the Passport record."}
+          <Notice tone="info" title={t("organizationProfileCard.notVerified")}>
+            {t("organizationProfileCard.theseDetailsAreEnteredBy")}
+            {flags.linking && ` ${t("organizationProfileCard.linkingPassportVerifiesItFills")}`}
           </Notice>
           {canEdit ? (
             <ProfileForm
               key={JSON.stringify(r.profile ?? null)}
               idPrefix="settings-profile"
               initial={r.profile ?? { legalName: r.legalName ?? r.displayName }}
-              submitLabel="Save details"
+              submitLabel={t("organizationProfileCard.saveDetails")}
               busy={save.state === "saving"}
               error={save.error}
               onSubmit={async (profile) => {
@@ -67,12 +70,12 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
               secondary={<SaveNote state={save.state} />}
             />
           ) : (
-            <p className="small muted">Only workspace admins can change these details.</p>
+            <p className="small muted">{t("organizationProfileCard.onlyWorkspaceAdminsCanChange")}</p>
           )}
           {flags.linking && (
             <div>
               <Link to={connectTo} className="btn btn-secondary">
-                Connect Passport
+                {t("organizationProfileCard.connectPassport")}
               </Link>
             </div>
           )}
@@ -87,7 +90,7 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
         <div className="row" style={{ gap: "8px" }}>
           {record.status === "ready" && record.data.profileSource !== "passport" && <ShieldOff className="ic" aria-hidden="true" />}
           <h2 id="org-details-h" style={{ fontSize: "18px" }}>
-            Organization details
+            {t("organizationProfileCard.organizationDetails")}
           </h2>
         </div>
       </div>

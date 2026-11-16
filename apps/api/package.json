@@ -20,6 +20,7 @@
     "@gms/db": "workspace:*",
     "@gms/documents": "workspace:*",
     "@gms/forms": "workspace:*",
+    "@gms/i18n": "workspace:*",
     "@gms/importers": "workspace:*",
     "@gms/ledger": "workspace:*",
     "@gms/mcp": "workspace:*",

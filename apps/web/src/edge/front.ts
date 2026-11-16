@@ -8,6 +8,7 @@
 // Page data comes from the API's public routes over the service binding and is kept at the edge for
 // EDGE_TTL_SECONDS. Anything that fails, is slow or is not found leaves the page as it was built,
 // with the default meta: a preview is never worth a broken page.
+import { DEFAULT_LOCALE, LOCALE_QUERY, loadCatalogs, localeFromTag, type Locale } from "@gms/i18n";
 import {
   apiPathOf,
   awardCard,
@@ -81,6 +82,7 @@ const BADGE_CSP = "default-src 'none'; style-src 'unsafe-inline'";
 // The parts of the Workers runtime this uses, typed here so the web app's type-check needs no Workers types.
 interface RewriterElement {
   setInnerContent(content: string): void;
+  setAttribute(name: string, value: string): void;
   remove(): void;
   append(content: string, options: { html: boolean }): void;
 }
@@ -174,34 +176,36 @@ export function createFront(config: FrontConfig) {
     return data && typeof data === "object" ? (data as T) : null;
   }
 
-  async function metaFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext): Promise<PageMeta | null> {
+  async function metaFor(route: PublicRoute, request: Request, env: FrontEnv, ctx: FrontContext, locale: Locale): Promise<PageMeta | null> {
+    // A language other than English loads its catalogs once per isolate.
+    if (locale !== DEFAULT_LOCALE) await loadCatalogs(locale, ["public", "shared"]);
     switch (route.kind) {
       case "landing":
-        return landingMeta(origin);
+        return landingMeta(origin, locale);
       case "switch":
-        return switchMeta(route.system, origin);
+        return switchMeta(route.system, origin, locale);
       case "templates":
-        return templatesMeta(origin);
+        return templatesMeta(origin, locale);
       case "template": {
         // An approved item only: the API answers 404 for anything else, which leaves the default meta.
         const d = await pageData<GalleryItemData>(galleryApiPathOf(route.slug), request, env, ctx);
-        return d && typeof d.title === "string" && typeof d.summary === "string" && d.slug === route.slug ? templateMeta(d, origin) : null;
+        return d && typeof d.title === "string" && typeof d.summary === "string" && d.slug === route.slug ? templateMeta(d, origin, locale) : null;
       }
       case "funder": {
         const d = await pageData<FunderPageData>(apiPathOf(route), request, env, ctx);
-        return d?.funder && Array.isArray(d.opportunities) ? funderMeta(d, origin) : null;
+        return d?.funder && Array.isArray(d.opportunities) ? funderMeta(d, origin, locale) : null;
       }
       case "opportunity": {
         const d = await pageData<OpportunityPageData>(apiPathOf(route), request, env, ctx);
-        return d?.funder && d.opportunity ? opportunityMeta(d, origin) : null;
+        return d?.funder && d.opportunity ? opportunityMeta(d, origin, new Date(), locale) : null;
       }
       case "awards": {
         const d = await pageData<FunderAwardsPageData>(apiPathOf(route), request, env, ctx);
-        return d?.funder && Array.isArray(d.awards) ? awardsMeta(d, origin) : null;
+        return d?.funder && Array.isArray(d.awards) ? awardsMeta(d, origin, locale) : null;
       }
       case "award": {
         const d = await pageData<AwardPageData>(apiPathOf(route), request, env, ctx);
-        return d?.funder && d.award ? awardMeta(d, origin) : null;
+        return d?.funder && d.award ? awardMeta(d, origin, locale) : null;
       }
     }
   }
@@ -274,6 +278,7 @@ export function createFront(config: FrontConfig) {
     const tags = headTags(meta);
     const drop = { element: (e: RewriterElement) => e.remove() };
     return new Rewriter()
+      .on("html", { element: (e) => e.setAttribute("lang", meta.locale ?? DEFAULT_LOCALE) })
       .on("title", { element: (e) => e.setInnerContent(meta.title) })
       .on('meta[name="description"]', drop)
       .on('meta[property^="og:"]', drop)
@@ -344,7 +349,8 @@ export function createFront(config: FrontConfig) {
       const route = path === "/index.html" && !head ? routeOf(url.pathname) : null;
       if (!route) return page;
       try {
-        const meta = await metaFor(route, request, env, ctx);
+        // The page's language for crawlers and link previews: `?lang=` on the address, English otherwise.
+        const meta = await metaFor(route, request, env, ctx, localeFromTag(url.searchParams.get(LOCALE_QUERY)) ?? DEFAULT_LOCALE);
         return meta ? withMeta(page, meta) : page;
       } catch {
         return page;

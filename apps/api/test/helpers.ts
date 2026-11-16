@@ -16,6 +16,7 @@ import { MemoryAuthStore, type MembershipStore, type OAuthClient } from "../src/
 import type { Env } from "../src/env.ts";
 import { FixtureOpenGrantsClient, MemoryFileStorage, MemorySessions, MemoryUserDirectory, type OpenGrantsListing, MemoryIdentity, MemorySecondSteps } from "../src/services/ports.ts";
 import { MemoryRepos } from "../src/services/repos/memory.ts";
+import { MemoryPreferences } from "../src/services/preferences.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
 
 export const BASE = "https://gms.test";
@@ -62,6 +63,8 @@ export interface Harness {
   exportFiles: MemoryFileStorage;
   /** Sign-in sessions as Supabase Auth would hold them. */
   sessions: MemorySessions;
+  /** Each person's saved language (migration 0043). */
+  preferences: MemoryPreferences;
   /** Names and emails of people, as the auth provider would answer. */
   directory: MemoryUserDirectory;
   /** Accounts by email, as the auth provider's admin API would hold them (Sign in with Passport). */
@@ -155,6 +158,7 @@ export async function harness(): Promise<Harness> {
   const exported = new Map<string, string>();
   const exportFiles = new MemoryFileStorage();
   const sessions = new MemorySessions();
+  const preferences = new MemoryPreferences();
   const directory = new MemoryUserDirectory();
   const identity = new MemoryIdentity();
   const secondSteps = new MemorySecondSteps();
@@ -172,7 +176,7 @@ export async function harness(): Promise<Harness> {
       return passport.fetch;
     },
     ports: () => {
-      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, sheets, airtable, mcpDirectory, llm, sessions, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) }, exportFiles };
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, sheets, airtable, mcpDirectory, llm, sessions, preferences, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) }, exportFiles };
       for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
       return all;
     },
@@ -205,6 +209,7 @@ export async function harness(): Promise<Harness> {
     exported,
     exportFiles,
     sessions,
+    preferences,
     directory,
     identity,
     secondSteps,

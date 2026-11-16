@@ -276,6 +276,10 @@ namespace GMS.Routes.Custom {
     @get @route("/me") @useAuth(UserSession)
     op me(): OkT<Me> | AuthErrors;
 
+    /** Save the signed-in person's preferences (their language). A person only: an API client or agent is refused. 501 `preferences_unavailable` where the server cannot store them. */
+    @put @route("/me/preferences") @useAuth(UserSession)
+    op updatePreferences(@body body: Preferences): OkT<Preferences> | BadRequest | AuthErrors;
+
     /** What this caller is in its workspace. */
     @get @route("/whoami") @useAuth(GmsOAuth<[]> | UserSession)
     op whoami(): OkT<WhoAmI> | AuthErrors;

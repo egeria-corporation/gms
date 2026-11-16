@@ -11,14 +11,31 @@ import { useServices } from "../../app/services.tsx";
 import { signInPath } from "../../auth/RequireAuth.tsx";
 import { ErrorBanner, Loading } from "../../components/ui.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("shared");
 const GATE_LABELS: Record<string, string> = {
-  commit_decisions: "Commit decisions",
-  release_tranche: "Release a payment",
-  submit_application: "Submit an application",
-  sign_agreement: "Sign an agreement",
-  accept_award: "Accept an award",
-  send_communication: "Send letters and messages",
-  decline_application: "Decline an application",
+  get commit_decisions() {
+    return t("oAuthConsent.gateLabels.commit_decisions");
+  },
+  get release_tranche() {
+    return t("oAuthConsent.gateLabels.release_tranche");
+  },
+  get submit_application() {
+    return t("oAuthConsent.gateLabels.submit_application");
+  },
+  get sign_agreement() {
+    return t("oAuthConsent.gateLabels.sign_agreement");
+  },
+  get accept_award() {
+    return t("oAuthConsent.gateLabels.accept_award");
+  },
+  get send_communication() {
+    return t("oAuthConsent.gateLabels.send_communication");
+  },
+  get decline_application() {
+    return t("oAuthConsent.gateLabels.decline_application");
+  },
 };
 const NEVER = ["sign_agreement", "accept_award", "release_tranche"];
 
@@ -72,7 +89,7 @@ export default function OAuthConsent() {
 
   return (
     <>
-      <title>{"Connect an agent — OpenGrants GMS"}</title>
+      <title>{t("oAuthConsent.connectAnAgentOpengrantsGms")}</title>
       <div className="gms gms-frame" style={{ background: "var(--grad-hero)" }}>
         <header style={{ height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 40px", borderBottom: "1px solid #D6DEDE", background: "#FFFFFF" }}>
           <Link to="/" className="row" style={{ gap: "10px" }}>
@@ -82,7 +99,7 @@ export default function OAuthConsent() {
           {me && (
             <div className="row" style={{ gap: "10px", minWidth: 0 }}>
               <span className="small muted" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
-                Signed in as {me.email}
+                {t("oAuthConsent.signedInAs", { email: me.email })}
               </span>
               <span className="av" aria-hidden="true">
                 {initialsOf(me.email)}
@@ -93,8 +110,8 @@ export default function OAuthConsent() {
         <main style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 16px 64px", gap: "20px" }}>
           <section className="card" style={{ width: "760px", maxWidth: "100%", boxShadow: "var(--shadow-card-hover)" }}>
             <div className="card-b" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "24px" }}>
-              {(request.status === "loading" || sessionState.status === "loading") && <Loading label="Reading the request" />}
-              {request.status === "error" && <ErrorBanner error={request.error} title="This connection request cannot be shown" />}
+              {(request.status === "loading" || sessionState.status === "loading") && <Loading label={t("oAuthConsent.readingTheRequest")} />}
+              {request.status === "error" && <ErrorBanner error={request.error} title={t("oAuthConsent.thisConnectionRequestCannotBe")} />}
               {data && (
                 <>
                   <div className="row wrap" style={{ gap: "16px" }}>
@@ -108,43 +125,43 @@ export default function OAuthConsent() {
                       </span>
                     </div>
                     <div>
-                      <h1 style={{ fontSize: "22px" }}>{data.client.name} wants to connect to OpenGrants GMS</h1>
+                      <h1 style={{ fontSize: "22px" }}>{t("oAuthConsent.wantsToConnectToOpengrants", { name: data.client.name })}</h1>
                       <p className="small muted" style={{ marginTop: "4px" }}>
-                        The agent acts as you, inside the scopes you grant, and returns to <span className="mono">{data.client.redirectHost}</span>. Every action it takes is attributed to it in the audit ledger.
-                        {data.client.dynamicallyRegistered && " This client registered itself; connect it only if you started this from that app."}
+                        {t.rich("oAuthConsent.theAgentActsAsYou", { redirectHost: data.client.redirectHost, span: (chunks) => <span className="mono">{chunks}</span> })}
+                        {data.client.dynamicallyRegistered && ` ${t("oAuthConsent.thisClientRegisteredItselfConnect")}`}
                       </p>
                     </div>
                   </div>
 
                   <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <legend className="sr">Choose a workspace</legend>
-                    <Step n={1} title="Choose a workspace" />
-                    {data.workspaces.length === 0 && <p className="muted">You are not a member of any workspace yet.</p>}
+                    <legend className="sr">{t("oAuthConsent.chooseAWorkspace")}</legend>
+                    <Step n={1} title={t("oAuthConsent.chooseAWorkspace")} />
+                    {data.workspaces.length === 0 && <p className="muted">{t("oAuthConsent.youAreNotAMember")}</p>}
                     {data.workspaces.map((w) => (
                       <label key={w.id} className="radio card" style={{ padding: "12px 14px", alignItems: "center", cursor: "pointer", ...(w.id === workspaceId ? { borderColor: "#29A79F", background: "#E1F8F6" } : {}) }}>
                         <input type="radio" name="workspace" value={w.id} checked={w.id === workspaceId} onChange={() => setWorkspaceId(w.id)} />
                         <div className="grow">
                           <div className="b">{w.name}</div>
                           <div className="small muted">
-                            Your role: {roleTitle(w.role)} · the agent gets at most your permissions
-                            {w.requiresMfa && " · verify with your authenticator app first"}
+                            {t("oAuthConsent.yourRoleTheAgentGets", { role: roleTitle(w.role) })}
+                            {w.requiresMfa && ` · ${t("oAuthConsent.verifyWithYourAuthenticatorApp")}`}
                           </div>
                         </div>
-                        <span className="role">{w.kind === "funder" ? "Funder" : "Applicant"}</span>
+                        <span className="role">{w.kind === "funder" ? t("oAuthConsent.funder") : t("oAuthConsent.applicant")}</span>
                       </label>
                     ))}
                   </fieldset>
 
                   <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <legend className="sr">Scopes</legend>
-                    <Step n={2} title="Scopes" note={`${selected.length} of ${data.scopes.length} selected`} />
+                    <legend className="sr">{t("oAuthConsent.scopes")}</legend>
+                    <Step n={2} title={t("oAuthConsent.scopes")} note={`${selected.length} of ${data.scopes.length} selected`} />
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 16px" }}>
                       {data.scopes.map((s) => (
                         <label key={s.scope} className="cb">
                           <input type="checkbox" checked={grantable(s.scope) && !off.includes(s.scope)} disabled={!grantable(s.scope)} onChange={(e) => setOff((o) => (e.target.checked ? o.filter((x) => x !== s.scope) : [...o, s.scope]))} />
                           <span>
                             {s.description} <span className="mono muted">{s.scope}</span>
-                            {!grantable(s.scope) && <span className="small muted"> · your role cannot grant this</span>}
+                            {!grantable(s.scope) && <span className="small muted"> {t("oAuthConsent.yourRoleCannotGrantThis")}</span>}
                           </span>
                         </label>
                       ))}
@@ -152,21 +169,20 @@ export default function OAuthConsent() {
                   </fieldset>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <Step n={3} title="Gated actions" />
+                    <Step n={3} title={t("oAuthConsent.gatedActions")} />
                     <div className="apr">
                       <div className="hd">
                         <Lock className="ic" aria-hidden="true" />
-                        How the human gate works
+                        {t("oAuthConsent.howTheHumanGateWorks")}
                       </div>
                       <div className="bd">
-                        <p>When the agent calls a gated tool, nothing changes yet. A request appears in Approvals with the agent, the exact inputs and what approving would do. A person approves or rejects it; the decision stays on the record.</p>
+                        <p>{t("oAuthConsent.whenTheAgentCallsA")}</p>
                         <ul style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                           {data.gatedActions.map((g) => (
                             <li key={g} className="row" style={{ gap: "8px" }}>
                               <Lock className="ic" aria-hidden="true" style={{ color: "#4B2E9E" }} />
                               <span>
-                                <span className="b">{GATE_LABELS[g] ?? g.replace(/_/g, " ")}</span>
-                                {NEVER.includes(g) ? " — always a person; an agent cannot be approved to do it" : " — waits for approval"}
+                                {t.rich(NEVER.includes(g) ? "oAuthConsent.gateNever" : "oAuthConsent.gateWaits", { action: GATE_LABELS[g] ?? g.replace(/_/g, " "), b: (chunks) => <span className="b">{chunks}</span> })}
                               </span>
                             </li>
                           ))}
@@ -179,9 +195,9 @@ export default function OAuthConsent() {
                     <div className="bnr bnr-warn">
                       <TriangleExclamationPoint className="ic" aria-hidden="true" />
                       <div>
-                        <div className="t">Verify with your authenticator app before connecting an agent to this workspace</div>
+                        <div className="t">{t("oAuthConsent.verifyWithYourAuthenticatorApp2")}</div>
                         <div className="d">
-                          <Link to={signInPath(location.pathname + location.search, "mfa")}>Verify now</Link>
+                          <Link to={signInPath(location.pathname + location.search, "mfa")}>{t("oAuthConsent.verifyNow")}</Link>
                         </div>
                       </div>
                     </div>
@@ -189,14 +205,14 @@ export default function OAuthConsent() {
                   {decide.error !== null && <ErrorBanner error={decide.error} />}
                   <div className="row" style={{ justifyContent: "space-between", gap: "12px", flexWrap: "wrap", paddingTop: "10px", borderTop: "1px solid #EEF3F3" }}>
                     <span className="small muted">
-                      Revoke any time in <Link to="/account/agents">Account → Connected agents</Link>
+                      {t.rich("oAuthConsent.revokeAnyTimeInAccount", { link: (chunks) => <Link to="/account/agents">{chunks}</Link> })}
                     </span>
                     <div className="row" style={{ gap: "10px" }}>
                       <button type="button" className="btn btn-secondary btn-lg" disabled={decide.state === "saving"} onClick={() => answer(false)}>
-                        Deny
+                        {t("oAuthConsent.deny")}
                       </button>
                       <button type="button" className="btn btn-primary btn-lg" disabled={decide.state === "saving" || !ws || ws.requiresMfa || selected.length === 0} onClick={() => answer(true)}>
-                        Connect
+                        {t("oAuthConsent.connect")}
                       </button>
                     </div>
                   </div>

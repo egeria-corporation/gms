@@ -16,6 +16,9 @@ import { ErrorBanner, Loading } from "../../components/ui.tsx";
 import { SessionsCard } from "./accountSessions.tsx";
 import { formatDate } from "../../lib/format.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 function Agents({ ws }: { ws: MeWorkspace }) {
   const api = useMoreApi(ws.id);
   const query = useMoreQuery((a) => a.connections(ws.id), [ws.id], ws.id);
@@ -39,12 +42,12 @@ function Agents({ ws }: { ws: MeWorkspace }) {
     <div style={{ borderTop: "1px solid var(--og-gray-200)" }}>
       <div className="row" style={{ gap: "10px", padding: "12px 20px 4px", flexWrap: "wrap" }}>
         <h3 style={{ fontSize: "14px" }}>{ws.name}</h3>
-        <span className="role">{ws.kind === "funder" ? "Funder" : "Applicant"}</span>
+        <span className="role">{ws.kind === "funder" ? t("accountSettings.funder") : t("accountSettings.applicant")}</span>
         <span className="small muted">{roleTitle(ws.role)}</span>
       </div>
       {query.status === "loading" && (
         <div style={{ padding: "0 20px" }}>
-          <Loading label="Loading connected agents" />
+          <Loading label={t("accountSettings.loadingConnectedAgents")} />
         </div>
       )}
       {query.status === "error" && (
@@ -52,7 +55,7 @@ function Agents({ ws }: { ws: MeWorkspace }) {
           <ErrorBanner error={query.error} onRetry={query.reload} />
         </div>
       )}
-      {query.status === "ready" && query.data.length === 0 && <p className="small muted" style={{ padding: "4px 20px 16px" }}>No agent is connected to this workspace.</p>}
+      {query.status === "ready" && query.data.length === 0 && <p className="small muted" style={{ padding: "4px 20px 16px" }}>{t("accountSettings.noAgentIsConnectedTo")}</p>}
       {query.status === "ready" && query.data.length > 0 && (
         <ul>
           {query.data.map((c) => (
@@ -63,10 +66,12 @@ function Agents({ ws }: { ws: MeWorkspace }) {
               <div style={{ minWidth: 0 }}>
                 <div className="b">
                   {c.clientName ?? c.clientId}
-                  {!c.mine && <span className="tag" style={{ marginLeft: "8px" }}>Connected by a teammate</span>}
+                  {!c.mine && <span className="tag" style={{ marginLeft: "8px" }}>{t("accountSettings.connectedByATeammate")}</span>}
                 </div>
                 <div className="small muted">
-                  Client <span className="mono">{c.clientUri ?? c.clientId}</span> · connected {formatDate(c.createdAt)} · {c.lastUsedAt ? `last used ${timeAgo(c.lastUsedAt)}` : "never used"}
+                  {c.lastUsedAt
+                    ? t.rich("accountSettings.clientLine", { client: c.clientUri ?? c.clientId, connected: formatDate(c.createdAt), lastUsed: timeAgo(c.lastUsedAt), mono: (chunks) => <span className="mono">{chunks}</span> })
+                    : t.rich("accountSettings.clientLineNeverUsed", { client: c.clientUri ?? c.clientId, connected: formatDate(c.createdAt), mono: (chunks) => <span className="mono">{chunks}</span> })}
                 </div>
                 <div className="row wrap" style={{ gap: "4px", marginTop: "6px" }}>
                   {c.scopes.map((s) => (
@@ -76,8 +81,8 @@ function Agents({ ws }: { ws: MeWorkspace }) {
                   ))}
                 </div>
               </div>
-              <button className="btn btn-sm btn-danger" type="button" aria-label={`Revoke ${c.clientName ?? c.clientId} in ${ws.name}`} onClick={() => setConfirm(c)}>
-                Revoke
+              <button className="btn btn-sm btn-danger" type="button" aria-label={t("accountSettings.revokeIn", { value: c.clientName ?? c.clientId, name: ws.name })} onClick={() => setConfirm(c)}>
+                {t("accountSettings.revoke")}
               </button>
             </li>
           ))}
@@ -86,19 +91,19 @@ function Agents({ ws }: { ws: MeWorkspace }) {
       <Dialog open={!!confirm} onClose={() => setConfirm(null)} labelledBy={`revoke-${ws.handle}`}>
         <div className="hd">
           <h2 id={`revoke-${ws.handle}`} style={{ fontSize: "18px" }}>
-            Revoke {confirm?.clientName ?? confirm?.clientId}?
+            {t("accountSettings.revoke")} {confirm?.clientName ?? confirm?.clientId}?
           </h2>
         </div>
         <div className="bd">
-          <p>The agent loses access to {ws.name} at once and has to be connected again to come back. Work it already drafted stays.</p>
-          {error ? <ErrorBanner error={error} title="The agent was not revoked" /> : null}
+          <p>{t("accountSettings.theAgentLosesAccessTo", { name: ws.name })}</p>
+          {error ? <ErrorBanner error={error} title={t("accountSettings.theAgentWasNotRevoked")} /> : null}
         </div>
         <div className="ft">
           <button className="btn btn-secondary" type="button" onClick={() => setConfirm(null)}>
-            Cancel
+            {t("accountSettings.cancel")}
           </button>
           <button className="btn btn-danger-solid" type="button" disabled={busy} onClick={() => confirm && void revoke(confirm)}>
-            Revoke access
+            {t("accountSettings.revokeAccess")}
           </button>
         </div>
       </Dialog>
@@ -123,50 +128,50 @@ export default function AccountSettings() {
   const session = sessionState.status === "signedIn" ? sessionState.session : null;
   return (
     <>
-      <title>Account settings — OpenGrants GMS</title>
+      <title>{t("accountSettings.accountSettingsOpengrantsGms")}</title>
       <AccountShell active="account">
         <div className="ph">
           <div>
             <div className="title">
-              <h1>Account settings</h1>
+              <h1>{t("accountSettings.accountSettings")}</h1>
             </div>
             <div className="meta">
               <span>{session?.email}</span>
               <span aria-hidden="true">·</span>
-              <span>These settings follow you across every workspace.</span>
+              <span>{t("accountSettings.theseSettingsFollowYouAcross")}</span>
             </div>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "24px", alignItems: "start" }}>
-          <nav className="card snav" aria-label="Account sections" style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <nav className="card snav" aria-label={t("accountSettings.accountSections")} style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "2px" }}>
             <a href="#profile">
               <span className="row">
                 <User className="ic" aria-hidden="true" />
-                Profile
+                {t("accountSettings.profile")}
               </span>
             </a>
             <a href="#security">
               <span className="row">
                 <KeyRound className="ic" aria-hidden="true" />
-                Security
+                {t("accountSettings.security")}
               </span>
             </a>
             <a href="#sessions">
               <span className="row">
                 <MonitorSmartphone className="ic" aria-hidden="true" />
-                Sessions
+                {t("accountSettings.sessions")}
               </span>
             </a>
             <a href="#agents" className="on" aria-current="true">
               <span className="row">
                 <Bot className="ic" aria-hidden="true" />
-                Connected agents
+                {t("accountSettings.connectedAgents")}
               </span>
             </a>
             <Link to="/notifications">
               <span className="row">
                 <Bell className="ic" aria-hidden="true" />
-                Notifications
+                {t("accountSettings.notifications")}
               </span>
             </Link>
           </nav>
@@ -174,24 +179,24 @@ export default function AccountSettings() {
             <section className="card" id="profile" aria-labelledby="profile-h">
               <div className="card-h">
                 <h2 id="profile-h" style={{ fontSize: "15px" }}>
-                  Profile
+                  {t("accountSettings.profile")}
                 </h2>
               </div>
               <div className="card-b">
                 <dl className="kv" style={{ fontSize: "14px" }}>
                   {meState.status === "ready" && meState.me.displayName ? (
                     <>
-                      <dt>Name</dt>
+                      <dt>{t("accountSettings.name")}</dt>
                       <dd>{meState.me.displayName}</dd>
                     </>
                   ) : null}
-                  <dt>Email</dt>
+                  <dt>{t("accountSettings.email")}</dt>
                   <dd>{session?.email ?? "—"}</dd>
-                  <dt>Sign-in</dt>
-                  <dd>{meState.status === "ready" && meState.me.signInMethod === "passport" ? "OpenGrants Passport" : "One-time code sent to this email"}</dd>
+                  <dt>{t("accountSettings.signIn")}</dt>
+                  <dd>{meState.status === "ready" && meState.me.signInMethod === "passport" ? "OpenGrants Passport" : t("accountSettings.oneTimeCodeSentTo")}</dd>
                 </dl>
                 <p className="help" style={{ marginTop: "10px" }}>
-                  Your organization's details are kept in OpenGrants Passport, not here.
+                  {t("accountSettings.yourOrganizationSDetailsAre")}
                 </p>
               </div>
             </section>
@@ -199,29 +204,29 @@ export default function AccountSettings() {
             <section className="card" id="security" aria-labelledby="security-h">
               <div className="card-h">
                 <h2 id="security-h" style={{ fontSize: "15px" }}>
-                  Multi-factor authentication
+                  {t("accountSettings.multiFactorAuthentication")}
                 </h2>
                 {factors === null ? null : factors.length > 0 ? (
                   <span className="bdg bdg-ok">
                     <ShieldCheck className="ic" aria-hidden="true" />
-                    Authenticator on
+                    {t("accountSettings.authenticatorOn")}
                   </span>
                 ) : (
                   <span className="bdg bdg-warn">
                     <KeyRound className="ic" aria-hidden="true" />
-                    Not set up
+                    {t("accountSettings.notSetUp")}
                   </span>
                 )}
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <p>
                   {factors && factors.length > 0
-                    ? `An authenticator app is enrolled. This session is ${session?.aal === "aal2" ? "verified with it" : "not yet verified with it"}.`
-                    : "Funder admins and finance, and applicant admins, need an authenticator app before their workspace opens."}
+                    ? t(session?.aal === "aal2" ? "accountSettings.authenticatorVerified" : "accountSettings.authenticatorNotYetVerified")
+                    : t("accountSettings.funderAdminsAndFinanceAnd")}
                 </p>
                 {(!factors || factors.length === 0 || session?.aal !== "aal2") && (
                   <Link to={signInPath("/account/agents", "mfa")} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                    {factors && factors.length > 0 ? "Verify this session" : "Set up an authenticator"}
+                    {factors && factors.length > 0 ? t("accountSettings.verifyThisSession") : t("accountSettings.setUpAnAuthenticator")}
                   </Link>
                 )}
               </div>
@@ -239,17 +244,17 @@ export default function AccountSettings() {
               <div className="card-h">
                 <div>
                   <h2 id="agents-h" style={{ fontSize: "15px" }}>
-                    Connected agents
+                    {t("accountSettings.connectedAgents")}
                   </h2>
-                  <p className="small muted">Agents act with your permissions, never more. Submitting, signing, accepting an award and releasing money always come back to a person.</p>
+                  <p className="small muted">{t("accountSettings.agentsActWithYourPermissions")}</p>
                 </div>
                 <Link to="/agents" className="btn btn-secondary btn-sm">
-                  How agents connect
+                  {t("accountSettings.howAgentsConnect")}
                 </Link>
               </div>
               {meState.status === "loading" && (
                 <div style={{ padding: "0 20px" }}>
-                  <Loading label="Loading your workspaces" />
+                  <Loading label={t("accountSettings.loadingYourWorkspaces")} />
                 </div>
               )}
               {meState.status === "error" && (
@@ -257,7 +262,7 @@ export default function AccountSettings() {
                   <ErrorBanner error={meState.error} onRetry={reloadMe} />
                 </div>
               )}
-              {meState.status === "ready" && meState.me.workspaces.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>You do not belong to a workspace yet.</p>}
+              {meState.status === "ready" && meState.me.workspaces.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>{t("accountSettings.youDoNotBelongTo")}</p>}
               {meState.status === "ready" && meState.me.workspaces.map((ws) => <Agents key={ws.id} ws={ws} />)}
             </section>
           </div>

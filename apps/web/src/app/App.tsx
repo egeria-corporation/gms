@@ -13,6 +13,8 @@ import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
 import { pageChanged, watchActions } from "../lib/announce.ts";
+import { useLocale, useT } from "../i18n/index.tsx";
+import { LocaleFromPreference } from "../components/LanguageSwitcher.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
@@ -194,9 +196,19 @@ export function App({ services }: { services?: Services }) {
   }, [resolved]);
   return (
     <ServicesProvider services={resolved}>
-      <AppRoutes />
+      <LocaleFromPreference />
+      <LocalizedRoutes />
     </ServicesProvider>
   );
+}
+
+/**
+ * The screens, rebuilt when the language changes: every label, date and amount is drawn again in
+ * the new language, including values a screen computed once. The session and the address are kept.
+ */
+function LocalizedRoutes() {
+  const locale = useLocale();
+  return <AppRoutes key={locale} />;
 }
 
 /**
@@ -204,6 +216,7 @@ export function App({ services }: { services?: Services }) {
  * top bar and the rail (WCAG 2.4.1). Screens render their own <main>, so the link finds it on use.
  */
 function SkipLink() {
+  const t = useT("shared");
   return (
     <a
       href="#main"
@@ -216,7 +229,7 @@ function SkipLink() {
         main.focus();
       }}
     >
-      Skip to main content
+      {t("app.skipLink")}
     </a>
   );
 }

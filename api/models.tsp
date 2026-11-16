@@ -2238,6 +2238,18 @@ model MyWorkspace {
   verification: Verification;
 }
 
+/** A language the GMS speaks. */
+enum Locale {
+  en,
+  es,
+}
+
+/** A person's own preferences. */
+model Preferences {
+  /** The language of the interface and of the person's emails; null clears it (the browser's language, English for emails). */
+  locale: Locale | null;
+}
+
 /** The signed-in person and the workspaces they can open. */
 model Me {
   /** The same switches as `GET /gms/config` */
@@ -2251,6 +2263,9 @@ model Me {
 
   /** How this session was started. */
   signInMethod?: "passport" | "email";
+
+  /** The language the person chose for the interface and their emails (docs/i18n.md); null when they never chose. */
+  locale?: Locale | null;
 
   /** Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
   mfaVerified: boolean;

@@ -14,6 +14,9 @@ import { PostComposer } from "./PostComposer.tsx";
 import { ReachPanel } from "./ReachPanel.tsx";
 import { ErrorBanner, Notice } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export function SocialPanel({ subject }: { subject: SocialSubject }) {
   const ws = useCurrentWorkspace();
   const [composing, setComposing] = useState(0);
@@ -38,24 +41,24 @@ export function SocialPanel({ subject }: { subject: SocialSubject }) {
         <div>
           <h3 id={`social-${subject.id}`} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Share2 className="ic" aria-hidden="true" />
-            Share on social media
+            {t("socialPanel.shareOnSocialMedia")}
           </h3>
-          <p className="small muted">Post to your own accounts through Zernio. You see the exact post before it goes out, and nothing is posted until you press Post.</p>
+          <p className="small muted">{t("socialPanel.postToYourOwnAccounts")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        {q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} title="Social posting could not be loaded" />}
+        {q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} title={t("socialPanel.socialPostingCouldNotBe")} />}
         {q.status === "ready" && q.data && (
           <>
             {!q.data.draft.shareable ? (
-              <Notice tone="neu" title={q.data.draft.reason ?? "Not offered for posting"} />
+              <Notice tone="neu" title={q.data.draft.reason ?? t("socialPanel.notOfferedForPosting")} />
             ) : q.data.settings.accounts.length === 0 ? (
-              <Notice tone="info" title="No social accounts connected yet">
+              <Notice tone="info" title={t("socialPanel.noSocialAccountsConnectedYet")}>
                 {q.data.settings.canConnect ? (
-                  <Link to={settingsPath}>Connect an account</Link>
+                  <Link to={settingsPath}>{t("socialPanel.connectAnAccount")}</Link>
                 ) : (
                   <>
-                    A workspace admin connects accounts in <Link to={settingsPath}>Settings › Social accounts</Link>.
+                    {t.rich("socialPanel.aWorkspaceAdminConnectsAccounts", { link: (chunks) => <Link to={settingsPath}>{chunks}</Link> })}
                   </>
                 )}
               </Notice>
@@ -63,14 +66,14 @@ export function SocialPanel({ subject }: { subject: SocialSubject }) {
               <div className="row wrap" style={{ gap: "8px", alignItems: "center" }}>
                 <button type="button" className="btn btn-primary" onClick={() => setComposing((n) => n + 1)}>
                   <PenLine className="ic" aria-hidden="true" />
-                  Write a post
+                  {t("socialPanel.writeAPost")}
                 </button>
                 <span className="small muted">
-                  To {q.data.settings.accounts.map((a) => a.label).join(", ")}. <Link to={settingsPath}>Manage accounts</Link>
+                  {t.rich("socialPanel.toManageAccounts", { join: q.data.settings.accounts.map((a) => a.label).join(", "), link: (chunks) => <Link to={settingsPath}>{chunks}</Link> })}
                 </span>
               </div>
             ) : (
-              <p className="small muted">Admins and editors can post from here.</p>
+              <p className="small muted">{t("socialPanel.adminsAndEditorsCanPost")}</p>
             )}
             {q.data.reach.posts.length > 0 && <ReachPanel reach={q.data.reach} subjectType={subject.type} />}
             {composing > 0 && q.data.draft.shareable && (
