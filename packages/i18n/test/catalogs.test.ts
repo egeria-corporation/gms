@@ -48,20 +48,66 @@ const parsed = (ns: Namespace, locale: "en" | "es", key: string): MessageFormatE
   return parse(message);
 };
 
-// Words the glossary rules out, and what to write instead (docs/i18n.md). "Aplicación" is right for
-// software (an authenticator app, connected apps) and wrong for an application to a funder.
+// Words the glossary rules out, and what to write instead (docs/i18n.md).
 const NOT_THE_GLOSSARY: [RegExp, string][] = [
-  [/\baplicaci[oó]n(es)? (a|para|de) (la|una|esta|su|el|un) (convocatoria|subvenci[oó]n|financiador|programa)/i, "solicitud (application)"],
-  [/\b(enviar|presentar|revisar|retirar) (la|una|su) aplicaci[oó]n\b/i, "solicitud (application)"],
+  // "Aplicación" is right only for software; an application to a funder is a "solicitud".
+  [/\baplicaci[oó]n(es)?\b/i, "solicitud (application); aplicación only for software, in the phrases SOFTWARE lists"],
   [/\baplicar\b/i, "presentar una solicitud (apply)"],
   [/\baplicantes?\b/i, "solicitante (applicant)"],
   [/\bbecas?\b/i, "subvención (grant)"],
+  [/\bdonaci[oó]n(es)?\b/i, "subvención (grant)"],
+  [/\bfundador(a|es|as)?\b/i, "financiador (funder)"],
+  [/\bplazos? finale?s?\b/i, "fecha límite (deadline)"],
   [/\boportunidad(es)?\b/i, "convocatoria (opportunity)"],
   [/\bsomet(er|a|ido|ida)\b/i, "enviar (submit)"],
   [/\bloguear|logueo|login\b/i, "iniciar sesión (sign in)"],
   [/\bpanel de revisi[oó]n\b/i, "comité de revisión (panel)"],
+  [/\bpuntajes?\b/i, "puntuación (score)"],
+  [/\bexpedientes? para la junta\b/i, "carpeta para la junta (board docket)"],
+  [/\bcampos? de combinaci[oó]n\b/i, "campo combinado (merge field)"],
   [/\b(grants?|funders?|applicants?|workspaces?|deadlines?)\b/i, "the English word left in the Spanish text"],
 ];
+
+// The software phrases where "aplicación" is the right word: an authenticator, calendar or connected
+// app, an app's id or secret, a SAML or web application, and "in the app".
+const SOFTWARE = [
+  /\baplicaci[oó]n(es)? (de autenticaci[oó]n|de calendario|conectadas?|SAML|web|como)\b/gi,
+  /\b(Id\.|id\.|[Ss]ecreto|opciones) de (la )?aplicaci[oó]n\b/g,
+  /\ben la aplicaci[oó]n\b/gi,
+  /\b(otra|esa) aplicaci[oó]n\b/gi,
+  /\b[Cc]onectar aplicaciones\b/g,
+];
+
+// Product names ("OpenGrants Grant Management System") are not translated, so they are not checked.
+const NAMES = [...SAME_VALUES].sort((a, b) => b.length - a.length);
+/** A Spanish value's prose: no placeholders, tags, code, paths, addresses, product names or software phrases. */
+const prose = (v: string) =>
+  SOFTWARE.reduce(
+    (text, re) => text.replace(re, " "),
+    NAMES.reduce((text, name) => text.split(name).join(" "), v.replace(/<code\d*>.*?<\/code\d*>/g, " ").replace(/\{[^{}]*\}/g, " ").replace(/<\/?[a-z0-9]+>/g, " ").replace(/\/[\w./-]+/g, " ").replace(/\S+@\S+/g, " ")),
+  );
+const offGlossary = (v: string) => NOT_THE_GLOSSARY.filter(([re]) => re.test(prose(v))).map(([, instead]) => instead);
+
+describe("the glossary check", () => {
+  it.each([
+    ["Su beca fue aprobada.", "subvención (grant)"],
+    ["Recibió una donación del programa.", "subvención (grant)"],
+    ["Envíe su aplicación antes del viernes.", "solicitud"],
+    ["El estado de la aplicación cambió.", "solicitud"],
+    ["Aplicaciones recibidas", "solicitud"],
+    ["El fundador revisa cada solicitud.", "financiador (funder)"],
+    ["Plazo final: 15 de noviembre de 2026", "fecha límite (deadline)"],
+    ["Puntaje promedio", "puntuación (score)"],
+    ["Expediente para la junta", "carpeta para la junta (board docket)"],
+  ])("finds the variant in %j", (text, instead) => {
+    expect(offGlossary(text).some((x) => x.startsWith(instead))).toBe(true);
+  });
+
+  it.each(["Abra su aplicación de autenticación.", "Aplicaciones conectadas", "Id. de la aplicación", "Las opciones de la aplicación se aplican de inmediato.", "Envíe su solicitud al financiador antes de la fecha límite."])(
+    "lets %j through",
+    (text) => expect(offGlossary(text)).toEqual([]),
+  );
+});
 
 describe.each(NAMESPACES)("the %s catalog", (ns) => {
   const en = ALL_CATALOGS.en[ns];
@@ -97,11 +143,7 @@ describe.each(NAMESPACES)("the %s catalog", (ns) => {
   });
 
   it("keeps to the glossary", () => {
-    // Product names ("OpenGrants Grant Management System") are not translated, so they are not checked.
-    const names = [...SAME_VALUES].sort((a, b) => b.length - a.length);
-    // Placeholders, tag names and code (`/w/your-workspace/`) are not prose either.
-    const prose = (v: string) => names.reduce((text, name) => text.split(name).join(" "), v.replace(/<code\d*>.*?<\/code\d*>/g, " ").replace(/\{[^{}]*\}/g, " ").replace(/<\/?[a-z0-9]+>/g, " ").replace(/\/[\w./-]+/g, " ").replace(/\S+@\S+/g, " "));
-    const off = Object.entries(es).flatMap(([k, v]) => NOT_THE_GLOSSARY.filter(([re]) => re.test(prose(String(v)))).map(([, instead]) => `${k}: use ${instead}`));
+    const off = Object.entries(es).flatMap(([k, v]) => offGlossary(String(v)).map((instead) => `${k}: use ${instead}`));
     expect(off).toEqual([]);
   });
 });
