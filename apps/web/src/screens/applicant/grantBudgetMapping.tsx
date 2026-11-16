@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { BudgetCategoryMapping } from "../../api/launch.ts";
 import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 export function BudgetMappingForm({ awardId, categories }: { awardId: string; categories: string[] }) {
   const saved = useLaunchQuery((api) => api.budgetMapping(awardId), [awardId]);
@@ -26,8 +27,8 @@ export function BudgetMappingForm({ awardId, categories }: { awardId: string; ca
       }}
     >
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h3>Map categories</h3>
-        <span className="small muted">Your ledger account → budget category</span>
+        <h3>{t("grantBudgetMapping.mapCategories")}</h3>
+        <span className="small muted">{t("grantBudgetMapping.yourLedgerAccountBudgetCategory")}</span>
       </div>
       {saved.status === "error" && <ErrorBanner error={saved.error} onRetry={saved.reload} />}
       {save.error !== null && <ErrorBanner error={save.error} />}
@@ -38,9 +39,9 @@ export function BudgetMappingForm({ awardId, categories }: { awardId: string; ca
             <div key={category} style={{ display: "contents" }}>
               <div>
                 <label className="sr" htmlFor={id}>
-                  Your ledger account for {category}
+                  {t("grantBudgetMapping.ledgerFor", { category })}
                 </label>
-                <input id={id} className="inp mono" style={{ height: "36px", fontSize: "13px" }} value={draft[category] ?? ""} placeholder="e.g. 6100 Salaries & wages" onChange={(e) => setDraft((d) => ({ ...d, [category]: e.target.value }))} />
+                <input id={id} className="inp mono" style={{ height: "36px", fontSize: "13px" }} value={draft[category] ?? ""} placeholder={t("grantBudgetMapping.eG6100SalariesWages")} onChange={(e) => setDraft((d) => ({ ...d, [category]: e.target.value }))} />
               </div>
               <div className="muted" style={{ textAlign: "center" }} aria-hidden="true">
                 →
@@ -52,11 +53,11 @@ export function BudgetMappingForm({ awardId, categories }: { awardId: string; ca
       </div>
       <div className="row">
         <button type="submit" className="btn btn-sm btn-primary" disabled={save.state === "saving"}>
-          Save mapping
+          {t("grantBudgetMapping.saveMapping")}
         </button>
         <SaveNote state={save.state} />
       </div>
-      <span className="help">Kept with this grant, for your team. Your funder sees amounts by budget category, not your account names.</span>
+      <span className="help">{t("grantBudgetMapping.keptWithThisGrantForYour")}</span>
     </form>
   );
 }

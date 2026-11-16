@@ -17,7 +17,7 @@ import { ShareAwardPanel } from "../../../components/ShareAwardPanel.tsx";
 
 function Grant({ data, base, reload }: { data: GrantData; base: string; reload: () => void }) {
   const { award, schedule, requirements, payee } = data;
-  const t = totals(data);
+  const tot = totals(data);
   const period = periodOf(award.keyDates);
   const destination = payee.bankName && payee.last4 ? `${payee.bankName} •••• ${payee.last4}` : payee.status === "active" ? "Verified destination on file in Passport" : "No verified destination";
   return (
@@ -41,22 +41,22 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
         <div className="stat" style={{ padding: "14px 16px" }}>
           <span className="stat-l">Awarded</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.awarded, award.currency)}
+            {formatMinor(tot.awarded, award.currency)}
           </span>
         </div>
         <div className="stat" style={{ padding: "14px 16px" }}>
           <span className="stat-l">Received</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.received, award.currency)}
+            {formatMinor(tot.received, award.currency)}
           </span>
           <span className="stat-d">
-            {t.settledCount} of {schedule.length} tranches settled
+            {tot.settledCount} of {schedule.length} tranches settled
           </span>
         </div>
         <div className="stat" style={{ padding: "14px 16px" }}>
           <span className="stat-l">Remaining</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.remaining, award.currency)}
+            {formatMinor(tot.remaining, award.currency)}
           </span>
           <span className="stat-d">Released as conditions are met</span>
         </div>

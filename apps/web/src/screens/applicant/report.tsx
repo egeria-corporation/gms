@@ -16,6 +16,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Loading, problemsOf } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
+import { t } from "./i18n.ts";
 
 export interface ReportsData {
   requirements: MyRequirement[];
@@ -33,31 +34,31 @@ export const byUrgency = (a: MyRequirement, b: MyRequirement) => (ORDER[a.status
 
 export function summaryLine(list: MyRequirement[], now: Date = new Date()): string[] {
   const funders = new Set(list.map((r) => r.funder?.workspaceId)).size;
-  const parts = [`${list.length} requirement${list.length === 1 ? "" : "s"} across ${funders} funder${funders === 1 ? "" : "s"}`];
+  const parts = [t("report.summary", { count: list.length, funders })];
   const due = list.filter((r) => r.status === "due" || r.status === "overdue").sort((a, b) => (a.dueAt ?? "").localeCompare(b.dueAt ?? ""))[0];
   const days = due ? daysUntil(due.dueAt, now) : null;
-  if (due && days !== null) parts.push(days < 0 ? `1 overdue by ${-days} day${days === -1 ? "" : "s"}` : `1 due in ${days} day${days === 1 ? "" : "s"}`);
+  if (due && days !== null) parts.push(days < 0 ? t("report.overdueBy", { days: -days }) : t("report.dueIn", { days }));
   const returned = list.filter((r) => r.status === "returned").length;
-  if (returned) parts.push(`${returned} returned with comments`);
+  if (returned) parts.push(t("report.returnedCount", { count: returned }));
   return parts;
 }
 
 /** The button a requirement row offers, by where the report stands. */
 export function actionFor(r: MyRequirement): { label: string; primary: boolean } | null {
   if (r.status === "waived") return null;
-  if (r.status === "returned") return { label: "Respond", primary: true };
-  if (r.status === "accepted") return { label: "View and share", primary: false };
-  if (r.status === "submitted" || r.status === "under_review") return { label: "View", primary: false };
-  if (r.submissionId) return { label: "Open in editor", primary: r.status !== "scheduled" };
-  return { label: r.status === "scheduled" ? "Start early" : "Start report", primary: r.status !== "scheduled" };
+  if (r.status === "returned") return { label: t("report.action.respond"), primary: true };
+  if (r.status === "accepted") return { label: t("report.action.viewShare"), primary: false };
+  if (r.status === "submitted" || r.status === "under_review") return { label: t("report.action.view"), primary: false };
+  if (r.submissionId) return { label: t("report.action.open"), primary: r.status !== "scheduled" };
+  return { label: r.status === "scheduled" ? t("report.action.startEarly") : t("report.action.start"), primary: r.status !== "scheduled" };
 }
 
 export function duePhrase(r: MyRequirement, now: Date = new Date()): { text: string; urgent: boolean } {
   const days = daysUntil(r.dueAt, now);
-  if (!r.dueAt || days === null) return { text: "No due date", urgent: false };
-  if (r.status === "accepted" || r.status === "submitted" || r.status === "under_review") return { text: `Due ${formatDate(r.dueAt)}`, urgent: false };
-  if (days < 0) return { text: `Due ${formatDate(r.dueAt)} · ${-days} day${days === -1 ? "" : "s"} late`, urgent: true };
-  return { text: `Due ${formatDate(r.dueAt)} · ${days} day${days === 1 ? "" : "s"}`, urgent: days <= 30 };
+  if (!r.dueAt || days === null) return { text: t("report.due.none"), urgent: false };
+  if (r.status === "accepted" || r.status === "submitted" || r.status === "under_review") return { text: t("report.due.on", { date: formatDate(r.dueAt) }), urgent: false };
+  if (days < 0) return { text: t("report.due.late", { date: formatDate(r.dueAt), days: -days }), urgent: true };
+  return { text: t("report.due.left", { date: formatDate(r.dueAt), days }), urgent: days <= 30 };
 }
 
 // ------------------------------------------------------------------------------------ one report
@@ -99,7 +100,7 @@ export function sectionsOf(def: FormDefinition, form: SubmissionForm, errors: Va
     const filled = keys.filter((k) => form.response[k] !== undefined && form.response[k] !== null && form.response[k] !== "").length;
     const prefilled = keys.some((k) => ["passport", "prior_submission"].includes(form.provenance[`/${k}`] ?? ""));
     const state = bad === 0 && filled > 0 ? "done" : filled > 0 ? "prog" : "todo";
-    return { label: g.label!, state, note: bad ? `${bad} to fix` : state === "done" ? `Complete${prefilled ? " · prefilled" : ""}` : state === "prog" ? "In progress" : "Not started" };
+    return { label: g.label!, state, note: bad ? t("report.section.toFix", { count: bad }) : state === "done" ? (prefilled ? t("report.section.completePrefilled") : t("report.section.complete")) : state === "prog" ? t("report.section.inProgress") : t("report.section.notStarted") };
   });
 }
 
@@ -259,7 +260,7 @@ export function ReportForm({ report, passportUrl }: { report: ReportState; passp
     return (
       <div className="card">
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <ErrorBanner error={new Error("This report's form could not be loaded, so it cannot be edited here yet. Your saved answers are listed below.")} title="The form is not available" />
+          <ErrorBanner error={new Error(t("report.formUnavailable"))} title={t("report.theFormIsNotAvailable")} />
           <dl className="kv">
             {Object.entries(l.form.response).map(([k, v]) => (
               <div key={k} style={{ display: "contents" }}>
@@ -296,9 +297,9 @@ export function ReturnedBanner({ submission, funder }: { submission: Submission;
     <div className="bnr bnr-warn" role="status">
       <RotateCcw className="ic" aria-hidden="true" />
       <div>
-        <div className="t">{funder} returned this report</div>
+        <div className="t">{t("report.returnedBy", { funder })}</div>
         <div className="d">{submission.reviewNote}</div>
-        <div className="clears">Correct the report and submit it again; your other answers are kept.</div>
+        <div className="clears">{t("report.correctTheReportAndSubmitIt")}</div>
       </div>
     </div>
   );
@@ -326,8 +327,8 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
     <div className="card" id="share">
       <div className="card-h">
         <div>
-          <h3>Share with another funder</h3>
-          <p className="small muted">Report once: give another funder a copy of this accepted report instead of writing it again.</p>
+          <h3>{t("report.shareWithAnotherFunder")}</h3>
+          <p className="small muted">{t("report.reportOnceGiveAnotherFunderA")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -335,17 +336,17 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
           <div className="bnr bnr-ok" role="status">
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="t">Shared with {done.funder.name}</div>
-              <div className="d">They see it in their received reports, marked as shared by you. Manage who has access in Team &amp; access.</div>
+              <div className="t">{t("report.sharedWith", { funder: done.funder.name })}</div>
+              <div className="d">{t("report.theySeeItInTheirReceived")}</div>
             </div>
           </div>
         )}
         {others.length === 0 ? (
-          <p className="small muted">There is no other funder to share with yet. Funders appear here once you have applied to them.</p>
+          <p className="small muted">{t("report.thereIsNoOtherFunderTo")}</p>
         ) : (
           <button className="btn btn-secondary" type="button" style={{ alignSelf: "flex-start" }} onClick={() => setOpenDialog(true)}>
             <Share2 className="ic" aria-hidden="true" />
-            Share this report
+            {t("report.shareThisReport")}
           </button>
         )}
       </div>
@@ -353,17 +354,17 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
         <div className="hd">
           <div>
             <h2 id="share-title" style={{ fontSize: "18px" }}>
-              Share “{requirement.title}”
+              {t("report.shareTitle", { title: requirement.title })}
             </h2>
             <p className="small muted" style={{ marginTop: "4px" }}>
-              Accepted by {requirement.funder?.name ?? "your funder"}
+              {requirement.funder?.name ? t("report.acceptedBy", { funder: requirement.funder.name }) : t("report.acceptedByYourFunder")}
             </p>
           </div>
         </div>
         <div className="bd">
           <div className="fld">
             <label className="lbl" htmlFor="share-funder">
-              Share with
+              {t("report.shareWith")}
             </label>
             <select className="sel" id="share-funder" value={funder} onChange={(e) => setFunder(e.target.value)}>
               {others.map((f) => (
@@ -375,7 +376,7 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
           </div>
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              Fields to share
+              {t("report.fieldsToShare")}
             </legend>
             {fields.map((f) => (
               <label key={f.key} className="cb" style={{ cursor: "pointer" }}>
@@ -386,18 +387,18 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
           </fieldset>
           <div className="fld">
             <label className="lbl" htmlFor="share-note">
-              Note to the funder (optional)
+              {t("report.noteToTheFunderOptional")}
             </label>
             <textarea className="ta" id="share-note" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
           <p className="help">
-            By sharing, {target?.name ?? "the funder"} receives a copy of the fields you ticked, as accepted on {formatDate(loaded.submission.submittedAt)}. This is recorded as your consent and you can withdraw it under Team &amp; access; a copy already received stays with them.
+            {target?.name ? t("report.consent", { funder: target.name, date: formatDate(loaded.submission.submittedAt) }) : t("report.consentTheFunder", { date: formatDate(loaded.submission.submittedAt) })}
           </p>
-          {share.error ? <ErrorBanner error={share.error} title="The report was not shared" /> : null}
+          {share.error ? <ErrorBanner error={share.error} title={t("report.theReportWasNotShared")} /> : null}
         </div>
         <div className="ft">
           <button className="btn btn-secondary" type="button" onClick={() => setOpenDialog(false)}>
-            Cancel
+            {t("report.cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -412,7 +413,7 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
               }
             }}
           >
-            Share with {target?.name ?? "funder"}
+            {target?.name ? t("report.shareWithName", { funder: target.name }) : t("report.shareWithFunder")}
           </button>
         </div>
       </Dialog>
@@ -421,7 +422,7 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
 }
 
 export function ReportLoading({ report }: { report: ReportState }) {
-  if (report.status === "loading") return <Loading label="Opening the report" />;
+  if (report.status === "loading") return <Loading label={t("report.openingTheReport")} />;
   if (report.status === "error") return <ErrorBanner error={report.error} />;
   return null;
 }

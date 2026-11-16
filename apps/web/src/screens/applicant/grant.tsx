@@ -15,6 +15,7 @@ import type { Query } from "../../api/hooks.ts";
 import { LevelBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
+import { t } from "./i18n.ts";
 
 export interface GrantData {
   awards: Award[];
@@ -79,39 +80,79 @@ export function totals(d: GrantData) {
 }
 
 /** "On execution of the agreement", "When the interim report is accepted", … */
-export function conditionText(t: ScheduleTranche, requirements: MyRequirement[]): string {
-  const req = requirements.find((r) => r.releasesTrancheId === t.id);
-  switch (t.condition.type) {
+export function conditionText(tr: ScheduleTranche, requirements: MyRequirement[]): string {
+  const req = requirements.find((r) => r.releasesTrancheId === tr.id);
+  switch (tr.condition.type) {
     case "onExecution":
-      return "On execution of the agreement";
+      return t("grant.condition.onExecution");
     case "onReportAccepted":
-      return req ? `When the ${req.title.toLowerCase()} is accepted` : "When a report is accepted";
+      return req ? t("grant.condition.whenAccepted", { report: req.title.toLowerCase() }) : t("grant.condition.whenAReport");
     case "onDate":
-      return t.condition.date ? `On ${formatDate(t.condition.date)}` : "On a set date";
+      return tr.condition.date ? t("grant.condition.onDate", { date: formatDate(tr.condition.date) }) : t("grant.condition.onASetDate");
     default:
-      return "Released by your funder";
+      return t("grant.condition.manual");
   }
 }
 
 /** When the grantee can expect the money, in words; never a promise the funder did not make. */
-export function expectedText(t: ScheduleTranche, requirements: MyRequirement[]): string {
-  if (t.status === "settled") return `Settled ${formatDate(t.releasedAt ?? t.dueAt)}`;
-  if (IN_FLIGHT.includes(t.status)) return `Sent ${formatDate(t.releasedAt)}`;
-  if (t.status === "held") return "Paused";
-  if (t.status === "cancelled") return "—";
-  if (t.status === "failed" || t.status === "returned") return "Your funder will retry";
-  const req = requirements.find((r) => r.releasesTrancheId === t.id);
-  if (t.condition.type === "onReportAccepted" && req?.dueAt) return `After ${formatDate(req.dueAt)}`;
-  if (t.dueAt) return formatDate(t.dueAt);
-  if (t.condition.type === "onExecution") return "After the agreement is executed";
-  return "Not scheduled yet";
+export function expectedText(tr: ScheduleTranche, requirements: MyRequirement[]): string {
+  if (tr.status === "settled") return t("grant.expected.settled", { date: formatDate(tr.releasedAt ?? tr.dueAt) });
+  if (IN_FLIGHT.includes(tr.status)) return t("grant.expected.sent", { date: formatDate(tr.releasedAt) });
+  if (tr.status === "held") return t("grant.expected.paused");
+  if (tr.status === "cancelled") return "—";
+  if (tr.status === "failed" || tr.status === "returned") return t("grant.expected.retry");
+  const req = requirements.find((r) => r.releasesTrancheId === tr.id);
+  if (tr.condition.type === "onReportAccepted" && req?.dueAt) return t("grant.expected.after", { date: formatDate(req.dueAt) });
+  if (tr.dueAt) return formatDate(tr.dueAt);
+  if (tr.condition.type === "onExecution") return t("grant.expected.afterExecuted");
+  return t("grant.expected.notScheduled");
+}
+
+/** Why a payment is paused and what clears it, in the page's language (api/applicantMore.ts names the cause). */
+export function holdText(reason: string | null | undefined): { cause: string; why: string; clears: string } {
+  const { cause } = holdExplanation(reason);
+  switch (cause) {
+    case "destination_change":
+      return { cause, why: t("grant.hold.destinationWhy"), clears: t("grant.hold.destinationClears") };
+    case "freeze_window":
+      return { cause, why: t("grant.hold.freezeWhy"), clears: t("grant.hold.freezeClears") };
+    case "level_below_l3":
+      return { cause, why: t("grant.hold.levelWhy"), clears: t("grant.hold.levelClears") };
+    case "agreement_not_executed":
+      return { cause, why: t("grant.hold.agreementWhy"), clears: t("grant.hold.agreementClears") };
+    case "organization_inactive":
+      return { cause, why: t("grant.hold.inactiveWhy"), clears: t("grant.hold.inactiveClears") };
+    case "passport_unavailable":
+      return { cause, why: t("grant.hold.passportWhy"), clears: t("grant.hold.passportClears") };
+    default:
+      return { cause, why: reason ? reason.replace(/_/g, " ") : t("grant.hold.heldWhy"), clears: t("grant.hold.heldClears") };
+  }
+}
+
+/** Where payments go, said in the page's language (api/applicantFull.ts decides the state). */
+function destinationText(d: PayoutDestination): { title: string; detail: string; tone: "ok" | "warn" | "neu" | "info" } {
+  const { tone } = describeDestination(d);
+  switch (d.state) {
+    case "ok":
+      return d.pendingChange
+        ? { title: t("grant.dest.pendingTitle"), detail: d.freezeUntil ? t("grant.dest.pendingUntil", { date: formatDate(d.freezeUntil.slice(0, 10)) }) : t("grant.dest.pendingDetail"), tone }
+        : { title: t("grant.dest.activeTitle"), detail: t("grant.dest.activeDetail"), tone };
+    case "none":
+      return { title: t("grant.dest.noneTitle"), detail: t("grant.dest.noneDetail"), tone };
+    case "not_linked":
+      return { title: t("grant.dest.notLinkedTitle"), detail: t("grant.dest.notLinkedDetail"), tone };
+    case "not_shared":
+      return { title: t("grant.dest.notSharedTitle"), detail: t("grant.dest.notSharedDetail"), tone };
+    default:
+      return { title: t("grant.dest.unreachableTitle"), detail: t("grant.dest.unreachableDetail"), tone };
+  }
 }
 
 /** The first payment that is paused, with the three things the grantee needs to know about it. */
 export function holdOf(d: GrantData): { tranche: ScheduleTranche | null; cause: string; why: string; clears: string } | null {
   const held = d.schedule.find((t) => t.status === "held");
-  if (held) return { tranche: held, ...holdExplanation(held.holdReason) };
-  if (d.payee.status === "pending_change") return { tranche: null, ...holdExplanation("destination_change_pending") };
+  if (held) return { tranche: held, ...holdText(held.holdReason) };
+  if (d.payee.status === "pending_change") return { tranche: null, ...holdText("destination_change_pending") };
   return null;
 }
 
@@ -123,7 +164,7 @@ const mask = (payee: PayeeSummary) => (payee.bankName && payee.last4 ? `${payee.
 export function HoldBanner({ data }: { data: GrantData }) {
   const hold = holdOf(data);
   if (!hold) return null;
-  const what = hold.tranche ? `Tranche ${hold.tranche.seq} (${formatMinor(hold.tranche.amountMinor, hold.tranche.currency)}) is paused` : "Payments are paused";
+  const what = hold.tranche ? t("grant.tranchePaused", { seq: hold.tranche.seq, amount: formatMinor(hold.tranche.amountMinor, hold.tranche.currency) }) : t("grant.paymentsPaused");
   return (
     <div className={`bnr bnr-warn${data.payee.status === "pending_change" ? " userback-block" : ""}`} role="status">
       <Lock className="ic" aria-hidden="true" />
@@ -137,7 +178,7 @@ export function HoldBanner({ data }: { data: GrantData }) {
       </div>
       {data.payee.manageUrl && (
         <a href={data.payee.manageUrl} className="btn btn-secondary btn-sm act">
-          Open Passport
+          {t("grant.openPassport")}
         </a>
       )}
     </div>
@@ -145,11 +186,11 @@ export function HoldBanner({ data }: { data: GrantData }) {
 }
 
 const PAYEE_CHIP = {
-  active: { cls: "pay-active", text: "Payee active" },
-  pending_change: { cls: "pay-pending", text: "Change pending" },
-  none: { cls: "pay-none", text: "No payee yet" },
-  unknown: { cls: "pay-none", text: "Status unknown" },
-} as const;
+  active: { cls: "pay-active", get text() { return t("grant.payee.active"); } },
+  pending_change: { cls: "pay-pending", get text() { return t("grant.payee.pending"); } },
+  none: { cls: "pay-none", get text() { return t("grant.payee.none"); } },
+  unknown: { cls: "pay-none", get text() { return t("grant.payee.unknown"); } },
+};
 
 export function PayeeChip({ payee }: { payee: PayeeSummary }) {
   const chip = PAYEE_CHIP[payee.status];
@@ -163,11 +204,11 @@ export function PayeeChip({ payee }: { payee: PayeeSummary }) {
 
 /** Bank name and last four at most; the destination itself is managed in Passport. */
 export function DestinationCard({ payee, destination = null, orgHref }: { payee: PayeeSummary; destination?: PayoutDestination | null; orgHref: string }) {
-  const said = destination && destination.state !== "ok" ? describeDestination(destination) : null;
+  const said = destination && destination.state !== "ok" ? destinationText(destination) : null;
   return (
     <div className="card userback-block">
       <div className="card-h">
-        <h3>Payment destination</h3>
+        <h3>{t("grant.paymentDestination")}</h3>
         <PayeeChip payee={payee} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -176,9 +217,9 @@ export function DestinationCard({ payee, destination = null, orgHref }: { payee:
             <Landmark className="ic ic-md" aria-hidden="true" />
           </span>
           <div>
-            <div className="b">{mask(payee) ?? (payee.status === "active" ? "Verified destination on file in Passport" : "No verified destination")}</div>
+            <div className="b">{mask(payee) ?? (payee.status === "active" ? t("grant.verifiedDestinationOnFileInPassport") : t("grant.noVerifiedDestination"))}</div>
             <div className="small muted">
-              {payee.status === "active" ? "Verified in Passport" : payee.status === "unknown" ? "Passport could not be reached" : "Verify a payout destination in Passport"} · <LevelBadge level={payee.level} />
+              {payee.status === "active" ? t("grant.verifiedInPassport") : payee.status === "unknown" ? t("grant.passportCouldNotBeReached") : t("grant.verifyAPayoutDestinationInPassport")} · <LevelBadge level={payee.level} />
             </div>
           </div>
         </div>
@@ -199,22 +240,22 @@ export function DestinationCard({ payee, destination = null, orgHref }: { payee:
           <Clock className="ic" aria-hidden="true" />
           <div>
             <div className="t" style={{ fontSize: "14px" }}>
-              Expecting a payment?
+              {t("grant.expectingAPayment")}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              Changes to your bank account take 5 business days and pause payments until they clear. Manage the destination in Passport, never here.
+              {t("grant.changesToYourBankAccountTake")}
             </div>
           </div>
         </div>
         {payee.manageUrl ? (
           <a href={payee.manageUrl} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
             <ExternalLink className="ic" aria-hidden="true" />
-            Manage in Passport
+            {t("grant.manageInPassport")}
           </a>
         ) : (
           <Link to={orgHref} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
             <ExternalLink className="ic" aria-hidden="true" />
-            Manage in Passport
+            {t("grant.manageInPassport")}
           </Link>
         )}
       </div>
@@ -233,7 +274,7 @@ export function DisbursementTimeline({ tranche }: { tranche: ScheduleTranche }) 
             <Check className="ic" aria-hidden="true" />
           </span>
           <div>
-            <div className="what">Settled</div>
+            <div className="what">{t("grant.settled")}</div>
             <div className="who userback-block">Passport{destination}</div>
           </div>
         </div>
@@ -244,8 +285,8 @@ export function DisbursementTimeline({ tranche }: { tranche: ScheduleTranche }) 
             <Clock className="ic" aria-hidden="true" />
           </span>
           <div>
-            <div className="what">{tranche.status === "failed" ? "Payment failed" : "Payment returned"}</div>
-            <div className="who">Passport · your funder is told and can send it again</div>
+            <div className="what">{tranche.status === "failed" ? t("grant.paymentFailed") : t("grant.paymentReturned")}</div>
+            <div className="who">{t("grant.passportYourFunderIsToldAnd")}</div>
           </div>
         </div>
       )}
@@ -254,7 +295,7 @@ export function DisbursementTimeline({ tranche }: { tranche: ScheduleTranche }) 
           <Send className="ic" aria-hidden="true" />
         </span>
         <div>
-          <div className="what">{tranche.mode === "resolve" ? "Paid by your funder outside Passport" : "Sent through Passport"}</div>
+          <div className="what">{tranche.mode === "resolve" ? t("grant.paidByYourFunderOutsidePassport") : t("grant.sentThroughPassport")}</div>
           <div className="who">{formatDate(tranche.releasedAt)}</div>
         </div>
       </div>
@@ -263,8 +304,8 @@ export function DisbursementTimeline({ tranche }: { tranche: ScheduleTranche }) 
           <Check className="ic" aria-hidden="true" />
         </span>
         <div>
-          <div className="what">Released by your funder</div>
-          <div className="who">After the readiness check passed</div>
+          <div className="what">{t("grant.releasedByYourFunder")}</div>
+          <div className="who">{t("grant.afterTheReadinessCheckPassed")}</div>
         </div>
       </div>
     </div>
@@ -290,17 +331,17 @@ export function varianceText(approved: number, actual: number, currency: string)
 export function BudgetTable({ book, compact = false }: { book: BudgetBook; compact?: boolean }) {
   const rows = budgetRows(book);
   const total = rows.reduce((s, r) => ({ approved: s.approved + r.approved, actual: s.actual + r.actual }), { approved: 0, actual: 0 });
-  if (!rows.length) return <p className="small muted" style={{ padding: "16px 20px" }}>Your funder has not set an approved budget yet.</p>;
+  if (!rows.length) return <p className="small muted" style={{ padding: "16px 20px" }}>{t("grant.yourFunderHasNotSetAn")}</p>;
   return (
-    <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Budget, scrollable">
+    <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label={t("grant.budgetScrollable")}>
       <table className="tbl bud" style={{ fontSize: "14px" }}>
-        <caption className="sr">Approved budget and actuals to date by category</caption>
+        <caption className="sr">{t("grant.approvedBudgetAndActualsToDate")}</caption>
         <thead>
           <tr>
-            <th scope="col">Category</th>
-            <th scope="col" className="num">Approved</th>
-            <th scope="col" className="num">Actual to date</th>
-            {!compact && <th scope="col" className="num">Variance</th>}
+            <th scope="col">{t("grant.category")}</th>
+            <th scope="col" className="num">{t("grant.approved")}</th>
+            <th scope="col" className="num">{t("grant.actualToDate")}</th>
+            {!compact && <th scope="col" className="num">{t("grant.variance")}</th>}
           </tr>
         </thead>
         <tbody>
@@ -313,14 +354,14 @@ export function BudgetTable({ book, compact = false }: { book: BudgetBook; compa
                 </th>
                 <td className="num">{formatMinor(r.approved, book.currency)}</td>
                 <td className={`num${v.over ? " over" : ""}`}>{formatMinor(r.actual, book.currency)}</td>
-                {!compact && <td className={`num ${v.over ? "var-neg" : "var-pos"}`}>{v.text}{v.over ? " over" : ""}</td>}
+                {!compact && <td className={`num ${v.over ? "var-neg" : "var-pos"}`}>{v.over ? t("grant.overBy", { amount: v.text }) : v.text}</td>}
               </tr>
             );
           })}
         </tbody>
         <tfoot>
           <tr>
-            <td>Total</td>
+            <td>{t("grant.total")}</td>
             <td className="num">{formatMinor(total.approved, book.currency)}</td>
             <td className="num">{formatMinor(total.actual, book.currency)}</td>
             {!compact && <td className="num">{varianceText(total.approved, total.actual, book.currency).text}</td>}
@@ -345,15 +386,15 @@ export function ActualsForm({ data, onSaved }: { data: GrantData; onSaved: () =>
     <form
       className="card-b"
       style={{ borderTop: "1px solid var(--og-gray-200)", display: "flex", flexDirection: "column", gap: "12px" }}
-      aria-label="Report actuals"
+      aria-label={t("grant.reportActuals")}
       onSubmit={async (e) => {
         e.preventDefault();
         const lines = categories.flatMap((c) => {
           const minor = parseDollars(amounts[c] ?? "");
           return minor === null ? [] : [{ category: c, label: c, amountMinor: minor }];
         });
-        if (!start || !end || start > end) return setProblem("Give the reporting period: a start date and a later end date.");
-        if (!lines.length) return setProblem("Enter what was spent in at least one category, in dollars.");
+        if (!start || !end || start > end) return setProblem(t("grant.badPeriod"));
+        if (!lines.length) return setProblem(t("grant.noLines"));
         setProblem(null);
         if (await save.run(lines)) {
           setAmounts({});
@@ -361,18 +402,18 @@ export function ActualsForm({ data, onSaved }: { data: GrantData; onSaved: () =>
         }
       }}
     >
-      <h3>Report actuals for a period</h3>
+      <h3>{t("grant.reportActualsForAPeriod")}</h3>
       <div className="fld-row">
-        <Field id="act-start" label="Period start">
+        <Field id="act-start" label={t("grant.periodStart")}>
           <input className="inp" id="act-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
-        <Field id="act-end" label="Period end">
+        <Field id="act-end" label={t("grant.periodEnd")}>
           <input className="inp" id="act-end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
       <div className="fld-row">
         {categories.map((c, i) => (
-          <Field key={c} id={`act-${i}`} label={`${c} spent`}>
+          <Field key={c} id={`act-${i}`} label={t("grant.spentIn", { category: c })}>
             <input className="inp" id={`act-${i}`} inputMode="decimal" placeholder="$0" value={amounts[c] ?? ""} onChange={(e) => setAmounts({ ...amounts, [c]: e.target.value })} />
           </Field>
         ))}
@@ -382,40 +423,45 @@ export function ActualsForm({ data, onSaved }: { data: GrantData; onSaved: () =>
           {problem}
         </span>
       )}
-      {save.error ? <ErrorBanner error={save.error} title="The actuals were not saved" /> : null}
+      {save.error ? <ErrorBanner error={save.error} title={t("grant.theActualsWereNotSaved")} /> : null}
       <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="submit" disabled={save.state === "saving"}>
-          Save actuals
+          {t("grant.saveActuals")}
         </button>
-        <SaveNote state={save.state} savedText="Actuals saved" />
-        <span className="help">Reporting the same period again replaces what you entered for it.</span>
+        <SaveNote state={save.state} savedText={t("grant.actualsSaved")} />
+        <span className="help">{t("grant.reportingTheSamePeriodAgainReplaces")}</span>
       </div>
     </form>
   );
 }
 
-const AMENDMENT_TYPES: { key: AmendmentInput["type"]; label: string; hint: string }[] = [
-  { key: "extension", label: "Extension", hint: "Why the grant period needs to change, and what it changes about reporting" },
-  { key: "reallocation", label: "Reallocation", hint: "Which categories change, by how much, and why" },
-  { key: "scope", label: "Scope", hint: "What changes about the work, and why" },
-  { key: "supplemental", label: "Supplemental", hint: "What the additional funding would pay for" },
+// A function, so its labels follow the page's language (docs/i18n.md).
+const AMENDMENT_TYPES = (): { key: AmendmentInput["type"]; label: string; hint: string }[] => [
+  { key: "extension", label: t("grant.amendment.extension"), hint: t("grant.amendment.extensionHint") },
+  { key: "reallocation", label: t("grant.amendment.reallocation"), hint: t("grant.amendment.reallocationHint") },
+  { key: "scope", label: t("grant.amendment.scope"), hint: t("grant.amendment.scopeHint") },
+  { key: "supplemental", label: t("grant.amendment.supplemental"), hint: t("grant.amendment.supplementalHint") },
 ];
+/** An amendment's type and status as words; the API's own codes when unknown. */
+const amendmentType = (type: string) => AMENDMENT_TYPES().find((a) => a.key === type)?.label ?? type;
+const amendmentStatus = (status: string) =>
+  status === "requested" ? t("grant.amendment.requested") : status === "approved" ? t("grant.amendment.approved") : status === "declined" ? t("grant.amendment.declined") : status;
 const AMENDMENT_STATUS = { requested: "bdg-info", approved: "bdg-ok", declined: "bdg-dng" } as const;
 
 export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: () => void }) {
-  const funder = data.award.funder.name ?? "your funder";
+  const funder = data.award.funder.name ?? null;
   const amendments = data.award.amendments as { id: string; type: string; status: keyof typeof AMENDMENT_STATUS; createdAt: string; request?: { reason?: string; newEndDate?: string } }[];
   const [type, setType] = useState<AmendmentInput["type"]>("extension");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const send = useMoreMutation((api) => api.requestAmendment(data.award.id, { type, reason: reason.trim(), ...(type === "extension" && endDate ? { request: { newEndDate: endDate } } : {}) }));
-  const current = AMENDMENT_TYPES.find((t) => t.key === type)!;
+  const current = AMENDMENT_TYPES().find((a) => a.key === type)!;
   return (
     <div className="card" id="amendments">
       <div className="card-h">
         <div>
-          <h2>Amendments</h2>
-          <p className="small muted">{amendments.length ? `${amendments.length} requested` : "No amendments requested yet."}</p>
+          <h2>{t("grant.amendments")}</h2>
+          <p className="small muted">{amendments.length ? t("grant.requestedCount", { count: amendments.length }) : t("grant.noAmendmentsRequestedYet")}</p>
         </div>
       </div>
       {amendments.length > 0 && (
@@ -423,12 +469,12 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
           {amendments.map((a) => (
             <li key={a.id} className="row" style={{ justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
               <span>
-                <span className="b" style={{ textTransform: "capitalize" }}>{a.type}</span>
-                <span className="muted"> · requested {formatDate(a.createdAt)}{a.request?.reason ? ` · ${a.request.reason}` : ""}</span>
+                <span className="b" style={{ textTransform: "capitalize" }}>{amendmentType(a.type)}</span>
+                <span className="muted"> · {t("grant.requestedOn", { date: formatDate(a.createdAt) })}{a.request?.reason ? ` · ${a.request.reason}` : ""}</span>
               </span>
               <span className={`bdg ${AMENDMENT_STATUS[a.status] ?? "bdg-neutral"}`} style={{ textTransform: "capitalize" }}>
                 <Clock className="ic" aria-hidden="true" />
-                {a.status}
+                {amendmentStatus(a.status)}
               </span>
             </li>
           ))}
@@ -437,7 +483,7 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
       <form
         className="card-b"
         style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-        aria-label="Request an amendment"
+        aria-label={t("grant.requestAnAmendment")}
         onSubmit={async (e) => {
           e.preventDefault();
           if (await send.run()) {
@@ -447,29 +493,29 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
           }
         }}
       >
-        <span className="lbl" id="am-type">Request an amendment</span>
+        <span className="lbl" id="am-type">{t("grant.requestAnAmendment")}</span>
         <div className="seg" role="group" aria-labelledby="am-type">
-          {AMENDMENT_TYPES.map((t) => (
-            <button key={t.key} type="button" className={t.key === type ? "on" : undefined} aria-pressed={t.key === type} onClick={() => setType(t.key)}>
-              {t.label}
+          {AMENDMENT_TYPES().map((opt) => (
+            <button key={opt.key} type="button" className={opt.key === type ? "on" : undefined} aria-pressed={opt.key === type} onClick={() => setType(opt.key)}>
+              {opt.label}
             </button>
           ))}
         </div>
         {type === "extension" && (
-          <Field id="am-end" label="New end date">
+          <Field id="am-end" label={t("grant.newEndDate")}>
             <input className="inp" id="am-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </Field>
         )}
-        <Field id="am-why" label="Reason" required>
+        <Field id="am-why" label={t("grant.reason")} required>
           <textarea className="ta" id="am-why" required placeholder={current.hint} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
-        {send.error ? <ErrorBanner error={send.error} title="The request was not sent" /> : null}
+        {send.error ? <ErrorBanner error={send.error} title={t("grant.theRequestWasNotSent")} /> : null}
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
           <button className="btn btn-primary" type="submit" disabled={!reason.trim() || send.state === "saving"}>
-            Send request to {funder}
+            {funder ? t("grant.sendRequestTo", { funder }) : t("grant.sendRequestToYourFunder")}
           </button>
-          <SaveNote state={send.state} savedText="Request sent" />
-          <span className="help">{funder} approves or declines in their Awards view; you are notified either way.</span>
+          <SaveNote state={send.state} savedText={t("grant.requestSent")} />
+          <span className="help">{funder ? t("grant.approvesOrDeclines", { funder }) : t("grant.approvesOrDeclinesYourFunder")}</span>
         </div>
       </form>
     </div>
