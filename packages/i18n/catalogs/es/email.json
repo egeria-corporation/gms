@@ -416,5 +416,8 @@
   "csv.col.requirements.type": "Tipo",
   "csv.aggregate.count": "Cantidad",
   "csv.aggregate.sumOf": "Total de {column}",
-  "csv.aggregate.avgOf": "Promedio de {column}"
+  "csv.aggregate.avgOf": "Promedio de {column}",
+  "review.anonymous.name": "Solicitante {code}",
+  "review.anonymous.placeholder": "[solicitante]",
+  "review.anonymous.attachment": "Archivo adjunto"
 }

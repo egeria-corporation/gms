@@ -325,6 +325,16 @@ describe("anonymized review", () => {
     expect(staff.formResponses[0]!.response.need).toBe(NEED);
   });
 
+  it("words the replacements in the reviewer's language, and hides the same things", async () => {
+    await anonymize();
+    const d = await data<{ title: string; applicant: { name: string }; formResponses: { response: Record<string, unknown> }[] }>({ ...r1, Cookie: "gms_lang=es" }, "GET", `/gms/applications/app_${appA}`);
+    expect(d.applicant.name).toBe("Solicitante A-1001");
+    expect(d.title).toBe("[solicitante]: mobile health navigation");
+    expect(d.formResponses[0]!.response.need).toBe("[solicitante] has run the valley's only clinic since 1998. Our annual report is at [solicitante], or write to [solicitante]. EIN [solicitante].");
+    expect(d.formResponses[0]!.response.letter).toEqual({ documentId: "0190d000-0000-7000-8000-000000000001", name: "Archivo adjunto 1.pdf" });
+    expect(shows(d)).toBe(false);
+  });
+
   it("a field the form marks identifying is hidden; a stage that is not anonymized is untouched", async () => {
     await h.repos.table("forms").update({ id: s.uuid.loi }, { field_meta: { "/projectTitle": { identifying: true } } as never });
     await anonymize();

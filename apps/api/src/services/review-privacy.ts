@@ -19,6 +19,8 @@ import { identifyingFields, type FormDefinition, type JsonObject } from "@gms/fo
 import type { StageJson } from "@gms/protocol";
 import { FUNDER_ROLES } from "../auth/scopes.ts";
 import type { ServiceContext, ServiceWorkspace } from "./context.ts";
+import { DEFAULT_LOCALE } from "@gms/i18n";
+import { serverTranslator } from "@gms/i18n/server";
 import { orgFacts } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -113,7 +115,11 @@ export function anonymityFor(ctx: ServiceContext, appId: string): Promise<Anonym
     if (!isAnonymizedStage(competition, app.stage) && !mine.some((a) => isAnonymizedStage(competition, a.stage))) return null;
     const code = await applicationCode(ctx, app);
     const applicant = await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id });
-    return { code, name: anonymousName(code), terms: identityOf(applicant) };
+    // The replacements in the reviewer's language ("[solicitante]", "Solicitante A-1042"); English otherwise.
+    const locale = ctx.locale ?? DEFAULT_LOCALE;
+    if (locale === DEFAULT_LOCALE) return { code, name: anonymousName(code), terms: identityOf(applicant) };
+    const t = serverTranslator(locale, "email");
+    return { code, name: t("review.anonymous.name", { code }), terms: { ...identityOf(applicant), words: { placeholder: t("review.anonymous.placeholder"), attachment: t("review.anonymous.attachment") } } };
   });
 }
 

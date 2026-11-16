@@ -416,5 +416,8 @@
   "csv.col.requirements.type": "Type",
   "csv.aggregate.count": "Count",
   "csv.aggregate.sumOf": "Total {column}",
-  "csv.aggregate.avgOf": "Average {column}"
+  "csv.aggregate.avgOf": "Average {column}",
+  "review.anonymous.name": "Applicant {code}",
+  "review.anonymous.placeholder": "[applicant]",
+  "review.anonymous.attachment": "Attachment"
 }
