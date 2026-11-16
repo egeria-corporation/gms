@@ -9,7 +9,7 @@ type AnyRow = Record<string, unknown>;
 /** Column defaults from supabase/migrations, for the tables the services write. */
 const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   workspaces: () => ({ passport_org_id: null, legal_name: null, ein: null, brand: {}, settings: {}, org_projection: null, org_projection_at: null, profile_projection: null, profile_projection_at: null, profile_source: "none", self_declared_profile: null, verification_level: null, status: "active" }),
-  workspace_members: () => ({ scope: {}, expires_at: null, mfa_enrolled_at: null, invited_by: null, notification_preferences: {}, notifications_read_at: null, notifications_read_ids: [] }),
+  workspace_members: () => ({ scope: {}, expires_at: null, mfa_enrolled_at: null, invited_by: null, notification_preferences: {}, notifications_read_at: null, notifications_read_ids: [], dismissed_notes: [] }),
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, access_token_enc: null, access_token_expires_at: null, token_version: 0, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),
   consents: () => ({ scopes: [], granted_by: null, revoked_at: null }),
@@ -138,10 +138,14 @@ const DEFAULTS: Partial<Record<TableName, () => AnyRow>> = {
   consulting_requests: () => ({ sent_at: null, fields_sent: [] }),
   outside_obligation_series: () => ({ amount_minor: null, notes: null, created_by: null }),
   outside_obligations: () => ({ due_on: null, amount_minor: null, status: "upcoming", series_id: null, customized: false, notes: null, submitted_at: null, confirmation_ref: null, document_id: null, snapshot_sha256: null, completed_on: null, created_by: null }),
+  application_summaries: () => ({ generated_by: null }),
+  import_mappings: () => ({ updated_by: null }),
+  import_runs: () => ({ source_label: null, source_ref: null, dropped_columns: [], reconciliation: {}, created_by: null, committed_by: null, committed_at: null, finished_at: null }),
+  import_rows: () => ({ reason: null, problems: [], record: null, subtitle: null, entity_type: null, entity_id: null, written_at: null }),
 };
 
-/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL). */
-const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string }[]>> = {
+/** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL or `whereNotNull` is not). */
+const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string; whereNotNull?: string }[]>> = {
   workspaces: [{ columns: ["handle"] }],
   workspace_members: [{ columns: ["workspace_id", "user_id"] }],
   invitations: [{ columns: ["token_hash"] }],
@@ -164,6 +168,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string 
   grantee_records: [{ columns: ["workspace_id", "applicant_workspace_id"] }],
   outside_answers: [{ columns: ["question_id", "version"] }],
   calendar_feeds: [{ columns: ["workspace_id"] }, { columns: ["token_sha256"] }],
+  application_summaries: [{ columns: ["application_id", "response_version"] }],
+  import_mappings: [{ columns: ["workspace_id", "target", "source", "source_ref"] }],
+  import_rows: [{ columns: ["run_id", "line"] }, { columns: ["workspace_id", "target", "row_key"], whereNotNull: "entity_id" }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -198,6 +205,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   consulting_requests: { outside_application_id: "outside_applications" },
   outside_obligation_series: { outside_application_id: "outside_applications" },
   outside_obligations: { outside_application_id: "outside_applications", series_id: "outside_obligation_series", document_id: "documents" },
+  // 0032 checks this one with its own trigger (gms.application_summary_same_workspace).
+  application_summaries: { application_id: "applications" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
@@ -235,7 +244,8 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
   private assertUnique(candidate: AnyRow, self?: AnyRow) {
     for (const u of UNIQUE[this.name] ?? []) {
       if (u.whereNull && (candidate[u.whereNull] ?? null) !== null) continue;
-      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && u.columns.every((c) => r[c] === candidate[c]));
+      if (u.whereNotNull && (candidate[u.whereNotNull] ?? null) === null) continue;
+      const clash = this.rows.find((r) => r !== self && (!u.whereNull || (r[u.whereNull] ?? null) === null) && (!u.whereNotNull || (r[u.whereNotNull] ?? null) !== null) && u.columns.every((c) => r[c] === candidate[c]));
       if (clash) throw new RepoError("conflict", `${this.name}: ${u.columns.join(", ")} already exists`);
     }
   }
@@ -264,6 +274,17 @@ class MemoryTable<T extends TableName> implements TableRepo<T> {
     this.assertSameWorkspace(full);
     this.rows.push(structuredClone(full));
     return structuredClone(full) as Row<T>;
+  }
+  async insertMany(rows: Insert<T>[]) {
+    const before = this.rows.length;
+    try {
+      for (const r of rows) await this.insert(r);
+    } catch (e) {
+      // All or none, as one Postgres statement.
+      this.rows.length = before;
+      throw e;
+    }
+    return rows.length;
   }
   async update(where: Where<T>, patch: Update<T>) {
     const at = this.now().toISOString();

@@ -4,6 +4,9 @@ import "@common-grants/core";
 import "./routes.tsp";
 import "./outside.tsp";
 import "./keep.tsp";
+import "./embed.tsp";
+import "./invites.tsp";
+import "./imports.tsp";
 
 using TypeSpec.Http;
 

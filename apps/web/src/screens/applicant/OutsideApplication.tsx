@@ -88,6 +88,8 @@ export default function OutsideApplication() {
               const outcomes = archived ? [] : decisionOutcomes(detail.stage);
               const owner = detail.owner ? (members.find((m) => m.userId === detail.owner!.userId)?.name ?? detail.owner.name ?? "A teammate") : null;
               const busy = move.state === "saving" || reopen.state === "saving" || archive.state === "saving";
+              // A consultant invited into this draft writes its answers; the rest is the team's.
+              const cowriter = detail.cowriter === true;
               return (
                 <>
                   <PageHeader
@@ -129,6 +131,7 @@ export default function OutsideApplication() {
                       </>
                     }
                     actions={
+                      cowriter ? undefined : (
                       <>
                         {!archived && canMarkSubmitted(detail.stage) && (
                           <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
@@ -190,6 +193,7 @@ export default function OutsideApplication() {
                           {archived ? "Unarchive" : "Archive"}
                         </button>
                       </>
+                      )
                     }
                   />
                   <div className="row" style={{ gap: "24px", flexWrap: "wrap", fontSize: "14px" }} aria-label="Deadlines" role="group">
@@ -213,9 +217,9 @@ export default function OutsideApplication() {
                     </Notice>
                   )}
                   {[move.error, reopen.error, archive.error].map((e, i) => (e ? <ErrorBanner key={i} error={e} title="That change was not made" /> : null))}
-                  <NextCycleCard detail={detail} />
-                  <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={archived} onDone={(a, message) => after(a, message)} />
-                  {detail.stage === "awarded" && (
+                  {!cowriter && <NextCycleCard detail={detail} />}
+                  {!cowriter && <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={archived} onDone={(a, message) => after(a, message)} />}
+                  {detail.stage === "awarded" && !cowriter && (
                     <div className="bnr bnr-ok" role="region" aria-label="Awarded">
                       <Award className="ic" aria-hidden="true" />
                       <div className="grow">
@@ -230,7 +234,7 @@ export default function OutsideApplication() {
                   <Tabs<Tab>
                     label="Application sections"
                     idPrefix="oa"
-                    active={tab}
+                    active={cowriter ? "questions" : tab}
                     onChange={setTab}
                     tabs={[
                       { key: "questions", label: "Questions", count: detail.questions.filter((q) => !q.obligationId).length },
@@ -238,11 +242,13 @@ export default function OutsideApplication() {
                       { key: "submission", label: "Submission" },
                       { key: "notes", label: "Notes" },
                       { key: "activity", label: "Activity" },
-                    ].map((t) => (t.count === undefined ? { key: t.key as Tab, label: t.label } : { key: t.key as Tab, label: t.label, count: t.count }))}
+                    ].filter((t) => !cowriter || t.key === "questions").map((t) => (t.count === undefined ? { key: t.key as Tab, label: t.label } : { key: t.key as Tab, label: t.label, count: t.count }))}
                   />
-                  <TabPanel idPrefix="oa" tab="questions" active={tab}>
+                  <TabPanel idPrefix="oa" tab="questions" active={cowriter ? "questions" : tab}>
                     <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={archived} onChanged={query.reload} />
                   </TabPanel>
+                  {!cowriter && (
+                  <>
                   <TabPanel idPrefix="oa" tab="checklist" active={tab}>
                     <ChecklistTab detail={detail} members={members} readOnly={archived} onChanged={query.reload} />
                   </TabPanel>
@@ -255,6 +261,8 @@ export default function OutsideApplication() {
                   <TabPanel idPrefix="oa" tab="activity" active={tab}>
                     <ActivityTab detail={detail} members={members} />
                   </TabPanel>
+                  </>
+                  )}
 
                   {dialog === "submit" && <MarkSubmittedDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, "Marked as submitted. The “as submitted” copy is on the Submission tab.")} />}
                   {dialog === "decide" && <DecisionDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, `Decision recorded: ${STAGE_LABELS[a.stage]}`)} />}

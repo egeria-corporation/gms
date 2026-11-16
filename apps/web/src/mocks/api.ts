@@ -141,8 +141,11 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     website: w.profile.website,
     verificationLevel: w.record.verificationLevel,
     verification: verificationOfRecord(w.record),
+    poweredBy: w.record.settings.poweredBy !== false,
   });
-  const cardOf = (o: Opportunity): PublicOpportunityCard => ({
+  /** The real API's test: an open opportunity with an open competition. */
+  const accepting = (w: WorkspaceData, o: Opportunity) => o.status === "open" && w.competitions.some((c) => c.opportunityId === o.id && c.status === "open");
+  const cardOf = (w: WorkspaceData, o: Opportunity): PublicOpportunityCard => ({
     id: o.id.replace(/^opp_/, ""),
     slug: o.slug,
     title: o.title,
@@ -151,8 +154,13 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     funding: o.funding,
     keyDates: o.keyDates,
     acceptedApplicantTypes: o.acceptedApplicantTypes,
+    acceptingApplications: accepting(w, o),
   });
   const listed = (o: Opportunity) => o.published && o.publish.publicPage !== false;
+  const ruleLabels = (o: Opportunity) => {
+    const parsed = parseRules(o.eligibilityRules);
+    return parsed.ok && parsed.rules && "all" in parsed.rules ? parsed.rules.all.flatMap((r) => ("label" in r && r.label ? [r.label] : [])) : [];
+  };
   const publicFunderData = (handle: string) => {
     const w = store.workspaces.find((x) => x.record.handle === handle && x.record.kind === "funder" && x.record.status === "active");
     if (!w) throw notFound("Funder");
@@ -251,23 +259,45 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
 
     async publicFunder(handle) {
       const w = publicFunderData(handle);
-      return clone({ funder: funderOf(w), opportunities: w.opportunities.filter(listed).map(cardOf) });
+      return clone({ funder: funderOf(w), opportunities: w.opportunities.filter(listed).map((o) => cardOf(w, o)) });
     },
     async publicOpportunity(handle, slug) {
       const w = publicFunderData(handle);
       const opp = w.opportunities.find((o) => o.slug === slug && listed(o));
       if (!opp) throw notFound("Opportunity");
-      const parsed = parseRules(opp.eligibilityRules);
-      const labels = parsed.ok && parsed.rules && "all" in parsed.rules ? parsed.rules.all.flatMap((r) => ("label" in r && r.label ? [r.label] : [])) : [];
+      const labels = ruleLabels(opp);
       const bare = opp.id.replace(/^opp_/, "");
       return clone({
         funder: funderOf(w),
-        opportunity: { ...cardOf(opp), publishedAt: opp.publishedAt, eligibility: labels },
+        opportunity: { ...cardOf(w, opp), publishedAt: opp.publishedAt, eligibility: labels },
         competitions: w.competitions
           .filter((c) => c.opportunityId === opp.id && c.status !== "draft")
           .map((c) => ({ id: c.id.replace(/^cmp_/, ""), title: c.title, description: c.description, instructions: c.instructions, status: c.status, keyDates: c.keyDates, stages: c.stages.map((s) => ({ key: s.key, label: s.label, opens: s.opens ?? null, closes: s.closes ?? null, requiresSubmission: s.requiresSubmission })) })),
         commonGrants: { id: bare, title: opp.title, description: opp.description, status: { value: opp.status }, funding: opp.funding, keyDates: opp.keyDates },
         links: { json: `/common-grants/opportunities/${bare}`, page: `/f/${handle}/o/${slug}` },
+      });
+    },
+    async publicEmbed(handle, slug) {
+      const w = publicFunderData(handle);
+      const opp = w.opportunities.find((o) => o.slug === slug && listed(o));
+      if (!opp) throw notFound("Opportunity");
+      const labels = ruleLabels(opp);
+      const funder = funderOf(w);
+      return clone({
+        funder: { handle: funder.handle, name: funder.name, brand: funder.brand, verified: funder.verification.source === "passport" },
+        opportunity: {
+          slug: opp.slug,
+          title: opp.title,
+          status: opp.status,
+          closeDate: opp.keyDates.closeDate?.date ? { name: opp.keyDates.closeDate.name ?? "Closes", date: opp.keyDates.closeDate.date } : null,
+          opensDate: opp.keyDates.postDate?.date ?? null,
+          acceptedApplicantTypes: opp.acceptedApplicantTypes,
+          eligibility: labels.slice(0, 3),
+          moreEligibility: Math.max(0, labels.length - 3),
+        },
+        acceptingApplications: accepting(w, opp),
+        poweredBy: funder.poweredBy !== false,
+        links: { page: `/f/${handle}/o/${slug}` },
       });
     },
     async publicCompetition(id) {
@@ -322,8 +352,11 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
     },
     async updateWorkspace(id, patch) {
       const w = await member(id);
+      // As the API: workspace settings, brand and name are for its admins.
+      if (memberships.find((m) => m.id === id)?.role !== "admin") throw new ApiError(403, "Only a workspace admin can change this");
       if (patch.displayName !== undefined) w.record.displayName = patch.displayName;
-      if (patch.settings) w.record.settings = { ...w.record.settings, ...patch.settings };
+      // A merge patch, as the API: a key left out keeps its value, null removes it.
+      if (patch.settings) w.record.settings = Object.fromEntries(Object.entries({ ...w.record.settings, ...patch.settings }).filter(([, v]) => v !== null && v !== undefined));
       const warnings = brandWrite(w.record, patch.brand);
       return clone({ workspace: w.record, warnings });
     },

@@ -10,7 +10,7 @@
 // own records.
 import { renderPdf, renderOutsideSnapshot, sha256Hex, type Block } from "@gms/documents";
 import { countText, isOverLimit, parseQuestions, type LimitKind, type TextCounts } from "@gms/forms";
-import { mapCsv, toCsv } from "@gms/importers";
+import { checkOutsideRow, mapCsv, OUTSIDE_FIELDS, toCsv, type OutsideField, type OutsideRecord } from "@gms/importers";
 import { cleanLine, cleanText } from "@gms/notify";
 import { toMinor, toMoney, type Money } from "@gms/protocol";
 import { checkOutside, plainMovesFrom, transitionOutside, LIMIT_KINDS, OUTSIDE_SOURCES, OUTSIDE_STAGES, QUESTION_PHASES, QUESTION_STATUSES, SUBMISSION_METHODS, type OutsideRequest, type OutsideStage } from "@gms/workflow";
@@ -49,8 +49,28 @@ export async function outsideWorkspace(ctx: ServiceContext, scope: "applications
   return authorize(ctx, { scope, kind: "applicant", roles: OUTSIDE_ROLES });
 }
 
+/**
+ * A cowriter: a consultant invited into one outside draft (./draft-invitations.ts), whose
+ * membership scope names it in `outsideApplicationIds`. They may open that application, read its
+ * questions, write answers, set a question to draft or ready, and comment. Nothing else of
+ * outside applications: no lists, documents, stages, submissions, decisions or other drafts. The
+ * functions that let them in say so with `{ cowriter: true }`; every other one refuses them.
+ */
+export const COWRITER_ROLE = "consultant";
+export const isCowriter = (ws: ServiceWorkspace): boolean => ws.role === COWRITER_ROLE;
+const cowriterOf = (ws: ServiceWorkspace, id: string): boolean => isCowriter(ws) && ((ws.memberScope?.outsideApplicationIds as unknown[] | undefined) ?? []).includes(id);
+type Access = { cowriter?: boolean };
+
 /** The outside application, in the caller's workspace only; anything else is a 404. */
-export async function loadOutside(ctx: ServiceContext, id: string, scope: "applications:read" | "applications:write"): Promise<{ ws: ServiceWorkspace; row: Oa }> {
+export async function loadOutside(ctx: ServiceContext, id: string, scope: "applications:read" | "applications:write", opts: Access = {}): Promise<{ ws: ServiceWorkspace; row: Oa }> {
+  if (opts.cowriter) {
+    const ws = await authorize(ctx, { scope, kind: "applicant", cowriter: true });
+    if (isCowriter(ws)) {
+      const row = cowriterOf(ws, id) ? await ctx.repos.table("outside_applications").one({ id, workspace_id: ws.id }) : null;
+      if (!row) throw notFound("Outside application");
+      return { ws, row };
+    }
+  }
   const ws = await outsideWorkspace(ctx, scope);
   const row = await ctx.repos.table("outside_applications").one({ id, workspace_id: ws.id });
   if (!row) throw notFound("Outside application");
@@ -388,8 +408,26 @@ export async function createOutside(ctx: ServiceContext, input: z.output<typeof 
 }
 
 export async function getOutside(ctx: ServiceContext, id: string) {
-  const { row } = await loadOutside(ctx, id, "applications:read");
-  return detailView(ctx, row);
+  const { ws, row } = await loadOutside(ctx, id, "applications:read", { cowriter: true });
+  const detail = await detailView(ctx, row);
+  if (!isCowriter(ws)) return { ...detail, cowriter: false };
+  // A cowriter sees the application and its questions, not the team's records around it.
+  return {
+    ...detail,
+    cowriter: true,
+    allowedMoves: [],
+    funderRecordId: null,
+    funderRecord: null,
+    customFields: {},
+    decisionNotes: null,
+    decision: null,
+    nextCycleOn: null,
+    requiredDocuments: [],
+    goNoGo: { ...detail.goNoGo, enabled: false, scorecard: null },
+    documents: [],
+    tasks: [],
+    activity: [],
+  };
 }
 
 /** Everything a person edits by hand. Never the stage, the submission or the decision. */
@@ -597,7 +635,7 @@ const oneQuestion = z.object(questionFields).strict().refine((q) => (q.limitKind
 export const questionsInput = z.union([z.object({ questions: z.array(oneQuestion).min(1).max(100) }).strict(), oneQuestion]).transform((v) => ("questions" in v ? v.questions : [v]));
 
 export async function listQuestions(ctx: ServiceContext, id: string) {
-  const { row } = await loadOutside(ctx, id, "applications:read");
+  const { row } = await loadOutside(ctx, id, "applications:read", { cowriter: true });
   return (await questionsWithAnswers(ctx, row)).map(({ q, latest }) => questionView(q, latest));
 }
 
@@ -650,10 +688,11 @@ export async function parseQuestionText(ctx: ServiceContext, id: string, input: 
   return { mode: "deterministic" as const, questions: parseQuestions(input.text, input.phase ?? "full") };
 }
 
-export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write") {
-  const ws = await outsideWorkspace(ctx, scope);
+export async function loadQuestion(ctx: ServiceContext, qid: string, scope: "applications:read" | "applications:write", opts: Access = {}) {
+  const asked = opts.cowriter ? await authorize(ctx, { scope, kind: "applicant", cowriter: true }) : null;
+  const ws = asked && isCowriter(asked) ? asked : await outsideWorkspace(ctx, scope);
   const q = await ctx.repos.table("outside_questions").one({ id: qid, workspace_id: ws.id });
-  if (!q) throw notFound("Question");
+  if (!q || (isCowriter(ws) && !cowriterOf(ws, q.outside_application_id))) throw notFound("Question");
   const row = await ctx.repos.table("outside_applications").one({ id: q.outside_application_id, workspace_id: ws.id });
   if (!row) throw notFound("Question");
   return { ws, q, row };
@@ -698,8 +737,10 @@ export const questionPatch = z
   .refine((q) => (q.limitKind ?? null) === null || q.limitValue !== null, { message: "A limit needs a number", path: ["limitValue"] });
 
 export async function patchQuestion(ctx: ServiceContext, qid: string, input: z.output<typeof questionPatch>) {
-  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
+  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write", { cowriter: true });
   writable(row);
+  // A cowriter writes answers and marks them draft or ready; the team sets up the questions.
+  if (isCowriter(ws) && Object.keys(input).some((k) => k !== "status")) throw forbidden("cowriter_answers_only", "You can write answers and mark them ready. Ask the team to change the question itself or who it is assigned to");
   // Refused before anything is written.
   if (input.status === "approved") assertMayApprove(ctx, ws, row);
   await assertMember(ctx, ws.id, input.assigneeUserId);
@@ -772,7 +813,7 @@ async function assertPriorReportAnswer(ctx: ServiceContext, workspaceId: string,
  * to draft.
  */
 export async function putAnswer(ctx: ServiceContext, qid: string, input: z.output<typeof answerInput>) {
-  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write");
+  const { ws, q, row } = await loadQuestion(ctx, qid, "applications:write", { cowriter: true });
   writable(row);
   const library = input.libraryAnswerId ? await ctx.repos.table("answers").one({ id: input.libraryAnswerId, workspace_id: ws.id }) : null;
   if (input.libraryAnswerId) {
@@ -813,7 +854,7 @@ export async function putAnswer(ctx: ServiceContext, qid: string, input: z.outpu
 }
 
 export async function listAnswerVersions(ctx: ServiceContext, qid: string) {
-  const { q } = await loadQuestion(ctx, qid, "applications:read");
+  const { q } = await loadQuestion(ctx, qid, "applications:read", { cowriter: true });
   return (await ctx.repos.table("outside_answers").find({ workspace_id: q.workspace_id, question_id: q.id }, { orderBy: "version", ascending: false })).map((a) => answerView(a, q));
 }
 
@@ -907,46 +948,89 @@ export async function outsideDocumentFile(ctx: ServiceContext, id: string, docum
 
 // ------------------------------------------------------------------------------------ CSV import and export
 
-const IMPORT_FIELDS = ["title", "funderName", "programName", "stage", "loiDue", "fullDue", "internalDue", "rolling", "askAmount", "currency", "listingUrl", "portalUrl", "submittedAt", "submissionMethod", "confirmationRef", "awardedAmount", "grantStart", "grantEnd", "notes"] as const;
+// The fields and their checks are the import framework's outside-applications target
+// (@gms/importers, targets/outside.ts); this route is the v1.5.0 one-file import, kept for clients
+// that call it. The import wizard uses /gms/imports (./imports.ts), which writes through the same
+// `insertImportedOutside`.
+const IMPORT_FIELDS = OUTSIDE_FIELDS.filter((f) => f !== "sourceId") as Exclude<OutsideField, "sourceId">[];
 type ImportField = (typeof IMPORT_FIELDS)[number];
 
 export const importInput = z
   .object({
     csv: z.string().min(1).max(5_000_000),
     /** Which CSV column feeds each field. `title` and `funderName` are required. */
-    mapping: z.partialRecord(z.enum(IMPORT_FIELDS), z.string().trim().min(1).max(200)),
+    mapping: z.partialRecord(z.enum(IMPORT_FIELDS as [ImportField, ...ImportField[]]), z.string().trim().min(1).max(200)),
     dryRun: z.boolean().default(true),
   })
   .strict();
 
-const STAGE_WORDS: Record<string, OutsideStage> = Object.fromEntries([...OUTSIDE_STAGES.map((s) => [s, s]), ...Object.entries(STAGE_LABEL).map(([k, v]) => [v.toLowerCase(), k]), ["letter of intent", "loi"], ["invited", "invited"], ["not pursued", "not_pursuing"], ["pending", "submitted"], ["funded", "awarded"], ["rejected", "declined"], ["in progress", "drafting"], ["draft", "drafting"]]) as Record<string, OutsideStage>;
-const METHOD_WORDS: Record<string, string> = { portal: "portal", online: "portal", "online portal": "portal", email: "email", "e-mail": "email", mail: "mail", post: "mail", "grants.gov": "grants_gov", grants_gov: "grants_gov", other: "other" };
-
-/** YYYY-MM-DD from `2027-05-01` or `5/1/2027`; null for anything else. */
-function csvDate(v: string | undefined): string | null | undefined {
-  if (v === undefined) return undefined;
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
-  const [y, m, d] = iso ? [iso[1]!, iso[2]!, iso[3]!] : us ? [us[3]!, us[1]!.padStart(2, "0"), us[2]!.padStart(2, "0")] : [];
-  if (!y) return null;
-  const date = `${y}-${m}-${d}`;
-  const t = Date.parse(`${date}T00:00:00Z`);
-  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== date ? null : date;
-}
-function csvAmount(v: string | undefined, currency: string): number | null | undefined {
-  if (v === undefined) return undefined;
-  const clean = v.replace(/[$€£,\s]/g, "").replace(/^(USD|EUR|GBP|CAD)/i, "");
-  if (!/^\d{1,13}(\.\d{1,3})?$/.test(clean)) return null;
-  try {
-    return toMinor({ amount: clean, currency });
-  } catch {
-    return null;
-  }
-}
-
 type Problem = { field?: ImportField | "mapping"; message: string };
 /** One CSV row as the preview shows it: what was read (`values`), how it will be saved (`normalized`) and what is wrong. */
 type ImportPreview = { row: number; ok: boolean; problems: Problem[]; values: Partial<Record<ImportField, string>>; normalized: Record<string, unknown>; id?: string };
+
+/** The v1.5.0 preview's `normalized` shape, from the framework's record. */
+const legacyNormalized = (r: OutsideRecord | null): Record<string, unknown> =>
+  r
+    ? {
+        title: r.title,
+        funderName: r.funderName,
+        programName: r.programName,
+        stage: r.stage,
+        currency: r.currency,
+        loiDue: r.loiDue,
+        fullDue: r.fullDue,
+        internalDue: r.internalDue,
+        submittedAt: r.submittedOn,
+        grantStart: r.grantStart,
+        grantEnd: r.grantEnd,
+        rolling: r.rolling,
+        askAmount: r.askAmountMinor === null ? null : toMoney(r.askAmountMinor, r.currency),
+        awardedAmount: r.awardedAmountMinor === null ? null : toMoney(r.awardedAmountMinor, r.currency),
+        submissionMethod: r.submissionMethod,
+        confirmationRef: r.confirmationRef,
+        listingUrl: r.listingUrl,
+        portalUrl: r.portalUrl,
+      }
+    : {};
+
+/**
+ * Write one checked outside application, ledgered as created by import. With `id` (the import run
+ * log's claim) a retried write lands on the same row instead of making a second one.
+ */
+export async function insertImportedOutside(ctx: ServiceContext, workspaceId: string, rec: OutsideRecord, funderRecords: readonly Row<"funder_records">[], id?: string): Promise<Oa> {
+  const row = await guardWrite("This row", () =>
+    ctx.repos.table("outside_applications").insert({
+      ...(id ? { id } : {}),
+      workspace_id: workspaceId,
+      title: rec.title,
+      funder_name: rec.funderName,
+      program_name: rec.programName,
+      funder_record_id: funderRecords.find((f) => f.name.trim().toLowerCase() === rec.funderName.toLowerCase())?.id ?? null,
+      source: "import",
+      stage: rec.stage,
+      currency: rec.currency,
+      ask_amount_minor: rec.askAmountMinor,
+      loi_due: rec.loiDue,
+      full_due: rec.fullDue,
+      internal_due: rec.internalDue,
+      rolling: rec.rolling,
+      listing_url: rec.listingUrl,
+      portal_url: rec.portalUrl,
+      submitted_at: rec.submittedOn ? `${rec.submittedOn}T12:00:00.000Z` : null,
+      submission_method: rec.submissionMethod,
+      confirmation_ref: rec.confirmationRef,
+      awarded_amount_minor: rec.awardedAmountMinor,
+      grant_start: rec.grantStart,
+      grant_end: rec.grantEnd,
+      decided_at: rec.decided ? ctx.now().toISOString() : null,
+      decision_notes: rec.notes,
+      owner_user_id: ctx.actor.userId,
+      created_by: ctx.actor.userId,
+    }),
+  );
+  await audit(ctx, "outside_application.created", "outside_application", row.id, { source: "import", stage: row.stage });
+  return row;
+}
 
 /** Import outside applications from a CSV (max 500 rows). A dry run (the default) previews each row and its problems and writes nothing. */
 export async function importOutsideCsv(ctx: ServiceContext, input: z.output<typeof importInput>) {
@@ -963,72 +1047,15 @@ export async function importOutsideCsv(ctx: ServiceContext, input: z.output<type
   const made: Oa[] = [];
   for (const r of m.rows) {
     const v = r.values;
-    const problems: Problem[] = [];
-    const problem = (field: ImportField, message: string) => void problems.push({ field, message });
-    const currency = (v.currency ?? "USD").toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) problem("currency", "The currency is not a three-letter code");
-    const title = v.title ? cleanLine(v.title).slice(0, 300) : "";
-    const funderName = v.funderName ? cleanLine(v.funderName).slice(0, 200) : "";
-    if (!title) problem("title", "No title");
-    if (!funderName) problem("funderName", "No funder");
-    const stage = v.stage ? STAGE_WORDS[v.stage.trim().toLowerCase().replace(/_/g, " ")] ?? STAGE_WORDS[v.stage.trim().toLowerCase()] : "drafting";
-    if (!stage) problem("stage", `"${v.stage}" is not a stage`);
-    const dates = { loiDue: csvDate(v.loiDue), fullDue: csvDate(v.fullDue), internalDue: csvDate(v.internalDue), submittedAt: csvDate(v.submittedAt), grantStart: csvDate(v.grantStart), grantEnd: csvDate(v.grantEnd) };
-    for (const [k, d] of Object.entries(dates)) if (d === null) problem(k as ImportField, `${k} is not a date (use YYYY-MM-DD)`);
-    const ask = csvAmount(v.askAmount, currency);
-    const awarded = csvAmount(v.awardedAmount, currency);
-    if (ask === null) problem("askAmount", "The ask is not an amount");
-    if (awarded === null) problem("awardedAmount", "The awarded amount is not an amount");
-    const method = v.submissionMethod ? METHOD_WORDS[v.submissionMethod.trim().toLowerCase()] : undefined;
-    if (v.submissionMethod && !method) problem("submissionMethod", `"${v.submissionMethod}" is not a way of submitting (portal, email, mail, grants.gov, other)`);
-    const pastSubmit = stage === "submitted" || stage === "awarded" || (stage === "declined" && !!dates.submittedAt) || (stage === "withdrawn" && !!dates.submittedAt);
-    if ((stage === "submitted" || stage === "awarded") && (!dates.submittedAt || !method)) problem("submittedAt", "A submitted application needs the date submitted and how it was sent");
-    if (stage === "awarded" && (awarded === undefined || awarded === null)) problem("awardedAmount", "An awarded application needs the amount awarded");
-    const urls: Record<string, string | null> = {};
-    for (const k of ["listingUrl", "portalUrl"] as const) {
-      if (v[k] === undefined) continue;
-      const ok = webUrl.safeParse(v[k]);
-      if (!ok.success) problem(k, `${k} is not a web address`);
-      else urls[k] = ok.data;
-    }
-    const values = { title, funderName, programName: v.programName ? cleanLine(v.programName).slice(0, 300) : null, stage, currency, ...dates, rolling: /^(y|yes|true|1)$/i.test(v.rolling ?? ""), askAmount: typeof ask === "number" ? toMoney(ask, currency) : null, awardedAmount: typeof awarded === "number" ? toMoney(awarded, currency) : null, submissionMethod: method ?? null, confirmationRef: v.confirmationRef ? cleanLine(v.confirmationRef).slice(0, 200) : null, ...urls };
-    if (problems.length || input.dryRun) {
-      results.push({ row: r.line, ok: problems.length === 0, problems, values: v, normalized: values });
+    const check = checkOutsideRow(v);
+    const problems = check.problems as Problem[];
+    if (problems.length || input.dryRun || !check.record) {
+      results.push({ row: r.line, ok: problems.length === 0, problems, values: v, normalized: legacyNormalized(check.record) });
       continue;
     }
-    const decided = stage === "awarded" || stage === "declined";
-    const row = await guardWrite("This row", () =>
-      ctx.repos.table("outside_applications").insert({
-        workspace_id: ws.id,
-        title,
-        funder_name: funderName,
-        program_name: values.programName,
-        funder_record_id: records.find((f) => f.name.trim().toLowerCase() === funderName.toLowerCase())?.id ?? null,
-        source: "import",
-        stage: stage!,
-        currency,
-        ask_amount_minor: typeof ask === "number" ? ask : null,
-        loi_due: dates.loiDue ?? null,
-        full_due: dates.fullDue ?? null,
-        internal_due: dates.internalDue ?? null,
-        rolling: values.rolling,
-        listing_url: urls.listingUrl ?? null,
-        portal_url: urls.portalUrl ?? null,
-        submitted_at: pastSubmit && dates.submittedAt ? `${dates.submittedAt}T12:00:00.000Z` : null,
-        submission_method: pastSubmit ? (method ?? null) : null,
-        confirmation_ref: values.confirmationRef,
-        awarded_amount_minor: stage === "awarded" && typeof awarded === "number" ? awarded : null,
-        grant_start: stage === "awarded" ? (dates.grantStart ?? null) : null,
-        grant_end: stage === "awarded" ? (dates.grantEnd ?? null) : null,
-        decided_at: decided ? ctx.now().toISOString() : null,
-        decision_notes: v.notes ? cleanText(v.notes).slice(0, 5000) : null,
-        owner_user_id: ctx.actor.userId,
-        created_by: ctx.actor.userId,
-      }),
-    );
-    await audit(ctx, "outside_application.created", "outside_application", row.id, { source: "import", stage: row.stage });
+    const row = await insertImportedOutside(ctx, ws.id, check.record, records);
     created++;
-    results.push({ row: r.line, ok: true, problems: [], values: v, normalized: values, id: row.id });
+    results.push({ row: r.line, ok: true, problems: [], values: v, normalized: legacyNormalized(check.record), id: row.id });
     made.push(row);
   }
   const counts = await questionCounts(ctx, ws.id, made.map((r) => r.id));

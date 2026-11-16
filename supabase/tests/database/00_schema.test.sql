@@ -22,7 +22,8 @@ select tables_are(
     'ledger_events', 'ledger_archives', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
     'workspace_creation_counts', 'award_invitations', 'award_invitation_sends',
     'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests',
-    'outside_obligation_series', 'outside_obligations'
+    'outside_obligation_series', 'outside_obligations', 'application_summaries',
+    'import_mappings', 'import_runs', 'import_rows'
   ],
   'public schema has exactly the GMS tables'
 );
@@ -73,7 +74,7 @@ select is_empty(
        and table_name in ('passport_links', 'invitations', 'api_clients', 'oauth_clients_dynamic', 'oauth_grants', 'oauth_codes',
                           'oauth_refresh_tokens', 'custom_mcp_servers', 'webhook_subscriptions', 'webhook_deliveries',
                           'inbound_events', 'ledger_archives', 'reminder_sends', 'connector_accounts', 'passport_second_steps', 'passport_account_links', 'passport_link_requests',
-                          'award_invitations', 'award_invitation_sends', 'calendar_feeds') $$,
+                          'award_invitations', 'award_invitation_sends', 'calendar_feeds', 'application_summaries') $$,
   'tables holding secrets or OAuth state are not granted to authenticated'
 );
 select is_empty(

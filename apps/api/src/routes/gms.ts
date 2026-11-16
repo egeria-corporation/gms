@@ -17,12 +17,15 @@ import { assistRoutes } from "./gms/assist.ts";
 import { designRoutes } from "./gms/design.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
+import { importRoutes } from "./gms/imports.ts";
 import { insightRoutes } from "./gms/insights.ts";
+import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
 import { outsideRoutes } from "./gms/outside.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
+import { embedPages } from "./embed.ts";
 import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
@@ -45,6 +48,9 @@ const features = (c: Parameters<typeof config>[0]) => {
       openGrants: !!ports.openGrants && !!c.env.OPENGRANTS_API_KEY,
       assistant: !!cfg.assistantEnabled && !!ports.llm,
       googleWorkspace: !!ports.workspaceApps,
+      // Import sources through Composio (CSV and XLSX are always on).
+      googleSheets: !!ports.sheets,
+      airtable: !!ports.airtable,
       mercury: !!ports.bank && !!cfg.credentialsKey,
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
     },
@@ -110,9 +116,12 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 
 // Published data for the funder pages: no token.
 gms.route("/public", publicPages);
+// The embeddable apply widget's data, also public.
+gms.route("/public", embedPages);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
 gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);
+gms.route("/", inviteRoutes);
 gms.route("/", designRoutes);
 gms.route("/", applicationRoutes);
 gms.route("/", outsideRoutes);
@@ -120,6 +129,7 @@ gms.route("/", keepRoutes);
 gms.route("/", approvalRoutes);
 gms.route("/", grantRoutes);
 gms.route("/", moneyRoutes);
+gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 

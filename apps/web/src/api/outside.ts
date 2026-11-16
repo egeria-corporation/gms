@@ -171,6 +171,8 @@ export interface OutsideDetail extends OutsideApplication {
   tasks: Task[];
   /** Read when the server sends it; otherwise the screen draws the activity from the record's own dates. */
   activity?: OutsideEvent[];
+  /** v1.7.0: the signed-in person is a consultant invited into this one draft (they write answers only). */
+  cowriter?: boolean;
 }
 
 export interface OutsideCreateInput {
@@ -625,6 +627,7 @@ export function toDetail(raw: unknown): OutsideDetail {
     documents: (Array.isArray(r.documents) ? r.documents : []) as AppDocument[],
     tasks: (Array.isArray(r.tasks) ? r.tasks : []) as Task[],
     ...(Array.isArray(r.activity) ? { activity: r.activity as OutsideEvent[] } : {}),
+    ...(r.cowriter === true ? { cowriter: true } : {}),
   };
 }
 

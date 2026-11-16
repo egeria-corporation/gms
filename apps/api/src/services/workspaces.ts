@@ -6,7 +6,9 @@ import { randomToken, sha256b64url } from "../auth/crypto.ts";
 import { APPLICANT_ROLES, FUNDER_ROLES, roleRequiresMfa, type WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { maskEmail } from "./award-invitations.ts";
 import { audit, authorize, guardWrite, required, type ServiceContext } from "./context.ts";
+import { afterDraftAccepted, assertInvitationAllowance, cowriterScope, draftOf, insertInvitation } from "./draft-invitations.ts";
 import { profileSourceOf, selfDeclaredColumns, selfDeclaredOf, selfDeclaredProfileInput, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -46,6 +48,9 @@ export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
     transparency: z.boolean(),
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
     defaultRail: z.enum(["auto", "standard", "instant"]),
+    // v1.7.0: "Powered by OpenGrants Grant Management System" on the public pages, the embed widget
+    // and the application receipt email. On unless this is false.
+    poweredBy: z.boolean(),
   },
   applicant: {
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
@@ -204,15 +209,19 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
   const current = required(await ctx.repos.table("workspaces").one({ id }), "Workspace");
   const merge = (base: unknown, patch: Record<string, unknown>) => Object.fromEntries(Object.entries({ ...((base as Record<string, unknown> | null) ?? {}), ...patch }).filter(([, v]) => v !== null && v !== undefined));
   const resolved = input.brand ? resolveBrand(merge(current.brand, input.brand) as z.output<typeof brandInput>) : null;
+  const settings = input.settings ? userSettingsPatch(caller.kind, input.settings) : null;
   const [row] = await ctx.repos.table("workspaces").update(
     { id },
     {
       ...(input.displayName ? { display_name: input.displayName } : {}),
       ...(resolved ? { brand: resolved.brand } : {}),
-      ...(input.settings ? { settings: merge(current.settings, userSettingsPatch(caller.kind, input.settings)) as Row<"workspaces">["settings"] } : {}),
+      ...(settings ? { settings: merge(current.settings, settings) as Row<"workspaces">["settings"] } : {}),
     },
   );
-  await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input) });
+  // Which settings changed: on/off switches with their new value, anything else (an address, a
+  // list) by name only, so the ledger never copies a contact address.
+  const changed = settings ? Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, typeof v === "boolean" || v === null ? v : "changed"])) : {};
+  await audit(ctx, "workspace.updated", "workspace", id, { fields: Object.keys(input), ...(Object.keys(changed).length ? { settings: changed } : {}) });
   return { workspace: workspaceView(required(row, "Workspace")), warnings: resolved?.warnings ?? [] };
 }
 
@@ -295,9 +304,10 @@ export async function createInvitation(ctx: ServiceContext, workspaceId: string,
   const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], owner: workspaceId, what: "Workspace" });
   assertRole(ws.kind, input.role);
   if (input.organizationName && input.role !== "consultant") throw new ApiError(422, "organization_for_consultants", "An organization name is recorded for consultants only", [{ code: "invalid", field: "organizationName" }]);
+  await assertInvitationAllowance(ctx, workspaceId);
   const token = randomToken("gms_inv_");
   const expiresAt = new Date(ctx.now().getTime() + (input.expiresInDays ?? 14) * 86_400_000).toISOString();
-  const row = await ctx.repos.table("invitations").insert({
+  const row = await insertInvitation(ctx, {
     workspace_id: workspaceId,
     email: input.email.toLowerCase(),
     role: input.role,
@@ -324,19 +334,28 @@ export async function createInvitation(ctx: ServiceContext, workspaceId: string,
   return { id: row.id, email: row.email, role: row.role, organization: input.organizationName ?? null, expiresAt, token, emailed, acceptUrl };
 }
 
-/** A signed-in person redeems an invitation and joins the workspace. */
-export async function acceptInvitation(ctx: ServiceContext, token: string) {
+/**
+ * A signed-in person redeems an invitation and joins the workspace. An invitation into a draft
+ * (./draft-invitations.ts) works only for the address it was sent to; it opens that draft to
+ * them, assigns them its question or section when no one else has it, and says where to land.
+ */
+export async function acceptInvitation(ctx: ServiceContext, token: string, signedInEmail: string | null = null) {
   await authorize(ctx, { person: true });
   const inv = await ctx.repos.table("invitations").one({ token_hash: await sha256b64url(token) });
   if (!inv || inv.accepted_at || Date.parse(inv.expires_at) <= ctx.now().getTime()) throw notFound("Invitation");
   const userId = ctx.actor.userId!;
+  const intoDraft = draftOf(inv.scope) !== null;
+  if (intoDraft && (signedInEmail ?? "").trim().toLowerCase() !== inv.email) throw forbidden("email_mismatch", `Sign in with the address the invitation was sent to: ${maskEmail(inv.email)}`);
   const existing = await ctx.repos.table("workspace_members").one({ workspace_id: inv.workspace_id, user_id: userId });
   // The invited address labels the member in lists (the directory replaces it with the account's own).
-  if (!existing) await ctx.repos.table("workspace_members").insert({ workspace_id: inv.workspace_id, user_id: userId, role: inv.role, scope: { ...((inv.scope as Record<string, unknown> | null) ?? {}), email: inv.email } as Row<"workspace_members">["scope"], invited_by: inv.invited_by });
+  // A cowriter's membership names the draft's id only, never the draft record of the invitation.
+  const scope = cowriterScope(inv) ?? { ...((inv.scope as Record<string, unknown> | null) ?? {}), email: inv.email };
+  if (!existing) await ctx.repos.table("workspace_members").insert({ workspace_id: inv.workspace_id, user_id: userId, role: inv.role, scope: scope as Row<"workspace_members">["scope"], invited_by: inv.invited_by });
   await ctx.repos.table("invitations").update({ id: inv.id }, { accepted_at: ctx.now().toISOString() });
-  await audit(ctx, "invitation.accepted", "workspace", inv.workspace_id, { invitationId: inv.id, userId, role: inv.role }, inv.workspace_id);
+  const landing = await afterDraftAccepted(ctx, inv, userId, existing);
+  await audit(ctx, "invitation.accepted", "workspace", inv.workspace_id, { invitationId: inv.id, userId, role: existing?.role ?? inv.role, ...(intoDraft ? { email: maskEmail(inv.email), draft: landing.draft } : {}) }, inv.workspace_id);
   const workspace = required(await ctx.repos.table("workspaces").one({ id: inv.workspace_id }), "Workspace");
-  return { workspace: workspaceView(workspace), role: existing?.role ?? inv.role };
+  return { workspace: workspaceView(workspace), role: existing?.role ?? inv.role, draft: landing.draft };
 }
 
 // ------------------------------------------------------------------------------ named contacts

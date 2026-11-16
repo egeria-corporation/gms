@@ -393,3 +393,46 @@ A workspace that has not linked Passport keeps a self-declared profile (see `doc
   and ledgers `workspace.profile_replaced_by_passport` with the names of the fields that differed.
 - In the OpenAPI document the new response fields are optional so existing clients keep
   compiling; this server always sends them.
+
+## Share, embed, invite and import (v1.7.0)
+
+Tests: `apps/web/test/front-worker.test.ts`, `apps/api/test/share-pages.test.ts`, `embed.test.ts`,
+`redteam-embed.test.ts`, `invites-summaries.test.ts`, `redteam-cowriter.test.ts`, `imports.test.ts`,
+`imports-mcp.test.ts`, `redteam-import-sensitive.test.ts`; database: migrations `0031_imports.sql`,
+`0032_invites_summaries.sql`.
+
+### Public pages, share cards and the apply widget
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /robots.txt`, `GET /og/home.png`, `GET /og/f/{handle}.png`, `GET /og/f/{handle}/o/{slug}.png` | Served by the front Worker | robots.txt disallows the app's screens and allows `/gms/public/`. Share images are 1200x627 PNGs drawn on request and kept at the edge for 5 minutes; an unknown page is 404, an API failure redirects to the default card. The web Worker with static assets does not serve them |
+| `GET /f/{handle}`, `/f/{handle}/o/{slug}` | Served by the front Worker | Each page's own title, description, canonical address, Open Graph and Twitter tags and schema.org JSON-LD, from the public data below; the default meta when it is not found, fails or takes over 2 s |
+| `GET /embed/f/{handle}/o/{slug}` | Served by `apps/web` | The apply widget. The one path other sites may frame: `frame-ancestors *`, no `X-Frame-Options`; every other path keeps `frame-ancestors 'none'` and `X-Frame-Options: DENY` |
+| `GET /gms/public/embed/funders/{handle}/opportunities/{slug}` | Implemented | No token. The widget's data: `funder { handle, name, brand, verified }`, `opportunity { slug, title, status, closeDate, opensDate, acceptedApplicantTypes, eligibility (up to 3 labels), moreEligibility }`, `acceptingApplications`, `poweredBy`, `links.page`. Built on the opportunity page's data: 404 wherever the page is, nothing the page hides. Edge-cacheable |
+| `GET /gms/public/funders/{handle}`, `…/opportunities/{slug}` | Implemented | Each opportunity card adds `acceptingApplications` (published as open with an open competition); `funder` adds `poweredBy` (false only when an admin turned it off) |
+| `GET /sitemap.xml` | Implemented | Keeps forecasted and closed calls still published; an opportunity's `lastmod` is the latest of it and its public competitions, a funder page's the latest of the funder and its listed opportunities |
+| `PATCH /gms/workspaces/{id}` settings | Implemented | Funders may set `poweredBy` (boolean; `null` removes it, which means on). `workspace.updated` records an on/off switch's new value and only `"changed"` for other settings |
+
+### Inviting someone into a draft, and the AI summary
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/draft-invitations` | Implemented | Applicant `admin`, a signed-in person only (agents and API clients `403 human_only`; no MCP tool). `{ email, draft: { kind: "outside_application" \| "application", id, questionId? \| formId + section? } }` → `201` with the address masked. One email; `409 already_invited` while one waits, `409 already_member`, `409 application_locked` for a built-in application no longer a draft, `429` past 20 invitations a workspace a day (with Team & access invitations) |
+| `GET /gms/draft-invitations?kind=&id=` | Implemented | `applications:read`, not consultants. `{ invitations[], canInvite, perDay, remainingToday }`, addresses masked |
+| `POST /gms/invitations/accept` | Implemented | Adds `draft { kind, id, questionId, formId, section, assigned }` for an invitation into a draft, which needs the signed-in address to be the invited one (`403 email_mismatch`). The person joins as `consultant` scoped to that draft |
+| `GET /gms/me/notes`, `POST /gms/me/notes/dismiss` | Implemented | Session. The one-time notes the person dismissed in this workspace (`{ note: "invite_teammate" }`) |
+| `GET /gms/assist/summary?applicationId=`, `POST /gms/assist/summary` | Implemented | Funder `assist`. The AI summary kept per application and response version (the version the caller may see); GET never calls the model, POST writes it on the first request and spends the quota once. `404 assistant_disabled` when off; `429 assist_quota_exhausted` only when none is kept |
+| A cowriter (consultant whose scope names outside drafts only) | Implemented | Opens that draft, its questions and its comments (`GET /gms/outside-applications/{id}`, `…/questions`, `…/comments`, the question's answer, status, answers and comments). Every other workspace route answers 403 `cowriter_draft_only` or 404 |
+
+### Import from a spreadsheet
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/imports/sources?target=` | Implemented | `target` is `outside_applications` (applicant, `applications:write`) or `award_history` (funder `admin`, `workspace:admin`, a person). Fields, limits (5,000 rows, 4 MB workbooks) and the sources this server offers: CSV and XLSX always, Google Sheets and Airtable only when their Composio auth configs are set |
+| `POST /gms/imports/read` | Implemented | `{ target, source: { kind: "csv", text } \| { kind: "xlsx", base64, sheet? } \| { kind: "google_sheets", url, sheet? } \| { kind: "airtable", url, table? } }` → columns with three sample values, the columns left out (`dropped[{ column, reason, why }]`) and a suggested or saved mapping. Stores nothing. A column whose header or any value looks like bank or identity data is never read |
+| `POST /gms/imports/preview` | Implemented | `{ target, source, mapping, saveMapping? }` → `201`: the dry run, stored with its log for 24 hours (at most 10 waiting), with the reconciliation (create, skip, fix, amounts by year). Rows imported before are skipped. `422 mapping_incomplete` |
+| `GET /gms/imports/runs?target=`, `GET /gms/imports/runs/{id}` | Implemented | The last 20 runs; one run and its log with links to what each row created |
+| `POST /gms/imports/runs/{id}/commit` | Implemented | A signed-in person only (agents and API clients `403 human_only`). Imports the next batch; call again until `done`. Each row is written once, whoever calls. `410 import_expired` after a day. Grant history payments are recorded as paid elsewhere (resolve mode, no digits), never through Passport |
+| `GET/POST/DELETE /gms/connectors/{provider}` | Implemented | Adds `google_sheets` and `airtable` (read-only Composio connections), workspace admin of either kind. `GET /gms/config` adds `available.googleSheets` and `available.airtable` |
+| `POST /gms/outside-applications/import`, `POST /gms/imports/csv` | Implemented | The older direct imports screen columns by header and by value as the wizard does; a field mapped to a dropped column counts as unmapped |
+| MCP `get_import_preview` | Implemented | Funder (`workspace:admin`) and applicant (`applications:write`) sides. A run's reconciliation, progress and dropped column names. No tool commits an import |

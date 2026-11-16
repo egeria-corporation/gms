@@ -121,6 +121,11 @@ order: the database first, then the API, the jobs Worker and the web app.
 - The landing page, a public opportunity page and the sign-in page load in a browser with no page
   errors. The only expected console error is the Cloudflare beacon (see Known limits).
 - The latest row of `supabase_migrations.schema_migrations` is the release's last migration.
+- `https://gms.opengrants.io/robots.txt` answers 200 and names the sitemap; `/og/home.png` is a PNG;
+  the source of a public opportunity page shows its own `<title>` and `og:image`.
+- A public opportunity's apply widget (`/embed/f/{handle}/o/{slug}`) answers with
+  `frame-ancestors *` and no `X-Frame-Options`; the opportunity page itself keeps
+  `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 
 ## Settings and secrets
 
@@ -145,7 +150,9 @@ order: the database first, then the API, the jobs Worker and the web app.
   - `RESEND_API_KEY` and `RESEND_FROM`;
   - `PASSPORT_GMS_CLIENT_ID` and `PASSPORT_GMS_CLIENT_SECRET`.
 
-**Not set:** `PASSPORT_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET`.
+**Not set:** `PASSPORT_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET`; and, new in v1.7.0,
+`COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID` and `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` (API). Until they are,
+imports offer CSV and Excel files only.
 
 ## Sign in with Passport
 

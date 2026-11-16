@@ -37,6 +37,24 @@ export interface SummaryDraft extends AssistDraft {
   /** What the funder's own connected systems said, each with the server it came from. */
   fromExternalSystems: { server: string; note: string }[];
 }
+/**
+ * The AI summary on the review screen (v1.7.0): written once per application and response
+ * version and read by every reviewer of that version; `summary` is null before anyone asked for
+ * it. It describes the application; it never scores, ranks or decides.
+ */
+export interface AiSummary {
+  draft: true;
+  applicationId: string;
+  responseVersion: string;
+  /** "Review before relying on it". */
+  label: string;
+  /** True when it was written earlier: reading it made no call and counted nothing. */
+  cached: boolean;
+  generatedAt: string | null;
+  model: string | null;
+  summary: { summary: string; strengths: string[]; openQuestions: string[]; quotes: AssistQuote[]; fromExternalSystems: { server: string; note: string }[]; cautions: string[] } | null;
+  quota: AssistQuota;
+}
 export interface ComparisonDraft extends AssistDraft {
   rubricId: string;
   criteria: { key: string; evidence: AssistQuote[]; observations: string; gaps: string[] }[];
@@ -77,6 +95,10 @@ export interface FunderFullApi {
   // ---- assistant (drafts only) ----
   assistStatus(): Promise<AssistStatus>;
   assistSummarize(applicationId: string): Promise<SummaryDraft>;
+  /** The AI summary kept for this application's current answers, or `summary: null`. Never calls the model. */
+  aiSummary(applicationId: string): Promise<AiSummary>;
+  /** Writes the AI summary on the first request (one draft from the quota); returns the kept one after that. */
+  writeAiSummary(applicationId: string): Promise<AiSummary>;
   assistCompareRubric(applicationId: string, rubricId: string): Promise<ComparisonDraft>;
   /** A letter drafted from a template. Never saved as a template version and never sent. */
   assistDraftLetter(templateId: string, input: { purpose: string; tone?: string; applicationId?: string }): Promise<LetterDraft>;
@@ -112,6 +134,8 @@ export function createHttpFunderFullApi(io: FunderHttpIo): FunderFullApi {
     getApproval: (id) => data("GET", `/gms/approvals/${e(id)}`),
     assistStatus: () => data("GET", "/gms/assist/status"),
     assistSummarize: (applicationId) => data("POST", "/gms/assist/summarize", { applicationId }),
+    aiSummary: (applicationId) => data("GET", `/gms/assist/summary?applicationId=${e(applicationId)}`),
+    writeAiSummary: (applicationId) => data("POST", "/gms/assist/summary", { applicationId }),
     assistCompareRubric: (applicationId, rubricId) => data("POST", "/gms/assist/compare-rubric", { applicationId, rubricId }),
     assistDraftLetter: (templateId, input) => data("POST", "/gms/assist/draft-letter", { templateId, purpose: input.purpose, ...(input.tone ? { tone: input.tone } : {}), ...(input.applicationId ? { applicationId: input.applicationId } : {}) }),
   };

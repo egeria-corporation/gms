@@ -8,6 +8,7 @@ import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
+import { poweredByOf } from "./powered-by.ts";
 import { namesOf, namesShared, orgFacts, sharingWith, verificationOf } from "./profile.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -161,12 +162,25 @@ function publicFunder(w: Row<"workspaces">) {
   const contactEmail = typeof settings.contactEmail === "string" ? settings.contactEmail : typeof org.emails?.primary === "string" ? org.emails.primary : null;
   // Only contacts the funder marked public; the rest are for organizations it already works with.
   const contacts = contactsOf(w).filter((c) => c.public);
-  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification };
+  return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification, poweredBy: poweredByOf(w) };
 }
 
 const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
 
-const card = (o: Opp) => ({ id: o.id, slug: o.slug, title: o.title, description: o.description, status: o.status, funding: o.funding, keyDates: o.key_dates, acceptedApplicantTypes: o.accepted_applicant_types });
+/**
+ * Whether an opportunity takes applications now: it is published as open and one of its
+ * competitions is open. The rule the opportunity page applies before it offers Apply.
+ */
+const acceptingApplications = (o: Opp, comps: Pick<Comp, "opportunity_id" | "status">[]) => o.status === "open" && comps.some((c) => c.opportunity_id === o.id && c.status === "open");
+
+const card = (o: Opp, accepting: boolean) => ({ id: o.id, slug: o.slug, title: o.title, description: o.description, status: o.status, funding: o.funding, keyDates: o.key_dates, acceptedApplicantTypes: o.accepted_applicant_types, acceptingApplications: accepting });
+
+/** Competitions of these opportunities, read in batches so a long list never makes one huge query. */
+async function competitionsOf(ctx: PublicContext, oppIds: string[], where: { status?: string } = {}): Promise<Comp[]> {
+  const out: Comp[] = [];
+  for (let i = 0; i < oppIds.length; i += 100) out.push(...(await ctx.repos.table("competitions").find({ opportunity_id: oppIds.slice(i, i + 100), ...where })));
+  return out;
+}
 
 async function activeFunder(ctx: PublicContext, handle: string) {
   const w = await ctx.repos.table("workspaces").one({ handle, kind: "funder" });
@@ -178,7 +192,8 @@ async function activeFunder(ctx: PublicContext, handle: string) {
 export async function funderPage(ctx: PublicContext, handle: string) {
   const w = await activeFunder(ctx, handle);
   const opps = (await ctx.repos.table("opportunities").find({ workspace_id: w.id }, { notNull: ["published_at"], orderBy: "published_at", ascending: false })).filter((o) => publishFlag(o, "publicPage"));
-  const cards = opps.map(card);
+  const open = await competitionsOf(ctx, opps.filter((o) => o.status === "open").map((o) => o.id), { status: "open" });
+  const cards = opps.map((o) => card(o, acceptingApplications(o, open)));
   return {
     funder: publicFunder(w),
     opportunities: cards,
@@ -233,7 +248,7 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   }
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp) },
+    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,
@@ -248,15 +263,28 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   };
 }
 
-/** Sitemap entries: active funder pages and their published opportunities that opted in. */
+const later = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a);
+
+/**
+ * Sitemap entries: the pages of active funders with a listed opportunity, and those opportunities
+ * (open, forecasted or closed, as long as they are published, on the public page and in the
+ * sitemap). An opportunity's lastmod is its own or its latest public competition's change; a funder
+ * page's is the funder's or its latest listed opportunity's, since the page shows them.
+ */
 export async function sitemapEntries(ctx: PublicContext): Promise<{ loc: string; lastmod: string }[]> {
-  const opps = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 5000 })).filter((o) => publishFlag(o, "sitemap") && publishFlag(o, "publicPage"));
-  const byId = await funders(ctx, opps.map((o) => o.workspace_id));
+  const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 5000 })).filter((o) => publishFlag(o, "sitemap") && publishFlag(o, "publicPage"));
+  const byId = await funders(ctx, published.map((o) => o.workspace_id));
+  const live = (id: string) => {
+    const w = byId.get(id);
+    return w?.status === "active" && w.kind === "funder" ? w : null;
+  };
+  const opps = published.filter((o) => live(o.workspace_id));
+  const changed = new Map(opps.map((o) => [o.id, o.updated_at]));
+  for (const c of await competitionsOf(ctx, opps.map((o) => o.id))) if (c.status !== "draft") changed.set(c.opportunity_id, later(changed.get(c.opportunity_id)!, c.updated_at));
+  const funderChanged = new Map<string, string>();
+  for (const o of opps) funderChanged.set(o.workspace_id, later(funderChanged.get(o.workspace_id) ?? live(o.workspace_id)!.updated_at, changed.get(o.id)!));
   const out: { loc: string; lastmod: string }[] = [];
-  for (const w of byId.values()) if (w.status === "active") out.push({ loc: `${ctx.config.webBaseUrl}/f/${w.handle}`, lastmod: w.updated_at });
-  for (const o of opps) {
-    const w = byId.get(o.workspace_id);
-    if (w?.status === "active") out.push({ loc: `${ctx.config.webBaseUrl}/f/${w.handle}/o/${o.slug}`, lastmod: o.updated_at });
-  }
+  for (const [id, lastmod] of funderChanged) out.push({ loc: `${ctx.config.webBaseUrl}/f/${live(id)!.handle}`, lastmod });
+  for (const o of opps) out.push({ loc: `${ctx.config.webBaseUrl}/f/${live(o.workspace_id)!.handle}/o/${o.slug}`, lastmod: changed.get(o.id)! });
   return out;
 }

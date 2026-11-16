@@ -156,7 +156,7 @@ function seed(): State {
     tranche(MONEY_IDS.harborT1, MONEY_IDS.awardHarbor, 1, 38_000, { type: "onExecution" }, "settled", { dueAt: at("2026-09-01"), mode: "facilitated", passportDisbursementId: "dsb_mock_harbor_1", passportStatus: "settled", releasedAt: at("2026-09-02"), releasedBy: USERS.marcus }),
     tranche(MONEY_IDS.harborT2, MONEY_IDS.awardHarbor, 2, 38_000, { type: "onDate", date: "2027-05-15" }, "held", { dueAt: at("2027-05-15"), holdReason: "destination_change_in_flight" }),
     tranche(MONEY_IDS.lakesideT1, MONEY_IDS.awardLakeside, 1, 40_000, { type: "onExecution" }, "initiated", { dueAt: at("2027-05-17"), mode: "facilitated", passportDisbursementId: "dsb_mock_lakeside_1", passportStatus: "initiated", releasedAt: at("2027-05-18T16:05"), releasedBy: USERS.marcus }),
-    tranche(MONEY_IDS.northgateT1, MONEY_IDS.awardNorthgate, 1, 45_000, { type: "onExecution" }, "settled", { dueAt: at("2026-10-01"), mode: "resolve", passportStatus: "unverified", releasedAt: at("2026-10-03"), releasedBy: USERS.marcus, external: { reference: "Wire 20261003-118", paidAt: "2026-10-03", destinationLast4: "9052" } }),
+    tranche(MONEY_IDS.northgateT1, MONEY_IDS.awardNorthgate, 1, 45_000, { type: "onExecution" }, "settled", { dueAt: at("2026-10-01"), mode: "resolve", passportStatus: "unverified", releasedAt: at("2026-10-03"), releasedBy: USERS.marcus, external: { reference: "Wire 20261003-118", paidAt: "2026-10-03", last4: "9052" } }),
     tranche(MONEY_IDS.northgateT2, MONEY_IDS.awardNorthgate, 2, 45_000, { type: "onReportAccepted", requirementId: MONEY_IDS.reqNorthgateInterim }, "scheduled"),
     tranche(MONEY_IDS.copperT1, MONEY_IDS.awardCopper, 1, 30_000, { type: "onExecution" }, "due", { dueAt: at("2027-05-20") }),
   ];
@@ -230,6 +230,9 @@ function seed(): State {
     connectors: {
       mercury: { provider: "mercury", connected: true, status: "active", scopes: ["transactions:read"], lastSyncAt: at("2027-05-21T18:00") },
       google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
+      // Import sources (the import wizard keeps its own mock state; these only fill the record).
+      google_sheets: { provider: "google_sheets", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
+      airtable: { provider: "airtable", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
     },
     ledger,
     passportReachable: true,
@@ -238,7 +241,7 @@ function seed(): State {
   };
 }
 
-const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null } } });
+const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, google_sheets: { provider: "google_sheets", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, airtable: { provider: "airtable", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null } } });
 
 const clone = <T>(v: T): T => structuredClone(v);
 
@@ -394,7 +397,7 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
       if (!["due", "ready"].includes(t.status)) throw ctx.fail(409, "Only a due tranche can be recorded as paid");
       const a = awardOf(s, t.awardId);
       const verified = recipientOf(s, a).last4 === input.destinationLast4;
-      Object.assign(t, { status: "settled", mode: "resolve", passportStatus: verified ? "settled" : "unverified", releasedAt: ctx.now(), releasedBy: USERS.dana, external: { reference: input.reference, paidAt: input.paidAt, destinationLast4: input.destinationLast4 } });
+      Object.assign(t, { status: "settled", mode: "resolve", passportStatus: verified ? "settled" : "unverified", releasedAt: ctx.now(), releasedBy: USERS.dana, external: { reference: input.reference, paidAt: input.paidAt, last4: input.destinationLast4 } });
       if (verified) a.disbursedMinor += t.amountMinor;
       log(s, "tranche.record_external", "tranche", t.id, { reference: input.reference, verified });
       return verified ? { result: "recorded", tranche: clone(t) } : { result: "unverified", tranche: clone(t), code: "destination_mismatch", message: "Passport could not match the last four digits to this payee’s verified destination. The payment is recorded here as unverified." };

@@ -7,7 +7,7 @@ import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
-import type { BankFeed, McpDirectory, WorkspaceApps } from "@gms/connectors";
+import type { AirtableSource, BankFeed, McpDirectory, SheetsSource, WorkspaceApps } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
@@ -36,6 +36,16 @@ export interface ServiceWorkspace {
   /** Consultant / external reviewer restrictions from the membership. */
   memberScope: Record<string, unknown> | null;
 }
+
+const named = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
+
+/**
+ * A cowriter invited into outside drafts only (services/draft-invitations.ts): a consultant whose
+ * membership names outside applications and no built-in one. Every workspace action refuses them
+ * unless it lets them in with `cowriter: true` (that draft, its questions and its comments), so a
+ * route added later is closed to them until it says otherwise.
+ */
+export const isOutsideCowriter = (ws: Pick<ServiceWorkspace, "role" | "memberScope">): boolean => ws.role === "consultant" && named(ws.memberScope?.outsideApplicationIds) && !named(ws.memberScope?.applicationIds);
 
 export interface ServiceConfig {
   /** GMS_BASE_URL and WEB_BASE_URL, without trailing slashes. */
@@ -91,6 +101,9 @@ export interface ServicePorts {
   bank?: BankFeed;
   /** The funder's Google Workspace through Composio. */
   workspaceApps?: WorkspaceApps;
+  /** Import sources through Composio, read-only: Google Sheets and Airtable. */
+  sheets?: SheetsSource;
+  airtable?: AirtableSource;
   /** Tool listing for funder-registered MCP servers. */
   mcpDirectory?: McpDirectory;
   /** Where export bundles and ledger archives are written. */
@@ -164,6 +177,11 @@ export interface Need {
   consent?: { applicantWorkspaceId: string; funderWorkspaceId: string };
   /** What the record is called in the 404 a caller gets for someone else's record. */
   what?: string;
+  /**
+   * The action is open to a cowriter invited into an outside draft (`isOutsideCowriter`), which
+   * then checks the record is that draft. Every other workspace action refuses them.
+   */
+  cowriter?: boolean;
 }
 
 /**
@@ -188,6 +206,8 @@ export async function authorize(ctx: ServiceContext, need: Need): Promise<Servic
     return null;
   }
   if (need.kind && ws.kind !== need.kind) throw forbidden("wrong_workspace_kind", `This action belongs to ${need.kind} workspaces`);
+  const workspaceAction = need.scope !== undefined || need.kind !== undefined || need.roles !== undefined || need.owner !== undefined;
+  if (workspaceAction && !need.cowriter && isOutsideCowriter(ws)) throw forbidden("cowriter_draft_only", "You were invited to write the answers of one application. Ask the team for anything else");
   if (need.roles && ws.role !== null && !need.roles.includes(ws.role)) throw forbidden("insufficient_role", `This needs one of these roles: ${need.roles.join(", ")}`);
   if (need.owner !== undefined && need.owner !== ws.id) {
     const c = need.consent;

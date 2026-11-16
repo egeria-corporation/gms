@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // `/f/:handle/o/:slug` — a published opportunity in the funder's brand. Data comes from
 // `GET /gms/public/funders/{handle}/opportunities/{slug}`; the forms preview reads the
-// CommonGrants competition record. The page links its CommonGrants JSON as an alternate.
+// CommonGrants competition record. The page links its CommonGrants JSON as an alternate; its
+// schema.org JSON-LD is written into the head by the front Worker (src/edge/meta.ts), not here.
 // Apply appears only while a competition is open; until then the page says it is not taking
 // applications, and a signed-in applicant can save it to come back to.
 import { useEffect, useMemo, useState } from "react";
@@ -22,22 +23,6 @@ import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { openBlob } from "../../lib/browser.ts";
 import { OpportunityDocuments, PublishedFaq, UnverifiedFunderBanner } from "./publicExtras.tsx";
 import { useServices } from "../../app/services.tsx";
-
-/** schema.org description of the opportunity for search engines and the OpenGrants importer. */
-export function jsonLd(data: OpportunityPageData, pageUrl: string) {
-  const { opportunity: o, funder } = data;
-  return {
-    "@context": "https://schema.org",
-    "@type": "MonetaryGrant",
-    name: o.title,
-    description: o.description,
-    url: pageUrl,
-    // An unverified funder's website is not published as its address.
-    funder: { "@type": "Organization", name: funder.name, ...(funder.website && funder.verification?.source === "passport" ? { url: funder.website } : {}) },
-    ...(o.funding.maxAwardAmount ? { amount: { "@type": "MonetaryAmount", currency: o.funding.maxAwardAmount.currency, minValue: o.funding.minAwardAmount?.amount, maxValue: o.funding.maxAwardAmount.amount } } : {}),
-    ...(o.keyDates.closeDate?.date ? { applicationDeadline: o.keyDates.closeDate.date } : {}),
-  };
-}
 
 /**
  * Apply also needs the opportunity itself to be published as open (not forecasted). The stricter
@@ -200,7 +185,6 @@ export default function OpportunityPage() {
       <title>{`${o.title} — ${funder.name}`}</title>
       <link rel="alternate" type="application/json" href={data.links.json} title="CommonGrants record" />
       <link rel="canonical" href={data.links.page} />
-      <script type="application/ld+json">{JSON.stringify(jsonLd(data, data.links.page))}</script>
       <PublicFrame funder={funder} jsonHref={data.links.json} nav={<Link to={home}>All opportunities</Link>}>
         <div className="sticky-cta">
           <div className="wrap-c" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>

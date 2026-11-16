@@ -43,6 +43,10 @@ export interface Env {
   OPENGRANTS_API_KEY?: string;
   COMPOSIO_API_KEY?: string;
   COMPOSIO_GOOGLE_AUTH_CONFIG_ID?: string;
+  /** Import from Google Sheets: a Composio auth config on the googlesheets toolkit with spreadsheets.readonly only. */
+  COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID?: string;
+  /** Import from Airtable: a Composio auth config on the airtable toolkit with data.records:read and schema.bases:read only. */
+  COMPOSIO_AIRTABLE_AUTH_CONFIG_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_INBOUND_SECRET?: string;

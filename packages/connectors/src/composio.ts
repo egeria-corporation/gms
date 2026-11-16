@@ -227,6 +227,9 @@ export class ComposioClient {
   /** `POST /api/v3.1/tools/execute/{slug}`: a predefined toolkit tool. */
   async executeTool(slug: string, input: { connectedAccountId: string; userId: string; arguments: Record<string, unknown> }): Promise<ToolResult> {
     if (!SLUG_RE.test(slug)) throw new ComposioError("Invalid tool slug", 400);
+    // Composio runs a tool on its own shared "instant account" when asked to; the GMS only ever acts
+    // on the workspace's own connection.
+    if (input.connectedAccountId === "instant_account" || !ID_RE.test(input.connectedAccountId)) throw new ComposioError("Invalid connected account id", 400);
     const b = rec(await this.call("POST", `/api/v3.1/tools/execute/${slug}`, { connected_account_id: input.connectedAccountId, user_id: input.userId, arguments: input.arguments }));
     return { successful: b.successful === true, error: str(b.error), data: b.data ?? null };
   }
@@ -264,8 +267,11 @@ export interface GoogleWorkspaceConfig {
 
 /** A connection that holds a scope the GMS must never have. The connection has been deleted. */
 export class ConnectorScopeError extends Error {
-  constructor(public readonly excess: string[]) {
-    super("The Google connection was granted more access than the GMS allows, so it was removed. Connect again and leave the requested permissions as they are.");
+  constructor(
+    public readonly excess: string[],
+    message = "The Google connection was granted more access than the GMS allows, so it was removed. Connect again and leave the requested permissions as they are.",
+  ) {
+    super(message);
     this.name = "ConnectorScopeError";
   }
 }
@@ -275,8 +281,8 @@ export class ConnectorScopeError extends Error {
  * The connection is left in place but nothing is done with it: unknown is treated as refused.
  */
 export class ConnectorScopeUnverifiedError extends Error {
-  constructor() {
-    super("The scopes of the Google connection could not be read, so it is not being used. Disconnect and connect again.");
+  constructor(message = "The scopes of the Google connection could not be read, so it is not being used. Disconnect and connect again.") {
+    super(message);
     this.name = "ConnectorScopeUnverifiedError";
   }
 }

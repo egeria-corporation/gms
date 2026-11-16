@@ -13,7 +13,8 @@ export type TrancheMode = "facilitated" | "resolve";
 export interface ExternalPaymentRecord {
   reference: string;
   paidAt: string;
-  last4: string;
+  /** Absent when nobody gave the digits, as for imported grant history (paid elsewhere). */
+  last4?: string;
 }
 
 /** The `tranches` row as the payments package reads it (amounts in integer minor units). */

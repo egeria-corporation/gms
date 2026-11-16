@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { MailCheck, TriangleExclamationPoint } from "lucide-react";
 import { ApiError } from "../../api/client.ts";
+import { landingPath } from "../../api/invites.ts";
 import { useServices } from "../../app/services.tsx";
 import { isReviewOnly } from "../../lib/roles.ts";
 
@@ -41,10 +42,11 @@ export default function InvitationAccept() {
       return;
     }
     api.acceptInvitation(token).then(
-      ({ workspace, role }) => {
+      ({ workspace, role, draft }) => {
         reloadMe();
-        // Reviewers work in the reviewer portal; everyone else opens the workspace.
-        navigate(isReviewOnly(role) ? "/review/assignments" : `/w/${workspace.handle}`, { replace: true });
+        // Reviewers work in the reviewer portal; someone invited into a draft opens it (a draft
+        // invitation's link pasted here works as at /invitations/draft); everyone else, the workspace.
+        navigate(isReviewOnly(role) ? "/review/assignments" : landingPath(workspace.handle, draft ?? null), { replace: true });
       },
       (error: unknown) => setState({ status: "failed", ...invitationProblem(error) }),
     );

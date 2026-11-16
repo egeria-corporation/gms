@@ -127,7 +127,7 @@ describe("launching without facilitated payments", () => {
     expect(first).toMatchObject({ facilitatedPayments: false, assistantEnabled: false });
     // Which optional connections can work here: every entry is a plain yes or no, and the
     // assistant is never offered while it is switched off.
-    expect(Object.keys(first.available).sort()).toEqual(["assistant", "customMcp", "googleWorkspace", "mercury", "openGrants"]);
+    expect(Object.keys(first.available).sort()).toEqual(["airtable", "assistant", "customMcp", "googleSheets", "googleWorkspace", "mercury", "openGrants"]);
     expect(Object.values(first.available).every((v) => typeof v === "boolean")).toBe(true);
     expect(first.available.assistant).toBe(false);
     // No OpenGrants key on this server: funding search is not offered.

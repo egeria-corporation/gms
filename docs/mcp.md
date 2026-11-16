@@ -136,6 +136,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `portfolio_summary` | `analytics:read` | — | Portfolio totals: awarded, disbursed, active awards, by program. |
 | `cycle_metrics` | `analytics:read` | — | Cycle metrics for a competition: counts by stage, time in stage, approval rate. |
 | `export_990pf_grant_list` | `analytics:read` | — | Export the 990-PF Part XV grant list for a tax year. |
+| `get_import_preview` | `workspace:admin` | — | Read a grant history import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out as bank or identity data. No tool imports the rows; only a person does, in the GMS, and agent and API-client tokens are refused on the commit route. |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
@@ -175,6 +176,7 @@ There is no consulting-request tool and no vault upload tool, and no tool moves 
 | `close_out_award` | `applications:write` | — | Close out an award once every obligation is done or received. |
 | `get_funding_summary` | `applications:read` | — | Applications by fiscal year, win rate, asked and awarded. |
 | `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
+| `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
 
 ### Applicant tools
 

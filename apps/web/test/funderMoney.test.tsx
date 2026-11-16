@@ -12,6 +12,7 @@ import type { ApplicationEvent } from "../src/api/funder.ts";
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 import { MONEY_IDS, type MockMoneyControls } from "../src/mocks/funderMoney.ts";
+import { releasedLine } from "../src/screens/funder/AwardPayments.tsx";
 import { flattenPatch } from "../src/screens/funder/Grantees.tsx";
 
 async function riverbend(): Promise<Services> {
@@ -153,6 +154,21 @@ describe("award payments tab", () => {
     expect(await screen.findByText(/Recorded here as unverified/)).toBeInTheDocument();
     // An unverified payment is never added to the disbursed total.
     expect((await services.api.getSchedule(MONEY_IDS.awardAlder)).disbursedAmountMinor).toBe(0);
+  });
+
+  it("names the account's last four digits of a payment recorded elsewhere, as the API sends them", async () => {
+    open(`/w/riverbend/awards/${MONEY_IDS.awardNorthgate}/payments`, await riverbend());
+    const t1 = within(await waitFor(() => card("Tranche 1 · $45,000")));
+    expect(await t1.findByText("Recorded as paid outside Passport")).toBeInTheDocument();
+    expect(t1.getByText(/Wire 20261003-118 · destination •••• 9052/)).toBeInTheDocument();
+    expect(t1.queryByText(/undefined/)).not.toBeInTheDocument();
+  });
+
+  it("says Paid elsewhere, with no bank line, for imported grant history without the digits", () => {
+    expect(releasedLine({ mode: "resolve", external: { reference: "Check 1042", paidAt: "2024-03-01" } })).toEqual({ what: "Paid elsewhere", detail: " · Check 1042" });
+    expect(releasedLine({ mode: "resolve", external: { reference: "Check 1042", paidAt: "2024-03-01", last4: "9052" } })).toEqual({ what: "Recorded as paid outside Passport", detail: " · Check 1042 · destination •••• 9052" });
+    expect(releasedLine({ mode: "facilitated", external: null })).toEqual({ what: "Released through Passport", detail: "" });
+    expect(JSON.stringify(releasedLine({ mode: "resolve", external: { reference: "Imported", paidAt: "2024-03-01" } }))).not.toMatch(/••••|undefined/);
   });
 
   it("refuses a schedule that does not add up to the award", async () => {

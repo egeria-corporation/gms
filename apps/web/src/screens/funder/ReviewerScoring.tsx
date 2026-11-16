@@ -11,6 +11,7 @@ import type { RubricCriterion } from "../../api/types.ts";
 import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.tsx";
 import { ResponseCard } from "./ApplicationDetail.tsx";
 import { ASSIGNMENT_LOOK, ReviewerFrame, usePortal } from "./ReviewerAssignments.tsx";
+import { AiSummaryPanel } from "./ApplicationPanels.tsx";
 
 type ScoreValue = number | string;
 interface Entry {
@@ -136,6 +137,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
         <div className="col" style={{ gap: "16px" }}>
+          {app && !needsCoi && d.status !== "recused" && <AiSummaryPanel applicationId={app.id} />}
           {app && !app.organization && (
             <span className="masked">
               <EyeOff className="ic ic-sm" aria-hidden="true" />

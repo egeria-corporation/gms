@@ -20,6 +20,34 @@ export function tenantStyle(funder: Pick<PublicFunder, "brand">): CSSProperties 
   return { "--tenant": effective.accent, "--on-tenant": effective.onAccent, display: "flex", flexDirection: "column", minHeight: "100vh", background: "#FFFFFF" } as CSSProperties;
 }
 
+export const POWERED_BY_LABEL = "Powered by OpenGrants Grant Management System";
+
+/** On unless the funder turned it off; a server that does not send the setting yet means on. */
+export const showsPoweredBy = (funder: Pick<PublicFunder, "poweredBy">): boolean => funder.poweredBy !== false;
+
+/**
+ * The attribution line, linked to the landing page. `href` is absolute where the page is shown on
+ * someone else's site (the apply widget opens it in a new tab); the public pages use the app's route.
+ */
+export function PoweredBy({ href, newTab = false }: { href?: string; newTab?: boolean }) {
+  const content = (
+    <>
+      <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
+      <span>{POWERED_BY_LABEL}</span>
+    </>
+  );
+  const style = { display: "inline-flex", alignItems: "center", gap: "10px", color: "inherit" } as const;
+  return href ? (
+    <a className="powered-by" href={href} style={style} {...(newTab ? { target: "_blank", rel: "noopener" } : {})}>
+      {content}
+    </a>
+  ) : (
+    <Link className="powered-by" to="/" style={style}>
+      {content}
+    </Link>
+  );
+}
+
 export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder: PublicFunder; nav: ReactNode; hero?: ReactNode; jsonHref?: string; children: ReactNode }) {
   const home = `/f/${funder.handle}`;
   return (
@@ -50,14 +78,12 @@ export function PublicFrame({ funder, nav, hero, jsonHref, children }: { funder:
       <main>{children}</main>
       <footer className="pub-foot" style={{ marginTop: "auto" }}>
         <div className="wrap-c">
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-            <span>Powered by OpenGrants GMS</span>
-          </div>
-          <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-            {jsonHref && <a href={jsonHref}>CommonGrants JSON</a>}
-            <Link to="/">About OpenGrants GMS</Link>
-          </div>
+          {showsPoweredBy(funder) ? <PoweredBy /> : <span />}
+          {jsonHref && (
+            <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
+              <a href={jsonHref}>CommonGrants JSON</a>
+            </div>
+          )}
         </div>
       </footer>
     </div>

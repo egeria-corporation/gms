@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Invite someone into a draft (v1.7.0): the "Invite someone by email" choice in an assignee
+// picker, the dialog behind it, and the one-time "Writing with others? Invite a teammate" note.
+// One click on "Send invitation" sends one email; nothing is ever sent again for it, and no
+// address book is read. The invited person can open this one draft and write its answers.
+import { useState, type FormEvent } from "react";
+import { MailCheck, UserPlus, Users, X } from "lucide-react";
+import { INVITE_TEAMMATE_NOTE, type DraftInvitation, type DraftInvitationList, type DraftKind, type DraftRef } from "../../api/invites.ts";
+import { useInvitesMutation, useInvitesQuery } from "../../api/invitesHooks.ts";
+import type { Query } from "../../api/hooks.ts";
+import { Dialog } from "../../components/Dialog.tsx";
+import { ErrorBanner, Field, problemFor } from "../../components/ui.tsx";
+import { formatDate } from "../../lib/format.ts";
+
+/** The picker value that opens the invite dialog instead of assigning anyone. */
+export const INVITE_OPTION = "__invite__";
+
+/** Invitations into this draft still waiting, and whether the signed-in person may send one. */
+export function useDraftInvites(kind: DraftKind, id: string, enabled = true): Query<DraftInvitationList | null> {
+  return useInvitesQuery((api) => (enabled ? api.draftInvitations(kind, id).catch(() => null) : Promise.resolve(null)), [kind, id, enabled]);
+}
+
+/**
+ * The extra choices at the end of an assignee picker: one disabled line per invitation still
+ * waiting for this question or section, then "Invite someone by email…" for those who may invite.
+ */
+export function InviteOptions({ list, match }: { list: DraftInvitationList | null; match: (d: DraftInvitationList["invitations"][number]["draft"]) => boolean }) {
+  if (!list) return null;
+  const waiting = list.invitations.filter((i) => match(i.draft));
+  return (
+    <>
+      {waiting.map((i) => (
+        <option key={i.id} value={`invited:${i.id}`} disabled>
+          Invited: {i.email} (waiting)
+        </option>
+      ))}
+      {list.canInvite && <option value={INVITE_OPTION}>Invite someone by email…</option>}
+    </>
+  );
+}
+
+/** "Invite someone by email": one address, typed; one email, sent on this click only. */
+export function InviteDialog({ draft, title, part, remainingToday, onClose, onSent }: { draft: DraftRef; title: string; part: string | null; remainingToday: number | null; onClose: () => void; onSent: (inv: DraftInvitation) => void }) {
+  const [email, setEmail] = useState("");
+  const send = useInvitesMutation((api) => api.inviteToDraft({ email: email.trim(), draft }));
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const r = await send.run();
+    if (r) onSent(r);
+  };
+  const out = remainingToday !== null && remainingToday <= 0;
+  return (
+    <Dialog open onClose={onClose} labelledBy="inv-draft-title">
+      <form onSubmit={onSubmit} style={{ display: "contents" }}>
+        <div className="hd">
+          <div>
+            <h3 id="inv-draft-title" style={{ fontSize: "16px" }}>
+              Invite someone to help write this
+            </h3>
+            <p className="small muted" style={{ overflowWrap: "anywhere" }}>
+              {title}
+              {part ? ` · ${part}` : ""}
+            </p>
+          </div>
+          <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+            <X className="ic ic-md" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="bd">
+          <Field id="inv-draft-email" label="Their email address" required error={problemFor(send.error, "email")} help="Type the address yourself. Nothing is read from your contacts.">
+            <input id="inv-draft-email" className="inp" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </Field>
+          <ul className="small" style={{ listStyle: "disc", paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "4px" }} aria-label="What happens">
+            <li>They join your workspace as a consultant who can open only this application and write its answers.</li>
+            {part ? <li>When they accept, “{part}” is assigned to them, unless someone else has it by then.</li> : null}
+            <li>We send one email when you click Send invitation. There are no reminders.</li>
+            <li>The link works once, for that address, for 14 days.</li>
+          </ul>
+          {remainingToday !== null && (
+            <p className="small muted" role="status">
+              {out ? "Your workspace has sent today’s 20 invitations. Try again tomorrow." : `Your workspace can send ${remainingToday} more invitation${remainingToday === 1 ? "" : "s"} today.`}
+            </p>
+          )}
+          {send.error && !problemFor(send.error, "email") ? <ErrorBanner error={send.error} title="The invitation was not sent" /> : null}
+        </div>
+        <div className="ft">
+          <button className="btn btn-secondary" type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" type="submit" disabled={!email.trim() || out || send.state === "saving"}>
+            <UserPlus className="ic" aria-hidden="true" />
+            {send.state === "saving" ? "Sending…" : "Send invitation"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** What the inviter sees once it went: the masked address, and the link when no email could be sent. */
+export function InviteSentNote({ sent, onDone }: { sent: DraftInvitation; onDone: () => void }) {
+  return (
+    <div className="bnr bnr-ok" role="status">
+      <MailCheck className="ic" aria-hidden="true" />
+      <div className="grow">
+        <div className="t">{sent.emailed ? `Invitation sent to ${sent.email}` : `Invitation ready for ${sent.email}`}</div>
+        <div className="d">
+          {sent.emailed ? `They are assigned when they accept. The link works until ${formatDate(sent.expiresAt)}; no reminders are sent.` : "The email could not be sent from here. Copy this link and send it to them yourself:"}
+          {!sent.emailed && sent.acceptUrl ? (
+            <code className="mono" style={{ display: "block", overflowWrap: "anywhere", marginTop: "4px" }}>
+              {sent.acceptUrl}
+            </code>
+          ) : null}
+        </div>
+      </div>
+      <button type="button" className="btn btn-sm btn-ghost act" onClick={onDone}>
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The one-time note, after the first application is started: shown to those who may invite until
+ * they dismiss it (kept per person and workspace on the server, so it stays dismissed everywhere).
+ */
+export function TeamNote({ canInvite, onInvite }: { canInvite: boolean; onInvite: () => void }) {
+  const notes = useInvitesQuery((api) => api.dismissedNotes().catch(() => [INVITE_TEAMMATE_NOTE]), []);
+  const dismiss = useInvitesMutation((api) => api.dismissNote(INVITE_TEAMMATE_NOTE));
+  const [hidden, setHidden] = useState(false);
+  if (!canInvite || hidden || notes.status !== "ready" || notes.data.includes(INVITE_TEAMMATE_NOTE)) return null;
+  return (
+    <div className="bnr bnr-info" role="region" aria-label="Writing with others">
+      <Users className="ic" aria-hidden="true" />
+      <div className="grow">
+        <div className="t">Writing with others? Invite a teammate</div>
+        <div className="d">Invite someone by email to help with this application. They see only this application and can write its answers.</div>
+      </div>
+      <button type="button" className="btn btn-sm btn-secondary act" aria-haspopup="dialog" onClick={onInvite}>
+        <UserPlus className="ic" aria-hidden="true" />
+        Invite a teammate
+      </button>
+      <button
+        type="button"
+        className="btn btn-sm btn-ghost act"
+        disabled={dismiss.state === "saving"}
+        onClick={async () => {
+          setHidden(true);
+          await dismiss.run();
+        }}
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}

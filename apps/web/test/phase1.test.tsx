@@ -9,7 +9,6 @@ import { createMockServices, type Services } from "../src/app/services.tsx";
 import { ReadinessChecklist } from "../src/components/ui.tsx";
 import { demoSession } from "../src/mocks/auth.ts";
 import { IDS, seedStore } from "../src/mocks/store.ts";
-import { jsonLd } from "../src/screens/public/OpportunityPage.tsx";
 
 function Where() {
   const l = useLocation();
@@ -88,20 +87,17 @@ describe("public opportunity page", () => {
     expect(apply).toHaveAttribute("href", "/apply/riverbend/community-health-2027");
   });
 
-  it("links the CommonGrants record and describes the grant for search engines", async () => {
+  it("links the CommonGrants record and leaves the schema.org data to the front Worker", async () => {
     const api = createMockServices({ session: null }).api;
     const data = await api.publicOpportunity("riverbend", "community-health-2027");
     expect(data.links.json).toMatch(/\/common-grants\/opportunities\/[0-9a-f-]{36}$/);
-    expect(jsonLd(data, "https://gms.example/f/riverbend/o/community-health-2027")).toMatchObject({
-      "@type": "MonetaryGrant",
-      name: "Community Health Grants 2027",
-      funder: { name: "Riverbend Community Foundation" },
-      amount: { currency: "USD", minValue: "50000", maxValue: "150000" },
-      applicationDeadline: "2027-04-30",
-    });
     open("/f/riverbend/o/community-health-2027", createMockServices({ session: null }));
     await screen.findByRole("heading", { level: 1, name: "Community Health Grants 2027" });
     await waitFor(() => expect(document.querySelector('link[rel="alternate"][type="application/json"]')).toHaveAttribute("href", data.links.json));
+    // The front Worker writes the page's one JSON-LD block into the head (test/front-worker.test.ts);
+    // the page adds none of its own, so nothing claims an applicationDeadline schema.org lacks.
+    expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
+    expect(document.documentElement.innerHTML).not.toContain("applicationDeadline");
   });
 
   it("does not offer Apply on a forecasted opportunity", async () => {

@@ -23,6 +23,7 @@ import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
+import * as imports from "./imports.ts";
 import * as inbox from "./inbox.ts";
 import * as obligations from "./obligations.ts";
 import * as opportunities from "./opportunities.ts";
@@ -294,6 +295,8 @@ const IMPLEMENTED: Impl = {
   recordReportSubmission: (ctx, i) => obligations.submitReport(ctx, bareUuid(i.obligationId, "Obligation"), input(obligations.reportSubmitInput, { submittedAt: i.submittedAt, ...(i.confirmationRef ? { confirmationRef: i.confirmationRef } : {}) })),
   closeOutAward: (ctx, i) => obligations.closeOut(ctx, oa(i.outsideApplicationId)),
   getFundingSummary: (ctx) => summary.fundingSummary(ctx),
+  // Imports (v1.7.0): agents read a check a person made; committing it is a person's (no tool).
+  getImportPreview: (ctx, i) => imports.importPreview(ctx, bareUuid(i.importRunId, "Import run")),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
 
   listMessages: async (ctx, i) => {

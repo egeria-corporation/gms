@@ -248,7 +248,7 @@ describe("CSV import and export", () => {
     const out = await data<{ dryRun: boolean; rows: Row[]; created: unknown[]; summary: { rows: number; valid: number; failed: number; created: number } }>(s.applicant, "POST", "/gms/outside-applications/import", { csv, mapping });
     expect(out).toMatchObject({ dryRun: true, created: [], summary: { rows: 3, valid: 2, failed: 1, created: 0 } });
     expect(out.rows[0]).toMatchObject({ row: 2, ok: true, values: { title: "Capacity 2026", stage: "Awarded", askAmount: "$20,000" }, normalized: { title: "Capacity 2026", stage: "awarded", askAmount: { amount: "20000.00" }, awardedAmount: { amount: "15000.00" }, submittedAt: "2026-02-20", submissionMethod: "portal" } });
-    expect(out.rows[1]!.problems).toEqual(expect.arrayContaining([{ field: "funderName", message: "No funder" }, { field: "stage", message: '"Paid" is not a stage' }, { field: "fullDue", message: "fullDue is not a date (use YYYY-MM-DD)" }, { field: "askAmount", message: "The ask is not an amount" }]));
+    expect(out.rows[1]!.problems).toEqual(expect.arrayContaining([{ field: "funderName", message: "No funder" }, { field: "stage", message: '"Paid" is not a stage' }, { field: "fullDue", message: "Full application due is not a date (use YYYY-MM-DD)" }, { field: "askAmount", message: "The ask is not an amount" }]));
     expect(out.rows[2]).toMatchObject({ ok: true, normalized: { stage: "prospect", fullDue: "2027-06-01" } });
     expect(await h.repos.table("outside_applications").count({ workspace_id: WS_APPLICANT, source: "import" })).toBe(0);
   });

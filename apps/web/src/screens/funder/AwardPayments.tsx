@@ -128,6 +128,18 @@ function ScheduleEditor({ schedule, requirements, onClose, onSaved }: { schedule
   );
 }
 
+/**
+ * How a released tranche reads. A payment recorded as made elsewhere names its reference and the
+ * last four digits of the account paid; imported grant history has no digits, so it says "Paid
+ * elsewhere" with no bank line.
+ */
+export function releasedLine(row: Pick<TrancheRow, "mode" | "external">): { what: string; detail: string } {
+  if (row.mode !== "resolve") return { what: "Released through Passport", detail: "" };
+  const ext = row.external;
+  if (!ext?.last4) return { what: "Paid elsewhere", detail: ext?.reference ? ` · ${ext.reference}` : "" };
+  return { what: "Recorded as paid outside Passport", detail: ` · ${ext.reference} · destination •••• ${ext.last4}` };
+}
+
 function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row: TrancheRow; requirementTitle: (id: string) => string | undefined; recipientName: string; onChanged: () => void }) {
   const open = OPEN.includes(row.status);
   const readiness = useApiQuery(async (api): Promise<TrancheReadiness | null> => (open ? api.trancheReadiness(row.id) : null), [row.id, row.status]);
@@ -139,7 +151,6 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
   const r = readiness.data ?? null;
   const blocked = r ? releaseBlockedReason(r) : "Checking readiness";
   const { facilitatedPayments } = useAppConfig();
-  const external = row.external as { reference?: string; paidAt?: string; destinationLast4?: string } | null;
   const done = (message: string | null) => {
     setDialog(null);
     setNote(message);
@@ -177,10 +188,10 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
                   <Send className="ic" aria-hidden="true" />
                 </span>
                 <div>
-                  <div className="what">{row.mode === "resolve" ? "Recorded as paid outside Passport" : "Released through Passport"}</div>
+                  <div className="what">{releasedLine(row).what}</div>
                   <div className="who">
                     {dateTime(row.releasedAt)}
-                    {external?.reference ? ` · ${external.reference} · destination •••• ${external.destinationLast4}` : ""}
+                    {releasedLine(row).detail}
                   </div>
                 </div>
               </div>

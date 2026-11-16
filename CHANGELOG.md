@@ -3,6 +3,111 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.7.0 — 2026-11-15
+
+### Added
+
+- **Share previews.** A link to a funder page or a call now previews that page: its own title, a
+  description that says whether it is open, forecasted or closed, and a share image with the
+  funder, the call, the amount and the deadline or status. A funder not verified with OpenGrants
+  Passport says so on its image.
+- Search engines get schema.org data on public pages (the call as a grant with its funder and
+  amount, breadcrumbs, the funder as an organization), a robots.txt, and a sitemap that keeps
+  forecasted and closed calls with their last change.
+- **Embed an opportunity on your own website.** The Publish step gives a copy-paste snippet (an
+  iframe, with an optional resize script), a copy button and a live preview. The widget shows the
+  call, its deadline or status, who can apply, and an Apply button that opens your public page in a
+  new tab; when the call is not taking applications it says so instead. No sign-in, no cookies.
+- "Powered by OpenGrants Grant Management System" links to the home page from your public page
+  footers, the apply widget and the email applicants get when they apply. It never appears in
+  review, decision or award emails. Funder admins can turn it off in Settings > Public page.
+- **Invite someone into a draft** by email, from the assignee picker of an outside application's
+  questions or a built-in application's sections. They join as a consultant who can open only that
+  application and write its answers, and the question or section is assigned to them when they
+  accept. One email, sent on your click, with no reminders; addresses are masked while invitations
+  wait and in the activity log.
+- A one-time, dismissible "Writing with others? Invite a teammate" note in the application editors.
+- **AI summary** on the funder's application review screen and the reviewer's scoring screen,
+  marked "Review before relying on it". It is written once for each version of the answers and
+  every reviewer reads the same one, so the monthly assistant quota is spent once. It never scores
+  or decides, and it is hidden when the assistant is off.
+- **Import from a spreadsheet.** Bring your grants with you in a few minutes: a funder imports its
+  grant history (past awards to named organizations, with what was paid) from Awards, and an
+  applicant imports its applications from Applications. From a CSV file, an Excel workbook (.xlsx),
+  Google Sheets or Airtable.
+- The import wizard suggests which column fills each field and remembers your choice for the next
+  file with the same columns. Before anything is imported it checks every row and shows what will be
+  created, skipped or needs a fix, with the amounts by year. Importing the same rows again creates
+  nothing new. Up to 5,000 rows at a time.
+- Columns that look like bank details or a person's identity numbers are left out before anything is
+  shown or stored, and the check names them so you can see what was left out. Any nine-digit number
+  is left out unless its column is named EIN, so a ZIP+4 code written as nine digits is left out too.
+- Payments in an imported grant history are recorded as paid elsewhere. Nothing is paid from the GMS
+  and nothing goes through Passport.
+- Google Sheets and Airtable are read-only through Composio, connected by a workspace admin, and
+  offered only where the server is set up for them.
+- Agents can read an import's check through MCP (`get_import_preview`); only a person imports the
+  rows.
+- The public funder page tells each call apart by whether it takes applications now
+  (`acceptingApplications`), and the public funder data carries the funder's Powered by setting
+  (`poweredBy`).
+
+### Changed
+
+- Cards on a funder's public page offer Apply only while the call is taking applications;
+  otherwise they offer View details.
+- The default description and share image no longer say "No Passport needed"; the default image is
+  now 1200x627.
+- A workspace can send at most 20 invitations a day, from Team & access and from the editors
+  together.
+- The built-in application editor opens for consultants.
+- The assistant panel on an application keeps "Compare to rubric"; summaries moved to the AI summary
+  panel.
+- The older CSV imports (applications, and a funder's awards) leave out columns whose values look
+  like bank or identity numbers, not only columns named for them.
+- Agent and API-client tokens cannot commit an import; a person does, on the import screen.
+
+### Fixed
+
+- The front Worker applies the security headers to each page's own address, as Cloudflare's static
+  assets do, and honours rules that remove a header. It used the rules for the app's index page on
+  every page.
+- A public opportunity page no longer writes a second block of schema.org data in the page body
+  with a deadline property schema.org does not have; the one in the page head is complete.
+- A payment recorded as made outside Passport showed "destination •••• undefined" on the award's
+  Payments tab; it shows the last four digits again, and "Paid elsewhere" when there are none.
+
+### Upgrade notes
+
+- **Database migrations `0031_imports.sql`, then `0032_invites_summaries.sql`, in that order, before
+  deploying the API.**
+  - `0031` adds three tables for saved column mappings, import runs and the run log, with row-level
+    security keeping them to the workspace's own staff, and lets connector accounts be Google Sheets
+    or Airtable (the provider check is widened; every existing row still passes).
+  - `0032` adds a table for the shared AI summaries (`application_summaries`, service role only), a
+    column for the notes a member dismissed (`workspace_members.dismissed_notes`, empty by default),
+    and the daily invitation limit (an index and a trigger that refuses a workspace's 21st
+    invitation in a rolling day; invitations already sent count toward the first day).
+  - Neither changes, removes or copies an existing row.
+- **New optional settings for imports from Google Sheets and Airtable** (API Worker secrets, set by
+  name; see `docs/connectors.md`). Without them only CSV and Excel files are offered, with no setup.
+  - `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID`: a Composio auth config on the `googlesheets` toolkit,
+    OAuth2 with your own Google OAuth client, scopes exactly
+    `https://www.googleapis.com/auth/spreadsheets.readonly`, `openid`, `email` and `profile`, with
+    the Google Sheets API enabled in that Google Cloud project.
+  - `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID`: a Composio auth config on the `airtable` toolkit, OAuth2,
+    scopes `data.records:read` and `schema.bases:read`.
+  - The existing `COMPOSIO_API_KEY` must be allowed to execute tools as well as manage connected
+    accounts, and both auth configs must accept the web app's address as a callback
+    (`{WEB_BASE_URL}/w/<handle>/import`).
+- "Powered by" is on for every funder after the upgrade, including existing ones; an admin turns it
+  off in Settings > Public page (`settings.poweredBy`).
+- Rebuild and redeploy the web app and then the front Worker (`scripts/build-front-worker.mjs`,
+  with `--redirect-from` as in `docs/staging.md`) after the API. Until the front Worker is rebuilt it
+  serves no share images or robots.txt, and other sites cannot frame the apply widget. The two-Worker
+  layout with static assets (`apps/web/wrangler.jsonc`) frames the widget but serves the public
+  pages with the default meta.
+
 ## v1.6.0
 
 ### Write faster as a team
