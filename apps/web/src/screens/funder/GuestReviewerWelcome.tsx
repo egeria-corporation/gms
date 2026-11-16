@@ -103,7 +103,7 @@ function Welcome({ workspaceId }: { workspaceId: string }) {
           <dd>{w.competitions.length > 1 ? w.competitions.map((c) => c.title).join(" · ") : (comp?.title ?? t("guestReviewerWelcome.notNamedYet"))}</dd>
           <dt>{t("guestReviewerWelcome.applications")}</dt>
           <dd>
-            {t("guestReviewerWelcome.assignedToYou", { assigned: w.assigned })}{w.submitted > 0 ? t("guestReviewerWelcome.submitted", { submitted: w.submitted }) : ""}
+            {w.submitted > 0 ? t("guestReviewerWelcome.assignedSubmitted", { assigned: w.assigned, submitted: w.submitted }) : t("guestReviewerWelcome.assignedToYou", { assigned: w.assigned })}
           </dd>
           <dt>{t("guestReviewerWelcome.due")}</dt>
           <dd className="row" style={{ gap: "6px" }}>

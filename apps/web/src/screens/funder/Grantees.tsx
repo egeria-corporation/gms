@@ -89,10 +89,10 @@ function OrgChangeCard({ change, organization, onDone }: { change: OrgChange; or
       )}
       {change.status === "pending" && (
         <div className="sum">
-          <button type="button" className="btn btn-sm btn-primary" disabled={accept.state === "saving"} onClick={async () => (await accept.run()) && onDone("Change accepted. Your copy of the record now matches Passport, and eligibility was re-checked.")}>
+          <button type="button" className="btn btn-sm btn-primary" disabled={accept.state === "saving"} onClick={async () => (await accept.run()) && onDone(t("funderGrantees.done.accepted"))}>
             {t("funderGrantees.acceptChange")}
           </button>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={dismiss.state === "saving"} onClick={async () => (await dismiss.run()) && onDone("Change dismissed.")}>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={dismiss.state === "saving"} onClick={async () => (await dismiss.run()) && onDone(t("funderGrantees.done.dismissed"))}>
             {t("funderGrantees.dismiss")}
           </button>
           <span>{t("funderGrantees.acceptingUpdatesWhatThis")}</span>
@@ -197,7 +197,9 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
               <PayeeChip payee={g.payee} />
             </div>
             <p className="small muted userback-block">
-              {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : t("funderGrantees.payeeDetailsNotAvailable")} {t("funderGrantees.recordSynced")} {g.lastSyncedAt ? dateTime(g.lastSyncedAt) : t("funderGrantees.never")}
+              {payee.bankName ? `${payee.bankName} •••• ${payee.last4 ?? "····"}` : t("funderGrantees.payeeDetailsNotAvailable")}
+              {" · "}
+              {g.lastSyncedAt ? t("funderGrantees.recordSyncedAt", { date: dateTime(g.lastSyncedAt) }) : t("funderGrantees.recordNeverSynced")}
             </p>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => setProposing(true)}>

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { CalendarClock, ChartColumn, Download, FileSpreadsheet, Lock, Play, Plus, Save, Trash2, Users, X } from "lucide-react";
-import type { Aggregate, Cell, ColumnInfo, DataSet, DataSetKey, Definition, Filter, ReportResult, ReportView, ViewList } from "../../api/reports.ts";
+import type { Aggregate, Cell, ColumnInfo, DataSet, DataSetKey, Definition, Filter, OutColumn, ReportResult, ReportView, ViewList } from "../../api/reports.ts";
 import { useReportsMutation, useReportsQuery } from "../../api/reportsHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -15,8 +15,9 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
 import { formatDate, parseDollars } from "../../lib/format.ts";
-import { AGGREGATE_WORDS, CSV_MAX_ROWS, MAX_GROUP_BY, OP_WORDS, STOPPED_WORDS, WEEKDAYS, aggregateKey, cadenceWords, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
-import { intlLocale } from "../../i18n/index.tsx";
+import { CSV_MAX_ROWS, MAX_GROUP_BY, aggregateKey, displayCell, emptyDefinition, outColumns } from "../../lib/reports.ts";
+import { statusLook } from "../../components/status.tsx";
+import { OP_WORDS, aggregateLabel, cadenceWords, csvInPageLanguage, localizeDataSet, localizeView, localizedOutColumns, stoppedWords, weekdayName } from "./reportWords.ts";
 import { t } from "./i18n.ts";
 
 const OPS_FOR: Record<ColumnInfo["type"], Filter["op"][]> = { text: ["eq", "in"], status: ["eq", "in"], number: ["eq", "between"], money: ["between", "eq"], date: ["between", "eq"] };
@@ -24,6 +25,9 @@ const OPS_FOR: Record<ColumnInfo["type"], Filter["op"][]> = { text: ["eq", "in"]
 function defaultDefinition(ds: DataSet): Definition {
   return emptyDefinition(ds.key, ds.columns.slice(0, 4).map((c) => c.key));
 }
+
+/** A listed value as people read it: a status by its label, anything else as its words. */
+const valueLabel = (col: ColumnInfo, v: string) => (col.statusKind ? statusLook(col.statusKind, v).label : v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase()));
 
 /** A filter's value as a person types it: money in dollars, everything else as written. */
 function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; filter: Filter; index: number; onChange: (f: Filter) => void; onRemove: () => void }) {
@@ -55,7 +59,7 @@ function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; fil
       <select className="sel" aria-label={t("reportBuilder.filterCondition", { index: index + 1 })} value={filter.op} onChange={(e) => onChange(reset(filter.column, e.target.value as Filter["op"]))} style={{ maxWidth: "150px" }}>
         {ops.map((o) => (
           <option key={o} value={o}>
-            {OP_WORDS[o]}
+            {OP_WORDS()[o]}
           </option>
         ))}
       </select>
@@ -63,7 +67,7 @@ function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; fil
         <select className="sel" aria-label={t("reportBuilder.filterValue", { index: index + 1 })} value={String(filter.value ?? "")} onChange={(e) => onChange({ ...filter, value: e.target.value })} style={{ maxWidth: "200px" }}>
           {col.values.map((v) => (
             <option key={v} value={v}>
-              {v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}
+              {valueLabel(col, v)}
             </option>
           ))}
         </select>
@@ -73,7 +77,7 @@ function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; fil
         <select className="sel" multiple aria-label={t("reportBuilder.filterValues", { index: index + 1 })} value={filter.values.map(String)} onChange={(e) => onChange({ ...filter, values: [...e.target.selectedOptions].map((o) => o.value) })} style={{ maxWidth: "220px", height: "84px" }}>
           {col.values.map((v) => (
             <option key={v} value={v}>
-              {v.replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase())}
+              {valueLabel(col, v)}
             </option>
           ))}
         </select>
@@ -93,7 +97,9 @@ function FilterRow({ ds, filter, index, onChange, onRemove }: { ds: DataSet; fil
   );
 }
 
-function ResultTable({ result }: { result: ReportResult }) {
+function ResultTable({ result, names }: { result: ReportResult; names: OutColumn[] }) {
+  // The server names columns in English; the screen names them by key in the page's language.
+  const nameOf = (c: OutColumn) => names.find((x) => x.key === c.key)?.label ?? c.label;
   const currencyAt = result.columns.findIndex((c) => c.key === "currency");
   if (!result.rows.length)
     return (
@@ -112,8 +118,8 @@ function ResultTable({ result }: { result: ReportResult }) {
         <thead>
           <tr>
             {result.columns.map((c) => (
-              <th key={c.key} className={c.type === "money" || c.type === "number" ? "num" : undefined} title={c.note}>
-                {c.label}
+              <th key={c.key} className={c.type === "money" || c.type === "number" ? "num" : undefined} title={names.find((x) => x.key === c.key)?.note ?? c.note}>
+                {nameOf(c)}
               </th>
             ))}
           </tr>
@@ -222,9 +228,9 @@ function ScheduleDialog({ view, onClose, onSaved }: { view: ReportView; onClose:
           {cadence === "weekly" ? (
             <Field id="rb-weekday" label={t("reportBuilder.on")}>
               <select className="sel" id="rb-weekday" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-                {WEEKDAYS.map((w, i) => (
-                  <option key={w} value={i + 1}>
-                    {w}
+                {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                  <option key={day} value={day}>
+                    {weekdayName(day)}
                   </option>
                 ))}
               </select>
@@ -301,22 +307,36 @@ export default function ReportBuilder() {
   const [params, setParams] = useSearchParams();
   const fileId = params.get("file");
   const page = useReportsQuery(async (a) => {
-    const [dataSets, views, files] = await Promise.all([a.dataSets(), a.listViews(), a.listFiles()]);
-    return { dataSets, views, files };
+    const [english, views, files] = await Promise.all([a.dataSets(), a.listViews(), a.listFiles()]);
+    // Shown in the page's language; the server's English is kept to check a CSV's header row.
+    return { dataSets: english.map(localizeDataSet), english, views: { ...views, starters: views.starters.map(localizeView) }, files };
   }, []);
   const [definition, setDefinition] = useState<Definition | null>(null);
   const [current, setCurrent] = useState<ReportView | null>(null);
   const [result, setResult] = useState<ReportResult | null>(null);
   const [dialog, setDialog] = useState<"save" | "schedule" | null>(null);
   const preview = useReportsMutation((a, d: Definition) => a.preview(d));
+  /** The CSV's header row in the page's language, when the screen knows the definition behind it. */
+  const inLanguage = async (blob: Blob, d: Definition | undefined) => {
+    const en = page.data?.english.find((x) => x.key === d?.dataSet);
+    const local = page.data?.dataSets.find((x) => x.key === d?.dataSet);
+    if (!d || !en || !local) return blob;
+    try {
+      return await csvInPageLanguage(blob, outColumns(en, d), localizedOutColumns(local, d));
+    } catch {
+      return blob;
+    }
+  };
   const download = useReportsMutation(async (a, d: Definition, name: string) => {
     const f = await a.exportCsv(d, name);
-    downloadBlob(f.blob, f.filename);
+    downloadBlob(await inLanguage(f.blob, d), f.filename);
     return f;
   });
   const fileDownload = useReportsMutation(async (a, id: string) => {
     const f = await a.downloadFile(id);
-    downloadBlob(f.blob, f.filename);
+    const viewId = page.data?.files.find((x) => x.id === id)?.viewId;
+    const all = page.data ? [...page.data.views.starters, ...page.data.views.saved] : [];
+    downloadBlob(await inLanguage(f.blob, all.find((v) => v.id === viewId)?.definition), f.filename);
     return f;
   });
   const update = useReportsMutation((a, id: string, d: Definition) => a.updateView(id, { definition: d }));
@@ -335,7 +355,7 @@ export default function ReportBuilder() {
   const out = useMemo(() => {
     if (!ds || !definition) return [];
     try {
-      return outColumns(ds, definition);
+      return localizedOutColumns(ds, definition);
     } catch {
       return [];
     }
@@ -377,7 +397,7 @@ export default function ReportBuilder() {
   const views = page.data!.views;
   const files = page.data!.files;
   const sentFile = fileId ? files.find((f) => f.id === fileId) : undefined;
-  const name = current?.name ?? `${set.label} report`;
+  const name = current?.name ?? t("reportBuilder.defaultName", { label: set.label });
   const changed = current && !current.starter && JSON.stringify(current.definition) !== JSON.stringify(d);
   const toggleColumn = (key: string) => change({ ...d, columns: d.columns.includes(key) ? d.columns.filter((k) => k !== key) : [...d.columns, key] });
   const setGroup = (i: number, key: string) => {
@@ -400,7 +420,7 @@ export default function ReportBuilder() {
               {sentFile ? (
                 <Notice tone="ok" title={t("reportBuilder.yourScheduledReportIs", { viewName: sentFile.viewName })}>
                   <span className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
-                    {t("reportBuilder.rowsKeptUntil", { rows: sentFile.rows.toLocaleString(intlLocale()), date: formatDate(sentFile.expiresAt) })}
+                    {t("reportBuilder.rowsKeptUntil", { rows: sentFile.rows, date: formatDate(sentFile.expiresAt) })}
                     <button type="button" className="btn btn-primary btn-sm" onClick={() => void fileDownload.run(sentFile.id)}>
                       <Download className="ic" aria-hidden="true" /> {t("reportBuilder.downloadTheFile")}
                     </button>
@@ -476,7 +496,7 @@ export default function ReportBuilder() {
                   {current && !current.starter && current.schedule && (
                     <span className="small muted row" style={{ gap: "4px" }}>
                       <CalendarClock className="ic ic-sm" aria-hidden="true" />
-                      {current.schedule.active ? t("reportBuilder.to3", { cadenceWords: cadenceWords(current.schedule), count: current.schedule.recipients.length, value: current.schedule.recipients.length === 1 ? "person" : "people" }) : (STOPPED_WORDS[current.schedule.stoppedReason ?? ""] ?? t("reportBuilder.scheduleStopped"))}
+                      {current.schedule.active ? t("reportBuilder.to3", { cadence: cadenceWords(current.schedule), count: current.schedule.recipients.length }) : current.schedule.stoppedReason ? stoppedWords(current.schedule.stoppedReason) : t("reportBuilder.scheduleStopped")}
                     </span>
                   )}
                 </div>
@@ -494,8 +514,7 @@ export default function ReportBuilder() {
                     >
                       {dataSets.map((x) => (
                         <option key={x.key} value={x.key} disabled={!x.available}>
-                          {x.label}
-                          {x.available ? "" : t("reportBuilder.notAvailableToYou")}
+                          {x.available ? x.label : t("reportBuilder.notAvailableToYou", { label: x.label })}
                         </option>
                       ))}
                     </select>
@@ -558,8 +577,8 @@ export default function ReportBuilder() {
                       <div className="filterbar">
                         {d.aggregates.map((a) => (
                           <span key={aggregateKey(a)} className="chip">
-                            {a.fn === "count" ? t("reportBuilder.count") : `${AGGREGATE_WORDS[a.fn]} ${set.columns.find((c) => c.key === a.column)?.label.toLowerCase() ?? a.column}`}
-                            <button type="button" className="iconbtn" aria-label={t("reportBuilder.remove", { value: a.fn === "count" ? "count" : `${AGGREGATE_WORDS[a.fn].toLowerCase()} of ${a.column}` })} onClick={() => change({ ...d, aggregates: d.aggregates.filter((x) => aggregateKey(x) !== aggregateKey(a)), sort: [] })} style={{ width: "20px", height: "20px" }}>
+                            {aggregateLabel(a.fn, set.columns.find((c) => c.key === a.column)?.label ?? a.column ?? "")}
+                            <button type="button" className="iconbtn" aria-label={t("reportBuilder.remove", { summary: aggregateLabel(a.fn, set.columns.find((c) => c.key === a.column)?.label ?? a.column ?? "").toLowerCase() })} onClick={() => change({ ...d, aggregates: d.aggregates.filter((x) => aggregateKey(x) !== aggregateKey(a)), sort: [] })} style={{ width: "20px", height: "20px" }}>
                               <X className="ic ic-sm" aria-hidden="true" />
                             </button>
                           </span>
@@ -583,10 +602,10 @@ export default function ReportBuilder() {
                           <option value="count">{t("reportBuilder.count")}</option>
                           {aggregatable.flatMap((c) => [
                             <option key={`sum:${c.key}`} value={`sum:${c.key}`}>
-                              {t("reportBuilder.total", { label: c.label.toLowerCase() })}
+                              {aggregateLabel("sum", c.label)}
                             </option>,
                             <option key={`avg:${c.key}`} value={`avg:${c.key}`}>
-                              {t("reportBuilder.average", { label: c.label.toLowerCase() })}
+                              {aggregateLabel("avg", c.label)}
                             </option>,
                           ])}
                         </select>
@@ -651,7 +670,7 @@ export default function ReportBuilder() {
                         type="button"
                         className="btn btn-ghost"
                         onClick={async () => {
-                          if (!window.confirm(`Remove “${current.name}”? Its schedule stops and its files are removed.`)) return;
+                          if (!window.confirm(t("reportBuilder.confirmRemove", { name: current.name }))) return;
                           const r = await remove.run(current.id);
                           if (r) {
                             setViews((l) => ({ ...l, saved: l.saved.filter((x) => x.id !== current.id) }));
@@ -664,7 +683,7 @@ export default function ReportBuilder() {
                     )}
                     <SaveNote state={update.state} savedText={t("reportBuilder.changesSaved")} />
                   </div>
-                  <span className="help">{t("reportBuilder.aDownloadHoldsUp", { CSV_MAX_ROWS: CSV_MAX_ROWS.toLocaleString(intlLocale()) })}</span>
+                  <span className="help">{t("reportBuilder.aDownloadHoldsUp", { max: CSV_MAX_ROWS })}</span>
                 </div>
               </section>
 
@@ -673,7 +692,7 @@ export default function ReportBuilder() {
                   <h2 id="rb-preview" style={{ fontSize: "16px" }}>
                     {t("reportBuilder.preview")}
                   </h2>
-                  {result && <span className="small muted">{result.truncated ? t("reportBuilder.showingTheFirstOf", { count: result.rows.length.toLocaleString(intlLocale()), total: result.total.toLocaleString(intlLocale()), value: grouped ? "groups" : "rows" }) : `${result.total.toLocaleString(intlLocale())} ${grouped ? (result.total === 1 ? t("reportBuilder.group") : t("reportBuilder.groups")) : result.total === 1 ? t("reportBuilder.row") : t("reportBuilder.rows")}`}</span>}
+                  {result && <span className="small muted">{result.truncated ? t(grouped ? "reportBuilder.showingFirstGroups" : "reportBuilder.showingFirstRows", { shown: result.rows.length, total: result.total }) : t(grouped ? "reportBuilder.groupCount" : "reportBuilder.rowCount", { count: result.total })}</span>}
                 </div>
                 <div className="card-b col" style={{ gap: "12px" }}>
                   {result?.warnings.map((w) => (
@@ -683,7 +702,7 @@ export default function ReportBuilder() {
                   ))}
                   {preview.state === "saving" && <Loading label={t("reportBuilder.runningTheReport")} />}
                   {result ? (
-                    <ResultTable result={result} />
+                    <ResultTable result={result} names={out} />
                   ) : (
                     preview.state !== "saving" && (
                       <EmptyState icon={ChartColumn} title={t("reportBuilder.nothingToShowYet")}>
@@ -697,7 +716,7 @@ export default function ReportBuilder() {
           </div>
           {dialog === "save" && (
             <SaveDialog
-              initial={{ name: current ? (current.starter ? current.name : `${current.name} (copy)`) : "", definition: d }}
+              initial={{ name: current ? (current.starter ? current.name : t("reportBuilder.copyName", { name: current.name })) : "", definition: d }}
               onClose={() => setDialog(null)}
               onSaved={(v) => {
                 setDialog(null);

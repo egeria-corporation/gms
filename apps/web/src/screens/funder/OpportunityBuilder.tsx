@@ -25,12 +25,12 @@ import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./Eligi
 import { t } from "./i18n.ts";
 
 const STEPS = [
-  { key: "basics", title: "Basics", hint: "Title, summary, program" },
-  { key: "funding", title: "Funding", hint: "Award range and count" },
-  { key: "dates", title: "Dates", hint: "Opens, closes, decision" },
-  { key: "who", title: "Who can apply", hint: "Applicant types and rules" },
-  { key: "publish", title: "Publish", hint: "Targets and public page" },
-  { key: "applications", title: "Applications", hint: "Form, rubric and opening" },
+  { key: "basics", get title() { return t("opportunityBuilder.step.basics.title"); }, get hint() { return t("opportunityBuilder.step.basics.hint"); } },
+  { key: "funding", get title() { return t("opportunityBuilder.step.funding.title"); }, get hint() { return t("opportunityBuilder.step.funding.hint"); } },
+  { key: "dates", get title() { return t("opportunityBuilder.step.dates.title"); }, get hint() { return t("opportunityBuilder.step.dates.hint"); } },
+  { key: "who", get title() { return t("opportunityBuilder.step.who.title"); }, get hint() { return t("opportunityBuilder.step.who.hint"); } },
+  { key: "publish", get title() { return t("opportunityBuilder.step.publish.title"); }, get hint() { return t("opportunityBuilder.step.publish.hint"); } },
+  { key: "applications", get title() { return t("opportunityBuilder.step.applications.title"); }, get hint() { return t("opportunityBuilder.step.applications.hint"); } },
 ] as const;
 type StepKey = (typeof STEPS)[number]["key"];
 const isStep = (v: string): v is StepKey => STEPS.some((s) => s.key === v);
@@ -84,7 +84,7 @@ function draftOf(o: Opportunity | undefined, programId: string): Draft {
     fundingDetails: o?.funding.details ?? "",
     opens: o?.keyDates.postDate?.date ?? "",
     closes: o?.keyDates.closeDate?.date ?? "",
-    closesName: o?.keyDates.closeDate?.name ?? "Closes",
+    closesName: o?.keyDates.closeDate?.name ?? t("opportunityBuilder.date.closes"),
     decision: other(o, "decision"),
     periodStart: other(o, "periodStart"),
     types: o?.acceptedApplicantTypes ?? ["non_profit_with_501c3"],
@@ -101,14 +101,14 @@ type Errors = Partial<Record<keyof Draft, string>>;
 
 function check(d: Draft): Errors {
   const e: Errors = {};
-  if (!d.title.trim()) e.title = "Give the opportunity a title";
-  if (d.slug && !/^[a-z0-9][a-z0-9-]{0,98}[a-z0-9]$/.test(d.slug)) e.slug = "Use lowercase letters, digits and hyphens";
-  for (const key of ["total", "min", "max"] as const) if (d[key].trim() && parseDollars(d[key]) === null) e[key] = "Enter an amount in dollars";
+  if (!d.title.trim()) e.title = t("opportunityBuilder.problem.titleRequired");
+  if (d.slug && !/^[a-z0-9][a-z0-9-]{0,98}[a-z0-9]$/.test(d.slug)) e.slug = t("opportunityBuilder.problem.slugFormat");
+  for (const key of ["total", "min", "max"] as const) if (d[key].trim() && parseDollars(d[key]) === null) e[key] = t("opportunityBuilder.problem.amount");
   const min = parseDollars(d.min);
   const max = parseDollars(d.max);
-  if (min !== null && max !== null && d.min.trim() && d.max.trim() && min > max) e.max = "The largest award is smaller than the smallest";
-  for (const key of ["minCount", "maxCount"] as const) if (d[key].trim() && !/^\d+$/.test(d[key].trim())) e[key] = "Enter a whole number";
-  if (d.opens && d.closes && d.opens >= d.closes) e.closes = "The closing date must be after the opening date";
+  if (min !== null && max !== null && d.min.trim() && d.max.trim() && min > max) e.max = t("opportunityBuilder.problem.maxBelowMin");
+  for (const key of ["minCount", "maxCount"] as const) if (d[key].trim() && !/^\d+$/.test(d[key].trim())) e[key] = t("opportunityBuilder.problem.wholeNumber");
+  if (d.opens && d.closes && d.opens >= d.closes) e.closes = t("opportunityBuilder.problem.closesBeforeOpens");
   return e;
 }
 
@@ -138,15 +138,16 @@ function toInput(d: Draft): OpportunityInput {
   if (d.fundingDetails.trim()) funding.details = d.fundingDetails.trim();
   const day = (name: string, date: string): CgEvent => ({ name, eventType: "singleDate", date });
   const otherDates: Record<string, CgEvent> = {};
-  if (d.decision) otherDates.decision = day("Decisions announced", d.decision);
-  if (d.periodStart) otherDates.periodStart = day("Grant period starts", d.periodStart);
+  // Date names are written into the opportunity, in the language the funder works in.
+  if (d.decision) otherDates.decision = day(t("opportunityBuilder.date.decision"), d.decision);
+  if (d.periodStart) otherDates.periodStart = day(t("opportunityBuilder.date.periodStart"), d.periodStart);
   return {
     title: d.title.trim(),
     ...(d.slug ? { slug: d.slug } : {}),
     description: d.description.trim(),
     programId: d.programId || null,
     funding,
-    keyDates: { ...(d.opens ? { postDate: day("Opens", d.opens) } : {}), ...(d.closes ? { closeDate: day(d.closesName.trim() || "Closes", d.closes) } : {}), ...(Object.keys(otherDates).length ? { otherDates } : {}) },
+    keyDates: { ...(d.opens ? { postDate: day(t("opportunityBuilder.date.opens"), d.opens) } : {}), ...(d.closes ? { closeDate: day(d.closesName.trim() || t("opportunityBuilder.date.closes"), d.closes) } : {}), ...(Object.keys(otherDates).length ? { otherDates } : {}) },
     acceptedApplicantTypes: d.types,
     eligibilityRules: rowsToRules(d.rows),
     publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap, requirePassport: d.requirePassport, acceptSelfReported: d.acceptSelfReported },
@@ -167,7 +168,7 @@ export function PreviewCard({ draft, brand, apply, closed = false }: { draft: Dr
       <div className="card-b" style={{ padding: "14px 16px" }}>
         <div className="pub" style={{ fontSize: "15px", "--tenant": brand.accent, "--on-tenant": brand.onAccent, background: "transparent" } as CSSProperties}>
           <div className="oc" style={{ padding: "18px" }}>
-            <span className="eyebrow">{draft.closes ? `${draft.closesName} ${formatDate(draft.closes)}` : t("opportunityBuilder.noClosingDate")}</span>
+            <span className="eyebrow">{draft.closes ? t("opportunityBuilder.closesOn", { name: draft.closesName, date: formatDate(draft.closes) }) : t("opportunityBuilder.noClosingDate")}</span>
             <h3 style={{ fontSize: "17px" }}>{draft.title || t("opportunityBuilder.untitledOpportunity")}</h3>
             <div className="amt" style={{ fontSize: "18px" }}>
               {formatAwardRange(input.funding)}
@@ -211,7 +212,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
 
   const errors = useMemo(() => {
     const e = check(draft);
-    if (draft.rows.some((r) => rowProblem(r))) e.rows = "Finish or remove the incomplete rule";
+    if (draft.rows.some((r) => rowProblem(r))) e.rows = t("opportunityBuilder.problem.incompleteRule");
     return e;
   }, [draft]);
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
@@ -377,8 +378,8 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                       ))}
                     </select>
                   </Field>
-                  <Field id="opp-slug" label={t("opportunityBuilder.publicAddress")} help={t("opportunityBuilder.fO", { handle: ws.handle, slug: draft.slug || slugify(draft.title || "your-title") })} error={err("slug") ?? problemFor(save.error, "slug")}>
-                    <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || "your-title")} {...text("slug")} />
+                  <Field id="opp-slug" label={t("opportunityBuilder.publicAddress")} help={t("opportunityBuilder.fO", { handle: ws.handle, slug: draft.slug || slugify(draft.title || t("opportunityBuilder.yourTitle")) })} error={err("slug") ?? problemFor(save.error, "slug")}>
+                    <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || t("opportunityBuilder.yourTitle"))} {...text("slug")} />
                   </Field>
                 </div>
               </>
@@ -442,8 +443,8 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                   </legend>
                   {(
                     [
-                      ...(passportFlags.linking ? [["requirePassport", "Require a linked Passport", "Applicants must link their organization in OpenGrants Passport before they can start an application."] as const] : []),
-                      ["acceptSelfReported", "Accept details applicants enter themselves", "A rule that passes on unverified details counts as passing. Otherwise it shows as needing review. A rule that fails always fails."] as const,
+                      ...(passportFlags.linking ? [["requirePassport", t("opportunityBuilder.verify.requirePassport"), t("opportunityBuilder.verify.requirePassportHelp")] as const] : []),
+                      ["acceptSelfReported", t("opportunityBuilder.verify.acceptSelfReported"), t("opportunityBuilder.verify.acceptSelfReportedHelp")] as const,
                     ] as const
                   ).map(([key, label, help]) => (
                     <label key={key} className="cb" htmlFor={`verify-${key}`}>
@@ -467,9 +468,9 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                   </legend>
                   {(
                     [
-                      ["publicPage", "Public page", `Listed on /f/${ws.handle}`],
-                      ["openGrantsIndex", "OpenGrants index", "Pulled by the OpenGrants importer from the CommonGrants feed"],
-                      ["sitemap", "Sitemap", "Listed in sitemap.xml for search engines"],
+                      ["publicPage", t("opportunityBuilder.target.publicPage"), t("opportunityBuilder.target.publicPageHelp", { handle: ws.handle })],
+                      ["openGrantsIndex", t("opportunityBuilder.target.index"), t("opportunityBuilder.target.indexHelp")],
+                      ["sitemap", t("opportunityBuilder.target.sitemap"), t("opportunityBuilder.target.sitemapHelp")],
                     ] as const
                   ).map(([key, label, help]) => (
                     <label key={key} className="cb" htmlFor={`target-${key}`}>
@@ -584,7 +585,7 @@ export default function OpportunityBuilder() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{t("opportunityBuilder.opportunityBuilder2", { title: opportunity?.title ?? "New opportunity" })}</title>
+      <title>{t("opportunityBuilder.opportunityBuilder2", { title: opportunity?.title ?? t("opportunityBuilder.newOpportunity") })}</title>
       {data.status === "loading" && (
         <main className="main">
           <Loading label={t("opportunityBuilder.loadingTheOpportunity")} />

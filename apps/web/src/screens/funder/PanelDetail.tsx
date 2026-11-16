@@ -138,7 +138,7 @@ function LetterPreview({ row, initial, amountMinor }: { row: RankingRow; initial
       {templates.status === "ready" && !template && <p className="muted small">{outcome === "waitlist" ? t("panelDetail.aWaitlistedApplicantGets") : t("panelDetail.noTemplateForThis")}</p>}
       {preview.status === "error" && <Notice tone="warn" title={t("panelDetail.thisLetterCantBe")}>{t("panelDetail.theLetterIsRendered", { errorMessage: errorMessage(preview.error) })}</Notice>}
       {preview.data && (
-        <div className="letter" role="group" aria-label={t("panelDetail.to", { name: template?.name ?? "Letter", applicant: row.applicant ?? "the applicant" })}>
+        <div className="letter" role="group" aria-label={t("panelDetail.to", { name: template?.name ?? t("panelDetail.letter"), applicant: row.applicant ?? t("panelDetail.theApplicant") })}>
           {preview.data.subject && <div className="b">{preview.data.subject}</div>}
           <div style={{ whiteSpace: "pre-wrap" }}>{preview.data.text}</div>
         </div>

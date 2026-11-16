@@ -23,10 +23,10 @@ interface Draft {
   outcome: DecisionOutcome | "";
   amount: string;
 }
-const OUTCOMES: [DecisionOutcome, string][] = [
-  ["approve", "Approve"],
-  ["waitlist", "Waitlist"],
-  ["decline", "Decline"],
+const OUTCOMES = (): [DecisionOutcome, string][] => [
+  ["approve", t("funderPanel.outcome.approve")],
+  ["waitlist", t("funderPanel.outcome.waitlist")],
+  ["decline", t("funderPanel.outcome.decline")],
 ];
 const fmt = (n: number | null) => (n === null ? "—" : n.toFixed(1));
 
@@ -63,7 +63,7 @@ export default function Panel() {
       if (d.outcome === "approve") {
         const minor = parseDollars(d.amount);
         if (minor === null || minor <= 0) {
-          problems.push(`Enter an amount for ${r.applicant ?? r.title}`);
+          problems.push(t("funderPanel.problem.amountFor", { name: r.applicant ?? r.title }));
           continue;
         }
         decisions.push({ applicationId: r.applicationId, outcome: "approve", amountMinor: minor });
@@ -85,7 +85,7 @@ export default function Panel() {
     const proposed = await api.proposeDecisions(compId, inputs.decisions);
     return api.commitDecisions({ competitionId: compId, decisionIds: proposed.decisions.map((d) => d.id), ...(over && override.trim() ? { override: { reason: override.trim() } } : {}) });
   });
-  const blocked = inputs.problems[0] ?? (inputs.decisions.length === 0 ? "Choose a decision for at least one application" : over && !isAdmin ? `Approvals exceed the program budget by ${formatMinor(-remaining!)}. Lower an allocation, or ask an admin to override` : over && !override.trim() ? `Approvals exceed the program budget by ${formatMinor(-remaining!)}. Give a reason to override` : null);
+  const blocked = inputs.problems[0] ?? (inputs.decisions.length === 0 ? t("funderPanel.problem.noDecision") : over && !isAdmin ? t("funderPanel.problem.overAskAdmin", { amount: formatMinor(-remaining!) }) : over && !override.trim() ? t("funderPanel.problem.overGiveReason", { amount: formatMinor(-remaining!) }) : null);
   const setDraft = (id: string, patch: Partial<Draft>, row: RankingRow) =>
     setDrafts((d) => {
       const cur = d[id] ?? { outcome: "", amount: "" };
@@ -109,7 +109,7 @@ export default function Panel() {
 
   return (
     <>
-      <title>{t("funderPanel.panel", { title: competition.data?.title ?? "Competition", name: ws.name })}</title>
+      <title>{t("funderPanel.panel", { title: competition.data?.title ?? t("funderPanel.competition"), name: ws.name })}</title>
       <FunderShell active="Reviews">
         <main className="main">
           <PageHeader
@@ -217,14 +217,14 @@ export default function Panel() {
                 <Check className="ic" aria-hidden="true" />
                 <div>
                   <div className="t">
-                    {result.committed} {result.committed === 1 ? t("funderPanel.decision") : t("funderPanel.decisions")} {t("funderPanel.committed")}
+                    {t("funderPanel.decisionsCommitted", { count: result.committed })}
                   </div>
                   <div className="d">
                     {result.results
                       .filter((r) => r.awardId)
                       .map((r) => (
                         <Link key={r.decisionId} to={`${base}/awards/${r.awardId}/agreement`} style={{ marginRight: "12px" }}>
-                          {t("funderPanel.openAwardFor")} {rows.find((x) => x.applicationId === r.applicationId)?.applicant ?? t("funderPanel.theApplicant")}
+                          {t("funderPanel.openAwardFor", { name: rows.find((x) => x.applicationId === r.applicationId)?.applicant ?? t("funderPanel.theApplicant") })}
                         </Link>
                       ))}
                     {result.override && <span>{t("funderPanel.overrideRecorded", { reason: result.override.reason })}</span>}
@@ -308,7 +308,7 @@ export default function Panel() {
                             </span>
                           ) : (
                             <div className="seg" role="radiogroup" aria-label={t("funderPanel.decisionFor", { name })}>
-                              {OUTCOMES.map(([value, label]) => (
+                              {OUTCOMES().map(([value, label]) => (
                                 <button key={value} type="button" role="radio" aria-checked={d.outcome === value} className={d.outcome === value ? "on" : undefined} onClick={() => setDraft(r.applicationId, { outcome: d.outcome === value ? "" : value }, r)}>
                                   {label}
                                 </button>
@@ -351,16 +351,16 @@ export default function Panel() {
               <div className="bd" style={{ fontSize: "13px", gap: "8px" }}>
                 {(
                   [
-                    ["approve", "approved", "an award is created (Offered)"],
-                    ["waitlist", "waitlisted", "status only"],
-                    ["decline", "declined", "a decline letter is sent"],
+                    ["approve", (count: number) => t("funderPanel.effect.approve", { count })],
+                    ["waitlist", (count: number) => t("funderPanel.effect.waitlist", { count })],
+                    ["decline", (count: number) => t("funderPanel.effect.decline", { count })],
                   ] as const
-                ).map(([outcome, word, effect]) => {
+                ).map(([outcome, effect]) => {
                   const n = inputs.decisions.filter((d) => d.outcome === outcome).length;
                   return n ? (
                     <div key={outcome} className="row" style={{ gap: "8px" }}>
                       <Check className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
-                      {n} {word} · {effect}
+                      {effect(n)}
                     </div>
                   ) : null;
                 })}

@@ -11,7 +11,7 @@ import type { Competition, Member, Opportunity, Program, ProgramInput } from "..
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
-import { StatusBadge } from "../../components/status.tsx";
+import { StatusBadge, statusLook } from "../../components/status.tsx";
 import type { ProgramOwner } from "../../api/launch.ts";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { BudgetCategoriesEditor, ProgramOutcomes, ProgramOwnerField, useProgramOwners } from "./ProgramExtras.tsx";
@@ -46,11 +46,11 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
   async function submit(e: FormEvent) {
     e.preventDefault();
     const errors: typeof local = {};
-    if (!draft.name.trim()) errors.name = "Give the program a name";
+    if (!draft.name.trim()) errors.name = t("funderPrograms.problem.name");
     const year = draft.fiscalYear.trim() ? Number(draft.fiscalYear) : null;
-    if (year !== null && (!Number.isInteger(year) || year < 1990 || year > 2200)) errors.fiscalYear = "Enter a four-digit year";
+    if (year !== null && (!Number.isInteger(year) || year < 1990 || year > 2200)) errors.fiscalYear = t("funderPrograms.problem.year");
     const budget = draft.budget.trim() ? parseDollars(draft.budget) : null;
-    if (draft.budget.trim() && budget === null) errors.budget = "Enter an amount in dollars, such as 1,200,000";
+    if (draft.budget.trim() && budget === null) errors.budget = t("funderPrograms.problem.budget");
     setLocal(errors);
     if (Object.keys(errors).length) return;
     const fundId = draft.fundId || startFund;
@@ -126,8 +126,13 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
             {program.name}
           </h2>
           <div className="small muted" style={{ marginTop: "4px" }}>
-            {fundName ? `${fundName} · ` : ""}
-            {program.fiscalYear ? t("funderPrograms.fy", { fiscalYear: program.fiscalYear }) : t("funderPrograms.noFiscalYear")} {t("funderPrograms.budget", { amount: formatMinor(program.budgetAmountMinor, program.currency) })} {owner ? t("funderPrograms.owner", { name: owner.name }) : t("funderPrograms.noOwner")} {t("funderPrograms.updated", { date: formatDate(program.updatedAt) })}
+            {[
+              ...(fundName ? [fundName] : []),
+              program.fiscalYear ? t("funderPrograms.fy", { fiscalYear: String(program.fiscalYear) }) : t("funderPrograms.noFiscalYear"),
+              t("funderPrograms.budgetAmount", { amount: formatMinor(program.budgetAmountMinor, program.currency) }),
+              owner ? t("funderPrograms.owner", { name: owner.name }) : t("funderPrograms.noOwner"),
+              t("funderPrograms.updatedOn", { date: formatDate(program.updatedAt) }),
+            ].join(" · ")}
           </div>
         </div>
         <div className="row" style={{ gap: "8px" }}>
@@ -157,7 +162,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
             columns={[
               { key: "title", header: t("funderPrograms.opportunity"), cell: (o) => <Link to={`${base}/opportunities/${o.id}/edit`} className="b" style={{ color: "#0D2A43" }}>{o.title}</Link>, sort: (o) => o.title },
               { key: "status", header: t("funderPrograms.status"), cell: (o) => <StatusBadge kind="opportunity" status={o.status} label={o.published ? undefined : t("funderPrograms.draft")} /> },
-              { key: "stage", header: t("funderPrograms.stage"), cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${c.status}`}` : "No competition"; } },
+              { key: "stage", header: t("funderPrograms.stage"), cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${statusLook("competition", c.status).label}`}` : t("funderPrograms.noCompetition"); } },
               { key: "apps", header: t("funderPrograms.applications"), numeric: true, cell: (o) => { const c = competitionOf(o); return c ? (received.get(c.id) ?? "—") : "—"; } },
               { key: "closes", header: t("funderPrograms.closes"), cell: (o) => formatDate(o.keyDates.closeDate?.date), sort: (o) => o.keyDates.closeDate?.date ?? null },
               { key: "go", header: "", numeric: true, cell: (o) => <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">{t("funderPrograms.competition")}</Link> },
@@ -175,7 +180,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
               <dt>{t("funderPrograms.currency")}</dt>
               <dd>{program.currency}</dd>
               <dt>{t("funderPrograms.reminderPlan")}</dt>
-              <dd>{defaults.reminderPlan?.length ? t("funderPrograms.daysFromTheDue", { map: defaults.reminderPlan.map((d) => (d > 0 ? `+${d}` : String(d))).join(", ") }) : t("funderPrograms.workspaceDefault")}</dd>
+              <dd>{defaults.reminderPlan?.length ? t("funderPrograms.daysFromTheDue", { days: defaults.reminderPlan.map((d) => (d > 0 ? `+${d}` : String(d))).join(", ") }) : t("funderPrograms.workspaceDefault")}</dd>
             </dl>
           </div>
           <div className="card-h" style={{ padding: "12px 16px", borderTop: "1px solid var(--og-gray-200)" }}>
@@ -280,7 +285,7 @@ export default function Programs() {
             data.status === "ready" && (
               <>
                 <span>
-                  {t("funderPrograms.program2", { count: programs.length })}{programs.length === 1 ? "" : t("funderPrograms.s")}
+                  {t("funderPrograms.programCount", { count: programs.length })}
                 </span>
                 <span>·</span>
                 <span>{t("funderPrograms.budgeted", { amount: formatMinor(totalBudget) })}</span>

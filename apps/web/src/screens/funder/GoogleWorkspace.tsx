@@ -49,7 +49,7 @@ export function GoogleWorkspaceCard() {
   };
   if (!c) return status.status === "error" ? <ErrorBanner error={status.error} onRetry={status.reload} /> : null;
   const notConfigured = unavailable || c.status === "not_configured" || (connect.error !== null && !c.connected && c.status !== "pending");
-  const label = c.connected ? "Connected" : c.status === "pending" ? "Waiting for Google sign-in" : notConfigured ? "Not configured" : "Not connected";
+  const label = c.connected ? t("googleWorkspace.state.connected") : c.status === "pending" ? t("googleWorkspace.state.pending") : notConfigured ? t("googleWorkspace.state.notConfigured") : t("googleWorkspace.state.notConnected");
 
   return (
     <div className="cmt">

@@ -39,7 +39,7 @@ function Done({ workspaceId }: { workspaceId: string }) {
       <section className="card" aria-labelledby="gd-title">
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <h1 id="gd-title" style={{ fontSize: "20px" }}>
-            {d.open} {d.open === 1 ? t("guestReviewerDone.reviewIs") : t("guestReviewerDone.reviewsAre")} {t("guestReviewerDone.stillOpen")}
+            {t("guestReviewerDone.openCount", { count: d.open })}
           </h1>
           <p className="muted">{t("guestReviewerDone.whenEveryReviewAssigned")}</p>
           <div>
@@ -60,7 +60,7 @@ function Done({ workspaceId }: { workspaceId: string }) {
             {t("guestReviewerDone.thankYouYourReviews")}
           </h1>
           <p>
-            {t("guestReviewerDone.youSubmitted", { submitted: d.submitted })} {d.submitted === 1 ? t("guestReviewerDone.review") : t("guestReviewerDone.reviews")} {t.rich("guestReviewerDone.forTheyHaveEverything", { name: d.funder.name, link: (chunks) => <Link to={`/review/assignments?ws=${encodeURIComponent(d.funder.handle)}`}>{chunks}</Link> })}
+            {t.rich("guestReviewerDone.youSubmittedFor", { count: d.submitted, name: d.funder.name, link: (chunks) => <Link to={`/review/assignments?ws=${encodeURIComponent(d.funder.handle)}`}>{chunks}</Link> })}
           </p>
         </div>
       </section>
@@ -177,7 +177,7 @@ function CreateFunder({ workspaceId, suggestion }: { workspaceId: string; sugges
       <Field id="gd-name" label={t("guestReviewerDone.organizationName")} required help={suggestion ? t("guestReviewerDone.suggestedFromYourEmail", { domain: suggestion.domain }) : t("guestReviewerDone.theNameFundersAnd")} error={problemFor(error, "displayName")}>
         <input id="gd-name" className="inp" value={name} onChange={(e) => setName(e.target.value)} autoComplete="organization" />
       </Field>
-      <Field id="gd-handle" label={t("guestReviewerDone.publicHandle")} help={t("guestReviewerDone.yourPublicPageWill", { handleValue: handleValue || "your-handle" })} error={problemFor(error, "handle")}>
+      <Field id="gd-handle" label={t("guestReviewerDone.publicHandle")} help={t("guestReviewerDone.yourPublicPageWill", { handle: handleValue || t("guestReviewerDone.yourHandle") })} error={problemFor(error, "handle")}>
         <input
           id="gd-handle"
           className="inp"

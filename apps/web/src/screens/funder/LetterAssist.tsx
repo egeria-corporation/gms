@@ -11,13 +11,15 @@ import { quotaSpent, QuotaSpentNote } from "../../components/launch.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { t } from "./i18n.ts";
 
-const PURPOSES = [
-  ["decision", "Decision"],
-  ["award", "Award"],
-  ["decline", "Decline"],
-  ["revision request", "Revision request"],
-  ["reminder", "Reminder"],
-] as const;
+// The value is what the assistant is told (English, a machine input); the label is what people read.
+const PURPOSES = () =>
+  [
+    ["decision", t("letterAssist.purpose.decision")],
+    ["award", t("letterAssist.purpose.award")],
+    ["decline", t("letterAssist.purpose.decline")],
+    ["revision request", t("letterAssist.purpose.revision")],
+    ["reminder", t("letterAssist.purpose.reminder")],
+  ] as const;
 
 export function LetterAssistant({ templateId, templateName }: { templateId: string; templateName: string }) {
   const status = useApiQuery((api) => api.assistStatus(), []);
@@ -55,7 +57,7 @@ export function LetterAssistant({ templateId, templateName }: { templateId: stri
               {t("letterAssist.purpose")}
             </label>
             <select id="letter-assist-purpose" className="sel" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
-              {PURPOSES.map(([value, label]) => (
+              {PURPOSES().map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

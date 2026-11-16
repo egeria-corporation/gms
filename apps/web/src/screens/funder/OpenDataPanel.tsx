@@ -6,7 +6,7 @@
 // The panel never shows a person's name: an award to an individual reads "An individual".
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { CircleCheck, CircleMinus, Copy, Download, ExternalLink, Globe, Lock, UserRound } from "lucide-react";
-import { createHttpOpenDataApi, type OpenDataApi, type OpenDataAwardRow, type OpenDataFormat, type OpenDataRange, type OpenDataSummary } from "../../api/openData.ts";
+import { createHttpOpenDataApi, type OpenDataApi, type OpenDataAwardRow, type OpenDataFormat, type OpenDataRange, type OpenDataReason, type OpenDataSummary } from "../../api/openData.ts";
 import { useServices, type Services } from "../../app/services.tsx";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, Field, Loading, Notice } from "../../components/ui.tsx";
@@ -22,7 +22,17 @@ const READERS = ["admin", "program_officer", "finance", "auditor"];
 const STAFF = ["admin", "program_officer"];
 /** As the server checks it: `360G-` and the publisher's code. */
 const PREFIX = /^360G-[A-Za-z0-9](?:[A-Za-z0-9_-]{0,58}[A-Za-z0-9])?$/;
-const PREFIX_HELP = "A 360Giving prefix starts with 360G- followed by letters, numbers, hyphens or underscores, e.g. 360G-riverbend";
+const prefixHelp = () => t("openDataPanel.prefixHelp");
+/** Why an award is left out, by its id; the server's own words for one this screen does not know. */
+const REASON: Record<OpenDataReason, () => string> = {
+  not_accepted: () => t("openDataPanel.reason.notAccepted"),
+  cancelled: () => t("openDataPanel.reason.cancelled"),
+  individual: () => t("openDataPanel.reason.individual"),
+  no_organization: () => t("openDataPanel.reason.noOrganization"),
+  confidential: () => t("openDataPanel.reason.confidential"),
+  unlisted: () => t("openDataPanel.reason.unlisted"),
+  no_amount: () => t("openDataPanel.reason.noAmount"),
+};
 
 const ports = new WeakMap<object, { api: OpenDataApi; ws: { id: string | null; handle: string | null } }>();
 const mockStores = new WeakMap<object, Map<string, OpenDataStore>>();
@@ -87,11 +97,12 @@ function OpenDataStatus({ row }: { row: OpenDataAwardRow }) {
   return (
     <span className="bdg bdg-neutral">
       <Icon className="ic" aria-hidden="true" />
-      {t("openDataPanel.leftOut")} {row.reasonLabel ?? t("openDataPanel.notExported")}
+      {t("openDataPanel.leftOutReason", { reason: (row.reason && REASON[row.reason]?.()) ?? row.reasonLabel ?? t("openDataPanel.notExported") })}
     </span>
   );
 }
 
+// Format names are the same in every language.
 const FORMATS: { format: OpenDataFormat; label: string }[] = [
   { format: "360giving-json", label: "360Giving JSON" },
   { format: "360giving-csv", label: "360Giving CSV" },
@@ -331,7 +342,7 @@ export function OpenDataPanel() {
                                     const on = e.target.checked;
                                     void act(`conf-${a.awardId}`, async () => {
                                       await api.setConfidential(a.awardId, on);
-                                      return on ? `${a.title} is kept confidential and will not be exported.` : `${a.title} can be exported again.`;
+                                      return on ? t("openDataPanel.done.confidential", { title: a.title }) : t("openDataPanel.done.exportable", { title: a.title });
                                     });
                                   }}
                                 />
@@ -361,13 +372,13 @@ export function OpenDataPanel() {
                     e.preventDefault();
                     const value = prefix.trim();
                     if (value && !PREFIX.test(value)) {
-                      setPrefixError(PREFIX_HELP);
+                      setPrefixError(prefixHelp());
                       return;
                     }
                     setPrefixError(null);
                     void act("prefix", async () => {
                       await api.saveSettings({ threeSixtyGivingPrefix: value || null });
-                      return value ? "360Giving prefix saved." : "360Giving prefix removed.";
+                      return value ? t("openDataPanel.done.prefixSaved") : t("openDataPanel.done.prefixRemoved");
                     });
                   }}
                 >
@@ -387,8 +398,7 @@ export function OpenDataPanel() {
                       {t("openDataPanel.publishMyAwardsAs")}
                     </div>
                     <div className="small muted" id={`${uid}-pub-d`}>
-                      {t("openDataPanel.offByDefaultWhen", { name: d.license.name })}
-                      {!d.settings.threeSixtyGivingPrefix && t("openDataPanel.saveYour360givingPrefix")}
+                      {t(d.settings.threeSixtyGivingPrefix ? "openDataPanel.offByDefaultWhen" : "openDataPanel.offByDefaultSavePrefix", { name: d.license.name })}
                     </div>
                   </div>
                   <button
@@ -403,7 +413,7 @@ export function OpenDataPanel() {
                       const on = !d.settings.publishFeed;
                       void act("publish", async () => {
                         await api.saveSettings({ publishFeed: on });
-                        return on ? "Your awards are published as open data." : "Your awards are no longer published as open data.";
+                        return on ? t("openDataPanel.done.published") : t("openDataPanel.done.unpublished");
                       });
                     }}
                   ></button>
@@ -423,7 +433,7 @@ export function OpenDataPanel() {
                       onClick={() =>
                         act("copy", async () => {
                           const copied = await copyText(d.feedUrl!);
-                          return copied ? "Feed address copied." : "Select the address and copy it.";
+                          return copied ? t("openDataPanel.done.copied") : t("openDataPanel.done.copyByHand");
                         })
                       }
                     >

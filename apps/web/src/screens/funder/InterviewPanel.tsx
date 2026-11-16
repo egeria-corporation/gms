@@ -73,7 +73,7 @@ function OfferDialog({ applicationId, onClose, onDone }: { applicationId: string
             {t("interviewPanel.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={filled === 0 || offer.state === "saving"}>
-            {t("interviewPanel.offerTime", { filled: filled || "" })}{filled === 1 ? "" : t("interviewPanel.s")}
+            {t("interviewPanel.offerTimes", { count: filled })}
           </button>
         </div>
       </form>

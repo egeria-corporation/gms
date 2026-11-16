@@ -34,11 +34,11 @@ function FundDialog({ fund, handle, onClose, onSaved }: { fund: Fund | null; han
   async function submit(e: FormEvent) {
     e.preventDefault();
     const errors: Record<string, string> = {};
-    if (!name.trim()) errors.name = "Give the fund a name";
-    if (!SLUG.test(address)) errors.slug = "Use lowercase letters, digits and hyphens";
-    else if (RESERVED_FUND_SLUGS.includes(address)) errors.slug = "Your public pages use that address. Choose another";
-    if (description.length > 500) errors.description = "Keep it to 500 characters";
-    if (logoUrl.trim() && !/^https:\/\/\S+$/.test(logoUrl.trim())) errors.logoUrl = "Use an https link";
+    if (!name.trim()) errors.name = t("fundSettings.problem.nameRequired");
+    if (!SLUG.test(address)) errors.slug = t("fundSettings.problem.slugFormat");
+    else if (RESERVED_FUND_SLUGS.includes(address)) errors.slug = t("fundSettings.problem.slugReserved");
+    if (description.length > 500) errors.description = t("fundSettings.problem.descriptionLength");
+    if (logoUrl.trim() && !/^https:\/\/\S+$/.test(logoUrl.trim())) errors.logoUrl = t("fundSettings.problem.logoHttps");
     setLocal(errors);
     if (Object.keys(errors).length) return;
     const saved = await save.run({ name: name.trim(), slug: address, description: description.trim() || null, brand: { color: color || null, logoUrl: logoUrl.trim() || null } });
@@ -117,11 +117,11 @@ function BudgetsDialog({ fund, onClose, onSaved }: { fund: Fund; onClose: () => 
     for (const r of rows.filter((x) => x.fiscalYear.trim() || x.amount.trim())) {
       const year = Number(r.fiscalYear);
       const minor = parseDollars(r.amount);
-      if (!Number.isInteger(year) || year < 1990 || year > 2200) return setProblem("Enter each fiscal year as four digits, such as 2027");
-      if (minor === null) return setProblem("Enter each amount in dollars, such as 2,500,000");
+      if (!Number.isInteger(year) || year < 1990 || year > 2200) return setProblem(t("fundSettings.problem.fiscalYear"));
+      if (minor === null) return setProblem(t("fundSettings.problem.amount"));
       out.push({ fiscalYear: year, amountMinor: minor });
     }
-    if (new Set(out.map((b) => b.fiscalYear)).size !== out.length) return setProblem("Give each fiscal year one budget");
+    if (new Set(out.map((b) => b.fiscalYear)).size !== out.length) return setProblem(t("fundSettings.problem.oneBudget"));
     setProblem(null);
     if (await save.run(out)) onSaved();
   }
@@ -273,7 +273,7 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
               {fund.isDefault && <span className="small muted"> {t("fundSettings.defaultFund")}</span>}
             </h2>
             <div className="small muted">
-              {t.rich("fundSettings.program", { page, programCount: fund.programCount, link: (chunks) => <Link to={page} className="mono">{chunks}</Link> })}{fund.programCount === 1 ? "" : t("fundSettings.s")}
+              {t.rich("fundSettings.program", { page, count: fund.programCount, link: (chunks) => <Link to={page} className="mono">{chunks}</Link> })}
             </div>
           </div>
         </div>
@@ -311,7 +311,7 @@ function FundCard({ fund, handle, isAdmin, onEdit, onBudgets, onInvite, version 
                 <tbody>
                   {fund.totals.map((year) => (
                     <tr key={year.fiscalYear}>
-                      <td>{t("fundSettings.fy", { fiscalYear: year.fiscalYear })}</td>
+                      <td>{t("fundSettings.fy", { fiscalYear: String(year.fiscalYear) })}</td>
                       <td className="num">{formatMinor(year.budgetMinor, year.currency)}</td>
                       <td className="num">
                         {formatMinor(year.programsMinor, year.currency)} <span className="small muted">({year.programCount})</span>

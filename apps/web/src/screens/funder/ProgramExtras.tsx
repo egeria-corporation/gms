@@ -85,7 +85,7 @@ export function ProgramOutcomes({ programId, reportsTotal, reportsAccepted, base
                   {item.unit ? <span className="small muted"> {item.unit}</span> : null}
                 </span>
                 <span className="stat-d">
-                  {t("programExtras.fromAcceptedReport", { reportsAccepted: outcomes.data?.reportsAccepted ?? reportsAccepted })}{(outcomes.data?.reportsAccepted ?? reportsAccepted) === 1 ? "" : t("programExtras.s")}
+                  {t("programExtras.fromAcceptedReport", { count: outcomes.data?.reportsAccepted ?? reportsAccepted })}
                 </span>
               </div>
             ))}

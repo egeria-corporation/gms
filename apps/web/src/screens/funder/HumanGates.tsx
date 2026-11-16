@@ -10,21 +10,21 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, Loading, SaveNote } from "../../components/ui.tsx";
 import { t } from "./i18n.ts";
 
-const LOCKED: [string, string, string][] = [
-  ["commit_decisions", "Commit decisions", "Creates awards and sends decision letters"],
-  ["release_tranche", "Release a payment", "Moves money through Passport"],
-  ["sign_agreement", "Sign an agreement", "A signature is always a person’s"],
-  ["accept_award", "Accept an award", "The recipient’s own act"],
-  ["submit_application", "Submit an application", "The applicant’s own act"],
-  ["send_communication", "Send a communication", "Mail leaves in your name"],
-  ["decline_application", "Decline an application", "A decline is a decision and sends a letter"],
+const LOCKED = (): [string, string, string][] => [
+  ["commit_decisions", t("humanGates.commitDecisions.label"), t("humanGates.commitDecisions.why")],
+  ["release_tranche", t("humanGates.releaseTranche.label"), t("humanGates.releaseTranche.why")],
+  ["sign_agreement", t("humanGates.signAgreement.label"), t("humanGates.signAgreement.why")],
+  ["accept_award", t("humanGates.acceptAward.label"), t("humanGates.acceptAward.why")],
+  ["submit_application", t("humanGates.submitApplication.label"), t("humanGates.submitApplication.why")],
+  ["send_communication", t("humanGates.sendCommunication.label"), t("humanGates.sendCommunication.why")],
+  ["decline_application", t("humanGates.declineApplication.label"), t("humanGates.declineApplication.why")],
 ];
-const OPTIONAL: [string, string, string][] = [
-  ["request_revision", "Request a revision", "Acts immediately unless gated; the applicant sees the agent attribution"],
-  ["advance_application", "Advance an application", "Moves an application to the next stage"],
-  ["publish_opportunity", "Publish an opportunity", "Makes an opportunity public"],
-  ["assign_reviewer", "Assign a reviewer", "Adds a review assignment"],
-  ["accept_submission", "Accept a report", "Can make a tranche due"],
+const OPTIONAL = (): [string, string, string][] => [
+  ["request_revision", t("humanGates.requestRevision.label"), t("humanGates.requestRevision.why")],
+  ["advance_application", t("humanGates.advanceApplication.label"), t("humanGates.advanceApplication.why")],
+  ["publish_opportunity", t("humanGates.publishOpportunity.label"), t("humanGates.publishOpportunity.why")],
+  ["assign_reviewer", t("humanGates.assignReviewer.label"), t("humanGates.assignReviewer.why")],
+  ["accept_submission", t("humanGates.acceptSubmission.label"), t("humanGates.acceptSubmission.why")],
 ];
 
 export function HumanGates() {
@@ -48,7 +48,7 @@ export function HumanGates() {
     else setFailed(tool);
     setPending(null);
   }
-  const failedLabel = failed === null ? null : (OPTIONAL.find(([item]) => item === failed)?.[1] ?? failed);
+  const failedLabel = failed === null ? null : (OPTIONAL().find(([item]) => item === failed)?.[1] ?? failed);
 
   return (
     <section className="card" id="gates" aria-labelledby="gates-h">
@@ -65,7 +65,7 @@ export function HumanGates() {
         {save.error !== null && <ErrorBanner error={save.error} title={failedLabel ? t("humanGates.didNotChangeThe", { failedLabel }) : undefined} />}
         {record.status === "ready" && (
           <div className="rc">
-            {LOCKED.map(([tool, label, text]) => [tool, label, tool === "release_tranche" && !facilitatedPayments ? "Payments through Passport are not switched on for this install; recording a payment made elsewhere is done by a person" : text] as const).map(([tool, label, why]) => (
+            {LOCKED().map(([tool, label, text]) => [tool, label, tool === "release_tranche" && !facilitatedPayments ? t("humanGates.releaseTranche.whyOff") : text] as const).map(([tool, label, why]) => (
               <div key={tool} className="rc-row rc-pass">
                 <Lock className="ic" aria-hidden="true" />
                 <div>
@@ -77,7 +77,7 @@ export function HumanGates() {
                 <button type="button" className="tog on" role="switch" aria-checked="true" aria-label={t("humanGates.requiresApprovalLocked", { label })} disabled></button>
               </div>
             ))}
-            {OPTIONAL.map(([tool, label, why]) => {
+            {OPTIONAL().map(([tool, label, why]) => {
               const on = extra.includes(tool);
               return (
                 <div key={tool} className={on ? "rc-row rc-pass" : "rc-row rc-unk"}>
