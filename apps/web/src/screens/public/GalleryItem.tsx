@@ -17,13 +17,18 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { AuthorLine, GalleryFrame, KindBadge, LicenceNote, SnapshotPreview, TagList } from "./galleryParts.tsx";
 
+import { getLocale, translator } from "../../i18n/index.tsx";
+import { formatList } from "@gms/i18n";
+
+
+const t = translator("public");
 /** Roles that can make forms, rubrics and email templates in a funder workspace. */
 export const COPY_ROLES = ["admin", "program_officer"];
 
 function hrefOf(handle: string, c: GalleryCopyResult["created"][number]): { to: string; label: string } {
-  if (c.type === "form") return { to: `/w/${handle}/forms/${c.id}/edit`, label: "Open the draft form" };
-  if (c.type === "rubric") return { to: `/w/${handle}/opportunities`, label: "Choose it on a competition stage" };
-  return { to: `/w/${handle}/communications`, label: "Open in Communications" };
+  if (c.type === "form") return { to: `/w/${handle}/forms/${c.id}/edit`, label: t("galleryItem.openTheDraftForm") };
+  if (c.type === "rubric") return { to: `/w/${handle}/opportunities`, label: t("galleryItem.chooseItOnACompetition") };
+  return { to: `/w/${handle}/communications`, label: t("galleryItem.openInCommunications") };
 }
 
 function CopyDialog({ item, workspaces, onClose }: { item: Item; workspaces: MeWorkspace[]; onClose: () => void }) {
@@ -38,22 +43,22 @@ function CopyDialog({ item, workspaces, onClose }: { item: Item; workspaces: MeW
   return (
     <Dialog open onClose={onClose} labelledBy="gallery-copy-title">
       <div className="hd">
-        <h2 id="gallery-copy-title">{done ? "Copied to your workspace" : "Use this template"}</h2>
+        <h2 id="gallery-copy-title">{done ? t("galleryItem.copiedToYourWorkspace") : t("galleryItem.useThisTemplate")}</h2>
       </div>
       <div className="bd" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {copy.error !== null && <ErrorBanner error={copy.error} title="The template could not be copied" />}
+        {copy.error !== null && <ErrorBanner error={copy.error} title={t("galleryItem.theTemplateCouldNotBe")} />}
         {done ? (
           <>
             <p className="row" style={{ gap: "8px" }}>
               <CircleCheck className="ic" aria-hidden="true" />
-              {done.result.created.length === 1 ? "It is now yours to change" : `${done.result.created.length} new records are now yours to change`} in {done.ws.name}. Nothing you change reaches the gallery.
+              {t("galleryItem.nowYours", { count: done.result.created.length, workspace: done.ws.name })}
             </p>
-            <ul aria-label="What was copied" style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <ul aria-label={t("galleryItem.whatWasCopied")} style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px" }}>
               {done.result.created.map((c) => {
                 const link = hrefOf(done.ws.handle, c);
                 return (
                   <li key={`${c.type}-${c.id}`}>
-                    <span className="b">{c.title}</span> <span className="muted">({c.type === "form" ? (c.purpose === "report" ? "draft report form" : "draft application form") : c.type === "rubric" ? "rubric" : "email template"})</span> · <Link to={link.to}>{link.label}</Link>
+                    <span className="b">{c.title}</span> <span className="muted">{t("galleryItem.copiedKind", { kind: c.type === "form" ? (c.purpose === "report" ? t("galleryItem.draftReportForm") : t("galleryItem.draftApplicationForm")) : c.type === "rubric" ? t("galleryItem.rubric") : t("galleryItem.emailTemplate") })}</span> · <Link to={link.to}>{link.label}</Link>
                   </li>
                 );
               })}
@@ -62,12 +67,12 @@ function CopyDialog({ item, workspaces, onClose }: { item: Item; workspaces: MeW
         ) : (
           <>
             <p>
-              We will add a copy of <span className="b">{item.title}</span> to your workspace{item.snapshot.forms.length ? " as a draft" : ""}. You can change anything before you use it.
+              {t.rich(item.snapshot.forms.length ? "galleryItem.weWillAddADraftCopy" : "galleryItem.weWillAddACopy", { title: item.title, b: (chunks) => <span className="b">{chunks}</span> })}
             </p>
             {workspaces.length > 1 ? (
               <div className="fld">
                 <label className="lbl" htmlFor="gallery-copy-ws">
-                  Workspace
+                  {t("galleryItem.workspace")}
                 </label>
                 <select id="gallery-copy-ws" className="sel" value={wsId} onChange={(e) => setWsId(e.target.value)}>
                   {workspaces.map((w) => (
@@ -78,7 +83,7 @@ function CopyDialog({ item, workspaces, onClose }: { item: Item; workspaces: MeW
                 </select>
               </div>
             ) : (
-              <p className="small muted">Workspace: {target.name}</p>
+              <p className="small muted">{t("galleryItem.workspace2", { name: target.name })}</p>
             )}
             <LicenceNote author={item.author} />
           </>
@@ -87,16 +92,16 @@ function CopyDialog({ item, workspaces, onClose }: { item: Item; workspaces: MeW
       <div className="ft">
         {done ? (
           <button type="button" className="btn btn-primary" onClick={onClose}>
-            Done
+            {t("galleryItem.done")}
           </button>
         ) : (
           <>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t("galleryItem.cancel")}
             </button>
             <button type="button" className="btn btn-primary" onClick={go} disabled={copy.state === "saving"}>
               <Copy className="ic" aria-hidden="true" />
-              Copy to {target.name}
+              {t("galleryItem.copyTo", { name: target.name })}
             </button>
           </>
         )}
@@ -129,28 +134,28 @@ function UsePanel({ item }: { item: Item }) {
     action = (
       <>
         <button type="button" className="btn btn-primary btn-block" onClick={() => navigate(signInPath(`${here}?use=1`))}>
-          Use this template
+          {t("galleryItem.useThisTemplate")}
           <ArrowRight className="ic" aria-hidden="true" />
         </button>
-        <p className="small muted">Free. Sign up or sign in with your email, and you will come back here to copy it.</p>
+        <p className="small muted">{t("galleryItem.freeSignUpOrSign")}</p>
       </>
     );
   } else if (sessionState.status === "loading" || meState.status !== "ready") {
-    action = <Loading label="Checking your workspaces" />;
+    action = <Loading label={t("galleryItem.checkingYourWorkspaces")} />;
   } else if (copyable.length) {
     action = (
       <button type="button" className="btn btn-primary btn-block" onClick={() => setOpen(true)}>
         <Copy className="ic" aria-hidden="true" />
-        Use this template
+        {t("galleryItem.useThisTemplate")}
       </button>
     );
   } else if (funders.length) {
-    action = <p className="small">Your role in {funders.map((f) => f.name).join(" and ")} cannot add templates. An admin or a program officer can copy it.</p>;
+    action = <p className="small">{t("galleryItem.yourRoleInCannotAdd", { join: formatList(getLocale(), funders.map((f) => f.name)) })}</p>;
   } else {
     // An applicant workspace has no forms, rubrics or email templates of its own: no button.
     action = (
       <p className="small">
-        Templates are copied into a funder workspace. <Link to="/onboarding/funder/organization">Set up a funder workspace</Link> to use them.
+        {t.rich("galleryItem.templatesAreCopiedIntoA", { link: (chunks) => <Link to="/onboarding/funder/organization">{chunks}</Link> })}
       </p>
     );
   }
@@ -170,12 +175,12 @@ export default function GalleryItem() {
     <GalleryFrame>
       {item.status === "loading" && (
         <div className="wrap-c" style={{ paddingTop: "32px", paddingBottom: "32px" }}>
-          <Loading label="Loading the template" />
+          <Loading label={t("galleryItem.loadingTheTemplate")} />
         </div>
       )}
       {item.status === "error" && (
         <div className="wrap-c" style={{ paddingTop: "32px", paddingBottom: "32px" }}>
-          <ErrorBanner error={item.error} onRetry={item.reload} title="The template could not be loaded" />
+          <ErrorBanner error={item.error} onRetry={item.reload} title={t("galleryItem.theTemplateCouldNotBe2")} />
         </div>
       )}
       {item.status === "ready" && <ItemPage item={item.data} />}
@@ -185,17 +190,21 @@ export default function GalleryItem() {
 
 function ItemPage({ item }: { item: Item }) {
   const c = item.contents;
-  const parts = [c.forms ? `${c.forms} form${c.forms === 1 ? "" : "s"}${c.questions ? ` (${c.questions} questions)` : ""}` : null, c.rubrics ? "a rubric" : null, c.emails ? `${c.emails} email${c.emails === 1 ? "" : "s"}` : null].filter(Boolean);
+  const parts = [
+    c.forms ? (c.questions ? t("galleryItem.formsWithQuestions", { count: c.forms, questions: c.questions }) : t("galleryItem.forms", { count: c.forms })) : null,
+    c.rubrics ? t("galleryItem.aRubric") : null,
+    c.emails ? t("galleryItem.emails", { count: c.emails }) : null,
+  ].filter((p): p is string => !!p);
   return (
     <>
-      <title>{`${item.title} — Template gallery — OpenGrants GMS`}</title>
+      <title>{t("galleryItem.templateGalleryOpengrantsGms", { title: item.title })}</title>
       <meta name="description" content={item.summary} />
       <section style={{ background: "var(--grad-hero)", paddingTop: "28px", paddingBottom: "24px" }}>
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <nav aria-label="Breadcrumb" className="crumbs">
+          <nav aria-label={t("galleryItem.breadcrumb")} className="crumbs">
             <Link to="/templates" className="row" style={{ gap: "4px" }}>
               <ArrowLeft className="ic ic-sm" aria-hidden="true" />
-              Template gallery
+              {t("galleryItem.templateGallery")}
             </Link>
           </nav>
           <KindBadge kind={item.kind} />
@@ -207,29 +216,29 @@ function ItemPage({ item }: { item: Item }) {
       {/* wrap-reverse: on a narrow screen the panel with "Use this template" comes first. */}
       <div className="wrap-c" style={{ display: "flex", flexWrap: "wrap-reverse", gap: "24px", alignItems: "start", paddingTop: "24px", paddingBottom: "48px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0, flex: "1 1 520px" }}>
-          <h2 style={{ fontSize: "18px" }}>Preview</h2>
-          <p className="small muted">This is exactly what you get. Nothing here can be filled in; copy it to make it yours.</p>
+          <h2 style={{ fontSize: "18px" }}>{t("galleryItem.preview")}</h2>
+          <p className="small muted">{t("galleryItem.thisIsExactlyWhatYou")}</p>
           <SnapshotPreview snapshot={item.snapshot} />
         </div>
-        <aside className="card" aria-label="About this template" style={{ flex: "1 1 260px", maxWidth: "360px" }}>
+        <aside className="card" aria-label={t("galleryItem.aboutThisTemplate")} style={{ flex: "1 1 260px", maxWidth: "360px" }}>
           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <UsePanel item={item} />
             <dl className="kv small" style={{ margin: 0, gridTemplateColumns: "88px minmax(0, 1fr)" }}>
-              <dt>Kind</dt>
+              <dt>{t("galleryItem.kind")}</dt>
               <dd>{KIND_LABEL[item.kind]}</dd>
-              <dt>Includes</dt>
-              <dd>{parts.join(", ")}</dd>
-              <dt>Version</dt>
-              <dd>v{item.version}</dd>
-              <dt>Published</dt>
+              <dt>{t("galleryItem.includes")}</dt>
+              <dd>{formatList(getLocale(), parts)}</dd>
+              <dt>{t("galleryItem.version")}</dt>
+              <dd>{t("galleryItem.v", { version: item.version })}</dd>
+              <dt>{t("galleryItem.published")}</dt>
               <dd>{formatDate(item.publishedAt)}</dd>
-              <dt>Used</dt>
-              <dd>{item.usesCount === 1 ? "once" : `${item.usesCount} times`}</dd>
+              <dt>{t("galleryItem.used")}</dt>
+              <dd>{t("galleryItem.uses", { count: item.usesCount })}</dd>
             </dl>
             <TagList tags={item.tags} />
             <LicenceNote author={item.author} />
             <p className="small muted row" style={{ gap: "6px" }}>
-              <LayoutTemplate className="ic ic-sm" aria-hidden="true" />A copy is yours: later changes to this template never change it.
+              <LayoutTemplate className="ic ic-sm" aria-hidden="true" />{t("galleryItem.aCopyIsYoursLater")}
             </p>
           </div>
         </aside>

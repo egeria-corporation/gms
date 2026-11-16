@@ -18,6 +18,10 @@ import { CLAIM_PATH, captureClaimToken, clearClaimToken, getClaimToken } from ".
 import { formatDate } from "../../lib/format.ts";
 import { FUNDER_TEXT_LINK, formatDecimalAmount } from "../../lib/directAward.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+
+const t = translator("public");
 /** Where "Set up your organization" goes: the no-Passport onboarding, then back to this claim. */
 export function setupOrganizationHref(organizationName: string, claimUrl: string): string {
   return `/onboarding/applicant?start=email&name=${encodeURIComponent(organizationName)}&next=${encodeURIComponent(claimUrl)}`;
@@ -44,16 +48,16 @@ export function funderIsVerified(funder: { verified?: unknown } | null | undefin
 
 function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
   const { award, funder } = lookup;
-  const period = award.startDate && award.endDate ? `${formatDate(award.startDate)} to ${formatDate(award.endDate)}` : award.startDate ? `From ${formatDate(award.startDate)}` : award.endDate ? `Until ${formatDate(award.endDate)}` : null;
+  const period = award.startDate && award.endDate ? `${formatDate(award.startDate)} to ${formatDate(award.endDate)}` : award.startDate ? t("claimAward.from2", { startDate: formatDate(award.startDate) }) : award.endDate ? t("claimAward.until", { endDate: formatDate(award.endDate) }) : null;
   return (
     <section className="card" aria-labelledby="claim-award-h">
       <div className="card-h">
         <div>
-          <span className="eyebrow">From</span>
+          <span className="eyebrow">{t("claimAward.from")}</span>
           <div className="row wrap" style={{ gap: "8px" }}>
             <span className="b">{funder.name}</span>
             <VerificationBadge verification={funder.verification} />
-            {funder.workspaceName && funder.workspaceName !== funder.name && <span className="small muted">Workspace name: {funder.workspaceName}</span>}
+            {funder.workspaceName && funder.workspaceName !== funder.name && <span className="small muted">{t("claimAward.workspaceName", { workspaceName: funder.workspaceName })}</span>}
           </div>
         </div>
       </div>
@@ -61,29 +65,29 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
         {!funderIsVerified(funder) && (
           <p className="row small" style={{ gap: "6px" }}>
             <ShieldOff className="ic" aria-hidden="true" />
-            <span>This funder's organization is not verified with OpenGrants Passport.</span>
+            <span>{t("claimAward.thisFunderSOrganizationIs")}</span>
           </p>
         )}
         <h2 id="claim-award-h" style={{ fontSize: "20px" }}>
           {award.title}
         </h2>
         <dl className="kv">
-          <dt>Amount</dt>
+          <dt>{t("claimAward.amount")}</dt>
           <dd>{award.amount ? formatDecimalAmount(award.amount.value, award.amount.currency) : "—"}</dd>
-          <dt>For</dt>
+          <dt>{t("claimAward.for")}</dt>
           <dd>{lookup.organizationName}</dd>
           {period && (
             <>
-              <dt>Period</dt>
+              <dt>{t("claimAward.period")}</dt>
               <dd>{period}</dd>
             </>
           )}
-          <dt>Sent to</dt>
+          <dt>{t("claimAward.sentTo")}</dt>
           <dd>{lookup.invitedEmail}</dd>
         </dl>
         {award.message && (
           <blockquote style={{ margin: 0, padding: "8px 12px", borderLeft: "3px solid var(--og-gray-200)", whiteSpace: "pre-wrap" }}>
-            <span className="eyebrow">Message from {funder.name}</span>
+            <span className="eyebrow">{t("claimAward.messageFrom", { name: funder.name })}</span>
             <p>{award.message}</p>
           </blockquote>
         )}
@@ -95,7 +99,7 @@ function AwardSummary({ lookup }: { lookup: InvitationLookup }) {
 function DeclineDialog({ funderName, busy, onClose, onDecline }: { funderName: string; busy: boolean; onClose: () => void; onDecline: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   // The reason is emailed to the funder's staff as plain text, so it follows the same rule as the funder's own text.
-  const problem = FUNDER_TEXT_LINK.test(reason) ? "The reason cannot contain a web or email address." : null;
+  const problem = FUNDER_TEXT_LINK.test(reason) ? t("claimAward.theReasonCannotContainA") : null;
   return (
     <Dialog open onClose={onClose} labelledBy="decline-title">
       <form
@@ -106,21 +110,21 @@ function DeclineDialog({ funderName, busy, onClose, onDecline }: { funderName: s
         }}
       >
         <div className="hd">
-          <h2 id="decline-title">Decline this award</h2>
+          <h2 id="decline-title">{t("claimAward.declineThisAward")}</h2>
         </div>
         <div className="bd">
-          <p>{funderName} is told you declined. They decide what happens to the award.</p>
-          <Field id="decline-reason" label="Reason" help="Optional. Shared with the funder." error={problem}>
+          <p>{t("claimAward.isToldYouDeclinedThey", { funderName })}</p>
+          <Field id="decline-reason" label={t("claimAward.reason")} help={t("claimAward.optionalSharedWithTheFunder")} error={problem}>
             <textarea className="ta" id="decline-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Keep the award open
+            {t("claimAward.keepTheAwardOpen")}
           </button>
           <button type="submit" className="btn btn-danger" disabled={busy || problem !== null}>
             <CircleX className="ic" aria-hidden="true" />
-            Decline award
+            {t("claimAward.declineAward")}
           </button>
         </div>
       </form>
@@ -133,31 +137,31 @@ function AcceptProblem({ error, claimUrl, onSwitchAddress }: { error: unknown; c
   const code = errorCode(error);
   if (code === "email_mismatch") {
     return (
-      <Notice tone="warn" title="This invitation was sent to a different address">
-        {error instanceof Error ? error.message : "Sign in with the address the invitation was sent to."}{" "}
+      <Notice tone="warn" title={t("claimAward.thisInvitationWasSentTo")}>
+        {error instanceof Error ? error.message : t("claimAward.signInWithTheAddress")}{" "}
         <button type="button" className="btn btn-sm btn-secondary" onClick={onSwitchAddress}>
-          Sign in with a different address
+          {t("claimAward.signInWithADifferent")}
         </button>
       </Notice>
     );
   }
   if (code === "signer_name_required") {
-    return <Notice tone="info" title="Type your full legal name">Passport lists verified representatives for this organization. Type your full legal name below, as it appears there, then accept again.</Notice>;
+    return <Notice tone="info" title={t("claimAward.typeYourFullLegalName")}>{t("claimAward.passportListsVerifiedRepresentativesFor")}</Notice>;
   }
   if (code === "invitation_revoked") {
-    return <Notice tone="warn" title="This award was withdrawn">The funder withdrew this award, so it can no longer be accepted.</Notice>;
+    return <Notice tone="warn" title={t("claimAward.thisAwardWasWithdrawn")}>{t("claimAward.theFunderWithdrewThisAward")}</Notice>;
   }
   if (code === "not_workspace_admin") {
-    return <Notice tone="warn" title="Only an admin can accept">Only an admin of an organization can accept an award for it. Choose an organization you administer, or ask one of its admins to accept.</Notice>;
+    return <Notice tone="warn" title={t("claimAward.onlyAnAdminCanAccept")}>{t("claimAward.onlyAnAdminOfAn")}</Notice>;
   }
   if (code === "mfa_required") {
     return (
-      <Notice tone="warn" title="One more step before you can accept">
-        Accepting needs the second step of sign-in. <Link to={signInPath(claimUrl, "mfa")}>Finish the second step</Link>, then come back to accept.
+      <Notice tone="warn" title={t("claimAward.oneMoreStepBeforeYou")}>
+        {t.rich("claimAward.acceptingNeedsTheSecondStep", { link: (chunks) => <Link to={signInPath(claimUrl, "mfa")}>{chunks}</Link> })}
       </Notice>
     );
   }
-  return <ErrorBanner error={error} title="The award was not accepted" />;
+  return <ErrorBanner error={error} title={t("claimAward.theAwardWasNotAccepted")} />;
 }
 
 /** The claim screen for one invitation, whatever state it is in. Pure: the page below supplies the calls. */
@@ -174,10 +178,10 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
   let body: ReactNode;
   if (lookup.status !== "pending") {
     const closed = {
-      accepted: { icon: CircleCheck, title: "This award was already accepted", text: "Nothing more is needed here. Open your workspaces to find it." },
-      declined: { icon: CircleX, title: "This invitation was declined", text: `${funderName} was told. If that was a mistake, ask them to send a new invitation.` },
-      expired: { icon: Clock, title: "This invitation has expired", text: `Ask ${funderName} to send a new one. Links work for a limited time.` },
-      revoked: { icon: Ban, title: "This award was withdrawn", text: `${funderName} withdrew this award, so it can no longer be accepted.` },
+      accepted: { icon: CircleCheck, title: t("claimAward.thisAwardWasAlreadyAccepted"), text: t("claimAward.nothingMoreIsNeededHere") },
+      declined: { icon: CircleX, title: t("claimAward.thisInvitationWasDeclined"), text: `${funderName} was told. If that was a mistake, ask them to send a new invitation.` },
+      expired: { icon: Clock, title: t("claimAward.thisInvitationHasExpired"), text: t("claimAward.askToSendANew", { funderName }) },
+      revoked: { icon: Ban, title: t("claimAward.thisAwardWasWithdrawn"), text: `${funderName} withdrew this award, so it can no longer be accepted.` },
     }[lookup.status];
     const Icon = closed.icon;
     body = (
@@ -187,7 +191,7 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
         <p>{closed.text}</p>
         <div className="acts">
           <Link to="/workspaces" className="btn btn-primary">
-            Go to your workspaces
+            {t("claimAward.goToYourWorkspaces")}
           </Link>
         </div>
       </div>
@@ -197,14 +201,14 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
       <div className="bnr bnr-warn" role="alert">
         <TriangleExclamationPoint className="ic" aria-hidden="true" />
         <div>
-          <div className="t">This invitation was sent to a different address</div>
+          <div className="t">{t("claimAward.thisInvitationWasSentTo")}</div>
           <div className="d">
-            Sign in with the address the invitation was sent to: {lookup.invitedEmail}. You are signed in as {signedInAs}.
+            {t("claimAward.signInWithTheAddress2", { invitedEmail: lookup.invitedEmail, signedInAs })}
           </div>
           <div style={{ marginTop: "8px" }}>
             <button type="button" className="btn btn-secondary" onClick={onSwitchAddress}>
               <LogOut className="ic" aria-hidden="true" />
-              Sign in with a different address
+              {t("claimAward.signInWithADifferent")}
             </button>
           </div>
         </div>
@@ -215,7 +219,7 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
       <section className="card" aria-labelledby="claim-who-h">
         <div className="card-h">
           <h2 id="claim-who-h" style={{ fontSize: "18px" }}>
-            {lookup.workspaces.length > 0 ? "Which organization is accepting?" : "Set up your organization"}
+            {lookup.workspaces.length > 0 ? t("claimAward.whichOrganizationIsAccepting") : t("claimAward.setUpYourOrganization")}
           </h2>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -223,7 +227,7 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
           {lookup.workspaces.length > 0 ? (
             <>
               <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                <legend className="sr">Organization accepting this award</legend>
+                <legend className="sr">{t("claimAward.organizationAcceptingThisAward")}</legend>
                 {lookup.workspaces.map((w) => (
                   <label key={w.id} className="radio" style={{ cursor: "pointer" }}>
                     <input type="radio" name="claim-workspace" value={w.id} checked={chosen === w.id} onChange={() => setChosen(w.id)} />
@@ -235,35 +239,35 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
                 ))}
               </fieldset>
               <p className="small">
-                Not one of these? <Link to={setUp}>Set up a new organization</Link>
+                {t.rich("claimAward.notOneOfTheseSet", { link: (chunks) => <Link to={setUp}>{chunks}</Link> })}
               </p>
               {needsName && (
-                <Field id="claim-signer" label="Your full legal name" required help="Passport lists verified representatives for this organization. Type your name as it appears there.">
+                <Field id="claim-signer" label={t("claimAward.yourFullLegalName")} required help={t("claimAward.passportListsVerifiedRepresentativesFor2")}>
                   <input className="inp" id="claim-signer" value={signerName} onChange={(e) => setSignerName(e.target.value)} autoComplete="name" />
                 </Field>
               )}
-              <p>Accepting shares your organization's record with {funderName}.</p>
+              <p>{t("claimAward.acceptingSharesYourOrganizationS", { funderName })}</p>
               <div className="row wrap">
                 <button type="button" className="btn btn-primary" disabled={!chosen || accepting || (needsName && signerName.trim().length < 2)} onClick={() => onAccept(chosen, signerName.trim() || undefined)}>
                   <AwardIcon className="ic" aria-hidden="true" />
-                  Accept award
+                  {t("claimAward.acceptAward")}
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setDeciding(true)}>
-                  Decline…
+                  {t("claimAward.decline")}
                 </button>
               </div>
             </>
           ) : (
             <>
               <p>
-                You do not have an organization on OpenGrants GMS yet. Setting one up takes a few minutes and does not need Passport. Then you come back here to accept.
+                {t("claimAward.youDoNotHaveAn")}
               </p>
               <div className="row wrap">
                 <Link to={setUp} className="btn btn-primary">
-                  Set up your organization
+                  {t("claimAward.setUpYourOrganization")}
                 </Link>
                 <button type="button" className="btn btn-secondary" onClick={() => setDeciding(true)}>
-                  Decline…
+                  {t("claimAward.decline")}
                 </button>
               </div>
             </>
@@ -276,8 +280,8 @@ export function ClaimView({ lookup, claimUrl, signedInAs, onAccept, onDecline, o
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-        <h1>Accept an award from {funderName}</h1>
-        <p className="muted">Signed in as {signedInAs}</p>
+        <h1>{t("claimAward.acceptAnAwardFrom", { funderName })}</h1>
+        <p className="muted">{t("claimAward.signedInAs", { signedInAs })}</p>
       </div>
       <AwardSummary lookup={lookup} />
       {body}
@@ -317,7 +321,7 @@ function ClaimAward() {
   // Read once: the stored copy is cleared when the invitation is used up, and this page may reload after that.
   const [token] = useState(getClaimToken);
   const claimUrl = CLAIM_PATH;
-  const lookup = useApiQuery((api) => (token ? api.lookupAwardInvitation(token) : Promise.reject(Object.assign(new Error("This invitation link is not complete."), { status: 404 }))), [token]);
+  const lookup = useApiQuery((api) => (token ? api.lookupAwardInvitation(token) : Promise.reject(Object.assign(new Error(t("claimAward.thisInvitationLinkIsNot2")), { status: 404 }))), [token]);
   const accept = useApiMutation((api, workspaceId: string, name?: string) => api.acceptAwardInvitation({ token, workspaceId, ...(name ? { name } : {}) }));
   const decline = useApiMutation((api, reason: string) => api.declineAwardInvitation({ token, ...(reason.trim() ? { reason: reason.trim() } : {}) }));
   const email = sessionState.status === "signedIn" ? sessionState.session.email : "";
@@ -351,7 +355,7 @@ function ClaimAward() {
   const notFound = lookup.status === "error" && (errorCode(lookup.error) === "invitation_not_found" || (lookup.error as { status?: number }).status === 404);
   return (
     <>
-      <title>Accept an award — OpenGrants GMS</title>
+      <title>{t("claimAward.acceptAnAwardOpengrantsGms")}</title>
       <div className="gms gms-applicant gms-frame">
         <header className="topbar">
           <Link to="/" className="logo">
@@ -360,20 +364,20 @@ function ClaimAward() {
           </Link>
         </header>
         <main className="main" style={{ maxWidth: "720px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "16px" }}>
-          {lookup.status === "loading" && <Loading label="Opening the invitation" />}
+          {lookup.status === "loading" && <Loading label={t("claimAward.openingTheInvitation")} />}
           {notFound && (
             <div className="empty" role="alert">
               <TriangleExclamationPoint className="ic" aria-hidden="true" />
-              <h3>This invitation link is not valid</h3>
-              <p>The link may be incomplete, or a newer email may have replaced it. Open the most recent email from the funder, or ask them to send a new invitation.</p>
+              <h3>{t("claimAward.thisInvitationLinkIsNot")}</h3>
+              <p>{t("claimAward.theLinkMayBeIncomplete")}</p>
               <div className="acts">
                 <Link to="/workspaces" className="btn btn-primary">
-                  Go to your workspaces
+                  {t("claimAward.goToYourWorkspaces")}
                 </Link>
               </div>
             </div>
           )}
-          {lookup.status === "error" && !notFound && <ErrorBanner error={lookup.error} onRetry={lookup.reload} title="The invitation could not be opened" />}
+          {lookup.status === "error" && !notFound && <ErrorBanner error={lookup.error} onRetry={lookup.reload} title={t("claimAward.theInvitationCouldNotBe")} />}
           {lookup.status === "ready" && (
             <ClaimView
               lookup={lookup.data}

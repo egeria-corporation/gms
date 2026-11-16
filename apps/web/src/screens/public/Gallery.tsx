@@ -12,6 +12,9 @@ import { useServices } from "../../app/services.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { AuthorLine, GalleryFrame, KindBadge, TagList } from "./galleryParts.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const tr = translator("public");
 const isKind = (v: string | null): v is GalleryKind => !!v && (GALLERY_KINDS as string[]).includes(v);
 
 function ModeratorLink() {
@@ -33,7 +36,7 @@ function ModeratorLink() {
   return (
     <Link to="/gallery/moderation" className="btn btn-secondary btn-sm" style={{ alignSelf: "flex-start" }}>
       <ShieldCheck className="ic" aria-hidden="true" />
-      Review shared templates
+      {tr("gallery.reviewSharedTemplates")}
     </Link>
   );
 }
@@ -58,18 +61,18 @@ export default function Gallery() {
 
   return (
     <>
-      <title>Template gallery — OpenGrants GMS</title>
-      <meta name="description" content="Free, ready-to-use grant application forms, rubrics, report forms and email templates. Copy one into your workspace and start in minutes." />
+      <title>{tr("gallery.templateGalleryOpengrantsGms")}</title>
+      <meta name="description" content={tr("gallery.freeReadyToUseGrant")} />
       <GalleryFrame>
         <section style={{ background: "var(--grad-hero)", paddingTop: "40px", paddingBottom: "32px" }}>
           <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <span className="og-eyebrow" style={{ color: "var(--og-teal-dark)" }}>
               <LayoutTemplate className="ic" aria-hidden="true" />
-              Template gallery
+              {tr("gallery.templateGallery")}
             </span>
-            <h1 style={{ fontSize: "36px", maxWidth: "760px", color: "var(--og-navy-dark)" }}>Ready-to-use templates for running a grant program</h1>
+            <h1 style={{ fontSize: "36px", maxWidth: "760px", color: "var(--og-navy-dark)" }}>{tr("gallery.readyToUseTemplatesFor")}</h1>
             <p style={{ fontSize: "17px", maxWidth: "720px", lineHeight: 1.6 }}>
-              Application forms, scoring rubrics, report forms and emails, written in plain and kind language. Preview any of them, then copy it into your workspace and change what you need. Every template is free under {LICENCE.name}.
+              {tr("gallery.applicationFormsScoringRubricsReport", { name: LICENCE.name })}
             </p>
             <ModeratorLink />
           </div>
@@ -78,7 +81,7 @@ export default function Gallery() {
         <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "18px", paddingTop: "24px", paddingBottom: "48px" }}>
           <form
             role="search"
-            aria-label="Find a template"
+            aria-label={tr("gallery.findATemplate")}
             className="filterbar"
             onSubmit={(e) => {
               e.preventDefault();
@@ -86,33 +89,33 @@ export default function Gallery() {
             }}
           >
             <label className="sr" htmlFor="gallery-q">
-              Search templates
+              {tr("gallery.searchTemplates")}
             </label>
             <span className="search" style={{ flex: "1 1 280px", maxWidth: "420px" }}>
               <Search className="ic" aria-hidden="true" />
-              <input id="gallery-q" type="search" placeholder="Search templates" value={text} onChange={(e) => setText(e.target.value)} />
+              <input id="gallery-q" type="search" placeholder={tr("gallery.searchTemplates")} value={text} onChange={(e) => setText(e.target.value)} />
             </span>
             <button type="submit" className="btn btn-secondary">
-              Search
+              {tr("gallery.search")}
             </button>
             <label className="sr" htmlFor="gallery-tag">
-              Tag
+              {tr("gallery.tag")}
             </label>
             <select id="gallery-tag" className="sel" style={{ width: "auto" }} value={tag} onChange={(e) => update("tag", e.target.value || undefined)}>
-              <option value="">Any tag</option>
+              <option value="">{tr("gallery.anyTag")}</option>
               {vocabulary && (
                 <>
-                  <optgroup label="Field of work">
+                  <optgroup label={tr("gallery.fieldOfWork")}>
                     {vocabulary.fieldOfWork.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Grant size">
+                  <optgroup label={tr("gallery.grantSize")}>
                     {vocabulary.grantSize.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
                   </optgroup>
-                  <optgroup label="Audience">
+                  <optgroup label={tr("gallery.audience")}>
                     {vocabulary.audience.map((t) => (
                       <option key={t}>{t}</option>
                     ))}
@@ -121,9 +124,9 @@ export default function Gallery() {
               )}
             </select>
           </form>
-          <div className="filterbar" role="group" aria-label="Kind of template">
+          <div className="filterbar" role="group" aria-label={tr("gallery.kindOfTemplate")}>
             <button type="button" className={kind ? "fchip" : "fchip on"} aria-pressed={!kind} onClick={() => update("kind", undefined)}>
-              All
+              {tr("gallery.all")}
             </button>
             {GALLERY_KINDS.map((k) => (
               <button key={k} type="button" className={kind === k ? "fchip on" : "fchip"} aria-pressed={kind === k} onClick={() => update("kind", kind === k ? undefined : k)}>
@@ -132,19 +135,19 @@ export default function Gallery() {
             ))}
           </div>
 
-          {list.status === "loading" && <Loading label="Loading templates" />}
-          {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} title="The gallery could not be loaded" />}
+          {list.status === "loading" && <Loading label={tr("gallery.loadingTemplates")} />}
+          {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} title={tr("gallery.theGalleryCouldNotBe")} />}
           {list.status === "ready" && (
             <>
               <p className="small muted" role="status">
-                {list.data.total === 1 ? "1 template" : `${list.data.total} templates`}
+                {tr("gallery.templateCount", { count: list.data.total })}
               </p>
               {list.data.items.length === 0 ? (
-                <EmptyState icon={LayoutTemplate} title="No templates match">
-                  Try fewer words, or another kind or tag.
+                <EmptyState icon={LayoutTemplate} title={tr("gallery.noTemplatesMatch")}>
+                  {tr("gallery.tryFewerWordsOrAnother")}
                 </EmptyState>
               ) : (
-                <ul aria-label="Templates" style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+                <ul aria-label={tr("gallery.templates2")} style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
                   {list.data.items.map((item) => (
                     <li key={item.slug} className="card" style={{ display: "flex", flexDirection: "column" }}>
                       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
@@ -161,7 +164,7 @@ export default function Gallery() {
                         <AuthorLine author={item.author} />
                         <span className="row small muted" style={{ gap: "4px" }}>
                           <Users className="ic ic-sm" aria-hidden="true" />
-                          {item.usesCount === 1 ? "Used once" : `Used ${item.usesCount} times`}
+                          {tr("gallery.used", { count: item.usesCount })}
                         </span>
                       </div>
                     </li>

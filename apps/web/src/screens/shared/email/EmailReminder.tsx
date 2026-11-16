@@ -3,10 +3,13 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ArrowRight, Clock, Database, File } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function EmailReminder() {
   return (
     <>
-      <title>{"Email — report reminder"}</title>
+      <title>{t("emailReminder.emailReportReminder")}</title>
       <div
         className="gms email"
         style={
@@ -34,24 +37,14 @@ export default function EmailReminder() {
           }}
         >
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              Subject:
-            </span>{" "}
-            Reminder: interim report due in 7 days (Dec 15)
+            {t.rich("emailReminder.subjectReminderInterimReportDue", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              To:
-            </span>{" "}
-            Alder Creek Family Services {"<"}grants@aldercreekfs.example{">"} ·{" "}
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              From:
-            </span>{" "}
-            Riverbend Community Foundation via OpenGrants GMS
+            {t.rich("emailReminder.toAlderCreekFamilyServices", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span>, span2: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
         </div>
         <div className="hd">
-          <span
+          {t.rich("emailReminder.rcfRiverbendCommunityFoundation", { span: (chunks) => <span
             style={{
               width: "36px",
               height: "36px",
@@ -65,69 +58,62 @@ export default function EmailReminder() {
               fontSize: "12px",
               letterSpacing: ".04em",
             }}
-          >
-            RCF
-          </span>
-          Riverbend Community Foundation
+          >{chunks}</span> })}
         </div>
         <div className="bd">
           <div className="row" style={{ gap: "8px" }}>
             <span className="bdg bdg-warn bdg-lg">
               <Clock className="ic" aria-hidden="true" />
-              Due in 7 days
+              {t("emailReminder.dueIn7Days")}
             </span>
-            <span className="small muted">Grant awd_01J2Q7 · Mobile Health Navigation for Rural Families</span>
+            <span className="small muted">{t("emailReminder.grantAwd01j2q7MobileHealth")}</span>
           </div>
-          <h2 style={{ fontSize: "20px" }}>Your interim report is due December 15, 2027</h2>
-          <p>Hello Alder Creek team,</p>
+          <h2 style={{ fontSize: "20px" }}>{t("emailReminder.yourInterimReportIsDue")}</h2>
+          <p>{t("emailReminder.helloAlderCreekTeam")}</p>
           <p>
-            The <span className="b">interim progress and financial report</span> for your Community Health Grants 2027 award is due in seven
-            days. It covers July 1 – November 30, 2027 and uses Riverbend's interim report form (v1).
+            {t.rich("emailReminder.theInterimProgressAndFinancial", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <div
             className="card"
             style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", background: "#F7FAFA" }}
           >
             <div className="b" style={{ fontSize: "14px", color: "#0D2A43" }}>
-              Already filled in for you
+              {t("emailReminder.alreadyFilledInForYou")}
             </div>
             <ul style={{ fontSize: "14px", display: "flex", flexDirection: "column", gap: "6px", color: "#1E2D2B" }}>
               <li className="row" style={{ gap: "8px", alignItems: "flex-start" }}>
                 <span className="prov prov-report" style={{ marginTop: "2px" }}>
                   <File className="ic" aria-hidden="true" />
-                  From prior report
+                  {t("emailReminder.fromPriorReport")}
                 </span>
-                <span>Program description, staffing and outcome targets carry over from your application; update what changed.</span>
+                <span>{t("emailReminder.programDescriptionStaffingAndOutcome")}</span>
               </li>
               <li className="row" style={{ gap: "8px", alignItems: "flex-start" }}>
                 <span className="prov prov-qb" style={{ marginTop: "2px" }}>
                   <Database className="ic" aria-hidden="true" />
-                  From QuickBooks
+                  {t("emailReminder.fromQuickbooks")}
                 </span>
                 <span>
-                  Actual spending by budget category is pulled from your connected QuickBooks classes through November 30; you confirm the
-                  mapping.
+                  {t("emailReminder.actualSpendingByBudgetCategory")}
                 </span>
               </li>
             </ul>
           </div>
           <p>
-            When Riverbend accepts the report, <span className="b">tranche 2 ($60,000)</span> moves to Due and is released to your verified
-            destination. If you need an extension, request one from the grant's Amendments tab before the due date.
+            {t.rich("emailReminder.whenRiverbendAcceptsTheReport", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <Link to="/w/alder-creek/reports" className="btn btn-tenant btn-lg">
-            Open report
+            {t("emailReminder.openReport")}
             <ArrowRight className="ic" aria-hidden="true" />
           </Link>
           <p style={{ fontSize: "14px", color: "#4A5C5A" }}>
-            Reminder schedule for this requirement: 7 days before, on the due date, and 7 days after if nothing is received. You can change
-            which reminders you get in your notification settings.
+            {t("emailReminder.reminderScheduleForThisRequirement")}
           </p>
         </div>
         <div className="ft" style={{ marginTop: "auto" }}>
-          <span>Sent by OpenGrants GMS on behalf of Riverbend Community Foundation</span>
+          <span>{t("emailReminder.sentByOpengrantsGmsOn")}</span>
           <span>
-            <Link to="/notifications">Manage notifications</Link> · gms.opengrants.io
+            {t.rich("emailReminder.manageNotificationsGmsOpengrantsIo", { link: (chunks) => <Link to="/notifications">{chunks}</Link> })}
           </span>
         </div>
       </div>

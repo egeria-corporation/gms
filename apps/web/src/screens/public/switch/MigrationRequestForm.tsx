@@ -11,16 +11,33 @@ import { useMigrationRequestApi } from "../../../api/migrationRequestHooks.ts";
 import { ErrorBanner, Field, Notice, problemFor } from "../../../components/ui.tsx";
 import { NOTE_MAX, PAST_AWARD_OPTIONS, PROGRAM_OPTIONS, SYSTEM_OPTIONS, TIMING_OPTIONS } from "../../../content/switch.ts";
 
+import { intlLocale, translator } from "../../../i18n/index.tsx";
+
+const tr = translator("public");
 type Fields = { name: string; email: string; organization: string; system: MigrationSystem | ""; programs: MigrationPrograms | ""; pastAwards: MigrationPastAwards | ""; timing: MigrationTiming | ""; note: string };
 type Required = Exclude<keyof Fields, "note">;
 const REQUIRED: Record<Required, string> = {
-  name: "Give your name",
-  email: "Give your work email",
-  organization: "Give your organization's name",
-  system: "Choose the system you use today",
-  programs: "Choose about how many programs",
-  pastAwards: "Choose about how many past awards",
-  timing: "Choose when you hope to move",
+  get name() {
+    return tr("migrationRequestForm.required.name");
+  },
+  get email() {
+    return tr("migrationRequestForm.required.email");
+  },
+  get organization() {
+    return tr("migrationRequestForm.required.organization");
+  },
+  get system() {
+    return tr("migrationRequestForm.required.system");
+  },
+  get programs() {
+    return tr("migrationRequestForm.required.programs");
+  },
+  get pastAwards() {
+    return tr("migrationRequestForm.required.pastAwards");
+  },
+  get timing() {
+    return tr("migrationRequestForm.required.timing");
+  },
 };
 
 const codeOf = (e: unknown) => (e instanceof ApiError ? (e.errors.find((x) => typeof (x as { code?: unknown }).code === "string") as { code: string } | undefined)?.code : undefined);
@@ -100,12 +117,12 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
   if (sent)
     return (
       <div className="landing-stack" style={{ gap: "12px" }}>
-        <Notice tone="ok" title="Request sent">
+        <Notice tone="ok" title={tr("migrationRequestForm.requestSent")}>
           {sent.message}
         </Notice>
         {!sent.confirmationSent && (
-          <Notice tone="warn" title="The confirmation email could not be sent">
-            Your request reached OpenGrants all the same, and the reply will go to {sent.replyTo}.
+          <Notice tone="warn" title={tr("migrationRequestForm.theConfirmationEmailCouldNot")}>
+            {tr("migrationRequestForm.yourRequestReachedOpengrantsAll", { replyTo: sent.replyTo })}
           </Notice>
         )}
       </div>
@@ -124,18 +141,18 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
       }}
     >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
-        <Field id={f("name")} label="Your name" required error={fieldError("name")}>
+        <Field id={f("name")} label={tr("migrationRequestForm.yourName")} required error={fieldError("name")}>
           <input id={f("name")} className="inp" autoComplete="name" maxLength={200} value={fields.name} aria-invalid={!!fieldError("name")} onChange={(e) => set("name", e.target.value)} />
         </Field>
-        <Field id={f("email")} label="Work email" required error={fieldError("email")}>
+        <Field id={f("email")} label={tr("migrationRequestForm.workEmail")} required error={fieldError("email")}>
           <input id={f("email")} type="email" className="inp" autoComplete="email" maxLength={320} value={fields.email} aria-invalid={!!fieldError("email")} onChange={(e) => set("email", e.target.value)} />
         </Field>
-        <Field id={f("organization")} label="Organization" required error={fieldError("organization")}>
+        <Field id={f("organization")} label={tr("migrationRequestForm.organization")} required error={fieldError("organization")}>
           <input id={f("organization")} className="inp" autoComplete="organization" maxLength={200} value={fields.organization} aria-invalid={!!fieldError("organization")} onChange={(e) => set("organization", e.target.value)} />
         </Field>
-        <Field id={f("system")} label="Current system" required error={fieldError("system")}>
+        <Field id={f("system")} label={tr("migrationRequestForm.currentSystem")} required error={fieldError("system")}>
           <select id={f("system")} className="sel" value={fields.system} aria-invalid={!!fieldError("system")} onChange={(e) => set("system", e.target.value as MigrationSystem)}>
-            <option value="">Choose…</option>
+            <option value="">{tr("migrationRequestForm.choose")}</option>
             {SYSTEM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -143,9 +160,9 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             ))}
           </select>
         </Field>
-        <Field id={f("programs")} label="Programs, about how many" required error={fieldError("programs")}>
+        <Field id={f("programs")} label={tr("migrationRequestForm.programsAboutHowMany")} required error={fieldError("programs")}>
           <select id={f("programs")} className="sel" value={fields.programs} aria-invalid={!!fieldError("programs")} onChange={(e) => set("programs", e.target.value as MigrationPrograms)}>
-            <option value="">Choose…</option>
+            <option value="">{tr("migrationRequestForm.choose")}</option>
             {PROGRAM_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -153,9 +170,9 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             ))}
           </select>
         </Field>
-        <Field id={f("pastAwards")} label="Past awards, about how many" required error={fieldError("pastAwards")}>
+        <Field id={f("pastAwards")} label={tr("migrationRequestForm.pastAwardsAboutHowMany")} required error={fieldError("pastAwards")}>
           <select id={f("pastAwards")} className="sel" value={fields.pastAwards} aria-invalid={!!fieldError("pastAwards")} onChange={(e) => set("pastAwards", e.target.value as MigrationPastAwards)}>
-            <option value="">Choose…</option>
+            <option value="">{tr("migrationRequestForm.choose")}</option>
             {PAST_AWARD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -163,9 +180,9 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
             ))}
           </select>
         </Field>
-        <Field id={f("timing")} label="When you hope to move" required error={fieldError("timing")}>
+        <Field id={f("timing")} label={tr("migrationRequestForm.whenYouHopeToMove")} required error={fieldError("timing")}>
           <select id={f("timing")} className="sel" value={fields.timing} aria-invalid={!!fieldError("timing")} onChange={(e) => set("timing", e.target.value as MigrationTiming)}>
-            <option value="">Choose…</option>
+            <option value="">{tr("migrationRequestForm.choose")}</option>
             {TIMING_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -176,11 +193,11 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
       </div>
       <Field
         id={f("note")}
-        label="Note (optional)"
+        label={tr("migrationRequestForm.noteOptional")}
         error={fieldError("note")}
         help={
           <>
-            Anything that helps us plan: how many forms, which years matter. Numbers that look like a bank account, routing or identity number are removed before anything is sent; the preview shows the note as it will go. {noteLeft.toLocaleString("en-US")} characters left.
+            {tr("migrationRequestForm.anythingThatHelpsUsPlan", { count: noteLeft.toLocaleString(intlLocale()) })}
           </>
         }
       >
@@ -188,29 +205,29 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
       </Field>
       {/* The hidden field: people never see it or reach it; a send with anything in it is refused. */}
       <div className="sr" aria-hidden="true">
-        <label htmlFor={f("website")}>Leave this field empty</label>
+        <label htmlFor={f("website")}>{tr("migrationRequestForm.leaveThisFieldEmpty")}</label>
         <input id={f("website")} name="website" type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
       </div>
 
-      {preview ? <PreviewView p={preview} /> : <p className="muted">Preview the request to see exactly what will be sent.</p>}
-      {error ? <ErrorBanner error={error} title={preview ? "The request was not sent" : "The preview could not be made"} /> : null}
+      {preview ? <PreviewView p={preview} /> : <p className="muted">{tr("migrationRequestForm.previewTheRequestToSee")}</p>}
+      {error ? <ErrorBanner error={error} title={preview ? tr("migrationRequestForm.theRequestWasNotSent") : tr("migrationRequestForm.thePreviewCouldNotBe")} /> : null}
 
       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
         {preview ? (
           <>
             <button className="btn btn-primary" type="submit" disabled={busy !== null}>
               <Send className="ic" aria-hidden="true" />
-              {busy === "send" ? "Sending…" : "Send the request"}
+              {busy === "send" ? tr("migrationRequestForm.sending") : tr("migrationRequestForm.sendTheRequest")}
             </button>
             <button className="btn btn-secondary" type="button" disabled={busy !== null} onClick={() => setPreview(null)}>
               <PencilLine className="ic" aria-hidden="true" />
-              Edit
+              {tr("migrationRequestForm.edit")}
             </button>
           </>
         ) : (
           <button className="btn btn-primary" type="submit" disabled={busy !== null}>
             <Eye className="ic" aria-hidden="true" />
-            {busy === "preview" ? "Preparing…" : "Preview what will be sent"}
+            {busy === "preview" ? tr("migrationRequestForm.preparing") : tr("migrationRequestForm.previewWhatWillBeSent")}
           </button>
         )}
       </div>
@@ -220,13 +237,13 @@ export function MigrationRequestForm({ defaultSystem, labelledBy }: { defaultSys
 
 function PreviewView({ p }: { p: MigrationRequestPreview }) {
   return (
-    <section aria-label="What will be sent" style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px", background: "var(--og-gray-50)" }}>
+    <section aria-label={tr("migrationRequestForm.whatWillBeSent")} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px", background: "var(--og-gray-50)" }}>
       <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere" }}>
-        <dt>To</dt>
+        <dt>{tr("migrationRequestForm.to")}</dt>
         <dd>{p.to}</dd>
-        <dt>Replies go to</dt>
+        <dt>{tr("migrationRequestForm.repliesGoTo")}</dt>
         <dd>{p.replyTo}</dd>
-        <dt>Subject</dt>
+        <dt>{tr("migrationRequestForm.subject")}</dt>
         <dd>{p.subject}</dd>
       </dl>
       <div data-testid="migration-email-text" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "14px", lineHeight: 1.5, color: "var(--og-gray-800)", background: "var(--og-white)", border: "1px solid var(--og-gray-200)", borderRadius: "6px", padding: "10px 12px" }}>
@@ -234,13 +251,13 @@ function PreviewView({ p }: { p: MigrationRequestPreview }) {
       </div>
       {p.numbersRemoved > 0 && (
         <p className="small" style={{ margin: 0 }}>
-          {p.numbersRemoved === 1 ? "One number was" : `${p.numbersRemoved} numbers were`} removed from your note because {p.numbersRemoved === 1 ? "it looked" : "they looked"} like a bank or identity number.
+          {tr("migrationRequestForm.numbersRemoved", { count: p.numbersRemoved })}
         </p>
       )}
       <details>
-        <summary style={{ fontSize: "14px" }}>The confirmation you will get at {p.confirmation.to}</summary>
+        <summary style={{ fontSize: "14px" }}>{tr("migrationRequestForm.theConfirmationYouWillGet", { to: p.confirmation.to })}</summary>
         <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere", marginTop: "8px" }}>
-          <dt>Subject</dt>
+          <dt>{tr("migrationRequestForm.subject")}</dt>
           <dd>{p.confirmation.subject}</dd>
         </dl>
         <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "14px", lineHeight: 1.5, color: "var(--og-gray-800)", background: "var(--og-white)", border: "1px solid var(--og-gray-200)", borderRadius: "6px", padding: "10px 12px", marginTop: "8px" }}>

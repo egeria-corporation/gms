@@ -3,22 +3,26 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { copyText } from "../lib/browser.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
+
 /**
  * Copies a value and confirms it in place: the label reads "Copied" for two seconds and the
  * change is announced to screen readers. When copying is refused it says so instead of failing silently.
  * The accessible name starts with the visible label (WCAG 2.5.3): the plain "Copy" label is
  * named "Copy <what>"; a longer label names the thing itself and is the whole name.
  */
-export function CopyButton({ value, label = "Copy", what, className = "btn btn-secondary", onCopied }: { value: string; label?: string; what: string; className?: string; onCopied?: () => void }) {
+export function CopyButton({ value, label, what, className = "btn btn-secondary", onCopied }: { value: string; label?: string; what: string; className?: string; onCopied?: () => void }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const text = state === "copied" ? "Copied" : state === "failed" ? "Copy failed — select and copy" : label;
+  const text = state === "copied" ? t("copyButton.copied") : state === "failed" ? t("copyButton.copyFailedSelectAndCopy") : (label ?? t("copyButton.copyLabel"));
   return (
     <button
       type="button"
       className={className}
-      aria-label={state === "idle" && label === "Copy" ? `Copy ${what}` : undefined}
+      aria-label={state === "idle" && label === undefined ? t("copyButton.copy", { what }) : undefined}
       onClick={async () => {
         const ok = await copyText(value);
         setState(ok ? "copied" : "failed");

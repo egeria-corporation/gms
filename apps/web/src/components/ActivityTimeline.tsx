@@ -5,6 +5,9 @@
 import { BadgeCheck, Bot, Clock, User } from "lucide-react";
 import type { LedgerEvent } from "../api/funderMoney.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export type ActorKind = "person" | "agent" | "passport" | "system";
 
 export interface ActorView {
@@ -14,45 +17,91 @@ export interface ActorView {
 
 /** `user:<id>`, `user:<id>/client:<name>`, `client:<name>`, `passport`, `system:<job>` → who to show. */
 export function actorOf(actor: string | undefined, personName: (userId: string) => string | undefined): ActorView {
-  if (!actor) return { kind: "system", name: "System" };
+  if (!actor) return { kind: "system", name: t("activityTimeline.system") };
   if (actor === "passport" || actor.startsWith("passport")) return { kind: "passport", name: "Passport" };
   const client = /client:([^/]+)/.exec(actor)?.[1];
   const user = /user:([^/]+)/.exec(actor)?.[1];
   if (client) {
     const owner = user ? personName(user) : undefined;
-    return { kind: "agent", name: owner ? `${client} (for ${owner})` : client };
+    return { kind: "agent", name: owner ? t("activityTimeline.agentFor", { client, owner }) : client };
   }
-  if (user) return { kind: "person", name: personName(user) ?? "Someone" };
-  return { kind: "system", name: actor.replace(/^system:/, "System · ") };
+  if (user) return { kind: "person", name: personName(user) ?? t("activityTimeline.someone") };
+  return { kind: "system", name: actor.startsWith("system:") ? t("activityTimeline.systemJob", { job: actor.slice("system:".length) }) : actor };
 }
 
 const SUBJECTS: Record<string, string> = {
-  org_change: "organization change",
-  mcp_connection: "agent connection",
-  api_client: "API client",
+  get org_change() {
+    return t("activityTimeline.subjects.org_change");
+  },
+  get mcp_connection() {
+    return t("activityTimeline.subjects.mcp_connection");
+  },
+  get api_client() {
+    return t("activityTimeline.subjects.api_client");
+  },
 };
 
 const VERBS: Record<string, string> = {
-  "tranche.release": "released a payment",
-  "tranche.release_requested": "released a payment",
-  "tranche.passport_hold": "put a payment on hold",
-  "tranche.recorded_external": "recorded an external payment",
-  "tranche.reconciled": "reconciled a payment with Passport",
-  "decision.proposed": "proposed decisions",
-  "decision.committed": "committed decisions",
-  "review.submitted": "submitted a review",
-  "review.assigned": "assigned a reviewer",
-  "review.coi_declared": "declared a conflict of interest",
-  "award.created": "created an award",
-  "communication.sent": "sent a letter",
-  "payee.destination.change_pending": "reported a pending destination change",
-  "payee.destination.changed": "confirmed a destination change",
-  "payee.level.changed": "reported a level change",
-  "payee.organization.inactive": "reported an inactive organization",
-  "disbursement.status.changed": "updated a disbursement",
-  "requirement.reminder_sent": "sent a report reminder",
-  "submission.received": "received a report",
-  "schedule.replaced": "changed the payment schedule",
+  get "tranche.release"() {
+    return t("activityTimeline.verbs.tranche_release");
+  },
+  get "tranche.release_requested"() {
+    return t("activityTimeline.verbs.tranche_release_requested");
+  },
+  get "tranche.passport_hold"() {
+    return t("activityTimeline.verbs.tranche_passport_hold");
+  },
+  get "tranche.recorded_external"() {
+    return t("activityTimeline.verbs.tranche_recorded_external");
+  },
+  get "tranche.reconciled"() {
+    return t("activityTimeline.verbs.tranche_reconciled");
+  },
+  get "decision.proposed"() {
+    return t("activityTimeline.verbs.decision_proposed");
+  },
+  get "decision.committed"() {
+    return t("activityTimeline.verbs.decision_committed");
+  },
+  get "review.submitted"() {
+    return t("activityTimeline.verbs.review_submitted");
+  },
+  get "review.assigned"() {
+    return t("activityTimeline.verbs.review_assigned");
+  },
+  get "review.coi_declared"() {
+    return t("activityTimeline.verbs.review_coi_declared");
+  },
+  get "award.created"() {
+    return t("activityTimeline.verbs.award_created");
+  },
+  get "communication.sent"() {
+    return t("activityTimeline.verbs.communication_sent");
+  },
+  get "payee.destination.change_pending"() {
+    return t("activityTimeline.verbs.payee_destination_change_pending");
+  },
+  get "payee.destination.changed"() {
+    return t("activityTimeline.verbs.payee_destination_changed");
+  },
+  get "payee.level.changed"() {
+    return t("activityTimeline.verbs.payee_level_changed");
+  },
+  get "payee.organization.inactive"() {
+    return t("activityTimeline.verbs.payee_organization_inactive");
+  },
+  get "disbursement.status.changed"() {
+    return t("activityTimeline.verbs.disbursement_status_changed");
+  },
+  get "requirement.reminder_sent"() {
+    return t("activityTimeline.verbs.requirement_reminder_sent");
+  },
+  get "submission.received"() {
+    return t("activityTimeline.verbs.submission_received");
+  },
+  get "schedule.replaced"() {
+    return t("activityTimeline.verbs.schedule_replaced");
+  },
 };
 
 /** A readable sentence fragment for a ledger event type; unknown types read as their own words. */
@@ -80,7 +129,7 @@ export function ActivityTimeline({
   events,
   personName,
   when,
-  empty = "Nothing recorded yet.",
+  empty = t("activityTimeline.nothingRecordedYet"),
   compact = true,
 }: {
   events: LedgerEvent[];
@@ -104,7 +153,7 @@ export function ActivityTimeline({
             </span>
             <div>
               <div className="what">
-                {actor.name} {describeEvent(e.eventType)}
+                {t("activityTimeline.entry", { who: actor.name, what: describeEvent(e.eventType) })}
               </div>
               <div className="who">
                 {detail && (

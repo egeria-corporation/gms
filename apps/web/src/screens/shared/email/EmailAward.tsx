@@ -3,10 +3,13 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ArrowRight, Mail } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function EmailAward() {
   return (
     <>
-      <title>{"Email — award offer"}</title>
+      <title>{t("emailAward.emailAwardOffer")}</title>
       <div
         className="gms email"
         style={
@@ -34,24 +37,14 @@ export default function EmailAward() {
           }}
         >
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              Subject:
-            </span>{" "}
-            Award offer: $150,000 — Community Health Grants 2027
+            {t.rich("emailAward.subjectAwardOffer150000", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              To:
-            </span>{" "}
-            Maria Santos {"<"}maria@aldercreekfs.example{">"} ·{" "}
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              From:
-            </span>{" "}
-            Riverbend Community Foundation via OpenGrants GMS
+            {t.rich("emailAward.toMariaSantosMariaAldercreekfs", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span>, span2: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
         </div>
         <div className="hd">
-          <span
+          {t.rich("emailAward.rcfRiverbendCommunityFoundation", { span: (chunks) => <span
             style={{
               width: "36px",
               height: "36px",
@@ -65,32 +58,27 @@ export default function EmailAward() {
               fontSize: "12px",
               letterSpacing: ".04em",
             }}
-          >
-            RCF
-          </span>
-          Riverbend Community Foundation
+          >{chunks}</span> })}
         </div>
         <div className="bd">
           <div className="row" style={{ gap: "8px" }}>
             <span className="bdg bdg-info bdg-lg">
               <Mail className="ic" aria-hidden="true" />
-              Award offered
+              {t("emailAward.awardOffered")}
             </span>
-            <span className="small muted">Community Health Grants 2027</span>
+            <span className="small muted">{t("emailAward.communityHealthGrants2027")}</span>
           </div>
-          <h2 style={{ fontSize: "20px" }}>Riverbend is offering Alder Creek Family Services a $150,000 grant</h2>
-          <p>Hello Maria,</p>
+          <h2 style={{ fontSize: "20px" }}>{t("emailAward.riverbendIsOfferingAlderCreek")}</h2>
+          <p>{t("emailAward.helloMaria")}</p>
           <p>
-            The Community Health panel has recommended, and Riverbend Community Foundation has approved, an award of{" "}
-            <span className="b">$150,000</span> for <span className="b">Mobile Health Navigation for Rural Families</span>. The grant period
-            is <span className="b">July 1, 2027 – June 30, 2028</span>.
+            {t.rich("emailAward.theCommunityHealthPanelHas", { span: (chunks) => <span className="b">{chunks}</span>, span2: (chunks) => <span className="b">{chunks}</span>, span3: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <div
             className="card"
             style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", background: "#F7FAFA" }}
           >
             <div className="b" style={{ fontSize: "14px", color: "#0D2A43" }}>
-              To accept
+              {t("emailAward.toAccept")}
             </div>
             <ol
               style={{
@@ -104,46 +92,42 @@ export default function EmailAward() {
               }}
             >
               <li>
-                Open the grant and choose <span className="b">Accept award</span>.
+                {t.rich("emailAward.openTheGrantAndChoose", { span: (chunks) => <span className="b">{chunks}</span> })}
               </li>
               <li>
-                Review the grant agreement (Standard grant agreement v4) and sign it. Signing records your name, the time, your IP address
-                and the document hash.
+                {t("emailAward.reviewTheGrantAgreementStandard")}
               </li>
               <li>
-                Nothing else is needed for payment: your Passport payee verification (level L3) is already complete, so the first tranche of
-                $75,000 is scheduled on execution of the agreement.
+                {t("emailAward.nothingElseIsNeededFor")}
               </li>
             </ol>
           </div>
           <p>
-            Please accept by <span className="b">June 2, 2027</span>. If you need more time or want to discuss the scope or schedule, reply
-            to this email before then and the offer will be held.
+            {t.rich("emailAward.pleaseAcceptByJune2", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <Link to="/w/alder-creek/grants/awd_01J2Q7/offer" className="btn btn-tenant btn-lg">
-            Review and accept
+            {t("emailAward.reviewAndAccept")}
             <ArrowRight className="ic" aria-hidden="true" />
           </Link>
           <div className="doc" style={{ marginTop: "4px" }}>
             <span className="ft ft-pdf">PDF</span>
             <div className="grow">
-              <div className="nm">Award letter — Alder Creek Family Services.pdf</div>
+              <div className="nm">{t("emailAward.awardLetterAlderCreekFamily")}</div>
               <div className="mt">
-                <span>92 KB</span>
+                <span>{t("emailAward.n92Kb")}</span>
                 <span>·</span>
-                <span>Award letter v4 · signed by Dana Ortiz, Program Officer</span>
+                <span>{t("emailAward.awardLetterV4SignedBy")}</span>
               </div>
             </div>
           </div>
           <p style={{ fontSize: "14px", color: "#4A5C5A" }}>
-            Payment schedule after execution: $75,000 on execution · $60,000 on acceptance of the interim report (due Dec 15, 2027) ·
-            $15,000 on acceptance of the final report (due Jul 15, 2028).
+            {t("emailAward.paymentScheduleAfterExecution75")}
           </p>
         </div>
         <div className="ft" style={{ marginTop: "auto" }}>
-          <span>Sent by OpenGrants GMS on behalf of Riverbend Community Foundation</span>
+          <span>{t("emailAward.sentByOpengrantsGmsOn")}</span>
           <span>
-            <Link to="/notifications">Manage notifications</Link> · gms.opengrants.io
+            {t.rich("emailAward.manageNotificationsGmsOpengrantsIo", { link: (chunks) => <Link to="/notifications">{chunks}</Link> })}
           </span>
         </div>
       </div>

@@ -18,6 +18,9 @@ import { useLocation, useNavigate } from "react-router";
 import { useServices } from "../../app/services.tsx";
 import { endPassportHop, safeNext } from "../../lib/passportSignIn.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const tr = translator("public");
 /** How long to wait for the app to re-read the signed-in person after the second step was claimed. */
 const HANDOVER_TIMEOUT_MS = 5000;
 
@@ -83,12 +86,12 @@ export default function PassportReturn() {
 
   return (
     <>
-      <title>{"Signing in — OpenGrants GMS"}</title>
+      <title>{tr("passportReturn.signingInOpengrantsGms")}</title>
       <div className="gms pub" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--grad-hero)" }}>
         <main className="card" style={{ padding: "28px", display: "flex", alignItems: "center", gap: "12px" }} aria-busy="true">
           <LoaderCircle className="ic" aria-hidden="true" />
           <p role="status" style={{ margin: 0 }}>
-            Signing you in with Passport…
+            {tr("passportReturn.signingYouInWithPassport")}
           </p>
         </main>
       </div>

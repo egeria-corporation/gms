@@ -13,6 +13,9 @@ import { formatDate, formatMinor } from "../lib/format.ts";
 import { Dialog } from "./Dialog.tsx";
 import { ErrorBanner, Field, ReadinessChecklist } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const tr = translator("shared");
 const CAUSE_ICON: Record<string, typeof Lock> = {
   pending_destination_change: Lock,
   freeze_window: CalendarClock,
@@ -54,13 +57,13 @@ export function conditionLabel(condition: Tranche["condition"], requirementTitle
   const c = condition as TrancheCondition;
   switch (c.type) {
     case "onExecution":
-      return "On agreement execution";
+      return tr("payments.onAgreementExecution");
     case "onReportAccepted":
-      return `When ${requirementTitle?.(c.requirementId) ?? "the report"} is accepted`;
+      return requirementTitle?.(c.requirementId) ? tr("payments.whenIsAccepted", { report: requirementTitle(c.requirementId)! }) : tr("payments.whenTheReportIsAccepted");
     case "onDate":
-      return `On ${formatDate(c.date)}`;
+      return tr("payments.on", { date: formatDate(c.date) });
     case "manual":
-      return "Released manually";
+      return tr("payments.releasedManually");
     default:
       return "—";
   }
@@ -68,16 +71,16 @@ export function conditionLabel(condition: Tranche["condition"], requirementTitle
 
 /** Bank name and last four digits only. */
 export function destinationLabel(d: TrancheReadiness["destination"]): string {
-  if (!d || (!d.bankName && !d.last4)) return "Not available";
+  if (!d || (!d.bankName && !d.last4)) return tr("payments.notAvailable");
   return `${d.bankName ?? "Bank"} •••• ${d.last4 ?? "····"}`;
 }
 
 /** Why the release button is disabled, in words, or null when it can be pressed. */
 export function releaseBlockedReason(r: Pick<TrancheReadiness, "releasable" | "failed" | "unknown">): string | null {
   if (r.releasable) return null;
-  if (r.failed > 0) return `${r.failed} readiness ${r.failed === 1 ? "check needs" : "checks need"} fixing`;
-  if (r.unknown > 0) return "Readiness is unknown until Passport can be reached";
-  return "This tranche is not due";
+  if (r.failed > 0) return tr("payments.checksNeedFixing", { count: r.failed });
+  if (r.unknown > 0) return tr("payments.readinessIsUnknownUntilPassport");
+  return tr("payments.thisTrancheIsNotDue");
 }
 
 export function ReleaseDialog({ readiness, awardTitle, recipientName, onClose, onDone }: { readiness: TrancheReadiness; awardTitle: string; recipientName: string; onClose: () => void; onDone: () => void }) {
@@ -96,38 +99,38 @@ export function ReleaseDialog({ readiness, awardTitle, recipientName, onClose, o
       >
         <div className="hd">
           <div>
-            <h2 id="release-title">Release tranche {t.seq}</h2>
+            <h2 id="release-title">{tr("payments.releaseTranche", { seq: t.seq })}</h2>
             <p className="small muted">
               {recipientName} · {awardTitle}
             </p>
           </div>
         </div>
         <div className="bd">
-          {release.error !== null && <ErrorBanner error={release.error} title="Nothing was released" />}
+          {release.error !== null && <ErrorBanner error={release.error} title={tr("payments.nothingWasReleased")} />}
           <dl className="kv">
-            <dt>Amount</dt>
+            <dt>{tr("payments.amount")}</dt>
             <dd className="b">{formatMinor(t.amountMinor, t.currency)}</dd>
-            <dt>Destination</dt>
+            <dt>{tr("payments.destination")}</dt>
             <dd className="userback-block">{destinationLabel(readiness.destination)}</dd>
-            <dt>Paid through</dt>
-            <dd>OpenGrants Passport · fees paid by the funder</dd>
+            <dt>{tr("payments.paidThrough")}</dt>
+            <dd>{tr("payments.opengrantsPassportFeesPaidBy")}</dd>
           </dl>
-          <Field id="release-rail" label="Rail" help="Auto lets Passport choose; instant is offered only when the payee’s bank supports it.">
+          <Field id="release-rail" label={tr("payments.rail")} help={tr("payments.autoLetsPassportChooseInstant")}>
             <select className="sel" id="release-rail" value={rail} onChange={(e) => setRail(e.target.value as typeof rail)} style={{ maxWidth: "240px" }}>
-              <option value="auto">Auto</option>
-              <option value="standard">Standard</option>
-              <option value="instant">Instant</option>
+              <option value="auto">{tr("payments.auto")}</option>
+              <option value="standard">{tr("payments.standard")}</option>
+              <option value="instant">{tr("payments.instant")}</option>
             </select>
           </Field>
           {readiness.banner && <HoldBanner banner={readiness.banner} />}
-          <ReadinessChecklist checklist={checklistOf(readiness)} title="Readiness" />
+          <ReadinessChecklist checklist={checklistOf(readiness)} title={tr("payments.readiness")} />
           <label className="cb">
             <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} disabled={blocked !== null} />
             <span>
-              I confirm the release of {formatMinor(t.amountMinor, t.currency)} to {recipientName}.
+              {tr("payments.iConfirmTheReleaseOf", { amountMinor: formatMinor(t.amountMinor, t.currency), recipientName })}
             </span>
           </label>
-          <p className="help">Releasing is a human gate: an agent can check readiness but never release a payment. Repeating this action cannot pay twice.</p>
+          <p className="help">{tr("payments.releasingIsAHumanGate")}</p>
         </div>
         <div className="ft">
           {blocked && (
@@ -137,11 +140,11 @@ export function ReleaseDialog({ readiness, awardTitle, recipientName, onClose, o
             </span>
           )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {tr("payments.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={blocked !== null || !confirm || release.state === "saving"}>
             <Send className="ic" aria-hidden="true" />
-            Release {formatMinor(t.amountMinor, t.currency)}
+            {tr("payments.release", { amountMinor: formatMinor(t.amountMinor, t.currency) })}
           </button>
         </div>
       </form>
@@ -166,33 +169,33 @@ export function RecordExternalDialog({ tranche, recipientName, onClose, onDone }
       >
         <div className="hd">
           <div>
-            <h2 id="external-title">Record a payment made outside Passport</h2>
+            <h2 id="external-title">{tr("payments.recordAPaymentMadeOutside")}</h2>
             <p className="small muted">
-              {recipientName} · tranche {tranche.seq} · {formatMinor(tranche.amountMinor, tranche.currency)}
+              {tr("payments.tranche", { recipientName, seq: tranche.seq, amountMinor: formatMinor(tranche.amountMinor, tranche.currency) })}
             </p>
           </div>
         </div>
         <div className="bd">
           {record.error !== null && <ErrorBanner error={record.error} />}
-          <Field id="external-ref" label="Payment reference" required help="The wire, check or transfer reference from your bank.">
+          <Field id="external-ref" label={tr("payments.paymentReference")} required help={tr("payments.theWireCheckOrTransfer")}>
             <input className="inp" id="external-ref" value={reference} onChange={(e) => setReference(e.target.value)} required />
           </Field>
           <div className="fld-row">
-            <Field id="external-date" label="Date paid" required>
+            <Field id="external-date" label={tr("payments.datePaid")} required>
               <input className="inp" id="external-date" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} required />
             </Field>
-            <Field id="external-last4" label="Destination, last four digits" required help="Passport checks these against the payee’s verified destination. Never enter a full number.">
+            <Field id="external-last4" label={tr("payments.destinationLastFourDigits")} required help={tr("payments.passportChecksTheseAgainstThe")}>
               <input className="inp userback-block" id="external-last4" inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} required />
             </Field>
           </div>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {tr("payments.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!valid || record.state === "saving"}>
             <Banknote className="ic" aria-hidden="true" />
-            Record payment
+            {tr("payments.recordPayment")}
           </button>
         </div>
       </form>
@@ -232,7 +235,7 @@ export function ReasonDialog({ title, label, action, danger = false, onClose, on
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {tr("payments.cancel")}
           </button>
           <button type="submit" className={danger ? "btn btn-danger" : "btn btn-primary"} disabled={!reason.trim() || busy}>
             {action}

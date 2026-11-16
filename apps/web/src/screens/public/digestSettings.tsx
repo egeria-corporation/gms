@@ -8,23 +8,26 @@ import { useMoreApi } from "../../api/applicantMoreHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
 import { WhatWeEmailYou } from "./whatWeEmailYou.tsx";
 
-const EVENTS: { key: string; label: string }[] = [
-  { key: "approval", label: "An agent needs my approval" },
-  { key: "payment", label: "A payment is sent, settles or is paused" },
-  { key: "submission", label: "A report is received or reviewed" },
-  { key: "application", label: "An application changes status" },
-  { key: "decision", label: "A decision is made" },
-  { key: "agreement", label: "An agreement is sent or signed" },
-  { key: "organization", label: "A Passport record or consent changes" },
-];
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
+const EVENTS = (): { key: string; label: string }[] => ([
+  { key: "approval", label: t("digestSettings.events.n0.label") },
+  { key: "payment", label: t("digestSettings.events.n1.label") },
+  { key: "submission", label: t("digestSettings.events.n2.label") },
+  { key: "application", label: t("digestSettings.events.n3.label") },
+  { key: "decision", label: t("digestSettings.events.n4.label") },
+  { key: "agreement", label: t("digestSettings.events.n5.label") },
+  { key: "organization", label: t("digestSettings.events.n6.label") },
+]);
 /** Funder workspaces only: a scheduled report from the report builder. */
-const FUNDER_EVENTS: { key: string; label: string }[] = [{ key: "report", label: "A scheduled report is ready" }];
-const DIGESTS: { value: NotificationPreferences["digest"]; label: string }[] = [
-  { value: "daily", label: "Daily digest" },
-  { value: "weekly", label: "Weekly digest" },
-  { value: "immediate", label: "Immediately, each event" },
-  { value: "off", label: "Off" },
-];
+const FUNDER_EVENTS = (): { key: string; label: string }[] => ([{ key: "report", label: t("digestSettings.funderEvents.n0.label") }]);
+const DIGESTS = (): { value: NotificationPreferences["digest"]; label: string }[] => ([
+  { value: "daily", label: t("digestSettings.digests.n0.label") },
+  { value: "weekly", label: t("digestSettings.digests.n1.label") },
+  { value: "immediate", label: t("digestSettings.digests.n2.label") },
+  { value: "off", label: t("digestSettings.digests.n3.label") },
+]);
 
 export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
   const [wsId, setWsId] = useState(workspaces[0]?.id ?? "");
@@ -66,14 +69,14 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
     void save({ ...prefs, channels: { ...prefs.channels, [key]: { ...current, [which]: !current[which] } } });
   };
   const funder = workspaces.find((w) => w.id === wsId)?.kind === "funder";
-  const events = funder ? [...EVENTS, ...FUNDER_EVENTS] : EVENTS;
+  const events = funder ? [...EVENTS(), ...FUNDER_EVENTS()] : EVENTS();
 
   if (workspaces.length === 0) return null;
   return (
     <aside className="card" aria-labelledby="digest-h">
       <div className="card-h">
         <h2 id="digest-h" style={{ fontSize: "15px" }}>
-          Digest settings
+          {t("digestSettings.digestSettings")}
         </h2>
         <SaveNote state={state} />
       </div>
@@ -81,7 +84,7 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
         {workspaces.length > 1 ? (
           <div className="fld">
             <label className="lbl" htmlFor="digest-ws">
-              Workspace
+              {t("digestSettings.workspace")}
             </label>
             <select className="sel" id="digest-ws" value={wsId} onChange={(e) => setWsId(e.target.value)}>
               {workspaces.map((w) => (
@@ -93,7 +96,7 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
           </div>
         ) : null}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <div className="eyebrow">Notify me when</div>
+          <div className="eyebrow">{t("digestSettings.notifyMeWhen")}</div>
           {events.map((e) => (
             <div className="row" style={{ justifyContent: "space-between", gap: "12px" }} key={e.key}>
               <span id={`digest-${e.key}`}>{e.label}</span>
@@ -103,23 +106,23 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
         </div>
         {funder ? (
           <div className="row" style={{ justifyContent: "space-between", gap: "12px" }}>
-            <span id="digest-report-email">Email me the scheduled reports I am sent</span>
+            <span id="digest-report-email">{t("digestSettings.emailMeTheScheduledReports")}</span>
             <button type="button" className={`tog${on("report", "email") ? " on" : ""}`} role="switch" aria-checked={on("report", "email")} aria-labelledby="digest-report-email" disabled={!prefs} onClick={() => toggle("report", "email")}></button>
           </div>
         ) : null}
         <div className="divider"></div>
         <div className="fld">
           <label className="lbl" htmlFor="digest">
-            Email digest
+            {t("digestSettings.emailDigest")}
           </label>
           <select className="sel" id="digest" value={prefs?.digest ?? "daily"} disabled={!prefs} onChange={(e) => prefs && void save({ ...prefs, digest: e.target.value as NotificationPreferences["digest"] })}>
-            {DIGESTS.map((d) => (
+            {DIGESTS().map((d) => (
               <option key={d.value} value={d.value}>
                 {d.label}
               </option>
             ))}
           </select>
-          <span className="help">Approval requests are always shown at once in the app.</span>
+          <span className="help">{t("digestSettings.approvalRequestsAreAlwaysShown")}</span>
         </div>
         {wsId ? (
           <>
@@ -127,7 +130,7 @@ export function DigestSettings({ workspaces }: { workspaces: MeWorkspace[] }) {
             <WhatWeEmailYou workspaceId={wsId} />
           </>
         ) : null}
-        {error ? <ErrorBanner error={error} title="Your settings were not saved" /> : null}
+        {error ? <ErrorBanner error={error} title={t("digestSettings.yourSettingsWereNotSaved")} /> : null}
       </div>
     </aside>
   );

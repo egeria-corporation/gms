@@ -10,9 +10,26 @@ import type { DigestKey } from "../api/digests.ts";
 import { useDigestsApi, useDigestsQuery } from "../api/digestsHooks.ts";
 import { ErrorBanner } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 const COPY: Record<"new_matches" | "funder_activity", { title: string; detail: string }> = {
-  new_matches: { title: "Get new matches every Monday", detail: "One email a week with up to 10 new opportunities that fit your organization, from OpenGrants and from funders here. Only when there is something new, and you can stop it from any email." },
-  funder_activity: { title: "Get this week's activity every Monday", detail: "One email a week with counts of new applications, reviews due, payments due and reports overdue, with links. Never an applicant's answers, and you can stop it from any email." },
+  new_matches: {
+    get title() {
+      return t("digestPrompt.copy.new_matches.title");
+    },
+    get detail() {
+      return t("digestPrompt.copy.new_matches.detail");
+    },
+  },
+  funder_activity: {
+    get title() {
+      return t("digestPrompt.copy.funder_activity.title");
+    },
+    get detail() {
+      return t("digestPrompt.copy.funder_activity.detail");
+    },
+  },
 };
 
 export function DigestPrompt({ workspaceId, digest, settingsTo }: { workspaceId: string; digest: "new_matches" | "funder_activity"; settingsTo: string }) {
@@ -32,9 +49,9 @@ export function DigestPrompt({ workspaceId, digest, settingsTo }: { workspaceId:
       <div className="bnr bnr-ok" role="status">
         <CalendarClock className="ic" aria-hidden="true" />
         <div className="grow">
-          <div className="t">You will get it on Mondays</div>
+          <div className="t">{t("digestPrompt.youWillGetItOn")}</div>
           <div className="d">
-            Change it any time in <Link to={settingsTo}>what we email you</Link>.
+            {t.rich("digestPrompt.changeItAnyTimeIn", { link: (chunks) => <Link to={settingsTo}>{chunks}</Link> })}
           </div>
         </div>
       </div>
@@ -62,13 +79,13 @@ export function DigestPrompt({ workspaceId, digest, settingsTo }: { workspaceId:
       <div className="grow">
         <div className="t">{copy.title}</div>
         <div className="d">{copy.detail}</div>
-        {error ? <ErrorBanner error={error} title="That did not work" /> : null}
+        {error ? <ErrorBanner error={error} title={t("digestPrompt.thatDidNotWork")} /> : null}
       </div>
       <button type="button" className="btn btn-sm btn-secondary act" disabled={busy} onClick={() => void act({ on: true })}>
-        Turn it on
+        {t("digestPrompt.turnItOn")}
       </button>
       <button type="button" className="btn btn-sm btn-ghost act" disabled={busy} onClick={() => void act({ on: false })}>
-        Not now
+        {t("digestPrompt.notNow")}
       </button>
     </div>
   );

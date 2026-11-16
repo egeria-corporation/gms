@@ -14,6 +14,7 @@ import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./wo
 import { NotFound } from "../components/NotFound.tsx";
 import { pageChanged, watchActions } from "../lib/announce.ts";
 import { useLocale, useT } from "../i18n/index.tsx";
+import { LocaleFromPreference } from "../components/LanguageSwitcher.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
@@ -195,6 +196,7 @@ export function App({ services }: { services?: Services }) {
   }, [resolved]);
   return (
     <ServicesProvider services={resolved}>
+      <LocaleFromPreference />
       <LocalizedRoutes />
     </ServicesProvider>
   );

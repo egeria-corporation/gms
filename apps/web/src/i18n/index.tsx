@@ -31,7 +31,7 @@ export function useLocale(): Locale {
 }
 
 /** Placeholder values; a tag's function gets the tag's contents and returns what to show. */
-export type RichValues = Record<string, Values[string] | ReactNode | ((chunks: ReactNode[]) => ReactNode)>;
+export type RichValues = Record<string, string | number | bigint | boolean | Date | null | undefined | ReactNode | ((chunks: ReactNode[]) => ReactNode)>;
 
 export interface T<N extends Namespace> {
   /** The message as text. Every string with a variable is one message with a placeholder: never concatenate. */
@@ -63,4 +63,20 @@ export function useT<N extends Namespace>(ns: N): T<N> {
   const catalog = peekCatalog(locale, ns) ?? use(loadCatalog(locale, ns));
   // The catalog is a dependency so the translator is rebuilt once a namespace arrives.
   return useMemo(() => bind(locale, ns), [locale, ns, catalog]);
+}
+
+/**
+ * A translator for module scope, for `public` and `shared` (always loaded): it reads the current
+ * language at each call, so `const t = translator("public")` at the top of a file is safe in any
+ * function there. Screens redraw on a language change because the routes remount (app/App.tsx).
+ * Never call it while a module loads (a label table built once would stay in one language): build
+ * such tables in a function, or use getters.
+ */
+export function translator<N extends "public" | "shared">(ns: N): T<N> {
+  const t = ((key: Key<N>, values?: Values) => createTranslator(getLocale(), ns)(key, values)) as T<N>;
+  Object.defineProperties(t, {
+    rich: { value: (key: Key<N>, values: RichValues) => bind(getLocale(), ns).rich(key, values) },
+    locale: { get: getLocale },
+  });
+  return t;
 }

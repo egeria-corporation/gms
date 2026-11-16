@@ -3,10 +3,13 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ArrowRight, RotateCcw } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function EmailRevision() {
   return (
     <>
-      <title>{"Email — revision requested"}</title>
+      <title>{t("emailRevision.emailRevisionRequested")}</title>
       <div
         className="gms email"
         style={
@@ -34,24 +37,14 @@ export default function EmailRevision() {
           }}
         >
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              Subject:
-            </span>{" "}
-            Revision requested: Rural Telehealth Expansion
+            {t.rich("emailRevision.subjectRevisionRequestedRuralTelehealth", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              To:
-            </span>{" "}
-            Copper Valley Clinic {"<"}admin@coppervalleyclinic.example{">"} ·{" "}
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              From:
-            </span>{" "}
-            Dana Ortiz, Riverbend Community Foundation via OpenGrants GMS
+            {t.rich("emailRevision.toCopperValleyClinicAdmin", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span>, span2: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
         </div>
         <div className="hd">
-          <span
+          {t.rich("emailRevision.rcfRiverbendCommunityFoundation", { span: (chunks) => <span
             style={{
               width: "36px",
               height: "36px",
@@ -65,31 +58,27 @@ export default function EmailRevision() {
               fontSize: "12px",
               letterSpacing: ".04em",
             }}
-          >
-            RCF
-          </span>
-          Riverbend Community Foundation
+          >{chunks}</span> })}
         </div>
         <div className="bd">
           <div className="row" style={{ gap: "8px" }}>
             <span className="bdg bdg-warn bdg-lg">
               <RotateCcw className="ic" aria-hidden="true" />
-              Revision requested
+              {t("emailRevision.revisionRequested")}
             </span>
-            <span className="small muted">Community Health Grants 2027 · Full proposal</span>
+            <span className="small muted">{t("emailRevision.communityHealthGrants2027Full")}</span>
           </div>
-          <h2 style={{ fontSize: "20px" }}>Two changes before review continues</h2>
-          <p>Hello Copper Valley Clinic team,</p>
+          <h2 style={{ fontSize: "20px" }}>{t("emailRevision.twoChangesBeforeReviewContinues")}</h2>
+          <p>{t("emailRevision.helloCopperValleyClinicTeam")}</p>
           <p>
-            I have read <span className="b">Rural Telehealth Expansion</span> and would like two things clarified before it goes to the
-            review panel. Your application is on hold until you respond; nothing else needs to change.
+            {t.rich("emailRevision.iHaveReadRuralTelehealth", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <div
             className="card"
             style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", background: "#F7FAFA" }}
           >
             <div className="b" style={{ fontSize: "14px", color: "#0D2A43" }}>
-              Requested changes
+              {t("emailRevision.requestedChanges")}
             </div>
             <ol
               style={{
@@ -103,33 +92,28 @@ export default function EmailRevision() {
               }}
             >
               <li>
-                <span className="b">Budget narrative.</span> The budget table lists $48,000 for equipment but the narrative does not
-                describe what is purchased or how it is maintained after the grant period.
+                {t.rich("emailRevision.budgetNarrativeTheBudgetTable", { span: (chunks) => <span className="b">{chunks}</span> })}
               </li>
               <li>
-                <span className="b">Service-area map.</span> The attached map is from 2024. Please attach the current one so the eligibility
-                check for Riverbend County can be completed (it is showing “unknown” today).
+                {t.rich("emailRevision.serviceAreaMapTheAttached", { span: (chunks) => <span className="b">{chunks}</span> })}
               </li>
             </ol>
           </div>
           <p>
-            Only the <span className="b">Budget</span> section and <span className="b">Attachments</span> are unlocked for editing; other
-            sections stay as submitted. When you resubmit, I will see exactly what changed side by side with the original. Please respond by{" "}
-            <span className="b">May 2, 2027</span>.
+            {t.rich("emailRevision.onlyTheBudgetSectionAnd", { span: (chunks) => <span className="b">{chunks}</span>, span2: (chunks) => <span className="b">{chunks}</span>, span3: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <Link to="/w/alder-creek/applications/app_01HZX4" className="btn btn-tenant btn-lg">
-            Respond to revision request
+            {t("emailRevision.respondToRevisionRequest")}
             <ArrowRight className="ic" aria-hidden="true" />
           </Link>
           <p style={{ fontSize: "14px", color: "#4A5C5A" }}>
-            You can also reply to this email; your reply is added to the shared message thread on the application. — Dana Ortiz, Program
-            Officer
+            {t("emailRevision.youCanAlsoReplyTo")}
           </p>
         </div>
         <div className="ft" style={{ marginTop: "auto" }}>
-          <span>Sent by OpenGrants GMS on behalf of Riverbend Community Foundation</span>
+          <span>{t("emailRevision.sentByOpengrantsGmsOn")}</span>
           <span>
-            <Link to="/notifications">Manage notifications</Link> · gms.opengrants.io
+            {t.rich("emailRevision.manageNotificationsGmsOpengrantsIo", { link: (chunks) => <Link to="/notifications">{chunks}</Link> })}
           </span>
         </div>
       </div>

@@ -1,9 +1,12 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");// SPDX-License-Identifier: AGPL-3.0-only
 
 export default function PdfSnapshot() {
   return (
     <>
-      <title>{"PDF — application snapshot"}</title>
+      <title>{t("pdfSnapshot.pdfApplicationSnapshot")}</title>
       <div className="gms print" style={{ width: "816px", minHeight: "100vh", padding: "56px 72px 48px", gap: "14px" }}>
         <div
           className="row"
@@ -18,13 +21,13 @@ export default function PdfSnapshot() {
             paddingBottom: "8px",
           }}
         >
-          <span>Riverbend Community Foundation · Community Health Grants 2027</span>
-          <span>Application snapshot</span>
+          <span>{t("pdfSnapshot.riverbendCommunityFoundationCommunityHealth")}</span>
+          <span>{t("pdfSnapshot.applicationSnapshot")}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
-          <h1 style={{ fontSize: "22px" }}>Mobile Health Navigation for Rural Families</h1>
+          <h1 style={{ fontSize: "22px" }}>{t("pdfSnapshot.mobileHealthNavigationForRural")}</h1>
           <div style={{ fontSize: "13px", color: "#4A5C5A" }}>
-            Alder Creek Family Services · Full proposal · submitted to Riverbend Community Foundation
+            {t("pdfSnapshot.alderCreekFamilyServicesFull")}
           </div>
         </div>
         <div
@@ -40,145 +43,136 @@ export default function PdfSnapshot() {
           }}
         >
           <div>
-            <span className="muted">Application id</span> ·{" "}
+            <span className="muted">{t("pdfSnapshot.applicationId")}</span> ·{" "}
             <span className="mono" style={{ fontSize: "11px" }}>
-              app_01HZX4
+              {t("pdfSnapshot.app01hzx4")}
             </span>
           </div>
           <div>
-            <span className="muted">Submitted</span> · Apr 16, 2027 14:02 PT by Maria Santos
+            {t.rich("pdfSnapshot.submittedApr16202714", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Form</span> · Full proposal v2 (pinned)
+            {t.rich("pdfSnapshot.formFullProposalV2Pinned", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Requested</span> · $150,000
+            <span className="muted">{t("pdfSnapshot.requested")}</span> · $150,000
           </div>
           <div>
-            <span className="muted">Passport attestation</span> · Level L3 · att_01HZX4-9c2 · payee verified
+            {t.rich("pdfSnapshot.passportAttestationLevelL3Att", { span: (chunks) => <span className="muted">{chunks}</span> })}
           </div>
           <div>
-            <span className="muted">Document hash</span> ·{" "}
+            <span className="muted">{t("pdfSnapshot.documentHash")}</span> ·{" "}
             <span className="mono" style={{ fontSize: "11px" }}>
-              sha256 9c4e71…1a7b
+              {t("pdfSnapshot.sha2569c4e711a7b")}
             </span>
           </div>
         </div>
-        <div className="sec-h">1 · Organization</div>
+        <div className="sec-h">{t("pdfSnapshot.n1Organization")}</div>
         <dl className="f">
-          <dt>Legal name</dt>
+          <dt>{t("pdfSnapshot.legalName")}</dt>
           <dd>
-            Alder Creek Family Services <span className="src">Source: Passport</span>
+            {t.rich("pdfSnapshot.alderCreekFamilyServicesSource", { span: (chunks) => <span className="src">{chunks}</span> })}
           </dd>
-          <dt>Tax status</dt>
+          <dt>{t("pdfSnapshot.taxStatus")}</dt>
           <dd>
-            501(c)(3) public charity · verified by Passport <span className="src">Source: Passport</span>
+            {t.rich("pdfSnapshot.n501C3PublicCharity", { span: (chunks) => <span className="src">{chunks}</span> })}
           </dd>
-          <dt>Mailing address</dt>
+          <dt>{t("pdfSnapshot.mailingAddress")}</dt>
           <dd>
-            418 Mill Road, Alder Creek, OR <span className="src">Source: Passport</span>
+            {t.rich("pdfSnapshot.n418MillRoadAlderCreek", { span: (chunks) => <span className="src">{chunks}</span> })}
           </dd>
-          <dt>Primary contact</dt>
+          <dt>{t("pdfSnapshot.primaryContact")}</dt>
           <dd>
-            Maria Santos · Executive Director <span className="src">Source: Passport</span>
+            {t.rich("pdfSnapshot.mariaSantosExecutiveDirectorSource", { span: (chunks) => <span className="src">{chunks}</span> })}
           </dd>
-          <dt>Annual operating budget</dt>
+          <dt>{t("pdfSnapshot.annualOperatingBudget")}</dt>
           <dd>
-            $2,400,000 (FY2026) <span className="src">Source: Passport</span>
+            {t.rich("pdfSnapshot.n2400000Fy2026Source", { span: (chunks) => <span className="src">{chunks}</span> })}
           </dd>
-          <dt>Requested amount</dt>
+          <dt>{t("pdfSnapshot.requestedAmount")}</dt>
           <dd>
             $150,000{" "}
             <span className="src" style={{ color: "#4A5C5A" }}>
-              Entered
+              {t("pdfSnapshot.entered")}
             </span>
           </dd>
         </dl>
-        <div className="sec-h">2 · Need statement</div>
+        <div className="sec-h">{t("pdfSnapshot.n2NeedStatement")}</div>
         <p style={{ fontSize: "12.5px" }}>
-          Families in the Alder Creek valley travel an average of 46 miles to reach a primary care provider, and one in four households has
-          no reliable vehicle. Over the last three years our intake data shows that missed appointments, not lack of coverage, is the
-          leading reason children in our programs fall behind on well-child visits and immunizations.
+          {t("pdfSnapshot.familiesInTheAlderCreek")}
         </p>
         <p style={{ fontSize: "12.5px" }}>
-          Mobile Health Navigation pairs a community health navigator with a scheduled van route across the six unincorporated communities
-          we serve. Navigators schedule visits, arrange rides, and follow up on referrals so that a family's first contact with the clinic
-          is not an emergency room visit. The 2026 county health assessment ranks transportation access as the top barrier to care for rural
-          families, and our pilot with 38 families cut missed appointments by 41 percent.{" "}
-          <span className="src" style={{ color: "#1E4F8F" }}>
-            Source: answer library “Need”, edited
-          </span>
+          {t.rich("pdfSnapshot.mobileHealthNavigationPairsA", { span: (chunks) => <span className="src" style={{ color: "#1E4F8F" }}>{chunks}</span> })}
         </p>
-        <div className="sec-h">3 · Approach & activities</div>
+        <div className="sec-h">{t("pdfSnapshot.n3ApproachActivities")}</div>
         <p style={{ fontSize: "12.5px" }}>
-          Two navigators cover a weekly route of six stops. Each stop offers scheduling, transport vouchers, and warm hand-offs to the
-          Copper Valley Clinic telehealth room.
+          {t("pdfSnapshot.twoNavigatorsCoverAWeekly")}
         </p>
         <table className="tbl" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
-              <th>Key staff</th>
-              <th>Role on project</th>
-              <th className="num">FTE</th>
+              <th>{t("pdfSnapshot.keyStaff")}</th>
+              <th>{t("pdfSnapshot.roleOnProject")}</th>
+              <th className="num">{t("pdfSnapshot.fte")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Maria Santos</td>
-              <td>Project director</td>
+              <td>{t("pdfSnapshot.mariaSantos")}</td>
+              <td>{t("pdfSnapshot.projectDirector")}</td>
               <td className="num">0.15</td>
             </tr>
             <tr>
-              <td>To be hired</td>
-              <td>Community health navigator (2)</td>
+              <td>{t("pdfSnapshot.toBeHired")}</td>
+              <td>{t("pdfSnapshot.communityHealthNavigator2")}</td>
               <td className="num">2.00</td>
             </tr>
           </tbody>
         </table>
-        <div className="sec-h">4 · Budget</div>
+        <div className="sec-h">{t("pdfSnapshot.n4Budget")}</div>
         <table className="tbl bud" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
-              <th>Category</th>
-              <th className="num">Requested from Riverbend</th>
-              <th className="num">Other sources</th>
-              <th className="num">Total</th>
-              <th>Notes</th>
+              <th>{t("pdfSnapshot.category")}</th>
+              <th className="num">{t("pdfSnapshot.requestedFromRiverbend")}</th>
+              <th className="num">{t("pdfSnapshot.otherSources")}</th>
+              <th className="num">{t("pdfSnapshot.total")}</th>
+              <th>{t("pdfSnapshot.notes")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Personnel</td>
+              <td>{t("pdfSnapshot.personnel")}</td>
               <td className="num">$96,000</td>
               <td className="num">$24,000</td>
               <td className="num">$120,000</td>
-              <td>2 navigators, 0.15 FTE director</td>
+              <td>{t("pdfSnapshot.n2Navigators015Fte")}</td>
             </tr>
             <tr>
-              <td>Travel & vehicle</td>
+              <td>{t("pdfSnapshot.travelVehicle")}</td>
               <td className="num">$28,000</td>
               <td className="num">$0</td>
               <td className="num">$28,000</td>
-              <td>Van lease, fuel, maintenance</td>
+              <td>{t("pdfSnapshot.vanLeaseFuelMaintenance")}</td>
             </tr>
             <tr>
-              <td>Supplies</td>
+              <td>{t("pdfSnapshot.supplies")}</td>
               <td className="num">$11,000</td>
               <td className="num">$0</td>
               <td className="num">$11,000</td>
-              <td>Tablets, printed materials, vouchers</td>
+              <td>{t("pdfSnapshot.tabletsPrintedMaterialsVouchers")}</td>
             </tr>
             <tr>
-              <td>Indirect (10%)</td>
+              <td>{t("pdfSnapshot.indirect10")}</td>
               <td className="num">$15,000</td>
               <td className="num">$0</td>
               <td className="num">$15,000</td>
-              <td>Within the 10% cap</td>
+              <td>{t("pdfSnapshot.withinThe10Cap")}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
-              <td>Total</td>
+              <td>{t("pdfSnapshot.total")}</td>
               <td className="num">$150,000</td>
               <td className="num">$24,000</td>
               <td className="num">$174,000</td>
@@ -186,39 +180,39 @@ export default function PdfSnapshot() {
             </tr>
           </tfoot>
         </table>
-        <div className="sec-h">5 · Attachments</div>
+        <div className="sec-h">{t("pdfSnapshot.n5Attachments")}</div>
         <table className="tbl" style={{ fontSize: "12px" }}>
           <thead>
             <tr>
-              <th>File</th>
-              <th>Source</th>
-              <th>Size</th>
-              <th>Hash</th>
+              <th>{t("pdfSnapshot.file")}</th>
+              <th>{t("pdfSnapshot.source")}</th>
+              <th>{t("pdfSnapshot.size")}</th>
+              <th>{t("pdfSnapshot.hash")}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>IRS determination letter.pdf</td>
-              <td>Passport locker</td>
-              <td>412 KB</td>
+              <td>{t("pdfSnapshot.irsDeterminationLetterPdf")}</td>
+              <td>{t("pdfSnapshot.passportLocker")}</td>
+              <td>{t("pdfSnapshot.n412Kb")}</td>
               <td className="mono" style={{ fontSize: "11px" }}>
-                sha256 3f9a…c21e
+                {t("pdfSnapshot.sha2563f9aC21e")}
               </td>
             </tr>
             <tr>
-              <td>FY2026 audited financials.xlsx</td>
-              <td>Passport locker</td>
-              <td>1.1 MB</td>
+              <td>{t("pdfSnapshot.fy2026AuditedFinancialsXlsx")}</td>
+              <td>{t("pdfSnapshot.passportLocker")}</td>
+              <td>{t("pdfSnapshot.n11Mb")}</td>
               <td className="mono" style={{ fontSize: "11px" }}>
-                sha256 8b10…77d4
+                {t("pdfSnapshot.sha2568b1077d4")}
               </td>
             </tr>
             <tr>
-              <td>Letter of support — Copper Valley Clinic.pdf</td>
-              <td>Uploaded by Jamal Reed</td>
-              <td>240 KB</td>
+              <td>{t("pdfSnapshot.letterOfSupportCopperValley")}</td>
+              <td>{t("pdfSnapshot.uploadedByJamalReed")}</td>
+              <td>{t("pdfSnapshot.n240Kb")}</td>
               <td className="mono" style={{ fontSize: "11px" }}>
-                sha256 e204…55f0
+                {t("pdfSnapshot.sha256E20455f0")}
               </td>
             </tr>
           </tbody>
@@ -234,8 +228,8 @@ export default function PdfSnapshot() {
             color: "#4A5C5A",
           }}
         >
-          <span>Generated by OpenGrants GMS · Apr 16, 2027 14:02 PT · sha256 9c4e71…1a7b</span>
-          <span>Page 1 of 2</span>
+          <span>{t("pdfSnapshot.generatedByOpengrantsGmsApr")}</span>
+          <span>{t("pdfSnapshot.page1Of2")}</span>
         </div>
       </div>
     </>

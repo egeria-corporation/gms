@@ -6,6 +6,9 @@ import type { SelfDeclaredProfile } from "../api/types.ts";
 import { cleanProfile, ORG_TYPES, profileProblems } from "../lib/profile.ts";
 import { ErrorBanner, Field, problemFor } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const tr = translator("shared");
 export function ProfileForm({
   initial,
   submitLabel,
@@ -64,25 +67,25 @@ export function ProfileForm({
 
   return (
     <form onSubmit={submit} noValidate style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {error !== null && error !== undefined && <ErrorBanner error={error} title="Your details were not saved" />}
-      <Field id={id("legal-name")} label="Legal name" required error={err("legalName")}>
+      {error !== null && error !== undefined && <ErrorBanner error={error} title={tr("profileForm.yourDetailsWereNotSaved")} />}
+      <Field id={id("legal-name")} label={tr("profileForm.legalName")} required error={err("legalName")}>
         <input className={err("legalName") ? "inp err" : "inp"} id={id("legal-name")} value={v.legalName} onChange={set("legalName")} autoComplete="organization" />
       </Field>
-      <Field id={id("contact-email")} label="Contact email" required error={err("contactEmail")} help="Shown to funders you apply to. Letters and award notices go to your workspace admins at the address they sign in with.">
+      <Field id={id("contact-email")} label={tr("profileForm.contactEmail")} required error={err("contactEmail")} help={tr("profileForm.shownToFundersYouApply")}>
         <input className={err("contactEmail") ? "inp err" : "inp"} id={id("contact-email")} type="email" value={v.contactEmail} onChange={set("contactEmail")} autoComplete="email" />
       </Field>
       <details open={problems.some((p) => p.path !== "legalName" && p.path !== "contactEmail") || undefined}>
         <summary className="small b" style={{ cursor: "pointer" }}>
-          More about your organization (optional)
+          {tr("profileForm.moreAboutYourOrganizationOptional")}
         </summary>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
           <div className="fld-row">
-            <Field id={id("display-name")} label="Name to show" error={err("displayName")}>
+            <Field id={id("display-name")} label={tr("profileForm.nameToShow")} error={err("displayName")}>
               <input className="inp" id={id("display-name")} value={v.displayName} onChange={set("displayName")} />
             </Field>
-            <Field id={id("org-type")} label="Type of organization">
+            <Field id={id("org-type")} label={tr("profileForm.typeOfOrganization")}>
               <select className="sel" id={id("org-type")} value={v.orgType} onChange={set("orgType")}>
-                <option value="">Choose one</option>
+                <option value="">{tr("profileForm.chooseOne")}</option>
                 {ORG_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
@@ -92,32 +95,32 @@ export function ProfileForm({
             </Field>
           </div>
           <div className="fld-row">
-            <Field id={id("website")} label="Website" error={err("website")}>
-              <input className={err("website") ? "inp err" : "inp"} id={id("website")} type="url" placeholder="https://" value={v.website} onChange={set("website")} />
+            <Field id={id("website")} label={tr("profileForm.website")} error={err("website")}>
+              <input className={err("website") ? "inp err" : "inp"} id={id("website")} type="url" placeholder={tr("profileForm.https")} value={v.website} onChange={set("website")} />
             </Field>
-            <Field id={id("ein")} label="Organization's EIN (federal tax number)" error={err("ein")} help="The organization's nine-digit employer identification number. Never a person's own identity number; leave it empty for an individual. Shown to funders as entered by you, not checked.">
+            <Field id={id("ein")} label={tr("profileForm.organizationSEinFederalTax")} error={err("ein")} help={tr("profileForm.theOrganizationSNineDigit")}>
               <input className={err("ein") ? "inp err" : "inp"} id={id("ein")} inputMode="numeric" value={v.ein} onChange={set("ein")} />
             </Field>
           </div>
-          <Field id={id("mission")} label="Mission" error={err("mission")}>
+          <Field id={id("mission")} label={tr("profileForm.mission")} error={err("mission")}>
             <textarea className="inp" id={id("mission")} rows={3} value={v.mission} onChange={set("mission")} />
           </Field>
-          <Field id={id("street")} label="Street address">
+          <Field id={id("street")} label={tr("profileForm.streetAddress")}>
             <input className="inp" id={id("street")} value={v.street} onChange={set("street")} autoComplete="street-address" />
           </Field>
           <div className="fld-row">
-            <Field id={id("city")} label="City">
+            <Field id={id("city")} label={tr("profileForm.city")}>
               <input className="inp" id={id("city")} value={v.city} onChange={set("city")} />
             </Field>
-            <Field id={id("region")} label="State or region">
+            <Field id={id("region")} label={tr("profileForm.stateOrRegion")}>
               <input className="inp" id={id("region")} value={v.region} onChange={set("region")} />
             </Field>
           </div>
           <div className="fld-row">
-            <Field id={id("postal")} label="Postal code">
+            <Field id={id("postal")} label={tr("profileForm.postalCode")}>
               <input className="inp" id={id("postal")} value={v.postalCode} onChange={set("postalCode")} />
             </Field>
-            <Field id={id("country")} label="Country code" error={err("address.country")} help="Two letters, such as US.">
+            <Field id={id("country")} label={tr("profileForm.countryCode")} error={err("address.country")} help={tr("profileForm.twoLettersSuchAsUs")}>
               <input className={err("address.country") ? "inp err" : "inp"} id={id("country")} maxLength={2} value={v.country} onChange={set("country")} />
             </Field>
           </div>
@@ -125,7 +128,7 @@ export function ProfileForm({
       </details>
       <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="submit" disabled={busy}>
-          {busy ? "Saving…" : submitLabel}
+          {busy ? tr("profileForm.saving") : submitLabel}
         </button>
         {secondary}
       </div>

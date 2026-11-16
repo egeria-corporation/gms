@@ -9,6 +9,10 @@ import { isSsoRequired } from "../auth/sso.ts";
 import { NotFound } from "../components/NotFound.tsx";
 import { useServices } from "./services.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+
+const t = translator("shared");
 export type { Workspace, WorkspaceKind };
 
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -33,7 +37,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!live) return;
         if (isSsoRequired(error)) setLoad({ status: "sso" });
         else if (error instanceof ApiError && (error.status === 404 || error.status === 403)) setLoad({ status: "missing" });
-        else setLoad({ status: "error", message: error instanceof Error ? error.message : "The workspace could not be loaded." });
+        else setLoad({ status: "error", message: error instanceof Error ? error.message : t("workspace.theWorkspaceCouldNotBe") });
       },
     );
     return () => {
@@ -56,12 +60,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       <div className="gms gms-frame" style={{ alignItems: "center", justifyContent: "center" }}>
         <div className="empty" role="alert">
           <TriangleExclamationPoint className="ic" aria-hidden="true" />
-          <h3>This workspace could not be loaded</h3>
+          <h3>{t("workspace.thisWorkspaceCouldNotBe")}</h3>
           <p>{load.message}</p>
           <div className="acts">
             <button className="btn btn-primary" type="button" onClick={() => setAttempt((n) => n + 1)}>
               <RefreshCw className="ic" aria-hidden="true" />
-              Try again
+              {t("workspace.tryAgain")}
             </button>
           </div>
         </div>
@@ -74,7 +78,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 /** The current workspace. Shells render only under `/w/:ws`, behind the kind guards in App.tsx. */
 export function useWorkspace(kind: WorkspaceKind): Workspace {
   const current = useContext(WorkspaceContext);
-  if (!current || current.kind !== kind) throw new Error(`No ${kind} workspace in context`);
+  if (!current || current.kind !== kind) throw new Error(t("workspace.noWorkspaceInContext", { kind }));
   return current;
 }
 

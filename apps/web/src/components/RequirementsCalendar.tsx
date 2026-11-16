@@ -6,6 +6,9 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { intlLocale, translator } from "../i18n/index.tsx";
+
+const tr = translator("shared");
 export interface CalendarItem {
   id: string;
   /** ISO date or date-time. */
@@ -22,7 +25,7 @@ const TONES: Record<CalendarItem["tone"], { color: string; label: string }> = {
 };
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-const monthName = (y: number, m: number) => new Date(Date.UTC(y, m, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+const monthName = (y: number, m: number) => new Date(Date.UTC(y, m, 1)).toLocaleDateString(intlLocale(), { month: "long", year: "numeric", timeZone: "UTC" });
 
 export function RequirementsCalendar({
   items,
@@ -79,15 +82,15 @@ export function RequirementsCalendar({
     <div className="card">
       <div className="card-h">
         <div className="row" style={{ gap: "8px" }}>
-          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Previous month" onClick={() => move(-1)}>
+          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={tr("requirementsCalendar.previousMonth")} onClick={() => move(-1)}>
             <ChevronLeft className="ic" aria-hidden="true" />
           </button>
           <h3 aria-live="polite">{title}</h3>
-          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label="Next month" onClick={() => move(1)}>
+          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={tr("requirementsCalendar.nextMonth")} onClick={() => move(1)}>
             <ChevronRight className="ic" aria-hidden="true" />
           </button>
         </div>
-        <span className="small muted">Today · {today.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span>
+        <span className="small muted">{tr("requirementsCalendar.today", { date: today.toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) })}</span>
       </div>
       <div className="card-b" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
         <div className="cal" role="group" aria-label={`${title} ${label}`}>
@@ -100,7 +103,7 @@ export function RequirementsCalendar({
             const key = dayKey(date);
             const due = byDay.get(key) ?? [];
             const cls = ["d", inMonth ? "" : "dim", key === todayKey ? "today" : ""].filter(Boolean).join(" ");
-            const dayLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+            const dayLabel = date.toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" });
             if (!due.length) {
               return (
                 <div key={key} className={cls}>
@@ -140,7 +143,7 @@ export function RequirementsCalendar({
             </span>
           ))}
         </div>
-        {inMonthCount === 0 && <p className="small muted">Nothing due this month.</p>}
+        {inMonthCount === 0 && <p className="small muted">{tr("requirementsCalendar.nothingDueThisMonth")}</p>}
       </div>
     </div>
   );

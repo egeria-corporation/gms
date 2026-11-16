@@ -9,6 +9,10 @@
 export const TRANSLATED = [
   // D2a: the framework, the switcher, the public and shared screens.
   "apps/web/src/i18n/**/*.{ts,tsx}",
+  "apps/web/src/app/**/*.tsx",
+  "apps/web/src/components/**/*.tsx",
+  "apps/web/src/screens/public/**/*.tsx",
+  "apps/web/src/screens/shared/**/*.tsx",
 ];
 
 // Text that is the same in every language: product names and the formats people know by name.
@@ -44,7 +48,9 @@ const VISIBLE_PROP_SUFFIX = /[a-z](Label|Title|Text|Placeholder|Hint|Help|Messag
 // Element contents that are code, not prose.
 const CODE_ELEMENTS = new Set(["code", "kbd", "pre", "samp", "var"]);
 
-const hasWords = (text) => /\p{L}/u.test(text) && !SAME_IN_EVERY_LANGUAGE.has(text.trim());
+// An element name passed as a prop (`heading="h2"`) is markup, not text.
+const TAG_NAME = /^(h[1-6]|p|div|span|section|article|aside|header|footer|li|ul|ol)$/;
+const hasWords = (text) => /\p{L}/u.test(text) && !SAME_IN_EVERY_LANGUAGE.has(text.trim()) && !TAG_NAME.test(text.trim());
 
 function elementName(node) {
   const name = node?.openingElement?.name;

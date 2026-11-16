@@ -8,6 +8,9 @@ import type { Checklist, FieldProblem } from "../api/types.ts";
 import { ApiError } from "../api/client.ts";
 import { actedRecently, announce } from "../lib/announce.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const tr = translator("shared");
 export interface Crumb {
   label: string;
   to?: string;
@@ -17,7 +20,7 @@ export function PageHeader({ crumbs, title, badge, meta, actions }: { crumbs?: C
   return (
     <>
       {crumbs && crumbs.length > 0 && (
-        <nav className="crumbs" aria-label="Breadcrumb">
+        <nav className="crumbs" aria-label={tr("ui.breadcrumb")}>
           {crumbs.map((c, i) => (
             <span key={`${c.label}-${i}`} className="row" style={{ gap: "6px" }}>
               {i > 0 && <span aria-hidden="true">›</span>}
@@ -123,7 +126,7 @@ export function DataTable<T>({ label, columns, rows, rowKey, empty, selectedKey,
 
   if (!rows.length) return <div className="tbl-wrap">{empty}</div>;
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`${label}, scrollable`}>
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("ui.scrollable", { label })}>
       <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label={label}>
         <thead>
           <tr>
@@ -167,7 +170,17 @@ export function DataTable<T>({ label, columns, rows, rowKey, empty, selectedKey,
 
 const CHECK_ICON = { pass: CircleCheck, fail: CircleX, unknown: CircleDashed } as const;
 const CHECK_CLASS = { pass: "rc-pass", fail: "rc-fail", unknown: "rc-unk" } as const;
-const CHECK_WORD = { pass: "Passed", fail: "Needs fixing", unknown: "Unknown" } as const;
+const CHECK_WORD = {
+  get pass() {
+    return tr("ui.check.pass");
+  },
+  get fail() {
+    return tr("ui.check.fail");
+  },
+  get unknown() {
+    return tr("ui.check.unknown");
+  },
+};
 
 /**
  * One readiness checklist for every gate (launch a competition, submit an application, release a
@@ -184,9 +197,9 @@ export function ReadinessChecklist({ checklist, title }: { checklist: Checklist;
         <SumIcon className="ic ic-md" aria-hidden="true" />
         <span>
           {title ? `${title}: ` : ""}
-          {pass} of {total} checks pass
-          {fail > 0 ? ` · ${fail} to fix` : ""}
-          {unknown > 0 ? ` · ${unknown} unknown` : ""}
+          {tr("ui.ofChecksPass", { pass, total })}
+          {fail > 0 ? ` · ${tr("ui.toFix", { fail })}` : ""}
+          {unknown > 0 ? ` · ${tr("ui.unknown", { unknown })}` : ""}
         </span>
       </div>
       <ul>
@@ -201,7 +214,7 @@ export function ReadinessChecklist({ checklist, title }: { checklist: Checklist;
               </div>
               {item.fixHref ? (
                 <Link to={item.fixHref} className="fix">
-                  Fix →
+                  {tr("ui.fix")}
                 </Link>
               ) : (
                 <span />
@@ -233,9 +246,9 @@ export function problemsOf(error: unknown): FieldProblem[] {
   });
 }
 
-export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : "Something went wrong. Try again.");
+export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : tr("ui.somethingWentWrongTryAgain"));
 
-export function ErrorBanner({ error, onRetry, title = "That did not work" }: { error: unknown; onRetry?: () => void; title?: string }) {
+export function ErrorBanner({ error, onRetry, title = tr("ui.thatDidNotWork") }: { error: unknown; onRetry?: () => void; title?: string }) {
   const problems = problemsOf(error);
   return (
     <div className="bnr bnr-dng" role="alert">
@@ -256,7 +269,7 @@ export function ErrorBanner({ error, onRetry, title = "That did not work" }: { e
       {onRetry && (
         <button type="button" className="btn btn-sm btn-secondary act" onClick={onRetry}>
           <RefreshCw className="ic" aria-hidden="true" />
-          Try again
+          {tr("ui.tryAgain")}
         </button>
       )}
     </div>
@@ -291,7 +304,7 @@ export function Notice({ tone = "info", title, children }: { tone?: "info" | "ok
 export function SaveNote({ state, savedText = "Saved" }: { state: "idle" | "saving" | "saved"; savedText?: string }) {
   return (
     <span className="notice" role="status" aria-live="polite">
-      {state === "saving" && "Saving…"}
+      {state === "saving" && tr("ui.saving")}
       {state === "saved" && (
         <>
           <CircleCheck className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />

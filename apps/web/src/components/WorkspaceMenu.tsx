@@ -6,6 +6,9 @@ import { Check, ChevronDown, LogOut, Plus } from "lucide-react";
 import { roleTitle, type MeWorkspace } from "../api/client.ts";
 import { useServices } from "../app/services.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 function acronym(name: string): string {
   return name
     .split(/\s+/)
@@ -59,12 +62,12 @@ function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPi
             {ws.name}
           </span>
           <span className="small muted">
-            {current ? "Current · " : ""}
+            {current ? t("workspaceMenu.current") : ""}
             {roleTitle(ws.role)}
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span className="role">{funder ? "Funder" : "Applicant"}</span>
+          <span className="role">{funder ? t("workspaceMenu.funder") : t("workspaceMenu.applicant")}</span>
           {current && <Check className="ic" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />}
         </span>
       </Link>
@@ -119,7 +122,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
             ref={menu}
             id="ws-menu"
             role="menu"
-            aria-label="Switch workspace"
+            aria-label={t("workspaceMenu.switchWorkspace")}
             className="card"
             style={{
               position: "absolute",
@@ -143,7 +146,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 gap: "8px",
               }}
             >
-              <span className="eyebrow">Your workspaces</span>
+              <span className="eyebrow">{t("workspaceMenu.yourWorkspaces")}</span>
               <span className="small muted">{me?.email}</span>
             </div>
             {/* A menu owns menu items only: the list is layout here (role none), not a list. */}
@@ -153,12 +156,12 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
               ))}
               {meState.status === "loading" && (
                 <li role="none" className="small muted" style={{ padding: "10px" }} aria-busy="true">
-                  Loading workspaces…
+                  {t("workspaceMenu.loadingWorkspaces")}
                 </li>
               )}
               {meState.status === "error" && (
                 <li role="none" className="err-msg" style={{ padding: "10px" }}>
-                  <span role="alert">Your workspaces could not be loaded.</span>
+                  <span role="alert">{t("workspaceMenu.yourWorkspacesCouldNotBe")}</span>
                 </li>
               )}
             </ul>
@@ -180,7 +183,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Plus className="ic" aria-hidden="true" />
-                Create a funder workspace
+                {t("workspaceMenu.createAFunderWorkspace")}
               </Link>
               <Link
                 to="/onboarding/applicant"
@@ -189,7 +192,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}
               >
                 <Plus className="ic" aria-hidden="true" />
-                Link an applicant organization
+                {t("workspaceMenu.linkAnApplicantOrganization")}
               </Link>
               <button
                 type="button"
@@ -202,7 +205,7 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
                 }}
               >
                 <LogOut className="ic" aria-hidden="true" />
-                Sign out
+                {t("workspaceMenu.signOut")}
               </button>
             </div>
           </div>

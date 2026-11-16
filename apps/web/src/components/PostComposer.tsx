@@ -12,6 +12,9 @@ import { Dialog } from "./Dialog.tsx";
 import { PostStatusBadge } from "./ReachPanel.tsx";
 import { ErrorBanner, Notice } from "./ui.tsx";
 
+import { intlLocale, translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 const browserZone = () => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -25,7 +28,7 @@ const zones = (): string[] => {
   return [...new Set([here, "UTC", ...all])];
 };
 const whenText = (iso: string | null | undefined, tz: string) =>
-  iso ? new Date(iso).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }) : "";
+  iso ? new Date(iso).toLocaleString(intlLocale(), { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }) : "";
 
 export function PostComposer({ open, onClose, draft, settings, onPosted }: { open: boolean; onClose: () => void; draft: SocialDraft; settings: SocialSettings; onPosted: (post: SocialPost) => void }) {
   const accounts: SocialAccount[] = settings.accounts;
@@ -72,10 +75,10 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
       <div className="hd">
         <div>
           <h2 id="composer-title" style={{ fontSize: "16px" }}>
-            {stage === "edit" ? "Write a post" : stage === "preview" ? "Check the post" : posted?.status === "scheduled" ? "Post scheduled" : "Posted"}
+            {stage === "edit" ? t("postComposer.writeAPost") : stage === "preview" ? t("postComposer.checkThePost") : posted?.status === "scheduled" ? t("postComposer.postScheduled") : t("postComposer.posted")}
           </h2>
           <p className="small muted" style={{ marginTop: "4px" }}>
-            About {draft.subject.title}. It goes to your own accounts through Zernio, and only when you press Post.
+            {t("postComposer.aboutItGoesToYour", { title: draft.subject.title })}
           </p>
         </div>
       </div>
@@ -85,7 +88,7 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
           {draft.suggestions.length > 1 && (
             <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", gap: "16px", flexWrap: "wrap" }}>
               <legend className="lbl" style={{ marginBottom: "6px" }}>
-                Start from
+                {t("postComposer.startFrom")}
               </legend>
               {draft.suggestions.map((s, i) => (
                 <label key={s.label} className="cb" htmlFor={`suggestion-${i}`}>
@@ -106,21 +109,21 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
           )}
           <div>
             <label className="lbl" htmlFor="post-text">
-              Post text
+              {t("postComposer.postText")}
             </label>
             <textarea id="post-text" className="ta" rows={7} value={text} onChange={(e) => setText(e.target.value)} />
-            <div aria-label="Length on each platform" role="group" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", flexWrap: "wrap", marginTop: "4px" }}>
+            <div aria-label={t("postComposer.lengthOnEachPlatform")} role="group" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", flexWrap: "wrap", marginTop: "4px" }}>
               {lengths.map((l) => (
                 <span key={l.platform} className={l.over ? "counter over" : "counter"}>
-                  {l.label} {l.length.toLocaleString("en-US")} / {l.limit.toLocaleString("en-US")}
-                  {l.over ? " · too long" : ""}
+                  {l.label} {l.length.toLocaleString(intlLocale())} / {l.limit.toLocaleString(intlLocale())}
+                  {l.over ? ` · ${t("postComposer.tooLong")}` : ""}
                 </span>
               ))}
             </div>
           </div>
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              Accounts
+              {t("postComposer.accounts")}
             </legend>
             {accounts.map((a) => (
               <label key={a.id} className="cb" htmlFor={`acct-${a.id}`}>
@@ -135,10 +138,10 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
             <label className="cb" htmlFor="post-image">
               <input type="checkbox" id="post-image" checked={includeImage} onChange={(e) => setIncludeImage(e.target.checked)} style={{ marginTop: "3px" }} />
               <span>
-                <span className="b">Attach the share card</span>
+                <span className="b">{t("postComposer.attachTheShareCard")}</span>
                 <span className="help" style={{ display: "block" }}>
                   <a href={draft.imageUrl} target="_blank" rel="noopener noreferrer">
-                    View the share card
+                    {t("postComposer.viewTheShareCard")}
                     <ExternalLink className="ic" aria-hidden="true" />
                   </a>
                 </span>
@@ -147,27 +150,27 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
           )}
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              When
+              {t("postComposer.when")}
             </legend>
             <label className="cb" htmlFor="when-now">
               <input type="radio" id="when-now" name="when" checked={mode === "now"} onChange={() => setMode("now")} />
-              <span>Post now</span>
+              <span>{t("postComposer.postNow")}</span>
             </label>
             <label className="cb" htmlFor="when-later">
               <input type="radio" id="when-later" name="when" checked={mode === "later"} onChange={() => setMode("later")} />
-              <span>Schedule</span>
+              <span>{t("postComposer.schedule")}</span>
             </label>
             {mode === "later" && (
               <div className="row wrap" style={{ gap: "12px" }}>
                 <div>
                   <label className="lbl" htmlFor="when-at">
-                    Date and time
+                    {t("postComposer.dateAndTime")}
                   </label>
                   <input id="when-at" type="datetime-local" className="inp" value={at} onChange={(e) => setAt(e.target.value)} />
                 </div>
                 <div>
                   <label className="lbl" htmlFor="when-zone">
-                    Time zone
+                    {t("postComposer.timeZone")}
                   </label>
                   <select id="when-zone" className="sel" value={zone} onChange={(e) => setZone(e.target.value)}>
                     {zoneList.map((z) => (
@@ -180,42 +183,42 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
               </div>
             )}
           </fieldset>
-          {doPreview.error !== null && <ErrorBanner error={doPreview.error} title="The preview could not be made" />}
+          {doPreview.error !== null && <ErrorBanner error={doPreview.error} title={t("postComposer.thePreviewCouldNotBe")} />}
         </div>
       )}
 
       {stage === "preview" && preview && (
         <div className="bd">
-          <p className="small b">This is exactly what will be posted.</p>
-          <div className="card card-b" style={{ boxShadow: "none", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }} aria-label="Post text as it will appear" role="region">
+          <p className="small b">{t("postComposer.thisIsExactlyWhatWill")}</p>
+          <div className="card card-b" style={{ boxShadow: "none", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }} aria-label={t("postComposer.postTextAsItWill")} role="region">
             {preview.content}
           </div>
           <dl className="kv">
-            <dt>Picture</dt>
+            <dt>{t("postComposer.picture")}</dt>
             <dd>
               {preview.imageUrl ? (
                 <a href={preview.imageUrl} target="_blank" rel="noopener noreferrer">
-                  <ImageIcon className="ic" aria-hidden="true" /> The share card
+                  <ImageIcon className="ic" aria-hidden="true" /> {t("postComposer.theShareCard")}
                 </a>
               ) : (
-                "None"
+                t("postComposer.none")
               )}
             </dd>
-            <dt>Accounts</dt>
+            <dt>{t("postComposer.accounts")}</dt>
             <dd>{preview.accounts.map((a) => `${a.label}${a.username ? ` (${a.username})` : ""}`).join(", ")}</dd>
-            <dt>When</dt>
-            <dd>{preview.publishNow ? "Now, when you press Post" : `${whenText(preview.schedule?.at, preview.schedule?.timezone ?? "UTC")} (${preview.schedule?.timezone ?? ""})`}</dd>
+            <dt>{t("postComposer.when")}</dt>
+            <dd>{preview.publishNow ? t("postComposer.nowWhenYouPressPost") : `${whenText(preview.schedule?.at, preview.schedule?.timezone ?? "UTC")} (${preview.schedule?.timezone ?? ""})`}</dd>
             {preview.lengths.map((l) => (
               <div key={l.platform} style={{ display: "contents" }}>
                 <dt>{l.label}</dt>
                 <dd>
-                  {l.length.toLocaleString("en-US")} of {l.limit.toLocaleString("en-US")} characters{l.over ? " (too long)" : ""}
+                  {t("postComposer.ofCharacters", { count: l.length.toLocaleString(intlLocale()), total: l.limit.toLocaleString(intlLocale()) })}{l.over ? ` ${t("postComposer.tooLong2")}` : ""}
                 </dd>
               </div>
             ))}
           </dl>
           {preview.problems.length > 0 && (
-            <Notice tone="warn" title="Fix these before posting">
+            <Notice tone="warn" title={t("postComposer.fixTheseBeforePosting")}>
               <ul style={{ margin: 0, paddingLeft: "18px" }}>
                 {preview.problems.map((p) => (
                   <li key={p}>{p}</li>
@@ -223,7 +226,7 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
               </ul>
             </Notice>
           )}
-          {doPost.error !== null && <ErrorBanner error={doPost.error} title="The post did not go out" />}
+          {doPost.error !== null && <ErrorBanner error={doPost.error} title={t("postComposer.thePostDidNotGo")} />}
         </div>
       )}
 
@@ -232,17 +235,17 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
           <div className="bnr bnr-ok" role="status">
             <CircleCheck className="ic" aria-hidden="true" />
             <div className="grow">
-              <div className="t">{posted.status === "scheduled" ? "Scheduled with Zernio" : "Sent to Zernio"}</div>
-              <div className="d">It shows under Reach with a link to each post once it is out.</div>
+              <div className="t">{posted.status === "scheduled" ? t("postComposer.scheduledWithZernio") : t("postComposer.sentToZernio")}</div>
+              <div className="d">{t("postComposer.itShowsUnderReachWith")}</div>
             </div>
           </div>
-          <ul aria-label="Where it went" style={{ margin: 0, paddingLeft: "18px" }}>
+          <ul aria-label={t("postComposer.whereItWent")} style={{ margin: 0, paddingLeft: "18px" }}>
             {posted.accounts.map((a) => (
               <li key={a.accountId} className="small">
                 {a.label} {a.username ? `(${a.username})` : ""}{" "}
                 {a.url && (
                   <a href={a.url} target="_blank" rel="noopener noreferrer">
-                    View on {a.label}
+                    {t("postComposer.viewOn", { label: a.label })}
                   </a>
                 )}
               </li>
@@ -256,11 +259,11 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
         {stage === "edit" && (
           <>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t("postComposer.cancel")}
             </button>
             <button type="button" className="btn btn-primary" disabled={!text.trim() || !chosen.length || (mode === "later" && !at) || doPreview.state === "saving"} onClick={toPreview}>
               <Eye className="ic" aria-hidden="true" />
-              Preview
+              {t("postComposer.preview")}
             </button>
           </>
         )}
@@ -275,17 +278,17 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
               }}
             >
               <PenLine className="ic" aria-hidden="true" />
-              Edit
+              {t("postComposer.edit")}
             </button>
             <button type="button" className="btn btn-primary" disabled={!preview?.previewToken || doPost.state === "saving"} onClick={send}>
               {preview?.publishNow ? <Send className="ic" aria-hidden="true" /> : <CalendarClock className="ic" aria-hidden="true" />}
-              {preview?.publishNow ? "Post" : "Schedule post"}
+              {preview?.publishNow ? t("postComposer.post") : t("postComposer.schedulePost")}
             </button>
           </>
         )}
         {stage === "done" && (
           <button type="button" className="btn btn-primary" onClick={onClose}>
-            Close
+            {t("postComposer.close")}
           </button>
         )}
       </div>

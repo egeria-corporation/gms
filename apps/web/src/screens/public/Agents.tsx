@@ -7,26 +7,29 @@ import { Link } from "react-router";
 import { Bot, Check, ExternalLink, Lock, ShieldCheck } from "lucide-react";
 import { env } from "../../env.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 const ORIGIN = env.apiBaseUrl || "https://gms.opengrants.io";
 
 /** Calls that pause for a person's approval when an agent makes them. */
-const GATED: { tool: string; what: string; humanOnly: boolean }[] = [
-  { tool: "submit_application", what: "Submit an application", humanOnly: false },
-  { tool: "decline_application", what: "Decline an application and send the letter", humanOnly: false },
-  { tool: "commit_decisions", what: "Commit panel decisions", humanOnly: false },
-  { tool: "send_communication", what: "Send letters or bulk messages", humanOnly: false },
-  { tool: "accept_award", what: "Accept an award", humanOnly: true },
-  { tool: "sign_agreement", what: "Sign or countersign an agreement", humanOnly: true },
-  { tool: "release_tranche", what: "Release a payment", humanOnly: true },
-];
+const GATED = (): { tool: string; what: string; humanOnly: boolean }[] => ([
+  { tool: "submit_application", what: t("agents.gated.n0.what"), humanOnly: false },
+  { tool: "decline_application", what: t("agents.gated.n1.what"), humanOnly: false },
+  { tool: "commit_decisions", what: t("agents.gated.n2.what"), humanOnly: false },
+  { tool: "send_communication", what: t("agents.gated.n3.what"), humanOnly: false },
+  { tool: "accept_award", what: t("agents.gated.n4.what"), humanOnly: true },
+  { tool: "sign_agreement", what: t("agents.gated.n5.what"), humanOnly: true },
+  { tool: "release_tranche", what: t("agents.gated.n6.what"), humanOnly: true },
+]);
 
-const CAN_DO = [
-  "Find competitions an organization is eligible for and start an application from its Passport record",
-  "Fill and validate form responses, insert answers from the organization's library, attach documents",
-  "List and summarize applications, run eligibility, assign reviewers, rank, and propose decisions",
-  "Draft letters, agreements and reports for a person to review",
-  "Check payment readiness and explain what blocks a payment",
-];
+const CAN_DO = () => ([
+  t("agents.canDo.n0"),
+  t("agents.canDo.n1"),
+  t("agents.canDo.n2"),
+  t("agents.canDo.n3"),
+  t("agents.canDo.n4"),
+]);
 
 export default function Agents() {
   const [reference, setReference] = useState<{ status: "idle" | "loading" | "ready" | "unavailable"; text?: string }>({ status: env.useMocks ? "idle" : "loading" });
@@ -46,7 +49,7 @@ export default function Agents() {
   }, []);
   return (
     <>
-      <title>For agents — OpenGrants GMS</title>
+      <title>{t("agents.forAgentsOpengrantsGms")}</title>
       <div className="gms pub gms-frame">
         <header style={{ borderBottom: "1px solid var(--og-gray-200)", background: "var(--og-white)" }}>
           <div className="wrap-c" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "24px", minHeight: "64px", flexWrap: "wrap" }}>
@@ -54,12 +57,12 @@ export default function Agents() {
               <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" style={{ height: "22px", width: "auto", display: "block" }} />
               <span style={{ color: "var(--og-teal-dark)", fontWeight: 500 }}>GMS</span>
             </Link>
-            <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: "24px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
+            <nav aria-label={t("agents.primary")} style={{ display: "flex", alignItems: "center", gap: "24px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
               <Link to="/" style={{ color: "var(--og-gray-800)" }}>
-                Home
+                {t("agents.home")}
               </Link>
               <Link to="/signin" className="btn btn-secondary">
-                Sign in
+                {t("agents.signIn")}
               </Link>
             </nav>
           </div>
@@ -69,11 +72,11 @@ export default function Agents() {
             <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <span className="og-eyebrow" style={{ color: "var(--og-teal-dark)" }}>
                 <Bot className="ic" aria-hidden="true" />
-                For agents
+                {t("agents.forAgents")}
               </span>
-              <h1 style={{ fontSize: "40px", maxWidth: "760px", color: "var(--og-navy-dark)" }}>Agents are first-class users of the GMS</h1>
+              <h1 style={{ fontSize: "40px", maxWidth: "760px", color: "var(--og-navy-dark)" }}>{t("agents.agentsAreFirstClassUsers")}</h1>
               <p style={{ fontSize: "18px", maxWidth: "720px", lineHeight: 1.6 }}>
-                Everything a person can do in the GMS, an agent connected by that person can do through the Model Context Protocol, with the same permissions and never more. Anything that moves money, makes a final decision or signs for an organization comes back to a person.
+                {t("agents.everythingAPersonCanDo")}
               </p>
             </div>
           </section>
@@ -81,52 +84,52 @@ export default function Agents() {
           <section>
             <div className="wrap-c" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
               <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <h2 style={{ fontSize: "20px", marginBottom: 0 }}>Connect</h2>
+                <h2 style={{ fontSize: "20px", marginBottom: 0 }}>{t("agents.connect")}</h2>
                 <ol style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px", listStyle: "decimal", paddingLeft: "20px" }}>
                   <li>
-                    Add the MCP server <code>{ORIGIN}/mcp</code> to your client (Streamable HTTP).
+                    {t.rich("agents.addTheMcpServerMcp", { ORIGIN, code: (chunks) => <code>{chunks}</code> })}
                   </li>
-                  <li>The client registers itself and opens the GMS consent screen (OAuth 2.1 with PKCE).</li>
-                  <li>A signed-in person picks the workspace, unticks any scope they do not want to grant, and approves.</li>
-                  <li>The agent's token is bound to that person, that workspace and those scopes. It can be revoked at any time under Account settings.</li>
+                  <li>{t("agents.theClientRegistersItselfAnd")}</li>
+                  <li>{t("agents.aSignedInPersonPicks")}</li>
+                  <li>{t("agents.theAgentSTokenIs")}</li>
                 </ol>
                 <p className="help">
-                  Discovery: <code>{ORIGIN}/.well-known/oauth-protected-resource</code>, <code>{ORIGIN}/llms.txt</code>, <code>{ORIGIN}/.well-known/agent.json</code>, <code>{ORIGIN}/openapi.json</code>
+                  {t.rich("agents.discoveryWellKnownOauthProtected", { ORIGIN, code: (chunks) => <code>{chunks}</code>, code2: (chunks) => <code>{chunks}</code>, code3: (chunks) => <code>{chunks}</code>, code4: (chunks) => <code>{chunks}</code> })}
                 </p>
               </div>
               <div className="card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <h2 style={{ fontSize: "20px", marginBottom: 0 }}>What an agent can do</h2>
+                <h2 style={{ fontSize: "20px", marginBottom: 0 }}>{t("agents.whatAnAgentCanDo")}</h2>
                 <ul style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }}>
-                  {CAN_DO.map((line) => (
+                  {CAN_DO().map((line) => (
                     <li key={line} style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
                       <Check className="ic" aria-hidden="true" style={{ color: "var(--og-teal-dark)", marginTop: "5px" }} />
                       {line}
                     </li>
                   ))}
                 </ul>
-                <p className="help">The same data is readable as CommonGrants v0.5.0 JSON under <code>/common-grants/</code>.</p>
+                <p className="help">{t.rich("agents.theSameDataIsReadable", { code: (chunks) => <code>{chunks}</code> })}</p>
               </div>
             </div>
           </section>
 
           <section>
             <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <h2>Human gates</h2>
+              <h2>{t("agents.humanGates")}</h2>
               <p style={{ maxWidth: "760px" }}>
-                When an agent calls one of these tools, nothing happens yet. The call returns <code>pending_approval</code> with a link; a person approves or rejects it in the GMS, and the agent reads the outcome with <code>get_approval</code>. A workspace can gate more tools, never fewer.
+                {t.rich("agents.whenAnAgentCallsOne", { code: (chunks) => <code>{chunks}</code>, code2: (chunks) => <code>{chunks}</code> })}
               </p>
-              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Tools that need a person, scrollable">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("agents.toolsThatNeedAPerson")}>
                 <table className="tbl" style={{ fontSize: "15px" }}>
-                  <caption className="sr">Tools that need a person</caption>
+                  <caption className="sr">{t("agents.toolsThatNeedAPerson2")}</caption>
                   <thead>
                     <tr>
-                      <th scope="col">Action</th>
-                      <th scope="col">Tool</th>
-                      <th scope="col">Who completes it</th>
+                      <th scope="col">{t("agents.action")}</th>
+                      <th scope="col">{t("agents.tool")}</th>
+                      <th scope="col">{t("agents.whoCompletesIt")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {GATED.map((g) => (
+                    {GATED().map((g) => (
                       <tr key={g.tool}>
                         <td style={{ whiteSpace: "normal" }}>{g.what}</td>
                         <td>
@@ -136,12 +139,12 @@ export default function Agents() {
                           {g.humanOnly ? (
                             <span className="bdg bdg-warn">
                               <Lock className="ic" aria-hidden="true" />
-                              A person, always
+                              {t("agents.aPersonAlways")}
                             </span>
                           ) : (
                             <span className="bdg bdg-agent">
                               <ShieldCheck className="ic" aria-hidden="true" />
-                              A person approves the agent's request
+                              {t("agents.aPersonApprovesTheAgent")}
                             </span>
                           )}
                         </td>
@@ -150,25 +153,29 @@ export default function Agents() {
                   </tbody>
                 </table>
               </div>
-              <p className="help">The GMS never stores bank or identity data, and no tool sets a payout destination: organizations manage that in OpenGrants Passport.</p>
+              <p className="help">{t("agents.theGmsNeverStoresBank")}</p>
             </div>
           </section>
 
           <section>
             <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <h2>Tool reference</h2>
+              <h2>{t("agents.toolReference")}</h2>
               {reference.status === "ready" ? (
-                <pre style={{ whiteSpace: "pre-wrap", maxHeight: "560px", overflow: "auto" }} tabIndex={0} role="region" aria-label="Tool reference from /llms.txt">
+                <pre style={{ whiteSpace: "pre-wrap", maxHeight: "560px", overflow: "auto" }} tabIndex={0} role="region" aria-label={t("agents.toolReferenceFromLlmsTxt")}>
                   {reference.text}
                 </pre>
               ) : (
                 <p>
-                  {reference.status === "loading" ? "Loading the reference… " : reference.status === "unavailable" ? "The reference could not be loaded just now. " : ""}
-                  The full list of tools, with their scopes and input schemas, is served at{" "}
-                  <a href={`${ORIGIN}/llms.txt`}>
-                    {ORIGIN}/llms.txt <ExternalLink className="ic ic-sm" aria-hidden="true" />
-                  </a>{" "}
-                  and <a href={`${ORIGIN}/llms-full.txt`}>{ORIGIN}/llms-full.txt</a>.
+                  {reference.status === "loading" ? `${t("agents.loadingTheReference")} ` : reference.status === "unavailable" ? `${t("agents.theReferenceCouldNotBe")} ` : ""}
+                  {t.rich("agents.fullListServedAt", {
+                    origin: ORIGIN,
+                    short: (chunks) => (
+                      <a href={`${ORIGIN}/llms.txt`}>
+                        {chunks} <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                      </a>
+                    ),
+                    full: (chunks) => <a href={`${ORIGIN}/llms-full.txt`}>{chunks}</a>,
+                  })}
                 </p>
               )}
             </div>
@@ -178,11 +185,11 @@ export default function Agents() {
           <div className="wrap-c">
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-              <span>OpenGrants GMS</span>
+              <span>{t("agents.opengrantsGms")}</span>
             </div>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-              <Link to="/">Home</Link>
-              <a href={`${ORIGIN}/openapi.json`}>OpenAPI</a>
+              <Link to="/">{t("agents.home")}</Link>
+              <a href={`${ORIGIN}/openapi.json`}>{t("agents.openapi")}</a>
             </div>
           </div>
         </footer>

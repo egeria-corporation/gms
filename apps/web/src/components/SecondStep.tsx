@@ -7,14 +7,16 @@ import { errorCode } from "../api/directAwards.ts";
 import { signInPath } from "../auth/RequireAuth.tsx";
 import { Notice } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 /** True when the API refused because the second step of sign-in is still to do. */
 export const needsSecondStep = (error: unknown): boolean => errorCode(error) === "mfa_required";
 
 export function SecondStepNotice({ next }: { next: string }) {
   return (
-    <Notice tone="warn" title="Set up two-step verification to continue">
-      Admins sign in with a second step from an authenticator app. <Link to={signInPath(next, "mfa")}>Set it up now</Link>. It takes about
-      two minutes and brings you back here.
+    <Notice tone="warn" title={t("secondStep.setUpTwoStepVerification")}>
+      {t.rich("secondStep.adminsSignInWithA", { link: (chunks) => <Link to={signInPath(next, "mfa")}>{chunks}</Link> })}
     </Notice>
   );
 }

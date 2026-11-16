@@ -62,36 +62,37 @@ export function parseDollars(text: string): number | null {
   return Math.round(Number(clean) * 100);
 }
 
-/** The CommonGrants applicant types, in the order the eligibility editor lists them. */
-export const APPLICANT_TYPE_CODES = [
-  "individual",
-  "organization",
-  "government_state",
-  "government_county",
-  "government_municipal",
-  "government_special_district",
-  "government_tribal",
-  "organization_tribal_other",
-  "school_district_independent",
-  "higher_education_public",
-  "higher_education_private",
-  "non_profit_with_501c3",
-  "nonprofit_without_501c3",
-  "for_profit_small_business",
-  "for_profit_not_small_business",
-  "unrestricted",
-  "custom",
-] as const;
-export type ApplicantTypeCode = (typeof APPLICANT_TYPE_CODES)[number];
-const isApplicantType = (code: string): code is ApplicantTypeCode => (APPLICANT_TYPE_CODES as readonly string[]).includes(code);
+/** The CommonGrants applicant types, in the order the eligibility editor lists them, with each label's message. */
+const APPLICANT_TYPE_KEY = {
+  individual: "applicantType.individual",
+  organization: "applicantType.organization",
+  government_state: "applicantType.government_state",
+  government_county: "applicantType.government_county",
+  government_municipal: "applicantType.government_municipal",
+  government_special_district: "applicantType.government_special_district",
+  government_tribal: "applicantType.government_tribal",
+  organization_tribal_other: "applicantType.organization_tribal_other",
+  school_district_independent: "applicantType.school_district_independent",
+  higher_education_public: "applicantType.higher_education_public",
+  higher_education_private: "applicantType.higher_education_private",
+  non_profit_with_501c3: "applicantType.non_profit_with_501c3",
+  nonprofit_without_501c3: "applicantType.nonprofit_without_501c3",
+  for_profit_small_business: "applicantType.for_profit_small_business",
+  for_profit_not_small_business: "applicantType.for_profit_not_small_business",
+  unrestricted: "applicantType.unrestricted",
+  custom: "applicantType.custom",
+} as const;
+export const APPLICANT_TYPE_CODES = Object.keys(APPLICANT_TYPE_KEY) as (keyof typeof APPLICANT_TYPE_KEY)[];
+export type ApplicantTypeCode = keyof typeof APPLICANT_TYPE_KEY;
+const isApplicantType = (code: string): code is ApplicantTypeCode => code in APPLICANT_TYPE_KEY;
 
 /** Each code's label, read in the current language every time (shared catalog, `applicantType.*`). */
 export const APPLICANT_TYPE_LABELS: Readonly<Record<string, string>> = Object.defineProperties(
   {},
-  Object.fromEntries(APPLICANT_TYPE_CODES.map((code) => [code, { enumerable: true, get: () => translate("shared", `applicantType.${code}`) }])),
+  Object.fromEntries(APPLICANT_TYPE_CODES.map((code) => [code, { enumerable: true, get: () => translate("shared", APPLICANT_TYPE_KEY[code]) }])),
 );
 export const applicantTypeLabel = (code: string): string => applicantTypeLabelIn(code, getLocale());
-export const applicantTypeLabelIn = (code: string, locale: Locale): string => (isApplicantType(code) ? translate("shared", `applicantType.${code}`, undefined, locale) : code);
+export const applicantTypeLabelIn = (code: string, locale: Locale): string => (isApplicantType(code) ? translate("shared", APPLICANT_TYPE_KEY[code], undefined, locale) : code);
 
 export const slugify = (title: string): string =>
   title

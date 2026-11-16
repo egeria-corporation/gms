@@ -8,6 +8,9 @@ import { env } from "../env.ts";
 import { createMockApi } from "../mocks/api.ts";
 import { createMockAuth } from "../mocks/auth.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export interface Services {
   auth: AuthClient;
   api: GmsApi;
@@ -92,6 +95,6 @@ export function ServicesProvider({ services, children }: { services: Services; c
 
 export function useServices(): ServicesValue {
   const value = useContext(ServicesContext);
-  if (!value) throw new Error("ServicesProvider is missing");
+  if (!value) throw new Error(t("services.servicesproviderIsMissing"));
   return value;
 }

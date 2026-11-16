@@ -16,6 +16,10 @@ import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
 import { isReviewOnly } from "../../lib/roles.ts";
 import { MOCK_CODE } from "../../mocks/auth.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+
+const t = translator("public");
 type Step = "email" | "code" | "mfa" | "first-run" | "sso";
 type Choice = "funder" | "applicant" | "invite";
 
@@ -48,7 +52,7 @@ function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v:
     if (digits && i < 5) refs.current[i + 1]?.focus();
   };
   return (
-    <div role="group" aria-label="One-time code" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "8px" }}>
+    <div role="group" aria-label={t("signIn.oneTimeCode")} style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "8px" }}>
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <input
           key={i}
@@ -56,7 +60,7 @@ function CodeInputs({ value, onChange, invalid }: { value: string; onChange: (v:
             refs.current[i] = el;
           }}
           className={invalid ? "inp err userback-ignore" : "inp userback-ignore"}
-          aria-label={`Digit ${i + 1}`}
+          aria-label={t("signIn.digit", { value: i + 1 })}
           {...problem}
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
@@ -182,7 +186,7 @@ export default function SignIn() {
         setEnrollment(e);
         setFactorId(e.factorId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Two-step verification could not be started.");
+        setError(e instanceof Error ? e.message : t("signIn.twoStepVerificationCouldNot"));
       }
     })();
   }, [step, auth]);
@@ -193,7 +197,7 @@ export default function SignIn() {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      setError(e instanceof Error ? e.message : t("signIn.somethingWentWrongTryAgain"));
     } finally {
       setBusy(false);
     }
@@ -245,7 +249,7 @@ export default function SignIn() {
     else if (choice === "applicant") navigate("/onboarding/applicant");
     else {
       const token = invitationToken(invite);
-      if (!token) setError("Paste the link from your invitation email.");
+      if (!token) setError(t("signIn.pasteTheLinkFromYour2"));
       else navigate(`/invitations/accept?token=${encodeURIComponent(token)}`);
     }
   };
@@ -255,7 +259,7 @@ export default function SignIn() {
 
   return (
     <>
-      <title>{"Sign in — OpenGrants GMS"}</title>
+      <title>{t("signIn.signInOpengrantsGms")}</title>
       <div className="gms pub" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--grad-hero)" }}>
         <header style={{ background: "#FFFFFF", borderBottom: "1px solid #D6DEDE" }}>
           <div
@@ -279,10 +283,7 @@ export default function SignIn() {
               <span style={{ color: "#145450", fontWeight: 500 }}>GMS</span>
             </Link>
             <div style={{ fontSize: "14px", color: "#4A5C5A" }}>
-              New here?{" "}
-              <Link to="/" style={{ fontWeight: 700 }}>
-                Learn how OpenGrants GMS works
-              </Link>
+              {t.rich("signIn.newHereLearnHowOpengrants", { link: (chunks) => <Link to="/" style={{ fontWeight: 700 }}>{chunks}</Link> })}
             </div>
           </div>
         </header>
@@ -291,9 +292,9 @@ export default function SignIn() {
           style={{ paddingTop: "48px", paddingBottom: "56px", display: "flex", flexDirection: "column", gap: "28px", width: "100%" }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", textAlign: "center", alignItems: "center" }}>
-            <h1 style={{ fontSize: "32px" }}>Sign In to OpenGrants GMS</h1>
+            <h1 style={{ fontSize: "32px" }}>{t("signIn.signInToOpengrantsGms")}</h1>
             <p style={{ fontSize: "16px", color: "#4A5C5A", maxWidth: "560px" }}>
-              Sign up or sign in with your email. No password and no Passport account needed{passportFlags.signIn ? ", though you can continue with Passport instead" : ""}.
+              {passportFlags.signIn ? t("signIn.signUpOrSignInOrPassport") : t("signIn.signUpOrSignIn")}
             </p>
           </div>
           <div
@@ -304,11 +305,11 @@ export default function SignIn() {
               <div className="bnr bnr-dng" role="alert">
                 <TriangleExclamationPoint className="ic" aria-hidden="true" />
                 <div>
-                  <div className="t">Your workspaces could not be loaded</div>
-                  <div className="d">You are signed in, but the GMS did not answer. Try again in a moment.</div>
+                  <div className="t">{t("signIn.yourWorkspacesCouldNotBe")}</div>
+                  <div className="d">{t("signIn.youAreSignedInBut")}</div>
                 </div>
                 <button className="btn btn-sm btn-secondary act" type="button" onClick={reloadMe}>
-                  Retry
+                  {t("signIn.retry")}
                 </button>
               </div>
             )}
@@ -331,11 +332,11 @@ export default function SignIn() {
 
             {step === "email" && (
               <div className="card" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }}>
-                <h2 style={{ fontSize: "20px" }}>Enter Your Email</h2>
+                <h2 style={{ fontSize: "20px" }}>{t("signIn.enterYourEmail")}</h2>
                 <form style={{ display: "flex", flexDirection: "column", gap: "14px" }} onSubmit={sendCode}>
                   <div className="fld">
                     <label className="lbl" htmlFor="email">
-                      Work email
+                      {t("signIn.workEmail")}
                     </label>
                     <input
                       className="inp"
@@ -351,15 +352,15 @@ export default function SignIn() {
                       style={{ height: "44px", fontSize: "16px" }}
                     />
                     <span className="help" id="email-help">
-                      We'll send a one-time code. No password to remember.
+                      {t("signIn.weLlSendAOne")}
                     </span>
                     <span className="help" id="email-help-2">
-                      Admins add an authenticator app as a second step. It takes a minute.
+                      {t("signIn.adminsAddAnAuthenticatorApp")}
                     </span>
                   </div>
                   {error && <Problem>{error}</Problem>}
                   <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
-                    Send code
+                    {t("signIn.sendCode")}
                     <ArrowRight className="ic" aria-hidden="true" />
                   </button>
                 </form>
@@ -373,17 +374,17 @@ export default function SignIn() {
                   }}
                 >
                   <Building2 className="ic" aria-hidden="true" />
-                  Use single sign-on
+                  {t("signIn.useSingleSignOn")}
                 </button>
                 {passportFlags.signIn && (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#4A5C5A", fontSize: "13px" }}>
-                      <span className="divider" style={{ flex: 1 }}></span>Applying for funding?
+                      <span className="divider" style={{ flex: 1 }}></span>{t("signIn.applyingForFunding")}
                       <span className="divider" style={{ flex: 1 }}></span>
                     </div>
                     <PassportButton returnTo={next} />
                     <p className="help" style={{ textAlign: "center" }}>
-                      Sign in at Passport and choose your organization. You come back signed in, with applications pre-filled from its record.
+                      {t("signIn.signInAtPassportAnd")}
                     </p>
                   </>
                 )}
@@ -393,27 +394,27 @@ export default function SignIn() {
             {step === "sso" && (
               <form className="card" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }} onSubmit={startSso}>
                 <div>
-                  <h2 style={{ fontSize: "20px" }}>Use Single Sign-On</h2>
+                  <h2 style={{ fontSize: "20px" }}>{t("signIn.useSingleSignOn2")}</h2>
                   <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }}>
-                    Sign in through your organization's identity provider, such as Okta, Google Workspace or JumpCloud.
+                    {t("signIn.signInThroughYourOrganization")}
                   </p>
                 </div>
                 {wantsSso && (
                   <div className="bnr bnr-warn" role="alert">
                     <Lock className="ic" aria-hidden="true" />
                     <div>
-                      <div className="t">This workspace requires single sign-on</div>
+                      <div className="t">{t("signIn.thisWorkspaceRequiresSingleSign")}</div>
                       <div className="d">
                         {ssoSession && !ssoStartedHere.current
-                          ? "You are signed in with single sign-on, but not through the identity provider this workspace uses. Continue with your work email to sign in again."
-                          : "Your organization signs its staff in through its own identity provider. Continue with your work email."}
+                          ? t("signIn.youAreSignedInWith")
+                          : t("signIn.yourOrganizationSignsItsStaff")}
                       </div>
                     </div>
                   </div>
                 )}
                 <div className="fld">
                   <label className="lbl" htmlFor="sso-email">
-                    Work email
+                    {t("signIn.workEmail")}
                   </label>
                   <input
                     className="inp"
@@ -428,16 +429,16 @@ export default function SignIn() {
                     aria-describedby={error ? `${PROBLEM_ID} sso-email-help` : "sso-email-help"}
                     style={{ height: "44px", fontSize: "16px" }}
                   />
-                  <span className="help" id="sso-email-help">We send you to your organization's sign-in page and you come back here signed in.</span>
+                  <span className="help" id="sso-email-help">{t("signIn.weSendYouToYour")}</span>
                 </div>
                 {error && <Problem>{error}</Problem>}
                 <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !ssoEmail.trim()}>
-                  Continue with single sign-on
+                  {t("signIn.continueWithSingleSignOn")}
                   <ArrowRight className="ic" aria-hidden="true" />
                 </button>
                 {wantsSso && sessionState.status === "signedIn" ? (
                   <button className="btn btn-ghost" type="button" onClick={() => void auth.signOut().then(() => setStep("email"))}>
-                    Sign out
+                    {t("signIn.signOut")}
                   </button>
                 ) : (
                   <button
@@ -448,7 +449,7 @@ export default function SignIn() {
                       setStep("email");
                     }}
                   >
-                    Sign in with an email code instead
+                    {t("signIn.signInWithAnEmail")}
                   </button>
                 )}
               </form>
@@ -461,27 +462,27 @@ export default function SignIn() {
                 onSubmit={verifyCode}
               >
                 <div>
-                  <h2 style={{ fontSize: "20px" }}>Check Your Email</h2>
+                  <h2 style={{ fontSize: "20px" }}>{t("signIn.checkYourEmail")}</h2>
                   <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }}>
-                    We sent a 6-digit code to <b>{email}</b>. The link in the same email signs you in too.
+                    {t.rich("signIn.weSentA6Digit", { email, b: (chunks) => <b>{chunks}</b> })}
                   </p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                    <span className="lbl">Enter the 6-digit code</span>
+                    <span className="lbl">{t("signIn.enterThe6DigitCode")}</span>
                     {error && (
                       <span className="bdg bdg-dng">
                         <CircleX className="ic" aria-hidden="true" />
-                        Invalid code
+                        {t("signIn.invalidCode")}
                       </span>
                     )}
                   </div>
                   <CodeInputs value={code} onChange={setCode} invalid={!!error} />
                   {error && <Problem>{error}</Problem>}
-                  {mock && <span className="help">Mock mode: the code is {MOCK_CODE}.</span>}
+                  {mock && <span className="help">{t("signIn.mockModeTheCodeIs", { MOCK_CODE })}</span>}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", fontSize: "13px" }}>
                     <button className="btn btn-sm btn-ghost" type="button" onClick={() => sendCode()} disabled={busy}>
-                      Send a new code
+                      {t("signIn.sendANewCode")}
                     </button>
                     <button
                       className="btn btn-sm btn-ghost"
@@ -491,12 +492,12 @@ export default function SignIn() {
                         setStep("email");
                       }}
                     >
-                      Use a different email
+                      {t("signIn.useADifferentEmail")}
                     </button>
                   </div>
                 </div>
                 <button className="btn btn-primary btn-lg" type="submit" disabled={busy || code.length < 6}>
-                  Verify and continue
+                  {t("signIn.verifyAndContinue")}
                 </button>
               </form>
             )}
@@ -524,17 +525,17 @@ export default function SignIn() {
                     <Lock className="ic ic-md" aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 style={{ fontSize: "20px" }}>{enrollment ? "Set Up Two-Step Verification" : "Two-Step Verification"}</h2>
+                    <h2 style={{ fontSize: "20px" }}>{enrollment ? t("signIn.setUpTwoStepVerification") : t("signIn.twoStepVerification")}</h2>
                     {/* Until Supabase says whether an authenticator is already set up, say neither: the
                         "open your app" wording flashed for new admins before the set-up screen loaded. */}
                     <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }} role="status" aria-live="polite">
                       {enrollment
-                        ? "Your role in this workspace requires a second step. This takes about two minutes."
+                        ? t("signIn.yourRoleInThisWorkspace")
                         : factorId
-                          ? "Your role in this workspace requires a second step. Open your authenticator app for the current code."
+                          ? t("signIn.yourRoleInThisWorkspace2")
                           : error
-                            ? "Your role in this workspace requires a second step."
-                            : "Getting your second step ready…"}
+                            ? t("signIn.yourRoleInThisWorkspace3")
+                            : t("signIn.gettingYourSecondStepReady")}
                     </p>
                   </div>
                 </div>
@@ -553,7 +554,7 @@ export default function SignIn() {
                     {enrollment.qrCode ? (
                       <img
                         src={enrollment.qrCode}
-                        alt="QR code to scan with an authenticator app"
+                        alt={t("signIn.qrCodeToScanWith")}
                         style={{
                           width: "120px",
                           height: "120px",
@@ -566,7 +567,7 @@ export default function SignIn() {
                     ) : (
                       <div
                         role="img"
-                        aria-label="QR code unavailable; enter the key manually"
+                        aria-label={t("signIn.qrCodeUnavailableEnterThe")}
                         style={{
                           width: "120px",
                           height: "120px",
@@ -583,11 +584,11 @@ export default function SignIn() {
                           textAlign: "center",
                         }}
                       >
-                        QR code
+                        {t("signIn.qrCode")}
                       </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "0" }}>
-                      <span className="help">Can't scan? Enter this key manually:</span>
+                      <span className="help">{t("signIn.canTScanEnterThis")}</span>
                       <span
                         className="mono"
                         style={{ fontSize: "14px", fontWeight: 700, color: "#0D2A43", letterSpacing: ".06em", overflowWrap: "anywhere" }}
@@ -595,7 +596,7 @@ export default function SignIn() {
                         {enrollment.secret}
                       </span>
                       <span style={{ alignSelf: "flex-start" }}>
-                        <CopyButton value={enrollment.secret} label="Copy key" what="setup key" className="btn btn-sm btn-secondary" />
+                        <CopyButton value={enrollment.secret} label={t("signIn.copyKey")} what={t("signIn.whatSetupKey")} className="btn btn-sm btn-secondary" />
                       </span>
                     </div>
                   </div>
@@ -606,7 +607,7 @@ export default function SignIn() {
                   <>
                 <div className="fld">
                   <label className="lbl" htmlFor="totp">
-                    Enter the 6-digit code from your app
+                    {t("signIn.enterThe6DigitCode2")}
                   </label>
                   <input
                     className={error ? "inp err" : "inp"}
@@ -622,15 +623,15 @@ export default function SignIn() {
                     style={{ height: "44px", fontSize: "18px", letterSpacing: ".12em", fontWeight: 700 }}
                   />
                   {error && <Problem>{error}</Problem>}
-                  {mock && <span className="help">Mock mode: the code is {MOCK_CODE}.</span>}
+                  {mock && <span className="help">{t("signIn.mockModeTheCodeIs", { MOCK_CODE })}</span>}
                 </div>
                 <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !factorId || totp.replace(/\D/g, "").length < 6}>
-                  Verify and continue
+                  {t("signIn.verifyAndContinue")}
                 </button>
                   </>
                 )}
                 <button className="btn btn-ghost" type="button" onClick={() => void auth.signOut().then(() => setStep("email"))}>
-                  Sign out
+                  {t("signIn.signOut")}
                 </button>
               </form>
             )}
@@ -638,29 +639,29 @@ export default function SignIn() {
             {step === "first-run" && (
               <div className="card" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }}>
                 <div>
-                  <h2 style={{ fontSize: "20px" }}>How Will You Use OpenGrants GMS?</h2>
+                  <h2 style={{ fontSize: "20px" }}>{t("signIn.howWillYouUseOpengrants")}</h2>
                   <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }}>
-                    Signed in as <b>{signedInEmail}</b>. You can add more workspaces later.
+                    {t.rich("signIn.signedInAsYouCan", { signedInEmail, b: (chunks) => <b>{chunks}</b> })}
                   </p>
                 </div>
                 <div
                   role="radiogroup"
-                  aria-label="How will you use OpenGrants GMS?"
+                  aria-label={t("signIn.howWillYouUseOpengrants2")}
                   style={{ display: "flex", flexDirection: "column", gap: "10px" }}
                 >
                   {(
                     [
                       [
                         "funder",
-                        "Create a funder workspace",
-                        "For foundations, agencies and corporate giving programs. Name your organization, set your brand, invite your team.",
+                        t("signIn.createAFunderWorkspace"),
+                        t("signIn.forFoundationsAgenciesAndCorporate"),
                       ],
                       [
                         "applicant",
-                        "Set up my applicant organization",
-                        passportFlags.linking ? "For nonprofits and other grant seekers. Link your Passport record, or enter a few details yourself." : "For nonprofits and other grant seekers. Enter a few details about your organization.",
+                        t("signIn.setUpMyApplicantOrganization"),
+                        passportFlags.linking ? t("signIn.forNonprofitsAndOtherGrant") : t("signIn.forNonprofitsAndOtherGrant2"),
                       ],
-                      ["invite", "Join by invitation", "Someone invited you as a teammate, reviewer or consultant."],
+                      ["invite", t("signIn.joinByInvitation"), t("signIn.someoneInvitedYouAsA")],
                     ] as const
                   ).map(([key, title, help]) => {
                     const on = choice === key;
@@ -705,12 +706,12 @@ export default function SignIn() {
                           {key === "invite" && on && (
                             <div className="fld">
                               <label className="sr" htmlFor="invite">
-                                Invitation link
+                                {t("signIn.invitationLink")}
                               </label>
                               <input
                                 className="inp"
                                 id="invite"
-                                placeholder="Paste the link from your invitation email"
+                                placeholder={t("signIn.pasteTheLinkFromYour")}
                                 value={invite}
                                 onChange={(e) => setInvite(e.target.value)}
                                 style={{ height: "40px" }}
@@ -724,10 +725,10 @@ export default function SignIn() {
                 </div>
                 {error && <Problem>{error}</Problem>}
                 <button className="btn btn-primary btn-lg" type="button" onClick={continueFirstRun}>
-                  Continue
+                  {t("signIn.continue")}
                 </button>
                 <p className="help">
-                  An organization that both funds and applies gets two workspaces under one account; the switcher shows both.
+                  {t("signIn.anOrganizationThatBothFunds")}
                 </p>
               </div>
             )}
@@ -743,9 +744,9 @@ export default function SignIn() {
               flexWrap: "wrap",
             }}
           >
-            <span>OpenGrants GMS is free and open source.</span>
-            <a href="https://github.com/egeria-corporation/gms">Source</a>
-            <Link to="/agents">For agents</Link>
+            <span>{t("signIn.opengrantsGmsIsFreeAnd")}</span>
+            <a href="https://github.com/egeria-corporation/gms">{t("signIn.source")}</a>
+            <Link to="/agents">{t("signIn.forAgents")}</Link>
           </div>
         </main>
       </div>
