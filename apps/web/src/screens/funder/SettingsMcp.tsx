@@ -30,6 +30,8 @@ const WEBHOOK_EVENTS = ["application.submitted", "application.status.changed", "
 const CLIENT_SCOPES = ["programs:read", "opportunities:read", "opportunities:write", "competitions:read", "forms:read", "applications:read", "applications:write", "reviews:read", "awards:read", "payments:read", "requirements:read", "requirements:write", "grantees:read", "analytics:read", "org:read"];
 const FUNDER_ROLES = ["admin", "program_officer", "finance", "reviewer", "observer", "auditor"];
 const words = (s: string) => s.replace(/_/g, " ");
+/** The shape of an address, the same in every language. */
+const URL_EXAMPLE = { any: "https://…", mcp: "https://…/mcp" } as const;
 const DELIVERY: Record<string, () => string> = {
   pending: () => t("settingsMcp.delivery.pending"),
   delivered: () => t("settingsMcp.delivery.delivered"),
@@ -248,7 +250,7 @@ function McpServers() {
               <input className="inp" id="srv-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("settingsMcp.eGStateGrants")} />
             </Field>
             <Field id="srv-url" label={t("settingsMcp.serverUrl")} required>
-              <input className="inp mono" id="srv-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settingsMcp.httpsMcp")} style={{ fontSize: "12px" }} />
+              <input className="inp mono" id="srv-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={URL_EXAMPLE.mcp} style={{ fontSize: "12px" }} />
             </Field>
           </div>
           <Field id="srv-auth" label={t("settingsMcp.authorizationHeaderOptional")} help={t("settingsMcp.storedEncryptedAndNever")}>
@@ -553,7 +555,7 @@ function Webhooks() {
         >
           {create.error !== null && <ErrorBanner error={create.error} />}
           <Field id="hook-url" label={t("settingsMcp.endpointUrl")} required>
-            <input className="inp mono" id="hook-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t("settingsMcp.https")} style={{ fontSize: "12px", maxWidth: "480px" }} />
+            <input className="inp mono" id="hook-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={URL_EXAMPLE.any} style={{ fontSize: "12px", maxWidth: "480px" }} />
           </Field>
           <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="lbl">{t("settingsMcp.eventsNoneSelectedSends")}</legend>

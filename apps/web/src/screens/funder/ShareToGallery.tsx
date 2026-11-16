@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { LayoutTemplate, Share2, Undo2 } from "lucide-react";
-import { KIND_LABEL, LICENCE, type GalleryPreview, type GallerySource, type GallerySubmission, type GalleryTags } from "../../api/gallery.ts";
+import { LICENCE, type GalleryKind, type GalleryPreview, type GallerySource, type GallerySubmission, type GalleryTags } from "../../api/gallery.ts";
 import { useGalleryMutation, useGalleryQuery } from "../../api/galleryHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -48,6 +48,14 @@ const TAG_VALUE: Record<string, () => string> = {
   "Faith-based organizations": () => t("shareToGallery.tag.audience.faithBasedOrganizations"),
 };
 const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
+const KIND: Record<GalleryKind, () => string> = {
+  application_form: () => t("shareToGallery.kind.applicationForm"),
+  report_form: () => t("shareToGallery.kind.reportForm"),
+  rubric: () => t("shareToGallery.kind.rubric"),
+  email_template: () => t("shareToGallery.kind.emailTemplate"),
+  program_kit: () => t("shareToGallery.kind.programKit"),
+};
+const kindLabel = (kind: GalleryKind) => KIND[kind]?.() ?? kind;
 
 function ShareDialog({ source, name, onClose }: { source: GallerySource; name: string; onClose: () => void }) {
   const ws = useWorkspace("funder");
@@ -102,7 +110,7 @@ function ShareDialog({ source, name, onClose }: { source: GallerySource; name: s
             {shown && (
               <>
                 <p>
-                  {t("shareToGallery.theGalleryGetsA", { KIND_LABEL: KIND_LABEL[shown.kind].toLowerCase(), version: shown.source.version })}
+                  {t("shareToGallery.theGalleryGetsA", { kind: shown.kind, version: shown.source.version })}
                 </p>
                 <section aria-labelledby="share-taken-out">
                   <h3 id="share-taken-out" style={{ fontSize: "14px" }}>
@@ -220,7 +228,7 @@ export function GallerySubmissionsPanel() {
               <li key={s.id} style={{ display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid var(--og-gray-200)", paddingBottom: "10px" }}>
                 <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
                   <span className="b">{s.title}</span>
-                  <span className="tag">{KIND_LABEL[s.kind]}</span>
+                  <span className="tag">{kindLabel(s.kind)}</span>
                   <SubmissionBadge status={s.status} />
                   <span className="small muted">{t("shareToGallery.sent", { date: formatDate(s.createdAt) })}</span>
                 </div>

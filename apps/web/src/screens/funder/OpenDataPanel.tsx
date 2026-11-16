@@ -23,6 +23,8 @@ const STAFF = ["admin", "program_officer"];
 /** As the server checks it: `360G-` and the publisher's code. */
 const PREFIX = /^360G-[A-Za-z0-9](?:[A-Za-z0-9_-]{0,58}[A-Za-z0-9])?$/;
 const prefixHelp = () => t("openDataPanel.prefixHelp");
+/** How every 360Giving prefix starts: a code, the same in every language. */
+const PREFIX_START = "360G-";
 /** Why an award is left out, by its id; the server's own words for one this screen does not know. */
 const REASON: Record<OpenDataReason, () => string> = {
   not_accepted: () => t("openDataPanel.reason.notAccepted"),
@@ -384,7 +386,7 @@ export function OpenDataPanel() {
                 >
                   <div style={{ minWidth: "260px", flex: "1 1 260px", maxWidth: "380px" }}>
                     <Field id={`${uid}-prefix`} label={t("openDataPanel.n360givingPublisherPrefix")} help={t("openDataPanel.thePrefix360givingGave")} error={prefixError}>
-                      <input className="inp mono" id={`${uid}-prefix`} value={prefix} placeholder={t("openDataPanel.n360g")} onChange={(e) => setPrefix(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={prefixError ? true : undefined} />
+                      <input className="inp mono" id={`${uid}-prefix`} value={prefix} placeholder={PREFIX_START} onChange={(e) => setPrefix(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={prefixError ? true : undefined} />
                     </Field>
                   </div>
                   <button type="submit" className="btn btn-secondary btn-sm" style={{ marginTop: "26px" }} disabled={busy !== null || prefix.trim() === savedPrefix}>

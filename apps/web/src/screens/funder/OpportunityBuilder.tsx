@@ -378,7 +378,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                       ))}
                     </select>
                   </Field>
-                  <Field id="opp-slug" label={t("opportunityBuilder.publicAddress")} help={t("opportunityBuilder.fO", { handle: ws.handle, slug: draft.slug || slugify(draft.title || t("opportunityBuilder.yourTitle")) })} error={err("slug") ?? problemFor(save.error, "slug")}>
+                  <Field id="opp-slug" label={t("opportunityBuilder.publicAddress")} help={["", "f", ws.handle, "o", draft.slug || slugify(draft.title || t("opportunityBuilder.yourTitle"))].join("/")} error={err("slug") ?? problemFor(save.error, "slug")}>
                     <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || t("opportunityBuilder.yourTitle"))} {...text("slug")} />
                   </Field>
                 </div>
