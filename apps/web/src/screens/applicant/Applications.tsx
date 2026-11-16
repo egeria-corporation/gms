@@ -22,20 +22,22 @@ import { downloadBlob } from "../../lib/browser.ts";
 import { daysUntil, formatDate } from "../../lib/format.ts";
 import { NewApplicationDialog } from "./outside/NewApplicationDialog.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, nextDeadline } from "./outside/shared.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 /** Board columns. Built-in applications are placed by their status; withdrawn and not pursuing share "Closed". */
 export const LANES = ["prospect", "deciding", "loi", "invited", "drafting", "submitted", "awarded", "declined", "closed"] as const;
 export type Lane = (typeof LANES)[number];
+/** Each lane's name, read in the page's language every time. */
 export const LANE_LABELS: Record<Lane, string> = {
-  prospect: "Prospect",
-  deciding: "Deciding",
-  loi: "Letter of inquiry",
-  invited: "Invited to apply",
-  drafting: "Drafting",
-  submitted: "Submitted",
-  awarded: "Awarded",
-  declined: "Declined",
-  closed: "Withdrawn or not pursuing",
+  get prospect() { return t("applications.lane.prospect"); },
+  get deciding() { return t("applications.lane.deciding"); },
+  get loi() { return t("applications.lane.loi"); },
+  get invited() { return t("applications.lane.invited"); },
+  get drafting() { return t("applications.lane.drafting"); },
+  get submitted() { return t("applications.lane.submitted"); },
+  get awarded() { return t("applications.lane.awarded"); },
+  get declined() { return t("applications.lane.declined"); },
+  get closed() { return t("applications.lane.closed"); },
 };
 /** Always on the board; the other lanes appear once something is in them. */
 const CORE_LANES: ReadonlySet<Lane> = new Set(["prospect", "drafting", "submitted", "awarded"]);
@@ -97,7 +99,7 @@ export function matchesDeadline(d: string | null, f: DeadlineFilter, now = new D
 }
 
 function StageCell({ row }: { row: Row }) {
-  if (row.item.kind === "saved_gms") return <StatusBadge kind="outside" status="prospect" label="Saved" />;
+  if (row.item.kind === "saved_gms") return <StatusBadge kind="outside" status="prospect" label={t("applications.saved")} />;
   if (row.item.kind === "outside_application") return <StatusBadge kind="outside" status={row.item.stage ?? "drafting"} />;
   return <StatusBadge kind="application" status={row.item.status ?? "submitted"} />;
 }
@@ -110,7 +112,7 @@ function Title({ row }: { row: Row }) {
       </Link>
       <span className="small muted row" style={{ gap: "6px", flexWrap: "wrap" }}>
         {row.item.funderName ?? ""}
-        {row.item.kind !== "outside_application" && <span className="tag">On this GMS</span>}
+        {row.item.kind !== "outside_application" && <span className="tag">{t("applications.onThisGms")}</span>}
       </span>
     </div>
   );
@@ -118,7 +120,7 @@ function Title({ row }: { row: Row }) {
 
 function Board({ rows, lanes }: { rows: Row[]; lanes: Lane[] }) {
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Board, scrollable" style={{ border: 0, background: "transparent", overflowX: "auto" }}>
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("applications.boardScrollable")} style={{ border: 0, background: "transparent", overflowX: "auto" }}>
       <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", paddingBottom: "8px" }}>
         {lanes.map((lane) => {
           const mine = rows.filter((r) => r.lane === lane);
@@ -128,7 +130,7 @@ function Board({ rows, lanes }: { rows: Row[]; lanes: Lane[] }) {
                 {LANE_LABELS[lane]}
                 <span className="tag">{mine.length}</span>
               </h2>
-              {mine.length === 0 && <p className="small muted">Nothing here.</p>}
+              {mine.length === 0 && <p className="small muted">{t("applications.nothingHere")}</p>}
               {mine.map((r) => (
                 <article key={r.key} className="card" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }} aria-label={r.item.title}>
                   <Link to={r.href} className="b" style={{ fontSize: "14px", overflowWrap: "anywhere" }}>
@@ -137,7 +139,7 @@ function Board({ rows, lanes }: { rows: Row[]; lanes: Lane[] }) {
                   <span className="small muted">{r.item.funderName ?? ""}</span>
                   <div className="row" style={{ gap: "6px", flexWrap: "wrap" }}>
                     <StageCell row={r} />
-                    {r.item.kind !== "outside_application" && <span className="tag">On this GMS</span>}
+                    {r.item.kind !== "outside_application" && <span className="tag">{t("applications.onThisGms")}</span>}
                   </div>
                   {r.deadline && (
                     <span className="small">
@@ -161,7 +163,7 @@ export function deadlinesOf(rows: Row[]): { id: string; date: string; what: stri
     // Past the letter of inquiry (invited or drafting), its deadline is behind the application, not due.
     const pastLoi = r.lane === "invited" || r.lane === "drafting";
     if (r.outside) return (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).flatMap((k) => (r.outside!.deadlines[k] && !(k === "loiDue" && pastLoi) ? [{ id: `${r.key}:${k}`, date: r.outside!.deadlines[k]!, what: DEADLINE_LABELS[k], row: r }] : []));
-    return r.deadline ? [{ id: `${r.key}:next`, date: r.deadline, what: r.item.kind === "gms_application" ? "Stage closes" : "Deadline", row: r }] : [];
+    return r.deadline ? [{ id: `${r.key}:next`, date: r.deadline, what: r.item.kind === "gms_application" ? t("applications.stageCloses") : t("applications.deadline"), row: r }] : [];
   });
 }
 
@@ -176,23 +178,23 @@ function CalendarView({ rows }: { rows: Row[] }) {
   const shown = day ? all.filter((d) => d.date.slice(0, 10) === day) : all.filter((d) => (daysUntil(d.date) ?? -1) >= 0).slice(0, 12);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-      <RequirementsCalendar items={items} selectedDay={day} onSelectDay={setDay} legend={["overdue", "due", "scheduled"]} label="deadlines" />
+      <RequirementsCalendar items={items} selectedDay={day} onSelectDay={setDay} legend={["overdue", "due", "scheduled"]} label={t("applications.deadlines")} />
       <section className="card" aria-labelledby="cal-list-h">
         <div className="card-h">
           <h2 id="cal-list-h" style={{ fontSize: "16px" }}>
-            {day ? `Due ${formatDate(day)}` : "Coming up"}
+            {day ? t("applications.dueOn", { date: formatDate(day) }) : t("applications.comingUp")}
           </h2>
           {day && (
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDay(null)}>
-              Show all coming up
+              {t("applications.showAllComingUp")}
             </button>
           )}
         </div>
         <div className="card-b">
           {shown.length === 0 ? (
-            <p className="muted">{day ? "Nothing due that day." : "No deadlines ahead."}</p>
+            <p className="muted">{day ? t("applications.nothingDueThatDay") : t("applications.noDeadlinesAhead")}</p>
           ) : (
-            <ul aria-label="Deadlines" style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
+            <ul aria-label={t("applications.deadlines2")} style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
               {shown.map((d) => (
                 <li key={d.id} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                   <Link to={d.row.href} className="b">
@@ -217,16 +219,16 @@ function CalendarView({ rows }: { rows: Row[] }) {
 function Archived({ base }: { base: string }) {
   const query = useOutsideQuery((api) => api.list({ archived: true }), []);
   return (
-    <Loaded query={query} label="Loading archived applications">
+    <Loaded query={query} label={t("applications.loadingArchivedApplications")}>
       {(items) => (
         <DataTable
-          label="Archived applications"
+          label={t("applications.archivedApplications")}
           rows={items}
           rowKey={(a) => a.id}
           columns={[
             {
               key: "t",
-              header: "Application",
+              header: t("applications.col.application"),
               cell: (a) => (
                 <div className="ent">
                   <Link to={`${base}/outside/${a.id}`} className="nm">
@@ -236,12 +238,12 @@ function Archived({ base }: { base: string }) {
                 </div>
               ),
             },
-            { key: "s", header: "Stage", cell: (a) => <StatusBadge kind="outside" status={a.stage} /> },
-            { key: "a", header: "Ask", numeric: true, cell: (a) => moneyText(a.askAmount) },
+            { key: "s", header: t("applications.col.stage"), cell: (a) => <StatusBadge kind="outside" status={a.stage} /> },
+            { key: "a", header: t("applications.col.ask"), numeric: true, cell: (a) => moneyText(a.askAmount) },
           ]}
           empty={
-            <EmptyState icon={Archive} title="Nothing archived">
-              Archived applications are kept here for your records.
+            <EmptyState icon={Archive} title={t("applications.nothingArchived")}>
+              {t("applications.archivedApplicationsAreKeptHereFor")}
             </EmptyState>
           }
         />
@@ -251,6 +253,7 @@ function Archived({ base }: { base: string }) {
 }
 
 export default function Applications() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const applicant = useApplicantApi();
@@ -297,17 +300,17 @@ export default function Applications() {
   }, [query, lane, deadline, owner, q, meId]);
 
   const columns: Column<Row>[] = [
-    { key: "title", header: "Application", cell: (r) => <Title row={r} />, sort: (r) => r.item.title.toLowerCase() },
-    { key: "stage", header: "Stage", cell: (r) => <StageCell row={r} />, sort: (r) => LANES.indexOf(r.lane) },
-    { key: "deadline", header: "Next deadline", cell: (r) => <DeadlineText date={r.deadline} />, sort: (r) => r.deadline },
-    { key: "ask", header: "Ask", numeric: true, cell: (r) => moneyText(r.outside?.askAmount), sort: (r) => (r.outside?.askAmount ? Number(r.outside.askAmount.amount) : null) },
-    { key: "owner", header: "Owner", cell: (r) => (r.owner ? (r.owner.name ?? (query.status === "ready" ? query.data.members.find((m) => m.userId === r.owner!.userId)?.name : null) ?? "A teammate") : <span className="muted">—</span>) },
-    { key: "questions", header: "Answers", cell: (r) => (r.outside && r.outside.questionCounts.total ? `${r.outside.questionCounts.approved} of ${r.outside.questionCounts.total} approved` : <span className="muted">—</span>) },
+    { key: "title", header: t("applications.col.application"), cell: (r) => <Title row={r} />, sort: (r) => r.item.title.toLowerCase() },
+    { key: "stage", header: t("applications.col.stage"), cell: (r) => <StageCell row={r} />, sort: (r) => LANES.indexOf(r.lane) },
+    { key: "deadline", header: t("applications.col.nextDeadline"), cell: (r) => <DeadlineText date={r.deadline} />, sort: (r) => r.deadline },
+    { key: "ask", header: t("applications.col.ask"), numeric: true, cell: (r) => moneyText(r.outside?.askAmount), sort: (r) => (r.outside?.askAmount ? Number(r.outside.askAmount.amount) : null) },
+    { key: "owner", header: t("applications.col.owner"), cell: (r) => (r.owner ? (r.owner.name ?? (query.status === "ready" ? query.data.members.find((m) => m.userId === r.owner!.userId)?.name : null) ?? t("applications.aTeammate")) : <span className="muted">—</span>) },
+    { key: "questions", header: t("applications.col.answers"), cell: (r) => (r.outside && r.outside.questionCounts.total ? t("applications.answersApproved", { approved: r.outside.questionCounts.approved, total: r.outside.questionCounts.total }) : <span className="muted">—</span>) },
   ];
 
   return (
     <>
-      <title>{`Applications — ${ws.name}`}</title>
+      <title>{t("applications.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell
         active="Applications"
         overlay={
@@ -320,23 +323,23 @@ export default function Applications() {
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Applications</h1>
+                <h1>{t("applications.applications")}</h1>
               </div>
               <div className="meta">
-                <span>Every application you are working on, to funders on this GMS and anywhere else. Only your team sees this.</span>
+                <span>{t("applications.everyApplicationYouAreWorkingOn")}</span>
               </div>
             </div>
             <div className="actions">
               <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("new")}>
                 <Plus className="ic" aria-hidden="true" />
-                New application
+                {t("applications.newApplication")}
               </button>
               <Link to={`${base}/import`} className="btn btn-secondary">
                 <Upload className="ic" aria-hidden="true" />
-                Import
+                {t("applications.import")}
               </Link>
               <label className="sr" htmlFor="apps-export">
-                Export
+                {t("applications.export")}
               </label>
               <select
                 id="apps-export"
@@ -349,39 +352,39 @@ export default function Applications() {
                 }}
               >
                 <option value="" disabled>
-                  Export…
+                  {t("applications.export2")}
                 </option>
-                <option value="csv">Spreadsheet (CSV)</option>
-                <option value="json">Data (JSON)</option>
+                <option value="csv">{t("applications.spreadsheetCsv")}</option>
+                <option value="json">{t("applications.dataJson")}</option>
               </select>
             </div>
           </div>
-          {exporter.error ? <ErrorBanner error={exporter.error} title="The export did not start" /> : null}
+          {exporter.error ? <ErrorBanner error={exporter.error} title={t("applications.theExportDidNotStart")} /> : null}
 
-          <div className="filterbar" role="group" aria-label="Filters">
-            <div className="seg" role="group" aria-label="View">
+          <div className="filterbar" role="group" aria-label={t("applications.filters")}>
+            <div className="seg" role="group" aria-label={t("applications.view")}>
               <button type="button" className={view === "list" ? "on" : undefined} aria-pressed={view === "list"} onClick={() => setView("list")}>
                 <LayoutList className="ic ic-sm" aria-hidden="true" />
-                List
+                {t("applications.list")}
               </button>
               <button type="button" className={view === "board" ? "on" : undefined} aria-pressed={view === "board"} onClick={() => setView("board")}>
                 <Kanban className="ic ic-sm" aria-hidden="true" />
-                Board
+                {t("applications.board")}
               </button>
               <button type="button" className={view === "calendar" ? "on" : undefined} aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>
                 <CalendarDays className="ic ic-sm" aria-hidden="true" />
-                Calendar
+                {t("applications.calendar")}
               </button>
             </div>
             <div className="inp-icon" style={{ flex: "1 1 200px", maxWidth: "280px" }}>
               <Search className="ic" aria-hidden="true" />
-              <input className="inp" type="search" aria-label="Search applications" placeholder="Title or funder" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input className="inp" type="search" aria-label={t("applications.searchApplications")} placeholder={t("applications.titleOrFunder")} value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
             <label className="sr" htmlFor="apps-stage">
-              Stage
+              {t("applications.stage")}
             </label>
             <select id="apps-stage" className="sel" style={{ width: "auto", height: "30px" }} value={lane} onChange={(e) => setLane(e.target.value as Lane | "")}>
-              <option value="">All stages</option>
+              <option value="">{t("applications.allStages")}</option>
               {LANES.map((l) => (
                 <option key={l} value={l}>
                   {LANE_LABELS[l]}
@@ -389,22 +392,22 @@ export default function Applications() {
               ))}
             </select>
             <label className="sr" htmlFor="apps-deadline">
-              Deadline
+              {t("applications.deadline")}
             </label>
             <select id="apps-deadline" className="sel" style={{ width: "auto", height: "30px" }} value={deadline} onChange={(e) => setDeadline(e.target.value as DeadlineFilter)}>
-              <option value="any">Any deadline</option>
-              <option value="overdue">Overdue</option>
-              <option value="7">Due in the next 7 days</option>
-              <option value="30">Due in the next 30 days</option>
-              <option value="none">No deadline</option>
+              <option value="any">{t("applications.anyDeadline")}</option>
+              <option value="overdue">{t("applications.overdue")}</option>
+              <option value="7">{t("applications.dueInTheNext7Days")}</option>
+              <option value="30">{t("applications.dueInTheNext30Days")}</option>
+              <option value="none">{t("applications.noDeadline")}</option>
             </select>
             <label className="sr" htmlFor="apps-owner">
-              Owner
+              {t("applications.owner")}
             </label>
             <select id="apps-owner" className="sel" style={{ width: "auto", height: "30px" }} value={owner} onChange={(e) => setOwner(e.target.value)}>
-              <option value="">Anyone</option>
-              <option value="me">Me</option>
-              <option value="none">No owner</option>
+              <option value="">{t("applications.anyone")}</option>
+              <option value="me">{t("applications.me")}</option>
+              <option value="none">{t("applications.noOwner")}</option>
               {query.status === "ready" &&
                 query.data.members.map((m) => (
                   <option key={m.userId} value={m.userId}>
@@ -414,32 +417,32 @@ export default function Applications() {
             </select>
             <button type="button" className={archived ? "fchip on" : "fchip"} aria-pressed={archived} onClick={() => setArchived((v) => !v)}>
               <Archive className="ic ic-sm" aria-hidden="true" />
-              Archived
+              {t("applications.archived")}
             </button>
           </div>
 
           {archived ? (
             <Archived base={base} />
           ) : (
-            <Loaded query={query} label="Loading applications">
+            <Loaded query={query} label={t("applications.loadingApplications")}>
               {({ rows }) =>
                 rows.length === 0 ? (
                   <div className="card">
                     <EmptyState
                       icon={FileText}
-                      title="No applications yet"
+                      title={t("applications.noApplicationsYet")}
                       actions={
                         <>
                           <button type="button" className="btn btn-primary" onClick={() => setDialog("new")}>
-                            New application
+                            {t("applications.newApplication")}
                           </button>
                           <Link to={`${base}/find`} className="btn btn-secondary">
-                            Find funding
+                            {t("applications.findFunding")}
                           </Link>
                         </>
                       }
                     >
-                      Track an application to any funder here, or start one on this GMS from Find funding.
+                      {t("applications.trackAnApplicationToAnyFunder")}
                     </EmptyState>
                   </div>
                 ) : view === "calendar" ? (
@@ -448,13 +451,13 @@ export default function Applications() {
                   <Board rows={filtered} lanes={LANES.filter((l) => CORE_LANES.has(l) || filtered.some((r) => r.lane === l) || lane === l)} />
                 ) : (
                   <DataTable
-                    label="Applications"
+                    label={t("applications.applications")}
                     columns={columns}
                     rows={filtered}
                     rowKey={(r) => r.key}
                     empty={
-                      <EmptyState icon={Search} title="Nothing matches these filters">
-                        Clear a filter to see more.
+                      <EmptyState icon={Search} title={t("applications.nothingMatchesTheseFilters")}>
+                        {t("applications.clearAFilterToSeeMore")}
                       </EmptyState>
                     }
                   />

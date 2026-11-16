@@ -11,6 +11,7 @@ import type { Query } from "../../api/hooks.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Field, problemFor } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { t } from "./i18n.ts";
 
 /** The picker value that opens the invite dialog instead of assigning anyone. */
 export const INVITE_OPTION = "__invite__";
@@ -31,10 +32,10 @@ export function InviteOptions({ list, match }: { list: DraftInvitationList | nul
     <>
       {waiting.map((i) => (
         <option key={i.id} value={`invited:${i.id}`} disabled>
-          Invited: {i.email} (waiting)
+          {t("inviteDraft.invitedWaiting", { email: i.email })}
         </option>
       ))}
-      {list.canInvite && <option value={INVITE_OPTION}>Invite someone by email…</option>}
+      {list.canInvite && <option value={INVITE_OPTION}>{t("inviteDraft.inviteSomeoneByEmail")}</option>}
     </>
   );
 }
@@ -86,7 +87,7 @@ export function InvitePicker({ id, value, onChoose, onInvite, children, ...rest 
       </select>
       {pending && (
         <span className="help" id={hintId}>
-          Press Enter to invite someone by email.
+          {t("inviteDraft.pressEnterToInviteSomeoneBy")}
         </span>
       )}
     </>
@@ -109,41 +110,41 @@ export function InviteDialog({ draft, title, part, remainingToday, onClose, onSe
         <div className="hd">
           <div>
             <h3 id="inv-draft-title" style={{ fontSize: "16px" }}>
-              Invite someone to help write this
+              {t("inviteDraft.inviteSomeoneToHelpWriteThis")}
             </h3>
             <p className="small muted" style={{ overflowWrap: "anywhere" }}>
               {title}
               {part ? ` · ${part}` : ""}
             </p>
           </div>
-          <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+          <button className="iconbtn" type="button" aria-label={t("inviteDraft.close")} onClick={onClose}>
             <X className="ic ic-md" aria-hidden="true" />
           </button>
         </div>
         <div className="bd">
-          <Field id="inv-draft-email" label="Their email address" required error={problemFor(send.error, "email")} help="Type the address yourself. Nothing is read from your contacts.">
+          <Field id="inv-draft-email" label={t("inviteDraft.theirEmailAddress")} required error={problemFor(send.error, "email")} help={t("inviteDraft.typeTheAddressYourselfNothingIs")}>
             <input id="inv-draft-email" className="inp" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </Field>
-          <ul className="small" style={{ listStyle: "disc", paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "4px" }} aria-label="What happens">
-            <li>They join your workspace as a consultant who can open only this application and write its answers.</li>
-            {part ? <li>When they accept, “{part}” is assigned to them, unless someone else has it by then.</li> : null}
-            <li>We send one email when you click Send invitation. There are no reminders.</li>
-            <li>The link works once, for that address, for 14 days.</li>
+          <ul className="small" style={{ listStyle: "disc", paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "4px" }} aria-label={t("inviteDraft.whatHappens")}>
+            <li>{t("inviteDraft.theyJoinYourWorkspaceAsA")}</li>
+            {part ? <li>{t("inviteDraft.assignedOnAccept", { part })}</li> : null}
+            <li>{t("inviteDraft.weSendOneEmailWhenYou")}</li>
+            <li>{t("inviteDraft.theLinkWorksOnceForThat")}</li>
           </ul>
           {remainingToday !== null && (
             <p className="small muted" role="status">
-              {out ? "Your workspace has sent today’s 20 invitations. Try again tomorrow." : `Your workspace can send ${remainingToday} more invitation${remainingToday === 1 ? "" : "s"} today.`}
+              {out ? t("inviteDraft.yourWorkspaceHasSentTodays20") : t("inviteDraft.remainingToday", { count: remainingToday })}
             </p>
           )}
-          {send.error && !problemFor(send.error, "email") ? <ErrorBanner error={send.error} title="The invitation was not sent" /> : null}
+          {send.error && !problemFor(send.error, "email") ? <ErrorBanner error={send.error} title={t("inviteDraft.theInvitationWasNotSent")} /> : null}
         </div>
         <div className="ft">
           <button className="btn btn-secondary" type="button" onClick={onClose}>
-            Cancel
+            {t("inviteDraft.cancel")}
           </button>
           <button className="btn btn-primary" type="submit" disabled={!email.trim() || out || send.state === "saving"}>
             <UserPlus className="ic" aria-hidden="true" />
-            {send.state === "saving" ? "Sending…" : "Send invitation"}
+            {send.state === "saving" ? t("inviteDraft.sending") : t("inviteDraft.sendInvitation")}
           </button>
         </div>
       </form>
@@ -157,9 +158,9 @@ export function InviteSentNote({ sent, onDone }: { sent: DraftInvitation; onDone
     <div className="bnr bnr-ok" role="status">
       <MailCheck className="ic" aria-hidden="true" />
       <div className="grow">
-        <div className="t">{sent.emailed ? `Invitation sent to ${sent.email}` : `Invitation ready for ${sent.email}`}</div>
+        <div className="t">{sent.emailed ? t("inviteDraft.sentTo", { email: sent.email }) : t("inviteDraft.readyFor", { email: sent.email })}</div>
         <div className="d">
-          {sent.emailed ? `They are assigned when they accept. The link works until ${formatDate(sent.expiresAt)}; no reminders are sent.` : "The email could not be sent from here. Copy this link and send it to them yourself:"}
+          {sent.emailed ? t("inviteDraft.linkWorksUntil", { date: formatDate(sent.expiresAt) }) : t("inviteDraft.theEmailCouldNotBeSent")}
           {!sent.emailed && sent.acceptUrl ? (
             <code className="mono" style={{ display: "block", overflowWrap: "anywhere", marginTop: "4px" }}>
               {sent.acceptUrl}
@@ -168,7 +169,7 @@ export function InviteSentNote({ sent, onDone }: { sent: DraftInvitation; onDone
         </div>
       </div>
       <button type="button" className="btn btn-sm btn-ghost act" onClick={onDone}>
-        Dismiss
+        {t("inviteDraft.dismiss")}
       </button>
     </div>
   );
@@ -184,15 +185,15 @@ export function TeamNote({ canInvite, onInvite }: { canInvite: boolean; onInvite
   const [hidden, setHidden] = useState(false);
   if (!canInvite || hidden || notes.status !== "ready" || notes.data.includes(INVITE_TEAMMATE_NOTE)) return null;
   return (
-    <div className="bnr bnr-info" role="region" aria-label="Writing with others">
+    <div className="bnr bnr-info" role="region" aria-label={t("inviteDraft.writingWithOthers")}>
       <Users className="ic" aria-hidden="true" />
       <div className="grow">
-        <div className="t">Writing with others? Invite a teammate</div>
-        <div className="d">Invite someone by email to help with this application. They see only this application and can write its answers.</div>
+        <div className="t">{t("inviteDraft.writingWithOthersInviteATeammate")}</div>
+        <div className="d">{t("inviteDraft.inviteSomeoneByEmailToHelp")}</div>
       </div>
       <button type="button" className="btn btn-sm btn-secondary act" aria-haspopup="dialog" onClick={onInvite}>
         <UserPlus className="ic" aria-hidden="true" />
-        Invite a teammate
+        {t("inviteDraft.inviteATeammate")}
       </button>
       <button
         type="button"
@@ -203,7 +204,7 @@ export function TeamNote({ canInvite, onInvite }: { canInvite: boolean; onInvite
           await dismiss.run();
         }}
       >
-        Dismiss
+        {t("inviteDraft.dismiss")}
       </button>
     </div>
   );

@@ -10,10 +10,12 @@ import { landingPath } from "../../api/invites.ts";
 import { useInvitesApi } from "../../api/invitesHooks.ts";
 import { useServices } from "../../app/services.tsx";
 import { invitationProblem } from "../public/InvitationAccept.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 type State = { status: "joining" } | { status: "failed"; title: string; detail: string };
 
 export default function JoinDraft() {
+  useApplicantText();
   const api = useInvitesApi();
   const { reloadMe } = useServices();
   const navigate = useNavigate();
@@ -38,7 +40,7 @@ export default function JoinDraft() {
       (error: unknown) =>
         setState(
           error instanceof ApiError && error.status === 403
-            ? { status: "failed", title: "This invitation is for another email address", detail: `${error.message}. Sign out, then open the link again and sign in with that address.` }
+            ? { status: "failed", title: t("joinDraft.otherEmail"), detail: t("joinDraft.otherEmailDetail", { message: error.message }) }
             : { status: "failed", ...invitationProblem(error) },
         ),
     );
@@ -46,12 +48,12 @@ export default function JoinDraft() {
 
   return (
     <div className="gms gms-frame" style={{ alignItems: "center", justifyContent: "center" }}>
-      <title>Join an application — OpenGrants GMS</title>
+      <title>{t("joinDraft.joinAnApplicationOpengrantsGms")}</title>
       {state.status === "joining" ? (
         <div className="empty" role="status" aria-busy="true">
           <MailCheck className="ic" aria-hidden="true" />
-          <h3>Opening the application you were invited to</h3>
-          <p>One moment.</p>
+          <h3>{t("joinDraft.openingTheApplicationYouWereInvited")}</h3>
+          <p>{t("joinDraft.oneMoment")}</p>
         </div>
       ) : (
         <div className="empty" role="alert">
@@ -60,7 +62,7 @@ export default function JoinDraft() {
           <p>{state.detail}</p>
           <div className="acts">
             <Link to="/workspaces" className="btn btn-primary">
-              Go to your workspaces
+              {t("joinDraft.goToYourWorkspaces")}
             </Link>
           </div>
         </div>

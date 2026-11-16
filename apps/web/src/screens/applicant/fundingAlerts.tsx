@@ -7,6 +7,7 @@ import { useFullMutation, useFullQuery } from "../../api/applicantFullHooks.ts";
 import { Loaded } from "../../components/applicant.tsx";
 import { EmptyState, ErrorBanner, Field } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { t } from "./i18n.ts";
 
 export function FundingAlerts() {
   const query = useFullQuery((api) => api.alerts(), []);
@@ -26,16 +27,16 @@ export function FundingAlerts() {
         <div className="card-h">
           <div>
             <h2 id="alerts-h" style={{ fontSize: "18px" }}>
-              Alerts
+              {t("fundingAlerts.alerts")}
             </h2>
-            <p className="small muted">Topics your organization keeps watching for. Alerts are kept with this workspace.</p>
+            <p className="small muted">{t("fundingAlerts.topicsYourOrganizationKeepsWatchingFor")}</p>
           </div>
         </div>
-        <Loaded query={query} label="Loading your alerts">
+        <Loaded query={query} label={t("fundingAlerts.loadingYourAlerts")}>
           {(alerts) =>
             alerts.length === 0 ? (
-              <EmptyState icon={BellRing} title="No alerts yet">
-                Create one for a topic you search for often.
+              <EmptyState icon={BellRing} title={t("fundingAlerts.noAlertsYet")}>
+                {t("fundingAlerts.createOneForATopicYou")}
               </EmptyState>
             ) : (
               <ul>
@@ -44,11 +45,11 @@ export function FundingAlerts() {
                     <BellRing className="ic" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />
                     <div className="grow">
                       <div className="b">{a.query}</div>
-                      {a.createdAt ? <div className="small muted">Watching since {formatDate(a.createdAt)}</div> : null}
+                      {a.createdAt ? <div className="small muted">{t("fundingAlerts.watchingSince", { date: formatDate(a.createdAt) })}</div> : null}
                     </div>
                     <span className="bdg bdg-ok">
                       <Check className="ic" aria-hidden="true" />
-                      Active
+                      {t("fundingAlerts.active")}
                     </span>
                   </li>
                 ))}
@@ -59,16 +60,16 @@ export function FundingAlerts() {
       </section>
       <form className="card" onSubmit={onSubmit} aria-labelledby="new-alert-h">
         <div className="card-h">
-          <h3 id="new-alert-h">New alert</h3>
+          <h3 id="new-alert-h">{t("fundingAlerts.newAlert")}</h3>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <Field id="alert-query" label="Watch for" help="For example: rural health navigation, housing stability.">
+          <Field id="alert-query" label={t("fundingAlerts.watchFor")} help={t("fundingAlerts.forExampleRuralHealthNavigationHousing")}>
             <input id="alert-query" className="inp" value={text} onChange={(e) => setText(e.target.value)} />
           </Field>
-          {create.error ? <ErrorBanner error={create.error} title="The alert was not created" /> : null}
+          {create.error ? <ErrorBanner error={create.error} title={t("fundingAlerts.theAlertWasNotCreated")} /> : null}
           <button type="submit" className="btn btn-primary" style={{ alignSelf: "flex-start" }} disabled={!text.trim() || create.state === "saving"}>
             <BellRing className="ic" aria-hidden="true" />
-            Create alert
+            {t("fundingAlerts.createAlert")}
           </button>
         </div>
       </form>
