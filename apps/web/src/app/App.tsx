@@ -12,6 +12,7 @@ import { UserbackBridge } from "./UserbackBridge.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
+import { watchActions } from "../lib/announce.ts";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
@@ -176,6 +177,8 @@ const a = (el: ReactNode) => <Only kind="applicant">{el}</Only>;
 export function App({ services }: { services?: Services }) {
   // Built once per mount; tests pass their own.
   const [resolved] = useState(() => services ?? createServices());
+  // The page's one polite live region, and when the person last acted (lib/announce.ts).
+  useEffect(() => watchActions(), []);
   // Mock mode only: lets a demo or an end-to-end test deliver what only Passport sends in
   // production (a settlement, a destination change taking effect, an outage).
   useEffect(() => {

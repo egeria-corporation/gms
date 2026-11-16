@@ -341,7 +341,8 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
         {progress && (
           <div className="mtr">
             <div className="lbls">
-              <span>
+              {/* The count is the announced part: a progress bar's value changes silently (WCAG 4.1.3). */}
+              <span role="status">
                 Attached <b>{progress.attached + progress.already}</b> of <b>{match?.matched.length ?? 0}</b>
               </span>
             </div>
@@ -993,7 +994,7 @@ export function ImportWizard() {
                   return (
                     <div className="mtr">
                       <div className="lbls">
-                        <span>
+                        <span role="status">
                           Imported <b>{p.written}</b> of <b>{total}</b>
                         </span>
                       </div>
