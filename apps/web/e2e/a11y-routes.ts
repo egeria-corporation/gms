@@ -82,12 +82,12 @@ const asConsultant = (href: string) => async (page: Page) => {
   await navigate(page, href);
 };
 
-/** The funder lists its awards on its public page (off by default), then opens the list. */
+/** The funder lists its awards on its public page (off by default), then opens the list. Names in either language. */
 const listAwards = (then?: (page: Page) => Promise<void>) => async (page: Page) => {
-  const toggle = page.getByRole("switch", { name: "List awards on my public page" });
+  const toggle = page.getByRole("switch", { name: /List awards on my public page|Publicar las subvenciones en mi página pública/ });
   await toggle.click();
-  await page.getByRole("region", { name: "Grants awarded" }).getByText(/1 listed/).waitFor();
-  await page.getByRole("link", { name: "Open your grants-awarded page" }).click();
+  await page.getByRole("region", { name: /^(Grants awarded|Subvenciones otorgadas)$/ }).getByText(/1 listed|Publicadas: 1/).waitFor();
+  await page.getByRole("link", { name: /Open your grants-awarded page|Abrir su página de subvenciones otorgadas/ }).click();
   await page.waitForURL(/\/f\/riverbend\/awards$/);
   await then?.(page);
 };
@@ -159,13 +159,13 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/account/agents": [one("/account/agents", "funder-admin")],
   "/gallery/moderation": [one("/gallery/moderation", "funder-admin")],
   "/review/assignments": [one("/review/assignments", "funder-reviewer"), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer", async (page) => {
-    await page.getByRole("button", { name: "Start reviewing" }).click();
+    await page.getByRole("button", { name: /Start reviewing|Empezar a revisar/ }).click();
     await page.waitForURL(/\/review\/assignments/);
   }))],
   "/review/score/:appId": [one(`/review/score/${SCORING}`, "funder-reviewer")],
   "/review/welcome": [one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer")), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_done"))],
   "/review/done": [one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_done", async (page) => {
-    await page.getByRole("link", { name: "See what’s next" }).click();
+    await page.getByRole("link", { name: /See what’s next|Ver qué sigue/ }).click();
     await page.waitForURL(/\/review\/done/);
   }))],
 

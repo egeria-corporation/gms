@@ -13,6 +13,8 @@ export const TRANSLATED = [
   "apps/web/src/components/**/*.tsx",
   "apps/web/src/screens/public/**/*.tsx",
   "apps/web/src/screens/shared/**/*.tsx",
+  // D2c: the funder and reviewer screens, the form and report builders, the funder's settings.
+  "apps/web/src/screens/funder/**/*.tsx",
 ];
 
 // Text that is the same in every language: product names and the formats people know by name.
