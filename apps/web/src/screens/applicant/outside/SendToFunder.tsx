@@ -10,7 +10,10 @@ import { useSendPackageMutation, useSendPackageQuery } from "../../../api/sendPa
 import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, Loading, Notice, problemFor } from "../../../components/ui.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
+import { t } from "../i18n.ts";
 
+/** The package's plain-text file, by its name. */
+const ANSWERS_FILE = "answers.txt";
 const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} bytes`);
 
 /** The button for the application's header, with its dialog. One line to mount. */
@@ -20,7 +23,7 @@ export function SendToFunderButton({ applicationId }: { applicationId: string })
     <>
       <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <Package className="ic" aria-hidden="true" />
-        Send to the funder
+        {t("outsideSendToFunder.sendToTheFunder")}
       </button>
       {open && <SendToFunderDialog applicationId={applicationId} onClose={() => setOpen(false)} />}
     </>
@@ -34,22 +37,22 @@ export function SendToFunderDialog({ applicationId, onClose }: { applicationId: 
       <div className="hd">
         <div>
           <h3 id="stf-title" style={{ fontSize: "16px" }}>
-            Send to the funder
+            {t("outsideSendToFunder.sendToTheFunder")}
           </h3>
-          <p className="small muted">A clean package for a funder who is not on the GMS: your answers as a PDF, with the files you attached to this application.</p>
+          <p className="small muted">{t("outsideSendToFunder.aCleanPackageForAFunder")}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideSendToFunder.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       {query.status === "loading" && (
         <div className="bd">
-          <Loading label="Putting the package together" />
+          <Loading label={t("outsideSendToFunder.puttingThePackageTogether")} />
         </div>
       )}
       {query.status === "error" && (
         <div className="bd">
-          <ErrorBanner error={query.error} onRetry={query.reload} title="The package could not be read" />
+          <ErrorBanner error={query.error} onRetry={query.reload} title={t("outsideSendToFunder.thePackageCouldNotBeRead")} />
         </div>
       )}
       {query.status === "ready" && <PackageBody pkg={query.data} applicationId={applicationId} onChanged={query.reload} onClose={onClose} />}
@@ -73,28 +76,28 @@ function PackageBody({ pkg, applicationId, onChanged, onClose }: { pkg: SendPack
           <div className="bnr bnr-warn" role="alert">
             <TriangleExclamationPoint className="ic" aria-hidden="true" />
             <div>
-              <div className="b">This package cannot be made yet</div>
+              <div className="b">{t("outsideSendToFunder.thisPackageCannotBeMadeYet")}</div>
               <ul style={{ margin: "4px 0 0", paddingLeft: "18px" }}>
                 {pkg.blocked.map((b) => (
                   <li key={b.questionId}>{b.message}</li>
                 ))}
               </ul>
               <p className="small" style={{ marginTop: "4px" }}>
-                Bank, card and identity numbers never leave the GMS. Passport keeps payment details.
+                {t("outsideSendToFunder.bankCardAndIdentityNumbersNever")}
               </p>
             </div>
           </div>
         )}
         <section aria-labelledby="stf-contents">
           <h4 id="stf-contents" style={{ fontSize: "14px", marginBottom: "6px" }}>
-            What the package holds
+            {t("outsideSendToFunder.whatThePackageHolds")}
           </h4>
-          <ul aria-label="Files in the package" style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "6px", fontSize: "14px" }}>
+          <ul aria-label={t("outsideSendToFunder.filesInThePackage")} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "6px", fontSize: "14px" }}>
             <li className="row" style={{ gap: "8px" }}>
               <FileText className="ic ic-sm" aria-hidden="true" />
               <span>
                 <span className="b">{pkg.files.pdf}</span>
-                <span className="muted"> — cover, {pkg.questions.length} question{pkg.questions.length === 1 ? "" : "s"} and answers{pkg.budget ? ", budget summary" : ""}, list of files</span>
+                <span className="muted"> — {pkg.budget ? t("outsideSendToFunder.pdfHoldsBudget", { count: pkg.questions.length }) : t("outsideSendToFunder.pdfHolds", { count: pkg.questions.length })}</span>
               </span>
             </li>
             {pkg.attachments.map((f) => (
@@ -104,7 +107,7 @@ function PackageBody({ pkg, applicationId, onChanged, onClose }: { pkg: SendPack
                   {f.name}
                   <span className="muted">
                     {" "}
-                    — {f.source === "vault" ? `from your vault, for “${f.requiredFor}”` : "attached to this application"}, {sizeText(f.size)}
+                    — {f.source === "vault" ? t("outsideSendToFunder.fromVault", { doc: f.requiredFor }) : t("outsideSendToFunder.attachedToThisApplication")}, {sizeText(f.size)}
                   </span>
                 </span>
               </li>
@@ -112,30 +115,31 @@ function PackageBody({ pkg, applicationId, onChanged, onClose }: { pkg: SendPack
             <li className="row" style={{ gap: "8px" }}>
               <FileText className="ic ic-sm" aria-hidden="true" />
               <span>
-                answers.txt<span className="muted"> — the answers as plain text, to paste into a portal (ZIP only)</span>
+                {ANSWERS_FILE}
+                <span className="muted"> {t("outsideSendToFunder.theAnswersAsPlainTextTo")}</span>
               </span>
             </li>
           </ul>
           {unanswered > 0 && (
             <p className="small muted" style={{ marginTop: "6px" }}>
-              {unanswered} question{unanswered === 1 ? " has" : "s have"} no answer yet and will show “No answer given.”
+              {t("outsideSendToFunder.unanswered", { count: unanswered })}
             </p>
           )}
           <p className="small muted" style={{ marginTop: "6px" }}>
-            Only files attached to this application and vault documents you used for its checklist are included. Your team’s internal deadline is left out.
+            {t("outsideSendToFunder.onlyFilesAttachedToThisApplication")}
           </p>
           {pkg.notIncluded.map((n) => (
             <p key={n.documentId} className="small" style={{ marginTop: "6px" }}>
-              <span className="b">{n.name}</span> is not included. {n.message}
+              {t.rich("outsideSendToFunder.notIncluded", { name: n.name, b: (chunks) => <span className="b">{chunks}</span> })} {n.message}
             </p>
           ))}
         </section>
 
         <section aria-labelledby="stf-footer">
           <h4 id="stf-footer" style={{ fontSize: "14px", marginBottom: "6px" }}>
-            Footer line
+            {t("outsideSendToFunder.footerLine")}
           </h4>
-          <p className="small">{pkg.footer.shown ? `Every page ends with “${pkg.footer.text}”.` : "Packages from this workspace carry no footer line."}</p>
+          <p className="small">{pkg.footer.shown ? t("outsideSendToFunder.footerShown", { text: pkg.footer.text }) : t("outsideSendToFunder.packagesFromThisWorkspaceCarryNo")}</p>
           {pkg.footer.canChange && (
             <label className="row small" style={{ gap: "8px", marginTop: "6px" }}>
               <input
@@ -146,34 +150,34 @@ function PackageBody({ pkg, applicationId, onChanged, onClose }: { pkg: SendPack
                   if (await footer.run(e.target.checked)) onChanged();
                 }}
               />
-              Show this line on packages from this workspace
+              {t("outsideSendToFunder.showThisLineOnPackagesFrom")}
             </label>
           )}
-          {footer.error ? <ErrorBanner error={footer.error} title="The setting was not saved" /> : null}
+          {footer.error ? <ErrorBanner error={footer.error} title={t("outsideSendToFunder.theSettingWasNotSaved")} /> : null}
         </section>
 
         <section aria-labelledby="stf-download">
           <h4 id="stf-download" style={{ fontSize: "14px", marginBottom: "6px" }}>
-            Download
+            {t("outsideSendToFunder.download")}
           </h4>
           <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
             <button type="button" className="btn btn-secondary" disabled={blocked || download.state === "saving"} onClick={() => download.run("pdf")}>
               <Download className="ic" aria-hidden="true" />
-              Download PDF
+              {t("outsideSendToFunder.downloadPdf")}
             </button>
             <button type="button" className="btn btn-secondary" disabled={blocked || download.state === "saving"} onClick={() => download.run("zip")}>
               <FileArchive className="ic" aria-hidden="true" />
-              Download ZIP ({sizeText(pkg.totalBytes)} of files)
+              {t("outsideSendToFunder.downloadZip", { size: sizeText(pkg.totalBytes) })}
             </button>
           </div>
-          {download.error ? <ErrorBanner error={download.error} title="The package could not be downloaded" /> : null}
+          {download.error ? <ErrorBanner error={download.error} title={t("outsideSendToFunder.thePackageCouldNotBeDownloaded")} /> : null}
         </section>
 
         <EmailSection pkg={pkg} applicationId={applicationId} blocked={blocked} onSent={onChanged} />
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Close
+          {t("outsideSendToFunder.close")}
         </button>
       </div>
     </>
@@ -198,28 +202,28 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
   return (
     <section aria-labelledby="stf-email">
       <h4 id="stf-email" style={{ fontSize: "14px", marginBottom: "6px" }}>
-        Email it to the funder
+        {t("outsideSendToFunder.emailItToTheFunder")}
       </h4>
       {sent ? (
-        <Notice tone="ok" title={`Sent to ${sent.to}`}>
-          Replies go to you at {sent.replyTo}. {sent.remainingToday} more {sent.remainingToday === 1 ? "email" : "emails"} of this package can go today.
+        <Notice tone="ok" title={t("outsideSendToFunder.sentTo", { email: sent.to })}>
+          {t("outsideSendToFunder.sentBody", { replyTo: sent.replyTo, count: sent.remainingToday })}
         </Notice>
       ) : unavailable ? (
-        <Notice tone="neu" title="It cannot be emailed from here now">
+        <Notice tone="neu" title={t("outsideSendToFunder.itCannotBeEmailedFromHere")}>
           {pkg.email.reason}
         </Notice>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <p className="small muted">It goes out under your name, and replies come to you. You see exactly what is sent first. Up to {pkg.email.perDay} a day for this application; {pkg.email.remainingToday} left today.</p>
-          <Field id="stf-to" label="Funder contact’s email" required error={problemFor(look.error ?? send.error, "to")}>
+          <p className="small muted">{t("outsideSendToFunder.emailIntro", { perDay: pkg.email.perDay, remaining: pkg.email.remainingToday })}</p>
+          <Field id="stf-to" label={t("outsideSendToFunder.funderContactsEmail")} required error={problemFor(look.error ?? send.error, "to")}>
             <input id="stf-to" type="email" className="inp" autoComplete="off" value={to} disabled={blocked} onChange={(e) => edit(() => setTo(e.target.value))} />
           </Field>
-          <Field id="stf-msg" label="Message" help="A few words above the package, for example who you spoke with.">
+          <Field id="stf-msg" label={t("outsideSendToFunder.message")} help={t("outsideSendToFunder.aFewWordsAboveThePackage")}>
             <textarea id="stf-msg" className="ta" style={{ minHeight: "64px" }} value={message} maxLength={2000} disabled={blocked} onChange={(e) => edit(() => setMessage(e.target.value))} />
           </Field>
           {preview && <EmailPreview p={preview} />}
-          {look.error ? <ErrorBanner error={look.error} title="The preview could not be made" /> : null}
-          {send.error ? <ErrorBanner error={send.error} title="The email was not sent" /> : null}
+          {look.error ? <ErrorBanner error={look.error} title={t("outsideSendToFunder.thePreviewCouldNotBeMade")} /> : null}
+          {send.error ? <ErrorBanner error={send.error} title={t("outsideSendToFunder.theEmailWasNotSent")} /> : null}
           <div className="row" style={{ gap: "8px" }}>
             {preview ? (
               <button
@@ -235,7 +239,7 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
                 }}
               >
                 <Send className="ic" aria-hidden="true" />
-                {send.state === "saving" ? "Sending…" : "Send the email"}
+                {send.state === "saving" ? t("outsideSendToFunder.sending") : t("outsideSendToFunder.sendTheEmail")}
               </button>
             ) : (
               <button
@@ -248,7 +252,7 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
                 }}
               >
                 <Mail className="ic" aria-hidden="true" />
-                {look.state === "saving" ? "Preparing…" : "Preview the email"}
+                {look.state === "saving" ? t("outsideSendToFunder.preparing") : t("outsideSendToFunder.previewTheEmail")}
               </button>
             )}
           </div>
@@ -260,17 +264,17 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
 
 function EmailPreview({ p }: { p: PackageEmailPreview }) {
   return (
-    <section aria-label="The email that will be sent" style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--og-gray-50)" }}>
+    <section aria-label={t("outsideSendToFunder.theEmailThatWillBeSent")} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--og-gray-50)" }}>
       <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere" }}>
-        <dt>From</dt>
+        <dt>{t("outsideSendToFunder.from")}</dt>
         <dd>{p.from}</dd>
-        <dt>To</dt>
+        <dt>{t("outsideSendToFunder.to")}</dt>
         <dd>{p.to}</dd>
-        <dt>Replies go to</dt>
+        <dt>{t("outsideSendToFunder.repliesGoTo")}</dt>
         <dd>{p.replyTo}</dd>
-        <dt>Subject</dt>
+        <dt>{t("outsideSendToFunder.subject")}</dt>
         <dd>{p.subject}</dd>
-        <dt>Attached</dt>
+        <dt>{t("outsideSendToFunder.attached")}</dt>
         <dd>
           <ul style={{ margin: 0, paddingLeft: "18px" }}>
             {p.attachments.map((a) => (
@@ -284,7 +288,7 @@ function EmailPreview({ p }: { p: PackageEmailPreview }) {
       </pre>
       <p className="small muted row" style={{ gap: "6px" }}>
         <CircleCheck className="ic ic-sm" aria-hidden="true" />
-        This is exactly what will be sent.
+        {t("outsideSendToFunder.thisIsExactlyWhatWillBe")}
       </p>
     </section>
   );

@@ -9,10 +9,12 @@ import { useOutsideMutation } from "../../../api/outsideHooks.ts";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, Notice, problemFor } from "../../../components/ui.tsx";
 import { formatDate, parseDollars } from "../../../lib/format.ts";
-import { decisionOutcomes, STAGE_LABELS, type DecisionOutcome } from "../../../lib/outside.ts";
+import { decisionOutcomes, type DecisionOutcome } from "../../../lib/outside.ts";
+import { stageLabel } from "../labels.ts";
 import { answersAsSent, CONSULTING_ANSWERS_MAX } from "../../../lib/writeKeep.ts";
 import { useUpload } from "./ChecklistTab.tsx";
 import { DEADLINE_LABELS, METHOD_LABELS, moneyFrom, moneyText } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -25,7 +27,7 @@ function Head({ id, title, sub, onClose }: { id: string; title: string; sub?: st
         </h3>
         {sub && <p className="small muted">{sub}</p>}
       </div>
-      <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+      <button className="iconbtn" type="button" aria-label={t("outsideDialogs.close")} onClick={onClose}>
         <X className="ic ic-md" aria-hidden="true" />
       </button>
     </div>
@@ -44,15 +46,15 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
   const future = date > today();
   return (
     <Dialog open onClose={onClose} labelledBy="osub-title">
-      <Head id="osub-title" title="Mark as submitted" sub="Record the submission you made on the funder’s site. The GMS never submits anything for you." onClose={onClose} />
+      <Head id="osub-title" title={t("outsideDialogs.markAsSubmitted")} sub={t("outsideDialogs.markSubmittedSub")} onClose={onClose} />
       <div className="bd">
-        <Field id="osub-date" label="Date you submitted" required error={future ? "The date cannot be in the future" : problemFor(submit.error, "submittedAt")}>
+        <Field id="osub-date" label={t("outsideDialogs.dateYouSubmitted")} required error={future ? t("outsideDialogs.dateInFuture") : problemFor(submit.error, "submittedAt")}>
           <input id="osub-date" type="date" className="inp" max={today()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-        <Field id="osub-method" label="How you submitted" required error={problemFor(submit.error, "method")}>
+        <Field id="osub-method" label={t("outsideDialogs.howYouSubmitted")} required error={problemFor(submit.error, "method")}>
           <select id="osub-method" className="sel" value={method} onChange={(e) => setMethod(e.target.value as SubmissionMethod)}>
             <option value="" disabled>
-              Choose one
+              {t("outsideDialogs.chooseOne")}
             </option>
             {(Object.keys(METHOD_LABELS) as SubmissionMethod[]).map((m) => (
               <option key={m} value={m}>
@@ -61,11 +63,11 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
             ))}
           </select>
         </Field>
-        <Field id="osub-conf" label="Confirmation number" help="If the funder gave you one.">
+        <Field id="osub-conf" label={t("outsideDialogs.confirmationNumber")} help={t("outsideDialogs.ifTheFunderGaveYouOne")}>
           <input id="osub-conf" className="inp" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
         </Field>
         <div className="fld">
-          <span className="lbl">Receipt</span>
+          <span className="lbl">{t("outsideDialogs.receipt")}</span>
           {receipt ? (
             <span className="row" style={{ gap: "6px" }}>
               <CircleCheck className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
@@ -73,11 +75,11 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
             </span>
           ) : (
             <label className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start", cursor: "pointer" }}>
-              {upload.state === "saving" ? "Uploading…" : "Upload the receipt or confirmation email"}
+              {upload.state === "saving" ? t("outsideDialogs.uploading") : t("outsideDialogs.uploadTheReceiptOrConfirmationEmail")}
               <input
                 type="file"
                 className="sr"
-                aria-label="Upload the receipt"
+                aria-label={t("outsideDialogs.uploadTheReceipt")}
                 onChange={async (e) => {
                   const doc = await upload.run(e.target.files?.[0]);
                   e.target.value = "";
@@ -88,13 +90,13 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
           )}
           {upload.tooBig && <span className="err-msg" role="alert">{upload.tooBig}</span>}
         </div>
-        <p className="small muted">A PDF of every question and its latest answer is kept “as submitted”, with a fingerprint so you can show later what was sent.</p>
-        {upload.error ? <ErrorBanner error={upload.error} title="The receipt was not uploaded" /> : null}
-        {submit.error ? <ErrorBanner error={submit.error} title="The submission was not recorded" /> : null}
+        <p className="small muted">{t("outsideDialogs.aPdfOfEveryQuestionAnd")}</p>
+        {upload.error ? <ErrorBanner error={upload.error} title={t("outsideDialogs.theReceiptWasNotUploaded")} /> : null}
+        {submit.error ? <ErrorBanner error={submit.error} title={t("outsideDialogs.theSubmissionWasNotRecorded")} /> : null}
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("outsideDialogs.cancel")}
         </button>
         <button
           className="btn btn-primary"
@@ -106,7 +108,7 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
           }}
         >
           <Send className="ic" aria-hidden="true" />
-          {submit.state === "saving" ? "Recording…" : "Mark as submitted"}
+          {submit.state === "saving" ? t("outsideDialogs.recording") : t("outsideDialogs.markAsSubmitted")}
         </button>
       </div>
     </Dialog>
@@ -115,10 +117,10 @@ export function MarkSubmittedDialog({ app, onClose, onDone }: { app: OutsideAppl
 
 // ------------------------------------------------------------------------------------ decision
 
-const OUTCOME_HELP: Record<DecisionOutcome, string> = {
-  awarded: "The funder is making a grant.",
-  declined: "The funder said no this time.",
-  withdrawn: "You took the application back.",
+const OUTCOME_HELP: Record<DecisionOutcome, () => string> = {
+  awarded: () => t("outsideDialogs.outcome.awarded"),
+  declined: () => t("outsideDialogs.outcome.declined"),
+  withdrawn: () => t("outsideDialogs.outcome.withdrawn"),
 };
 
 export function DecisionDialog({ app, onClose, onDone }: { app: OutsideApplication; onClose: () => void; onDone: (a: OutsideApplication) => void }) {
@@ -140,7 +142,7 @@ export function DecisionDialog({ app, onClose, onDone }: { app: OutsideApplicati
   const yearsTotal = byYear.reduce((s, y) => s + y.amountMinor, 0);
   const yearsMismatch = outcome === "awarded" && byYear.length > 0 && money && yearsTotal !== minorOf(money);
   const periodBad = !!start && !!end && end < start;
-  const amountError = outcome === "awarded" && amount && !money ? "Enter the amount in dollars, such as 50000" : null;
+  const amountError = outcome === "awarded" && amount && !money ? t("outsideDialogs.badAmount") : null;
   const ready = outcome !== "awarded" || (!!money && !periodBad);
   const input = (): DecisionInput => ({
     outcome,
@@ -153,71 +155,71 @@ export function DecisionDialog({ app, onClose, onDone }: { app: OutsideApplicati
   });
   return (
     <Dialog open onClose={onClose} labelledBy="odec-title">
-      <Head id="odec-title" title="Record the decision" sub={`${app.title} · ${app.funderName}`} onClose={onClose} />
+      <Head id="odec-title" title={t("outsideDialogs.recordTheDecision")} sub={`${app.title} · ${app.funderName}`} onClose={onClose} />
       <div className="bd">
         <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
-          <legend className="lbl">Decision</legend>
+          <legend className="lbl">{t("outsideDialogs.decision")}</legend>
           {outcomes.map((o) => (
             <label key={o} className="row" style={{ gap: "8px", alignItems: "flex-start", fontSize: "14px" }}>
               <input type="radio" name="odec-outcome" value={o} checked={outcome === o} onChange={() => setOutcome(o)} style={{ marginTop: "3px" }} />
               <span>
-                <span className="b">{STAGE_LABELS[o]}</span>
-                <span className="muted"> — {OUTCOME_HELP[o]}</span>
+                <span className="b">{stageLabel(o)}</span>
+                <span className="muted"> — {OUTCOME_HELP[o]()}</span>
               </span>
             </label>
           ))}
         </fieldset>
         {outcome === "awarded" && (
           <>
-            <Field id="odec-amount" label="Amount awarded (USD)" required error={amountError ?? problemFor(decide.error, "awardedAmount")} help={app.askAmount ? `You asked for ${moneyText(app.askAmount)}.` : undefined}>
+            <Field id="odec-amount" label={t("outsideDialogs.amountAwardedUsd")} required error={amountError ?? problemFor(decide.error, "awardedAmount")} help={app.askAmount ? t("outsideDialogs.youAskedFor", { amount: moneyText(app.askAmount) }) : undefined}>
               <input id="odec-amount" className="inp" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
             <div className="fld">
-              <span className="lbl">By year (optional)</span>
+              <span className="lbl">{t("outsideDialogs.byYearOptional")}</span>
               {years.map((y, i) => (
                 <div key={i} className="row" style={{ gap: "8px" }}>
                   <label className="sr" htmlFor={`odec-y-${i}`}>
-                    Year {i + 1}
+                    {t("outsideDialogs.yearN", { n: i + 1 })}
                   </label>
                   <input id={`odec-y-${i}`} className="inp" inputMode="numeric" style={{ maxWidth: "100px" }} value={y.year} onChange={(e) => setYears(years.map((x, j) => (j === i ? { ...x, year: e.target.value } : x)))} />
                   <label className="sr" htmlFor={`odec-ya-${i}`}>
-                    Amount for year {i + 1}
+                    {t("outsideDialogs.amountForYear", { n: i + 1 })}
                   </label>
                   <input id={`odec-ya-${i}`} className="inp" inputMode="decimal" value={y.amount} onChange={(e) => setYears(years.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setYears(years.filter((_, j) => j !== i))} aria-label={`Remove year ${i + 1}`}>
-                    Remove
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setYears(years.filter((_, j) => j !== i))} aria-label={t("outsideDialogs.removeYear", { n: i + 1 })}>
+                    {t("outsideDialogs.remove")}
                   </button>
                 </div>
               ))}
               <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} onClick={() => setYears([...years, { year: String(new Date().getUTCFullYear() + years.length), amount: "" }])}>
-                Add a year
+                {t("outsideDialogs.addAYear")}
               </button>
-              {yearsMismatch && <span className="help">The years add up to {moneyText({ amount: (yearsTotal / 100).toFixed(2), currency: app.currency })}, not the amount awarded.</span>}
+              {yearsMismatch && <span className="help">{t("outsideDialogs.yearsMismatch", { amount: moneyText({ amount: (yearsTotal / 100).toFixed(2), currency: app.currency }) })}</span>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-              <Field id="odec-start" label="Grant starts">
+              <Field id="odec-start" label={t("outsideDialogs.grantStarts")}>
                 <input id="odec-start" type="date" className="inp" value={start} onChange={(e) => setStart(e.target.value)} />
               </Field>
-              <Field id="odec-end" label="Grant ends" error={periodBad ? "The end comes before the start" : null}>
+              <Field id="odec-end" label={t("outsideDialogs.grantEnds")} error={periodBad ? t("outsideDialogs.endBeforeStart") : null}>
                 <input id="odec-end" type="date" className="inp" value={end} onChange={(e) => setEnd(e.target.value)} />
               </Field>
             </div>
           </>
         )}
-        <Field id="odec-notes" label={outcome === "declined" ? "What the funder said" : "Notes"}>
+        <Field id="odec-notes" label={outcome === "declined" ? t("outsideDialogs.whatTheFunderSaid") : t("outsideDialogs.notes")}>
           <textarea id="odec-notes" className="ta" style={{ minHeight: "64px" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
         {outcome === "declined" && (
-          <Field id="odec-next" label="When to try again" help="The date the next cycle opens, if you know it.">
+          <Field id="odec-next" label={t("outsideDialogs.whenToTryAgain")} help={t("outsideDialogs.theDateTheNextCycleOpens")}>
             <input id="odec-next" type="date" className="inp" value={nextCycle} onChange={(e) => setNextCycle(e.target.value)} />
           </Field>
         )}
-        <p className="small muted">These are your own records. Nothing here moves money or tells the funder anything.</p>
-        {decide.error ? <ErrorBanner error={decide.error} title="The decision was not recorded" /> : null}
+        <p className="small muted">{t("outsideDialogs.theseAreYourOwnRecordsNothing")}</p>
+        {decide.error ? <ErrorBanner error={decide.error} title={t("outsideDialogs.theDecisionWasNotRecorded")} /> : null}
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("outsideDialogs.cancel")}
         </button>
         <button
           className="btn btn-primary"
@@ -228,7 +230,7 @@ export function DecisionDialog({ app, onClose, onDone }: { app: OutsideApplicati
             if (a) onDone(a);
           }}
         >
-          {decide.state === "saving" ? "Recording…" : `Record ${STAGE_LABELS[outcome].toLowerCase()}`}
+          {decide.state === "saving" ? t("outsideDialogs.recording") : t("outsideDialogs.recordOutcome", { outcome })}
         </button>
       </div>
     </Dialog>
@@ -247,8 +249,8 @@ export function SentAnswers({ answers }: { answers: { prompt: string; body: stri
   return (
     <details>
       <summary className="small b">
-        Your current answers ({sent.items.length}
-        {sent.omitted ? ` of ${answers.length}` : ""}){sent.truncated ? `, cut at ${CONSULTING_ANSWERS_MAX.toLocaleString("en-US")} characters` : ""}
+        {sent.omitted ? t("outsideDialogs.sentSummaryOf", { count: sent.items.length, total: answers.length }) : t("outsideDialogs.sentSummary", { count: sent.items.length })}
+        {sent.truncated ? `, ${t("outsideDialogs.cutAt", { max: CONSULTING_ANSWERS_MAX })}` : ""}
       </summary>
       <ol style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px", fontSize: "13px", maxHeight: "200px", overflow: "auto", listStyle: "none", padding: 0 }}>
         {sent.items.map((a) => (
@@ -260,7 +262,7 @@ export function SentAnswers({ answers }: { answers: { prompt: string; body: stri
             {a.cut && (
               <div className="row small" role="note" style={{ gap: "6px", marginTop: "4px", color: "var(--s-warn-fg)", fontWeight: 700 }}>
                 <Scissors className="ic ic-sm" aria-hidden="true" />
-                The email stops here, at {CONSULTING_ANSWERS_MAX.toLocaleString("en-US")} characters.
+                {t("outsideDialogs.emailStops", { max: CONSULTING_ANSWERS_MAX })}
               </div>
             )}
           </li>
@@ -268,7 +270,7 @@ export function SentAnswers({ answers }: { answers: { prompt: string; body: stri
       </ol>
       {sent.omitted > 0 && (
         <p className="small muted" style={{ marginTop: "6px" }}>
-          {sent.omitted} more question{sent.omitted === 1 ? " is" : "s are"} not in the email. The team can ask you for the rest.
+          {t("outsideDialogs.moreQuestions", { count: sent.omitted })}
         </p>
       )}
     </details>
@@ -278,49 +280,49 @@ export function SentAnswers({ answers }: { answers: { prompt: string; body: stri
 function PreviewView({ p }: { p: ConsultingPreview }) {
   const dates = (Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).filter((k) => p.deadlines[k]);
   return (
-    <section aria-label="What will be sent" style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--og-gray-50)" }}>
+    <section aria-label={t("outsideDialogs.whatWillBeSent")} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", background: "var(--og-gray-50)" }}>
       <dl className="kv" style={{ fontSize: "14px", overflowWrap: "anywhere" }}>
-        <dt>To</dt>
+        <dt>{t("outsideDialogs.to")}</dt>
         <dd>{p.to}</dd>
-        <dt>Replies go to</dt>
+        <dt>{t("outsideDialogs.repliesGoTo")}</dt>
         <dd>{p.replyTo}</dd>
-        <dt>Subject</dt>
+        <dt>{t("outsideDialogs.subject")}</dt>
         <dd>{p.subject}</dd>
-        <dt>Organization</dt>
+        <dt>{t("outsideDialogs.organization")}</dt>
         <dd>{p.organization}</dd>
-        <dt>From</dt>
+        <dt>{t("outsideDialogs.from")}</dt>
         <dd>
           {p.contactName} ({p.contactEmail})
         </dd>
-        <dt>Application</dt>
+        <dt>{t("outsideDialogs.application")}</dt>
         <dd>{p.title}</dd>
-        <dt>Funder</dt>
+        <dt>{t("outsideDialogs.funder")}</dt>
         <dd>{p.funder}</dd>
-        <dt>Stage</dt>
-        <dd>{STAGE_LABELS[p.stage]}</dd>
-        <dt>Deadlines</dt>
-        <dd>{dates.length ? dates.map((k) => `${DEADLINE_LABELS[k]} ${formatDate(p.deadlines[k])}`).join(" · ") : p.deadlines.rolling ? "Rolling" : "None set"}</dd>
-        <dt>Ask</dt>
+        <dt>{t("outsideDialogs.stage")}</dt>
+        <dd>{stageLabel(p.stage)}</dd>
+        <dt>{t("outsideDialogs.deadlines")}</dt>
+        <dd>{dates.length ? dates.map((k) => `${DEADLINE_LABELS[k]} ${formatDate(p.deadlines[k])}`).join(" · ") : p.deadlines.rolling ? t("outsideDialogs.rolling") : t("outsideDialogs.noneSet")}</dd>
+        <dt>{t("outsideDialogs.ask")}</dt>
         <dd>{moneyText(p.ask)}</dd>
         {p.listingUrl && (
           <>
-            <dt>Listing</dt>
+            <dt>{t("outsideDialogs.listing")}</dt>
             <dd style={{ overflowWrap: "anywhere" }}>{p.listingUrl}</dd>
           </>
         )}
         {p.portalUrl && (
           <>
-            <dt>Portal</dt>
+            <dt>{t("outsideDialogs.portal")}</dt>
             <dd style={{ overflowWrap: "anywhere" }}>{p.portalUrl}</dd>
           </>
         )}
-        <dt>Questions</dt>
+        <dt>{t("outsideDialogs.questions")}</dt>
         <dd>{p.questionCount}</dd>
-        <dt>Message</dt>
+        <dt>{t("outsideDialogs.message")}</dt>
         <dd style={{ whiteSpace: "pre-wrap" }}>{p.message ?? "—"}</dd>
       </dl>
-      <p className="small">The email says your organization wants consulting support to start right away.</p>
-      {p.answers ? <SentAnswers answers={p.answers} /> : <p className="small muted">No answer text is sent.</p>}
+      <p className="small">{t("outsideDialogs.theEmailSaysYourOrganizationWants")}</p>
+      {p.answers ? <SentAnswers answers={p.answers} /> : <p className="small muted">{t("outsideDialogs.noAnswerTextIsSent")}</p>}
     </section>
   );
 }
@@ -342,17 +344,17 @@ export function ConsultingDialog({ app, contact, onClose, onSent }: { app: Outsi
   const hasAnswers = app.questions.some((q) => q.answer?.body.trim());
   return (
     <Dialog open onClose={onClose} labelledBy="ocon-title" size="lg">
-      <Head id="ocon-title" title="Get help writing this" sub="Ask OpenGrants consulting to help with this application. You see exactly what is sent before it goes." onClose={onClose} />
+      <Head id="ocon-title" title={t("outsideDialogs.getHelpWritingThis")} sub={t("outsideDialogs.consultingSub")} onClose={onClose} />
       {sentTo ? (
         <>
           <div className="bd">
-            <Notice tone="ok" title="Request sent">
-              OpenGrants consulting can start right away. The team will reply to {sentTo}.
+            <Notice tone="ok" title={t("outsideDialogs.requestSent")}>
+              {t("outsideDialogs.consultingSent", { email: sentTo })}
             </Notice>
           </div>
           <div className="ft">
             <button className="btn btn-primary" type="button" onClick={onClose}>
-              Done
+              {t("outsideDialogs.done")}
             </button>
           </div>
         </>
@@ -360,30 +362,30 @@ export function ConsultingDialog({ app, contact, onClose, onSent }: { app: Outsi
         <>
           <div className="bd">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-              <Field id="ocon-name" label="Your name" required error={problemFor(look.error ?? send.error, "contactName")}>
+              <Field id="ocon-name" label={t("outsideDialogs.yourName")} required error={problemFor(look.error ?? send.error, "contactName")}>
                 <input id="ocon-name" className="inp" autoComplete="name" value={name} onChange={(e) => edit(() => setName(e.target.value))} />
               </Field>
-              <Field id="ocon-email" label="Your email" required error={problemFor(look.error ?? send.error, "contactEmail")}>
+              <Field id="ocon-email" label={t("outsideDialogs.yourEmail")} required error={problemFor(look.error ?? send.error, "contactEmail")}>
                 <input id="ocon-email" type="email" className="inp" autoComplete="email" value={email} onChange={(e) => edit(() => setEmail(e.target.value))} />
               </Field>
             </div>
-            <Field id="ocon-msg" label="Message" help="What would help most: a review, a rewrite to fit the limits, a budget narrative…">
+            <Field id="ocon-msg" label={t("outsideDialogs.message")} help={t("outsideDialogs.whatWouldHelpMostAReview")}>
               <textarea id="ocon-msg" className="ta" style={{ minHeight: "72px" }} value={message} onChange={(e) => edit(() => setMessage(e.target.value))} />
             </Field>
             <label className="row" style={{ gap: "8px", fontSize: "14px", alignItems: "flex-start" }}>
               <input type="checkbox" checked={include} disabled={!hasAnswers} onChange={(e) => edit(() => setInclude(e.target.checked))} style={{ marginTop: "3px" }} />
               <span>
-                Include my current answers
-                <span className="muted"> — {hasAnswers ? "the latest version of each, up to 20,000 characters in all" : "there are no answers yet"}</span>
+                {t("outsideDialogs.includeMyCurrentAnswers")}
+                <span className="muted"> — {hasAnswers ? t("outsideDialogs.theLatestVersionOfEachUp") : t("outsideDialogs.thereAreNoAnswersYet")}</span>
               </span>
             </label>
-            {preview ? <PreviewView p={preview} /> : <p className="small muted">Preview the request to see exactly what will be sent.</p>}
-            {look.error ? <ErrorBanner error={look.error} title="The preview could not be made" /> : null}
-            {send.error ? <ErrorBanner error={send.error} title="The request was not sent" /> : null}
+            {preview ? <PreviewView p={preview} /> : <p className="small muted">{t("outsideDialogs.previewTheRequestToSeeExactly")}</p>}
+            {look.error ? <ErrorBanner error={look.error} title={t("outsideDialogs.thePreviewCouldNotBeMade")} /> : null}
+            {send.error ? <ErrorBanner error={send.error} title={t("outsideDialogs.theRequestWasNotSent")} /> : null}
           </div>
           <div className="ft">
             <button className="btn btn-secondary" type="button" onClick={onClose}>
-              Cancel
+              {t("outsideDialogs.cancel")}
             </button>
             {preview ? (
               <button
@@ -399,7 +401,7 @@ export function ConsultingDialog({ app, contact, onClose, onSent }: { app: Outsi
                 }}
               >
                 <Send className="ic" aria-hidden="true" />
-                {send.state === "saving" ? "Sending…" : "Send the request"}
+                {send.state === "saving" ? t("outsideDialogs.sending") : t("outsideDialogs.sendTheRequest")}
               </button>
             ) : (
               <button
@@ -411,7 +413,7 @@ export function ConsultingDialog({ app, contact, onClose, onSent }: { app: Outsi
                   if (p) setPreview(p);
                 }}
               >
-                {look.state === "saving" ? "Preparing…" : "Preview what will be sent"}
+                {look.state === "saving" ? t("outsideDialogs.preparing") : t("outsideDialogs.previewWhatWillBeSent")}
               </button>
             )}
           </div>

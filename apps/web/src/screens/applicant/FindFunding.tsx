@@ -25,6 +25,7 @@ import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../component
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { FundingAlerts } from "./fundingAlerts.tsx";
 import { socialSourceFor } from "../../lib/socialLanding.ts";
+import { t, useApplicantText } from "./i18n.ts";
 
 type Tab = "here" | "index" | "saved" | "alerts";
 
@@ -55,7 +56,7 @@ async function outsideFromListing(api: OutsideApi, l: OpenGrantsListing, stage: 
     sourceRef: l.id,
     listing: snapshotOf(l),
     title: l.title,
-    funderName: l.funder?.trim() || "Funder not named in the listing",
+    funderName: l.funder?.trim() || t("findFunding.funderNotNamed"),
     ...(l.url ? { listingUrl: l.url } : {}),
     ...(due ? { fullDue: due } : {}),
     stage,
@@ -67,23 +68,23 @@ export function NotTakingYet() {
   return (
     <span className="bdg bdg-neutral">
       <CalendarClock className="ic" aria-hidden="true" />
-      Not taking applications yet
+      {t("findFunding.notTakingApplicationsYet")}
     </span>
   );
 }
 
 const OUTCOME = {
-  pass: { icon: CircleCheck, color: "var(--s-ok-fg)", word: "Passes" },
-  fail: { icon: CircleX, color: "var(--s-dng-fg)", word: "Does not pass" },
-  unknown: { icon: CircleDashed, color: "var(--og-gray-600)", word: "Could not be checked" },
-} as const;
+  pass: { icon: CircleCheck, color: "var(--s-ok-fg)", get word() { return t("findFunding.outcome.pass"); } },
+  fail: { icon: CircleX, color: "var(--s-dng-fg)", get word() { return t("findFunding.outcome.fail"); } },
+  unknown: { icon: CircleDashed, color: "var(--og-gray-600)", get word() { return t("findFunding.outcome.unknown"); } },
+};
 
 function EligibilityBadge({ eligible }: { eligible: boolean | "unknown" }) {
   if (eligible === true) {
     return (
       <span className="bdg bdg-ok bdg-lg">
         <CircleCheck className="ic" aria-hidden="true" />
-        Eligible
+        {t("findFunding.eligible")}
       </span>
     );
   }
@@ -91,14 +92,14 @@ function EligibilityBadge({ eligible }: { eligible: boolean | "unknown" }) {
     return (
       <span className="bdg bdg-dng bdg-lg">
         <CircleX className="ic" aria-hidden="true" />
-        Not eligible
+        {t("findFunding.notEligible")}
       </span>
     );
   }
   return (
     <span className="bdg bdg-neutral bdg-lg">
       <CircleDashed className="ic" aria-hidden="true" />
-      Eligibility unknown
+      {t("findFunding.eligibilityUnknown")}
     </span>
   );
 }
@@ -117,15 +118,15 @@ function NotOpenCard({ c, saved, onSave, saving }: { c: DiscoverItem; saved: boo
           {range}
         </span>
       )}
-      <p className="small muted">The funder has published this opportunity but is not taking applications yet. Save it to keep it in your applications as a prospect.</p>
+      <p className="small muted">{t("findFunding.theFunderHasPublishedThisOpportunity")}</p>
       <div className="row" style={{ gap: "14px", marginTop: "4px", flexWrap: "wrap" }}>
         <button className="btn btn-secondary" type="button" disabled={saved || saving} onClick={onSave}>
           <Bookmark className="ic" aria-hidden="true" />
-          {saved ? "Saved" : "Save"}
+          {saved ? t("findFunding.saved") : t("findFunding.save")}
         </button>
         {c.funder.handle && (
           <Link to={`/f/${c.funder.handle}/o/${c.opportunity.slug}`} className="small b">
-            Read the opportunity
+            {t("findFunding.readTheOpportunity")}
           </Link>
         )}
       </div>
@@ -155,8 +156,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
         )}
         {c.stage && (
           <span>
-            {c.stage.label}
-            {c.stage.closes ? ` closes ${formatDate(c.stage.closes)}` : ""}
+            {c.stage.closes ? t("findFunding.stageCloses", { stage: c.stage.label, date: formatDate(c.stage.closes) }) : c.stage.label}
           </span>
         )}
       </div>
@@ -168,7 +168,7 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
               {failed[0].label}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              {failed[0].explain} If your organization details are out of date, <Link to={`${base}/organization`}>update them</Link> and the result re-evaluates.
+              {failed[0].explain} {t.rich("findFunding.outOfDate", { link: (chunks) => <Link to={`${base}/organization`}>{chunks}</Link> })}
             </div>
           </div>
         </div>
@@ -178,10 +178,10 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
           <Info className="ic" aria-hidden="true" />
           <div>
             <div className="t" style={{ fontSize: "14px" }}>
-              {unknown.length === 1 ? "One rule could not be checked" : `${unknown.length} rules could not be checked`}
+              {t("findFunding.rulesUnchecked", { count: unknown.length })}
             </div>
             <div className="d" style={{ fontSize: "13px" }}>
-              {unknown[0] ? `“${unknown[0].label}”: ${unknown[0].explain}` : "A program officer reviews this by hand."}
+              {unknown[0] ? `“${unknown[0].label}”: ${unknown[0].explain}` : t("findFunding.aProgramOfficerReviewsThisBy")}
             </div>
           </div>
         </div>
@@ -203,23 +203,23 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
         {c.application ? (
           <>
             <Link to={`${base}/applications/${c.application.id}${c.application.status === "draft" || c.application.status === "revision_requested" ? "/edit" : ""}`} className="btn btn-primary">
-              {c.application.status === "draft" ? "Continue application" : "Open application"}
+              {c.application.status === "draft" ? t("findFunding.continueApplication") : t("findFunding.openApplication")}
             </Link>
             <StatusBadge kind="application" status={c.application.status} />
           </>
         ) : c.eligibility.eligible === false ? (
           <button className="btn btn-secondary" type="button" disabled>
-            Start application
+            {t("findFunding.startApplication")}
           </button>
         ) : (
           <button className={c.eligibility.eligible === true ? "btn btn-primary" : "btn btn-secondary"} type="button" onClick={() => onStart(c)} disabled={starting}>
-            {starting ? "Starting…" : c.eligibility.eligible === true ? "Start application" : "Start anyway"}
+            {starting ? t("findFunding.starting") : c.eligibility.eligible === true ? t("findFunding.startApplication") : t("findFunding.startAnyway")}
           </button>
         )}
-        {c.eligibility.eligible === "unknown" && !c.application && <span className="small muted">You can start; eligibility re-checks at submit.</span>}
+        {c.eligibility.eligible === "unknown" && !c.application && <span className="small muted">{t("findFunding.youCanStartEligibilityReChecks")}</span>}
         {c.funder.handle && (
           <Link to={`/f/${c.funder.handle}/o/${c.opportunity.slug}`} className="small b">
-            Read the opportunity
+            {t("findFunding.readTheOpportunity")}
           </Link>
         )}
       </div>
@@ -261,13 +261,13 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
     if (app) {
       return (
         <Link to={`${h.base}/applications/${app.id}${app.status === "draft" || app.status === "revision_requested" ? "/edit" : ""}`} className={`btn btn-primary${sm}`}>
-          {app.status === "draft" ? "Continue application" : "Open application"}
+          {app.status === "draft" ? t("findFunding.continueApplication") : t("findFunding.openApplication")}
         </Link>
       );
     }
     return (
       <button className={`btn btn-primary${sm}`} type="button" disabled={h.busy} onClick={() => h.onStartBuiltIn(action.kind === "builtin" ? action.item.competitionId : action.competitionId)}>
-        Start application
+        {t("findFunding.startApplication")}
       </button>
     );
   }
@@ -279,7 +279,7 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
         {action.item && (
           <button className={`btn btn-secondary${sm}`} type="button" disabled={saved || h.busy} onClick={() => h.onSaveGms(action.item!)}>
             <Bookmark className="ic" aria-hidden="true" />
-            {saved ? "Saved" : "Save"}
+            {saved ? t("findFunding.saved") : t("findFunding.save")}
           </button>
         )}
       </>
@@ -290,16 +290,16 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
     <>
       {existing && existing.stage !== "prospect" ? (
         <Link to={`${h.base}/outside/${existing.id}`} className={`btn btn-primary${sm}`}>
-          Open application
+          {t("findFunding.openApplication")}
         </Link>
       ) : (
         <button className={`btn btn-primary${sm}`} type="button" disabled={h.busy} onClick={() => h.onStartOutside(l)}>
-          Start application
+          {t("findFunding.startApplication")}
         </button>
       )}
       <button className={`btn btn-secondary${sm}`} type="button" disabled={!!existing || h.busy} onClick={() => h.onSaveOutside(l)}>
         <Bookmark className="ic" aria-hidden="true" />
-        {existing ? "Saved" : "Save"}
+        {existing ? t("findFunding.saved") : t("findFunding.save")}
       </button>
     </>
   );
@@ -328,29 +328,29 @@ function DetailsDialog({ held, action, h, onClose }: { held: OpenGrantsListing; 
           </h3>
           {listing.funder && <p className="small muted">{listing.funder}</p>}
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("findFunding.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
         <dl className="kv" style={{ fontSize: "15px" }}>
-          <dt>Funder</dt>
-          <dd>{listing.funder ?? "Not named in the listing"}</dd>
-          <dt>Amount</dt>
+          <dt>{t("findFunding.funder")}</dt>
+          <dd>{listing.funder ?? t("findFunding.notNamedInTheListing")}</dd>
+          <dt>{t("findFunding.amount")}</dt>
           <dd>{listing.amount ?? "—"}</dd>
-          <dt>Deadline</dt>
+          <dt>{t("findFunding.deadline")}</dt>
           <dd>{listing.deadline ? formatDate(listing.deadline) : "—"}</dd>
-          <dt>Source</dt>
-          <dd>{listing.gms ? "OpenGrants · this opportunity is on this GMS" : `OpenGrants${typeof listing.source === "string" && listing.source ? ` · ${listing.source}` : ""}`}</dd>
+          <dt>{t("findFunding.source")}</dt>
+          <dd>{listing.gms ? t("findFunding.opengrantsThisOpportunityIsOnThis") : `OpenGrants${typeof listing.source === "string" && listing.source ? ` · ${listing.source}` : ""}`}</dd>
         </dl>
         {listing.summary && <p style={{ fontSize: "15px", whiteSpace: "pre-wrap" }}>{listing.summary}</p>}
-        {action.kind === "outside" && !action.existing && <p className="small muted">Starting adds it to your applications, where you keep its questions, answers and deadlines. Nothing is sent to the funder.</p>}
+        {action.kind === "outside" && !action.existing && <p className="small muted">{t("findFunding.startingAddsItToYourApplications")}</p>}
       </div>
       <div className="ft" style={{ flexWrap: "wrap" }}>
         {listing.url && (
           <a href={listing.url} target="_blank" rel="noreferrer noopener" className="btn btn-ghost" style={{ marginRight: "auto" }}>
-            Open original listing <ExternalLink className="ic ic-sm" aria-hidden="true" />
-            <span className="sr"> (opens in a new tab)</span>
+            {t("findFunding.openOriginalListing")} <ExternalLink className="ic ic-sm" aria-hidden="true" />
+            <span className="sr"> {t("findFunding.opensInANewTab")}</span>
           </a>
         )}
         <ListingActions l={listing} action={action} h={h} size="md" />
@@ -385,60 +385,59 @@ function OpenGrantsIndex({ base, competitions, mine, h }: { base: string; compet
       <div className="card-h">
         <div>
           <h2 id="index-h" style={{ fontSize: "18px" }}>
-            OpenGrants index
+            {t("findFunding.opengrantsIndex")}
           </h2>
-          <p className="small muted">Opportunities from every funder on OpenGrants. Your organization type, state, mission and budget band are sent as context; nothing else.</p>
+          <p className="small muted">{t("findFunding.opportunitiesFromEveryFunderOnOpengrants")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <form onSubmit={onSubmit} className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           <div className="inp-icon" style={{ flex: "1 1 260px" }}>
             <Search className="ic" aria-hidden="true" />
-            <input className="inp" type="search" aria-label="Search the OpenGrants index" placeholder="rural health navigation" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="inp" type="search" aria-label={t("findFunding.searchTheOpengrantsIndex")} placeholder={t("findFunding.ruralHealthNavigation")} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <button className="btn btn-primary" type="submit" disabled={state.status === "loading"}>
-            Search
+            {t("findFunding.search")}
           </button>
           <button className="btn btn-secondary" type="button" onClick={() => void run("match")} disabled={state.status === "loading"}>
-            Match to my profile
+            {t("findFunding.matchToMyProfile")}
           </button>
         </form>
 
         {state.status === "loading" && (
           <div className="notice" role="status" aria-busy="true">
-            Searching OpenGrants…
+            {t("findFunding.searchingOpengrants")}
           </div>
         )}
         {unavailable && (
-          <Notice tone="neu" title="OpenGrants did not answer">
-            Nothing was searched. Competitions open on this GMS are listed under “Open here”.
+          <Notice tone="neu" title={t("findFunding.opengrantsDidNotAnswer")}>
+            {t("findFunding.nothingWasSearchedCompetitionsOpenOn")}
           </Notice>
         )}
         {state.status === "error" && !unavailable && <ErrorBanner error={state.error} />}
-        {state.status === "ready" && state.results.length === 0 && <p className="muted">No listings matched. Try fewer words.</p>}
+        {state.status === "ready" && state.results.length === 0 && <p className="muted">{t("findFunding.noListingsMatchedTryFewerWords")}</p>}
         {state.status === "ready" && state.results.length > 0 && (
           <>
             <span className="small muted">
-              {state.results.length} result{state.results.length === 1 ? "" : "s"}
-              {state.matched ? " matched to your Passport profile" : ""}
-              {state.cached ? " · from the last 15 minutes" : ""}
+              {state.matched ? t("findFunding.resultsMatched", { count: state.results.length }) : t("findFunding.results", { count: state.results.length })}
+              {state.cached ? ` · ${t("findFunding.fromLast15Minutes")}` : ""}
             </span>
             {state.results.map((l) => (
               <article key={l.id} className="card" style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "8px" }} aria-label={l.title}>
                 <div className="row" style={{ justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                   <h3 style={{ fontSize: "16px" }}>{l.title}</h3>
-                  {l.gms && <span className="tag">On this GMS</span>}
+                  {l.gms && <span className="tag">{t("findFunding.onThisGms")}</span>}
                 </div>
                 <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
                   {l.funder && <span>{l.funder}</span>}
                   {l.amount && <span>· {l.amount}</span>}
-                  {l.deadline && <span>· closes {formatDate(l.deadline)}</span>}
+                  {l.deadline && <span>· {t("findFunding.closesOn", { date: formatDate(l.deadline) })}</span>}
                 </div>
                 {l.summary && <p style={{ fontSize: "14px" }}>{l.summary}</p>}
                 <div className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
                   <ListingActions l={l} action={actionFor(l, competitions, mine)} h={h} />
                   <button className="btn btn-sm btn-ghost" type="button" aria-haspopup="dialog" onClick={() => setDetails(l)}>
-                    Details
+                    {t("findFunding.details")}
                   </button>
                 </div>
               </article>
@@ -447,7 +446,7 @@ function OpenGrantsIndex({ base, competitions, mine, h }: { base: string; compet
         )}
         {state.status === "idle" && (
           <p className="small muted">
-            Search by topic, or match against your <Link to={`${base}/organization`}>Passport profile</Link>.
+            {t.rich("findFunding.searchHint", { link: (chunks) => <Link to={`${base}/organization`}>{chunks}</Link> })}
           </p>
         )}
       </div>
@@ -460,15 +459,15 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
   if (prospects.length + gmsSaved.length === 0) {
     return (
       <div className="card">
-        <EmptyState icon={Bookmark} title="Nothing saved yet">
-          Save a listing from the OpenGrants index, or an opportunity on this GMS, to keep it here as a prospect.
+        <EmptyState icon={Bookmark} title={t("findFunding.nothingSavedYet")}>
+          {t("findFunding.saveAListingFromTheOpengrants")}
         </EmptyState>
       </div>
     );
   }
   const itemFor = (s: SavedListing) => competitions.find((c) => c.opportunity.id === s.gmsOpportunityId || c.opportunity.id === s.externalId || (!!s.url && c.url === s.url));
   return (
-    <ul className="card" style={{ display: "flex", flexDirection: "column" }} aria-label="Saved">
+    <ul className="card" style={{ display: "flex", flexDirection: "column" }} aria-label={t("findFunding.saved")}>
       {prospects.map((p, i) => (
         <li key={p.id} className="row" style={{ gap: "12px", padding: "14px 20px", borderTop: i ? "1px solid var(--og-gray-100)" : 0, flexWrap: "wrap" }}>
           <Bookmark className="ic" aria-hidden="true" />
@@ -478,11 +477,11 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
             </Link>
             <div className="small muted">
               {p.funderName}
-              {p.deadlines.fullDue ? ` · closes ${formatDate(p.deadlines.fullDue)}` : p.deadlines.rolling ? " · rolling" : ""} · prospect
+              {p.deadlines.fullDue ? ` · ${t("findFunding.closesOn", { date: formatDate(p.deadlines.fullDue) })}` : p.deadlines.rolling ? ` · ${t("findFunding.rolling")}` : ""} · {t("findFunding.prospect")}
             </div>
           </div>
           <button className="btn btn-sm btn-primary" type="button" disabled={startingId === p.id} onClick={() => onStartProspect(p)}>
-            {startingId === p.id ? "Starting…" : "Start application"}
+            {startingId === p.id ? t("findFunding.starting") : t("findFunding.startApplication")}
           </button>
         </li>
       ))}
@@ -493,16 +492,18 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
             <Bookmark className="ic" aria-hidden="true" />
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="b">{s.title}</div>
-              <div className="small muted">Saved {formatDate(s.savedAt)} · this GMS</div>
+              <div className="small muted">
+                {t("findFunding.savedOn", { date: formatDate(s.savedAt) })} · {t("findFunding.thisGms")}
+              </div>
             </div>
             {item && isAccepting(item) ? (
               item.application ? (
                 <Link to={`${base}/applications/${item.application.id}${item.application.status === "draft" ? "/edit" : ""}`} className="btn btn-sm btn-primary">
-                  {item.application.status === "draft" ? "Continue application" : "Open application"}
+                  {item.application.status === "draft" ? t("findFunding.continueApplication") : t("findFunding.openApplication")}
                 </Link>
               ) : (
                 <button className="btn btn-sm btn-primary" type="button" disabled={h.busy} onClick={() => h.onStartBuiltIn(item.competitionId)}>
-                  Start application
+                  {t("findFunding.startApplication")}
                 </button>
               )
             ) : (
@@ -510,7 +511,7 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
             )}
             {s.url && (
               <Link to={s.url.replace(/^https?:\/\/[^/]+/, "")} className="small b">
-                View on this GMS
+                {t("findFunding.viewOnThisGms")}
               </Link>
             )}
           </li>
@@ -521,6 +522,7 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
 }
 
 export default function FindFunding() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
@@ -564,22 +566,22 @@ export default function FindFunding() {
 
   return (
     <>
-      <title>{`Find funding — ${ws.name}`}</title>
+      <title>{t("findFunding.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Find funding">
         <main className="main">
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Find funding</h1>
+                <h1>{t("findFunding.findFunding")}</h1>
               </div>
               <div className="meta">
-                <span>Eligibility is checked against your Passport record, so you can see what you can win before you start. Any listing can become an application you track here.</span>
+                <span>{t("findFunding.eligibilityIsCheckedAgainstYourPassport")}</span>
               </div>
             </div>
           </div>
           <DigestPrompt workspaceId={ws.id} digest="new_matches" settingsTo={`${base}/settings#digests`} />
 
-          <Loaded query={query} label="Checking what you are eligible for">
+          <Loaded query={query} label={t("findFunding.checkingWhatYouAreEligibleFor")}>
             {({ competitions, saved: everySaved, mine }) => {
               const saved = everySaved.filter((x) => !isAlertRow(x));
               const gmsSaved = saved.filter((x) => x.source === "gms");
@@ -610,38 +612,38 @@ export default function FindFunding() {
               return (
                 <>
                   {wanted && (!found || !isAccepting(found)) && (
-                    <Notice tone="neu" title="That opportunity is not open for applications right now">
-                      {found ? "The funder has published it but is not taking applications yet. You can save it and come back." : "It may not have opened yet, or its deadline has passed. Everything that is open is listed below."}
+                    <Notice tone="neu" title={t("findFunding.thatOpportunityIsNotOpenFor")}>
+                      {found ? t("findFunding.theFunderHasPublishedItBut") : t("findFunding.itMayNotHaveOpenedYet")}
                     </Notice>
                   )}
                   <Tabs<Tab>
-                    label="Where to look"
+                    label={t("findFunding.whereToLook")}
                     idPrefix="find"
                     active={tab}
                     onChange={setTab}
                     tabs={[
-                      { key: "here", label: "Open here", count: competitions.length },
-                      ...(indexAvailable ? [{ key: "index" as const, label: "OpenGrants index" }] : []),
-                      { key: "saved", label: "Saved", count: prospects.length + gmsSaved.length },
-                      ...(alertsAvailable ? [{ key: "alerts" as const, label: "Alerts" }] : []),
+                      { key: "here", label: t("findFunding.tab.here"), count: competitions.length },
+                      ...(indexAvailable ? [{ key: "index" as const, label: t("findFunding.opengrantsIndex") }] : []),
+                      { key: "saved", label: t("findFunding.saved"), count: prospects.length + gmsSaved.length },
+                      ...(alertsAvailable ? [{ key: "alerts" as const, label: t("findFunding.tab.alerts") }] : []),
                     ]}
                   />
-                  {writeError ? <ErrorBanner error={writeError} title="That did not work" /> : null}
+                  {writeError ? <ErrorBanner error={writeError} title={t("findFunding.thatDidNotWork")} /> : null}
 
                   <TabPanel idPrefix="find" tab="here" active={tab}>
                     {competitions.length === 0 ? (
                       <div className="card">
-                        <EmptyState icon={Search} title="Nothing is open here right now">
+                        <EmptyState icon={Search} title={t("findFunding.nothingIsOpenHereRightNow")}>
                           {indexAvailable
-                            ? "Funders on this GMS have no open competitions. Search the OpenGrants index for opportunities elsewhere."
-                            : "Funders on this GMS have no open competitions yet. When one opens, it is listed here with your eligibility. Funding search across OpenGrants isn’t available on this site yet."}
+                            ? t("findFunding.fundersOnThisGmsHaveNo")
+                            : t("findFunding.fundersOnThisGmsHaveNo2")}
                         </EmptyState>
                       </div>
                     ) : (
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px" }}>
                         {ordered.map((c) => (
                           <div key={c.competitionId ?? c.opportunity.id} ref={c === found ? wantedCard : undefined} style={c === found ? { outline: "2px solid var(--og-teal)", outlineOffset: "2px", borderRadius: "12px" } : undefined} data-wanted={c === found ? "true" : undefined}>
-                            {c === found && <div className="small b" style={{ padding: "0 0 6px 4px" }}>The opportunity you chose</div>}
+                            {c === found && <div className="small b" style={{ padding: "0 0 6px 4px" }}>{t("findFunding.theOpportunityYouChose")}</div>}
                             {isAccepting(c) ? (
                               <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} />
                             ) : (

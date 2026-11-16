@@ -24,6 +24,7 @@ import { DocumentRow, useUpload } from "./outside/ChecklistTab.tsx";
 import { ObligationDialog, ObligationRow, ReportQuestions, SubmitReportDialog } from "./outside/obligations.tsx";
 import { useCanApprove } from "./outside/QuestionsTab.tsx";
 import { moneyFrom, moneyText } from "./outside/shared.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 const load = async (api: OutsideApi, applicant: ApplicantApi, wk: WriteKeepApi, id: string) => {
   const detail = await api.get(id);
@@ -45,29 +46,27 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
       <div className="card-h">
         <div>
           <h2 id="pay-h" style={{ fontSize: "18px" }}>
-            Payments received
+            {t("outsideAward.paymentsReceived")}
           </h2>
-          <p className="small muted">The amounts and dates the funder paid. Bank details are never kept here.</p>
+          <p className="small muted">{t("outsideAward.theAmountsAndDatesTheFunder")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div className="mtr">
           <div className="lbls">
             <span>
-              Received <b>{formatMinor(total, currency)}</b>
+              {t("outsideAward.received")} <b>{formatMinor(total, currency)}</b>
             </span>
-            <span>
-              of <b>{formatMinor(awardedMinor, currency)}</b> awarded
-            </span>
+            <span>{t.rich("outsideAward.ofAwarded", { amount: formatMinor(awardedMinor, currency), b: (chunks) => <b>{chunks}</b> })}</span>
           </div>
-          <div className="track" role="img" aria-label={`${pct}% of the award received`}>
+          <div className="track" role="img" aria-label={t("outsideAward.pctReceived", { pct })}>
             <div className="fill" style={{ width: `${pct}%` }}></div>
           </div>
         </div>
         {received.length === 0 ? (
-          <p className="muted">No payments recorded yet.</p>
+          <p className="muted">{t("outsideAward.noPaymentsRecordedYet")}</p>
         ) : (
-          <ul aria-label="Payments received" style={{ display: "flex", flexDirection: "column", gap: "6px", listStyle: "none", padding: 0, margin: 0 }}>
+          <ul aria-label={t("outsideAward.paymentsReceived")} style={{ display: "flex", flexDirection: "column", gap: "6px", listStyle: "none", padding: 0, margin: 0 }}>
             {received.map((o) => (
               <li key={o.id} className="row" style={{ gap: "10px", justifyContent: "space-between", fontSize: "14px" }}>
                 <span className="row" style={{ gap: "6px" }}>
@@ -88,7 +87,7 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
             onSubmit={async (e) => {
               e.preventDefault();
               if (!money) return;
-              if (await add.run({ kind: "payment_received", title: "Payment received", dueOn: form.date, amount: money })) {
+              if (await add.run({ kind: "payment_received", title: t("outsideAward.paymentReceived"), dueOn: form.date, amount: money })) {
                 setForm({ date: today(), amount: "" });
                 onChanged();
               }
@@ -96,34 +95,35 @@ function PaymentsReceived({ appId, currency, awardedMinor, obligations, readOnly
           >
             <div className="fld" style={{ flex: "1 1 140px" }}>
               <label className="lbl" htmlFor="pay-amount">
-                Amount received ({currency})
+                {t("outsideAward.amountReceivedIn", { currency })}
               </label>
               <input id="pay-amount" className={form.amount && !money ? "inp err" : "inp"} inputMode="decimal" value={form.amount} aria-invalid={form.amount && !money ? true : undefined} aria-describedby={form.amount && !money ? "pay-amount-err" : undefined} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
             </div>
             <div className="fld" style={{ flex: "1 1 140px" }}>
               <label className="lbl" htmlFor="pay-date">
-                Date it arrived
+                {t("outsideAward.dateItArrived")}
               </label>
               <input id="pay-date" type="date" className="inp" max={today()} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </div>
             <button type="submit" className="btn btn-secondary" disabled={!money || !form.date || form.date > today() || add.state === "saving"}>
               <Banknote className="ic" aria-hidden="true" />
-              Record a payment
+              {t("outsideAward.recordAPayment")}
             </button>
           </form>
         )}
         {form.amount && !money && (
           <span className="err-msg" id="pay-amount-err" role="alert">
-            Enter the amount in dollars, such as 25000.
+            {t("outsideAward.enterTheAmountInDollarsSuch")}
           </span>
         )}
-        {add.error ? <ErrorBanner error={add.error} title="The payment was not recorded" /> : null}
+        {add.error ? <ErrorBanner error={add.error} title={t("outsideAward.thePaymentWasNotRecorded")} /> : null}
       </div>
     </section>
   );
 }
 
 export default function OutsideAward() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { outsideId = "" } = useParams();
@@ -148,15 +148,15 @@ export default function OutsideAward() {
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.detail.title} — ${ws.name}` : `Award — ${ws.name}`}</title>
+      <title>{query.status === "ready" ? `${query.data.detail.title} — ${ws.name}` : t("outsideAward.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Awarded funding">
         <main className="main">
-          <Loaded query={query} label="Opening the award">
+          <Loaded query={query} label={t("outsideAward.openingTheAward")}>
             {({ detail, obligations, members, library, org }) => {
               if (detail.stage !== "awarded") {
                 return (
-                  <Notice tone="neu" title="This application has no award on record">
-                    <Link to={`${base}/outside/${detail.id}`}>Open the application</Link> to record the funder’s decision.
+                  <Notice tone="neu" title={t("outsideAward.thisApplicationHasNoAwardOn")}>
+                    {t.rich("outsideAward.openToRecord", { link: (chunks) => <Link to={`${base}/outside/${detail.id}`}>{chunks}</Link> })}
                   </Notice>
                 );
               }
@@ -166,19 +166,19 @@ export default function OutsideAward() {
               const duties = obligations.filter((o) => o.kind !== "payment_received");
               const allSettled = obligations.every((o) => o.status === "done" || o.status === "received");
               const awardLetter = [...detail.documents].reverse().find((d) => (d as { docType?: string | null }).docType === "award_letter" || d.id === detail.awardLetterDocumentId);
-              const period = detail.grantStart && detail.grantEnd ? `${formatDate(detail.grantStart)} – ${formatDate(detail.grantEnd)}` : detail.grantStart ? `from ${formatDate(detail.grantStart)}` : null;
+              const period = detail.grantStart && detail.grantEnd ? `${formatDate(detail.grantStart)} – ${formatDate(detail.grantEnd)}` : detail.grantStart ? t("outsideAward.fromDate", { date: formatDate(detail.grantStart) }) : null;
               return (
                 <>
                   <PageHeader
-                    crumbs={[{ label: "Awarded funding", to: `${base}/grants` }, { label: detail.title }]}
+                    crumbs={[{ label: t("outsideAward.awardedFunding"), to: `${base}/grants` }, { label: detail.title }]}
                     title={detail.title}
                     badge={
                       <>
                         <span className="bdg bdg-ok bdg-lg">
                           <Award className="ic" aria-hidden="true" />
-                          {detail.closedOutAt ? "Closed out" : "Awarded"}
+                          {detail.closedOutAt ? t("outsideAward.closedOut") : t("outsideAward.awarded")}
                         </span>
-                        <span className="tag">Outside award</span>
+                        <span className="tag">{t("outsideAward.outsideAward")}</span>
                       </>
                     }
                     meta={
@@ -191,18 +191,18 @@ export default function OutsideAward() {
                           </>
                         )}
                         <span aria-hidden="true">·</span>
-                        <span>{period ? `Grant period ${period}` : "No grant period recorded"}</span>
+                        <span>{period ? t("outsideAward.grantPeriod", { period }) : t("outsideAward.noGrantPeriodRecorded")}</span>
                       </>
                     }
                     actions={
                       <>
                         <Link to={`${base}/outside/${detail.id}`} className="btn btn-secondary">
-                          Open the application
+                          {t("outsideAward.openTheApplication")}
                         </Link>
                         {!readOnly && (
                           <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("add")}>
                             <Plus className="ic" aria-hidden="true" />
-                            Add an obligation
+                            {t("outsideAward.addAnObligation")}
                           </button>
                         )}
                       </>
@@ -210,20 +210,20 @@ export default function OutsideAward() {
                   />
                   {note && <Notice tone="ok" title={note} />}
                   {detail.closedOutAt && (
-                    <Notice tone="ok" title={`Closed out on ${formatDate(detail.closedOutAt)}`}>
-                      Every obligation was done or received. The record is kept as it was.
+                    <Notice tone="ok" title={t("outsideAward.closedOutOn", { date: formatDate(detail.closedOutAt) })}>
+                      {t("outsideAward.everyObligationWasDoneOrReceived")}
                     </Notice>
                   )}
                   {!detail.closedOutAt && !detail.archivedAt && allSettled && (
-                    <div className="bnr bnr-ok" role="region" aria-label="Close out">
+                    <div className="bnr bnr-ok" role="region" aria-label={t("outsideAward.closeOut")}>
                       <CircleCheck className="ic" aria-hidden="true" />
                       <div className="grow">
-                        <div className="t">Everything this grant asked for is done or received</div>
-                        <div className="d">Close out the award to mark it finished. It stays under Awarded funding.</div>
-                        {close.error ? <ErrorBanner error={close.error} title="The award was not closed out" /> : null}
+                        <div className="t">{t("outsideAward.everythingThisGrantAskedForIs")}</div>
+                        <div className="d">{t("outsideAward.closeOutTheAwardToMark")}</div>
+                        {close.error ? <ErrorBanner error={close.error} title={t("outsideAward.theAwardWasNotClosedOut")} /> : null}
                       </div>
-                      <button type="button" className="btn btn-primary act" disabled={close.state === "saving"} onClick={async () => (await close.run()) && changed("Award closed out")}>
-                        {close.state === "saving" ? "Closing out…" : "Close out this award"}
+                      <button type="button" className="btn btn-primary act" disabled={close.state === "saving"} onClick={async () => (await close.run()) && changed(t("outsideAward.closedOutNote"))}>
+                        {close.state === "saving" ? t("outsideAward.closingOut") : t("outsideAward.closeOutThisAward")}
                       </button>
                     </div>
                   )}
@@ -231,15 +231,15 @@ export default function OutsideAward() {
                   <div className="card" style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: "14px" }}>
                     <div className="amounts" style={{ flexWrap: "wrap" }}>
                       <div>
-                        <div className="stat-l">Awarded</div>
+                        <div className="stat-l">{t("outsideAward.awarded")}</div>
                         <div className="stat-v">{moneyText(detail.awardedAmount)}</div>
                       </div>
                       <div>
-                        <div className="stat-l">Received</div>
+                        <div className="stat-l">{t("outsideAward.received")}</div>
                         <div className="stat-v">{formatMinor(receivedMinor, detail.currency)}</div>
                       </div>
                       <div>
-                        <div className="stat-l">Still to come</div>
+                        <div className="stat-l">{t("outsideAward.stillToCome")}</div>
                         <div className="stat-v">{awardedMinor === null ? "—" : formatMinor(Math.max(0, awardedMinor - receivedMinor), detail.currency)}</div>
                       </div>
                     </div>
@@ -249,49 +249,49 @@ export default function OutsideAward() {
                     <section className="card" aria-labelledby="yr-h">
                       <div className="card-h">
                         <h2 id="yr-h" style={{ fontSize: "18px" }}>
-                          Amount by year
+                          {t("outsideAward.amountByYear")}
                         </h2>
                       </div>
                       <DataTable
-                        label="Amount by year"
+                        label={t("outsideAward.amountByYear")}
                         rows={detail.awardByYear}
                         rowKey={(y) => String(y.year)}
                         columns={[
-                          { key: "y", header: "Year", cell: (y) => y.year },
-                          { key: "a", header: "Amount", numeric: true, cell: (y) => formatMinor(y.amountMinor, detail.currency) },
+                          { key: "y", header: t("outsideAward.col.year"), cell: (y) => y.year },
+                          { key: "a", header: t("outsideAward.col.amount"), numeric: true, cell: (y) => formatMinor(y.amountMinor, detail.currency) },
                         ]}
-                        empty={<p className="muted" style={{ padding: "12px 16px" }}>Not split by year. The whole award is {moneyText(detail.awardedAmount)}.</p>}
+                        empty={<p className="muted" style={{ padding: "12px 16px" }}>{t("outsideAward.notSplit", { amount: moneyText(detail.awardedAmount) })}</p>}
                       />
                     </section>
                     <section className="card" aria-labelledby="ltr-h">
                       <div className="card-h">
                         <div>
                           <h2 id="ltr-h" style={{ fontSize: "18px" }}>
-                            Award letter
+                            {t("outsideAward.awardLetter")}
                           </h2>
-                          <p className="small muted">Keep the funder’s letter or agreement with the award.</p>
+                          <p className="small muted">{t("outsideAward.keepTheFundersLetterOrAgreement")}</p>
                         </div>
                       </div>
                       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {awardLetter ? <DocumentRow doc={awardLetter} applicationId={detail.id} note="award letter" /> : <p className="muted">No award letter yet.</p>}
+                        {awardLetter ? <DocumentRow doc={awardLetter} applicationId={detail.id} note={t("outsideAward.awardLetterNote")} /> : <p className="muted">{t("outsideAward.noAwardLetterYet")}</p>}
                         {!readOnly && (
                           <label className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start", cursor: "pointer" }}>
                             <Upload className="ic" aria-hidden="true" />
-                            {letter.state === "saving" ? "Uploading…" : awardLetter ? "Replace the award letter" : "Upload the award letter"}
+                            {letter.state === "saving" ? t("outsideAward.uploading") : awardLetter ? t("outsideAward.replaceTheAwardLetter") : t("outsideAward.uploadTheAwardLetter")}
                             <input
                               type="file"
                               className="sr"
-                              aria-label="Upload the award letter"
+                              aria-label={t("outsideAward.uploadTheAwardLetter")}
                               onChange={async (e) => {
                                 const doc = await letter.run(e.target.files?.[0]);
                                 e.target.value = "";
-                                if (doc) changed("Award letter kept");
+                                if (doc) changed(t("outsideAward.letterKept"));
                               }}
                             />
                           </label>
                         )}
                         {letter.tooBig && <p className="err-msg" role="alert">{letter.tooBig}</p>}
-                        {letter.error ? <ErrorBanner error={letter.error} title="The letter was not uploaded" /> : null}
+                        {letter.error ? <ErrorBanner error={letter.error} title={t("outsideAward.theLetterWasNotUploaded")} /> : null}
                       </div>
                     </section>
                   </div>
@@ -300,28 +300,28 @@ export default function OutsideAward() {
                     <div className="card-h">
                       <div>
                         <h2 id="obl-h" style={{ fontSize: "18px" }}>
-                          What the grant asks for
+                          {t("outsideAward.whatTheGrantAsksFor")}
                         </h2>
-                        <p className="small muted">Reports, conditions and payments expected. Reminders go to the owner 30, 14 and 7 days before, on the day, and 3 and 14 days after if it is not done.</p>
+                        <p className="small muted">{t("outsideAward.reportsConditionsAndPaymentsExpectedReminders")}</p>
                       </div>
                     </div>
                     <div className="card-b">
                       {duties.length === 0 ? (
                         <EmptyState
                           icon={Award}
-                          title="Nothing recorded yet"
+                          title={t("outsideAward.nothingRecordedYet")}
                           actions={
                             !readOnly ? (
                               <button type="button" className="btn btn-primary" onClick={() => setDialog("add")}>
-                                Add an obligation
+                                {t("outsideAward.addAnObligation")}
                               </button>
                             ) : undefined
                           }
                         >
-                          Add the reports the funder asks for (a series, such as every six months), any conditions, and the payments you expect.
+                          {t("outsideAward.addTheReportsTheFunderAsks")}
                         </EmptyState>
                       ) : (
-                        <ul aria-label="Obligations" style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
+                        <ul aria-label={t("outsideAward.obligations")} style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
                           {duties.map((o) => (
                             <ObligationRow
                               key={o.id}
@@ -342,11 +342,11 @@ export default function OutsideAward() {
                     </div>
                   </section>
 
-                  <PaymentsReceived appId={detail.id} currency={detail.currency} awardedMinor={awardedMinor} obligations={obligations} readOnly={readOnly} onChanged={() => changed("Payment recorded")} />
+                  <PaymentsReceived appId={detail.id} currency={detail.currency} awardedMinor={awardedMinor} obligations={obligations} readOnly={readOnly} onChanged={() => changed(t("outsideAward.paymentRecorded"))} />
 
                   {dialog === "add" && <ObligationDialog app={detail} onClose={() => setDialog(null)} onDone={changed} />}
                   {dialog && typeof dialog === "object" && "edit" in dialog && <ObligationDialog app={detail} obligation={dialog.edit} onClose={() => setDialog(null)} onDone={changed} />}
-                  {dialog && typeof dialog === "object" && "submit" in dialog && <SubmitReportDialog obligation={dialog.submit} onClose={() => setDialog(null)} onDone={() => changed("Report marked submitted. The “as submitted” copy is kept with it.")} />}
+                  {dialog && typeof dialog === "object" && "submit" in dialog && <SubmitReportDialog obligation={dialog.submit} onClose={() => setDialog(null)} onDone={() => changed(t("outsideAward.reportSubmitted"))} />}
                 </>
               );
             }}

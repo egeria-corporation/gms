@@ -10,15 +10,19 @@ import { useLaunchQuery } from "../../api/launchHooks.ts";
 import { FunderChip, Loaded, sourceLabel } from "../../components/applicant.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { DOC_TYPES, type DocType } from "../../lib/writeKeep.ts";
+import { t } from "./i18n.ts";
+import { docTypeLabel } from "./labels.ts";
 
 const fileTag = (name: string, mime: string | null): { cls: string; text: string } => {
   const ext = (name.split(".").pop() ?? "").toLowerCase();
   if (ext === "pdf" || mime === "application/pdf") return { cls: "ft ft-pdf", text: "PDF" };
   if (["xls", "xlsx", "csv"].includes(ext) || mime?.includes("spreadsheet")) return { cls: "ft ft-xls", text: "XLS" };
   if (["doc", "docx"].includes(ext)) return { cls: "ft ft-doc", text: "DOC" };
-  return { cls: "ft", text: "FILE" };
+  return { cls: "ft", text: t("form.file") };
 };
-const kindLabel = (kind: string) => kind.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+/** A locker document's kind: the vault's name for it when it is one of its types. */
+const kindLabel = (kind: string) => ((DOC_TYPES as readonly string[]).includes(kind) ? docTypeLabel(kind as DocType) : kind.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()));
 
 const initials = (name: string) =>
   name
@@ -37,11 +41,11 @@ export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
     <section className="card" aria-labelledby="reps-h">
       <div className="card-h">
         <h2 id="reps-h" style={{ fontSize: "18px" }}>
-          Representatives
+          {t("organizationExtras.representatives")}
         </h2>
         {manage ? (
           <a href={manage} className="small b">
-            Manage in Passport
+            {t("organizationExtras.manageInPassport")}
           </a>
         ) : null}
       </div>
@@ -51,13 +55,13 @@ export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
         </div>
       )}
       {data && data.state === "ok" && data.items.length > 0 && (
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Representatives, scrollable">
-          <table className="tbl" style={{ fontSize: "14px" }} aria-label="Representatives">
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("organizationExtras.representativesScrollable")}>
+          <table className="tbl" style={{ fontSize: "14px" }} aria-label={t("organizationExtras.representatives")}>
             <thead>
               <tr>
-                <th scope="col">Person</th>
-                <th scope="col">Title</th>
-                <th scope="col">Verified</th>
+                <th scope="col">{t("organizationExtras.person")}</th>
+                <th scope="col">{t("organizationExtras.title")}</th>
+                <th scope="col">{t("organizationExtras.verified")}</th>
               </tr>
             </thead>
             <tbody>
@@ -76,12 +80,12 @@ export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
                     {r.verified ? (
                       <span className="row" style={{ gap: "5px", color: "#0B5E47", fontWeight: 700 }}>
                         <BadgeCheck className="ic" aria-hidden="true" />
-                        Verified{r.verifiedAt ? ` ${formatDate(r.verifiedAt)}` : ""}
+                        {r.verifiedAt ? t("organizationExtras.verifiedOn", { date: formatDate(r.verifiedAt) }) : t("organizationExtras.verified")}
                       </span>
                     ) : (
                       <span className="row muted" style={{ gap: "5px" }}>
                         <CircleDashed className="ic" aria-hidden="true" />
-                        Not verified yet
+                        {t("organizationExtras.notVerifiedYet")}
                       </span>
                     )}
                   </td>
@@ -95,17 +99,17 @@ export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
         <div className="card-b row" style={{ gap: "12px", alignItems: "flex-start" }}>
           <UserCheck className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)", marginTop: "2px" }} />
           <div>
-            <p>The people who can sign and act for your organization are verified and kept in Passport.</p>
+            <p>{t("organizationExtras.thePeopleWhoCanSignAnd")}</p>
             <p className="help" style={{ marginTop: "4px" }}>
               {!data
-                ? "Loading the list from Passport."
+                ? t("organizationExtras.loadingTheListFromPassport")
                 : data.state === "unknown"
-                  ? "Passport could not be reached just now, so the list is not shown. Nothing about your representatives has changed."
+                  ? t("organizationExtras.passportCouldNotBeReachedJust")
                   : data.state === "not_linked"
-                    ? "Connect your organization's Passport record to see them here."
+                    ? t("organizationExtras.connectYourOrganizationsPassportRecordTo")
                     : data.state === "not_shared"
-                      ? "Your organization's consent does not share the list with the GMS, so it is not shown here. Funders see only that your representatives are verified, as part of your level."
-                      : "No representatives are recorded in Passport yet."}
+                      ? t("organizationExtras.yourOrganizationsConsentDoesNotShare")
+                      : t("organizationExtras.noRepresentativesAreRecordedInPassport")}
             </p>
           </div>
         </div>
@@ -120,23 +124,23 @@ export function LockerCard({ editUrl }: { editUrl: string | null }) {
     <section className="card" aria-labelledby="locker-h">
       <div className="card-h">
         <h2 id="locker-h" style={{ fontSize: "18px" }}>
-          Documents locker
+          {t("organizationExtras.documentsLocker")}
         </h2>
         {editUrl ? (
           <a href={editUrl} className="small b">
-            Upload to Passport
+            {t("organizationExtras.uploadToPassport")}
           </a>
         ) : null}
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <Loaded query={query} label="Reading your Passport locker">
+        <Loaded query={query} label={t("organizationExtras.readingYourPassportLocker")}>
           {(locker) =>
             locker.state === "unavailable" ? (
               <p className="muted" role="status">
-                The locker can't be shown right now. {locker.reason ?? "Passport could not be reached."} Your documents are safe in Passport.
+                {t("organizationExtras.lockerUnavailable", { reason: locker.reason ?? t("organizationExtras.passportCouldNotBeReached") })}
               </p>
             ) : locker.items.length === 0 ? (
-              <p className="muted">No documents in your Passport locker yet. Upload them once in Passport and attach them to any application without copying.</p>
+              <p className="muted">{t("organizationExtras.noDocumentsInYourPassportLocker")}</p>
             ) : (
               <>
                 {locker.items.map((d) => {
@@ -151,28 +155,28 @@ export function LockerCard({ editUrl }: { editUrl: string | null }) {
                           <span aria-hidden="true">·</span>
                           <span className="prov prov-passport">
                             <BadgeCheck className="ic" aria-hidden="true" />
-                            Passport locker
+                            {t("organizationExtras.passportLocker")}
                           </span>
                           <span aria-hidden="true">·</span>
-                          <span>{d.expiresAt ? `Expires ${formatDate(d.expiresAt)}` : "No expiry"}</span>
-                          {d.sha256 ? <span className="mono">sha256 {d.sha256.slice(0, 4)}…{d.sha256.slice(-4)}</span> : null}
+                          <span>{d.expiresAt ? t("organizationExtras.expiresOn", { date: formatDate(d.expiresAt) }) : t("organizationExtras.noExpiry")}</span>
+                          {d.sha256 ? <samp className="mono">sha256 {d.sha256.slice(0, 4)}…{d.sha256.slice(-4)}</samp> : null}
                         </div>
                       </div>
                       {d.attachable ? (
                         <span className="bdg bdg-ok">
                           <Check className="ic" aria-hidden="true" />
-                          Can be attached
+                          {t("organizationExtras.canBeAttached")}
                         </span>
                       ) : (
-                        <span className="bdg bdg-neutral" title="Passport holds a link to this file, not a fixed copy">
+                        <span className="bdg bdg-neutral" title={t("organizationExtras.passportHoldsALinkToThis")}>
                           <Cloud className="ic" aria-hidden="true" />
-                          Link only
+                          {t("organizationExtras.linkOnly")}
                         </span>
                       )}
                     </div>
                   );
                 })}
-                <p className="help">Applications reference these files in Passport. The GMS never copies them.</p>
+                <p className="help">{t("organizationExtras.applicationsReferenceTheseFilesInPassport")}</p>
               </>
             )
           }
@@ -182,12 +186,13 @@ export function LockerCard({ editUrl }: { editUrl: string | null }) {
   );
 }
 
-const APP_OF: Record<string, { name: string; detail: string; icon: typeof Cloud }> = {
-  qbo: { name: "QuickBooks", detail: "Financial figures in your record", icon: FileSpreadsheet },
-  google_drive: { name: "Google Workspace", detail: "Drive files in your locker", icon: Cloud },
-  irs_bmf: { name: "IRS records", detail: "Tax status and determination", icon: Landmark },
-  irs_990: { name: "Form 990", detail: "Revenue, expenses and assets", icon: Landmark },
-  sam: { name: "SAM.gov", detail: "Federal registration", icon: Landmark },
+// Getters, so the words follow the page's language (docs/i18n.md).
+const APP_OF: Record<string, { readonly name: string; readonly detail: string; icon: typeof Cloud }> = {
+  qbo: { name: "QuickBooks", get detail() { return t("organizationExtras.app.qbo"); }, icon: FileSpreadsheet },
+  google_drive: { name: "Google Workspace", get detail() { return t("organizationExtras.app.drive"); }, icon: Cloud },
+  irs_bmf: { get name() { return t("organizationExtras.app.irsName"); }, get detail() { return t("organizationExtras.app.irs"); }, icon: Landmark },
+  irs_990: { get name() { return t("organizationExtras.app.form990Name"); }, get detail() { return t("organizationExtras.app.form990"); }, icon: Landmark },
+  sam: { name: "SAM.gov", get detail() { return t("organizationExtras.app.sam"); }, icon: Landmark },
 };
 
 /** Apps are connected in Passport; this lists the ones that currently feed the record the GMS reads. */
@@ -197,18 +202,18 @@ export function ConnectedAppsCard({ sources, editUrl }: { sources: Record<string
     <section className="card" aria-labelledby="apps-h">
       <div className="card-h">
         <h2 id="apps-h" style={{ fontSize: "18px" }}>
-          Connected apps
+          {t("organizationExtras.connectedApps")}
         </h2>
         {editUrl ? (
           <a href={editUrl} className="small b">
-            Connect in Passport
+            {t("organizationExtras.connectInPassport")}
           </a>
         ) : null}
       </div>
       <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {used.length === 0 && <li className="muted">No connected app feeds your record yet. Apps such as QuickBooks and Google Workspace are connected in Passport, never here.</li>}
+        {used.length === 0 && <li className="muted">{t("organizationExtras.noConnectedAppFeedsYourRecord")}</li>}
         {used.map((s) => {
-          const app = APP_OF[s] ?? { name: sourceLabel(s), detail: "Feeds your Passport record", icon: Cloud };
+          const app = APP_OF[s] ?? { name: sourceLabel(s), detail: t("organizationExtras.app.feeds"), icon: Cloud };
           const Icon = app.icon;
           return (
             <li className="row" style={{ gap: "12px" }} key={s}>
@@ -221,7 +226,7 @@ export function ConnectedAppsCard({ sources, editUrl }: { sources: Record<string
               </div>
               <span className="bdg bdg-ok">
                 <Check className="ic" aria-hidden="true" />
-                Feeding your record
+                {t("organizationExtras.feedingYourRecord")}
               </span>
             </li>
           );
@@ -231,12 +236,14 @@ export function ConnectedAppsCard({ sources, editUrl }: { sources: Record<string
   );
 }
 
-const SCOPE_WORDS: Record<string, string> = { "org:read": "Profile", "org.documents:read": "Documents", "payee:read": "Payee status", "org.changes:read": "Record changes", "org.changes:write": "Propose changes" };
+/** What a scope lets a funder read, in words. */
+const scopeWord = (s: string): string =>
+  s === "org:read" ? t("organizationExtras.scope.profile") : s === "org.documents:read" ? t("organizationExtras.scope.documents") : s === "payee:read" ? t("organizationExtras.scope.payee") : s === "org.changes:read" ? t("organizationExtras.scope.changesRead") : s === "org.changes:write" ? t("organizationExtras.scope.changesWrite") : s;
 export const canRead = (c: Consent): string => {
-  const words = [...new Set(c.scopes.map((s) => SCOPE_WORDS[s] ?? s))];
-  return words.length ? words.join(", ") : "Profile and level";
+  const words = [...new Set(c.scopes.map(scopeWord))];
+  return words.length ? words.join(", ") : t("organizationExtras.scope.profileLevel");
 };
-export const grantedVia = (c: Consent): string => `${c.basis === "application" ? "Application" : c.basis === "shared_submission" ? "Shared report" : "Passport grant"} · ${formatDate(c.grantedAt)}`;
+export const grantedVia = (c: Consent): string => `${c.basis === "application" ? t("organizationExtras.via.application") : c.basis === "shared_submission" ? t("organizationExtras.via.sharedReport") : t("organizationExtras.via.passport")} · ${formatDate(c.grantedAt)}`;
 
 export function AccessCard({ consents, base, onChanged }: { consents: Consent[]; base: string; onChanged: () => void }) {
   const revoke = useApplicantMutation((api, id: string) => api.revokeConsent(id));
@@ -245,27 +252,27 @@ export function AccessCard({ consents, base, onChanged }: { consents: Consent[];
     <section className="card" aria-labelledby="access-h">
       <div className="card-h">
         <h2 id="access-h" style={{ fontSize: "18px" }}>
-          Who has access
+          {t("organizationExtras.whoHasAccess")}
         </h2>
         <Link to={`${base}/team`} className="small b">
-          Team &amp; access
+          {t("organizationExtras.teamAccess")}
         </Link>
       </div>
       {active.length === 0 ? (
         <div className="card-b">
-          <p className="muted">No funder can read your record yet. Applying to a funder grants it access for that application.</p>
+          <p className="muted">{t("organizationExtras.noFunderCanReadYourRecord")}</p>
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Funders with access, scrollable">
+        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label={t("organizationExtras.fundersWithAccessScrollable")}>
           <table className="tbl" style={{ fontSize: "14px" }}>
-            <caption className="sr">Funders that can read your Passport record</caption>
+            <caption className="sr">{t("organizationExtras.fundersThatCanReadYourPassport")}</caption>
             <thead>
               <tr>
-                <th scope="col">Funder</th>
-                <th scope="col">Can read</th>
-                <th scope="col">Granted via</th>
+                <th scope="col">{t("organizationExtras.funder")}</th>
+                <th scope="col">{t("organizationExtras.canRead")}</th>
+                <th scope="col">{t("organizationExtras.grantedVia")}</th>
                 <th scope="col">
-                  <span className="sr">Actions</span>
+                  <span className="sr">{t("organizationExtras.actions")}</span>
                 </th>
               </tr>
             </thead>
@@ -281,12 +288,12 @@ export function AccessCard({ consents, base, onChanged }: { consents: Consent[];
                     <button
                         type="button"
                         className="btn btn-sm btn-danger"
-                        aria-label={`Revoke ${c.funder.name ?? "this funder"}'s access`}
+                        aria-label={c.funder.name ? t("organizationExtras.revokeAccess", { funder: c.funder.name }) : t("organizationExtras.revokeAccessThisFunder")}
                         onClick={async () => {
                           if (await revoke.run(c.id)) onChanged();
                         }}
                       >
-                        Revoke
+                        {t("organizationExtras.revoke")}
                     </button>
                   </td>
                 </tr>
@@ -297,7 +304,7 @@ export function AccessCard({ consents, base, onChanged }: { consents: Consent[];
       )}
       {revoke.error ? (
         <div style={{ padding: "0 20px 12px" }}>
-          <ErrorBanner error={revoke.error} title="Access was not revoked" />
+          <ErrorBanner error={revoke.error} title={t("organizationExtras.accessWasNotRevoked")} />
         </div>
       ) : null}
     </section>

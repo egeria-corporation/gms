@@ -6,8 +6,14 @@ import type { MyOrganization } from "../../../api/applicant.ts";
 import type { Deadlines, Money, OutsideStage } from "../../../api/outside.ts";
 import { StatusBadge } from "../../../components/status.tsx";
 import { daysUntil, formatDate, formatMoney, parseDollars } from "../../../lib/format.ts";
+import { t } from "../i18n.ts";
 
-export const DEADLINE_LABELS = { internalDue: "Internal deadline", loiDue: "Letter of inquiry due", fullDue: "Full application due" } as const;
+/** Each deadline's name, read in the page's language every time. */
+export const DEADLINE_LABELS = {
+  get internalDue() { return t("outsideShared.deadline.internalDue"); },
+  get loiDue() { return t("outsideShared.deadline.loiDue"); },
+  get fullDue() { return t("outsideShared.deadline.fullDue"); },
+};
 type DeadlineKey = keyof typeof DEADLINE_LABELS;
 
 /** The soonest deadline still ahead (internal first on a tie), else the latest one passed. */
@@ -21,9 +27,9 @@ export function nextDeadline(d: Deadlines, now: Date = new Date()): { key: Deadl
 export function dueIn(iso: string | null | undefined, now: Date = new Date()): string {
   const n = daysUntil(iso, now);
   if (n === null) return "";
-  if (n === 0) return "today";
-  if (n > 0) return `in ${n} day${n === 1 ? "" : "s"}`;
-  return `${-n} day${n === -1 ? "" : "s"} ago`;
+  if (n === 0) return t("outsideShared.dueIn.today");
+  if (n > 0) return t("outsideShared.dueIn.future", { count: n });
+  return t("outsideShared.dueIn.past", { count: -n });
 }
 
 export function DeadlineText({ date, urgentWithin = 7 }: { date: string | null | undefined; urgentWithin?: number }) {
@@ -50,7 +56,14 @@ export const dollarsOf = (m: Money | null | undefined) => (m ? String(Number(m.a
 
 export const StageBadge = ({ stage, large = false }: { stage: OutsideStage; large?: boolean }) => <StatusBadge kind="outside" status={stage} large={large} />;
 
-export const METHOD_LABELS = { portal: "The funder’s online portal", email: "Email", mail: "Mail or delivery", grants_gov: "Grants.gov", other: "Another way" } as const;
+/** How an application was sent, in the page's language. */
+export const METHOD_LABELS = {
+  get portal() { return t("outsideShared.method.portal"); },
+  get email() { return t("outsideShared.method.email"); },
+  get mail() { return t("outsideShared.method.mail"); },
+  grants_gov: "Grants.gov",
+  get other() { return t("outsideShared.method.other"); },
+};
 
 // ------------------------------------------------------------------------------------ facts
 
@@ -74,24 +87,24 @@ const address = (a: unknown) => {
 /** The organization facts a writer can insert: from Passport when linked, else what the organization entered. */
 export function orgFacts(org: MyOrganization): OrgFact[] {
   const passport = org.linked && !!org.organization;
-  const from = passport ? "From Passport" : "Entered by your organization";
+  const from = passport ? t("outsideShared.fact.fromPassport") : t("outsideShared.fact.entered");
   const o = org.organization as unknown;
   const s = org.selfDeclared;
   const budget = num(at(org.profile, "commonApp.financials.budget"));
   const rows: [string, string, string | null][] = passport
     ? [
-        ["legalName", "Legal name", text(at(o, "name"))],
+        ["legalName", t("outsideShared.fact.legalName"), text(at(o, "name"))],
         ["ein", "EIN", ein(text(at(o, "identifiers.org:us:ein.id")))],
-        ["mission", "Mission", text(at(o, "mission"))],
-        ["address", "Address", address(at(o, "addresses.primary"))],
-        ["yearFounded", "Year founded", text(at(o, "yearFounded"))],
-        ["budget", "Annual operating budget", budget === null ? null : formatMoney({ amount: String(budget), currency: "USD" })],
+        ["mission", t("outsideShared.fact.mission"), text(at(o, "mission"))],
+        ["address", t("outsideShared.fact.address"), address(at(o, "addresses.primary"))],
+        ["yearFounded", t("outsideShared.fact.yearFounded"), text(at(o, "yearFounded"))],
+        ["budget", t("outsideShared.fact.budget"), budget === null ? null : formatMoney({ amount: String(budget), currency: "USD" })],
       ]
     : [
-        ["legalName", "Legal name", text(s?.legalName)],
+        ["legalName", t("outsideShared.fact.legalName"), text(s?.legalName)],
         ["ein", "EIN", ein(text(s?.ein))],
-        ["mission", "Mission", text(s?.mission)],
-        ["address", "Address", address(s?.address)],
+        ["mission", t("outsideShared.fact.mission"), text(s?.mission)],
+        ["address", t("outsideShared.fact.address"), address(s?.address)],
       ];
   return rows.flatMap(([key, label, value]) => (value ? [{ key, label, value, from }] : []));
 }
@@ -107,6 +120,6 @@ export const toBase64 = async (file: File): Promise<string> => {
 };
 /** The design's file-type tile: pdf, xls or doc. */
 export const fileKind = (name: string) => (/\.pdf$/i.test(name) ? "pdf" : /\.(xlsx?|csv)$/i.test(name) ? "xls" : /\.docx?$/i.test(name) ? "doc" : "");
-export const sizeText = (n: number) => (n <= 0 ? "Held in Passport" : n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+export const sizeText = (n: number) => (n <= 0 ? t("outsideShared.heldInPassport") : n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 /** Uploads above this are refused here, before any bytes are sent. */
 export const MAX_UPLOAD_BYTES = 10 * 1_048_576;

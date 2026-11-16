@@ -12,14 +12,16 @@ import { Dialog } from "../../../components/Dialog.tsx";
 import { timeAgo } from "../../../components/applicant.tsx";
 import { ErrorBanner, Field, Notice, SaveNote } from "../../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../../lib/format.ts";
-import { canMarkSubmitted, STAGE_LABELS, webAddress, type OutsideStage } from "../../../lib/outside.ts";
+import { canMarkSubmitted, webAddress } from "../../../lib/outside.ts";
+import { stageLabel } from "../labels.ts";
 import { DocumentRow } from "./ChecklistTab.tsx";
 import { dollarsOf, METHOD_LABELS, moneyFrom, moneyText } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 const Ext = ({ href, children }: { href: string; children: ReactNode }) => (
   <a href={href} target="_blank" rel="noreferrer noopener" style={{ overflowWrap: "anywhere" }}>
     {children} <ExternalLink className="ic ic-sm" aria-hidden="true" />
-    <span className="sr"> (opens in a new tab)</span>
+    <span className="sr"> {t("outsideTabs.opensInANewTab")}</span>
   </a>
 );
 
@@ -34,34 +36,34 @@ export function SubmissionTab({ detail, record, base, readOnly, onMarkSubmitted 
         <div className="card-h">
           <div>
             <h2 id="osb-where" style={{ fontSize: "18px" }}>
-              Where to submit
+              {t("outsideTabs.whereToSubmit")}
             </h2>
-            <p className="small muted">You submit on the funder’s own site; this page keeps the record.</p>
+            <p className="small muted">{t("outsideTabs.youSubmitOnTheFundersOwn")}</p>
           </div>
         </div>
         <div className="card-b">
           <dl className="kv" style={{ fontSize: "15px" }}>
-            <dt>Funder’s portal</dt>
-            <dd>{detail.portalUrl ? <Ext href={detail.portalUrl}>{detail.portalUrl}</Ext> : <span className="muted">No portal link yet. Add one under Edit details.</span>}</dd>
-            <dt>Portal login</dt>
+            <dt>{t("outsideTabs.fundersPortal")}</dt>
+            <dd>{detail.portalUrl ? <Ext href={detail.portalUrl}>{detail.portalUrl}</Ext> : <span className="muted">{t("outsideTabs.noPortalLinkYetAddOne")}</span>}</dd>
+            <dt>{t("outsideTabs.portalLogin")}</dt>
             <dd>
               {record?.portalLoginHolder ? (
                 <>
-                  Held by {record.portalLoginHolder}
+                  {t("outsideTabs.heldBy", { name: record.portalLoginHolder })}
                   <span className="small muted"> · </span>
                 </>
               ) : (
-                <span className="muted">Not recorded · </span>
+                <span className="muted">{t("outsideTabs.notRecorded")} </span>
               )}
               {record ? (
                 <Link to={`${base}/funders/${record.id}`} className="small b">
-                  {record.portalLoginHolder ? "Change" : "Record who holds it"}
+                  {record.portalLoginHolder ? t("outsideTabs.change") : t("outsideTabs.recordWhoHoldsIt")}
                 </Link>
               ) : (
-                <span className="small muted">Keep it on a funder record (Notes tab).</span>
+                <span className="small muted">{t("outsideTabs.keepItOnAFunderRecord")}</span>
               )}
             </dd>
-            <dt>The listing</dt>
+            <dt>{t("outsideTabs.theListing")}</dt>
             <dd>{detail.listingUrl ? <Ext href={detail.listingUrl}>{detail.listingUrl}</Ext> : <span className="muted">—</span>}</dd>
           </dl>
         </div>
@@ -69,29 +71,29 @@ export function SubmissionTab({ detail, record, base, readOnly, onMarkSubmitted 
       <section className="card" aria-labelledby="osb-state">
         <div className="card-h">
           <h2 id="osb-state" style={{ fontSize: "18px" }}>
-            Submission
+            {t("outsideTabs.submission")}
           </h2>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {detail.submittedAt ? (
             <>
               <dl className="kv" style={{ fontSize: "15px" }}>
-                <dt>Submitted</dt>
+                <dt>{t("outsideTabs.submitted")}</dt>
                 <dd>{formatDate(detail.submittedAt)}</dd>
-                <dt>How</dt>
+                <dt>{t("outsideTabs.how")}</dt>
                 <dd>{detail.submissionMethod ? METHOD_LABELS[detail.submissionMethod] : "—"}</dd>
-                <dt>Confirmation number</dt>
-                <dd className={detail.confirmationRef ? "mono" : "muted"}>{detail.confirmationRef ?? "None recorded"}</dd>
+                <dt>{t("outsideTabs.confirmationNumber")}</dt>
+                <dd className={detail.confirmationRef ? "mono" : "muted"}>{detail.confirmationRef ?? t("outsideTabs.noneRecorded")}</dd>
               </dl>
-              {receipt && <DocumentRow doc={receipt} applicationId={detail.id} note="receipt" />}
+              {receipt && <DocumentRow doc={receipt} applicationId={detail.id} note={t("outsideTabs.receiptNote")} />}
               {snapshot ? (
                 <>
-                  <DocumentRow doc={snapshot} applicationId={detail.id} note="as submitted" />
+                  <DocumentRow doc={snapshot} applicationId={detail.id} note={t("outsideTabs.asSubmitted")} />
                   {detail.snapshotSha256 && (
                     <p className="small muted row" style={{ gap: "6px", alignItems: "flex-start" }}>
                       <Hash className="ic ic-sm" aria-hidden="true" />
                       <span>
-                        Fingerprint (SHA-256) of the “as submitted” copy: <span className="mono" style={{ overflowWrap: "anywhere" }}>{detail.snapshotSha256}</span>
+                        {t("outsideTabs.fingerprintSha256OfTheAs")} <span className="mono" style={{ overflowWrap: "anywhere" }}>{detail.snapshotSha256}</span>
                       </span>
                     </p>
                   )}
@@ -100,14 +102,14 @@ export function SubmissionTab({ detail, record, base, readOnly, onMarkSubmitted 
             </>
           ) : (
             <>
-              <p>Not submitted yet.</p>
+              <p>{t("outsideTabs.notSubmittedYet")}</p>
               {!readOnly && canMarkSubmitted(detail.stage) ? (
                 <button type="button" className="btn btn-primary" style={{ alignSelf: "flex-start" }} aria-haspopup="dialog" onClick={onMarkSubmitted}>
                   <Send className="ic" aria-hidden="true" />
-                  Mark as submitted
+                  {t("outsideTabs.markAsSubmitted")}
                 </button>
               ) : (
-                <p className="small muted">{detail.stage === "drafting" ? "" : `Move the application to Drafting before you mark it submitted. It is at ${STAGE_LABELS[detail.stage]}.`}</p>
+                <p className="small muted">{detail.stage === "drafting" ? "" : t("outsideTabs.moveToDraftingFirst", { stage: stageLabel(detail.stage) })}</p>
               )}
             </>
           )}
@@ -132,9 +134,9 @@ function FunderNotes({ detail, record, base, onChanged }: { detail: OutsideDetai
       <div className="card-h">
         <div>
           <h2 id="ont-funder" style={{ fontSize: "18px" }}>
-            About {detail.funderName || "this funder"}
+            {detail.funderName ? t("outsideTabs.aboutFunder", { funder: detail.funderName }) : t("outsideTabs.aboutThisFunder")}
           </h2>
-          <p className="small muted">Kept on the funder record, so every application to this funder shares them.</p>
+          <p className="small muted">{t("outsideTabs.keptOnTheFunderRecordSo")}</p>
         </div>
         {record && <SaveNote state={save.state === "saved" && notes === (record.notes ?? "") ? "saved" : "idle"} />}
       </div>
@@ -142,29 +144,29 @@ function FunderNotes({ detail, record, base, onChanged }: { detail: OutsideDetai
         {record ? (
           <>
             <label className="sr" htmlFor="ont-notes">
-              Notes about {record.name}
+              {t("outsideTabs.notesAbout", { name: record.name })}
             </label>
             <textarea id="ont-notes" className="ta" style={{ minHeight: "120px" }} value={notes} onChange={(e) => setNotes(e.target.value)} />
             <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
               <button type="button" className="btn btn-secondary" disabled={notes === (record.notes ?? "") || save.state === "saving"} onClick={async () => (await save.run()) && onChanged()}>
-                Save notes
+                {t("outsideTabs.saveNotes")}
               </button>
               <Link to={`${base}/funders/${record.id}`} className="small b">
-                Open the funder record (contacts, past asks)
+                {t("outsideTabs.openTheFunderRecordContactsPast")}
               </Link>
             </div>
           </>
         ) : (
           <>
-            <p className="muted">There is no funder record for {detail.funderName || "this funder"} yet. A record keeps contacts, notes, who holds the portal login, and every ask you have made.</p>
+            <p className="muted">{detail.funderName ? t("outsideTabs.noRecordFor", { funder: detail.funderName }) : t("outsideTabs.noRecordForThisFunder")}</p>
             <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} disabled={!detail.funderName || create.state === "saving"} onClick={async () => (await create.run()) && onChanged()}>
               <Plus className="ic" aria-hidden="true" />
-              Create a funder record
+              {t("outsideTabs.createAFunderRecord")}
             </button>
           </>
         )}
-        {save.error ? <ErrorBanner error={save.error} title="The notes were not saved" /> : null}
-        {create.error ? <ErrorBanner error={create.error} title="The funder record was not created" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideTabs.theNotesWereNotSaved")} /> : null}
+        {create.error ? <ErrorBanner error={create.error} title={t("outsideTabs.theFunderRecordWasNotCreated")} /> : null}
       </div>
     </section>
   );
@@ -181,44 +183,44 @@ function CustomFields({ detail, readOnly, onChanged }: { detail: OutsideDetail; 
       <div className="card-h">
         <div>
           <h2 id="ont-fields" style={{ fontSize: "18px" }}>
-            Your own fields
+            {t("outsideTabs.yourOwnFields")}
           </h2>
-          <p className="small muted">Anything else to keep with this application: a program officer, an internal code. Up to 30.</p>
+          <p className="small muted">{t("outsideTabs.anythingElseToKeepWithThis")}</p>
         </div>
         <SaveNote state={save.state === "saved" && !dirty ? "saved" : "idle"} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {rows.length === 0 && <p className="muted">No fields yet.</p>}
+        {rows.length === 0 && <p className="muted">{t("outsideTabs.noFieldsYet")}</p>}
         {rows.map((r, i) => (
           <div key={i} className="row" style={{ gap: "8px" }}>
             <label className="sr" htmlFor={`ocf-k-${i}`}>
-              Field name {i + 1}
+              {t("outsideTabs.fieldName", { n: i + 1 })}
             </label>
-            <input id={`ocf-k-${i}`} className={dupes.has(r.k.trim().toLowerCase()) ? "inp err" : "inp"} placeholder="Name" readOnly={readOnly} value={r.k} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} />
+            <input id={`ocf-k-${i}`} className={dupes.has(r.k.trim().toLowerCase()) ? "inp err" : "inp"} placeholder={t("outsideTabs.name")} readOnly={readOnly} value={r.k} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} />
             <label className="sr" htmlFor={`ocf-v-${i}`}>
-              Value of {r.k || `field ${i + 1}`}
+              {r.k ? t("outsideTabs.valueOf", { name: r.k }) : t("outsideTabs.valueOfField", { n: i + 1 })}
             </label>
-            <input id={`ocf-v-${i}`} className="inp" placeholder="Value" readOnly={readOnly} value={r.v} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} />
+            <input id={`ocf-v-${i}`} className="inp" placeholder={t("outsideTabs.value")} readOnly={readOnly} value={r.v} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} />
             {!readOnly && (
-              <button type="button" className="iconbtn" aria-label={`Remove ${r.k || `field ${i + 1}`}`} onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+              <button type="button" className="iconbtn" aria-label={r.k ? t("outsideTabs.removeName", { name: r.k }) : t("outsideTabs.removeField", { n: i + 1 })} onClick={() => setRows(rows.filter((_, j) => j !== i))}>
                 <X className="ic" aria-hidden="true" />
               </button>
             )}
           </div>
         ))}
-        {dupes.size > 0 && <span className="err-msg" role="alert">Each field needs its own name.</span>}
+        {dupes.size > 0 && <span className="err-msg" role="alert">{t("outsideTabs.eachFieldNeedsItsOwnName")}</span>}
         {!readOnly && (
           <div className="row" style={{ gap: "8px" }}>
             <button type="button" className="btn btn-sm btn-secondary" disabled={rows.length >= 30} onClick={() => setRows([...rows, { k: "", v: "" }])}>
               <Plus className="ic" aria-hidden="true" />
-              Add a field
+              {t("outsideTabs.addAField")}
             </button>
             <button type="button" className="btn btn-sm btn-primary" disabled={!dirty || dupes.size > 0 || save.state === "saving"} onClick={async () => (await save.run()) && onChanged()}>
-              Save fields
+              {t("outsideTabs.saveFields")}
             </button>
           </div>
         )}
-        {save.error ? <ErrorBanner error={save.error} title="The fields were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideTabs.theFieldsWereNotSaved")} /> : null}
       </div>
     </section>
   );
@@ -230,9 +232,9 @@ export function NotesTab({ detail, record, base, readOnly, onChanged }: { detail
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         <FunderNotes key={record?.id ?? "none"} detail={detail} record={record} base={base} onChanged={onChanged} />
         {(detail.decisionNotes || detail.nextCycleOn) && (
-          <Notice tone="neu" title="Decision notes">
+          <Notice tone="neu" title={t("outsideTabs.decisionNotes")}>
             {detail.decisionNotes}
-            {detail.nextCycleOn ? ` Next cycle: ${formatDate(detail.nextCycleOn)}.` : ""}
+            {detail.nextCycleOn ? ` ${t("outsideTabs.nextCycle", { date: formatDate(detail.nextCycleOn) })}` : ""}
           </Notice>
         )}
       </div>
@@ -243,28 +245,29 @@ export function NotesTab({ detail, record, base, readOnly, onChanged }: { detail
 
 // ------------------------------------------------------------------------------------ activity
 
-const stageWord = (s: unknown) => (typeof s === "string" ? (STAGE_LABELS[s as OutsideStage] ?? s.replace(/_/g, " ")) : "");
-function describe(e: OutsideEvent): string {
+const stageWord = (s: unknown) => (typeof s === "string" ? stageLabel(s) : "");
+/** What someone did, as one sentence with their name in it. */
+function describe(e: OutsideEvent, who: string): string {
   const d = e.data ?? {};
   switch (e.type.replace(/^outside_application\./, "")) {
     case "created":
-      return d.source === "opengrants" ? "added it from an OpenGrants listing" : d.source === "import" ? "imported it" : "added it to your applications";
+      return d.source === "opengrants" ? t("outsideTabs.event.createdListing", { who }) : d.source === "import" ? t("outsideTabs.event.imported", { who }) : t("outsideTabs.event.created", { who });
     case "stage_changed":
-      return `moved it from ${stageWord(d.from)} to ${stageWord(d.to)}`;
+      return t("outsideTabs.event.moved", { who, from: stageWord(d.from), to: stageWord(d.to) });
     case "submitted":
-      return "marked it as submitted";
+      return t("outsideTabs.event.submitted", { who });
     case "decided":
-      return `recorded the decision: ${stageWord(d.outcome)}`;
+      return t("outsideTabs.event.decided", { who, outcome: stageWord(d.outcome) });
     case "reopened":
-      return `reopened it${d.to ? ` at ${stageWord(d.to)}` : ""}`;
+      return d.to ? t("outsideTabs.event.reopenedAt", { who, stage: stageWord(d.to) }) : t("outsideTabs.event.reopened", { who });
     case "archived":
-      return "archived it";
+      return t("outsideTabs.event.archived", { who });
     case "unarchived":
-      return "brought it back from the archive";
+      return t("outsideTabs.event.unarchived", { who });
     case "consulting_requested":
-      return "asked OpenGrants consulting for help";
+      return t("outsideTabs.event.consulting", { who });
     default:
-      return e.type.replace(/^outside_application\./, "").replace(/_/g, " ");
+      return `${who} ${e.type.replace(/^outside_application\./, "").replace(/_/g, " ")}`;
   }
 }
 
@@ -287,18 +290,18 @@ export function ActivityTab({ detail, members }: { detail: OutsideDetail; member
       <div className="card-h">
         <div>
           <h2 id="oac-h" style={{ fontSize: "18px" }}>
-            Activity
+            {t("outsideTabs.activity")}
           </h2>
-          <p className="small muted">Who moved this application and when. Answer text is never logged here.</p>
+          <p className="small muted">{t("outsideTabs.whoMovedThisApplicationAndWhen")}</p>
         </div>
       </div>
       <div className="card-b">
         {events.length === 0 ? (
-          <p className="muted">Nothing recorded yet.</p>
+          <p className="muted">{t("outsideTabs.nothingRecordedYet")}</p>
         ) : (
-          <ol className="tl" aria-label="Activity">
+          <ol className="tl" aria-label={t("outsideTabs.activity")}>
             {events.map((e) => {
-              const who = e.actor ? actorOf(e.actor, personName) : { kind: "person" as const, name: "Your team" };
+              const who = e.actor ? actorOf(e.actor, personName) : { kind: "person" as const, name: t("outsideTabs.yourTeam") };
               const Icon = who.kind === "agent" ? Bot : who.kind === "system" ? Clock : User;
               return (
                 <li key={e.id} className={`tl-i ${who.kind === "agent" ? "tl-agent" : who.kind === "person" ? "tl-person" : ""}`}>
@@ -307,7 +310,7 @@ export function ActivityTab({ detail, members }: { detail: OutsideDetail; member
                   </span>
                   <div>
                     <div className="what">
-                      {who.name} {describe(e)}
+                      {describe(e, who.name)}
                     </div>
                     <div className="who">
                       {formatDate(e.at)} · {timeAgo(e.at)}
@@ -349,20 +352,20 @@ export function EditDetailsDialog({ app, members, records, onClose, onDone }: { 
     <Dialog open onClose={onClose} labelledBy="oed-title" size="lg">
       <div className="hd">
         <h3 id="oed-title" style={{ fontSize: "16px" }}>
-          Edit details
+          {t("outsideTabs.editDetails")}
         </h3>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideTabs.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
-        <Field id="oed-t" label="Title" required>
+        <Field id="oed-t" label={t("outsideTabs.title")} required>
           <input id="oed-t" className="inp" value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-          <Field id="oed-rec" label="Funder record">
+          <Field id="oed-rec" label={t("outsideTabs.funderRecord")}>
             <select id="oed-rec" className="sel" value={recordId} onChange={(e) => setRecordId(e.target.value)}>
-              <option value="">No record (type the name)</option>
+              <option value="">{t("outsideTabs.noRecordTypeTheName")}</option>
               {records.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -370,15 +373,15 @@ export function EditDetailsDialog({ app, members, records, onClose, onDone }: { 
               ))}
             </select>
           </Field>
-          <Field id="oed-f" label="Funder name" required>
+          <Field id="oed-f" label={t("outsideTabs.funderName")} required>
             <input id="oed-f" className="inp" disabled={!!recordId} value={recordId ? (records.find((r) => r.id === recordId)?.name ?? funder) : funder} onChange={(e) => setFunder(e.target.value)} />
           </Field>
-          <Field id="oed-p" label="Program">
+          <Field id="oed-p" label={t("outsideTabs.program")}>
             <input id="oed-p" className="inp" value={program} onChange={(e) => setProgram(e.target.value)} />
           </Field>
-          <Field id="oed-o" label="Owner" help="Gets the deadline reminders.">
+          <Field id="oed-o" label={t("outsideTabs.owner")} help={t("outsideTabs.getsTheDeadlineReminders")}>
             <select id="oed-o" className="sel" value={owner} onChange={(e) => setOwner(e.target.value)}>
-              <option value="">No owner</option>
+              <option value="">{t("outsideTabs.noOwner")}</option>
               {members.map((m) => (
                 <option key={m.userId} value={m.userId}>
                   {m.name ?? m.email}
@@ -386,43 +389,43 @@ export function EditDetailsDialog({ app, members, records, onClose, onDone }: { 
               ))}
             </select>
           </Field>
-          <Field id="oed-a" label="Ask (USD)" error={askBad ? "Enter the amount in dollars, such as 25000" : null}>
+          <Field id="oed-a" label={t("outsideTabs.askUsd")} error={askBad ? t("outsideTabs.badAmount") : null}>
             <input id="oed-a" className="inp" inputMode="decimal" value={ask} onChange={(e) => setAsk(e.target.value)} />
           </Field>
           <div className="fld">
-            <span className="lbl">Ask by year</span>
+            <span className="lbl">{t("outsideTabs.askByYear")}</span>
             {years.map((y, i) => (
               <div key={i} className="row" style={{ gap: "6px" }}>
                 <label className="sr" htmlFor={`oed-y-${i}`}>
-                  Year {i + 1}
+                  {t("outsideTabs.yearN", { n: i + 1 })}
                 </label>
                 <input id={`oed-y-${i}`} className="inp" inputMode="numeric" style={{ maxWidth: "90px" }} value={y.year} onChange={(e) => setYears(years.map((x, j) => (j === i ? { ...x, year: e.target.value } : x)))} />
                 <label className="sr" htmlFor={`oed-ya-${i}`}>
-                  Ask for year {i + 1}
+                  {t("outsideTabs.askForYear", { n: i + 1 })}
                 </label>
                 <input id={`oed-ya-${i}`} className="inp" inputMode="decimal" value={y.amount} onChange={(e) => setYears(years.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} />
-                <button type="button" className="iconbtn" aria-label={`Remove year ${i + 1}`} onClick={() => setYears(years.filter((_, j) => j !== i))}>
+                <button type="button" className="iconbtn" aria-label={t("outsideTabs.removeYear", { n: i + 1 })} onClick={() => setYears(years.filter((_, j) => j !== i))}>
                   <X className="ic" aria-hidden="true" />
                 </button>
               </div>
             ))}
             <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} onClick={() => setYears([...years, { year: String(new Date().getUTCFullYear() + years.length), amount: "" }])}>
-              Add a year
+              {t("outsideTabs.addAYear")}
             </button>
-            {byYear.length > 0 && <span className="help">Total by year: {formatMinor(byYear.reduce((s, y) => s + y.amountMinor, 0))}</span>}
+            {byYear.length > 0 && <span className="help">{t("outsideTabs.totalByYear", { amount: formatMinor(byYear.reduce((s, y) => s + y.amountMinor, 0)) })}</span>}
           </div>
-          <Field id="oed-l" label="Listing link" error={linkBad(listing) ? "Enter a full web address, starting with https://" : null}>
+          <Field id="oed-l" label={t("outsideTabs.listingLink")} error={linkBad(listing) ? t("outsideTabs.badAddress") : null}>
             <input id="oed-l" className="inp" type="url" value={listing} onChange={(e) => setListing(e.target.value)} />
           </Field>
-          <Field id="oed-po" label="Funder’s portal link" error={linkBad(portal) ? "Enter a full web address, starting with https://" : null}>
+          <Field id="oed-po" label={t("outsideTabs.fundersPortalLink")} error={linkBad(portal) ? t("outsideTabs.badAddress") : null}>
             <input id="oed-po" className="inp" type="url" value={portal} onChange={(e) => setPortal(e.target.value)} />
           </Field>
         </div>
-        {save.error ? <ErrorBanner error={save.error} title="The details were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideTabs.theDetailsWereNotSaved")} /> : null}
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("outsideTabs.cancel")}
         </button>
         <button
           className="btn btn-primary"
@@ -443,7 +446,7 @@ export function EditDetailsDialog({ app, members, records, onClose, onDone }: { 
             if (a) onDone(a);
           }}
         >
-          {save.state === "saving" ? "Saving…" : "Save details"}
+          {save.state === "saving" ? t("outsideTabs.saving") : t("outsideTabs.saveDetails")}
         </button>
       </div>
     </Dialog>

@@ -10,6 +10,7 @@ import type { AdaptedDraft } from "../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../api/applicantFullHooks.ts";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { ErrorBanner, Field } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 
@@ -34,53 +35,52 @@ export function AdaptPanel({ answer }: { answer: Answer }) {
     <section className="assist" aria-labelledby="adapt-h">
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <h3 id="adapt-h">Adapt “{answer.title}” to a question</h3>
-        <span className="draft-mark">Draft — review before use</span>
+        <h3 id="adapt-h">{t("answerAdapt.title", { title: answer.title })}</h3>
+        <span className="draft-mark">{t("answerAdapt.draftReviewBeforeUse")}</span>
         {quota && quota.limit !== undefined ? (
           <span className="quota">
-            {quota.used ?? 0} of {quota.limit} this month
+            {t("answerAdapt.quota", { used: quota.used ?? 0, limit: quota.limit })}
           </span>
         ) : null}
       </div>
       <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-        <Field id="adapt-question" label="Target question" help="Paste the question from the application.">
+        <Field id="adapt-question" label={t("answerAdapt.targetQuestion")} help={t("answerAdapt.pasteTheQuestionFromTheApplication")}>
           <textarea id="adapt-question" className="ta" style={{ minHeight: "56px" }} value={question} onChange={(e) => setQuestion(e.target.value)} />
         </Field>
-        <Field id="adapt-limit" label="Word limit">
+        <Field id="adapt-limit" label={t("answerAdapt.wordLimit")}>
           <input id="adapt-limit" className="inp" inputMode="numeric" style={{ maxWidth: "120px" }} value={maxWords} onChange={(e) => setMaxWords(e.target.value)} />
         </Field>
         <dl className="kv" style={{ fontSize: "14px" }}>
-          <dt>Source</dt>
+          <dt>{t("answerAdapt.source")}</dt>
           <dd>
-            {answer.title} v{answer.version} ({answer.words} words)
+            {t("answerAdapt.sourceLine", { title: answer.title, version: String(answer.version), count: answer.words })}
           </dd>
         </dl>
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
           <button type="button" className="btn btn-primary" disabled={spent || !question.trim() || adapt.state === "saving"} onClick={() => void run()}>
             <Sparkles className="ic" aria-hidden="true" />
-            {adapt.state === "saving" ? "Adapting…" : "Adapt"}
+            {adapt.state === "saving" ? t("answerAdapt.adapting") : t("answerAdapt.adapt")}
           </button>
-          <span className="help">Nothing is written into an application until you insert it yourself.</span>
+          <span className="help">{t("answerAdapt.nothingIsWrittenIntoAnApplication")}</span>
         </div>
         {spent ? <QuotaSpentNote resetsAt={quota?.resetsAt} /> : null}
-        {adapt.error ? <ErrorBanner error={adapt.error} title="The assistant could not draft this" /> : null}
+        {adapt.error ? <ErrorBanner error={adapt.error} title={t("answerAdapt.theAssistantCouldNotDraftThis")} /> : null}
         {draft ? (
           <div style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "14px 16px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "8px", fontSize: "15px" }} role="status">
             <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
               <span className="attrib">
                 <Bot className="ic" aria-hidden="true" />
-                Draft by <span className="ag">GMS Assistant</span>
+                {t.rich("answerAdapt.draftBy", { ag: (chunks) => <span className="ag">{chunks}</span> })}
               </span>
               <span className={draft.overLimit ? "counter over" : "counter"}>
-                {words(draft.text)}
-                {Number.isFinite(limit) && limit > 0 ? ` / ${limit}` : ""} words
+                {Number.isFinite(limit) && limit > 0 ? t("answerAdapt.wordsOfLimit", { count: words(draft.text), limit }) : t("answerAdapt.wordsCount", { count: words(draft.text) })}
               </span>
             </div>
             <p style={{ whiteSpace: "pre-wrap" }}>{draft.text}</p>
             <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-              <CopyButton value={draft.text} what="the draft" label="Copy draft" className="btn btn-sm btn-primary" />
+              <CopyButton value={draft.text} what={t("answerAdapt.theDraft")} label={t("answerAdapt.copyDraft")} className="btn btn-sm btn-primary" />
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDraft(null)}>
-                Discard
+                {t("answerAdapt.discard")}
               </button>
             </div>
           </div>

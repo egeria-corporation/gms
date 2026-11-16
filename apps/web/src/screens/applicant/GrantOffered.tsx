@@ -16,10 +16,11 @@ import { accentOf, FunderChip, isNotFound, Loaded } from "../../components/appli
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
-import { StatusBadge } from "../../components/status.tsx";
+import { StatusBadge, statusLook } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { BeforeYouSign, GrantDocuments, GrantMessages } from "./grantExtras.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 interface GrantsData {
   awards: Award[];
@@ -44,7 +45,8 @@ const rowReceived = (r: GrantRow) => (r.kind === "gms" ? (r.w.disbursedAmountMin
 const rowCurrency = (r: GrantRow) => (r.kind === "gms" ? r.w.currency : (r.o.awardedAmount?.currency ?? "USD"));
 
 const AGREEMENT_STEPS = ["draft", "sent", "signed_by_grantee", "countersigned", "executed"] as const;
-const AGREEMENT_LABELS: Record<(typeof AGREEMENT_STEPS)[number], string> = { draft: "Draft", sent: "Sent", signed_by_grantee: "Signed by grantee", countersigned: "Countersigned", executed: "Executed" };
+/** Each step's name, as the agreement's status badge reads it. */
+const agreementStepLabel = (s: (typeof AGREEMENT_STEPS)[number]) => statusLook("agreement", s).label;
 const period = (keyDates: Record<string, unknown>) => {
   const p = keyDates.periodOfPerformance as { startDate?: string; endDate?: string } | undefined;
   return p?.startDate && p.endDate ? `${formatDate(p.startDate)} – ${formatDate(p.endDate)}` : null;
@@ -63,77 +65,79 @@ function SignDialog({ award, agreement, open, onClose, onSigned }: { award: Awar
       <div className="hd">
         <div>
           <h2 id="sign-title" style={{ fontSize: "20px" }}>
-            Sign the grant agreement
+            {t("grantOffered.signTheGrantAgreement")}
           </h2>
           <p className="small muted" style={{ marginTop: "4px" }}>
             {award.funder.name} · {award.title} · {formatMinor(award.awardedAmountMinor, award.currency)}
           </p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("grantOffered.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: "20px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <span className="eyebrow">Document</span>
+          <span className="eyebrow">{t("grantOffered.document")}</span>
           <div className="card" style={{ padding: "16px 18px", fontSize: "14px", lineHeight: 1.6, display: "flex", flexDirection: "column", gap: "8px" }}>
             <div className="b" style={{ fontFamily: "var(--font-display)", fontSize: "16px" }}>
-              Grant Agreement — {award.title}
+              {t("grantOffered.agreementTitle", { title: award.title })}
             </div>
             <p>
-              Between {award.funder.name} and {award.recipient?.name ?? ws.name}, for {formatMinor(award.awardedAmountMinor, award.currency)}
-              {period(award.keyDates) ? `, ${period(award.keyDates)}` : ""}.
+              {period(award.keyDates)
+                ? t("grantOffered.betweenPeriod", { funder: award.funder.name, recipient: award.recipient?.name ?? ws.name, amount: formatMinor(award.awardedAmountMinor, award.currency), period: period(award.keyDates) })
+                : t("grantOffered.between", { funder: award.funder.name, recipient: award.recipient?.name ?? ws.name, amount: formatMinor(award.awardedAmountMinor, award.currency) })}
             </p>
-            <p className="small muted">Read the full agreement before signing. What you sign is the exact document with the hash below.</p>
+            <p className="small muted">{t("grantOffered.readTheFullAgreementBeforeSigning")}</p>
           </div>
           <div className="row small muted" style={{ gap: "6px", flexWrap: "wrap" }}>
             <Hash className="ic" aria-hidden="true" />
-            Document hash <span className="mono">sha256 {shortHash(agreement.documentSha256)}</span> · version {agreement.version}
+            {t("grantOffered.documentHash")} <samp className="mono">sha256 {shortHash(agreement.documentSha256)}</samp> · {t("grantOffered.versionN", { version: String(agreement.version) })}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <div className="fld">
             <label className="lbl" htmlFor="sign-name">
-              Type your full legal name
+              {t("grantOffered.typeYourFullLegalName")}
             </label>
             <input className="inp" id="sign-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" style={{ fontFamily: "var(--font-emphasis)", fontStyle: "italic", fontSize: "20px", height: "48px" }} />
-            <span className="help">{verified.length > 0 ? `Signing is for a verified representative. The name must match one in Passport: ${verified.join(", ")}.` : "Signing is for a workspace admin who is authorized to bind the organization."}</span>
+            <span className="help">{verified.length > 0 ? t("grantOffered.signingVerified", { names: verified.join(", ") }) : t("grantOffered.signingIsForAWorkspaceAdmin")}</span>
           </div>
           <label className="cb" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} style={{ width: "18px", height: "18px", marginTop: "2px" }} />
             <span>
-              I am authorized to sign for {award.recipient?.name ?? ws.name} and agree to the terms above.
+              {t("grantOffered.authorized", { organization: award.recipient?.name ?? ws.name })}
             </span>
           </label>
           <div className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px", fontSize: "14px" }}>
-            <span className="eyebrow">What is recorded</span>
+            <span className="eyebrow">{t("grantOffered.whatIsRecorded")}</span>
             <span className="row" style={{ gap: "8px" }}>
               <User className="ic" aria-hidden="true" />
-              Typed name{name.trim() ? ` · ${name.trim()}` : ""}
+              {t("grantOffered.typedName")}
+              {name.trim() ? ` · ${name.trim()}` : ""}
             </span>
             <span className="row" style={{ gap: "8px" }}>
               <Clock className="ic" aria-hidden="true" />
-              Time of signing (UTC)
+              {t("grantOffered.timeOfSigningUtc")}
             </span>
             <span className="row" style={{ gap: "8px" }}>
               <Globe className="ic" aria-hidden="true" />
-              IP address of this session
+              {t("grantOffered.ipAddressOfThisSession")}
             </span>
             <span className="row" style={{ gap: "8px" }}>
               <Hash className="ic" aria-hidden="true" />
-              Document hash · sha256 {shortHash(agreement.documentSha256)}
+              {t("grantOffered.documentHash")} · <samp>sha256 {shortHash(agreement.documentSha256)}</samp>
             </span>
           </div>
           <div className="notice" style={{ alignItems: "flex-start" }}>
             <Lock className="ic" aria-hidden="true" />
-            Signing is a human gate: a connected agent can prepare this agreement but can never sign it.
+            {t("grantOffered.signingIsAHumanGateA")}
           </div>
-          {sign.error ? <ErrorBanner error={sign.error} title="The agreement was not signed" /> : null}
+          {sign.error ? <ErrorBanner error={sign.error} title={t("grantOffered.theAgreementWasNotSigned")} /> : null}
         </div>
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("grantOffered.cancel")}
         </button>
         <button
           className="btn btn-primary btn-lg"
@@ -145,7 +149,7 @@ function SignDialog({ award, agreement, open, onClose, onSigned }: { award: Awar
           }}
         >
           <PenLine className="ic" aria-hidden="true" />
-          {sign.state === "saving" ? "Signing…" : "Sign agreement"}
+          {sign.state === "saving" ? t("grantOffered.signing") : t("grantOffered.signAgreement")}
         </button>
       </div>
     </Dialog>
@@ -153,6 +157,7 @@ function SignDialog({ award, agreement, open, onClose, onSigned }: { award: Awar
 }
 
 export default function GrantOffered() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
@@ -171,19 +176,19 @@ export default function GrantOffered() {
 
   return (
     <>
-      <title>{`Awarded funding — ${ws.name}`}</title>
+      <title>{t("grantOffered.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Awarded funding">
         <main className="main">
-          <Loaded query={query} label="Loading your grants">
+          <Loaded query={query} label={t("grantOffered.loadingYourGrants")}>
             {({ awards, award, agreement }) => {
               const rows: GrantRow[] = [...awards.map((w): GrantRow => ({ kind: "gms", key: `gms:${w.id}`, w })), ...outsideAwards.map((o): GrantRow => ({ kind: "outside", key: `outside:${o.id}`, o }))];
               const total = rows.reduce((n, r) => n + (rowAwarded(r) ?? 0), 0);
               const received = rows.reduce((n, r) => n + rowReceived(r), 0);
               const columns: Column<GrantRow>[] = [
-                { key: "funder", header: "Funder", cell: (r) => (r.kind === "gms" ? <FunderChip name={r.w.funder.name} accent={accentOf(r.w.funder.brand)} /> : <FunderChip name={r.o.funderName} accent={accentOf(undefined)} />), sort: rowFunder },
+                { key: "funder", header: t("grantOffered.col.funder"), cell: (r) => (r.kind === "gms" ? <FunderChip name={r.w.funder.name} accent={accentOf(r.w.funder.brand)} /> : <FunderChip name={r.o.funderName} accent={accentOf(undefined)} />), sort: rowFunder },
                 {
                   key: "title",
-                  header: "Title",
+                  header: t("grantOffered.col.title"),
                   sort: rowTitle,
                   cell: (r) => (
                     <div className="ent">
@@ -191,26 +196,26 @@ export default function GrantOffered() {
                         {rowTitle(r)}
                       </Link>
                       <span className="small">
-                        <span className="tag">{r.kind === "gms" ? "On this GMS" : "Outside award"}</span>
+                        <span className="tag">{r.kind === "gms" ? t("grantOffered.onThisGms") : t("grantOffered.outsideAward")}</span>
                       </span>
                     </div>
                   ),
                 },
-                { key: "awarded", header: "Awarded", numeric: true, cell: (r) => formatMinor(rowAwarded(r), rowCurrency(r)), sort: rowAwarded },
-                { key: "received", header: "Received", numeric: true, cell: (r) => formatMinor(rowReceived(r), rowCurrency(r)), sort: rowReceived },
-                { key: "remaining", header: "Remaining", numeric: true, cell: (r) => formatMinor((rowAwarded(r) ?? 0) - rowReceived(r), rowCurrency(r)) },
+                { key: "awarded", header: t("grantOffered.awarded"), numeric: true, cell: (r) => formatMinor(rowAwarded(r), rowCurrency(r)), sort: rowAwarded },
+                { key: "received", header: t("grantOffered.col.received"), numeric: true, cell: (r) => formatMinor(rowReceived(r), rowCurrency(r)), sort: rowReceived },
+                { key: "remaining", header: t("grantOffered.remaining"), numeric: true, cell: (r) => formatMinor((rowAwarded(r) ?? 0) - rowReceived(r), rowCurrency(r)) },
                 {
                   key: "status",
-                  header: "Status",
+                  header: t("grantOffered.col.status"),
                   cell: (r) =>
                     r.kind === "gms" ? (
                       <StatusBadge kind="award" status={r.w.status} />
                     ) : (
                       <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
-                        <StatusBadge kind="outside" status="awarded" label={r.o.closedOutAt ? "Closed out" : undefined} />
+                        <StatusBadge kind="outside" status="awarded" label={r.o.closedOutAt ? t("grantOffered.closedOut") : undefined} />
                         {r.o.nextDue && !r.o.closedOutAt && (
                           <span className="small muted" style={{ whiteSpace: "normal", maxWidth: "220px" }}>
-                            Next: {r.o.nextDue.title}, {formatDate(r.o.nextDue.dueOn)}
+                            {t("grantOffered.next", { title: r.o.nextDue.title, date: formatDate(r.o.nextDue.dueOn) })}
                           </span>
                         )}
                       </span>
@@ -218,31 +223,31 @@ export default function GrantOffered() {
                 },
               ];
               const step = agreement ? AGREEMENT_STEPS.indexOf(agreement.status as (typeof AGREEMENT_STEPS)[number]) : -1;
-              const first = award?.tranches.find((t) => t.seq === 1);
+              const first = award?.tranches.find((tr) => tr.seq === 1);
               return (
                 <>
                   <div className="ph">
                     <div>
-                      <h1>Awarded funding</h1>
+                      <h1>{t("grantOffered.awardedFunding")}</h1>
                       <div className="meta">
                         <span>
-                          {rows.length} grant{rows.length === 1 ? "" : "s"} · {formatMinor(total)} awarded · {formatMinor(received)} received
+                          {t("grantOffered.summary", { count: rows.length, awarded: formatMinor(total), received: formatMinor(received) })}
                         </span>
                         <span aria-hidden="true">·</span>
-                        <Link to={`${base}/summary`}>Funding summary</Link>
+                        <Link to={`${base}/summary`}>{t("grantOffered.fundingSummary")}</Link>
                       </div>
                     </div>
                   </div>
 
                   <DataTable
-                    label="Grants"
+                    label={t("grantOffered.grants")}
                     columns={columns}
                     rows={rows}
                     rowKey={(r) => r.key}
                     selectedKey={award ? `gms:${award.id}` : null}
                     empty={
-                      <EmptyState icon={AwardIcon} title="No grants yet">
-                        An award appears here when a funder on this GMS offers one, or when you record an award on an application to a funder anywhere else.
+                      <EmptyState icon={AwardIcon} title={t("grantOffered.noGrantsYet")}>
+                        {t("grantOffered.anAwardAppearsHereWhenA")}
                       </EmptyState>
                     }
                   />
@@ -255,33 +260,33 @@ export default function GrantOffered() {
                           <h2 style={{ fontSize: "20px" }}>{award.title}</h2>
                           <StatusBadge kind="award" status={award.status} large />
                           <span className="small muted" style={{ marginLeft: "auto" }}>
-                            Award <span className="mono">{award.id}</span>
-                            {period(award.keyDates) ? ` · period ${period(award.keyDates)}` : ""}
+                            {t("grantOffered.awardWord")} <span className="mono">{award.id}</span>
+                            {period(award.keyDates) ? ` · ${t("grantOffered.period", { period: period(award.keyDates) })}` : ""}
                           </span>
                         </div>
                         <div className="amounts" style={{ flexWrap: "wrap" }}>
                           <div>
-                            <div className="stat-l">Awarded</div>
+                            <div className="stat-l">{t("grantOffered.awarded")}</div>
                             <div className="stat-v">{formatMinor(award.awardedAmountMinor, award.currency)}</div>
                           </div>
                           <div>
-                            <div className="stat-l">Disbursed</div>
+                            <div className="stat-l">{t("grantOffered.disbursed")}</div>
                             <div className="stat-v">{formatMinor(award.disbursedAmountMinor ?? 0, award.currency)}</div>
                           </div>
                           <div>
-                            <div className="stat-l">Remaining</div>
+                            <div className="stat-l">{t("grantOffered.remaining")}</div>
                             <div className="stat-v">{formatMinor((award.awardedAmountMinor ?? 0) - (award.disbursedAmountMinor ?? 0), award.currency)}</div>
                           </div>
                         </div>
-                        {accept.error ? <ErrorBanner error={accept.error} title="The award was not accepted" /> : null}
+                        {accept.error ? <ErrorBanner error={accept.error} title={t("grantOffered.theAwardWasNotAccepted")} /> : null}
                         {award.status === "offered" && verified.length > 0 && (
                           <div className="fld" style={{ maxWidth: "460px" }}>
                             <label className="lbl" htmlFor="accept-name">
-                              Your full legal name
+                              {t("grantOffered.yourFullLegalName")}
                             </label>
                             <input className="inp" id="accept-name" value={acceptName} onChange={(e) => setAcceptName(e.target.value)} autoComplete="name" aria-describedby="accept-name-help" />
                             <span className="help" id="accept-name-help">
-                              Accepting is for a verified representative of your organization. The name must match one in Passport: {verified.join(", ")}.
+                              {t("grantOffered.acceptingVerified", { names: verified.join(", ") })}
                             </span>
                           </div>
                         )}
@@ -290,11 +295,11 @@ export default function GrantOffered() {
                             <Mail className="ic" aria-hidden="true" />
                             <div>
                               <div className="t">
-                                {award.funder.name} offered this award on {formatDate(award.createdAt)}.
+                                {t("grantOffered.offeredOn", { funder: award.funder.name, date: formatDate(award.createdAt) })}
                               </div>
                               <div className="d">
-                                Accepting opens the grant agreement for signature.
-                                {first ? ` The first tranche (${formatMinor(first.amountMinor, first.currency)}) is released after both signatures and a readiness check.` : ""}
+                                {t("grantOffered.acceptingOpens")}
+                                {first ? ` ${t("grantOffered.firstTranche", { amount: formatMinor(first.amountMinor, first.currency) })}` : ""}
                               </div>
                             </div>
                             <button
@@ -306,16 +311,16 @@ export default function GrantOffered() {
                                 if (next) query.set({ awards: awards.map((w) => (w.id === next.id ? { ...w, status: next.status } : w)), award: next, agreement });
                               }}
                             >
-                              {accept.state === "saving" ? "Accepting…" : "Accept award"}
+                              {accept.state === "saving" ? t("grantOffered.accepting") : t("grantOffered.acceptAward")}
                             </button>
                           </div>
                         )}
                         <div className="row" style={{ gap: "14px", flexWrap: "wrap" }}>
                           <Link to={`${base}/grants/${award.id}`} className="small b">
-                            Payments and schedule
+                            {t("grantOffered.paymentsAndSchedule")}
                           </Link>
                           <Link to={`${base}/reports`} className="small b">
-                            Reports
+                            {t("grantOffered.reports")}
                           </Link>
                         </div>
                       </div>
@@ -324,11 +329,11 @@ export default function GrantOffered() {
                         <div className="card-h">
                           <div>
                             <h2 id="agr-h" style={{ fontSize: "18px" }}>
-                              Grant agreement
+                              {t("grantOffered.grantAgreement")}
                             </h2>
                             {agreement && (
                               <p className="small muted">
-                                {award.funder.name} · version {agreement.version} · generated {formatDate(agreement.createdAt)}
+                                {award.funder.name} · {t("grantOffered.versionN", { version: String(agreement.version) })} · {t("grantOffered.generatedOn", { date: formatDate(agreement.createdAt) })}
                               </p>
                             )}
                           </div>
@@ -336,42 +341,34 @@ export default function GrantOffered() {
                         </div>
                         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                           {!agreement ? (
-                            <p className="muted">{award.funder.name} has not sent an agreement for this award.</p>
+                            <p className="muted">{t("grantOffered.noAgreement", { funder: award.funder.name })}</p>
                           ) : (
                             <>
-                              <ol className="stp" aria-label="Agreement status" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+                              <ol className="stp" aria-label={t("grantOffered.agreementStatus")} style={{ flexWrap: "wrap", rowGap: "8px" }}>
                                 {AGREEMENT_STEPS.map((s, i) => (
                                   <li key={s} style={{ display: "contents" }}>
                                     {i > 0 && <span className={i <= step ? "ln done" : "ln"} aria-hidden="true"></span>}
                                     <div className={i < step || (i === step && s === "executed") ? "s done" : i === step ? "s on" : "s"} aria-current={i === step ? "step" : undefined}>
                                       <span className="n">{i < step ? <Check className="ic ic-sm" aria-hidden="true" /> : i + 1}</span>
-                                      {AGREEMENT_LABELS[s]}
+                                      {agreementStepLabel(s)}
                                     </div>
                                   </li>
                                 ))}
                               </ol>
                               <div className="row small muted" style={{ gap: "6px", flexWrap: "wrap" }}>
                                 <Hash className="ic" aria-hidden="true" />
-                                Document hash <span className="mono">sha256 {shortHash(agreement.documentSha256)}</span>
-                                {agreement.granteeSignature && (
-                                  <span>
-                                    · signed by {agreement.granteeSignature.name} on {formatDate(agreement.granteeSignature.at)}
-                                  </span>
-                                )}
-                                {agreement.funderSignature && (
-                                  <span>
-                                    · countersigned by {agreement.funderSignature.name} on {formatDate(agreement.funderSignature.at)}
-                                  </span>
-                                )}
+                                {t("grantOffered.documentHash")} <samp className="mono">sha256 {shortHash(agreement.documentSha256)}</samp>
+                                {agreement.granteeSignature && <span>· {t("grantOffered.signedBy", { name: agreement.granteeSignature.name, date: formatDate(agreement.granteeSignature.at) })}</span>}
+                                {agreement.funderSignature && <span>· {t("grantOffered.countersignedBy", { name: agreement.funderSignature.name, date: formatDate(agreement.funderSignature.at) })}</span>}
                               </div>
-                              {agreement.status === "sent" && award.status === "offered" && <p className="small muted">Accept the award to sign the agreement.</p>}
+                              {agreement.status === "sent" && award.status === "offered" && <p className="small muted">{t("grantOffered.acceptTheAwardToSignThe")}</p>}
                               {agreement.status === "sent" && (
                                 <button className="btn btn-primary btn-lg" type="button" aria-haspopup="dialog" style={{ alignSelf: "flex-start" }} onClick={() => setSigning(true)}>
                                   <PenLine className="ic" aria-hidden="true" />
-                                  Review and sign
+                                  {t("grantOffered.reviewAndSign")}
                                 </button>
                               )}
-                              {agreement.status === "signed_by_grantee" && <p className="small muted">Waiting for {award.funder.name} to countersign. You will be told when the agreement is executed.</p>}
+                              {agreement.status === "signed_by_grantee" && <p className="small muted">{t("grantOffered.waitingCountersign", { funder: award.funder.name })}</p>}
                             </>
                           )}
                         </div>

@@ -15,6 +15,7 @@ import { DataTable, ErrorBanner, Field, PageHeader, SaveNote, type Column } from
 import { formatDate } from "../../lib/format.ts";
 import { webAddress } from "../../lib/outside.ts";
 import { moneyText } from "./outside/shared.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MAX_CONTACTS = 20;
@@ -24,7 +25,7 @@ function DetailsCard({ record, onSaved }: { record: Record_; onSaved: (r: Record
   const save = useOutsideMutation((api) =>
     api.updateFunderRecord(record.id, { name: f.name.trim(), website: f.website.trim() ? webAddress(f.website) : null, portalUrl: f.portalUrl.trim() ? webAddress(f.portalUrl) : null, portalLoginHolder: f.portalLoginHolder.trim() || null, notes: f.notes.trim() || null }),
   );
-  const bad = (v: string) => (v.trim() && !webAddress(v) ? "Enter a full web address, starting with https://" : null);
+  const bad = (v: string) => (v.trim() && !webAddress(v) ? t("funderRecord.badAddress") : null);
   const dirty = f.name !== record.name || f.website !== (record.website ?? "") || f.portalUrl !== (record.portalUrl ?? "") || f.portalLoginHolder !== (record.portalLoginHolder ?? "") || f.notes !== (record.notes ?? "");
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,32 +36,32 @@ function DetailsCard({ record, onSaved }: { record: Record_; onSaved: (r: Record
     <section className="card" aria-labelledby="fr-details">
       <div className="card-h">
         <h2 id="fr-details" style={{ fontSize: "18px" }}>
-          Details
+          {t("funderRecord.details")}
         </h2>
         <SaveNote state={save.state === "saved" && !dirty ? "saved" : "idle"} />
       </div>
       <form className="card-b" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        <Field id="fr-name" label="Name" required>
+        <Field id="fr-name" label={t("funderRecord.name")} required>
           <input id="fr-name" className="inp" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         </Field>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
-          <Field id="fr-web" label="Website" error={bad(f.website)}>
+          <Field id="fr-web" label={t("funderRecord.website")} error={bad(f.website)}>
             <input id="fr-web" className="inp" type="url" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} />
           </Field>
-          <Field id="fr-portal" label="Application portal" error={bad(f.portalUrl)}>
+          <Field id="fr-portal" label={t("funderRecord.applicationPortal")} error={bad(f.portalUrl)}>
             <input id="fr-portal" className="inp" type="url" value={f.portalUrl} onChange={(e) => setF({ ...f, portalUrl: e.target.value })} />
           </Field>
         </div>
-        <Field id="fr-holder" label="Who holds the portal login" help="A person’s name only. Never write a password here.">
+        <Field id="fr-holder" label={t("funderRecord.whoHoldsThePortalLogin")} help={t("funderRecord.aPersonsNameOnlyNeverWrite")}>
           <input id="fr-holder" className="inp" autoComplete="off" value={f.portalLoginHolder} onChange={(e) => setF({ ...f, portalLoginHolder: e.target.value })} />
         </Field>
-        <Field id="fr-notes" label="Notes">
+        <Field id="fr-notes" label={t("funderRecord.notes")}>
           <textarea id="fr-notes" className="ta" style={{ minHeight: "100px" }} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
         </Field>
         <button type="submit" className="btn btn-primary" style={{ alignSelf: "flex-start" }} disabled={!dirty || !f.name.trim() || !!bad(f.website) || !!bad(f.portalUrl) || save.state === "saving"}>
-          {save.state === "saving" ? "Saving…" : "Save details"}
+          {save.state === "saving" ? t("funderRecord.saving") : t("funderRecord.saveDetails")}
         </button>
-        {save.error ? <ErrorBanner error={save.error} title="The details were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("funderRecord.theDetailsWereNotSaved")} /> : null}
       </form>
     </section>
   );
@@ -78,39 +79,39 @@ function ContactsCard({ record, onSaved }: { record: Record_; onSaved: (r: Recor
       <div className="card-h">
         <div>
           <h2 id="fr-contacts" style={{ fontSize: "18px" }}>
-            Contacts
+            {t("funderRecord.contacts")}
           </h2>
-          <p className="small muted">Up to {MAX_CONTACTS} people at this funder.</p>
+          <p className="small muted">{t("funderRecord.upToContacts", { max: MAX_CONTACTS })}</p>
         </div>
         <SaveNote state={save.state === "saved" && !dirty ? "saved" : "idle"} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {rows.length === 0 && <p className="muted">No contacts yet.</p>}
+        {rows.length === 0 && <p className="muted">{t("funderRecord.noContactsYet")}</p>}
         {rows.map((c, i) => (
           <fieldset key={i} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", padding: "10px 12px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-            <legend className="small b">Contact {i + 1}</legend>
-            <Field id={`frc-n-${i}`} label="Name" required>
+            <legend className="small b">{t("funderRecord.contactN", { n: i + 1 })}</legend>
+            <Field id={`frc-n-${i}`} label={t("funderRecord.name")} required>
               <input id={`frc-n-${i}`} className="inp" value={c.name} onChange={(e) => set(i, { name: e.target.value })} />
             </Field>
-            <Field id={`frc-r-${i}`} label="Role">
+            <Field id={`frc-r-${i}`} label={t("funderRecord.role")}>
               <input id={`frc-r-${i}`} className="inp" value={c.role ?? ""} onChange={(e) => set(i, { role: e.target.value })} />
             </Field>
-            <Field id={`frc-e-${i}`} label="Email" error={c.email?.trim() && !EMAIL.test(c.email.trim()) ? "Enter a full email address" : null}>
+            <Field id={`frc-e-${i}`} label={t("funderRecord.email")} error={c.email?.trim() && !EMAIL.test(c.email.trim()) ? t("funderRecord.badEmail") : null}>
               <input id={`frc-e-${i}`} className="inp" type="email" value={c.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} />
             </Field>
-            <Field id={`frc-p-${i}`} label="Phone">
+            <Field id={`frc-p-${i}`} label={t("funderRecord.phone")}>
               <input id={`frc-p-${i}`} className="inp" type="tel" value={c.phone ?? ""} onChange={(e) => set(i, { phone: e.target.value })} />
             </Field>
             <button type="button" className="btn btn-sm btn-ghost" style={{ justifySelf: "start" }} onClick={() => setRows(rows.filter((_, j) => j !== i))}>
               <X className="ic" aria-hidden="true" />
-              Remove {c.name || `contact ${i + 1}`}
+              {c.name ? t("funderRecord.removeName", { name: c.name }) : t("funderRecord.removeContact", { n: i + 1 })}
             </button>
           </fieldset>
         ))}
         <div className="row" style={{ gap: "8px" }}>
           <button type="button" className="btn btn-sm btn-secondary" disabled={rows.length >= MAX_CONTACTS} onClick={() => setRows([...rows, { name: "" }])}>
             <Plus className="ic" aria-hidden="true" />
-            Add a contact
+            {t("funderRecord.addAContact")}
           </button>
           <button
             type="button"
@@ -124,10 +125,10 @@ function ContactsCard({ record, onSaved }: { record: Record_; onSaved: (r: Recor
               }
             }}
           >
-            Save contacts
+            {t("funderRecord.saveContacts")}
           </button>
         </div>
-        {save.error ? <ErrorBanner error={save.error} title="The contacts were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("funderRecord.theContactsWereNotSaved")} /> : null}
       </div>
     </section>
   );
@@ -137,37 +138,38 @@ function PastAsks({ record, base }: { record: Record_; base: string }) {
   const columns: Column<FunderRecordApplication>[] = [
     {
       key: "title",
-      header: "Application",
+      header: t("funderRecord.col.application"),
       cell: (a) => (
         <div className="ent">
           <Link className="nm" to={a.kind === "outside_application" ? `${base}/outside/${a.id}` : `${base}/applications/${a.id}`}>
             {a.title}
           </Link>
-          {a.kind === "gms_application" && <span className="small muted">On this GMS{a.nameMatch ? " · matched by the funder’s name" : ""}</span>}
+          {a.kind === "gms_application" && <span className="small muted">{a.nameMatch ? t("funderRecord.onThisGmsByName") : t("funderRecord.onThisGms")}</span>}
         </div>
       ),
     },
-    { key: "stage", header: "Stage", cell: (a) => (a.kind === "outside_application" && a.stage ? <StatusBadge kind="outside" status={a.stage} /> : a.status ? <StatusBadge kind="application" status={a.status} /> : "—") },
-    { key: "ask", header: "Ask", numeric: true, cell: (a) => moneyText(a.askAmount) },
-    { key: "awarded", header: "Awarded", numeric: true, cell: (a) => moneyText(a.awardedAmount) },
-    { key: "when", header: "Submitted", cell: (a) => formatDate(a.submittedAt) },
+    { key: "stage", header: t("funderRecord.col.stage"), cell: (a) => (a.kind === "outside_application" && a.stage ? <StatusBadge kind="outside" status={a.stage} /> : a.status ? <StatusBadge kind="application" status={a.status} /> : "—") },
+    { key: "ask", header: t("funderRecord.col.ask"), numeric: true, cell: (a) => moneyText(a.askAmount) },
+    { key: "awarded", header: t("funderRecord.col.awarded"), numeric: true, cell: (a) => moneyText(a.awardedAmount) },
+    { key: "when", header: t("funderRecord.col.submitted"), cell: (a) => formatDate(a.submittedAt) },
   ];
   return (
     <section className="card" aria-labelledby="fr-asks">
       <div className="card-h">
         <div>
           <h2 id="fr-asks" style={{ fontSize: "18px" }}>
-            Past asks
+            {t("funderRecord.pastAsks")}
           </h2>
-          <p className="small muted">Every application you have tracked to {record.name}.</p>
+          <p className="small muted">{t("funderRecord.everyTracked", { name: record.name })}</p>
         </div>
       </div>
-      <DataTable label="Past asks" columns={columns} rows={record.applications} rowKey={(a) => `${a.kind}:${a.id}`} empty={<p className="muted" style={{ padding: "16px 20px" }}>No applications to this funder yet.</p>} />
+      <DataTable label={t("funderRecord.pastAsks")} columns={columns} rows={record.applications} rowKey={(a) => `${a.kind}:${a.id}`} empty={<p className="muted" style={{ padding: "16px 20px" }}>{t("funderRecord.noApplicationsToThisFunderYet")}</p>} />
     </section>
   );
 }
 
 export default function FunderRecord() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
@@ -181,24 +183,24 @@ export default function FunderRecord() {
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.name} — ${ws.name}` : `Funder — ${ws.name}`}</title>
+      <title>{query.status === "ready" ? `${query.data.name} — ${ws.name}` : t("funderRecord.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Funders">
         <main className="main">
-          <Loaded query={query} label="Loading the funder">
+          <Loaded query={query} label={t("funderRecord.loadingTheFunder")}>
             {(record) => (
               <>
                 <PageHeader
-                  crumbs={[{ label: "Funders", to: `${base}/funders` }, { label: record.name }]}
+                  crumbs={[{ label: t("funderRecord.funders"), to: `${base}/funders` }, { label: record.name }]}
                   title={record.name}
                   meta={
                     <>
-                      <span>Your own record. The funder does not see it.</span>
+                      <span>{t("funderRecord.yourOwnRecordTheFunderDoes")}</span>
                       {record.website && (
                         <>
                           <span aria-hidden="true">·</span>
                           <a href={record.website} target="_blank" rel="noreferrer noopener">
-                            Website <ExternalLink className="ic ic-sm" aria-hidden="true" />
-                            <span className="sr"> (opens in a new tab)</span>
+                            {t("funderRecord.website")} <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                            <span className="sr"> {t("funderRecord.opensInANewTab")}</span>
                           </a>
                         </>
                       )}
@@ -214,22 +216,22 @@ export default function FunderRecord() {
                             if (await remove.run()) navigate(`${base}/funders`);
                           }}
                         >
-                          Delete this record
+                          {t("funderRecord.deleteThisRecord")}
                         </button>
                         <button type="button" className="btn btn-secondary" onClick={() => setConfirm(false)}>
-                          Keep it
+                          {t("funderRecord.keepIt")}
                         </button>
                       </>
                     ) : (
                       <button type="button" className="btn btn-ghost" onClick={() => setConfirm(true)}>
                         <Trash className="ic" aria-hidden="true" />
-                        Delete record
+                        {t("funderRecord.deleteRecord")}
                       </button>
                     )
                   }
                 />
-                {confirm && <p className="small muted">Applications to this funder are kept; they just lose the link to this record.</p>}
-                {remove.error ? <ErrorBanner error={remove.error} title="The record was not deleted" /> : null}
+                {confirm && <p className="small muted">{t("funderRecord.applicationsToThisFunderAreKept")}</p>}
+                {remove.error ? <ErrorBanner error={remove.error} title={t("funderRecord.theRecordWasNotDeleted")} /> : null}
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                     <DetailsCard record={record} onSaved={(r) => query.set(r)} />

@@ -8,13 +8,15 @@ import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
 import { StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { intlLocale } from "../../i18n/index.tsx";
+import { t } from "./i18n.ts";
 
 const DECIDED = ["accepted", "declined", "waitlisted"];
 
 const slotText = (v: unknown): string | null => {
   if (typeof v !== "string" || !v) return null;
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleString(intlLocale(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 };
 
 /**
@@ -42,12 +44,12 @@ export function InterviewSection({ status, funder }: { status: ApplicationStatus
     <section className="card" aria-labelledby="int-h">
       <div className="card-h">
         <h2 id="int-h" style={{ fontSize: "18px" }}>
-          Interview scheduling
+          {t("statusExtras.interviewScheduling")}
         </h2>
         {confirmed ? (
           <span className="bdg bdg-ok">
             <Check className="ic" aria-hidden="true" />
-            Time confirmed
+            {t("statusExtras.timeConfirmed")}
           </span>
         ) : status.status === "interview" ? (
           <StatusBadge kind="application" status="interview" />
@@ -55,17 +57,17 @@ export function InterviewSection({ status, funder }: { status: ApplicationStatus
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {interview.status === "error" && <ErrorBanner error={interview.error} onRetry={interview.reload} />}
-        {proposed?.note ? <p>{proposed.note}</p> : last?.message ? <p>{last.message}</p> : <p>{funder} has invited you to an interview.</p>}
+        {proposed?.note ? <p>{proposed.note}</p> : last?.message ? <p>{last.message}</p> : <p>{t("statusExtras.invited", { funder })}</p>}
         {confirmed ? (
           <div className="card row" style={{ padding: "10px 12px", gap: "8px" }} role="status">
             <Calendar className="ic" aria-hidden="true" />
             <span className="b">{slotText(confirmed)}</span>
-            <span className="small muted">· confirmed{state?.confirmed?.at ? ` ${formatDate(state.confirmed.at)}` : ""}</span>
+            <span className="small muted">· {state?.confirmed?.at ? t("statusExtras.confirmedOn", { date: formatDate(state.confirmed.at) }) : t("statusExtras.confirmed")}</span>
           </div>
         ) : proposed && proposed.slots.length > 0 ? (
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              Choose one of the times {funder} offered
+              {t("statusExtras.chooseTime", { funder })}
             </legend>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
               {proposed.slots.map((slot) => (
@@ -77,21 +79,21 @@ export function InterviewSection({ status, funder }: { status: ApplicationStatus
             </div>
           </fieldset>
         ) : (
-          <p className="small muted">{funder} has not offered times here yet.</p>
+          <p className="small muted">{t("statusExtras.noTimesYet", { funder })}</p>
         )}
         {proposed?.location ? <p className="small muted">{proposed.location}</p> : null}
         {confirm.error !== null && <ErrorBanner error={confirm.error} />}
         <div className="row wrap">
           {!confirmed && proposed && proposed.slots.length > 0 && (
             <button type="button" className="btn btn-primary" disabled={!choice || confirm.state === "saving"} onClick={submit}>
-              Confirm this time
+              {t("statusExtras.confirmThisTime")}
             </button>
           )}
           <a href="#msg-h" className="btn btn-secondary">
-            {confirmed ? "Ask to change it in the thread" : "None of these work: reply in the thread"}
+            {confirmed ? t("statusExtras.askToChangeItInThe") : t("statusExtras.noneOfTheseWorkReplyIn")}
           </a>
         </div>
-        <p className="help">{confirmed ? `${funder} has been told which time you chose.` : `${funder} sees your choice as soon as you confirm.`}</p>
+        <p className="help">{confirmed ? t("statusExtras.funderTold", { funder }) : t("statusExtras.funderSees", { funder })}</p>
       </div>
     </section>
   );
@@ -104,27 +106,27 @@ export function DecisionSection({ status, funder, base, awardId }: { status: App
     <section className="card" aria-labelledby="dec-h">
       <div className="card-h">
         <h2 id="dec-h" style={{ fontSize: "18px" }}>
-          Decision
+          {t("statusExtras.decision")}
         </h2>
         {decided ? <StatusBadge kind="application" status={status.status} /> : null}
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {!decided ? (
-          <p className="muted">No decision yet. When {funder} decides, the outcome and its letter appear here and by email.</p>
+          <p className="muted">{t("statusExtras.noDecisionYet", { funder })}</p>
         ) : (
           <>
             <p style={{ fontSize: "15px" }}>
-              {funder} decided{event ? ` on ${formatDate(event.at)}` : ""}.{" "}
-              {status.status === "accepted" ? "The award and its agreement are under Awarded funding." : status.status === "waitlisted" ? "Your application is on the waitlist; you will be told if funding becomes available." : "The letter was sent to your team by email."}
+              {event ? t("statusExtras.decidedOn", { funder, date: formatDate(event.at) }) : t("statusExtras.decided", { funder })}{" "}
+              {status.status === "accepted" ? t("statusExtras.theAwardAndItsAgreementAre") : status.status === "waitlisted" ? t("statusExtras.yourApplicationIsOnTheWaitlist") : t("statusExtras.theLetterWasSentToYour")}
             </p>
             {event?.message ? <p>{event.message}</p> : null}
             {status.status === "accepted" ? (
               <Link to={awardId ? `${base}/grants/${awardId}/offer` : `${base}/grants`} className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
-                Open the award
+                {t("statusExtras.openTheAward")}
               </Link>
             ) : (
               <Link to={`${base}/find`} className="small b">
-                Find other funding
+                {t("statusExtras.findOtherFunding")}
               </Link>
             )}
           </>

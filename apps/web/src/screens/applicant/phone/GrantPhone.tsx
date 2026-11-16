@@ -14,12 +14,13 @@ import { formatDate, formatMinor } from "../../../lib/format.ts";
 import { AmendmentsCard, BudgetTable, conditionText, expectedText, HoldBanner, PayeeChip, periodOf, totals, useGrant, type GrantData } from "../grant.tsx";
 import { GrantDocuments, GrantMessages } from "../grantExtras.tsx";
 import { ShareAwardPanel } from "../../../components/ShareAwardPanel.tsx";
+import { t, useApplicantText } from "../i18n.ts";
 
 function Grant({ data, base, reload }: { data: GrantData; base: string; reload: () => void }) {
   const { award, schedule, requirements, payee } = data;
-  const t = totals(data);
+  const tot = totals(data);
   const period = periodOf(award.keyDates);
-  const destination = payee.bankName && payee.last4 ? `${payee.bankName} •••• ${payee.last4}` : payee.status === "active" ? "Verified destination on file in Passport" : "No verified destination";
+  const destination = payee.bankName && payee.last4 ? `${payee.bankName} •••• ${payee.last4}` : payee.status === "active" ? t("grant.verifiedDestinationOnFileInPassport") : t("grant.noVerifiedDestination");
   return (
     <>
       <div className="card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -39,67 +40,67 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <div className="stat" style={{ padding: "14px 16px" }}>
-          <span className="stat-l">Awarded</span>
+          <span className="stat-l">{t("grantPhone.awarded")}</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.awarded, award.currency)}
+            {formatMinor(tot.awarded, award.currency)}
           </span>
         </div>
         <div className="stat" style={{ padding: "14px 16px" }}>
-          <span className="stat-l">Received</span>
+          <span className="stat-l">{t("grantPhone.received")}</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.received, award.currency)}
+            {formatMinor(tot.received, award.currency)}
           </span>
           <span className="stat-d">
-            {t.settledCount} of {schedule.length} tranches settled
+            {t("grantPayments.tranchesSettled", { settled: tot.settledCount, total: schedule.length })}
           </span>
         </div>
         <div className="stat" style={{ padding: "14px 16px" }}>
-          <span className="stat-l">Remaining</span>
+          <span className="stat-l">{t("grantPhone.remaining")}</span>
           <span className="stat-v" style={{ fontSize: "26px" }}>
-            {formatMinor(t.remaining, award.currency)}
+            {formatMinor(tot.remaining, award.currency)}
           </span>
-          <span className="stat-d">Released as conditions are met</span>
+          <span className="stat-d">{t("grantPhone.releasedAsConditionsAreMet")}</span>
         </div>
       </div>
 
-      <nav className="tabs tabrow" aria-label="Grant sections" style={{ scrollbarWidth: "none", margin: "0 -16px", padding: "0 16px" }}>
+      <nav className="tabs tabrow" aria-label={t("grantPhone.grantSections")} style={{ scrollbarWidth: "none", margin: "0 -16px", padding: "0 16px" }}>
         <Link to={`${base}/grants/${award.id}/offer`} className="tab" style={{ minHeight: "44px" }}>
-          Agreement
+          {t("grantPhone.agreement")}
         </Link>
         <a href="#sched-h" className="tab on" aria-current="true" style={{ minHeight: "44px" }}>
-          Payments
+          {t("grantPhone.payments")}
         </a>
         <Link to={`${base}/reports`} className="tab" style={{ minHeight: "44px" }}>
-          Reports
+          {t("grantPhone.reports")}
         </Link>
         <a href="#budget-h" className="tab" style={{ minHeight: "44px" }}>
-          Budget
+          {t("grantPhone.budget")}
         </a>
         <a href="#amendments" className="tab" style={{ minHeight: "44px" }}>
-          Amendments
+          {t("grantPhone.amendments")}
         </a>
       </nav>
 
       <section style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-labelledby="sched-h">
         <h3 id="sched-h" style={{ fontSize: "16px" }}>
-          Payment schedule
+          {t("grantPhone.paymentSchedule")}
         </h3>
-        {schedule.length === 0 && <p className="small muted">{award.funder.name ?? "Your funder"} has not set a payment schedule yet.</p>}
+        {schedule.length === 0 && <p className="small muted">{award.funder.name ? t("grantPhone.noSchedule", { funder: award.funder.name }) : t("grantPhone.noScheduleYourFunder")}</p>}
         {schedule.map((x) => {
           const req = requirements.find((r) => r.releasesTrancheId === x.id);
           return (
             <div key={x.id} className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
               <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
                 <span className="b" style={{ fontSize: "15px" }}>
-                  Tranche {x.seq} of {schedule.length}
+                  {t("dashboard.trancheOf", { seq: x.seq, total: schedule.length })}
                 </span>
                 <span className="b" style={{ fontSize: "17px", fontVariantNumeric: "tabular-nums" }}>
                   {formatMinor(x.amountMinor, x.currency)}
                 </span>
               </div>
-              <div className="small muted">Condition: {conditionText(x, requirements).replace(/^(On|When) /, (m) => m.toLowerCase())}</div>
+              <div className="small muted">{t("grantPhone.condition", { condition: conditionText(x, requirements).replace(/^(On|When) /, (m) => m.toLowerCase()) })}</div>
               <div className="row wrap" style={{ gap: "8px" }}>
-                <StatusBadge kind="tranche" status={x.status} {...(x.status === "held" ? { label: "Paused" } : {})} />
+                <StatusBadge kind="tranche" status={x.status} {...(x.status === "held" ? { label: t("grantPayments.paused") } : {})} />
                 <span className="small muted">
                   {expectedText(x, requirements)}
                   {x.bankName && x.last4 ? <span className="userback-block">{` · ${x.bankName} •••• ${x.last4}`}</span> : ""}
@@ -119,7 +120,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
       <section className="card" aria-labelledby="dest-h">
         <div className="card-h" style={{ padding: "14px 16px" }}>
           <h3 id="dest-h" style={{ fontSize: "16px" }}>
-            Payment destination
+            {t("grantPhone.paymentDestination")}
           </h3>
           <PayeeChip payee={payee} />
         </div>
@@ -130,13 +131,13 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
               <div className="b userback-block" style={{ fontSize: "15px" }}>
                 {destination}
               </div>
-              <div className="small muted">From Passport</div>
+              <div className="small muted">{t("grantPhone.fromPassport")}</div>
             </div>
           </div>
           <div className="bnr bnr-info" style={{ padding: "10px 12px" }}>
             <Info className="ic" aria-hidden="true" />
             <div className="d" style={{ fontSize: "13px", margin: "0" }}>
-              Expecting a payment? Changes to your bank account take 5 business days. <Link to={`${base}/organization`}>Manage in Passport</Link>.
+              {t.rich("grantPhone.expecting", { link: (chunks) => <Link to={`${base}/organization`}>{chunks}</Link> })}
             </div>
           </div>
         </div>
@@ -146,18 +147,18 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
         <section className="card" aria-labelledby="agr-h">
           <div className="card-h" style={{ padding: "14px 16px" }}>
             <h3 id="agr-h" style={{ fontSize: "16px" }}>
-              Agreement
+              {t("grantPhone.agreement")}
             </h3>
             <StatusBadge kind="agreement" status={award.agreement.status} />
           </div>
           <div className="card-b" style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
             <div className="small muted">
-              {award.agreement.granteeSignedAt ? `Signed ${formatDate(award.agreement.granteeSignedAt)}` : "Not signed yet"}
-              {award.agreement.funderSignedAt ? ` · countersigned ${formatDate(award.agreement.funderSignedAt)}` : ""}
+              {award.agreement.granteeSignedAt ? t("grantPhone.signedOn", { date: formatDate(award.agreement.granteeSignedAt) }) : t("grantPhone.notSignedYet")}
+              {award.agreement.funderSignedAt ? ` · ${t("grantPhone.countersignedOn", { date: formatDate(award.agreement.funderSignedAt) })}` : ""}
             </div>
             <Link to={`${base}/grants/${award.id}/offer`} className="btn btn-secondary btn-lg btn-block">
               <Download className="ic" aria-hidden="true" />
-              {award.agreement.status === "executed" ? "Open the executed agreement" : "Review the agreement"}
+              {award.agreement.status === "executed" ? t("grantPhone.openTheExecutedAgreement") : t("grantPhone.reviewTheAgreement")}
             </Link>
           </div>
         </section>
@@ -166,7 +167,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
       <section className="card" aria-labelledby="budget-h">
         <div className="card-h" style={{ padding: "14px 16px" }}>
           <h3 id="budget-h" style={{ fontSize: "16px" }}>
-            Budget
+            {t("grantPhone.budget")}
           </h3>
         </div>
         <BudgetTable book={data.budget} compact />
@@ -181,6 +182,7 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
 }
 
 export default function GrantPhone() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { awardId } = useParams();
@@ -188,17 +190,17 @@ export default function GrantPhone() {
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   return (
     <>
-      <title>{`Awarded funding — ${ws.name}`}</title>
-      <PhoneShell title="Awarded funding" active="Awarded funding">
+      <title>{t("grantOffered.pageTitle", { workspace: ws.name })}</title>
+      <PhoneShell title={t("grantPhone.awardedFunding")} active="Awarded funding">
         <main className="main" style={{ flex: 1 }}>
-          {query.status === "loading" && <Loading label="Loading the grant" />}
+          {query.status === "loading" && <Loading label={t("grantPhone.loadingTheGrant")} />}
           {query.status === "error" && <ErrorBanner error={query.error} onRetry={query.reload} />}
           {query.status === "ready" &&
             (query.data ? (
               <Grant data={query.data} base={base} reload={query.reload} />
             ) : (
-              <EmptyState icon={AwardIcon} title="No grants yet" actions={<Link to={`${base}/find`} className="btn btn-primary">Find funding</Link>}>
-                When a funder makes an award, the offer and the payment schedule appear here.
+              <EmptyState icon={AwardIcon} title={t("grantPhone.noGrantsYet")} actions={<Link to={`${base}/find`} className="btn btn-primary">{t("grantPhone.findFunding")}</Link>}>
+                {t("grantPhone.whenAFunderMakesAnAward")}
               </EmptyState>
             ))}
         </main>

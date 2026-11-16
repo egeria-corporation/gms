@@ -9,31 +9,33 @@ import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, problemFor } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
-import { blockedFilename, DOC_TYPE_LABELS, DOC_TYPES, expiryState, VAULT_MAX_BYTES, VAULT_WARNING, type DocType } from "../../../lib/writeKeep.ts";
+import { blockedFilename, DOC_TYPES, expiryState, VAULT_MAX_BYTES, type DocType } from "../../../lib/writeKeep.ts";
+import { docTypeLabel, vaultWarning } from "../labels.ts";
 import { toBase64 } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 /** "Expires in 21 days", "Expired Nov 5, 2026", "Current until …", "No expiry": always an icon and words. */
 export function ExpiryBadge({ expiresOn, now = new Date() }: { expiresOn: string | null | undefined; now?: Date }) {
   const { state, days } = expiryState(expiresOn, now);
-  if (state === "none") return <span className="small muted">No expiry date</span>;
+  if (state === "none") return <span className="small muted">{t("outsideKeep.noExpiryDate")}</span>;
   if (state === "expired")
     return (
       <span className="bdg bdg-dng">
         <CalendarX className="ic" aria-hidden="true" />
-        Expired {formatDate(expiresOn)}
+        {t("outsideKeep.expiredOn", { date: formatDate(expiresOn) })}
       </span>
     );
   if (state === "soon")
     return (
       <span className="bdg bdg-warn">
         <CalendarClock className="ic" aria-hidden="true" />
-        {days === 0 ? "Expires today" : `Expires in ${days} day${days === 1 ? "" : "s"}`}
+        {days === 0 ? t("outsideKeep.expiresToday") : t("outsideKeep.expiresIn", { count: days ?? 0 })}
       </span>
     );
   return (
     <span className="bdg bdg-ok">
       <CalendarCheck className="ic" aria-hidden="true" />
-      Current until {formatDate(expiresOn)}
+      {t("outsideKeep.currentUntil", { date: formatDate(expiresOn) })}
     </span>
   );
 }
@@ -50,11 +52,11 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
       <div className="hd">
         <div>
           <h3 id="vup-title" style={{ fontSize: "16px" }}>
-            Add a document to the vault
+            {t("outsideKeep.addADocumentToTheVault")}
           </h3>
-          <p className="small muted">Keep the documents funders ask for again and again in one place.</p>
+          <p className="small muted">{t("outsideKeep.keepTheDocumentsFundersAskFor")}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideKeep.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
@@ -62,27 +64,27 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
         <div className="bnr bnr-warn" role="note">
           <ShieldAlert className="ic" aria-hidden="true" />
           <div>
-            <div className="t">Never upload bank or identity paperwork</div>
-            <div className="d">{VAULT_WARNING}</div>
+            <div className="t">{t("outsideKeep.neverUploadBankOrIdentityPaperwork")}</div>
+            <div className="d">{vaultWarning()}</div>
           </div>
         </div>
         <div className="fld">
-          <span className="lbl">File</span>
+          <span className="lbl">{t("outsideKeep.file")}</span>
           <label className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start", cursor: "pointer" }}>
             <Upload className="ic" aria-hidden="true" />
-            {file ? "Choose another file" : "Choose a file"}
+            {file ? t("outsideKeep.chooseAnotherFile") : t("outsideKeep.chooseAFile")}
             <input
               type="file"
               className="sr"
-              aria-label="Choose a file"
+              aria-label={t("outsideKeep.chooseAFile")}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 e.target.value = "";
                 setProblem(null);
                 setFile(null);
                 if (!f) return;
-                if (blockedFilename(f.name)) return setProblem(`${f.name} looks like bank or tax paperwork, so it was not added. ${VAULT_WARNING}`);
-                if (f.size > VAULT_MAX_BYTES) return setProblem(`${f.name} is larger than 25 MB. Upload a smaller file.`);
+                if (blockedFilename(f.name)) return setProblem(t("outsideKeep.blocked", { name: f.name, warning: vaultWarning() }));
+                if (f.size > VAULT_MAX_BYTES) return setProblem(t("outsideKeep.tooLarge", { name: f.name }));
                 setFile(f);
               }}
             />
@@ -94,26 +96,26 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
             </span>
           )}
         </div>
-        <Field id="vup-type" label="What it is" required error={problemFor(upload.error, "docType")}>
+        <Field id="vup-type" label={t("outsideKeep.whatItIs")} required error={problemFor(upload.error, "docType")}>
           <select id="vup-type" className="sel" value={docType} onChange={(e) => setDocType(e.target.value as DocType)}>
             <option value="" disabled>
-              Choose one
+              {t("outsideKeep.chooseOne")}
             </option>
-            {DOC_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOC_TYPE_LABELS[t]}
+            {DOC_TYPES.map((d) => (
+              <option key={d} value={d}>
+                {docTypeLabel(d)}
               </option>
             ))}
           </select>
         </Field>
-        <Field id="vup-exp" label="Expires on" help="If it has one, such as an audit or an insurance certificate. You are warned 30 days before.">
+        <Field id="vup-exp" label={t("outsideKeep.expiresOn")} help={t("outsideKeep.ifItHasOneSuchAs")}>
           <input id="vup-exp" type="date" className="inp" value={expires} onChange={(e) => setExpires(e.target.value)} />
         </Field>
-        {upload.error ? <ErrorBanner error={upload.error} title="The document was not added" /> : null}
+        {upload.error ? <ErrorBanner error={upload.error} title={t("outsideKeep.theDocumentWasNotAdded")} /> : null}
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("outsideKeep.cancel")}
         </button>
         <button
           className="btn btn-primary"
@@ -124,7 +126,7 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
             if (d) onDone(d);
           }}
         >
-          {upload.state === "saving" ? "Adding…" : "Add to the vault"}
+          {upload.state === "saving" ? t("outsideKeep.adding") : t("outsideKeep.addToTheVault")}
         </button>
       </div>
     </Dialog>
@@ -141,22 +143,22 @@ export function VaultCard({ base }: { base: string }) {
       <div className="card-h">
         <div>
           <h2 id="vault-h" style={{ fontSize: "18px" }}>
-            Document vault
+            {t("outsideKeep.documentVault")}
           </h2>
-          <p className="small muted">The documents funders ask for, ready for any application’s checklist.</p>
+          <p className="small muted">{t("outsideKeep.theDocumentsFundersAskForReady")}</p>
         </div>
         <FolderLock className="ic ic-md" aria-hidden="true" />
       </div>
       <div className="card-b row" style={{ gap: "10px", flexWrap: "wrap" }}>
-        <span>{vault.status === "ready" ? `${docs.length} document${docs.length === 1 ? "" : "s"}` : "…"}</span>
+        <span>{vault.status === "ready" ? t("outsideKeep.documentCount", { count: docs.length }) : "…"}</span>
         {soon > 0 && (
           <span className="bdg bdg-warn">
             <CalendarClock className="ic" aria-hidden="true" />
-            {soon} expired or expiring soon
+            {t("outsideKeep.expiringSoon", { count: soon })}
           </span>
         )}
         <Link to={`${base}/organization/documents`} className="btn btn-sm btn-secondary" style={{ marginLeft: "auto" }}>
-          Open documents
+          {t("outsideKeep.openDocuments")}
         </Link>
       </div>
     </section>

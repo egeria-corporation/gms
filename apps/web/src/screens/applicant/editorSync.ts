@@ -5,6 +5,7 @@
 // have not been sent yet are replayed on top, so nobody's typing is overwritten.
 import { collectControls, mergeResponse, scopeToPointer, type FormDefinition, type JsonObject, type UiElement, type UiLayout, type ValidationError } from "@gms/forms";
 import { changedPaths } from "../../api/applicant.ts";
+import { t } from "./i18n.ts";
 
 /** The response to show after the server answered: its merged state plus edits made since `sent`. */
 export function rebase(server: JsonObject, sent: JsonObject, local: JsonObject): JsonObject {
@@ -55,7 +56,7 @@ export function sectionState(section: Section, response: JsonObject, errors: Val
 export function fieldLabel(form: FormDefinition, path: string): string {
   const key = path.replace(/^\//, "").split("/")[0] ?? "";
   const title = form.jsonSchema.properties?.[key]?.title;
-  return typeof title === "string" && title ? title : key || "This form";
+  return typeof title === "string" && title ? title : key || t("editor.thisForm");
 }
 
 /** The section a field path belongs to. */

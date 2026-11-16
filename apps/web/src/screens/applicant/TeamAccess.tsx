@@ -17,6 +17,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, problemFor, SaveNote, TabPanel, Tabs, type Column } from "../../components/ui.tsx";
 import { canRead } from "./organizationExtras.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { t, useApplicantText } from "./i18n.ts";
 
 const load = async (api: ApplicantApi, more: ApplicantMoreApi) => {
   // Connected agents are a convenience on this screen; a failure there must not hide the team.
@@ -26,15 +27,20 @@ const load = async (api: ApplicantApi, more: ApplicantMoreApi) => {
 
 type TabKey = "members" | "consultants" | "funders" | "agents";
 
-const ROLES = [
-  { value: "editor", label: "Editor", help: "Edits applications and reports" },
-  { value: "viewer", label: "Viewer", help: "Reads everything, changes nothing" },
-  { value: "finance", label: "Finance", help: "Budgets and payment status" },
-  { value: "admin", label: "Admin", help: "Manages the team, consents and signing. Needs an authenticator" },
-  { value: "consultant", label: "Consultant", help: "Outside help with an end date, scoped to the applications you assign" },
+// A function and getters, so the words follow the page's language (docs/i18n.md).
+const ROLES = () => [
+  { value: "editor", label: t("teamAccess.roleOpt.editor"), help: t("teamAccess.roleOpt.editorHelp") },
+  { value: "viewer", label: t("teamAccess.roleOpt.viewer"), help: t("teamAccess.roleOpt.viewerHelp") },
+  { value: "finance", label: t("teamAccess.roleOpt.finance"), help: t("teamAccess.roleOpt.financeHelp") },
+  { value: "admin", label: t("teamAccess.roleOpt.admin"), help: t("teamAccess.roleOpt.adminHelp") },
+  { value: "consultant", label: t("teamAccess.roleOpt.consultant"), help: t("teamAccess.roleOpt.consultantHelp") },
 ];
 
-const BASIS: Record<Consent["basis"], string> = { application: "You applied to this funder", passport_grant: "Granted in Passport", shared_submission: "You shared a report" };
+const BASIS: Record<Consent["basis"], string> = {
+  get application() { return t("teamAccess.basis.application"); },
+  get passport_grant() { return t("teamAccess.basis.passport"); },
+  get shared_submission() { return t("teamAccess.basis.shared"); },
+};
 
 function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
   const [email, setEmail] = useState("");
@@ -54,18 +60,18 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
     <form className="card" onSubmit={onSubmit} aria-labelledby="inv-h">
       <div className="card-h">
         <h2 id="inv-h" style={{ fontSize: "18px" }}>
-          Invite someone
+          {t("teamAccess.inviteSomeone")}
         </h2>
-        <SaveNote state={invite.state} savedText="Invitation sent" />
+        <SaveNote state={invite.state} savedText={t("teamAccess.invitationSent")} />
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {invite.error && !problemFor(invite.error, "email") ? <ErrorBanner error={invite.error} /> : null}
-        <Field id="inv-email" label="Email" required error={problemFor(invite.error, "email")}>
+        <Field id="inv-email" label={t("teamAccess.email")} required error={problemFor(invite.error, "email")}>
           <input className="inp" id="inv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
         </Field>
-        <Field id="inv-role" label="Role" help={ROLES.find((r) => r.value === role)?.help}>
+        <Field id="inv-role" label={t("teamAccess.role")} help={ROLES().find((r) => r.value === role)?.help}>
           <select className="sel" id="inv-role" value={role} onChange={(e) => setRole(e.target.value)}>
-            {ROLES.map((r) => (
+            {ROLES().map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
               </option>
@@ -73,18 +79,18 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
           </select>
         </Field>
         {role === "consultant" && (
-          <Field id="inv-firm" label="Consultant’s organization (optional)" help="The firm they work for. Shown beside their name in the consultants list.">
+          <Field id="inv-firm" label={t("teamAccess.consultantsOrganizationOptional")} help={t("teamAccess.theFirmTheyWorkForShown")}>
             <input className="inp" id="inv-firm" value={firm} maxLength={200} onChange={(e) => setFirm(e.target.value)} autoComplete="off" />
           </Field>
         )}
         {role === "consultant" && (
-          <Field id="inv-days" label="Access ends after (days)" help="A consultant only sees the applications you assign sections of to them.">
+          <Field id="inv-days" label={t("teamAccess.accessEndsAfterDays")} help={t("teamAccess.aConsultantOnlySeesTheApplications")}>
             <input className="inp" id="inv-days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />
           </Field>
         )}
         <button className="btn btn-primary" type="submit" disabled={invite.state === "saving" || !email.trim()} style={{ alignSelf: "flex-start" }}>
           <UserPlus className="ic" aria-hidden="true" />
-          Send invitation
+          {t("teamAccess.sendInvitation")}
         </button>
       </div>
     </form>
@@ -92,6 +98,7 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
 }
 
 export default function TeamAccess() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const more = useMoreApi();
   const query = useApplicantQuery((api) => load(api, more), [ws.id, more]);
@@ -105,64 +112,63 @@ export default function TeamAccess() {
 
   const who: Column<ApplicantMember> = {
     key: "who",
-    header: "Person",
+    header: t("teamAccess.col.person"),
     sort: (m) => m.name ?? m.email ?? "",
     cell: (m) => (
       <span className="row" style={{ gap: "8px" }}>
         <Avatar name={m.name ?? m.email ?? "?"} size="sm" />
-        <span className="nm">{m.name ?? m.email ?? "Member"}</span>
+        <span className="nm">{m.name ?? m.email ?? t("teamAccess.member")}</span>
       </span>
     ),
   };
   const activityOf = new Map((activity.data ?? []).map((a) => [a.userId, a]));
   const lastActive = (userId: string) => {
     const at = activityOf.get(userId)?.lastActiveAt;
-    return at ? timeAgo(at) : <span className="muted">Not recorded</span>;
+    return at ? timeAgo(at) : <span className="muted">{t("teamAccess.notRecorded")}</span>;
   };
   const mfa: Column<ApplicantMember> = {
     key: "mfa",
-    header: "MFA",
+    header: t("teamAccess.col.mfa"),
     cell: (m) =>
       m.mfaEnrolledAt ? (
         <span className="row" style={{ gap: "5px", color: "var(--s-ok-fg)", fontWeight: 700 }}>
           <ShieldCheck className="ic" aria-hidden="true" />
-          Enrolled
+          {t("teamAccess.enrolled")}
         </span>
       ) : (
-        <span className="muted">{m.requiresMfa ? "Required, not enrolled" : "Not required"}</span>
+        <span className="muted">{m.requiresMfa ? t("teamAccess.requiredNotEnrolled") : t("teamAccess.notRequired")}</span>
       ),
   };
   const memberColumns: Column<ApplicantMember>[] = [
     who,
-    { key: "email", header: "Email", cell: (m) => m.email ?? "—", sort: (m) => m.email ?? "" },
-    { key: "role", header: "Role", cell: (m) => <span className="role">{roleTitle(m.role)}</span>, sort: (m) => m.role },
+    { key: "email", header: t("teamAccess.email"), cell: (m) => m.email ?? "—", sort: (m) => m.email ?? "" },
+    { key: "role", header: t("teamAccess.role"), cell: (m) => <span className="role">{roleTitle(m.role)}</span>, sort: (m) => m.role },
     mfa,
-    { key: "active", header: "Last active", cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
-    { key: "since", header: "Member since", cell: (m) => formatDate(m.createdAt), sort: (m) => m.createdAt },
+    { key: "active", header: t("teamAccess.col.lastActive"), cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
+    { key: "since", header: t("teamAccess.col.memberSince"), cell: (m) => formatDate(m.createdAt), sort: (m) => m.createdAt },
   ];
   const consultantColumns: Column<ApplicantMember>[] = [
     who,
-    { key: "firm", header: "Organization", cell: (m) => activityOf.get(m.userId)?.organization ?? <span className="muted">Not recorded</span>, sort: (m) => activityOf.get(m.userId)?.organization ?? null },
-    { key: "role", header: "Role", cell: (m) => <span className="role">{roleTitle(m.role)}</span> },
+    { key: "firm", header: t("teamAccess.col.organization"), cell: (m) => activityOf.get(m.userId)?.organization ?? <span className="muted">{t("teamAccess.notRecorded")}</span>, sort: (m) => activityOf.get(m.userId)?.organization ?? null },
+    { key: "role", header: t("teamAccess.role"), cell: (m) => <span className="role">{roleTitle(m.role)}</span> },
     {
       key: "scope",
-      header: "Scope",
+      header: t("teamAccess.col.scope"),
       cell: (m) => {
         const apps = (m.scope as { applicationIds?: unknown[] }).applicationIds;
-        const n = Array.isArray(apps) ? apps.length : 0;
-        return `${n} application${n === 1 ? "" : "s"}`;
+        return t("teamAccess.applicationsCount", { count: Array.isArray(apps) ? apps.length : 0 });
       },
     },
-    { key: "expires", header: "Expires", cell: (m) => (m.expiresAt ? formatDate(m.expiresAt) : "No end date"), sort: (m) => m.expiresAt },
-    { key: "active", header: "Last active", cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
+    { key: "expires", header: t("teamAccess.col.expires"), cell: (m) => (m.expiresAt ? formatDate(m.expiresAt) : t("teamAccess.noEndDate")), sort: (m) => m.expiresAt },
+    { key: "active", header: t("teamAccess.col.lastActive"), cell: (m) => lastActive(m.userId), sort: (m) => activityOf.get(m.userId)?.lastActiveAt ?? null },
     mfa,
   ];
   const agentColumns: Column<McpConnection>[] = [
-    { key: "agent", header: "Agent", cell: (c) => <span className="nm">{c.clientName ?? "Connected agent"}</span>, sort: (c) => c.clientName ?? "" },
-    { key: "client", header: "Client", cell: (c) => <span className="mono">{c.clientUri ?? c.clientId}</span> },
+    { key: "agent", header: t("teamAccess.col.agent"), cell: (c) => <span className="nm">{c.clientName ?? t("teamAccess.connectedAgent")}</span>, sort: (c) => c.clientName ?? "" },
+    { key: "client", header: t("teamAccess.col.client"), cell: (c) => <span className="mono">{c.clientUri ?? c.clientId}</span> },
     {
       key: "scopes",
-      header: "Scopes",
+      header: t("teamAccess.col.scopes"),
       cell: (c) => (
         <span className="row wrap" style={{ gap: "4px", whiteSpace: "normal" }}>
           {c.scopes.map((sc) => (
@@ -173,8 +179,8 @@ export default function TeamAccess() {
         </span>
       ),
     },
-    { key: "used", header: "Last used", cell: (c) => (c.lastUsedAt ? timeAgo(c.lastUsedAt) : "Never"), sort: (c) => c.lastUsedAt },
-    { key: "by", header: "Connected by", cell: (c) => (c.mine ? "You" : "A teammate") },
+    { key: "used", header: t("teamAccess.col.lastUsed"), cell: (c) => (c.lastUsedAt ? timeAgo(c.lastUsedAt) : t("teamAccess.never")), sort: (c) => c.lastUsedAt },
+    { key: "by", header: t("teamAccess.col.connectedBy"), cell: (c) => (c.mine ? t("teamAccess.you") : t("teamAccess.aTeammate")) },
     {
       key: "act",
       header: "",
@@ -182,12 +188,12 @@ export default function TeamAccess() {
         <button
           type="button"
           className="btn btn-sm btn-danger"
-          aria-label={`Disconnect ${c.clientName ?? "agent"}`}
+          aria-label={c.clientName ? t("teamAccess.disconnectName", { name: c.clientName }) : t("teamAccess.disconnectAgent")}
           onClick={async () => {
             if (await disconnect.run(c.id)) query.reload();
           }}
         >
-          Disconnect
+          {t("teamAccess.disconnect")}
         </button>
       ),
     },
@@ -195,20 +201,20 @@ export default function TeamAccess() {
 
   return (
     <>
-      <title>{`Team & access — ${ws.name}`}</title>
+      <title>{t("teamAccess.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Team & access">
         <main className="main">
           <div className="ph">
             <div>
               <div className="title">
-                <h1>Team &amp; access</h1>
+                <h1>{t("teamAccess.teamAccess")}</h1>
               </div>
               <div className="meta">
-                <span>People in this workspace, funders who can read your Passport record, and requests from connected agents.</span>
+                <span>{t("teamAccess.peopleInThisWorkspaceFundersWho")}</span>
               </div>
             </div>
           </div>
-          <Loaded query={query} label="Loading team and access">
+          <Loaded query={query} label={t("teamAccess.loadingTeamAndAccess")}>
             {({ members, consents, approvals, agents }) => {
               const staff = members.filter((m) => m.role !== "consultant");
               const consultants = members.filter((m) => m.role === "consultant");
@@ -220,21 +226,21 @@ export default function TeamAccess() {
                     <div className="bnr bnr-ok" role="status">
                       <Check className="ic" aria-hidden="true" />
                       <div>
-                        <div className="t">Invitation sent to {invited}</div>
-                        <div className="d">They join when they sign in with that address.</div>
+                        <div className="t">{t("teamAccess.sentTo", { email: invited })}</div>
+                        <div className="d">{t("teamAccess.theyJoinWhenTheySignIn")}</div>
                       </div>
                     </div>
                   )}
                   <Tabs
-                    label="Access sections"
+                    label={t("teamAccess.accessSections")}
                     idPrefix="team"
                     active={tab}
                     onChange={setTab}
                     tabs={[
-                      { key: "members", label: "Members", count: staff.length },
-                      { key: "consultants", label: "Consultants", count: consultants.length },
-                      { key: "funders", label: "Funders with access", count: consents.filter((c) => !c.revokedAt).length },
-                      { key: "agents", label: "Agents", count: agents.length },
+                      { key: "members", label: t("teamAccess.members"), count: staff.length },
+                      { key: "consultants", label: t("teamAccess.consultants"), count: consultants.length },
+                      { key: "funders", label: t("teamAccess.fundersWithAccess"), count: consents.filter((c) => !c.revokedAt).length },
+                      { key: "agents", label: t("teamAccess.agents"), count: agents.length },
                     ]}
                   />
 
@@ -242,9 +248,9 @@ export default function TeamAccess() {
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
                       <section aria-labelledby="team-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <h2 id="team-h" style={{ fontSize: "18px" }}>
-                          Members
+                          {t("teamAccess.members")}
                         </h2>
-                        <DataTable label="Team members" columns={memberColumns} rows={staff} rowKey={(m) => m.userId} empty={<EmptyState icon={UserPlus} title="Just you so far" />} />
+                        <DataTable label={t("teamAccess.teamMembers")} columns={memberColumns} rows={staff} rowKey={(m) => m.userId} empty={<EmptyState icon={UserPlus} title={t("teamAccess.justYouSoFar")} />} />
                       </section>
                       <InviteForm onInvited={setInvited} />
                     </div>
@@ -254,17 +260,17 @@ export default function TeamAccess() {
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
                       <section aria-labelledby="cons-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <h2 id="cons-h" style={{ fontSize: "18px" }}>
-                          Consultants
+                          {t("teamAccess.consultants")}
                         </h2>
-                        <p className="small muted">Outside help sees only the applications you assign, and access ends on the date you set.</p>
+                        <p className="small muted">{t("teamAccess.outsideHelpSeesOnlyTheApplications")}</p>
                         <DataTable
-                          label="Consultants"
+                          label={t("teamAccess.consultants")}
                           columns={consultantColumns}
                           rows={consultants}
                           rowKey={(m) => m.userId}
                           empty={
-                            <EmptyState icon={UserPlus} title="No consultants">
-                              Invite one with the Consultant role and an end date.
+                            <EmptyState icon={UserPlus} title={t("teamAccess.noConsultants")}>
+                              {t("teamAccess.inviteOneWithTheConsultantRole")}
                             </EmptyState>
                           }
                         />
@@ -278,30 +284,30 @@ export default function TeamAccess() {
                       <div className="card-h">
                         <div>
                           <h2 id="access-h" style={{ fontSize: "18px" }}>
-                            Funders with access
+                            {t("teamAccess.fundersWithAccess")}
                           </h2>
-                          <p className="small muted">Funders that can read the record cached from Passport. Bank details are never part of it.</p>
+                          <p className="small muted">{t("teamAccess.fundersThatCanReadTheRecord")}</p>
                         </div>
                       </div>
                       {revoke.error ? (
                         <div className="card-b">
-                          <ErrorBanner error={revoke.error} title="Access was not removed" />
+                          <ErrorBanner error={revoke.error} title={t("teamAccess.accessWasNotRemoved")} />
                         </div>
                       ) : null}
                       {consents.length === 0 ? (
-                        <div className="card-b muted">No funder has access yet. Submitting an application grants that funder access for it.</div>
+                        <div className="card-b muted">{t("teamAccess.noFunderHasAccessYetSubmitting")}</div>
                       ) : (
-                        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label="Funders with access, scrollable">
+                        <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }} tabIndex={0} role="region" aria-label={t("teamAccess.fundersWithAccessScrollable")}>
                           <table className="tbl" style={{ fontSize: "14px" }}>
-                            <caption className="sr">Funders that can read your Passport record</caption>
+                            <caption className="sr">{t("teamAccess.fundersThatCanReadYourPassport")}</caption>
                             <thead>
                               <tr>
-                                <th scope="col">Funder</th>
-                                <th scope="col">Can read</th>
-                                <th scope="col">Granted via</th>
-                                <th scope="col">Since</th>
+                                <th scope="col">{t("teamAccess.funder")}</th>
+                                <th scope="col">{t("teamAccess.canRead")}</th>
+                                <th scope="col">{t("teamAccess.grantedVia")}</th>
+                                <th scope="col">{t("teamAccess.since")}</th>
                                 <th scope="col">
-                                  <span className="sr">Actions</span>
+                                  <span className="sr">{t("teamAccess.actions")}</span>
                                 </th>
                               </tr>
                             </thead>
@@ -316,10 +322,10 @@ export default function TeamAccess() {
                                   <td>{formatDate(c.grantedAt)}</td>
                                   <td>
                                     {c.revokedAt ? (
-                                      <span className="tag">Removed</span>
+                                      <span className="tag">{t("teamAccess.removed")}</span>
                                     ) : (
                                       <button className="btn btn-sm btn-danger" type="button" aria-haspopup="dialog" onClick={() => setRevoking(c)}>
-                                        Remove access
+                                        {t("teamAccess.removeAccess")}
                                       </button>
                                     )}
                                   </td>
@@ -337,17 +343,17 @@ export default function TeamAccess() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                         <section aria-labelledby="agents-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                           <h2 id="agents-h" style={{ fontSize: "18px" }}>
-                            Agents
+                            {t("teamAccess.agents")}
                           </h2>
-                          {disconnect.error ? <ErrorBanner error={disconnect.error} title="The agent is still connected" /> : null}
+                          {disconnect.error ? <ErrorBanner error={disconnect.error} title={t("teamAccess.theAgentIsStillConnected")} /> : null}
                           <DataTable
-                            label="Connected agents"
+                            label={t("teamAccess.connectedAgents")}
                             columns={agentColumns}
                             rows={agents}
                             rowKey={(c) => c.id}
                             empty={
-                              <EmptyState icon={Bot} title="No agents connected">
-                                Connect one from your MCP client; it signs in as you and asks before anything is submitted or signed.
+                              <EmptyState icon={Bot} title={t("teamAccess.noAgentsConnected")}>
+                                {t("teamAccess.connectOneFromYourMcpClient")}
                               </EmptyState>
                             }
                           />
@@ -356,29 +362,29 @@ export default function TeamAccess() {
                           <div className="card-h">
                             <div>
                               <h2 id="agent-h" style={{ fontSize: "18px" }}>
-                                Agent requests
+                                {t("teamAccess.agentRequests")}
                               </h2>
-                              <p className="small muted">Agents can draft and fill; submitting, accepting and signing wait for a person.</p>
+                              <p className="small muted">{t("teamAccess.agentsCanDraftAndFillSubmitting")}</p>
                             </div>
-                            {pending.length > 0 && <span className="bdg bdg-agent">{pending.length} waiting</span>}
+                            {pending.length > 0 && <span className="bdg bdg-agent">{t("teamAccess.waitingCount", { count: pending.length })}</span>}
                           </div>
                           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                             {decide.error ? <ErrorBanner error={decide.error} /> : null}
-                            {approvals.length === 0 && <p className="muted">Nothing is waiting for approval.</p>}
+                            {approvals.length === 0 && <p className="muted">{t("teamAccess.nothingIsWaitingForApproval")}</p>}
                             {approvals.map((a) => (
                               <div className="apr" key={a.id}>
                                 <div className="hd">
                                   <Bot className="ic" aria-hidden="true" />
-                                  <span>{a.requestedBy.clientId ?? "Connected agent"}</span>
+                                  <span>{a.requestedBy.clientId ?? t("teamAccess.connectedAgent")}</span>
                                   <span style={{ marginLeft: "auto", fontWeight: 400 }}>{timeAgo(a.createdAt)}</span>
                                 </div>
                                 <div className="bd">
                                   <div>
-                                    <span className="b">Requested action:</span> {a.description ?? a.tool.replace(/_/g, " ")}
+                                    <span className="b">{t("teamAccess.requestedAction")}</span> {a.description ?? a.tool.replace(/_/g, " ")}
                                   </div>
                                   {a.status !== "pending" && (
                                     <div className="small muted">
-                                      {a.status === "rejected" ? "Rejected" : a.status === "failed" ? `Failed${a.error ? `: ${a.error}` : ""}` : "Approved"}
+                                      {a.status === "rejected" ? t("teamAccess.rejected") : a.status === "failed" ? (a.error ? t("teamAccess.failedWith", { error: a.error }) : t("teamAccess.failed")) : t("teamAccess.approved")}
                                       {a.decidedAt ? ` · ${formatDate(a.decidedAt)}` : ""}
                                     </div>
                                   )}
@@ -394,7 +400,7 @@ export default function TeamAccess() {
                                         if (r) setApproval(r);
                                       }}
                                     >
-                                      Approve
+                                      {t("teamAccess.approve")}
                                     </button>
                                     <button
                                       className="btn btn-danger btn-sm"
@@ -405,7 +411,7 @@ export default function TeamAccess() {
                                         if (r) setApproval(r);
                                       }}
                                     >
-                                      Reject
+                                      {t("teamAccess.reject")}
                                     </button>
                                   </div>
                                 )}
@@ -416,13 +422,13 @@ export default function TeamAccess() {
                       </div>
                       <section className="card" aria-labelledby="let-agent-h">
                         <div className="card-h">
-                          <h3 id="let-agent-h">Let your agent apply</h3>
+                          <h3 id="let-agent-h">{t("teamAccess.letYourAgentApply")}</h3>
                         </div>
                         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                          <p>An agent can find funding, start applications, fill forms from your Passport record and the answer library, and draft reports.</p>
-                          <p className="help">Submitting an application, accepting an award and signing an agreement always wait for a person here.</p>
+                          <p>{t("teamAccess.anAgentCanFindFundingStart")}</p>
+                          <p className="help">{t("teamAccess.submittingAnApplicationAcceptingAnAward")}</p>
                           <Link to="/agents" className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                            How agents connect
+                            {t("teamAccess.howAgentsConnect")}
                           </Link>
                         </div>
                       </section>
@@ -432,18 +438,18 @@ export default function TeamAccess() {
                   <Dialog open={!!revoking} onClose={() => setRevoking(null)} labelledBy="rv-title">
                     <div className="hd">
                       <h3 id="rv-title" style={{ fontSize: "16px" }}>
-                        Remove {revoking?.funder.name ?? "this funder"}’s access?
+                        {revoking?.funder.name ? t("teamAccess.removeAccessQ", { funder: revoking.funder.name }) : t("teamAccess.removeAccessQThisFunder")}
                       </h3>
-                      <button className="iconbtn" type="button" aria-label="Close" onClick={() => setRevoking(null)}>
+                      <button className="iconbtn" type="button" aria-label={t("teamAccess.close")} onClick={() => setRevoking(null)}>
                         <X className="ic ic-md" aria-hidden="true" />
                       </button>
                     </div>
                     <div className="bd">
-                      <p>They keep what you already submitted, but can no longer read updates to your Passport record. Open applications with them may stall until you grant access again.</p>
+                      <p>{t("teamAccess.theyKeepWhatYouAlreadySubmitted")}</p>
                     </div>
                     <div className="ft">
                       <button className="btn btn-secondary" type="button" onClick={() => setRevoking(null)}>
-                        Keep access
+                        {t("teamAccess.keepAccess")}
                       </button>
                       <button
                         className="btn btn-danger-solid"
@@ -457,7 +463,7 @@ export default function TeamAccess() {
                           if (r) query.set({ members, approvals, agents, consents: consents.map((c) => (c.id === target.id ? { ...c, revokedAt: new Date().toISOString() } : c)) });
                         }}
                       >
-                        Remove access
+                        {t("teamAccess.removeAccess")}
                       </button>
                     </div>
                   </Dialog>

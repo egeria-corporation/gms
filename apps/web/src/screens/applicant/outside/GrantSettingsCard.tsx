@@ -8,7 +8,9 @@ import { useWKMutation, useWKQuery } from "../../../api/writeKeepHooks.ts";
 import { useCurrentWorkspace } from "../../../app/workspace.tsx";
 import { Loaded } from "../../../components/applicant.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
-import { CRITERION_LABELS, GO_CRITERIA, MONTHS, WEIGHT_MAX, type Criterion } from "../../../lib/writeKeep.ts";
+import { GO_CRITERIA, WEIGHT_MAX, type Criterion } from "../../../lib/writeKeep.ts";
+import { criterionLabel, monthName } from "../labels.ts";
+import { t } from "../i18n.ts";
 
 function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
   const [base, setBase] = useState(initial);
@@ -24,40 +26,40 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
         <div className="row" style={{ gap: "12px", justifyContent: "space-between" }}>
           <div>
             <div className="b" id="gs-gng-l">
-              Go/no-go scorecard
+              {t("outsideGrantSettingsCard.goNoGoScorecard")}
             </div>
-            <div className="small muted">At the Deciding stage, score eligibility, fit, capacity, effort and the relationship before you apply.</div>
+            <div className="small muted">{t("outsideGrantSettingsCard.atTheDecidingStageScoreEligibility")}</div>
           </div>
           <button type="button" className={`tog${form.goNoGoEnabled ? " on" : ""}`} role="switch" aria-checked={form.goNoGoEnabled} aria-labelledby="gs-gng-l" disabled={!admin} onClick={() => setForm({ ...form, goNoGoEnabled: !form.goNoGoEnabled })}></button>
         </div>
         {form.goNoGoEnabled && (
           <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
             <legend className="lbl" style={{ marginBottom: "6px" }}>
-              Weights, 0 to {WEIGHT_MAX}
+              {t("outsideGrantSettingsCard.weights", { max: WEIGHT_MAX })}
             </legend>
             {GO_CRITERIA.map((c) => (
-              <Field key={c} id={`gs-w-${c}`} label={CRITERION_LABELS[c].label}>
+              <Field key={c} id={`gs-w-${c}`} label={criterionLabel(c).label}>
                 <input id={`gs-w-${c}`} className="inp" inputMode="numeric" readOnly={!admin} value={weights[c]} onChange={(e) => setWeights({ ...weights, [c]: e.target.value })} />
               </Field>
             ))}
             {badWeight && (
               <span className="err-msg" role="alert" style={{ gridColumn: "1 / -1" }}>
-                Each weight is a whole number from 0 to {WEIGHT_MAX}, and at least one is above zero.
+                {t("outsideGrantSettingsCard.badWeight", { max: WEIGHT_MAX })}
               </span>
             )}
           </fieldset>
         )}
-        <Field id="gs-fy" label="Fiscal year starts in" help="The funding summary counts applications and awards by fiscal year.">
+        <Field id="gs-fy" label={t("outsideGrantSettingsCard.fiscalYearStartsIn")} help={t("outsideGrantSettingsCard.theFundingSummaryCountsApplicationsAnd")}>
           <select id="gs-fy" className="sel" disabled={!admin} value={form.fiscalYearStartMonth} onChange={(e) => setForm({ ...form, fiscalYearStartMonth: Number(e.target.value) })}>
-            {MONTHS.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i} value={i + 1}>
+                {monthName(i + 1)}
               </option>
             ))}
           </select>
         </Field>
-        {!admin && <p className="small muted">A workspace admin changes these.</p>}
-        {save.error ? <ErrorBanner error={save.error} title="The settings were not saved" /> : null}
+        {!admin && <p className="small muted">{t("outsideGrantSettingsCard.aWorkspaceAdminChangesThese")}</p>}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideGrantSettingsCard.theSettingsWereNotSaved")} /> : null}
       </div>
       {admin && (
         <div className="card-f">
@@ -73,7 +75,7 @@ function Form({ initial, admin }: { initial: GrantSettings; admin: boolean }) {
               }
             }}
           >
-            {save.state === "saving" ? "Saving…" : "Save"}
+            {save.state === "saving" ? t("outsideGrantSettingsCard.saving") : t("outsideGrantSettingsCard.save")}
           </button>
           <SaveNote state={save.state === "saved" && !dirty ? "saved" : "idle"} />
         </div>
@@ -90,12 +92,12 @@ export function GrantSettingsCard() {
       <div className="card-h">
         <div>
           <h2 id="gs-h" style={{ fontSize: "18px" }}>
-            Grant seeking
+            {t("outsideGrantSettingsCard.grantSeeking")}
           </h2>
-          <p className="small muted">How your team decides what to apply for, and how the funding summary counts.</p>
+          <p className="small muted">{t("outsideGrantSettingsCard.howYourTeamDecidesWhatTo")}</p>
         </div>
       </div>
-      <Loaded query={query} label="Loading the settings">
+      <Loaded query={query} label={t("outsideGrantSettingsCard.loadingTheSettings")}>
         {(s) => <Form key={JSON.stringify(s)} initial={s} admin={ws?.member.role === "admin"} />}
       </Loaded>
     </section>
