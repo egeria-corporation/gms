@@ -192,8 +192,8 @@ export default function Landing() {
             <div className="wrap-c">
               <h2 id="can-h">What you can do without Passport</h2>
               <p className="landing-sub">Everything here works with just an email sign-in.</p>
-              <div className="tbl-wrap">
-                <table className="tbl landing-tbl">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="What you can do without Passport, scrollable">
+                <table className="tbl landing-tbl" aria-labelledby="can-h">
                   <thead>
                     <tr>
                       <th scope="col">Funders</th>

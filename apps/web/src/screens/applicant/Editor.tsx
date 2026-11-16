@@ -343,7 +343,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </span>
             )}
           </span>
-          <div className="pres" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
+          <div className="pres" role="img" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
             <Avatar name={me.name} note="(you)" live />
             {peers.map((p, i) => (
               <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />

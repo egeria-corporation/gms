@@ -6,7 +6,7 @@ export default function ApprovalFlow() {
   return (
     <>
       <title>{"Approval flow — agent proposes, human approves"}</title>
-      <div
+      <main
         className="gms"
         style={{
           minHeight: "100vh",
@@ -445,7 +445,7 @@ export default function ApprovalFlow() {
             </p>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }

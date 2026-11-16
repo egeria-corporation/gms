@@ -87,7 +87,7 @@ export default function Confirmation() {
                   </dl>
                   <div style={{ width: "100%", maxWidth: "640px", display: "flex", flexDirection: "column", gap: "10px", textAlign: "left" }}>
                     <span className="eyebrow">What happens next</span>
-                    <div className="stp" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+                    <div className="stp" role="group" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
                       {status.stages.map((s, i) => (
                         <span key={s.key} style={{ display: "contents" }}>
                           {i > 0 && <span className={s.state === "upcoming" ? "ln" : "ln done"}></span>}

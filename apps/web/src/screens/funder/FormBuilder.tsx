@@ -549,7 +549,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
           </div>
 
           {view === "preview" && (
-            <div className="card gms-applicant" style={{ padding: "20px" }} aria-label="Applicant preview">
+            <div className="card gms-applicant" style={{ padding: "20px" }} role="region" aria-label="Applicant preview">
               {counts.fields === 0 ? <p className="muted">Add a field to see the preview.</p> : <FormView form={definition} response={response} mode="edit" onChange={setResponse} />}
             </div>
           )}

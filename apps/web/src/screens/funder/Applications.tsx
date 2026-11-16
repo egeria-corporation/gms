@@ -282,7 +282,7 @@ export default function Applications() {
           {selected.length > 0 && (
             <div className="bulkbar" role="status">
               <span>{selected.length} selected</span>
-              <span style={{ opacity: ".4" }}>|</span>
+              <span aria-hidden="true" style={{ opacity: ".4" }}>|</span>
               <button type="button" className="btn" onClick={() => setDeclining(true)}>
                 Decline
               </button>

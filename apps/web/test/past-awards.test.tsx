@@ -22,7 +22,10 @@ describe("Past Awards", () => {
     );
     const table = screen.getByRole("table");
     const [, hidden, shown] = within(table).getAllByRole("row");
-    expect(within(hidden!).getByLabelText("Amount not shown")).toHaveTextContent("—");
+    // The dash is for the eye; a screen reader hears the words (no aria-label on a plain span).
+    const cell = within(hidden!).getByText("Amount not shown").closest("td")!;
+    expect(cell).toHaveTextContent("—");
+    expect(cell.querySelector("[aria-hidden=true]")).toHaveTextContent("—");
     expect(hidden!.textContent).not.toContain("$0");
     expect(shown!.textContent).toContain("$50,000");
     expect(within(hidden!).getByRole("link", { name: "Mobile Health Navigation" })).toHaveAttribute("href", "/f/riverbend/awards/alder-creek-family-services-0123456789ab");

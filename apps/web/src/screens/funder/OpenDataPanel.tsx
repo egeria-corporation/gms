@@ -335,8 +335,9 @@ export function OpenDataPanel() {
                                   }}
                                 />
                               ) : (
-                                <span className="muted" aria-label="Not exported anyway">
-                                  —
+                                <span className="muted">
+                                  <span aria-hidden="true">—</span>
+                                  <span className="sr">Not exported anyway</span>
                                 </span>
                               )}
                             </td>

@@ -37,7 +37,7 @@ export default function ComponentsA() {
   return (
     <>
       <title>{"Component additions A"}</title>
-      <div
+      <main
         className="gms"
         style={{
           minHeight: "100vh",
@@ -696,7 +696,7 @@ export default function ComponentsA() {
             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <div className="spec">
                 <span className="cap">One editor</span>
-                <div className="pres" aria-label="Editing now: Maria Santos">
+                <div className="pres" role="img" aria-label="Editing now: Maria Santos">
                   <span className="av av-t live" title="Maria Santos (you)">
                     MS
                   </span>
@@ -704,7 +704,7 @@ export default function ComponentsA() {
               </div>
               <div className="spec">
                 <span className="cap">Three editors, two live cursors</span>
-                <div className="pres" aria-label="Editing now: Maria Santos, Jamal Reed, Lena Fischer">
+                <div className="pres" role="img" aria-label="Editing now: Maria Santos, Jamal Reed, Lena Fischer">
                   <span className="av av-t live" title="Maria Santos (you)">
                     MS
                   </span>
@@ -718,7 +718,7 @@ export default function ComponentsA() {
               </div>
               <div className="spec">
                 <span className="cap">Five shown, overflow</span>
-                <div className="pres" aria-label="Editing now: 7 people">
+                <div className="pres" role="img" aria-label="Editing now: 7 people">
                   <span className="av av-t live" title="Maria Santos">
                     MS
                   </span>
@@ -745,7 +745,8 @@ export default function ComponentsA() {
                       position: "absolute",
                       top: "-10px",
                       left: "12px",
-                      background: "#4A86E8",
+                      // The design's lighter blue (#4A86E8) gave white text 3.6:1; the navy token passes.
+                      background: "var(--og-navy)",
                       color: "#fff",
                       fontSize: "10px",
                       fontWeight: 800,
@@ -888,7 +889,7 @@ export default function ComponentsA() {
               </div>
             </div>
             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div className="tbl-wrap">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Component table, scrollable">
                 <table className="tbl bud">
                   <thead>
                     <tr>
@@ -960,7 +961,7 @@ export default function ComponentsA() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }

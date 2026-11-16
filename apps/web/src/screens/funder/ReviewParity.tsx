@@ -189,7 +189,7 @@ function RegisterDialog({ competitionId, onClose }: { competitionId: string; onC
         {csv.error !== null && <ErrorBanner error={csv.error} title="The CSV could not be downloaded" />}
         {reg.data && (
           <>
-            <div className="tbl-wrap">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Signatures, scrollable">
               <table className="tbl" aria-label="Signatures">
                 <thead>
                   <tr>
@@ -230,7 +230,7 @@ function RegisterDialog({ competitionId, onClose }: { competitionId: string; onC
             {reg.data.recusals.length === 0 ? (
               <p className="small muted">No reviewer has recused from an application in this competition.</p>
             ) : (
-              <div className="tbl-wrap">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Recusals, scrollable">
                 <table className="tbl" aria-label="Recusals">
                   <thead>
                     <tr>
@@ -356,7 +356,7 @@ export function SignPolicyDialog({ competitionId, onClose, onSigned }: { competi
         {sign.error !== null && <ErrorBanner error={sign.error} title="Your signature was not recorded" />}
         {policy.data && (
           <>
-            <div className="card" style={{ padding: "12px 16px", whiteSpace: "pre-wrap", maxHeight: "260px", overflowY: "auto" }} tabIndex={0} aria-label="Policy text">
+            <div className="card" style={{ padding: "12px 16px", whiteSpace: "pre-wrap", maxHeight: "260px", overflowY: "auto" }} tabIndex={0} role="region" aria-label="Policy text">
               {policy.data.text}
             </div>
             <fieldset className="fld" style={{ border: 0, padding: 0, margin: 0 }}>

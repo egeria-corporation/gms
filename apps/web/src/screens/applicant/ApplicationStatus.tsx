@@ -122,7 +122,7 @@ export default function ApplicationStatus() {
                       <h2 style={{ fontSize: "18px" }}>Stages</h2>
                     </div>
                     <div className="card-b">
-                      <div className="stp" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+                      <div className="stp" role="group" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
                         {status.stages.map((s, i) => (
                           <span key={s.key} style={{ display: "contents" }}>
                             {i > 0 && <span className={s.state === "upcoming" ? "ln" : "ln done"}></span>}

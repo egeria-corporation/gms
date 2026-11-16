@@ -167,7 +167,7 @@ const PDF_PREVIEWS: Record<string, ReactNode> = {
 function Preview({ of }: { of: Record<string, ReactNode> }) {
   const { kind = "" } = useParams();
   const doc = of[kind];
-  return doc ? <div className="preview-frame">{doc}</div> : <NotFound />;
+  return doc ? <main className="preview-frame">{doc}</main> : <NotFound />;
 }
 
 const f = (el: ReactNode) => <Only kind="funder">{el}</Only>;

@@ -104,7 +104,7 @@ function Totals({ totals }: { totals: ImportTotal[] }) {
       .map((t) => `${formatMinor(t!.amountMinor, t!.currency)} (${t!.rows} row${t!.rows === 1 ? "" : "s"})`)
       .join(" · ") || "—";
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Amounts by year, scrollable">
       <table className="tbl tbl-compact" aria-label="Amounts by year">
         <thead>
           <tr>

@@ -18,7 +18,7 @@ function acronym(name: string): string {
 function Item({ ws, current, onPick }: { ws: MeWorkspace; current: boolean; onPick: () => void }) {
   const funder = ws.kind === "funder";
   return (
-    <li>
+    <li role="none">
       <Link
         to={`/w/${ws.handle}`}
         role="menuitem"
@@ -146,18 +146,19 @@ export function WorkspaceMenu({ currentHandle, children }: { currentHandle: stri
               <span className="eyebrow">Your workspaces</span>
               <span className="small muted">{me?.email}</span>
             </div>
-            <ul style={{ display: "flex", flexDirection: "column", padding: "6px" }}>
+            {/* A menu owns menu items only: the list is layout here (role none), not a list. */}
+            <ul role="none" style={{ display: "flex", flexDirection: "column", padding: "6px" }}>
               {me?.workspaces.map((ws) => (
                 <Item key={ws.id} ws={ws} current={ws.handle === currentHandle} onPick={() => setOpen(false)} />
               ))}
               {meState.status === "loading" && (
-                <li className="small muted" style={{ padding: "10px" }} aria-busy="true">
+                <li role="none" className="small muted" style={{ padding: "10px" }} aria-busy="true">
                   Loading workspaces…
                 </li>
               )}
               {meState.status === "error" && (
-                <li className="err-msg" style={{ padding: "10px" }} role="alert">
-                  Your workspaces could not be loaded.
+                <li role="none" className="err-msg" style={{ padding: "10px" }}>
+                  <span role="alert">Your workspaces could not be loaded.</span>
                 </li>
               )}
             </ul>

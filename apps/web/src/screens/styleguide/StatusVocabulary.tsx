@@ -37,7 +37,7 @@ export default function StatusVocabulary() {
   return (
     <>
       <title>{"Status vocabulary"}</title>
-      <div
+      <main
         className="gms"
         style={{
           minHeight: "100vh",
@@ -94,7 +94,7 @@ export default function StatusVocabulary() {
               <h3>Application</h3>
               <span className="muted small">11 states · moves between stages of a competition</span>
             </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Status vocabulary table, scrollable" style={{ border: "0", borderRadius: "0" }}>
               <table className="tbl voc">
                 <thead>
                   <tr>
@@ -224,7 +224,7 @@ export default function StatusVocabulary() {
                 <h3>Award</h3>
                 <span className="muted small">6 states · mirrored to Passport</span>
               </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Status vocabulary table, scrollable" style={{ border: "0", borderRadius: "0" }}>
                 <table className="tbl voc">
                   <thead>
                     <tr>
@@ -303,7 +303,7 @@ export default function StatusVocabulary() {
                 <h3>Agreement</h3>
                 <span className="muted small">6 states · click-to-sign records name, time, IP, hash</span>
               </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Status vocabulary table, scrollable" style={{ border: "0", borderRadius: "0" }}>
                 <table className="tbl voc">
                   <thead>
                     <tr>
@@ -385,7 +385,7 @@ export default function StatusVocabulary() {
               <h3>Tranche (payment)</h3>
               <span className="muted small">10 states · readiness gates Ready → Releasing</span>
             </div>
-            <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Status vocabulary table, scrollable" style={{ border: "0", borderRadius: "0" }}>
               <table className="tbl voc">
                 <thead>
                   <tr>
@@ -508,7 +508,7 @@ export default function StatusVocabulary() {
                 <h3>Requirement (report)</h3>
                 <span className="muted small">8 states · may release a tranche when Accepted</span>
               </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Status vocabulary table, scrollable" style={{ border: "0", borderRadius: "0" }}>
                 <table className="tbl voc">
                   <thead>
                     <tr>
@@ -705,7 +705,7 @@ export default function StatusVocabulary() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }

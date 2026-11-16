@@ -44,7 +44,7 @@ export function ApprovalDetail({ approvalId, base, title }: { approvalId: string
           <>
             <div className="col" style={{ gap: "6px" }}>
               <span className="eyebrow">Exact inputs</span>
-              <pre tabIndex={0} aria-label="Tool input as the agent sent it" style={{ margin: 0, maxHeight: "200px", overflow: "auto" }}>
+              <pre tabIndex={0} role="region" aria-label="Tool input as the agent sent it" style={{ margin: 0, maxHeight: "200px", overflow: "auto" }}>
                 {JSON.stringify({ tool: detail.data.approval.tool, input: detail.data.approval.input }, null, 2)}
               </pre>
             </div>
