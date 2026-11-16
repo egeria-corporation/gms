@@ -42,6 +42,8 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
             className={error ? "inp v err" : "inp v"}
             type="number"
             aria-label={`${c.label} score, ${c.scale.min} to ${c.scale.max}`}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-err` : undefined}
             min={c.scale.min}
             max={c.scale.max}
             value={typeof entry.value === "number" ? entry.value : ""}
@@ -50,7 +52,7 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
           />
         </div>
       ) : (
-        <div className="scale-cat" role="radiogroup" aria-labelledby={`${id}-h`}>
+        <div className="scale-cat" role="radiogroup" aria-labelledby={`${id}-h`} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined}>
           {c.scale.options.map((o) => (
             <button key={o.value} type="button" role="radio" aria-checked={entry.value === o.value} className={entry.value === o.value ? "on" : undefined} disabled={readOnly} onClick={() => onChange({ ...entry, value: o.value })}>
               {o.label ?? o.value}
@@ -58,7 +60,11 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
           ))}
         </div>
       )}
-      {error && <span className="err-msg">Score this criterion before submitting</span>}
+      {error && (
+        <span className="err-msg" id={`${id}-err`}>
+          Score this criterion before submitting
+        </span>
+      )}
       <textarea className="ta" style={{ minHeight: "64px" }} aria-label={`Comment on ${c.label}`} placeholder="Comment (optional)" value={entry.comment ?? ""} readOnly={readOnly} onChange={(e) => onChange({ ...entry, comment: e.target.value })} />
     </div>
   );
@@ -213,7 +219,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             </fieldset>
           </div>
           {save.error !== null && <ErrorBanner error={save.error} />}
-          <div className="card" style={{ position: "sticky", bottom: 0, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div className="card stick-foot" style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
             <span className="small muted row" style={{ gap: "6px" }} role="status">
               {d.status === "submitted" ? (
                 <>

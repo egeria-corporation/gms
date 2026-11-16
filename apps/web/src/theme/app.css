@@ -18,6 +18,8 @@
   --s-agent-bg: #ECE6FA; --s-agent-fg: #4B2E9E;
   --s-neu-bg: #EEF3F3; --s-neu-fg: #4A5C5A;
   --s-done-bg: #D6DEDE; --s-done-fg: #1E2D2B;
+  /* Outline of a form control: 3.5:1 or more on white, gray-50, gray-100 and teal-soft (WCAG 1.4.11). */
+  --ctl-border: #748382;
   font-family: var(--font-body); font-size: 14px; line-height: 1.45;
   color: var(--og-gray-800); background: var(--og-gray-50);
   -webkit-font-smoothing: antialiased;

@@ -130,7 +130,11 @@ html, .phone-scroll, .gms-frame > .shell { overflow-anchor: none; }
 
 /* ---- 3. interactive states the canvas drew statically ---- */
 /* Real checkboxes sit visually hidden beside the drawn box; show focus on the box. */
-.cb input.sr:focus-visible + .c, .radio input.sr:focus-visible + .r { outline: 2px solid var(--og-teal); outline-offset: 2px; }
+.cb input.sr:focus-visible + .c, .radio input.sr:focus-visible + .r { outline: 2px solid var(--og-teal-dark); outline-offset: 2px; }
+/* A visually hidden file input inside a button-styled label: the label shows the focus (WCAG 2.4.7). */
+.gms label:has(> input.sr:focus-visible) { outline: 2px solid var(--og-teal-dark); outline-offset: 2px; box-shadow: 0 0 0 2px var(--og-white); }
+.cb .c { border-color: var(--ctl-border, #748382); }
+.cb .c.on { border-color: var(--og-teal-dark); }
 .cb { cursor: pointer; }
 
 /* ---- 3. shared live-screen components ---- */
@@ -172,6 +176,42 @@ button.tab { font-family: inherit; }
 .fld-c > .tag { flex: none; white-space: nowrap; }
 
 /* ---- 5. accessibility ---- */
+/* Focus ring (WCAG 2.4.7, 1.4.11): the brand teal was 2.95:1 on white. A dark teal ring with a white
+   halo in the offset gap reads on white, tinted and dark surfaces (the bulk bar, tenant headers). */
+.gms :focus-visible { outline: 2px solid var(--og-teal-dark); outline-offset: 2px; box-shadow: 0 0 0 2px var(--og-white); }
+.inp:focus, .sel:focus, .ta:focus { outline: 2px solid var(--og-teal-dark); outline-offset: 0; border-color: var(--og-teal-dark); box-shadow: none; }
+/* Form controls are found by their outline: the design's gray-200 border was 1.4:1 (WCAG 1.4.11). */
+.inp, .sel, .ta { border-color: var(--ctl-border, #748382); }
+.inp.err, .sel.err, .ta.err { border-color: #C53030; }
+/* A switch's track, off, and a drawn radio's ring are visible against the page (WCAG 1.4.11). */
+.tog { background: var(--ctl-border, #748382); }
+.tog.on { background: var(--og-teal-dark); }
+.radio .r { border-color: var(--ctl-border, #748382); }
+.radio .r.on { border-color: var(--og-teal-dark); }
+/* A public page's header bar grows and wraps instead of clipping its links: at 390px the funder's
+   section links were cut off above the bar (WCAG 1.4.10, 1.4.12). */
+.pub-hd .bar { height: auto; min-height: 64px; flex-wrap: wrap; row-gap: 8px; padding-block: 8px; }
+/* The assignment matrix keeps a focused cell clear of its sticky reviewer column (WCAG 2.4.11),
+   and an empty cell's outline is visible (WCAG 1.4.11). */
+.tbl-wrap:has(> .mx) { scroll-padding-left: 268px; }
+.cell { border-color: var(--ctl-border, #748382); }
+@media (max-width: 720px) {
+  .mx th:first-child, .mx td:first-child { min-width: 136px; }
+  .tbl-wrap:has(> .mx) { scroll-padding-left: 144px; }
+}
+/* Sticky parts never cover the control that has focus (WCAG 2.4.11): the page keeps a scroll margin
+   the size of each, so a focused control scrolls clear of it. On phones a side column is not sticky. */
+.stick-side { position: sticky; top: 16px; }
+.stick-head { position: sticky; top: 0; z-index: 2; }
+.stick-foot { position: sticky; bottom: 0; }
+html:has(.sticky-cta) { scroll-padding-top: 88px; }
+html:has(.stick-head) { scroll-padding-top: 160px; }
+html:has(.stick-foot) { scroll-padding-bottom: 120px; }
+@media (max-width: 720px) {
+  /* On a phone the opportunity's apply bar wraps to a quarter of the screen: it scrolls with the page. */
+  .stick-side, .stick-head, .sticky-cta { position: static; }
+  html:has(.stick-head), html:has(.sticky-cta) { scroll-padding-top: 0; }
+}
 /* A link inside running text is underlined, so it is not told apart by color alone (WCAG 1.4.1). */
 /* Navigation lists (the rail, section lists, menus) are not running text and keep the design's plain links. */
 .gms :is(p, dd, li:not(nav li), .help, .d, .r, .who, .bd, .small, .muted, .notice, .meta span) > a:not([class]),
