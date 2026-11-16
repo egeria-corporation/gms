@@ -25,7 +25,7 @@ import { quotaSpent, QuotaSpentNote } from "../../../components/launch.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
 import { countFor, countText, isOverLimit, LIMIT_UNITS, limitPhrase, type ParsedQuestion, type TextCounts } from "../../../lib/outside.ts";
 import { bestVariant, canApprove as mayApprove, mergeRequired, variantChoices, type RequiredDocument } from "../../../lib/writeKeep.ts";
-import { INVITE_OPTION, InviteDialog, InviteOptions, InviteSentNote, TeamNote, useDraftInvites } from "../inviteDraft.tsx";
+import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "../inviteDraft.tsx";
 import { GuidelinesReader } from "./guidelines.tsx";
 import { orgFacts } from "./shared.tsx";
 import { AiUseNote, CommentsButton, CommentsPanel, DraftPanel, ReuseDialog, StaleBadge } from "./writeFaster.tsx";
@@ -785,15 +785,15 @@ export function QuestionCard({
               <label className="sr" htmlFor={`oq-assignee-${q.id}`}>
                 Who writes question {n}
               </label>
-              <select
+              <InvitePicker
                 id={`oq-assignee-${q.id}`}
                 className="sel"
                 style={{ maxWidth: "220px", height: "30px" }}
                 disabled={readOnly}
                 value={q.assigneeUserId ?? ""}
-                onChange={async (e) => {
-                  if (e.target.value === INVITE_OPTION) return onInvite?.(q.id);
-                  if ((await patch.run({ assigneeUserId: e.target.value || null })) !== undefined) onChanged();
+                onInvite={() => onInvite?.(q.id)}
+                onChoose={async (value) => {
+                  if ((await patch.run({ assigneeUserId: value || null })) !== undefined) onChanged();
                 }}
               >
                 <option value="">No one assigned</option>
@@ -803,7 +803,7 @@ export function QuestionCard({
                   </option>
                 ))}
                 {!readOnly && <InviteOptions list={invites} match={(d) => d.questionId === q.id} />}
-              </select>
+              </InvitePicker>
             </>
           )}
           <label className="sr" htmlFor={`oq-status-${q.id}`}>

@@ -68,7 +68,7 @@ Out of scope: pages and widgets other services render (OpenGrants Passport, Stri
 | 2.5.4 Motion Actuation (Level A) | Not Applicable | Nothing responds to device motion. |
 | 3.1.1 Language of Page (Level A) | Partially Supports | **Web: Supports** (`lang="en"`). **Emails: Supports**: sent as a document with `lang="en"` (fixed in this pass). **PDFs: Partially Supports**: the board docket and send package name their language (fixed in this pass); the award letter, agreement and application snapshot do not yet, because their bytes are re-rendered to verify a stored hash and must not change for documents already signed. Plan below. |
 | 3.2.1 On Focus (Level A) | Supports | Focus never changes context. |
-| 3.2.2 On Input (Level A) | Partially Supports | One known case: in the assignee picker of an application's sections and of an outside application's questions, choosing "Invite someone by email…" opens the invitation dialog at once. With the keyboard on Windows and Linux, arrowing through the closed picker can land on it and open the dialog unasked (Escape closes it and focus returns to the picker). Every other select only changes its own value. Plan below. |
+| 3.2.2 On Input (Level A) | Supports | Changing a setting never changes context by itself. The one choice that opens something, "Invite someone by email…" at the end of an assignee picker, opens its dialog when picked with a pointer or with Enter in the open list; reached by arrowing or typing through the closed picker it waits for Enter and says so (fixed in this pass). |
 | 3.2.6 Consistent Help (Level A) | Supports | Where the feedback widget is switched on, it is in the same place on every page; the public pages' footer is the same on every page. |
 | 3.3.1 Error Identification (Level A) | Supports | Errors are described in words next to the field, announced, and tied to the field (`aria-invalid`, `aria-describedby`): forms, application forms, sign-in (email, single sign-on, the one-time code and authenticator code), scoring and money fields (fixed in this pass). |
 | 3.3.2 Labels or Instructions (Level A) | Supports | Every field has a visible label; required fields show an asterisk and say "required" to assistive technology (fixed in this pass); help text is part of the field's description. |
@@ -103,7 +103,7 @@ Out of scope: pages and widgets other services render (OpenGrants Passport, Stri
 | 3.3.3 Error Suggestion (Level AA) | Supports | Errors say how to fix them, for example "Enter the amount in dollars, such as 25000". |
 | 3.3.4 Error Prevention (Legal, Financial, Data) (Level AA) | Supports | Signing an agreement needs a typed name, an attestation and a confirmation; payments, submissions, withdrawals, revocations and sends are confirmed in a dialog first; payments go through Passport's own checks. |
 | 3.3.8 Accessible Authentication (Minimum) (Level AA) | Supports | Sign-in is an emailed one-time code (paste fills all six boxes; `autocomplete="one-time-code"`), single sign-on through the organization's own page, or a Passport sign-in link. The authenticator code for admins accepts paste. No password, puzzle or memory test. |
-| 4.1.3 Status Messages (Level AA) | Supports | "Saving…" and "Saved" notes are live regions; errors are alerts; banners that appear after an action (a save, an upload, a decision) are spoken once through one polite live region that is always on the page; import and attach progress counts are status regions (fixed in this pass). |
+| 4.1.3 Status Messages (Level AA) | Supports | "Saving…" and "Saved" notes are live regions; errors are alerts; banners that appear after an action on the same screen (a save, an upload, a decision) are spoken once through one polite live region that is always on the page, while banners that are part of a screen as it opens are read with it; import and attach progress counts are status regions (fixed in this pass). Which banners are spoken follows a rule (an action on this screen in the last eight seconds), not each banner's own setting; to be confirmed in the screen-reader pass. |
 
 ## Table 3: Success Criteria, Level AAA
 
@@ -146,13 +146,14 @@ Counted once per issue under its main criterion; an issue is one component or on
 | 2.5.2 Pointer Cancellation | 1 | 1 | Dialogs closed on the press outside |
 | 2.5.3 Label in Name | 4 | 4 | Copy buttons named differently from their label; the awards list's View link |
 | 2.5.8 Target Size | 1 | 1 | The reviewer's two visibility radios |
+| 3.2.2 On Input | 1 | 1 | Arrowing through an assignee picker could open the invitation dialog unasked |
 | 3.1.1 Language of Page | 3 | 3 | Emails, board docket PDF, send package PDF |
 | 3.3.1 Error Identification | 6 | 6 | Field help and errors not tied to controls; application form errors; sign-in fields; scoring; an amount field; help ids that did not exist |
 | 4.1.3 Status Messages | 2 | 2 | Banners after an action not reliably spoken; import and attach progress |
-| **Total (product)** | **74** | **74** | |
+| **Total (product)** | **75** | **75** | |
 | Demo-only boards and previews | 11 | 11 | Main landmarks, a checkbox name, scrolling tables, a cursor label and the email header mark's contrast |
 
-Still open: the four partial items in the tables (untagged PDFs for 1.3.1 and 1.3.2, the language of three hashed PDF kinds for 3.1.1, the assignee picker for 3.2.2).
+Still open: the three partial items in the tables, all in generated PDFs (untagged, for 1.3.1 and 1.3.2; the language of three hashed PDF kinds, for 3.1.1).
 
 ## Known limits and plan
 
@@ -161,7 +162,6 @@ Still open: the four partial items in the tables (untagged PDFs for 1.3.1 and 1.
 | **No screen-reader pass with real assistive technology.** Everything above is automated, scripted or read from code. | A pass with NVDA and Firefox, JAWS and Chrome, VoiceOver on macOS and iOS, and TalkBack, over the apply, review, award and payment flows; findings fixed and this report updated. |
 | **PDFs are not tagged** (pdf-lib has no structure tree). | Keep offering the text: `answers.txt` in every send package, the panel screen for the docket. Add an HTML download of the board docket and the application snapshot, and evaluate a tagging step (for example a renderer that writes a structure tree) for agreements and letters. |
 | **Award letters, agreements and snapshots have no PDF language**, because re-rendering a signed document must give the same bytes. | Version the renderer: documents rendered from the next version on carry their language; earlier ones re-verify with the version they were made with. |
-| **3.2.2: the assignee picker's "Invite someone by email…"** opens a dialog on change. | Move the invitation to an "Invite…" button beside the picker. |
 | **Third-party pages** (Passport, Stripe, single sign-on, Google file picker, Userback, Composio) are not covered here. | Ask each vendor for its own conformance report; Passport's is kept with Passport. |
 | **Font sizes in pixels** do not follow a browser's text-only size setting (page zoom works). | Move the type scale to `rem`. |
 | **One theme.** There is no dark theme; with the system in dark mode the GMS stays light. | Not a WCAG requirement; a dark theme would be checked the same way before it ships. |

@@ -3,7 +3,7 @@
 // picker, the dialog behind it, and the one-time "Writing with others? Invite a teammate" note.
 // One click on "Send invitation" sends one email; nothing is ever sent again for it, and no
 // address book is read. The invited person can open this one draft and write its answers.
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent, type SelectHTMLAttributes } from "react";
 import { MailCheck, UserPlus, Users, X } from "lucide-react";
 import { INVITE_TEAMMATE_NOTE, type DraftInvitation, type DraftInvitationList, type DraftKind, type DraftRef } from "../../api/invites.ts";
 import { useInvitesMutation, useInvitesQuery } from "../../api/invitesHooks.ts";
@@ -35,6 +35,60 @@ export function InviteOptions({ list, match }: { list: DraftInvitationList | nul
         </option>
       ))}
       {list.canInvite && <option value={INVITE_OPTION}>Invite someone by email…</option>}
+    </>
+  );
+}
+
+const MOVES = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
+
+/**
+ * An assignee picker whose last choice, "Invite someone by email…", opens a dialog. Picked with a
+ * pointer, or with Enter in the open list, it opens at once. Reached by moving through the closed
+ * picker with the arrow keys or by typing (Windows and Linux change the value on each key), it waits
+ * for Enter, so going through the choices never opens a dialog by itself (WCAG 3.2.2).
+ */
+export function InvitePicker({ id, value, onChoose, onInvite, children, ...rest }: Omit<SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange" | "id"> & { id: string; value: string; onChoose: (value: string) => void; onInvite: () => void }) {
+  const keyed = useRef(false);
+  const [pending, setPending] = useState(false);
+  const hintId = `${id}-invite-hint`;
+  const invite = () => {
+    setPending(false);
+    onInvite();
+  };
+  return (
+    <>
+      <select
+        {...rest}
+        id={id}
+        value={pending ? INVITE_OPTION : value}
+        aria-describedby={pending ? hintId : undefined}
+        onPointerDown={() => {
+          keyed.current = false;
+        }}
+        onKeyDown={(e: KeyboardEvent<HTMLSelectElement>) => {
+          if (pending && e.key === "Enter") {
+            e.preventDefault();
+            invite();
+            return;
+          }
+          keyed.current = (MOVES.has(e.key) && !e.altKey) || (e.key.length === 1 && e.key !== " ");
+        }}
+        onBlur={() => setPending(false)}
+        onChange={(e) => {
+          if (e.target.value !== INVITE_OPTION) {
+            setPending(false);
+            onChoose(e.target.value);
+          } else if (keyed.current) setPending(true);
+          else invite();
+        }}
+      >
+        {children}
+      </select>
+      {pending && (
+        <span className="help" id={hintId}>
+          Press Enter to invite someone by email.
+        </span>
+      )}
     </>
   );
 }
