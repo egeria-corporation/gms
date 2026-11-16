@@ -8,6 +8,9 @@ import { describe, expect, it, vi } from "vitest";
 import { FormView, type FormViewProps } from "../src/forms/FormView.tsx";
 import { changeLocale } from "../src/i18n/current.ts";
 import { LOI_FORM, LOI_PROVENANCE, LOI_RESPONSE } from "../src/mocks/forms.ts";
+import { DEADLINE_LABELS, dueIn } from "../src/screens/applicant/outside/shared.tsx";
+import { limitPhrase, monthName, stageLabel } from "../src/screens/applicant/labels.ts";
+import { LANE_LABELS } from "../src/screens/applicant/Applications.tsx";
 
 function draw(props: Partial<FormViewProps> = {}) {
   const onChange = vi.fn<(r: JsonObject) => void>();
@@ -62,5 +65,26 @@ describe("the form renderer in Spanish", () => {
     draw({ mode: "funder" });
     expect(screen.getByText(/Firmado por/)).toBeInTheDocument();
     expect(screen.getAllByText(/^(Sí|No)$/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the applicant screens' words in Spanish", () => {
+  it("follow the page's language in label tables, plurals and dates", async () => {
+    const now = new Date("2026-11-16T12:00:00Z");
+    expect(dueIn("2026-11-17", now)).toBe("in 1 day");
+    expect(LANE_LABELS.drafting).toBe("Drafting");
+    expect(limitPhrase("words", 1)).toBe("1 word");
+    await act(() => changeLocale("es"));
+    expect(dueIn("2026-11-17", now)).toBe("en 1 día");
+    expect(dueIn("2026-11-26", now)).toBe("en 10 días");
+    expect(dueIn("2026-11-14", now)).toBe("hace 2 días");
+    expect(dueIn("2026-11-16", now)).toBe("hoy");
+    // Label tables are read in the current language each time.
+    expect(LANE_LABELS.drafting).toBe("En redacción");
+    expect(DEADLINE_LABELS.fullDue).toBe("Fecha límite de la solicitud completa");
+    expect(stageLabel("not_pursuing")).toBe("Descartada");
+    expect(limitPhrase("chars", 1500)).toBe("1,500 caracteres");
+    expect(limitPhrase(null, null)).toBe("Sin límite");
+    expect(monthName(7)).toBe("julio");
   });
 });
