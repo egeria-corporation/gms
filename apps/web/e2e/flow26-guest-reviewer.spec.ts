@@ -38,7 +38,7 @@ test("a guest reviewer is welcomed and starts reviewing", async ({ app: page }) 
     await expect(facts).toContainText(/Dec 4, 2026|December 4, 2026|2026-12-04/);
     const coi = page.getByRole("note", { name: "Conflicts of interest" });
     await expect(coi).toContainText("you step aside from it and it never opens for you");
-    await expect(coi.getByRole("link", { name: "Read and confirm the conflict-of-interest steps" })).toHaveAttribute("href", "/review/assignments?ws=riverbend");
+    await expect(coi.getByRole("link", { name: "Read and confirm the conflict-of-interest steps" })).toHaveAttribute("href", "/review/assignments?ws=riverbend&sign=1");
     await expect(page.getByText(/Organization name|Set up your funder workspace/)).toHaveCount(0);
   });
 
