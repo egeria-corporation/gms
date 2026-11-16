@@ -143,7 +143,7 @@ const IMPLEMENTED: Impl = {
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
   listAwards: (ctx, i) => awards.listAwards(ctx, paged(i), { status: i.status?.join(","), programId: i.programId, recipientWorkspaceId: i.recipientWorkspaceId }),
   getAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "funder"),
-  // Award sharing (v1.8.0): a read; listing, confidential and unlisted changes have no tool.
+  // Award sharing (v1.9.0): a read; listing, confidential and unlisted changes have no tool.
   getAwardShareKit: (ctx, i) => awardSharing.shareKit(ctx, awd(i.awardId), "funder"),
   // Gated for every agent: this runs only after a person approved the call, as that person, and the
   // service checks the input with the same schema as the REST route.
@@ -312,13 +312,13 @@ const IMPLEMENTED: Impl = {
   getFundingSummary: (ctx) => summary.fundingSummary(ctx),
   // Imports (v1.7.0): agents read a check a person made; committing it is a person's (no tool).
   getImportPreview: (ctx, i) => imports.importPreview(ctx, bareUuid(i.importRunId, "Import run")),
-  // Social posting (v1.8.0): agents read posts and reach; posting stays a person's (no tool).
+  // Social posting (v1.9.0): agents read posts and reach; posting stays a person's (no tool).
   listSocialPosts: (ctx, i) => {
     // The funder's tool also takes an opportunity; the applicant's, an award only.
     const opp = (i as { opportunityId?: string }).opportunityId;
     return social.reachReport(ctx, opp ? { subjectType: "opportunity", subjectId: uuidOf("opportunity", opp, "Opportunity") } : i.awardId ? { subjectType: "award", subjectId: awd(i.awardId) } : {});
   },
-  // Content digests (v1.8.0): agents read the preview; turning one on or off is the person's (no tool).
+  // Content digests (v1.9.0): agents read the preview; turning one on or off is the person's (no tool).
   getDigestPreview: (ctx, i) => digests.previewDigest(ctx, { digest: i.digest }),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
   // Send to the funder (C4): the package described, never emailed by an agent.

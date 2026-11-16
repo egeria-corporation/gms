@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Contract: live responses of the v1.8.0 content digest routes validate against the compiled
+// Contract: live responses of the v1.9.0 content digest routes validate against the compiled
 // OpenAPI document (`pnpm spec:compile`), and agents read the preview over MCP but cannot change
 // the choices. Skipped when the document has not been compiled; CI compiles it first.
 import { existsSync, readFileSync } from "node:fs";

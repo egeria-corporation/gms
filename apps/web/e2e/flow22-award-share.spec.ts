@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Flow 22 — Award sharing (v1.8.0). The funder's award screen says the award is not public yet →
+// Flow 22 — Award sharing (v1.9.0). The funder's award screen says the award is not public yet →
 // the funder turns on "List awards on my public page" in Settings › Public page → its
 // grants-awarded page lists the award, which has its own page → the grantee opens the grant, finds
 // the share kit, edits nothing and copies the short post, which is what the clipboard then holds →

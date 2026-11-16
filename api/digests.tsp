@@ -10,7 +10,7 @@ using GMS.Auth;
 using GMS.Errors;
 using GMS.HttpResponses;
 
-// v1.8.0: opt-in content digests. Three Monday emails, each off until the person turns it on, per
+// v1.9.0: opt-in content digests. Three Monday emails, each off until the person turns it on, per
 // person and workspace: new matches and deadlines for applicants, the week's activity for funder
 // staff. Each is sent once per person, digest and ISO week, only when there is something new, with
 // a one-click unsubscribe link (signed, no sign-in) and the List-Unsubscribe headers. Turning a

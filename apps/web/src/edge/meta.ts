@@ -3,7 +3,7 @@
 // canonical address, Open Graph and Twitter tags, schema.org JSON-LD, the share card's text and
 // robots.txt. Built only from the public page data (`/gms/public/funders/...`, an approved template
 // gallery item at `/gms/gallery/{slug}`) and the switch pages' own text, the same published fields
-// the pages show, so nothing private can reach a preview. Since v1.8.0 also the grants a funder has
+// the pages show, so nothing private can reach a preview. Since v1.9.0 also the grants a funder has
 // awarded and lists (`/f/{handle}/awards`, each award's page) and the "Funded by" badge
 // (`/badge/{slug}.svg`), whose data the API gives only for awards that may be public.
 import { seoFor, switchEntry } from "../content/switch.ts";

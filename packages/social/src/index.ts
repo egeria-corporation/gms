@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Social posting through Zernio (v1.8.0). A port (`SocialPort`) with its HTTP client and a fake;
+// Social posting through Zernio (v1.9.0). A port (`SocialPort`) with its HTTP client and a fake;
 // the platforms and their limits; the one function that builds the body a post is sent with; the
 // webhook signature check; and sealed tokens for the connect state and the preview.
 //

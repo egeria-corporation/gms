@@ -1,5 +1,5 @@
 -- 0037_award_sharing.sql
--- Award sharing (v1.8.0): a confidential flag on awards with a program default, the grantee's
+-- Award sharing (v1.9.0): a confidential flag on awards with a program default, the grantee's
 -- choice to stay off the funder's public page, and the slug that names an award's public page and
 -- its "Funded by" badge. The rules that decide what is public live in one function,
 -- `isPubliclyListable` in apps/api/src/services/award-sharing.ts; this migration adds the facts it

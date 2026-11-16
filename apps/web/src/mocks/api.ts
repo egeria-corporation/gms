@@ -669,6 +669,6 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       return clone(evaluate(parsed.rules, { org: input.org, profile: input.profile, applicant: input.applicant }));
     },
   };
-  // Funds (v1.8.0): funds, advisors and the public fund page, over these workspaces; the reads above narrowed to a fund advisor's funds.
+  // Funds (v1.9.0): funds, advisors and the public fund page, over these workspaces; the reads above narrowed to a fund advisor's funds.
   return { ...api, ...createMockFundsApi({ ...funderCtx, me, store }, api) };
 }

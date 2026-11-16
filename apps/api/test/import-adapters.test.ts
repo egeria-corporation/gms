@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Importer adapters over /gms/imports (v1.8.0): a grants system's export recognised and mapped by
+// Importer adapters over /gms/imports (v1.9.0): a grants system's export recognised and mapped by
 // its preset, never-awarded rows set aside, sensitive columns dropped first whatever the adapter;
 // Fluxx and Zengine read with the funder's own credentials (checked, stored encrypted, deleted
 // when the import has read the source to its end, on disconnect, or after a week unused), 5,000

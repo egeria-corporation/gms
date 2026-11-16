@@ -1,6 +1,6 @@
 # Award sharing
 
-v1.8.0. A funder can list the grants it awards on its public page, each award gets its own page and
+v1.9.0. A funder can list the grants it awards on its public page, each award gets its own page and
 share card, both sides get a share kit (ready-to-edit posts, the link, the card image and a badge),
 and the grantee can put a "Funded by" badge on its website. Nothing is posted from the GMS.
 

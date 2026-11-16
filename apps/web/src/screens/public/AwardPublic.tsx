@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// `/f/:handle/awards/:slug` (v1.8.0): one grant a funder awarded and lists: who awarded whom, the
+// `/f/:handle/awards/:slug` (v1.9.0): one grant a funder awarded and lists: who awarded whom, the
 // amount (unless the funder hides amounts), the program, the year and what it is for. From
 // `GET /gms/public/funders/{handle}/awards/{slug}`, which answers only for an award that may be
 // public; every other address is the same "not found". The share card and schema.org data for this

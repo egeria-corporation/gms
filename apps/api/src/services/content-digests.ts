@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Opt-in content digests (v1.8.0). Three Monday emails, each off until the person turns it on, per
+// Opt-in content digests (v1.9.0). Three Monday emails, each off until the person turns it on, per
 // person and workspace (`digest_subscriptions`, migration 0041):
 //   new_matches      applicants: up to 10 new matches from OpenGrants plus open opportunities on
 //                    this site that fit the profile, never one already sent to them or saved;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// "Share this award" (v1.8.0), on the funder's award screen and the grantee's: whether the award is
+// "Share this award" (v1.9.0), on the funder's award screen and the grantee's: whether the award is
 // on the funder's public page and why not, the switch each side owns (the funder's "Keep this award
 // confidential", the grantee's "Don't list us publicly"), and while it is public the share kit:
 // three ready-to-edit posts, the award page link, the card image and the "Funded by" badge, each

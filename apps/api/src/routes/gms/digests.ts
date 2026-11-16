@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// /gms routes for the opt-in content digests (v1.8.0): a person's choices in a workspace, the
+// /gms routes for the opt-in content digests (v1.9.0): a person's choices in a workspace, the
 // preview of next Monday's email, and the one-click unsubscribe, which needs no sign-in (the signed
 // link is the proof). Each handler parses input, builds the context and calls one service function.
 import { Hono, type Context } from "hono";

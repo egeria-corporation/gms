@@ -1,5 +1,5 @@
 -- 0042_importer_adapters.sql
--- Importer adapters (v1.8.0): a funder moving from another grants system drops in that system's
+-- Importer adapters (v1.9.0): a funder moving from another grants system drops in that system's
 -- export (Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple, OpenWater) and
 -- gets a mapping already filled in, or has the GMS read its records from Fluxx or Zengine through
 -- their APIs with the funder's own credentials, read-only. Every run still goes through the import

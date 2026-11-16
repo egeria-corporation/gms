@@ -10,7 +10,7 @@ using GMS.Auth;
 using GMS.Errors;
 using GMS.HttpResponses;
 
-// Social posting through Zernio (v1.8.0): a funder announces an open call or an award on its own
+// Social posting through Zernio (v1.9.0): a funder announces an open call or an award on its own
 // social accounts, a grantee shares its award, and the reach report shows what each post did.
 // Nothing posts without a person: the exact text, picture and accounts are shown in a preview, and
 // only the person's click on Post sends it. Agent and API-client tokens are refused on preview,

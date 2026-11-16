@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Social posting through Zernio (v1.8.0): a funder announces an open call or an award on its own
+// Social posting through Zernio (v1.9.0): a funder announces an open call or an award on its own
 // accounts, a grantee shares its award, and the reach report shows what each post did.
 //
 //   settings   the platforms, the workspace's connected accounts, and what this caller may do;

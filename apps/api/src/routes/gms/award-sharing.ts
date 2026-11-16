@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// /gms routes for award sharing (v1.8.0): the "Share this award" panel for the funder and the
+// /gms routes for award sharing (v1.9.0): the "Share this award" panel for the funder and the
 // grantee, the funder's confidential switch, the grantee's "Don't list us publicly", and the
 // funder's listing settings and program defaults. Every change is a signed-in person's: agent and
 // API-client tokens are refused (403 human_only), and no MCP tool makes them.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Importing grant history straight from Fluxx or Zengine (v1.8.0), with the funder's own
+// Importing grant history straight from Fluxx or Zengine (v1.9.0), with the funder's own
 // credentials, read-only. A workspace admin connects (the credentials are checked with one read,
 // then stored encrypted under CREDENTIALS_ENCRYPTION_KEY in connector_accounts); every pull then
 // goes through the import wizard's dry run and commit (./imports.ts), at most 5,000 rows a run,

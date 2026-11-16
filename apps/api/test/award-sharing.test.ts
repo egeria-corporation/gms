@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Award sharing (v1.8.0): what a funder's grants-awarded pages, badge, sitemap and share kit show.
+// Award sharing (v1.9.0): what a funder's grants-awarded pages, badge, sitemap and share kit show.
 // A confidential award never leaks through any public route; an award is public only once accepted,
 // to an organization, with the funder listing awards and the grantee not opting out; amounts can be
 // hidden; "verified" appears only for a funder linked to Passport; every change is a person's.

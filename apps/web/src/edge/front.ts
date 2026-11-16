@@ -2,7 +2,7 @@
 // The front Worker that scripts/build-front-worker.mjs builds (docs/staging.md): it serves the web
 // app from files embedded in its script, forwards the API's paths to the API Worker, and gives the
 // public pages what links and search engines read: per-page meta and JSON-LD (set with
-// HTMLRewriter), share images and robots.txt, and since v1.8.0 the "Funded by" badge
+// HTMLRewriter), share images and robots.txt, and since v1.9.0 the "Funded by" badge
 // (`/badge/{slug}.svg`, drawn by the API, kept at the edge for BADGE_TTL_SECONDS).
 //
 // Page data comes from the API's public routes over the service binding and is kept at the edge for

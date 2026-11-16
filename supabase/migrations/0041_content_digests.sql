@@ -1,5 +1,5 @@
 -- 0041_content_digests.sql
--- Opt-in content digests (v1.8.0): new matches and deadlines for applicants, the week's activity
+-- Opt-in content digests (v1.9.0): new matches and deadlines for applicants, the week's activity
 -- for funder staff. Each is off until the person turns it on, per person and workspace, and goes
 -- out on Mondays (apps/jobs/src/content-digests.ts, apps/api/src/services/content-digests.ts).
 --

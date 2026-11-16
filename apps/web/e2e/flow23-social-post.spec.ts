@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Flow 23 — Social posting through Zernio (v1.8.0), against the fake Zernio in mock mode. The
+// Flow 23 — Social posting through Zernio (v1.9.0), against the fake Zernio in mock mode. The
 // funder's open call has no social account yet → Settings › Social accounts → Connect LinkedIn
 // (Zernio sends the browser back; the account is recorded and the address cleaned) → back on the
 // Publish step, Write a post: the text starts from the call with its deadline and shared link, and

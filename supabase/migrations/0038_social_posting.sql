@@ -1,5 +1,5 @@
 -- 0038_social_posting.sql
--- Social posting through Zernio (v1.8.0): a funder announces an open call or an award on its own
+-- Social posting through Zernio (v1.9.0): a funder announces an open call or an award on its own
 -- social accounts, a grantee shares its award, and a reach report shows what each post did. A
 -- person sees the exact post and presses Post; nothing posts on its own.
 --

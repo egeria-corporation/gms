@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Flow 24 — Many funds in one workspace (v1.8.0). The admin creates a second fund with its own
+// Flow 24 — Many funds in one workspace (v1.9.0). The admin creates a second fund with its own
 // budget, makes a program in it, sees the fund's budget beside its programs', narrows the programs
 // list with the fund switcher, and invites an advisor for that fund. The advisor signs in with the
 // invitation and sees only that fund: its name in the rail and its program, none of the others.

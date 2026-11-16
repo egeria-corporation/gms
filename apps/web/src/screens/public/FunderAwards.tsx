@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// `/f/:handle/awards` (v1.8.0): the grants a funder has awarded and lists, by year and program, with
+// `/f/:handle/awards` (v1.9.0): the grants a funder has awarded and lists, by year and program, with
 // each recipient, the amount (unless the funder hides amounts), the program and what the grant is
 // for. Everything here comes from `GET /gms/public/funders/{handle}/awards`, which carries only the
 // awards that may be public. A funder that does not list awards has no such page (404).

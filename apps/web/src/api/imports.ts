@@ -3,7 +3,7 @@
 // an applicant its applications; from a CSV or Excel file, Google Sheets or Airtable. Sensitive
 // columns are dropped by the server before anything comes back. `createHttpImportsApi` calls the GMS
 // Worker (/gms/imports); `createMockImportsApi` (mocks/imports.ts) implements the same interface in
-// the browser with the same framework (@gms/importers). v1.8.0 adds importer adapters: a grants
+// the browser with the same framework (@gms/importers). v1.9.0 adds importer adapters: a grants
 // system's export with its preset mapping, Fluxx and Zengine read with the funder's own
 // credentials, and the files of a system's zip attached to the imported awards.
 import { ApiError } from "./client.ts";

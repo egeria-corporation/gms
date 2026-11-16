@@ -19,7 +19,7 @@
 // a sample is shown, a mapping is suggested or a row is stored. A run keeps the dropped columns'
 // names only.
 //
-// Importer adapters (v1.8.0, packages/importers/src/adapters): grant history from another grants
+// Importer adapters (v1.9.0, packages/importers/src/adapters): grant history from another grants
 // system. A file from Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or
 // OpenWater is recognised by its header row (or named by the person) and gets that system's preset
 // mapping; the rows it says were never awarded are set aside. Fluxx and Zengine are read through

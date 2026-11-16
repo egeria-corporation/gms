@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Award sharing (v1.8.0): what of an award may be public, and the share kit and badge built from
+// Award sharing (v1.9.0): what of an award may be public, and the share kit and badge built from
 // it. `isPubliclyListable` is the one rule every public path applies (the funder's grants-awarded
 // pages, past awards on its funder page, the sitemap, share cards, the badge, the share kit) and
 // the open-data export should apply too. An award is public only when:

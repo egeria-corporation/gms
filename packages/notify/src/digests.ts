@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Opt-in content digests (v1.8.0), sent on Mondays to people who turned them on: new matches and
+// Opt-in content digests (v1.9.0), sent on Mondays to people who turned them on: new matches and
 // deadlines for applicants, the week's activity for funder staff. Every email has a plain-text and
 // an HTML part, no images and no tracking, a one-click unsubscribe link for that digest alone and
 // the `List-Unsubscribe` / `List-Unsubscribe-Post` headers (RFC 8058). Listing titles and funder

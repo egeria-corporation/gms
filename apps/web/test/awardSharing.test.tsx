@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Award sharing screens against the mock (v1.8.0): the funder turns on listing in Settings › Public
+// Award sharing screens against the mock (v1.9.0): the funder turns on listing in Settings › Public
 // page, the grants-awarded page and the award page show the award, the "Share this award" panel on
 // both sides says why an award is not public and offers the kit once it is, the funder can keep an
 // award confidential, the grantee can opt out, and amounts can be hidden.

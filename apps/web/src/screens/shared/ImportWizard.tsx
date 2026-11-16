@@ -5,7 +5,7 @@
 // The server drops columns that look like bank or identity details before anything comes back;
 // this screen only ever sees the columns that may be imported, and names the ones left out.
 //
-// A funder moving from another grants system (v1.8.0) picks the system its export comes from (Good
+// A funder moving from another grants system (v1.9.0) picks the system its export comes from (Good
 // Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple, OpenWater) and gets that
 // system's matching, or reads straight from Fluxx or Zengine with credentials it creates there.
 // After the import, the PDFs and files of the system's zip can be attached to the imported awards:

@@ -1,4 +1,4 @@
-# Funds (v1.8.0)
+# Funds (v1.9.0)
 
 Community foundations, fiscal sponsors and intermediaries run many funds from one office, each with
 its own advisors, budget and public face. One GMS workspace holds all of them.
@@ -80,7 +80,7 @@ in any answer, nothing of it changes, and no approval request names it.
   (`GET /gms/public/funders/{handle}/funds/{slug}`, published fields only, never a budget or an
   advisor). The funder page shows funds as sections when more than one fund has open calls, and an
   opportunity page says "{Fund} · A fund of {Funder}", once the public funder and opportunity data
-  carry `funds` and `opportunity.fund` (see the v1.8.0 integration notes); until then they show
+  carry `funds` and `opportunity.fund` (see the v1.9.0 integration); until then they show
   what they show today.
 
 ## API

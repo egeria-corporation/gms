@@ -20,7 +20,7 @@ const Switch = lazy(() => import("../screens/public/Switch.tsx"));
 const SwitchSystem = lazy(() => import("../screens/public/SwitchSystem.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
-// Award sharing (v1.8.0): the grants a funder has awarded, and one award's page.
+// Award sharing (v1.9.0): the grants a funder has awarded, and one award's page.
 const FunderAwards = lazy(() => import("../screens/public/FunderAwards.tsx"));
 const AwardPublic = lazy(() => import("../screens/public/AwardPublic.tsx"));
 const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
@@ -29,7 +29,7 @@ const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx")
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
 const JoinDraft = lazy(() => import("../screens/applicant/JoinDraft.tsx"));
 const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
-// Opt-in digests (v1.8.0): the one-click unsubscribe page, no sign-in.
+// Opt-in digests (v1.9.0): the one-click unsubscribe page, no sign-in.
 const DigestUnsubscribe = lazy(() => import("../screens/public/DigestUnsubscribe.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));

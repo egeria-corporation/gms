@@ -11,7 +11,7 @@ using GMS.Auth;
 using GMS.Errors;
 using GMS.HttpResponses;
 
-// Award sharing (v1.8.0): the grants a funder has awarded on its public page, each award's page,
+// Award sharing (v1.9.0): the grants a funder has awarded on its public page, each award's page,
 // a "Funded by" badge for the grantee's website, and a share kit (ready-to-edit posts, the link,
 // the card image and the badge) for both sides. An award is public only when it is not
 // confidential, went to an organization (never an individual), is accepted, active or completed,

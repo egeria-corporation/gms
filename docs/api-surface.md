@@ -289,7 +289,7 @@ All implemented. Each starts with the shared authorization check; none returns b
 | `GET /gms/my/funders/detail` | Open items, documents and public contact per funder | `applications:read` |
 | `GET/POST /gms/discover/alerts`, `DELETE /gms/discover/alerts/{alertId}` | Saved funding alerts (up to 25) | `discovery` |
 
-Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (since v1.8.0
+Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (since v1.9.0
 null unless the funder lists awards, `settings.awardSharing.listAwards`, and shows amounts; only awards that pass
 `isPubliclyListable`, with a `page` link each; `settings.transparency` alone no longer lists them, see
 [award-sharing.md](award-sharing.md)); the opportunity page adds `faq` and `documents`, written through

@@ -1,6 +1,6 @@
 // @vitest-environment node
 // SPDX-License-Identifier: AGPL-3.0-only
-// Award sharing (v1.8.0), one scenario on two backends: the web HTTP client (api/awardSharing.ts)
+// Award sharing (v1.9.0), one scenario on two backends: the web HTTP client (api/awardSharing.ts)
 // against the real API Worker in-process, and the in-browser mock. The same assertions run on both,
 // on the fields the screens read, so the e2e flow in mock mode proves what a real install does.
 import { beforeAll, describe, expect, it } from "vitest";

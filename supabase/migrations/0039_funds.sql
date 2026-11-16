@@ -1,5 +1,5 @@
 -- 0039_funds.sql
--- Funds: one funder workspace, many funds (v1.8.0). Community foundations, fiscal sponsors and
+-- Funds: one funder workspace, many funds (v1.9.0). Community foundations, fiscal sponsors and
 -- intermediaries run many funds from one office, each with its own advisors, budget and public face.
 --
 -- A fund holds programs. Opportunities, competitions, applications and awards belong to a fund

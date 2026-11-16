@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Files from a grants system's zip, attached to the awards an import created (v1.8.0). The import
+// Files from a grants system's zip, attached to the awards an import created (v1.9.0). The import
 // screen lists the zip's paths in the browser and sends the paths only; they are matched to the
 // run's rows by the export's own id (hashed like the run's row keys, so no source id is stored) or
 // by title (packages/importers/src/adapters/attachments.ts). The person then sends each matched

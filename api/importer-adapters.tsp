@@ -11,7 +11,7 @@ using GMS.Auth;
 using GMS.Errors;
 using GMS.HttpResponses;
 
-// Importer adapters (v1.8.0): grant history from another grants system. A file exported from Good
+// Importer adapters (v1.9.0): grant history from another grants system. A file exported from Good
 // Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or OpenWater gets that
 // system's preset mapping, and the rows it says were never awarded are set aside; Fluxx and Zengine
 // are read through their APIs with the funder's own credentials, read-only, 5,000 rows a run. The

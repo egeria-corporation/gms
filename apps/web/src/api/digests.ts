@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Opt-in content digests (v1.8.0): what we email a person on Mondays, per workspace. New matches and
+// Opt-in content digests (v1.9.0): what we email a person on Mondays, per workspace. New matches and
 // deadlines in an applicant workspace, the week's activity in a funder one, each off until the
 // person turns it on; a preview of next Monday's email; and the one-click unsubscribe page, which
 // needs no sign-in (the signed link in the email is the proof).

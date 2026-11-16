@@ -65,7 +65,7 @@ publicPages.get("/funders/:handle/opportunities/:slug", async (c) => {
   edge(c);
   return c.json(ok(await pub.opportunityPage(publicCtx(c), c.req.param("handle"), c.req.param("slug"))));
 });
-// The grants a funder has awarded and lists (v1.8.0), and one award's page.
+// The grants a funder has awarded and lists (v1.9.0), and one award's page.
 publicPages.get("/funders/:handle/awards", async (c) => {
   edge(c);
   return c.json(ok(await pub.funderAwardsPage(publicCtx(c), c.req.param("handle"))));

@@ -166,10 +166,10 @@ gms.route("/", reportRoutes);
 gms.route("/", ssoRoutes);
 // The template gallery: public reads, moderation, and a funder workspace's copy and share.
 gms.route("/", galleryRoutes);
-// Award sharing (v1.8.0): the share panel, confidential and unlisted switches, listing settings.
+// Award sharing (v1.9.0): the share panel, confidential and unlisted switches, listing settings.
 gms.route("/", awardSharingRoutes);
 gms.route("/", socialRoutes);
-// Funds (v1.8.0).
+// Funds (v1.9.0).
 gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);

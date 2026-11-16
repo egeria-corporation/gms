@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Award sharing (v1.8.0): the port behind the grants-awarded pages, the "Share this award" panel
+// Award sharing (v1.9.0): the port behind the grants-awarded pages, the "Share this award" panel
 // and the listing settings. `createHttpAwardSharingApi` calls the GMS Worker (api/award-sharing.tsp);
 // `createMockAwardSharingApi` (mocks/awardSharing.ts) implements the same interface in the browser.
 // The public reads are sent without a token, whoever is signed in.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Funds (v1.8.0): one funder workspace, many funds. A fund has a name, a public address, a short
+// Funds (v1.9.0): one funder workspace, many funds. A fund has a name, a public address, a short
 // description, a colour from the theme palette and its own budget per fiscal year. Programs belong
 // to one fund; everything under a program belongs to its fund. A fund advisor (a member invited as
 // "Advisor for {fund}") sees only their funds; the API decides that, and `scoped` says so.

@@ -4,7 +4,7 @@
 // reconciliation, saved mappings and the idempotent run log, all in page memory. Outside
 // applications are written to the outside-applications mock store, so they appear in the
 // Applications list; grant history is kept in this store only. Google Sheets and Airtable are
-// stand-ins with one spreadsheet and one base. Importer adapters (v1.8.0) run as on the server: a
+// stand-ins with one spreadsheet and one base. Importer adapters (v1.9.0) run as on the server: a
 // grants system's preset and its never-awarded rows set aside; Fluxx and Zengine are stand-ins
 // with a few made-up records; zip files are matched by path and kept by name and size only.
 import {

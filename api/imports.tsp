@@ -31,13 +31,13 @@ namespace GMS.Models {
     googleSheets: "google_sheets",
     airtable: "airtable",
 
-    /** An export in JSON (OpenWater gives one), v1.8.0. */
+    /** An export in JSON (OpenWater gives one), v1.9.0. */
     json: "json",
 
-    /** Read through Fluxx's API with the funder's own credentials (grant history only), v1.8.0. */
+    /** Read through Fluxx's API with the funder's own credentials (grant history only), v1.9.0. */
     fluxx: "fluxx",
 
-    /** Read through Zengine's API with the funder's own token (grant history only), v1.8.0. */
+    /** Read through Zengine's API with the funder's own token (grant history only), v1.9.0. */
     zengine: "zengine",
   }
 
@@ -95,7 +95,7 @@ namespace GMS.Models {
     /** CSV and XLSX always; Google Sheets and Airtable only where this server is set up for them; Fluxx and Zengine for grant history where the server can store credentials. */
     sources: ImportSourceOption[];
 
-    /** The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.8.0. */
+    /** The grants systems with a preset for this target (grant history only; none for an applicant's applications), v1.9.0. */
     adapters: ImportAdapter[];
   }
 
@@ -155,7 +155,7 @@ namespace GMS.Models {
     target: ImportTarget;
     source: ImportSource;
 
-    /** Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.8.0. */
+    /** Which grants system's export this is (its preset mapping). Left out, a file is recognised by its header row when it can be. v1.9.0. */
     adapter?: ImportAdapterKey;
   }
 
@@ -163,7 +163,7 @@ namespace GMS.Models {
     target: ImportTarget;
     source: ImportSource;
 
-    /** As for the read step: the system whose never-awarded rows are set aside. v1.8.0. */
+    /** As for the read step: the system whose never-awarded rows are set aside. v1.9.0. */
     adapter?: ImportAdapterKey;
 
     /** Field key → column header. Required fields must be mapped. */
@@ -190,7 +190,7 @@ namespace GMS.Models {
 
     table?: string | null;
 
-    /** Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.8.0. */
+    /** Fluxx and Zengine: the page the next run starts at (null when the source was read to its end), and the records it holds. v1.9.0. */
     nextPage?: int32 | null;
 
     total?: int32 | null;
@@ -231,10 +231,10 @@ namespace GMS.Models {
 
     fields: ImportField[];
 
-    /** The system whose preset filled the mapping (named, or recognised), or null. v1.8.0. */
+    /** The system whose preset filled the mapping (named, or recognised), or null. v1.9.0. */
     adapter: ImportAdapterRef | null;
 
-    /** The system the header row matches, which may differ from the one named. v1.8.0. */
+    /** The system the header row matches, which may differ from the one named. v1.9.0. */
     detected: ImportDetected | null;
   }
 
@@ -294,10 +294,10 @@ namespace GMS.Models {
     finishedAt: utcDateTime | null;
     expiresAt: utcDateTime;
 
-    /** The grants system whose export the run read, or null. v1.8.0. */
+    /** The grants system whose export the run read, or null. v1.9.0. */
     adapter: ImportAdapterRef | null;
 
-    /** Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.8.0. */
+    /** Fluxx and Zengine: where the next run starts, or null when the source was read to its end (always null for a file). v1.9.0. */
     nextPage: int32 | null;
 
     progress?: ImportProgress;

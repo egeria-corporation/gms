@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Settings › Public page › Grants awarded (v1.8.0): "List awards on my public page" (off by
+// Settings › Public page › Grants awarded (v1.9.0): "List awards on my public page" (off by
 // default), "Show award amounts", and per program whether new awards start confidential. A switch
 // flips at once and the save follows; if the save fails it goes back and says why.
 import { useState } from "react";

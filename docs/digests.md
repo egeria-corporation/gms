@@ -1,4 +1,4 @@
-# Opt-in digests (v1.8.0)
+# Opt-in digests (v1.9.0)
 
 Three Monday emails a person chooses, per workspace. Each is **off until the person turns it on**,
 goes out only when there is something new, and can be stopped from any email with one click.

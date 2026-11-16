@@ -11,7 +11,7 @@ using GMS.Auth;
 using GMS.Errors;
 using GMS.HttpResponses;
 
-// Funds (v1.8.0): one funder workspace, many funds. Community foundations, fiscal sponsors and
+// Funds (v1.9.0): one funder workspace, many funds. Community foundations, fiscal sponsors and
 // intermediaries run many funds from one office, each with its own advisors, budget and public
 // face. A program belongs to one fund; opportunities, competitions, applications and awards belong
 // to it through their program. Every funder workspace has a default fund, which holds the programs
