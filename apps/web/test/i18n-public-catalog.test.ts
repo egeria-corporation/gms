@@ -17,8 +17,9 @@ const isPublic = (path: string) => path.startsWith("screens/public/");
 
 // Code outside the public screens that reads `public` messages itself: each runs only where they are
 // loaded (the front Worker loads its catalogs per request; the switch pages' content and the landing
-// page's Userback answer are read by public screens alone).
-const READS_PUBLIC_OUTSIDE = ["edge/meta.ts", "content/switch.ts", "lib/userback.ts", "i18n/index.tsx", "i18n/current.ts"];
+// page's Userback answer are read by public screens alone; the gallery's kind names by the gallery's
+// screens and the share dialog, which waits for them).
+const READS_PUBLIC_OUTSIDE = ["edge/meta.ts", "content/switch.ts", "lib/userback.ts", "api/gallery.ts", "i18n/index.tsx", "i18n/current.ts"];
 
 describe("the public catalog", () => {
   it("is waited for by every public route", () => {
