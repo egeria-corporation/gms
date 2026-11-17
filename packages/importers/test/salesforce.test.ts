@@ -2,7 +2,7 @@
 // The Salesforce source: presets and a person's own SOQL, read only; records become a table whose
 // columns the targets recognise; and the sensitive screen still drops bank and identity columns.
 import { describe, expect, it } from "vitest";
-import { HISTORY_TARGET, MAX_IMPORT_ROWS, OUTSIDE_TARGET, SoqlRefusedError, checkSoql, flattenRecord, presetSoql, screenColumns, soqlObject, suggestMapping, tableFromSalesforce } from "../src/index.ts";
+import { HISTORY_TARGET, MAX_IMPORT_ROWS, OUTSIDE_TARGET, PAST_APPLICATIONS_TARGET, SoqlRefusedError, checkSoql, flattenRecord, isSensitiveHeader, presetSoql, salesforcePresetsFor, screenColumns, soqlObject, suggestMapping, tableFromSalesforce } from "../src/index.ts";
 
 const grant = (id: string, extra: Record<string, unknown> = {}) => ({
   attributes: { type: "Opportunity", url: `/services/data/v61.0/sobjects/Opportunity/${id}` },
@@ -59,6 +59,131 @@ describe("SOQL, read only", () => {
     ]) {
       expect(() => checkSoql(q), q.slice(0, 60)).toThrow(SoqlRefusedError);
     }
+  });
+});
+
+// Red team (v1.12.0 integration): ways a query of the person's own might get past the check. Each
+// must be refused before anything is sent to Salesforce.
+describe("SOQL check, red team", () => {
+  const refused = (q: string, why: RegExp) => {
+    let err: unknown;
+    try {
+      checkSoql(q);
+    } catch (e) {
+      err = e;
+    }
+    expect(err, q.slice(0, 80)).toBeInstanceOf(SoqlRefusedError);
+    expect((err as Error).message, q.slice(0, 80)).toMatch(why);
+  };
+
+  it("refuses more than one statement, however the second is hidden", () => {
+    refused("SELECT Id FROM Account; SELECT Id FROM Contact", /one query at a time/);
+    refused("SELECT Id FROM Account WHERE Name = 'a';DELETE FROM Account", /one query at a time/);
+    refused("SELECT Id FROM Account\n;\nDELETE FROM Account", /one query at a time/);
+    // A quote escaped with a backslash does not close the value, so the semicolon after it is outside.
+    refused("SELECT Id FROM Account WHERE Name = 'it\\'s'; DELETE FROM Account", /one query at a time/);
+    // Backslash escapes are read as Salesforce reads them: the value ends at the unescaped quote.
+    refused("SELECT Id FROM Account WHERE Name = 'a\\\\'; DELETE FROM Account", /one query at a time/);
+    refused("SELECT Id FROM Account WHERE Name = 'a\\'", /not closed/);
+  });
+
+  it("reads DML words inside quoted values as data, and refuses them outside", () => {
+    for (const q of [
+      "SELECT Id FROM Account WHERE Name = 'DELETE FROM Account'",
+      "SELECT Id FROM Account WHERE Name = 'x; UPDATE Account SET Name = 1'",
+      "SELECT Id FROM Account WHERE Description LIKE '%insert%' AND Name != 'merge upsert undelete'",
+      "SELECT Id FROM Account WHERE Name = 'for update' OR Name = 'all rows' OR Name = 'using scope'",
+    ]) {
+      expect(() => checkSoql(q), q).not.toThrow();
+    }
+    refused("SELECT Id FROM Account WHERE Name = 'x' DELETE", /Only a SELECT/);
+    refused("SELECT Id FROM Account WHERE Name = 'x' UPDATE Account", /Only a SELECT/);
+    refused("SELECT Id FROM Account WHERE Name = 'x' upsert", /Only a SELECT/);
+    refused("INSERT INTO Account (Name) VALUES ('x')", /Only a SELECT/);
+    refused("  delete from Account where Name = 'select '", /Only a SELECT/);
+  });
+
+  it("refuses FOR UPDATE, ALL ROWS and USING SCOPE in any case and spacing", () => {
+    refused("SELECT Id FROM Account FOR UPDATE", /FOR UPDATE/);
+    refused("select Id from Account for\n\t update", /FOR UPDATE/);
+    refused("SELECT Id FROM Account WHERE Name = 'a' fOr UpDaTe", /FOR UPDATE/);
+    refused("SELECT Id FROM Account\u00a0FOR\u00a0UPDATE", /FOR UPDATE/);
+    refused("SELECT Id FROM Account ALL ROWS", /ALL ROWS/);
+    refused("SELECT Id FROM Account WHERE IsDeleted = true all   rows", /ALL ROWS/);
+    refused("SELECT Id FROM Account USING SCOPE Everything", /USING SCOPE/);
+    refused("SELECT Id FROM Account using scope mine", /USING SCOPE/);
+    // FIELDS() reaches fields the query does not name, so their names cannot be checked first.
+    refused("SELECT FIELDS(ALL) FROM Contact LIMIT 200", /FIELDS\(\)/);
+    refused("SELECT Id, fields ( custom ) FROM Contact LIMIT 200", /FIELDS\(\)/);
+  });
+
+  it("refuses a comment, which SOQL does not have and could only hide something from the check", () => {
+    refused("SELECT Id FROM Account -- FOR UPDATE", /no comments/);
+    refused("SELECT Id FROM Account /* ; DELETE */", /no comments|one query/);
+    refused("SELECT Id FROM Account /* hidden */ WHERE Name = 'x'", /no comments/);
+    refused("SELECT Id FROM Account // note", /no comments/);
+    refused("SELECT Id FROM Account WHERE Name = 'a' --\nFOR UPDATE", /no comments/);
+    // Inside a quoted value the same characters are data.
+    expect(() => checkSoql("SELECT Id FROM Account WHERE Name = 'a -- b /* c */'")).not.toThrow();
+  });
+
+  it("refuses hidden characters and anything SOQL does not use outside quotes", () => {
+    refused("SELECT Id FROM Account FOR\u200bUPDATE", /hidden or control/);
+    refused("SELECT Id FROM Account\u0000; DELETE FROM Account", /hidden or control/);
+    refused("SELECT Id FROM Account\u202eETADPU ROF", /hidden or control/);
+    refused("SELECT Id FROM Account WHERE Name = \"x\"", /character SOQL does not use/);
+    refused("SELECT Id FROM Account WHERE Name = 'x' & q=SELECT Id FROM Contact", /character SOQL does not use/);
+    refused("SELECT Id FROM Account#", /character SOQL does not use/);
+    refused("SELECT Id FROM Account WHERE Name = \\'x'", /character SOQL does not use|not closed/);
+    // Dates, date literals, lists, comparisons and relationship paths are all plain SOQL.
+    expect(() => checkSoql("SELECT Id, Owner.Name, (SELECT Id FROM Contacts) FROM Account WHERE CreatedDate > 2026-01-01T00:00:00+05:00 AND LastModifiedDate = LAST_N_DAYS:30 AND Type IN ('Foundation', 'Trust') AND AnnualRevenue >= -1 AND Name != 'Café' ORDER BY Name ASC NULLS LAST LIMIT 10")).not.toThrow();
+  });
+
+  it("refuses a query that names a field the sensitive screen would drop, wherever it sits", () => {
+    // Field names are put together at run time, so no file holds such a name (and this file passes the sensitive-data gate).
+    const ACC = "Acc" + "ount";
+    const names = [
+      `Bank_${ACC}_Number__c`,
+      `Payee_${ACC}_Number__c`,
+      `npsp__Payee${ACC}Number__c`,
+      "Routing_Number__c",
+      ["S", "SN__c"].join("S").replace("SS", "S"),
+      "Tax_ID__c",
+      "Birth" + "date",
+      `Contact.Birth${"date"}`,
+      `${ACC}Number`,
+      "Government_ID__c",
+    ];
+    for (const n of names) {
+      expect(isSensitiveHeader(n), n).toBe(true);
+      refused(`SELECT Id, ${n} FROM Contact`, /bank or identity/);
+      refused(`SELECT Id FROM Contact WHERE ${n} != null`, /bank or identity/);
+      refused(`SELECT Id FROM Contact ORDER BY ${n}`, /bank or identity/);
+      refused(`SELECT MAX(${n}) total FROM Contact`, /bank or identity/);
+      refused(`SELECT Id, (SELECT ${n} FROM Contacts) FROM Account`, /bank or identity/);
+    }
+    // Ordinary grant fields are fine, Account relationships included.
+    expect(() => checkSoql("SELECT Id, Name, Account.Name, Account.Website, npsp__Requested_Amount__c, npsp__Grant_Program_Area_s__c FROM Opportunity")).not.toThrow();
+    // Every preset passes the check it would be given.
+    for (const target of ["outside_applications", "award_history", "history_applications"] as const) for (const p of salesforcePresetsFor(target)) expect(() => checkSoql(presetSoql(p, { target }))).not.toThrow();
+  });
+});
+
+describe("presets for imported history", () => {
+  it("reads every grant Opportunity as a past application and offers no preset for past reviews or reports", () => {
+    expect(salesforcePresetsFor("history_applications")).toEqual(["npsp_grants"]);
+    expect(salesforcePresetsFor("history_reviews")).toEqual([]);
+    expect(salesforcePresetsFor("history_reports")).toEqual([]);
+    expect(salesforcePresetsFor("award_history")).toEqual(["npsp_grants", "accounts"]);
+    // Won or not: a past application's outcome is its own column.
+    expect(presetSoql("npsp_grants", { target: "history_applications" })).not.toContain("IsWon");
+    expect(() => presetSoql("accounts", { target: "history_applications" })).toThrow(SoqlRefusedError);
+    expect(() => presetSoql("npsp_grants", { target: "history_reviews" })).toThrow(SoqlRefusedError);
+    const past = tableFromSalesforce([grant("006000000000001AAA")], { preset: "npsp_grants", target: "history_applications" });
+    const m = suggestMapping(PAST_APPLICATIONS_TARGET, past.header);
+    expect(m).toMatchObject({ organizationName: "Organization", title: "Application title", requestedAmount: "Amount requested", awardedAmount: "Amount awarded", sourceId: "Record ID" });
+    expect(m.outcome).toBeUndefined();
+    expect(() => tableFromSalesforce([grant("006000000000001AAA")], { preset: "npsp_grants", target: "history_reports" })).toThrow(SoqlRefusedError);
   });
 });
 

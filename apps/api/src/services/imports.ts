@@ -52,6 +52,7 @@ import {
   checkSoql,
   SALESFORCE_PRESET_DEFS,
   SALESFORCE_PRESETS,
+  salesforcePresetsFor,
   soqlObject,
   SoqlRefusedError,
   tableFromSalesforce,
@@ -308,7 +309,7 @@ export async function importSources(ctx: ServiceContext, target: TargetKey) {
       { kind: "xlsx" as const, label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
       ...(ctx.ports.sheets ? [{ kind: "google_sheets" as const, label: SOURCE_LABEL.google_sheets, connected: sheets, canConnect }] : []),
       ...(ctx.ports.airtable ? [{ kind: "airtable" as const, label: SOURCE_LABEL.airtable, connected: airtable, canConnect }] : []),
-      ...(ctx.ports.salesforce ? [{ kind: "salesforce" as const, label: SOURCE_LABEL.salesforce, connected: salesforce, canConnect, presets: SALESFORCE_PRESETS.map((p) => ({ key: p, label: SALESFORCE_PRESET_DEFS[p].label })) }] : []),
+      ...(ctx.ports.salesforce ? [{ kind: "salesforce" as const, label: SOURCE_LABEL.salesforce, connected: salesforce, canConnect, presets: salesforcePresetsFor(target).map((p) => ({ key: p, label: SALESFORCE_PRESET_DEFS[p].label })) }] : []),
       ...pullers.map((p) => ({ kind: p.provider, label: p.label, connected: p.connected, canConnect: canConnect })),
     ],
   };

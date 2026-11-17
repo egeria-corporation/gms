@@ -12,6 +12,11 @@
 import {
   ADAPTERS,
   adapterMapping,
+  checkSoql,
+  presetSoql,
+  SALESFORCE_PRESET_DEFS,
+  salesforcePresetsFor,
+  SoqlRefusedError,
   adaptersFor,
   adapterView,
   ATTACHMENT_MISS_TEXT,
@@ -168,7 +173,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
     return ws;
   }
 
-  async function load(source: ImportSourceInput, wsId: string): Promise<{ table: SourceTable; label: string; ref: string | null; extra: Partial<ImportRead["source"]> }> {
+  async function load(source: ImportSourceInput, wsId: string, target: ImportTarget): Promise<{ table: SourceTable; label: string; ref: string | null; extra: Partial<ImportRead["source"]> }> {
     try {
       if (source.kind === "csv") return { table: tableFromCsv(source.text), label: source.fileName || "Pasted CSV", ref: null, extra: {} };
       if (source.kind === "json") return { table: tableFromJson(source.text), label: source.fileName || "JSON export", ref: null, extra: {} };
@@ -201,11 +206,16 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         return { table: tableFromGrid(book[sheet]!), label: `Google Sheets · ${sheet}`, ref: `${id}/${sheet}`, extra: { sheets, sheet } };
       }
       if (source.kind === "salesforce") {
-        // Salesforce in mock mode: the records as the grants preset names them. The server runs the
-        // full read-only check (@gms/importers, sources/salesforce.ts); the mock refuses the same clauses.
+        // Salesforce in mock mode: the records as the grants preset names them, after the server's own
+        // read-only check of a query (@gms/importers, sources/salesforce.ts).
         if (!store.connected.salesforce) throw new ApiError(409, "Connect Salesforce first", [{ code: "source_not_connected" }]);
-        const q = source.query ?? "";
-        if (!source.preset && (!/^\s*select\s/i.test(q) || /;|\bfor\s+(update|view|reference)\b|\bupdate\s+(tracking|viewstat)\b/i.test(q))) throw invalid("invalid_query", "Only a SELECT query can be run. FOR UPDATE, FOR VIEW, FOR REFERENCE and UPDATE TRACKING change records in Salesforce, so they cannot be used here");
+        try {
+          if (source.preset) presetSoql(source.preset, { target });
+          else checkSoql(source.query ?? "");
+        } catch (e) {
+          if (e instanceof SoqlRefusedError) throw invalid("invalid_query", e.message);
+          throw e;
+        }
         return { table: tableFromRecords(store.salesforce.map((r) => ({ id: String(r["Record ID"]), fields: r })), []), label: "Salesforce", ref: source.preset ? `preset:${source.preset}` : "soql", extra: {} };
       }
       if (!store.connected.airtable) throw new ApiError(409, "Connect Airtable first", [{ code: "source_not_connected" }]);
@@ -266,7 +276,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
           { kind: "xlsx", label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
           { kind: "google_sheets", label: SOURCE_LABEL.google_sheets, connected: store.connected.google_sheets, canConnect: admin },
           { kind: "airtable", label: SOURCE_LABEL.airtable, connected: store.connected.airtable, canConnect: admin },
-          { kind: "salesforce", label: SOURCE_LABEL.salesforce, connected: store.connected.salesforce, canConnect: admin, presets: [{ key: "npsp_grants", label: "Grants (Nonprofit Success Pack Opportunities)" }, { key: "accounts", label: "Accounts (organizations)" }] },
+          { kind: "salesforce", label: SOURCE_LABEL.salesforce, connected: store.connected.salesforce, canConnect: admin, presets: salesforcePresetsFor(target).map((p) => ({ key: p, label: SALESFORCE_PRESET_DEFS[p].label })) },
           ...(target !== "outside_applications" ? (["fluxx", "zengine"] as const).filter((k) => !!ADAPTERS[k].presets[target]).map((k) => ({ kind: k, label: PULLER_LABEL[k], connected: !!store.pullers[ws.id]?.[k], canConnect: admin })) : []),
         ],
         adapters: adaptersFor(target).map((a) => adapterView(a, target)),
@@ -275,7 +285,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
 
     async read(target, source, named): Promise<ImportRead> {
       const ws = await where(target);
-      const src = await load(source, ws.id);
+      const src = await load(source, ws.id, target);
       const s = screenColumns(src.table.header, src.table.rows.map((r) => r.cells));
       const columns = s.keep.map((i) => ({ name: src.table.header[i]!, samples: [...new Set(src.table.rows.map((r) => (r.cells[i] ?? "").trim()).filter(Boolean))].slice(0, 3) }));
       const ref = src.ref ?? (await columnsFingerprint(columns.map((c) => c.name)));
@@ -300,7 +310,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
 
     async preview({ target, source, mapping, saveMapping, adapter: named }): Promise<ImportPreview> {
       const ws = await where(target);
-      const src = await load(source, ws.id);
+      const src = await load(source, ws.id, target);
       const t = TARGETS[target] as unknown as Target<string, unknown>;
       let plan = await planImport({ target: t, table: src.table, mapping, source: { kind: source.kind, ref: src.ref } });
       const { adapter } = adapterFor(target, source.kind, named, plan.columns);
