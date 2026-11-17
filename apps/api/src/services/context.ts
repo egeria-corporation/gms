@@ -7,8 +7,11 @@ import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { PreferencesPort } from "./preferences.ts";
+// F3: the operators' measures and Google Search Console.
+import type { MeasuresStore } from "./measures.ts";
+import type { SearchConsole } from "@gms/connectors";
 import type { LlmClient } from "@gms/assist";
-import type { AirtableSource, BankFeed, CalendarSync, DriveFiles, FluxxPuller, McpDirectory, SalesforceSource, SheetsSource, SlackAlerts, WorkspaceApps, ZenginePuller } from "@gms/connectors";
+import type { AirtableSource, BankFeed, CalendarSync, DriveFiles, FluxxPuller, McpDirectory, QuickBooksBooks, SalesforceSource, SheetsSource, SlackAlerts, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Locale } from "@gms/i18n";
 import type { Mailer } from "@gms/notify";
@@ -132,6 +135,8 @@ export interface ServicePorts {
   calendar?: CalendarSync;
   drive?: DriveFiles;
   salesforce?: SalesforceSource;
+  /** QuickBooks Online through Composio (v1.13.0): one expense per recorded payment, record-keeping only. */
+  quickbooks?: QuickBooksBooks;
   /** Where export bundles and ledger archives are written. */
   exports?: { put(key: string, body: string, contentType: string): Promise<void> };
   /** Binary files in the same EXPORTS bucket, read back by their routes (board dockets). Never public. */
@@ -158,6 +163,10 @@ export interface ServicePorts {
   directAwards?: DirectAwardStore;
   /** Consulting requests counted and recorded in one step (Postgres); over the repositories for one isolate otherwise. */
   consulting?: ConsultingStore;
+  /** F3: the operators' growth measures as counts (Postgres, migration 0052); absent, the measures are unavailable. */
+  measures?: MeasuresStore;
+  /** F3: Google Search Console for the operators, read only through Composio; absent until its auth config is set. */
+  searchConsole?: SearchConsole;
 }
 
 export interface ServiceContext {

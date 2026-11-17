@@ -518,6 +518,8 @@
   "signIn.yourWorkspacesCouldNotBe": "Your workspaces could not be loaded",
   "signIn.youAreSignedInBut": "You are signed in, but the GMS did not answer. Try again in a moment.",
   "signIn.retry": "Retry",
+  "signIn.ssoAddressNotAccepted": "Single sign-on cannot be used with this email address",
+  "signIn.ssoAddressNotAcceptedDetail": "Your organization's single sign-on cannot sign you in with this email address. Sign in with a code sent to your email instead.",
   "signIn.enterYourEmail": "Enter Your Email",
   "signIn.workEmail": "Work email",
   "signIn.weLlSendAOne": "We'll send a one-time code. No password to remember.",

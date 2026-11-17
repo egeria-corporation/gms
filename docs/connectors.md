@@ -17,6 +17,8 @@ in `connector_accounts`; they are never returned or logged.
 | Google Calendar (`google_calendar`) | `CalendarSync` | `ComposioCalendarSync` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
 | Google Drive, applicants (`google_drive`) | `DriveFiles` | `ComposioDriveFiles` (Composio tools and proxy) | Tool slugs and schemas, 2026-11-17 | **No** |
 | Salesforce import (`salesforce`) | `SalesforceSource` | `ComposioSalesforceSource` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
+| QuickBooks Online sync (`quickbooks`, v1.13.0), record-keeping only: see `docs/accounting.md` | `QuickBooksBooks` | `ComposioQuickBooksBooks` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
+| Google Search Console, operators only (v1.13.0, not a workspace app): see `docs/measures.md` | `SearchConsole` | `ComposioSearchConsole` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
 | Airtable import (`airtable`) | `AirtableSource` | `ComposioAirtableSource` (Composio tools) | Yes, 2026-11-15 (see below) | **No** |
 | OpenGrants discovery | `OpenGrantsClient` | `RestOpenGrantsClient` | Yes, 2026-11-11 (OpenAPI 1.2.0) | **Yes**, 2026-11-11: search and match against the live API |
 | Custom MCP servers | `McpDirectory` | `HttpMcpDirectory` (`tools/list`, `tools/call`) | MCP Streamable HTTP, stateless JSON-RPC | Against in-process fakes only |
@@ -514,3 +516,11 @@ a run (the query asks for 5,001 and a run over 5,000 is refused).
   remembered, not from a live org; an org without NPSP should use the Accounts preset or its own
   query. `CurrencyIsoCode` is left out (single-currency orgs do not have it).
 - The jobs Worker's Slack posts and calendar writes in workerd.
+
+## QuickBooks Online (v1.13.0)
+
+The QuickBooks sync is documented in `docs/accounting.md`: Composio toolkit `quickbooks`, scope
+`com.intuit.quickbooks.accounting` only (Payments, Payroll and anything else delete the connection),
+one expense per recorded payment, never a payment, a payee's bank or a change to the books.
+Connecting and disconnecting are `/gms/connectors/quickbooks` (a workspace admin, signed in);
+`COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID` on the API and jobs Workers.

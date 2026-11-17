@@ -20,7 +20,7 @@ All of these are true:
 ## Get the code
 
 ```bash
-git clone --branch v1.12.0 https://github.com/egeria-corporation/gms.git
+git clone --branch v1.13.0 https://github.com/egeria-corporation/gms.git
 cd gms
 pnpm install
 ```

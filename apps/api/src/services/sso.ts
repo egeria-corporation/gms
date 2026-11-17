@@ -103,6 +103,30 @@ export function serviceProviderOf(supabaseUrl: string | null | undefined) {
 
 // ------------------------------------------------------------------------------------ enforcement (the one place)
 
+/** The answer to a single sign-on session whose address is not on a domain of the provider it came through. */
+export const SSO_DOMAIN_MISMATCH = "sso_domain_mismatch";
+
+/**
+ * A SAML identity provider can assert any email address, and parts of the GMS act on a session's
+ * address (invitations, the operator lists, joining through single sign-on). So a session that came
+ * through single sign-on (`ssoProviderIds` non-empty) is accepted only when its address's domain is
+ * an active `workspace_sso_domains` row whose provider is one of the session's providers: that
+ * provider was registered for that domain, after the domain was proved by DNS. Any other SSO
+ * session is refused with 403 `sso_domain_mismatch`, on every route, before anything reads its
+ * address. Sessions from an email code or Passport are untouched. Called by the auth middleware for
+ * every session it accepts (auth/middleware.ts, `personSession`).
+ */
+export async function assertSsoEmailBound(repos: Repos, user: { email: string | null; ssoProviderIds?: readonly string[] }): Promise<void> {
+  const providers = user.ssoProviderIds ?? [];
+  if (!providers.length) return;
+  const domain = emailDomainOf(user.email);
+  if (domain) {
+    const rows = await repos.table("workspace_sso_domains").find({ domain, status: "active" });
+    if (rows.some((r) => r.provider_id !== null && providers.includes(r.provider_id))) return;
+  }
+  throw forbidden(SSO_DOMAIN_MISMATCH, "Your organization's single sign-on cannot sign you in with this email address. Sign in with a code sent to your email instead");
+}
+
 /**
  * A workspace that requires single sign-on for the member's email domain refuses a session that
  * did not come through the identity provider registered for that domain. Other workspaces, other

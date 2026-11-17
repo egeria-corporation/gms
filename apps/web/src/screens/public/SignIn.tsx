@@ -7,7 +7,7 @@ import { CopyButton } from "../../components/CopyButton.tsx";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { ArrowRight, Building2, CircleX, ExternalLink, Info, Lock, TriangleExclamationPoint } from "lucide-react";
 import { useServices } from "../../app/services.tsx";
-import { rememberSsoNext, takeSsoNext } from "../../auth/sso.ts";
+import { rememberSsoNext, ssoErrorCode, takeSsoNext } from "../../auth/sso.ts";
 import { ssoPortFor } from "../../auth/ssoHooks.ts";
 import type { TotpEnrollment } from "../../auth/types.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
@@ -257,6 +257,9 @@ export default function SignIn() {
 
   const waiting = (sessionState.status === "signedIn" && meState.status === "loading") || ssoJoin === "running";
   const profileError = sessionState.status === "signedIn" && meState.status === "error";
+  // A single sign-on session for an address its identity provider was not registered for (docs/sso.md):
+  // trying again cannot help, signing out and in by email code does.
+  const ssoMismatch = profileError && meState.status === "error" && ssoErrorCode(meState.error) === "sso_domain_mismatch";
 
   return (
     <>
@@ -302,7 +305,19 @@ export default function SignIn() {
             style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%", maxWidth: "440px", alignSelf: "center" }}
             aria-busy={busy || waiting}
           >
-            {profileError && (
+            {ssoMismatch && (
+              <div className="bnr bnr-dng" role="alert">
+                <CircleX className="ic" aria-hidden="true" />
+                <div>
+                  <div className="t">{t("signIn.ssoAddressNotAccepted")}</div>
+                  <div className="d">{meState.status === "error" && meState.error instanceof Error ? meState.error.message : t("signIn.ssoAddressNotAcceptedDetail")}</div>
+                </div>
+                <button className="btn btn-sm btn-secondary act" type="button" onClick={() => void auth.signOut().then(() => setStep("email"))}>
+                  {t("signIn.signOut")}
+                </button>
+              </div>
+            )}
+            {profileError && !ssoMismatch && (
               <div className="bnr bnr-dng" role="alert">
                 <TriangleExclamationPoint className="ic" aria-hidden="true" />
                 <div>

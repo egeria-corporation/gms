@@ -8,9 +8,8 @@ import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
-import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
+import { provideApplicantApi, provideMockApplicantStore } from "../src/api/applicantHooks.ts";
 import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
-import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore } from "../src/mocks/applicant.ts";
@@ -116,7 +115,6 @@ async function violations(path: string) {
   provideMockApplicantStore(services, store);
   provideApplicantApi(services, createMockApplicantApi({ session, store }));
   provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more }));
-  provideRealtime(services, createRealtimeHub());
   const { container } = render(
     <MemoryRouter initialEntries={[path]}>
       <App services={services} />

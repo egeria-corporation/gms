@@ -12,6 +12,7 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../../app.ts";
 import { authenticate, requireUser } from "../../auth/middleware.ts";
+import { cameThroughSso } from "../../auth/session.ts";
 import { ok, pageInfo, paginated } from "../../lib/errors.ts";
 import { bareUuid } from "../../lib/ids.ts";
 import { parse } from "../../lib/input.ts";
@@ -31,7 +32,7 @@ for (const prefix of ["peer-invitations", "partner-settings", "reusable-profile"
   loopRoutes.use(`/${prefix}/*`, signedIn);
 }
 const withPorts = (c: C) => ({ ...publicCtx(c), ports: c.get("deps").ports?.(c.env) ?? {} });
-const moderator = (c: C) => ({ userId: c.get("user").userId, email: c.get("user").email ?? null });
+const moderator = (c: C) => ({ userId: c.get("user").userId, email: c.get("user").email ?? null, viaSso: cameThroughSso(c.get("user")) });
 const moderators = (c: C) => partners.directoryModerators(c.env);
 const noStore = (c: C) => c.header("Cache-Control", "no-store");
 

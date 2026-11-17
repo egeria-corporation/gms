@@ -2,7 +2,7 @@
 // Settings → Payments: the workspace's connection to OpenGrants Passport.
 import { Link } from "react-router";
 import { useWorkspace } from "../../app/workspace.tsx";
-import { usePassportFlags } from "../../api/launchHooks.ts";
+import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
 import { OrganizationProfileCard } from "../../components/OrganizationProfileCard.tsx";
 import { PassportLinkPanel } from "../../components/PassportLinkPanel.tsx";
 import { FunderShell } from "../../components/shells.tsx";
@@ -15,9 +15,11 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social" | "apps" | "invite-funders" | "partners";
+  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social" | "apps" | "invite-funders" | "partners" | "accounting";
 }) {
   useFunderMessages();
+  // F2: Accounting (QuickBooks sync) is listed only where this server has QuickBooks set up.
+  const accounting = useAppConfig().available?.quickbooks === true;
   const items = [
     {
       key: "passport",
@@ -30,6 +32,7 @@ export function SettingsNav({
     { key: "security", label: t("settingsPassport.securitySingleSignOn"), to: `${base}/settings/security` },
     { key: "social", label: t("settingsPassport.socialAccounts"), to: `${base}/settings/social` },
     { key: "apps", label: t("settingsPassport.connectedApps"), to: `${base}/settings/apps` },
+    ...(accounting ? [{ key: "accounting", label: t("settingsPassport.accounting"), to: `${base}/settings/accounting` } as const] : []),
     // E4: funder loops.
     { key: "invite-funders", label: t("settingsPassport.inviteFunders"), to: `${base}/settings/invite-funders` },
     { key: "partners", label: t("settingsPassport.partners"), to: `${base}/settings/partners` },

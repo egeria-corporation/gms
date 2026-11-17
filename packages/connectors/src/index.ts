@@ -9,6 +9,8 @@
 // - SheetsSource, AirtableSource: import sources in connected apps through Composio, read-only (./tabular.ts).
 // - FluxxPuller, ZenginePuller: a funder's records read from the system it is leaving, with its own
 //   credentials, read-only (./pullers.ts).
+// - QuickBooksBooks: grant payments written to a funder's QuickBooks Online as expenses, record-keeping
+//   only (./quickbooks.ts, v1.13.0).
 // - SlackAlerts, CalendarSync, DriveFiles, SalesforceSource: connected apps through Composio
 //   (./apps.ts): alerts to one Slack channel, deadlines as Google Calendar events, an applicant's
 //   Drive files picked in the Google Picker, and a read-only Salesforce import source.
@@ -297,3 +299,6 @@ export * from "./composio.ts";
 export * from "./tabular.ts";
 export * from "./pullers.ts";
 export * from "./apps.ts";
+export * from "./quickbooks.ts";
+// Google Search Console for the operators' measures (F3), outside the workspace connected apps.
+export * from "./search-console.ts";

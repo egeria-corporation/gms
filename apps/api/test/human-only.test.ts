@@ -5,7 +5,7 @@
 // one line; each refusal must be a 403 that says a person is needed (or, for a gated MCP action,
 // that a person must approve it; or, for a route that takes only a person's session, the 401 that
 // says so), never a 400, 404 or success, and nothing is written.
-import { FixtureCalendarSync, FixtureDriveFiles, FixtureSalesforceSource, FixtureSlackAlerts } from "@gms/connectors";
+import { FixtureCalendarSync, FixtureDriveFiles, FixtureQuickBooksBooks, FixtureSalesforceSource, FixtureSearchConsole, FixtureSlackAlerts } from "@gms/connectors";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SCOPES, WORKSPACE_CLAIM, scopesForRole } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_ADMIN, WS_APPLICANT, WS_FUNDER, harness, type Harness } from "./helpers.ts";
@@ -74,6 +74,19 @@ const ENTRIES: Entry[] = [
   { what: "bilingual form publish", side: "funder", method: "POST", path: (x) => `/gms/forms/frm_${x.bilingualForm}/publish` },
   { what: "bilingual call publish", side: "funder", method: "POST", path: (x) => `/gms/opportunities/opp_${x.bilingualOpp}/publish`, body: () => ({}) },
   { what: "published call's Spanish", side: "funder", method: "PATCH", path: (x) => `/gms/opportunities/opp_${x.s.uuid.opp}`, body: () => ({ translations: { es: { title: { text: "Subvenciones de salud comunitaria", source: "Community Health Grants 2027" } } } }) },
+  // v1.13.0 (Wave F): joining a draft's live channel, connecting QuickBooks and every write to the books' settings, the operators' writes.
+  { what: "presence pass", side: "applicant", method: "POST", path: () => "/gms/presence/passes", body: (x) => ({ draft: { kind: "outside_application", id: x.outside } }) },
+  { what: "QuickBooks connect", side: "funder", method: "POST", path: () => "/gms/connectors/quickbooks", body: () => ({}) },
+  { what: "QuickBooks disconnect", side: "funder", method: "DELETE", path: () => "/gms/connectors/quickbooks" },
+  { what: "accounting settings", side: "funder", method: "PUT", path: () => "/gms/accounting/settings", body: () => ({ expenseId: "61", paidFromId: "35", tracking: "class", programs: {}, vendorPolicy: "create", syncEnabled: true }) },
+  { what: "accounting vendors", side: "funder", method: "PUT", path: () => "/gms/accounting/vendors", body: () => ({ vendors: [{ granteeId: WS_APPLICANT, vendorId: "56" }] }) },
+  { what: "accounting entry handled", side: "funder", method: "POST", path: () => `/gms/accounting/entries/${NOWHERE}/handled` },
+  { what: "accounting entry retry", side: "funder", method: "POST", path: () => `/gms/accounting/entries/${NOWHERE}/retry` },
+  { what: "lost deal", side: "funder", method: "POST", path: () => "/gms/operator/lost-deals", body: () => ({ reason: "forms" }), sessionOnly: true },
+  { what: "Search Console connect", side: "funder", method: "POST", path: () => "/gms/operator/search-console/connect", body: () => ({}), sessionOnly: true },
+  { what: "Search Console property", side: "funder", method: "PUT", path: () => "/gms/operator/search-console/site", body: () => ({ siteUrl: "https://app.gms.test/" }), sessionOnly: true },
+  { what: "Search Console disconnect", side: "funder", method: "DELETE", path: () => "/gms/operator/search-console", sessionOnly: true },
+  { what: "share-kit use", side: "funder", method: "POST", path: () => `/gms/awards/awd_${NOWHERE}/sharing/uses`, body: () => ({ kind: "portrait" }) },
 ];
 
 let h: Harness;
@@ -90,6 +103,9 @@ beforeEach(async () => {
   const run = await h.repos.table("import_runs").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "csv", source_label: "history.csv", mapping: {} as never, rows_total: 1 } as never);
   // v1.12.0: the connected apps configured, so a refusal is about who calls, not what is set up.
   Object.assign(h.extraPorts, { slack: new FixtureSlackAlerts(), calendar: new FixtureCalendarSync(), drive: new FixtureDriveFiles({}), salesforce: new FixtureSalesforceSource({ Opportunity: [] }) });
+  // v1.13.0: QuickBooks and Search Console configured, and the admin an operator, so a refusal is about who calls.
+  Object.assign(h.extraPorts, { quickbooks: new FixtureQuickBooksBooks(), searchConsole: new FixtureSearchConsole() });
+  h.env.OPERATORS = USER_ADMIN;
   const salesforceRun = await h.repos.table("import_runs").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "salesforce", source_label: "Salesforce · Grants", mapping: {} as never, rows_total: 1 } as never);
   const program = (await h.repos.table("programs").find({ workspace_id: WS_FUNDER }, { limit: 1 }))[0] ?? (await h.repos.table("programs").insert({ workspace_id: WS_FUNDER, name: "Community Health 2027", fiscal_year: 2027, currency: "USD" } as never));
   const listing = await h.repos.table("directory_listings").insert({ workspace_id: WS_FUNDER, region: "Oregon" } as never);
@@ -115,6 +131,7 @@ describe("a person's own actions refuse agents and API clients", () => {
     expect(ENTRIES.map((e) => e.what)).toEqual([
       "social preview", "social post", "social connect", "social connect callback", "social disconnect", "send-package email preview", "send-package email", "digest on", "digest off", "Fluxx connect", "Zengine connect", "import commit", "gallery share", "COI signature", "SSO requirement", "migration request",
       "Slack connect", "Slack alerts on", "Calendar connect", "Drive connect", "Drive save", "Salesforce connect", "Salesforce import commit", "PND preview", "PND send", "peer invitation preview", "peer invitation", "directory listing", "directory approval", "Meet our grantees post", "share-kit tagging consent", "reminder dismiss", "bilingual form publish", "bilingual call publish", "published call's Spanish",
+      "presence pass", "QuickBooks connect", "QuickBooks disconnect", "accounting settings", "accounting vendors", "accounting entry handled", "accounting entry retry", "lost deal", "Search Console connect", "Search Console property", "Search Console disconnect", "share-kit use",
     ]);
   });
 
@@ -150,6 +167,13 @@ describe("a person's own actions refuse agents and API clients", () => {
     expect((await h.repos.table("forms").one({ id: x.bilingualForm }))!.published_at).toBeNull();
     expect((await h.repos.table("opportunities").one({ id: x.bilingualOpp }))!.published_at).toBeNull();
     expect(JSON.stringify((await h.repos.table("opportunities").one({ id: x.s.uuid.opp }))!.custom_fields ?? {})).not.toContain("Subvenciones");
+    // v1.13.0: no pass, QuickBooks connection or setting, lost deal or Search Console property.
+    expect(await h.repos.table("presence_passes").count({})).toBe(0);
+    expect(await h.repos.table("connector_accounts").count({ provider: "quickbooks" })).toBe(0);
+    expect(await h.repos.table("accounting_links").count({})).toBe(0);
+    expect(await h.repos.table("lost_deals").count({})).toBe(0);
+    expect(await h.repos.table("operator_settings").count({})).toBe(0);
+    expect(await h.repos.table("share_kit_uses").count({})).toBe(0);
   });
 
   it("lets an agent publish a form in one language as before, and a person publish the Spanish one", async () => {

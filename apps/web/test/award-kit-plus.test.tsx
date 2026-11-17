@@ -82,6 +82,16 @@ describe("the kit's extras", () => {
     expect(await axeCheck()).toEqual([]);
     expect(mockAwardSharingStore(services).awards[0]!.federal.funded).toBe(false);
   });
+
+  it("says when the press release is copied, as a use of the kit for the operators' measures (v1.13.0)", { timeout: 60_000 }, async () => {
+    const user = userEvent.setup();
+    const services = open(`/w/riverbend/awards/${MOCK_IDS.award}/agreement`, listing);
+    const share = await panel();
+    await within(share).findByRole("textbox", { name: "Press release" }, SLOW);
+    expect(mockAwardSharingStore(services).kitUses ?? []).toEqual([]);
+    await user.click(within(share).getByRole("button", { name: "Copy the press release" }));
+    await waitFor(() => expect(mockAwardSharingStore(services).kitUses).toEqual([{ awardId: MOCK_IDS.award, side: "funder", kind: "press_release" }]));
+  });
 });
 
 describe("share-kit settings", () => {

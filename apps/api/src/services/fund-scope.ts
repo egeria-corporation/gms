@@ -91,6 +91,9 @@ const RULES: { [T in TableName]: Rule } = {
   alert_subscriptions: OPEN,
   alert_deliveries: OPEN,
   calendar_links: OPEN,
+  // 0051: the funder's QuickBooks mapping and entries are the whole workspace's books: never a fund advisor's.
+  accounting_links: CLOSED,
+  accounting_entries: CLOSED,
   // 0033: a competition's conflict-of-interest policy and its reviewers' signatures are that competition's.
   coi_policies: parent("competition_id", "competitions", "Competition"),
   coi_signatures: parent("competition_id", "competitions", "Competition"),
@@ -160,6 +163,8 @@ const RULES: { [T in TableName]: Rule } = {
   passport_links: OPEN,
   passport_second_steps: OPEN,
   payment_schedules: parent("award_id", "awards", "Award"),
+  // 0050: a session's pass to an applicant draft's live channel (co-editing); funder workspaces hold none.
+  presence_passes: OPEN,
   programs: parent("fund_id", "funds", "Fund"),
   reminder_sends: parent("requirement_id", "requirements", "Requirement"),
   // 0034: a scheduled report is computed for the whole workspace by the jobs Worker, so a fund
@@ -177,7 +182,12 @@ const RULES: { [T in TableName]: Rule } = {
   social_accounts: OPEN,
   // 0048: share-kit settings are the workspace's own; a reminder prompt is its call's.
   share_kit_profiles: OPEN,
+  // 0054: a count of the kit's downloads, by its award.
+  share_kit_uses: parent("award_id", "awards", "Award"),
   social_reminder_prompts: parent("opportunity_id", "opportunities", "Opportunity"),
+  // 0052: the operators' own tables (no workspace); a fund advisor's context never reads them.
+  lost_deals: CLOSED,
+  operator_settings: CLOSED,
   social_posts: SUBJECT,
   social_profiles: OPEN,
   submissions: parent("award_id", "awards", "Award"),

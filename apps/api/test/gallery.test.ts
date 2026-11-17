@@ -361,10 +361,13 @@ describe("sharing and moderation", () => {
   });
 
   it("moderators are a fixed list, matched by user id or email", () => {
-    expect(isModerator(" a@b.example , 5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a", { userId: "5A5A5A5A-5A5A-4A5A-8A5A-5A5A5A5A5A5A", email: null })).toBe(true);
-    expect(isModerator("a@b.example", { userId: USER_ADMIN, email: "A@B.example" })).toBe(true);
-    expect(isModerator("", { userId: USER_ADMIN, email: "a@b.example" })).toBe(false);
-    expect(isModerator(undefined, { userId: USER_ADMIN, email: null })).toBe(false);
+    expect(isModerator(" a@b.example , 5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a", { userId: "5A5A5A5A-5A5A-4A5A-8A5A-5A5A5A5A5A5A", email: null, viaSso: false })).toBe(true);
+    expect(isModerator("a@b.example", { userId: USER_ADMIN, email: "A@B.example", viaSso: false })).toBe(true);
+    expect(isModerator("", { userId: USER_ADMIN, email: "a@b.example", viaSso: false })).toBe(false);
+    expect(isModerator(undefined, { userId: USER_ADMIN, email: null, viaSso: false })).toBe(false);
+    // An identity provider can assert any address: an email entry never matches a single sign-on session; a user id does.
+    expect(isModerator("a@b.example", { userId: USER_ADMIN, email: "a@b.example", viaSso: true })).toBe(false);
+    expect(isModerator(`a@b.example, ${USER_ADMIN}`, { userId: USER_ADMIN, email: "a@b.example", viaSso: true })).toBe(true);
   });
 });
 

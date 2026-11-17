@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One outside application: an application to a funder that is not on this GMS. The header says
 // where it stands and offers the next move; the tabs hold the questions and answers, what has to
-// be ready, where and how it was submitted, notes, and who did what.
-import { useState } from "react";
+// be ready, where and how it was submitted, notes, and who did what. Written together, the team and
+// an invited cowriter see who is in the draft now and each other's answers live (lib/presence.ts).
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Archive, ArchiveArrowUp, Award, HandHelping, Pencil, RotateCcw, Scale, Send } from "lucide-react";
 import type { ApplicantApi } from "../../api/applicant.ts";
@@ -26,6 +27,8 @@ import { ConsultingDialog, DecisionDialog, MarkSubmittedDialog } from "./outside
 import { QuestionsTab } from "./outside/QuestionsTab.tsx";
 import { SendToFunderButton } from "./outside/SendToFunder.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, StageBadge } from "./outside/shared.tsx";
+import { useDraftPresence } from "../../lib/presence.ts";
+import { PausedNote, PresenceAvatars } from "./editorPresence.tsx";
 import { ActivityTab, EditDetailsDialog, NotesTab, SubmissionTab } from "./outside/tabs.tsx";
 import { t, useApplicantText } from "./i18n.ts";
 
@@ -54,8 +57,12 @@ export default function OutsideApplication() {
   const [params, setParams] = useSearchParams();
   const applicant = useApplicantApi();
   const wk = useWriteKeepApi();
-  const { meState } = useServices();
+  const { meState, sessionState } = useServices();
   const query = useOutsideQuery((api) => load(api, applicant, wk, outsideId), [outsideId, applicant, wk]);
+  // The draft's live channel, once the application is open: who is here, and their saves read again.
+  const myUserId = sessionState.status === "signedIn" ? sessionState.session.userId : "me";
+  const myName = (query.status === "ready" ? query.data.members.find((m) => m.userId === myUserId)?.name : null) ?? (meState.status === "ready" ? meState.me.displayName : null) ?? ws.member.name;
+  const live = useDraftPresence({ workspaceId: ws.id, draft: { kind: "outside_application", id: outsideId }, me: { userId: myUserId, name: myName }, enabled: query.status === "ready", onSaved: () => query.reload() });
   const asked = params.get("tab") as Tab | null;
   const [tab, setTabState] = useState<Tab>(asked && TABS.includes(asked) ? asked : "questions");
   const setTab = (t: Tab) => {
@@ -69,6 +76,12 @@ export default function OutsideApplication() {
   const move = useOutsideMutation((api, to: OutsideStage) => api.move(outsideId, to));
   const reopen = useOutsideMutation((api) => api.reopen(outsideId));
   const archive = useOutsideMutation((api, on: boolean) => (on ? api.archive(outsideId) : api.unarchive(outsideId)));
+  // A reload or a change refused with 403/404 (the person lost access to this draft): leave its live channel now.
+  const queryError = query.status === "error" ? query.error : null;
+  const { apiFailed } = live;
+  useEffect(() => {
+    for (const e of [queryError, move.error, reopen.error, archive.error]) if (e) apiFailed(e);
+  }, [queryError, move.error, reopen.error, archive.error, apiFailed]);
   const after = (a: OutsideRecord | undefined, message: string) => {
     if (!a) return;
     setDialog(null);
@@ -201,6 +214,10 @@ export default function OutsideApplication() {
                       )
                     }
                   />
+                  <div className="row" style={{ gap: "12px", flexWrap: "wrap" }}>
+                    <PresenceAvatars me={myName} peers={live.peers} />
+                    <PausedNote status={live.status} />
+                  </div>
                   <div className="row" style={{ gap: "24px", flexWrap: "wrap", fontSize: "14px" }} aria-label={t("outsideApplication.deadlines")} role="group">
                     {(Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).map((k) => (
                       <div key={k} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -250,7 +267,7 @@ export default function OutsideApplication() {
                     ].filter((x) => !cowriter || x.key === "questions").map((x) => (x.count === undefined ? { key: x.key as Tab, label: x.label } : { key: x.key as Tab, label: x.label, count: x.count }))}
                   />
                   <TabPanel idPrefix="oa" tab="questions" active={cowriter ? "questions" : tab}>
-                    <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={archived} onChanged={query.reload} />
+                    <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={archived} onChanged={query.reload} live={live} />
                   </TabPanel>
                   {!cowriter && (
                   <>

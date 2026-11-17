@@ -11,9 +11,8 @@ import type { ApplicationStatusView } from "../src/api/applicant.ts";
 import { createHttpApplicantFullApi, OPENGRANTS_ALERTS } from "../src/api/applicantFull.ts";
 import { ApiError } from "../src/api/client.ts";
 import { provideApplicantFullApi } from "../src/api/applicantFullHooks.ts";
-import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
+import { provideApplicantApi, provideMockApplicantStore } from "../src/api/applicantHooks.ts";
 import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
-import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
 import { useApiQuery } from "../src/api/hooks.ts";
 import { provideLaunchApi } from "../src/api/launchHooks.ts";
 import { App } from "../src/app/App.tsx";
@@ -189,7 +188,6 @@ function applicant(path: string) {
   provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more }));
   provideApplicantFullApi(services, createMockApplicantFullApi({ session, store, full }));
   provideLaunchApi(services, createMockLaunchApi({ session, store: launch }), launch);
-  provideRealtime(services, createRealtimeHub());
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App services={services} />

@@ -27,6 +27,12 @@ import "./history.tsp";
 import "./loops.tsp";
 import "./award-kit.tsp";
 import "./translations.tsp";
+// F1: live co-editing (the pass to a draft's live channel).
+import "./presence.tsp";
+// F2: QuickBooks sync (record-keeping only).
+import "./accounting.tsp";
+// F3: the operators' growth measures and Search Console.
+import "./measures.tsp";
 
 using TypeSpec.Http;
 

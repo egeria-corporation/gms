@@ -56,7 +56,17 @@ export const REDACTED = { email: "[email address]", phone: "[phone number]", lin
 export interface Moderator {
   userId: string;
   email: string | null;
+  /** Whether the session came through single sign-on (any `sso/saml` entry in `amr`). */
+  viaSso: boolean;
 }
+
+/**
+ * An email address in GALLERY_MODERATORS or DIRECTORY_MODERATORS matches only a session that did not
+ * come through single sign-on: a workspace's identity provider can assert any address (docs/sso.md),
+ * so its word never makes a moderator. A user id always matches. The same rule as the operators'
+ * (OPERATOR_EMAIL_MATCHES_SSO_SESSIONS). Set true to let SSO sessions match by email too.
+ */
+export const MODERATOR_EMAIL_MATCHES_SSO_SESSIONS = false;
 
 /** GALLERY_MODERATORS: comma-separated user ids or email addresses (a Wrangler secret, so the addresses are never published). */
 export function moderatorsOf(raw: string | null | undefined): { ids: Set<string>; emails: Set<string> } {
@@ -69,10 +79,19 @@ export function moderatorsOf(raw: string | null | undefined): { ids: Set<string>
   return { ids, emails };
 }
 
-export function isModerator(raw: string | null | undefined, who: Moderator): boolean {
+/**
+ * Whether a signed-in person is on a list of user ids and email addresses (GALLERY_MODERATORS,
+ * DIRECTORY_MODERATORS, OPERATORS). A user id always matches; an email entry matches a single
+ * sign-on session only when `emailMatchesSso` says so (each list's own constant, all false).
+ */
+export function onPeopleList(raw: string | null | undefined, who: Moderator, emailMatchesSso: boolean): boolean {
   const m = moderatorsOf(raw);
-  return m.ids.has(who.userId.toLowerCase()) || (!!who.email && m.emails.has(who.email.trim().toLowerCase()));
+  if (m.ids.has(who.userId.toLowerCase())) return true;
+  if (who.viaSso && !emailMatchesSso) return false;
+  return !!who.email && m.emails.has(who.email.trim().toLowerCase());
 }
+
+export const isModerator = (raw: string | null | undefined, who: Moderator): boolean => onPeopleList(raw, who, MODERATOR_EMAIL_MATCHES_SSO_SESSIONS);
 
 function assertModerator(ctx: ServiceContext, raw: string | null | undefined, who: Moderator) {
   if (ctx.actor.kind !== "user" || ctx.actor.userId !== who.userId) throw humanOnly("Moderating the gallery");

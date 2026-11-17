@@ -7,10 +7,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
-import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
+import { provideApplicantApi, provideMockApplicantStore } from "../src/api/applicantHooks.ts";
 import { holdExplanation } from "../src/api/applicantMore.ts";
 import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
-import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { diffWords } from "../src/components/RevisionDiff.tsx";
@@ -28,7 +27,6 @@ function open(path: string, arrange?: (store: ApplicantStore, more: MoreStore) =
   provideMockApplicantStore(services, store);
   provideApplicantApi(services, createMockApplicantApi({ session, store }));
   provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more }));
-  provideRealtime(services, createRealtimeHub());
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <App services={services} />

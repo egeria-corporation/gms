@@ -518,6 +518,8 @@
   "signIn.yourWorkspacesCouldNotBe": "No se pudieron cargar sus espacios de trabajo",
   "signIn.youAreSignedInBut": "Inició sesión, pero el GMS no respondió. Inténtelo de nuevo en un momento.",
   "signIn.retry": "Reintentar",
+  "signIn.ssoAddressNotAccepted": "El inicio de sesión único no se puede usar con esta dirección de correo electrónico",
+  "signIn.ssoAddressNotAcceptedDetail": "El inicio de sesión único de su organización no puede iniciar su sesión con esta dirección de correo electrónico. Inicie sesión con un código enviado a su correo electrónico.",
   "signIn.enterYourEmail": "Ingrese su correo",
   "signIn.workEmail": "Correo de trabajo",
   "signIn.weLlSendAOne": "Le enviaremos un código de un solo uso. No tiene que recordar ninguna contraseña.",

@@ -121,6 +121,12 @@ While the award is public, **Share this award** also offers (both sides unless s
   download and can be copied: pdf-lib cannot tag a PDF, so the alt text goes where the person posts
   it. Downloaded from `GET /gms/awards/{id}/sharing/carousel.pdf` (funder) or
   `/gms/my/awards/{id}/sharing/carousel.pdf` (grantee); 409 `not_public` for an award that is not public.
+- **Downloads are counted, and only counted** (v1.13.0): a person's carousel download, and the press
+  release copied or the portrait card saved (`POST /gms/awards/{id}/sharing/uses`,
+  `POST /gms/my/awards/{id}/sharing/uses`, `{ kind: "press_release" | "portrait" }`, a person's
+  session only), are recorded in `share_kit_uses` as the award, the part and the day, at most once a
+  day each, never who. They count as kit uses in the operators' measure 6 (`docs/measures.md`).
+  Agents' and API clients' reads are not uses.
 - **A press release** to edit: headline, "FOR IMMEDIATE RELEASE", the announcement, the credit
   line, a bracketed quote to fill in, the federal statement when there is one, "About {Funder}" (the
   funder's **standard description**, else its public mission, else a bracketed placeholder), "About

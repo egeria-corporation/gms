@@ -68,6 +68,9 @@ model InstallAvailability {
   googleCalendar: boolean;
   googleDrive: boolean;
   salesforce: boolean;
+
+  /** QuickBooks sync (v1.13.0), record-keeping only: COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID set. */
+  quickbooks: boolean;
 }
 
 /** One sign-in session of the calling person. */

@@ -7,7 +7,6 @@ import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
 import { createMockApplicantApi, seedApplicantStore, type ApplicantStore } from "../mocks/applicant.ts";
 import { createHttpApplicantApi, type ApplicantApi } from "./applicant.ts";
-import { createRealtimeHub, createSupabaseRealtime, type Realtime } from "./applicantRealtime.ts";
 import type { Mutation, Query, QueryState } from "./hooks.ts";
 
 // One port per services object. `workspace` is read at call time so the HTTP port always names
@@ -122,25 +121,4 @@ export function useApplicantMutation<A extends unknown[], R>(write: (api: Applic
     setError(null);
   }, []);
   return { run, state, error, reset };
-}
-
-// ---- presence and save nudges for the editor ----
-
-const realtimes = new WeakMap<object, Realtime>();
-// Mock mode: one hub per page, so two editors in the same page (or test) see each other.
-const mockHub = createRealtimeHub();
-
-/** Replaces the realtime port for a services object (tests). */
-export function provideRealtime(services: Pick<Services, "auth">, realtime: Realtime): void {
-  realtimes.set(services.auth, realtime);
-}
-
-export function useRealtime(): Realtime {
-  const services = useServices();
-  let rt = realtimes.get(services.auth);
-  if (!rt) {
-    rt = services.mock ? mockHub : createSupabaseRealtime(env.supabaseUrl, env.supabaseAnonKey, async () => (await services.auth.getSession())?.accessToken ?? null);
-    realtimes.set(services.auth, rt);
-  }
-  return rt;
 }

@@ -169,8 +169,11 @@ export function KitExtras({ kit, side, awardId }: { kit: AwardShareKit; side: Sh
     setBusy(which);
     setFailed(null);
     try {
-      if (which === "portrait") save(await portraitPng(kit, withAmount), `${kit.award.slug}-portrait.png`);
-      else save(await api.carouselPdf(kit.carousel.path), kit.carousel.fileName);
+      if (which === "portrait") {
+        save(await portraitPng(kit, withAmount), `${kit.award.slug}-portrait.png`);
+        // Counted for the operators' measures (the carousel is counted by its download); never in the way.
+        void api.kitUse(awardId, side, "portrait").catch(() => undefined);
+      } else save(await api.carouselPdf(kit.carousel.path), kit.carousel.fileName);
     } catch (e) {
       setFailed(e);
     } finally {
@@ -234,7 +237,7 @@ export function KitExtras({ kit, side, awardId }: { kit: AwardShareKit; side: Sh
         </p>
         <textarea id={id("press")} className="ta" rows={10} value={press} onChange={(e) => setPress(e.target.value)} />
         <div className="row" style={{ justifyContent: "flex-end", marginTop: "6px" }}>
-          <CopyButton value={press} what={t("awardKit.press.what")} className="btn btn-sm btn-secondary" />
+          <CopyButton value={press} what={t("awardKit.press.what")} className="btn btn-sm btn-secondary" onCopied={() => void api.kitUse(awardId, side, "press_release").catch(() => undefined)} />
         </div>
       </div>
 

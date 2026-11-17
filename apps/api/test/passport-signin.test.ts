@@ -221,6 +221,25 @@ describe("finishing a Passport sign-in", () => {
     expect(await h.repos.table("workspace_members").count({ user_id: STRANGERS })).toBe(0);
   });
 
+  it("never signs in to, or links an organization to, a single sign-on account that holds the email (an identity provider can assert any address)", async () => {
+    const SSO_ACCOUNT = "5c5c5c5c-5555-4555-8555-5c5c5c5c5c5c";
+    h.identity.users.set(EMAIL, { userId: SSO_ACCOUNT, passportUserId: null, sso: true });
+    let flow = await start();
+    passport(await idToken(flow));
+    const r = await callback(flow);
+    expect(r.error).toBe("account_mismatch");
+    expect(r.location.hash).toBe("");
+    expect(h.identity.issued).toHaveLength(0);
+    expect(await h.repos.table("workspaces").one({ passport_org_id: ORG_ALDER })).toBeNull();
+    expect(await h.repos.table("workspace_members").count({ user_id: SSO_ACCOUNT })).toBe(0);
+    // Without an organization, the SSO account's memberships do not sign anyone in either.
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_APPLICANT, user_id: SSO_ACCOUNT, role: "editor" });
+    flow = await start();
+    passport(await idToken(flow), { org: false });
+    await expectRefused(await callback(flow), "no_organization");
+    expect(h.identity.issued).toHaveLength(0);
+  });
+
   it("keeps an account tied to the Passport user it was first linked with", async () => {
     h.identity.users.set(EMAIL, { userId: USER_OFFICER, passportUserId: PASSPORT_USER });
     // The same Passport user again: signed in.

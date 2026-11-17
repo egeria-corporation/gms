@@ -744,7 +744,7 @@ model McpServerPatch {
 }
 
 model ConnectorView {
-  provider: "mercury" | "google_workspace" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce";
+  provider: "mercury" | "google_workspace" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce" | "quickbooks";
   connected: boolean;
   status: string;
   scopes: string[];

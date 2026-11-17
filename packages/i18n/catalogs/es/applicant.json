@@ -2469,5 +2469,15 @@
   "yourProfile.verify": "Verificar con Passport",
   "yourProfile.seeWhatFundersSee": "Ver lo que ven los financiadores",
   "form.provenance.fromProfile": "De su perfil",
-  "form.provenance.fromProfileVerified": "De su perfil (verificado)"
+  "form.provenance.fromProfileVerified": "De su perfil (verificado)",
+  "presence.aTeammate": "Una persona del equipo",
+  "presence.paused": "Las actualizaciones en vivo están en pausa. Sus cambios se siguen guardando; vuelva a cargar la página para ver lo último de su equipo.",
+  "presence.isEditing": "{name} está editando",
+  "presence.beingEditedBy": "En edición por {name}",
+  "presence.changedThis": "{name} cambió esta respuesta",
+  "presence.theyClearedIt": "La dejó en blanco.",
+  "presence.viewTheirVersion": "Ver la otra versión",
+  "presence.hideTheirVersion": "Ocultar la otra versión",
+  "presence.useTheirVersion": "Usar la otra versión",
+  "presence.keepMine": "Conservar la mía"
 }

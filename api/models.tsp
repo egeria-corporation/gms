@@ -3129,6 +3129,9 @@ union ConnectorProvider {
   slack: "slack",
   googleDrive: "google_drive",
   salesforce: "salesforce",
+
+  /** QuickBooks sync (v1.13.0), record-keeping only, through Composio. */
+  quickbooks: "quickbooks",
 }
 
 model ConnectorAccount {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Red team (2026-11), money path. Setup as in money.test.ts: recorded Passport fixtures, no network.
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { encryptSecret, fixtureFetch, type Fixture } from "@gms/passport-client";
 import { reconcileStuckReleases } from "../src/jobs.ts";
@@ -181,5 +182,38 @@ describe("a tranche whose award belongs to another workspace", () => {
     await expect(h.repos.table("requirements").insert({ workspace_id: evilWs, award_id: award, type: "report", title: "x" })).rejects.toMatchObject({ kind: "invalid" });
     const own = (await h.repos.table("tranches").find({ workspace_id: evilWs }))[0]!;
     await expect(h.repos.table("tranches").update({ id: own.id }, { award_id: award })).rejects.toMatchObject({ kind: "invalid" });
+  });
+});
+
+// v1.13.0: the QuickBooks sync is record-keeping only (docs/accounting.md). Read from the code of the
+// connector and the service (comments left out): no Composio tool of QuickBooks Payments, bill pay
+// or payroll is named, nothing names an award's disbursed amount or a payout destination, and the
+// only QuickBooks tools are the reading and record-keeping ones. Adding a tool means adding it here.
+describe("the QuickBooks sync moves no money", () => {
+  const FILES = ["packages/connectors/src/quickbooks.ts", "apps/api/src/services/accounting.ts"];
+  const ROOT = new URL("../../../", import.meta.url);
+  const code = (file: string) =>
+    readFileSync(new URL(file, ROOT), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+  /** The record-keeping tools the connector may call (QUICKBOOKS_TOOLS). */
+  const ALLOWED_TOOLS = ["QUICKBOOKS_CREATE_PURCHASE", "QUICKBOOKS_CREATE_VENDOR", "QUICKBOOKS_GET_PURCHASE", "QUICKBOOKS_LIST_DEPARTMENTS", "QUICKBOOKS_QUERY_ACCOUNTS", "QUICKBOOKS_QUERY_ENTITIES", "QUICKBOOKS_QUERY_VENDORS"];
+  /** Names that are not tools: the auth config's environment variable, the provider id, the tool list itself. */
+  const NOT_TOOLS = new Set(["QUICKBOOKS_AUTH_CONFIG_ID", "QUICKBOOKS_ID", "QUICKBOOKS_TOOLS"]);
+  const MONEY_TOOL = /PAYMENT|BILL|PAYROLL|PAYCHECK|EMPLOYEE|CHARGE|REFUND|ECHECK|TRANSFER|DEPOSIT|PAYOUT/;
+
+  it.each(FILES)("%s names no Payments, bill-pay or payroll tool, no disbursed amount and no destination", (file) => {
+    const text = code(file);
+    const slugs = [...new Set(text.match(/\bQUICKBOOKS_[A-Z0-9_]+\b/g) ?? [])].filter((s) => !NOT_TOOLS.has(s));
+    expect(slugs.filter((s) => MONEY_TOOL.test(s.replace(/^QUICKBOOKS_/, "")))).toEqual([]);
+    expect(slugs.filter((s) => !ALLOWED_TOOLS.includes(s))).toEqual([]);
+    expect(text).not.toMatch(/disbursedAmount|disbursed_amount/i);
+    expect(text).not.toMatch(/destination/i);
+    expect(text).not.toMatch(/payroll|com\.intuit\.quickbooks\.payment|\/billpayment|\/v4\/payments/i);
+  });
+
+  it("calls exactly the record-keeping tools", async () => {
+    const { QUICKBOOKS_TOOLS } = await import("@gms/connectors");
+    expect(Object.values(QUICKBOOKS_TOOLS as Record<string, string>).sort()).toEqual([...ALLOWED_TOOLS].sort());
   });
 });

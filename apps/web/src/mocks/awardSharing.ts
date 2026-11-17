@@ -45,6 +45,8 @@ export interface AwardSharingStore {
   settings: Record<string, { listAwards: boolean; showAmounts: boolean }>;
   programs: Record<string, { id: string; name: string; awardsConfidential: boolean }[]>;
   profiles: Record<string, MockShareProfile>;
+  /** v1.13.0: the kit's uses the browser said (the press release copied, the portrait card saved), counted only. */
+  kitUses?: { awardId: string; side: ShareSide; kind: "press_release" | "portrait" }[];
 }
 
 export function seedAwardSharingStore(): AwardSharingStore {
@@ -368,6 +370,10 @@ export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardS
       const kit = id ? (await panel(id, side)).kit : null;
       if (!kit) throw fail(409, "This award is not listed publicly, so it has no carousel");
       return stubPdf(kit.carousel.pages[0]!.heading, kit.carousel.pages.length);
+    },
+    async kitUse(awardId, side, kind) {
+      await panel(awardId, side);
+      (s.kitUses ??= []).push({ awardId, side, kind });
     },
     async shareProfile() {
       return profileView(current());

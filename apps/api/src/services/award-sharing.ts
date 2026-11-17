@@ -21,6 +21,7 @@ import { DEFAULT_LOCALE, formatCurrency, formatDateIn, formatNumber, INTL_LOCALE
 import { serverTranslator } from "@gms/i18n/server";
 import { renderCarouselPdf, type CarouselPage } from "@gms/documents";
 import { z } from "zod";
+import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { humanOnly, STAFF_ROLES } from "./awards.ts";
 import { audit, authorize, type ServiceContext } from "./context.ts";
@@ -918,7 +919,38 @@ export async function carouselPdf(ctx: ServiceContext, awardId: string, audience
   const pages = carouselPages(w, found.award, audience, `${ctx.config.webBaseUrl}/f/${found.funder.handle}/awards`);
   const t = emailT(w.locale);
   const bytes = await renderCarouselPdf({ title: t("kit.carousel.cover.heading", { funder: w.funder, recipient: w.recipient }), pages, footer: found.award.links.page.replace(/^https?:\/\//, ""), createdAt: ctx.now().toISOString(), lang: INTL_LOCALE[w.locale] });
+  // A person's download is a use of the kit (measure 6); an agent's or API client's is not counted.
+  if (ctx.actor.kind === "user") await countKitUse(ctx, award, "carousel");
   return { bytes, fileName: `${found.award.slug}-carousel.pdf` };
+}
+
+// ---- share-kit uses (v1.13.0): counts only, for the operators' measure 6
+
+/** The parts of the kit a person takes without posting. The carousel is counted by its download; the other two are said by the browser. */
+export const KIT_USE_KINDS = ["carousel", "press_release", "portrait"] as const;
+export type KitUseKind = (typeof KIT_USE_KINDS)[number];
+export const kitUseInput = z.object({ kind: z.enum(["press_release", "portrait"]) }).strict();
+
+/** One row per award, kind and day at most (share_kit_uses, migration 0054): the award, which part and the day; never who. */
+async function countKitUse(ctx: ServiceContext, award: Award, kind: KitUseKind): Promise<void> {
+  const usedOn = ctx.now().toISOString().slice(0, 10);
+  const uses = ctx.repos.table("share_kit_uses");
+  if (await uses.one({ award_id: award.id, kind, used_on: usedOn })) return;
+  // The same use counted at the same moment elsewhere already made the row: nothing more to count.
+  await uses.insert({ workspace_id: award.workspace_id, award_id: award.id, kind, used_on: usedOn }).catch(() => undefined);
+}
+
+/**
+ * The press release copied or the portrait card saved, from either side: a person's session only
+ * (`person_required` for agents and API clients, whose reads are not uses), for a public award whose
+ * kit this side may read.
+ */
+export async function recordKitUse(ctx: ServiceContext, awardId: string, audience: ShareAudience, input: z.output<typeof kitUseInput>) {
+  if (ctx.actor.kind !== "user" || !ctx.actor.userId) throw forbidden("person_required", "A use of the share kit is counted for a person in the GMS, not an agent or API client");
+  const { award } = await sideAward(ctx, awardId, audience, "awards:read");
+  if (!(await listedAwardBySlug(ctx, award.public_slug))) throw new ApiError(409, "not_public", "This award is not listed publicly, so it has no share kit");
+  await countKitUse(ctx, award, input.kind);
+  return { recorded: true as const };
 }
 
 // ---- "Meet our grantees"

@@ -204,6 +204,51 @@ describe("the carousel", () => {
   });
 });
 
+describe("share-kit downloads, counted for the operators' measures (v1.13.0)", () => {
+  const post = (s: S, path: string, headers: H, body: unknown) => s.h.request(path, { method: "POST", headers, body: JSON.stringify(body) });
+  const uses = (s: S) => s.h.repos.table("share_kit_uses").find({ award_id: s.listed.id }, { orderBy: "kind" });
+
+  it("counts the carousel download, the press release copied and the portrait card saved, from either side, once per day: the award, the part and the day only", async () => {
+    const s = await setup();
+    const kit = (await panel(s)).kit!;
+    expect((await get(s, kit.carousel.path, s.officer)).status).toBe(200);
+    expect((await get(s, `/gms/my/awards/${awd(s.listed.id)}/sharing/carousel.pdf`, s.grantee)).status).toBe(200);
+    expect(await data(await post(s, `/gms/awards/${awd(s.listed.id)}/sharing/uses`, s.officer, { kind: "press_release" }))).toEqual({ recorded: true });
+    expect((await post(s, `/gms/my/awards/${awd(s.listed.id)}/sharing/uses`, s.grantee, { kind: "portrait" })).status).toBe(200);
+    expect((await post(s, `/gms/my/awards/${awd(s.listed.id)}/sharing/uses`, s.grantee, { kind: "portrait" })).status).toBe(200);
+    const rows = await uses(s);
+    expect(rows.map((r) => [r.kind, r.used_on, r.workspace_id])).toEqual([
+      ["carousel", "2027-04-16", WS_FUNDER],
+      ["portrait", "2027-04-16", WS_FUNDER],
+      ["press_release", "2027-04-16", WS_FUNDER],
+    ]);
+    // A count names no one.
+    expect(Object.keys(rows[0]!).sort()).toEqual(["award_id", "created_at", "id", "kind", "updated_at", "used_on", "workspace_id"]);
+    // The next day counts again.
+    s.h.clock.now = new Date(s.h.clock.now.getTime() + 86_400_000);
+    const officer = { ...s.officer, ...bearer(await s.h.session(USER_OFFICER)).headers };
+    expect((await post(s, `/gms/awards/${awd(s.listed.id)}/sharing/uses`, officer, { kind: "portrait" })).status).toBe(200);
+    expect((await uses(s)).length).toBe(4);
+  });
+
+  it("counts a person's uses only, of a public award this side may read; the carousel is counted by its download", async () => {
+    const s = await setup();
+    const agent = { ...bearer(await s.h.forge({ sub: USER_OFFICER, client_id: CLIENT_AGENT, scope: "awards:read", "https://gms.opengrants.io/workspace_id": WS_FUNDER, jti: "tok-kit-use" })).headers, "X-GMS-Workspace": WS_FUNDER, "Content-Type": "application/json" };
+    const r = await post(s, `/gms/awards/${awd(s.listed.id)}/sharing/uses`, agent, { kind: "portrait" });
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { errors: { code: string }[] }).errors[0]!.code).toBe("person_required");
+    // An agent's carousel download is not a use either.
+    expect((await get(s, `/gms/awards/${awd(s.listed.id)}/sharing/carousel.pdf`, agent)).status).toBe(200);
+    expect(await uses(s)).toEqual([]);
+    const hidden = await s.award("Confidential Shelter", { confidential: true });
+    expect((await post(s, `/gms/awards/${awd(hidden.id)}/sharing/uses`, s.officer, { kind: "portrait" })).status).toBe(409);
+    expect((await post(s, `/gms/my/awards/${awd(s.listed.id)}/sharing/uses`, s.second, { kind: "portrait" })).status).toBe(404);
+    expect((await post(s, `/gms/awards/${awd(s.listed.id)}/sharing/uses`, s.officer, { kind: "carousel" })).status).toBe(400);
+    expect((await post(s, `/gms/awards/${awd(s.listed.id)}/sharing/uses`, s.officer, { kind: "portrait", who: "me" })).status).toBe(400);
+    expect(await s.h.repos.table("share_kit_uses").count({})).toBe(0);
+  });
+});
+
 describe("the portrait card", () => {
   it("carries both names and the program, and no amount the funder hides", async () => {
     const s = await setup();
