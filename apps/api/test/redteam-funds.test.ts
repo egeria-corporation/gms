@@ -76,7 +76,7 @@ interface Ids {
 }
 let ids: Ids;
 /** The other fund's v1.8.0 and v1.9.0 records (set in setUp). */
-let extra: { docketId: string; reportViewId: string; reportFileId: string; socialPostId: string; importRunId: string };
+let extra: { docketId: string; reportViewId: string; reportFileId: string; socialPostId: string; importRunId: string; historyAppId: string; historyReviewId: string; historyReportId: string; reminderId: string };
 /** Every id of the other fund's records, bare: a request naming one must be refused. */
 let otherIds: string[];
 
@@ -98,6 +98,11 @@ function paramsFor(path: string): Record<string, string> {
     if (path.startsWith("/gms/tasks/")) return ids.taskB;
     if (path.startsWith("/gms/threads/")) return ids.threadB;
     if (path.startsWith("/gms/workspaces/")) return WS_FUNDER;
+    // v1.12.0: imported history, a call's translation draft and its "Two weeks left" prompt.
+    if (path.startsWith("/gms/history/applications/")) return extra?.historyAppId ?? NOWHERE;
+    if (path.startsWith("/gms/history/reports/")) return extra?.historyReportId ?? NOWHERE;
+    if (path.startsWith("/gms/translations/opportunities/")) return P("opp", ids.oppB);
+    if (path.startsWith("/gms/social/reminders/")) return extra?.reminderId ?? NOWHERE;
     return NOWHERE;
   })();
   return {
@@ -349,7 +354,14 @@ async function setUp() {
   const reportFile = await h.repos.table("report_files").insert({ workspace_id: WS_FUNDER, view_id: view.id, period_key: "2027-05", storage_key: `exports/${WS_FUNDER}/reports/${view.id}/2027-05.csv`, recipient_user_ids: [USER_ADMIN, ADVISOR], row_count: 1, expires_at: "2099-01-01T00:00:00Z", sent_at: "2027-05-01T13:00:00Z" } as never);
   const socialPost = await h.repos.table("social_posts").insert({ workspace_id: WS_FUNDER, subject_type: "award", subject_id: awardB, idempotency_key: crypto.randomUUID(), payload_sha256: "a".repeat(64), platforms: ["linkedin"], status: "published", created_by: USER_ADMIN } as never);
   const importRun = await h.repos.table("import_runs").insert({ workspace_id: WS_FUNDER, target: "award_history", source: "csv", source_label: `${MARK}.csv`, mapping: {} as never, rows_total: 1 } as never);
-  extra = { docketId: docket.docketId, reportViewId: view.id, reportFileId: reportFile.id, socialPostId: socialPost.id, importRunId: importRun.id };
+  // v1.12.0 records of the other fund: imported history on its award (a past application, its
+  // review, a past report), a "Two weeks left" prompt and a Philanthropy News Digest submission on its call.
+  const historyApp = await h.repos.table("history_applications").insert({ workspace_id: WS_FUNDER, title: `${MARK} past application`, organization_name: `${MARK} past organization`, outcome: "awarded", award_id: awardB, program_id: programB.id, organization_workspace_id: WS_APPLICANT, answers: [{ question: "Need", answer: `${MARK} past answer` }] } as never);
+  const historyReview = await h.repos.table("history_reviews").insert({ workspace_id: WS_FUNDER, application_id: historyApp.id, application_title: `${MARK} past application`, comment: `${MARK} past review`, total_score: 4 } as never);
+  const historyReport = await h.repos.table("history_reports").insert({ workspace_id: WS_FUNDER, title: `${MARK} past report`, report_state: "approved", award_id: awardB, award_title: `${MARK} award`, organization_workspace_id: WS_APPLICANT } as never);
+  const reminder = await h.repos.table("social_reminder_prompts").insert({ workspace_id: WS_FUNDER, opportunity_id: s.uuid.opp, deadline: "2027-06-30" } as never);
+  await h.repos.table("syndication_sends").insert({ workspace_id: WS_FUNDER, opportunity_id: s.uuid.opp, target: "pnd", digest: "b".repeat(64), reply_to_masked: "g•••@riverbend.example", sent_by: USER_ADMIN, to_address: "pndrfp@candid.org" } as never);
+  extra = { docketId: docket.docketId, reportViewId: view.id, reportFileId: reportFile.id, socialPostId: socialPost.id, importRunId: importRun.id, historyAppId: historyApp.id, historyReviewId: historyReview.id, historyReportId: historyReport.id, reminderId: reminder.id };
 
   // The advisor's own fund: a program, an opportunity and an award in it.
   const programA = await created<{ id: string }>(s.call(s.funder, "POST", "/gms/programs", { name: "Murals", fundId: fundA.id }));
@@ -381,7 +393,7 @@ async function setUp() {
     taskB: task.id,
     threadB: thread.id,
   };
-  otherIds = [ids.fundB, ids.programB, ids.oppB, ids.compB, ids.appB, ids.awardB, ids.agreementB, ids.trancheB, ids.requirementB, ids.decisionB, ids.assignmentB, ids.taskB, ids.threadB];
+  otherIds = [ids.fundB, ids.programB, ids.oppB, ids.compB, ids.appB, ids.awardB, ids.agreementB, ids.trancheB, ids.requirementB, ids.decisionB, ids.assignmentB, ids.taskB, ids.threadB, extra.historyAppId, extra.historyReportId, extra.reminderId];
 }
 
 /** What the other fund's records look like; compared after every call has been made. */
@@ -477,6 +489,8 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
   it("covers the routes and tools that touch a fund's records", () => {
     const keys = new Set(calls.map((c) => c.key));
     for (const k of ["get /gms/programs/{id}", "get /gms/opportunities/{id}", "get /gms/competitions/{id}", "get /gms/applications/{id}", "get /gms/awards/{id}", "get /gms/tranches/{id}/readiness", "post /gms/tranches/{id}/release", "get /gms/funds/{id}", "get /common-grants/applications/{appId}", "get /common-grants/awards/{awdId}"]) expect(keys, k).toContain(k);
+    // v1.12.0 routes that name a fund's records.
+    for (const k of ["get /gms/history", "get /gms/history/applications/{id}", "get /gms/history/applications/{id}/files/{docId}", "get /gms/history/reports/{id}/files/{docId}", "get /gms/opportunities/{id}/syndication", "put /gms/opportunities/{id}/syndication/feeds", "post /gms/opportunities/{id}/syndication/pnd/preview", "post /gms/opportunities/{id}/syndication/pnd", "put /gms/awards/{id}/federal-funding", "get /gms/awards/{id}/sharing/carousel.pdf", "post /gms/translations/opportunities/{id}/draft", "post /gms/social/reminders/{id}/dismiss"]) expect(keys, k).toContain(k);
     expect(calls.length).toBeGreaterThan(350);
     const names = new Set(tools.map((t) => t.name));
     for (const t of ["get_program", "get_opportunity", "get_competition", "get_application", "get_award", "release_tranche", "list_awards"]) expect(names, t).toContain(t);
@@ -537,7 +551,7 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
     expect(officerFunds.data.items.length).toBe(3);
   });
 
-  it("reaches nothing of the other fund through reports, the docket, open data, social posts, the send package, imports or digests", async () => {
+  it("reaches nothing of the other fund through reports, the docket, open data, social posts, the send package, imports, imported history or digests", async () => {
     // The route run above reached every one of these areas, and none answered with the other fund.
     const AREAS: Record<string, RegExp> = {
       reports: /^\w+ \/gms\/(reports|report-views|report-files)(\/|$)/,
@@ -547,6 +561,11 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
       "send package": /^\w+ \/gms\/(outside-applications\/\{id\}\/package|send-package)/,
       imports: /^\w+ \/gms\/imports\//,
       digests: /^\w+ \/gms\/digests(\/|$|\?)/,
+      // v1.12.0
+      "imported history": /^\w+ \/gms\/history(\/|$)/,
+      "share this call": /^\w+ \/gms\/opportunities\/\{id\}\/syndication/,
+      "award kit": /^\w+ \/gms\/(awards\/\{id\}\/(sharing|federal-funding)|share-kit)/,
+      translations: /^\w+ \/gms\/translations\//,
     };
     for (const [area, re] of Object.entries(AREAS)) {
       const mine = calls.filter((c) => re.test(c.key));
@@ -583,6 +602,22 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
     // Imports: closed to fund advisors.
     expect((await get("/gms/imports/runs?target=award_history")).text).not.toContain(extra.importRunId);
     expect([403, 404]).toContain((await get(`/gms/imports/runs/${extra.importRunId}`)).status);
+    // Imported history (v1.12.0): the other fund's past application, review and report are not listed, and do not open by id.
+    const past = await get(`/gms/history?organization=${WS_APPLICANT}`);
+    expect(past.status).toBe(200);
+    // (The workspace's admin does see them, so the check above is not empty by accident.)
+    const wholeHistory = await h.request(`/gms/history?organization=${WS_APPLICANT}`, { headers: { ...bearer(await h.session(USER_ADMIN)).headers, "X-GMS-Workspace": WS_FUNDER } });
+    expect(await wholeHistory.text()).toContain(`${MARK} past application`);
+    expect(leaks(past.text) || [extra.historyAppId, extra.historyReviewId, extra.historyReportId].some((x) => past.text.includes(x))).toBe(false);
+    expect([403, 404]).toContain((await get(`/gms/history/applications/${extra.historyAppId}`)).status);
+    const byAward = await get(`/gms/history?award=awd_${ids.awardB}`);
+    expect([403, 404]).toContain(byAward.status);
+    expect(byAward.text).not.toContain(MARK);
+    // Share this call and the "Two weeks left" prompt on the other fund's call.
+    expect([403, 404]).toContain((await get(`/gms/opportunities/opp_${ids.oppB}/syndication`)).status);
+    const dismiss = await h.request(`/gms/social/reminders/${extra.reminderId}/dismiss`, { method: "POST", headers: me });
+    expect([403, 404]).toContain(dismiss.status);
+    expect((await h.repos.table("social_reminder_prompts").one({ id: extra.reminderId }))!.dismissed_at).toBeNull();
     // Send package: an applicant's own, never a funder member's.
     expect([403, 404]).toContain((await get(`/gms/outside-applications/${NOWHERE}/package`)).status);
     // Digests: the advisor's activity counts their fund only (the other fund's application is new this week).
