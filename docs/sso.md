@@ -234,7 +234,8 @@ the address's domain:
   `MODERATOR_EMAIL_MATCHES_SSO_SESSIONS` and `OPERATOR_EMAIL_MATCHES_SSO_SESSIONS`, both false); a
   user id always matches. Sign in with Passport
   never finds, adopts or links an account Supabase made through single sign-on (`is_sso_user`) by
-  its address: the identity port refuses it (`account_mismatch`).
+  its address: migration `0053` leaves such accounts out of the two email lookups it uses, and the
+  identity port refuses one if a lookup ever returns it (`account_mismatch`).
 - `apps/api/test/redteam-sso-email.test.ts` tries each place with provider A's session asserting an
   address on provider B's domain, and the right-domain session.
 
