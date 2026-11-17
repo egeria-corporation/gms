@@ -6191,7 +6191,6 @@ export interface paths {
         trace?: never;
     };
     "/gms/public/feeds/opengrants.json": {
-    "/gms/public/for-funders": {
         parameters: {
             query?: never;
             header?: never;
@@ -6263,6 +6262,21 @@ export interface paths {
          * @description The same calls as RSS 2.0.
          */
         get: operations["OpenCallFeeds_rssFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/for-funders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         /** @description Data for `/for-funders`: with `ref`, the applicant's region and aggregate count; with `invite`, who invited the funder. Unknown links read as none. No token. */
         get: operations["FunderLoops_forFunders"];
         put?: never;
@@ -14262,6 +14276,7 @@ export interface components {
                  */
                 pending: number;
             };
+        };
         "Models.CarouselPageInfo": {
             heading: string;
             /** @description What a screen reader user is told the page shows. */
@@ -15484,6 +15499,7 @@ export interface components {
             /** Format: double */
             percent?: number | null;
             source?: string | null;
+        };
         "Models.FieldTranslation": {
             label?: components["schemas"]["Models.TranslatedText"];
             help?: components["schemas"]["Models.TranslatedText"];
@@ -18499,6 +18515,45 @@ export interface components {
             /** @description An expected payment received: the amount that came in. */
             amount?: components["schemas"]["CommonGrants.Fields.Money"];
         };
+        "Models.OnboardingLink": {
+            token: string;
+            /** Format: uri */
+            url: string;
+            logo: components["schemas"]["Models.OnboardingLogo"] | null;
+            /**
+             * Format: int32
+             * @description Workspaces made from this link.
+             */
+            joined: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        "Models.OnboardingLogo": {
+            /** Format: uri */
+            url: string;
+            alt: string;
+        };
+        "Models.OnboardingLogoAltInput": {
+            alt: string;
+        };
+        "Models.OnboardingLogoInput": {
+            /** @enum {string} */
+            mime: "image/png" | "image/jpeg" | "image/webp";
+            /** @description The image, base64, up to 256 KB (413 `logo_too_large`; 422 `logo_not_an_image`). */
+            contentBase64: string;
+            /** @description What the logo shows, read aloud by screen readers. */
+            alt: string;
+        };
+        "Models.OnboardingPage": {
+            intermediary: {
+                name: string;
+                handle: string;
+                verification: components["schemas"]["Models.Verification"];
+            };
+            /** @description Its funds' names (the default fund is never named). */
+            funds: string[];
+            logo: components["schemas"]["Models.OnboardingLogo"] | null;
+        };
         /** @description One call in a feed: only what its public page shows. */
         "Models.OpenCallFeedItem": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -18572,44 +18627,6 @@ export interface components {
                 tags?: string[];
                 _gms: components["schemas"]["Models.OpenCallFeedItem"];
             }[];
-        "Models.OnboardingLink": {
-            token: string;
-            /** Format: uri */
-            url: string;
-            logo: components["schemas"]["Models.OnboardingLogo"] | null;
-            /**
-             * Format: int32
-             * @description Workspaces made from this link.
-             */
-            joined: number;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        "Models.OnboardingLogo": {
-            /** Format: uri */
-            url: string;
-            alt: string;
-        };
-        "Models.OnboardingLogoAltInput": {
-            alt: string;
-        };
-        "Models.OnboardingLogoInput": {
-            /** @enum {string} */
-            mime: "image/png" | "image/jpeg" | "image/webp";
-            /** @description The image, base64, up to 256 KB (413 `logo_too_large`; 422 `logo_not_an_image`). */
-            contentBase64: string;
-            /** @description What the logo shows, read aloud by screen readers. */
-            alt: string;
-        };
-        "Models.OnboardingPage": {
-            intermediary: {
-                name: string;
-                handle: string;
-                verification: components["schemas"]["Models.Verification"];
-            };
-            /** @description Its funds' names (the default fund is never named). */
-            funds: string[];
-            logo: components["schemas"]["Models.OnboardingLogo"] | null;
         };
         /** @description One award in the period and what the export does with it. */
         "Models.OpenDataAwardRow": {
@@ -47863,13 +47880,6 @@ export interface operations {
             header?: {
                 "if-none-match"?: string;
             };
-    FunderLoops_forFunders: {
-        parameters: {
-            query?: {
-                ref?: string;
-                invite?: string;
-            };
-            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -48050,6 +48060,22 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    FunderLoops_forFunders: {
+        parameters: {
+            query?: {
+                ref?: string;
+                invite?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description A 200 response with typed data */
             200: {
                 headers: {

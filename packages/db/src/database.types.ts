@@ -3981,18 +3981,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      syndication_sends: {
-        Row: {
-          created_at: string;
-          digest: string;
-          id: string;
-          message_id: string | null;
-          opportunity_id: string;
-          reply_to_masked: string;
-          sent_at: string | null;
-          sent_by: string;
-          target: string;
-          to_address: string;
       social_reminder_prompts: {
         Row: {
           created_at: string;
@@ -4007,15 +3995,6 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
-          digest: string;
-          id?: string;
-          message_id?: string | null;
-          opportunity_id: string;
-          reply_to_masked: string;
-          sent_at?: string | null;
-          sent_by: string;
-          target: string;
-          to_address: string;
           deadline: string;
           dismissed_at?: string | null;
           dismissed_by?: string | null;
@@ -4027,15 +4006,6 @@ export type Database = {
         };
         Update: {
           created_at?: string;
-          digest?: string;
-          id?: string;
-          message_id?: string | null;
-          opportunity_id?: string;
-          reply_to_masked?: string;
-          sent_at?: string | null;
-          sent_by?: string;
-          target?: string;
-          to_address?: string;
           deadline?: string;
           dismissed_at?: string | null;
           dismissed_by?: string | null;
@@ -4090,6 +4060,51 @@ export type Database = {
           status?: string;
           submitted_at?: string | null;
           submitted_by?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      syndication_sends: {
+        Row: {
+          created_at: string;
+          digest: string;
+          id: string;
+          message_id: string | null;
+          opportunity_id: string;
+          reply_to_masked: string;
+          sent_at: string | null;
+          sent_by: string;
+          target: string;
+          to_address: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          digest: string;
+          id?: string;
+          message_id?: string | null;
+          opportunity_id: string;
+          reply_to_masked: string;
+          sent_at?: string | null;
+          sent_by: string;
+          target: string;
+          to_address: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          digest?: string;
+          id?: string;
+          message_id?: string | null;
+          opportunity_id?: string;
+          reply_to_masked?: string;
+          sent_at?: string | null;
+          sent_by?: string;
+          target?: string;
+          to_address?: string;
           updated_at?: string;
           workspace_id?: string;
         };
