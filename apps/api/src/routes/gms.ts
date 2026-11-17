@@ -18,6 +18,7 @@ import { applicationRoutes } from "./gms/applications.ts";
 import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
+import { translationRoutes } from "./gms/translations.ts";
 import { fundRoutes } from "./gms/funds.ts";
 import { designRoutes } from "./gms/design.ts";
 import { digestRoutes } from "./gms/digests.ts";
@@ -181,6 +182,8 @@ gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
+// Bilingual forms and opportunity text: the assistant's translation drafts (E6, docs/forms.md).
+gms.route("/", translationRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

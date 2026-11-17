@@ -6711,6 +6711,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/translations/forms/{formId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Drafts, with the assistant, the texts of the form's current draft version that are not
+         *     translated into `language` yet or whose source changed. Saves nothing; counts against the
+         *     workspace's monthly assistant quota (429 `assist_quota_exhausted`). 404 `assistant_disabled`
+         *     when the assistant is off; 409 `form_published` for a published version (start the next one);
+         *     422 for the form's own language.
+         */
+        post: operations["Translations_draftForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/translations/opportunities/{oppId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description The same for an opportunity's title, summary and eligibility labels. The drafts must be reviewed before they are saved. */
+        post: operations["Translations_draftOpportunity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/vault": {
         parameters: {
             query?: never;
@@ -14448,6 +14488,14 @@ export interface components {
             code?: string;
             message?: string;
         };
+        "Models.FieldTranslation": {
+            label?: components["schemas"]["Models.TranslatedText"];
+            help?: components["schemas"]["Models.TranslatedText"];
+            /** @description A choice's label (a select's option, a budget table's category), by its stored value. Answers stay the stored value. */
+            options?: {
+                [key: string]: components["schemas"]["Models.TranslatedText"];
+            };
+        };
         /** @description Fluxx: your instance's address, and the id and secret of the OAuth application you created at its /oauth/applications page. */
         "Models.FluxxConnectInput": {
             instanceUrl: string;
@@ -14464,6 +14512,49 @@ export interface components {
             sections: {
                 [key: string]: components["schemas"]["CommonGrants.Types.uuid"];
             };
+        };
+        /** @description A drafted form text. `path` is "" for the title, the layout's UI-schema path for a section, the field's pointer otherwise. */
+        "Models.FormTextDraft": {
+            /** @enum {string} */
+            kind: "title" | "section" | "label" | "help" | "option";
+            path: string;
+            /** @description For an option: its stored value. */
+            option?: string;
+            source: string;
+            text: string;
+        };
+        "Models.FormTranslation": {
+            title?: components["schemas"]["Models.TranslatedText"];
+            /** @description Section titles, by the layout's place in the UI schema ("/elements/0"). */
+            sections?: {
+                [key: string]: components["schemas"]["Models.TranslatedText"];
+            };
+            /** @description By the field's JSON pointer into the response ("/projectTitle"). */
+            fields?: {
+                [key: string]: components["schemas"]["Models.FieldTranslation"];
+            };
+        };
+        /** @description `POST /gms/translations/forms/{formId}/draft`: drafts for the texts not translated yet. Nothing was saved. */
+        "Models.FormTranslationDraft": {
+            /** @enum {boolean} */
+            draft: true;
+            language: components["schemas"]["Models.TranslationLanguage"];
+            items: components["schemas"]["Models.FormTextDraft"][];
+            /**
+             * Format: int32
+             * @description Texts left for another call (one call drafts at most 120).
+             */
+            remaining: number;
+            /** @description Null when nothing needed translating (no call was made). */
+            model: string | null;
+            quota: components["schemas"]["Models.AssistQuota"] | null;
+        };
+        /** @description A form version's text in other languages, keyed by language. Part of the version: published and copied with it. */
+        "Models.FormTranslations": {
+            /** @description The language the form itself is written in; English when absent. */
+            source?: components["schemas"]["Models.TranslationLanguage"];
+            en?: components["schemas"]["Models.FormTranslation"];
+            es?: components["schemas"]["Models.FormTranslation"];
         };
         "Models.Fund": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -15435,6 +15526,8 @@ export interface components {
             fieldMeta?: {
                 [key: string]: unknown;
             };
+            /** @description The funder's text in other languages; `{}` when none. Lists omit it. */
+            translations?: components["schemas"]["Models.FormTranslations"];
         };
         "Models.GmsFormInput": {
             title: string;
@@ -15456,6 +15549,8 @@ export interface components {
             fieldMeta?: {
                 [key: string]: unknown;
             };
+            /** @description The funder's text in other languages. Texts for fields the form no longer has are dropped on save. */
+            translations?: components["schemas"]["Models.FormTranslations"];
             /** @description Start from an existing form (e.g. one from the shared library) */
             copyFrom?: {
                 id: components["schemas"]["Models.GmsId"];
@@ -15493,6 +15588,8 @@ export interface components {
             customFields: {
                 [key: string]: unknown;
             };
+            /** @description The title, summary and eligibility labels in other languages (`customFields.translations`'s value); `{}` when none. */
+            translations: components["schemas"]["Models.OpportunityTranslations"];
             published: boolean;
             /** Format: date-time */
             publishedAt: string | null;
@@ -15515,9 +15612,12 @@ export interface components {
             acceptedApplicantTypes?: string[];
             eligibilityRules?: components["schemas"]["Models.EligibilityRule"];
             publish?: components["schemas"]["Models.PublishSettings"];
+            /** @description `customFields.translations` is written through `translations` (422 otherwise). */
             customFields?: {
                 [key: string]: unknown;
             };
+            /** @description The title, summary and eligibility labels in other languages. An assistant draft is refused (422): review it first. */
+            translations?: components["schemas"]["Models.OpportunityTranslations"];
         };
         /** @description The workspace setting (`goNoGoEnabled`, `goNoGoWeights`; off by default, weights 3, 2, 2, 1) and the application's scorecard. */
         "Models.GoNoGo": {
@@ -17370,8 +17470,17 @@ export interface components {
                 acceptingApplications: boolean;
                 /** Format: date-time */
                 publishedAt: string | null;
-                /** @description The eligibility rules' plain-language labels */
+                /** @description The eligibility rules' plain-language labels, in the reader's language where the funder translated them */
                 eligibility: string[];
+                /** @description The language `title` is shown in: the reader's (`?lang=`, the `gms_lang` cookie, Accept-Language) where the funder translated it, else the funder's. */
+                language: components["schemas"]["Models.TranslationLanguage"];
+                /** @description The funder's reviewed title and summary in each other language, for the page's meta and share card. */
+                translations: {
+                    [key: string]: {
+                        title?: string;
+                        description?: string;
+                    };
+                };
                 /** @description The opportunity's fund, through its program; null without one. */
                 fund?: components["schemas"]["Models.OpportunityFund"] | null;
             };
@@ -17396,6 +17505,39 @@ export interface components {
                 [key: string]: unknown;
             };
             publish: components["schemas"]["Models.PublishSettings"];
+        };
+        "Models.OpportunityTextDraft": {
+            /** @enum {string} */
+            kind: "title" | "description" | "eligibility";
+            /** @description For an eligibility label: the label as written. */
+            key: string;
+            source: string;
+            text: string;
+        };
+        "Models.OpportunityTranslation": {
+            title?: components["schemas"]["Models.TranslatedText"];
+            /** @description The summary (the opportunity's `description`). */
+            description?: components["schemas"]["Models.TranslatedText"];
+            /** @description An eligibility rule's label, by the label as written. */
+            eligibility?: {
+                [key: string]: components["schemas"]["Models.TranslatedText"];
+            };
+        };
+        "Models.OpportunityTranslationDraft": {
+            /** @enum {boolean} */
+            draft: true;
+            language: components["schemas"]["Models.TranslationLanguage"];
+            items: components["schemas"]["Models.OpportunityTextDraft"][];
+            /** Format: int32 */
+            remaining: number;
+            model: string | null;
+            quota: components["schemas"]["Models.AssistQuota"] | null;
+        };
+        /** @description An opportunity's title, summary and eligibility labels in other languages. Never holds an assistant draft. */
+        "Models.OpportunityTranslations": {
+            source?: components["schemas"]["Models.TranslationLanguage"];
+            en?: components["schemas"]["Models.OpportunityTranslation"];
+            es?: components["schemas"]["Models.OpportunityTranslation"];
         };
         "Models.OrgChange": {
             id: string;
@@ -20755,6 +20897,23 @@ export interface components {
         };
         /** @enum {string} */
         "Models.TrancheStatus": "scheduled" | "due" | "ready" | "releasing" | "initiated" | "settled" | "held" | "failed" | "returned" | "cancelled";
+        /** @description One text in another language, with the source text it translates. */
+        "Models.TranslatedText": {
+            text: string;
+            /** @description The source text as it was when this was translated; a different source today makes this stale. */
+            source: string;
+            /**
+             * @description The assistant's draft, not yet reviewed. A form holding one cannot be published (422).
+             * @enum {boolean}
+             */
+            draft?: true;
+        };
+        "Models.TranslationDraftRequest": {
+            /** @description The language to draft into; not the record's own. */
+            language: components["schemas"]["Models.TranslationLanguage"];
+        };
+        /** @enum {string} */
+        "Models.TranslationLanguage": "en" | "es";
         /** @enum {string} */
         "Models.TriState": "pass" | "fail" | "unknown";
         "Models.UpcomingPayments": {
@@ -47784,6 +47943,181 @@ export interface operations {
             };
             /** @description The request conflicts with the current state of the server. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Translations_draftForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formId: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.TranslationDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.FormTranslationDraft"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Translations_draftOpportunity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                oppId: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.TranslationDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OpportunityTranslationDraft"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

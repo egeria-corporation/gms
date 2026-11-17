@@ -3,11 +3,13 @@
 // published fields only — never drafts, settings, eligibility internals beyond the rule labels, or
 // anything about applicants. The CommonGrants read routes and the funder pages are built on them.
 import { ProjectionError, projectCompetition, projectForm, projectOpportunity, projectOpportunityDetails, unionStageForms, type CompetitionRow, type FormRow, type OpportunityRow, type StageJson } from "@gms/protocol";
+import { opportunityText, type FormLanguage } from "@gms/forms";
+import { DEFAULT_LOCALE, formatList, type Locale } from "@gms/i18n";
 import { parseRules, type Rule } from "@gms/rules";
 import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
 import { publicFundOfOpportunity, publicFundsOf } from "./funds.ts";
-import { funderOf } from "./opportunities.ts";
+import { eligibilityLabelsOf, funderOf, opportunityTranslationsOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
 import { poweredByOf } from "./powered-by.ts";
 import { namesOf, orgFacts, verificationOf } from "./profile.ts";
@@ -255,15 +257,53 @@ const pageExtras = (o: Opp) => {
   return { faq: Array.isArray(p.faq) ? p.faq : [], documents: Array.isArray(p.documents) ? p.documents : [] };
 };
 
-function ruleLabels(rule: Rule | null): string[] {
+/**
+ * The rules' plain-language labels, each label through `text` (its translation, when it has one).
+ * An "any" group reads as one line: in English "a or b" as always, in another language as that
+ * language lists alternatives.
+ */
+function ruleLabels(rule: Rule | null, text: (label: string) => string = (l) => l, locale: Locale = DEFAULT_LOCALE): string[] {
   if (!rule) return [];
-  if ("all" in rule) return rule.all.flatMap(ruleLabels);
-  if ("any" in rule) return [rule.any.flatMap(ruleLabels).join(" or ")].filter(Boolean);
-  return rule.label ? [rule.label] : [];
+  if ("all" in rule) return rule.all.flatMap((r) => ruleLabels(r, text, locale));
+  if ("any" in rule) {
+    const parts = rule.any.flatMap((r) => ruleLabels(r, text, locale));
+    return [locale === DEFAULT_LOCALE ? parts.join(" or ") : formatList(locale, parts, "disjunction")].filter(Boolean);
+  }
+  return rule.label ? [text(rule.label)] : [];
 }
 
-/** Data for `/f/{handle}/o/{slug}`, with the CommonGrants record the page links to as its JSON alternate. */
-export async function opportunityPage(ctx: PublicContext, handle: string, slug: string) {
+/**
+ * The page's title, summary and eligibility labels in the reader's language: the funder's
+ * translation where it has a current, reviewed one, else as the funder wrote it. `language` says
+ * which language the title is shown in; `translations` holds every reviewed text by language (the
+ * front Worker draws the page's meta and share card from it for `?lang=`).
+ */
+function pageText(o: Opp, rules: Rule | null, locale: Locale) {
+  const translations = opportunityTranslationsOf(o);
+  const labels = eligibilityLabelsOf(o.eligibility_rules);
+  const shown = opportunityText({ title: o.title, description: o.description, eligibility: labels }, translations, locale as FormLanguage);
+  const byLabel = new Map(labels.map((l, i) => [l, shown.eligibility[i]!.text]));
+  const reviewed: Record<string, { title?: string; description?: string }> = {};
+  for (const lang of Object.keys(translations ?? {}).filter((k): k is FormLanguage => k !== "source")) {
+    const t = opportunityText({ title: o.title, description: o.description, eligibility: [] }, translations, lang);
+    if (t.source === lang) continue;
+    const texts = { ...(t.title.lang === lang ? { title: t.title.text } : {}), ...(t.description.lang === lang && o.description.trim() ? { description: t.description.text } : {}) };
+    if (Object.keys(texts).length) reviewed[lang] = texts;
+  }
+  return {
+    title: shown.title.text,
+    description: shown.description.text,
+    eligibility: ruleLabels(rules, (l) => byLabel.get(l) ?? l, locale),
+    language: shown.title.lang,
+    translations: reviewed,
+  };
+}
+
+/**
+ * Data for `/f/{handle}/o/{slug}`, with the CommonGrants record the page links to as its JSON alternate.
+ * The funder's title, summary and eligibility labels are in `locale` where the funder translated them.
+ */
+export async function opportunityPage(ctx: PublicContext, handle: string, slug: string, locale: Locale = DEFAULT_LOCALE) {
   const w = await activeFunder(ctx, handle);
   const opp = await ctx.repos.table("opportunities").one({ workspace_id: w.id, slug });
   if (!opp || !listed(opp) || !publishFlag(opp, "publicPage")) throw notFound("Opportunity");
@@ -275,9 +315,10 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   } catch (e) {
     if (!(e instanceof ProjectionError)) throw e;
   }
+  const text = pageText(opp, parsed.ok ? parsed.rules : null, locale);
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
+    opportunity: { ...card(opp, acceptingApplications(opp, comps)), title: text.title, description: text.description, language: text.language, translations: text.translations, publishedAt: opp.published_at, eligibility: text.eligibility, ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,
