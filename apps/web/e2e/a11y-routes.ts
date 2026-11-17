@@ -201,7 +201,7 @@ export const ROUTES: Record<string, RouteCase[]> = {
     // Imported history (v1.12.0): a past application opened in place, with its answers and reviews.
     one(`${F}/grantees/${GRANTEE}`, "funder-admin", async (page) => {
       await page.getByRole("button", { name: "After-school transport" }).click();
-      await page.getByText("A van for after-school pick-up three days a week.").waitFor();
+      await page.getByRole("table", { name: /^(Past applications|Solicitudes anteriores)$/ }).getByText("A van for after-school pick-up three days a week.").waitFor();
     }),
   ],
   "/w/:ws/analytics": [one(`${F}/analytics`, "funder-admin")],
