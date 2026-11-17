@@ -54,6 +54,87 @@ export type Database = {
         };
         Relationships: [];
       };
+      alert_deliveries: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          event: string;
+          event_key: string;
+          id: string;
+          slack_ts: string | null;
+          status: string;
+          subscription_id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          event: string;
+          event_key: string;
+          id?: string;
+          slack_ts?: string | null;
+          status?: string;
+          subscription_id: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          event?: string;
+          event_key?: string;
+          id?: string;
+          slack_ts?: string | null;
+          status?: string;
+          subscription_id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      alert_subscriptions: {
+        Row: {
+          alerts_from: string;
+          channel_id: string;
+          channel_name: string;
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          events: string[];
+          id: string;
+          provider: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          alerts_from?: string;
+          channel_id: string;
+          channel_name: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          events?: string[];
+          id?: string;
+          provider?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          alerts_from?: string;
+          channel_id?: string;
+          channel_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          events?: string[];
+          id?: string;
+          provider?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       amendments: {
         Row: {
           award_id: string;
@@ -755,6 +836,48 @@ export type Database = {
           rotated_at?: string | null;
           token_sha256?: string;
           updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      calendar_links: {
+        Row: {
+          calendar_id: string | null;
+          calendar_name: string | null;
+          composio_account_id: string;
+          created_at: string;
+          event_map: Json;
+          id: string;
+          last_sync_at: string | null;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          workspace_id: string;
+        };
+        Insert: {
+          calendar_id?: string | null;
+          calendar_name?: string | null;
+          composio_account_id: string;
+          created_at?: string;
+          event_map?: Json;
+          id?: string;
+          last_sync_at?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+          workspace_id: string;
+        };
+        Update: {
+          calendar_id?: string | null;
+          calendar_name?: string | null;
+          composio_account_id?: string;
+          created_at?: string;
+          event_map?: Json;
+          id?: string;
+          last_sync_at?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
           workspace_id?: string;
         };
         Relationships: [];
@@ -3983,4 +4106,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","social_accounts","social_posts","social_profiles","submissions","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","social_accounts","social_posts","social_profiles","submissions","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
