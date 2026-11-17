@@ -31,11 +31,20 @@ function open(path: string, services: Services) {
   );
 }
 const card = (heading: string) => screen.getByRole("heading", { name: heading }).closest("section")!;
+/**
+ * The first App this file mounts runs in a cold test worker (React, the shell and the screen are
+ * evaluated and compiled for the first time): about 0.75 s on an idle 4-core machine against 0.27 s
+ * for the same steps in the next test, and testing-library waits 1 s by default. Under load that
+ * wait ran out, which is why "enables release…" (the file's first test) failed now and then. Not a
+ * race: the readiness, the destination and the Release button come from the same answer, and
+ * Release is enabled only when that answer says every check passes.
+ */
+const FIRST_MOUNT = { timeout: 5000 };
 
 describe("payments center · due", () => {
   it("enables release only when every readiness check passes", async () => {
     open("/w/riverbend/payments/due", await riverbend());
-    const alder = within(await waitFor(() => card("Alder Creek Family Services")));
+    const alder = within(await waitFor(() => card("Alder Creek Family Services"), FIRST_MOUNT));
     expect(alder.getByText(/7 of 7 checks pass/)).toBeInTheDocument();
     expect(alder.getByText("To River City Credit Union •••• 4821")).toBeInTheDocument();
     expect(await alder.findByRole("button", { name: "Release" })).toBeEnabled();
