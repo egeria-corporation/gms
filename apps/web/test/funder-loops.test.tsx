@@ -6,7 +6,8 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { mockLoopsStore } from "../src/api/loopsHooks.ts";
@@ -176,7 +177,8 @@ describe("the reusable profile", () => {
 
 describe("funder setup in place", () => {
   it("resumes funder setup through the key funder setup itself keeps", () => {
-    const onboarding = readFileSync(new URL("../src/screens/public/FunderOnboarding.tsx", import.meta.url), "utf8");
+    const src = [join(process.cwd(), "apps/web/src"), join(process.cwd(), "src")].find((d) => existsSync(join(d, "app/App.tsx")))!;
+    const onboarding = readFileSync(join(src, "screens/public/FunderOnboarding.tsx"), "utf8");
     expect(onboarding).toContain(`const RESUME_KEY = "${FUNDER_SETUP_RESUME_KEY}";`);
   });
 });
