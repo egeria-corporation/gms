@@ -5,7 +5,7 @@
 // GMS copies it through the workspace's Drive connection, and the copy goes through the very same
 // upload as a file from the computer (same size and type checks). Nothing shows unless this server
 // has Google Drive set up.
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { CircleCheck, FolderUp, HardDriveDownload } from "lucide-react";
 import { Link } from "react-router";
 import { useConnectedAppsMutation } from "../api/connectedAppsHooks.ts";
@@ -51,9 +51,17 @@ function Problem({ error }: { error: unknown }) {
  * "Attach from Google Drive": `onFile` is the same function the upload control calls with a file
  * from the computer. `pick` exists so tests can stand in for Google.
  */
-export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: File) => unknown; pick?: (config: PickerConfig, title: string) => Promise<PickedFile | null>; disabled?: boolean }) {
+type AttachProps = { onFile: (file: File) => unknown; pick?: (config: PickerConfig, title: string) => Promise<PickedFile | null>; disabled?: boolean };
+export function DriveAttachButton(props: AttachProps) {
+  // Its words load only where Drive is on, and wait here, never by suspending the screen (or a dialog) around it.
+  return useDriveOn() ? (
+    <Suspense fallback={null}>
+      <DriveAttachOn {...props} />
+    </Suspense>
+  ) : null;
+}
+function DriveAttachOn({ onFile, pick, disabled }: AttachProps) {
   useExtrasMessages();
-  const on = useDriveOn();
   const [done, setDone] = useState<string | null>(null);
   const copy = useConnectedAppsMutation(async (api) => {
     const config = pickerConfig();
@@ -63,7 +71,6 @@ export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: F
     await onFile(file);
     return file.name;
   });
-  if (!on) return null;
   return (
     <span className="col" style={{ gap: "4px", alignItems: "flex-start" }}>
       <button
@@ -90,12 +97,17 @@ export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: F
 }
 
 /** "Save the as-submitted copy to Google Drive": the PDF of what was submitted, created in My Drive. */
-export function SaveToDriveButton({ kind, id }: { kind: DriveSaveInput["kind"]; id: string }) {
+export function SaveToDriveButton(props: { kind: DriveSaveInput["kind"]; id: string }) {
+  return useDriveOn() ? (
+    <Suspense fallback={null}>
+      <SaveToDriveOn {...props} />
+    </Suspense>
+  ) : null;
+}
+function SaveToDriveOn({ kind, id }: { kind: DriveSaveInput["kind"]; id: string }) {
   useExtrasMessages();
-  const on = useDriveOn();
   const [saved, setSaved] = useState<DriveSaved | null>(null);
   const save = useConnectedAppsMutation((api) => api.saveToDrive({ kind, id }));
-  if (!on) return null;
   return (
     <span className="col" style={{ gap: "4px", alignItems: "flex-start" }}>
       <button
