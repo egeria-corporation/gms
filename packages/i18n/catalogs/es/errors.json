@@ -153,6 +153,7 @@
   "code.person_only": "Esto debe hacerlo una persona que haya iniciado sesión. Los tokens de la API y de los agentes no pueden.",
   "code.cowriter_draft_only": "Le invitaron a escribir las respuestas de una sola solicitud. Pida al equipo cualquier otra cosa.",
   "code.sso_required": "Este espacio de trabajo exige el inicio de sesión único.",
+  "code.sso_domain_mismatch": "El inicio de sesión único de su organización no puede iniciar su sesión con esta dirección de correo electrónico. Inicie sesión con un código enviado a su correo electrónico.",
   "code.not_workspace_admin": "Solo puede aceptar para el espacio de trabajo de una organización en el que usted sea persona administradora.",
   "code.membership_expired": "Su acceso a este espacio de trabajo venció.",
   "code.cowriter_answers_only": "Puede escribir respuestas y marcarlas como listas. Pida al equipo que cambie la pregunta o a quién está asignada.",

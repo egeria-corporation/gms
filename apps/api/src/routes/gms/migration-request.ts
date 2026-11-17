@@ -6,7 +6,8 @@
 import { MemoryKv, type KvPort } from "@gms/mcp";
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../../app.ts";
-import { isSessionToken, verifySupabaseSession } from "../../auth/session.ts";
+import { personSession } from "../../auth/middleware.ts";
+import { isSessionToken } from "../../auth/session.ts";
 import { forbidden } from "../../auth/verify.ts";
 import { ok } from "../../lib/errors.ts";
 import { requestLocale } from "../../lib/locale.ts";
@@ -24,8 +25,9 @@ const peopleOnly = (): MiddlewareHandler<AppEnv> => async (c, next) => {
   if (c.req.header("Authorization") !== undefined && !m) throw forbidden("person_only", "A person sends a migration request from the switch page. API and agent tokens cannot");
   if (m) {
     if (!isSessionToken(m[1]!, c.env.SUPABASE_URL)) throw forbidden("person_only", "A person sends a migration request from the switch page. API and agent tokens cannot");
-    // A session that does not verify is refused like anywhere else (401).
-    await verifySupabaseSession(m[1]!, { jwtSecret: c.env.SUPABASE_JWT_SECRET, supabaseUrl: c.env.SUPABASE_URL, keys: c.get("deps").sessionKeys }, c.get("deps").now());
+    // A session that does not verify, or a single sign-on session for an address its provider was
+    // not registered for, is refused like anywhere else (401, 403 sso_domain_mismatch).
+    await personSession(c, m[1]!);
   }
   c.header("Cache-Control", "no-store");
   await next();

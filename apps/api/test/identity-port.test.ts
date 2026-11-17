@@ -13,6 +13,8 @@ interface FakeUser {
   app: Record<string, unknown>;
   /** Made by this test's `createUser` (the database only links an account as "created" when it is new). */
   fresh?: boolean;
+  /** Made by Supabase Auth through single sign-on (`is_sso_user`): its address is its identity provider's word. */
+  sso?: boolean;
 }
 
 function fakeSupabase() {
@@ -72,6 +74,10 @@ function fakeSupabase() {
           return { error: null };
         },
         generateLink: async () => ({ data: { properties: { hashed_token: "th", verification_type: "magiclink" } }, error: null }),
+        getUserById: async (id) => {
+          const u = users.find((x) => x.id === id);
+          return u ? { data: { user: { is_sso_user: u.sso === true } }, error: null } : { data: { user: null }, error: { message: "User not found" } };
+        },
       },
     },
   };
@@ -171,6 +177,18 @@ describe("the account for a Passport sign-in", () => {
     expect(await identity.linkPassportUser("tied", "pp-2", f.confirmedSession("tied", "pp-2", "wrong-user"))).toBe("refused");
     expect(await identity.linkPassportUser("tied", "pp-1", f.confirmedSession("tied", "pp-1"))).toBe("recorded");
     expect(await identity.ensureUser(EMAIL, { passportUserId: "pp-1" })).toEqual({ userId: "tied", created: false, link: "recorded" });
+  });
+
+  it("is never a single sign-on account holding the address, which no lookup by email hands out (an identity provider can assert any address)", async () => {
+    // A SAML identity provider asserted Dana's address before Dana ever signed in here.
+    f.users.push({ id: "made-by-sso", email: EMAIL, confirmed: true, app: { provider: "sso:5a5a5a5a-1111-4111-8111-5a5a5a5a5a5a" }, sso: true });
+    expect(await identity.findByEmail(EMAIL)).toBeNull();
+    await expect(identity.ensureUser(EMAIL, { passportUserId: "pp-1" })).rejects.toBeInstanceOf(AccountMismatchError);
+    // Nothing was adopted, linked, replaced or created.
+    expect(f.links.size).toBe(0);
+    expect(f.users.map((u) => u.id)).toEqual(["made-by-sso"]);
+    expect(f.calls).not.toContain("createUser");
+    expect(f.calls).not.toContain("deleteUser");
   });
 
   it("is never an account nobody confirmed: that one is deleted and a fresh one made", async () => {

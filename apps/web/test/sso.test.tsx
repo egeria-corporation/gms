@@ -6,6 +6,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../src/api/client.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, type Services } from "../src/app/services.tsx";
 import { createHttpSsoApi, emailDomain, isSsoRequired, rememberSsoNext, takeSsoNext } from "../src/auth/sso.ts";
@@ -61,6 +62,21 @@ describe("signing in to a workspace that requires single sign-on", () => {
     await waitFor(() => expect(where()).toBe("/w/cascade-county"));
     await new Promise((r) => setTimeout(r, 50));
     expect(where()).toBe("/w/cascade-county");
+  });
+});
+
+describe("a single sign-on session the GMS does not accept", () => {
+  it("says the address cannot be used through that sign-on, and offers to sign out instead of trying again", async () => {
+    const services = createMockServices({ session: demoSession("aal1", "dana@cascadecounty.example") });
+    const message = "Your organization's single sign-on cannot sign you in with this email address. Sign in with a code sent to your email instead";
+    services.api.me = () => Promise.reject(new ApiError(403, message, [{ code: "sso_domain_mismatch" }]));
+    open("/signin", services);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Single sign-on cannot be used with this email address");
+    expect(alert).toHaveTextContent(message);
+    expect(within(alert).queryByRole("button", { name: "Retry" })).toBeNull();
+    await userEvent.click(within(alert).getByRole("button", { name: "Sign out" }));
+    await waitFor(async () => expect(await services.auth.getSession()).toBeNull());
   });
 });
 

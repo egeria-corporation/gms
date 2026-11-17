@@ -10,7 +10,7 @@ import { keyRing } from "../lib/keys.ts";
 import { roleRequiresMfa, scopesForRole } from "./scopes.ts";
 import { secondStepVerified } from "./second-step.ts";
 import { isSessionToken, verifySupabaseSession, type SessionConfig, type SessionUser } from "./session.ts";
-import { assertSsoSatisfied } from "../services/sso.ts";
+import { assertSsoEmailBound, assertSsoSatisfied } from "../services/sso.ts";
 import { authError, checkScope, checkWorkspaceBinding, forbidden, verifyAccessToken } from "./verify.ts";
 
 export const WORKSPACE_HEADER = "X-GMS-Workspace";
@@ -46,6 +46,18 @@ const sessionConfig = (c: Context<AppEnv>): SessionConfig => ({
   keys: c.get("deps").sessionKeys,
 });
 
+/**
+ * The only way a person's session is accepted: verified (auth/session.ts), and, when it came through
+ * single sign-on, its address on a domain registered for the identity provider it came through
+ * (services/sso.ts, `assertSsoEmailBound`). A SAML identity provider can assert any address, so no
+ * route ever sees an SSO session's address unless that provider is the one for its domain.
+ */
+export async function personSession(c: Context<AppEnv>, token: string): Promise<SessionUser> {
+  const user = await verifySupabaseSession(token, sessionConfig(c), c.get("deps").now());
+  await assertSsoEmailBound(c.get("deps").repos, user);
+  return user;
+}
+
 /** The workspace a request names: `:workspaceId` in the path, else the X-GMS-Workspace header. */
 const namedWorkspace = (c: Context<AppEnv>): string | null => c.req.param("workspaceId") ?? c.req.header(WORKSPACE_HEADER) ?? null;
 
@@ -55,7 +67,7 @@ export function requireUser(): MiddlewareHandler<AppEnv> {
     const token = bearer(c);
     if (!token) throw authError("missing_token", "Sign in to continue");
     if (!isSessionToken(token, c.env.SUPABASE_URL)) throw authError("session_required", "This action needs a signed-in person, not an API token");
-    c.set("user", await verifySupabaseSession(token, sessionConfig(c), c.get("deps").now()));
+    c.set("user", await personSession(c, token));
     await next();
   };
 }
@@ -125,7 +137,7 @@ export function authenticate(): MiddlewareHandler<AppEnv> {
     if (!token) throw authError("missing_token", "A bearer token is required");
     const principal =
       isSessionToken(token, c.env.SUPABASE_URL)
-        ? await principalFromSession(c, await verifySupabaseSession(token, sessionConfig(c), c.get("deps").now()))
+        ? await principalFromSession(c, await personSession(c, token))
         : await principalFromToken(c, token);
     c.set("principal", principal);
     await next();

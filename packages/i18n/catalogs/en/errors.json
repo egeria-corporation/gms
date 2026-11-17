@@ -153,6 +153,7 @@
   "code.person_only": "A person must do this, signed in. API and agent tokens cannot.",
   "code.cowriter_draft_only": "You were invited to write the answers of one application. Ask the team for anything else.",
   "code.sso_required": "This workspace requires single sign-on.",
+  "code.sso_domain_mismatch": "Your organization's single sign-on cannot sign you in with this email address. Sign in with a code sent to your email instead.",
   "code.not_workspace_admin": "You can accept only for an organization workspace where you are an admin.",
   "code.membership_expired": "Your access to this workspace has expired.",
   "code.cowriter_answers_only": "You can write answers and mark them ready. Ask the team to change the question itself or who it is assigned to.",

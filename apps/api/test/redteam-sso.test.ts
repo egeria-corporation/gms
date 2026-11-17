@@ -4,10 +4,10 @@
 // provider A, Cascade County's through provider B. A person who is a member of both, and of an
 // applicant workspace, tries every GET route of a workspace with:
 //   * a session from provider A for the address on Cascade's domain (an identity provider can assert
-//     any address, so A's word does not count for B's domain);
-//   * an email-code session.
-// Both are refused on the SSO workspace (403 sso_required) and keep working everywhere else. Neither
-// can join Cascade through SSO, nor turn the requirement on; agents and API clients cannot either.
+//     any address, so A's word does not count for B's domain): refused on every route, 403
+//     sso_domain_mismatch (v1.13.0; redteam-sso-email.test.ts);
+//   * an email-code session: refused on the SSO workspace (403 sso_required), working everywhere else.
+// Neither can join Cascade through SSO, nor turn the requirement on; agents and API clients cannot either.
 // Skipped when the document has not been compiled (`pnpm spec:compile`); CI compiles it first.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -91,12 +91,20 @@ describe.skipIf(!existsSync(SPEC))("single sign-on on every route of the documen
     for (const p of ["/gms/sso/settings", "/gms/report-views", "/gms/open-data/summary", `/gms/competitions/${NOWHERE}/coi-policy`, `/gms/workspaces/${WS_OTHER}/gallery/submissions`, "/gms/social", "/gms/funds", "/gms/digests", "/gms/award-sharing/settings", "/gms/guest-review/welcome", `/gms/outside-applications/${NOWHERE}/package`, "/gms/imports/zengine/forms"]) expect(paths).toContain(p);
   });
 
-  it("refuses provider A's session for an address on provider B's domain on every route, and admits B's", async () => {
+  it("refuses provider A's session for an address on provider B's domain on every route, in every workspace, and admits B's", async () => {
     const fromA = await session(USER_OFFICER, CASCADE_EMAIL, PROVIDER_A);
     const open: string[] = [];
-    for (const path of workspaceGets(WS_OTHER)) {
-      const r = await call(fromA, "GET", path, WS_OTHER);
-      if (r.status !== 403 || r.code !== "sso_required") open.push(`${r.status} ${r.code ?? ""} ${path}`);
+    for (const ws of [WS_OTHER, WS_FUNDER, WS_APPLICANT]) {
+      for (const path of workspaceGets(ws)) {
+        const r = await call(fromA, "GET", path, ws);
+        if (r.status !== 403 || r.code !== "sso_domain_mismatch") open.push(`${r.status} ${r.code ?? ""} ${path}`);
+      }
+    }
+    for (const path of PERSONAL) {
+      const r = await call(fromA, "GET", path);
+      // The configuration and the consent callback read no session at all.
+      if (path === "/gms/config" || path === "/gms/passport/consent/callback") continue;
+      if (r.status !== 403 || r.code !== "sso_domain_mismatch") open.push(`${r.status} ${r.code ?? ""} ${path}`);
     }
     expect(open).toEqual([]);
     expect((await call(await session(USER_OFFICER, CASCADE_EMAIL, PROVIDER_B), "GET", "/gms/whoami", WS_OTHER)).status).toBe(200);
@@ -127,11 +135,11 @@ describe.skipIf(!existsSync(SPEC))("single sign-on on every route of the documen
   it("does not let provider A's session join Cascade through SSO, nor an email-code one; B's does", async () => {
     const sso = (provider: string | null) => session(SSO_DANA, CASCADE_EMAIL, provider);
     expect((await call(await sso(null), "POST", "/gms/sso/join")).code).toBe("sso_session_required");
-    expect((await call(await sso(PROVIDER_A), "POST", "/gms/sso/join")).data).toEqual({ joined: [] });
+    expect((await call(await sso(PROVIDER_A), "POST", "/gms/sso/join")).code).toBe("sso_domain_mismatch");
     expect(await h.repos.table("workspace_members").count({ user_id: SSO_DANA })).toBe(0);
     expect((await call(await sso(PROVIDER_B), "POST", "/gms/sso/join")).data).toMatchObject({ joined: [{ workspaceId: WS_OTHER, role: "program_officer" }] });
     // Joined through B, still refused with A's session.
-    expect((await call(await sso(PROVIDER_A), "GET", "/gms/whoami", WS_OTHER)).code).toBe("sso_required");
+    expect((await call(await sso(PROVIDER_A), "GET", "/gms/whoami", WS_OTHER)).code).toBe("sso_domain_mismatch");
   });
 
   it("refuses to turn the requirement on without a session from the domain's own provider, and for agents and API clients", async () => {
@@ -140,7 +148,7 @@ describe.skipIf(!existsSync(SPEC))("single sign-on on every route of the documen
     const adminEmail = `helen@${RIVERBEND_DOMAIN}`;
     const turnOn = (token: string) => call(token, "PUT", "/gms/sso/requirement", WS_FUNDER, { require: true });
     expect(await turnOn(await session(USER_ADMIN, adminEmail))).toMatchObject({ status: 409, code: "sso_session_required" });
-    expect((await turnOn(await session(USER_ADMIN, adminEmail, PROVIDER_B))).code).toBe("sso_session_required");
+    expect((await turnOn(await session(USER_ADMIN, adminEmail, PROVIDER_B))).code).toBe("sso_domain_mismatch");
     const agent = await h.forge({ sub: USER_ADMIN, client_id: CLIENT_AGENT, scope: "workspace:admin", [WORKSPACE_CLAIM]: WS_FUNDER, jti: "tok-sso-redteam" });
     expect(await turnOn(agent)).toMatchObject({ status: 403, code: "human_only" });
     expect((await turnOn(await clientCredentialsToken(h, "workspace:admin"))).status).toBe(403);

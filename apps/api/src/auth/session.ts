@@ -109,6 +109,9 @@ export function ssoProvidersOf(amr: unknown): string[] {
   return [...out];
 }
 
+/** Whether a verified session came through single sign-on: any `sso/saml` entry in its `amr`. */
+export const cameThroughSso = (user: { ssoProviderIds?: readonly string[] | null }): boolean => (user.ssoProviderIds?.length ?? 0) > 0;
+
 /** The display name Supabase Auth keeps in `user_metadata`; null when there is none. */
 function accountName(meta: unknown): string | null {
   if (!meta || typeof meta !== "object") return null;

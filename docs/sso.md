@@ -155,6 +155,36 @@ Nobody gets a role nobody held: an address that is not a member needs an invitat
 
 Single sign-on does not replace the GMS's own two-step verification for admin and finance roles.
 
+## An identity provider speaks only for its own domains
+
+A SAML identity provider can assert any email address: nothing in SAML stops one organization's
+identity provider from saying its user is `director@another-funder.org`. Parts of the GMS act on a
+session's address (workspace, draft, guest reviewer and award invitations, joining through single
+sign-on, the email entries of `GALLERY_MODERATORS` and `DIRECTORY_MODERATORS`), so
+the GMS accepts a single sign-on session only where its provider was registered for
+the address's domain:
+
+- **Centrally.** `assertSsoEmailBound` (`apps/api/src/services/sso.ts`), called for every session the
+  API accepts (`personSession` in `apps/api/src/auth/middleware.ts`, used by `requireUser`,
+  `authenticate` and the migration-request form): a session with an `sso/saml` entry in `amr` is
+  accepted only when its address's domain is an **active** `workspace_sso_domains` row whose
+  `provider_id` is one of the session's providers. Otherwise every route answers 403
+  `sso_domain_mismatch`, "Your organization's single sign-on cannot sign you in with this email
+  address. Sign in with a code sent to your email instead" (in the person's language), and the
+  sign-in page offers to sign out. A pending domain, a removed one, an address on no registered
+  domain and a session with no address are all refused. Email-code and Passport sessions, API
+  clients and agents' tokens are untouched.
+- **At each email check, as well.** An email entry in `GALLERY_MODERATORS` or `DIRECTORY_MODERATORS`
+  never matches a session that came through single sign-on, even the right domain's
+  (`MODERATOR_EMAIL_MATCHES_SSO_SESSIONS`, false); a user id always matches. Sign in with Passport
+  never finds, adopts or links an account Supabase made through single sign-on (`is_sso_user`) by
+  its address: the identity port refuses it (`account_mismatch`).
+- `apps/api/test/redteam-sso-email.test.ts` tries each place with provider A's session asserting an
+  address on provider B's domain, and the right-domain session.
+
+**Register no SAML provider before v1.13.0 is deployed.** Until then a registered provider could
+assert an address it was not registered for.
+
 ## Enforcement
 
 One function, `assertSsoSatisfied` (`apps/api/src/services/sso.ts`), called by the auth middleware

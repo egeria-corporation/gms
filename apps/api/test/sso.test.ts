@@ -80,7 +80,8 @@ describe("enforcement", () => {
     await activeDomain(WS_FUNDER, DOMAIN, { required: true });
     const email = await call(await session(USER_OFFICER), "GET", "/gms/whoami", { ws: WS_FUNDER });
     expect(email).toMatchObject({ status: 403, code: "sso_required", message: "This workspace requires single sign-on" });
-    expect((await call(await session(USER_OFFICER, { provider: OTHER_PROVIDER }), "GET", "/gms/whoami", { ws: WS_FUNDER })).code).toBe("sso_required");
+    // Another identity provider asserting an address on this domain is refused before any workspace rule (redteam-sso-email.test.ts).
+    expect((await call(await session(USER_OFFICER, { provider: OTHER_PROVIDER }), "GET", "/gms/whoami", { ws: WS_FUNDER })).code).toBe("sso_domain_mismatch");
     expect((await call(await session(USER_OFFICER, { provider: PROVIDER }), "GET", "/gms/whoami", { ws: WS_FUNDER })).status).toBe(200);
     // With two-step verification on top, the SSO entry is not the first in `amr`; it still counts.
     expect((await call(await session(USER_OFFICER, { provider: PROVIDER, mfaFirst: true }), "GET", "/gms/whoami", { ws: WS_FUNDER })).status).toBe(200);
@@ -166,14 +167,15 @@ describe("settings", () => {
 
 describe("requiring single sign-on (no lockout)", () => {
   it("needs an active domain and an admin signed in through it; turning it off is always allowed", async () => {
-    const pending = await session(USER_ADMIN, { provider: PROVIDER });
+    // Before any domain is active no single sign-on session is accepted at all, so the admin signs in by email code.
+    const pending = await session(USER_ADMIN);
     await call(pending, "POST", "/gms/sso/domains", { ws: WS_FUNDER, body: { domain: "riverbend.org" } });
     expect((await call(pending, "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } })).code).toBe("no_active_domain");
 
     await activeDomain(WS_FUNDER, DOMAIN);
     const byEmail = await call(await session(USER_ADMIN), "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } });
     expect(byEmail).toMatchObject({ status: 409, code: "sso_session_required" });
-    expect((await call(await session(USER_ADMIN, { provider: OTHER_PROVIDER }), "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } })).code).toBe("sso_session_required");
+    expect((await call(await session(USER_ADMIN, { provider: OTHER_PROVIDER }), "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } })).code).toBe("sso_domain_mismatch");
 
     const sso = await session(USER_ADMIN, { provider: PROVIDER });
     expect((await call(sso, "GET", "/gms/sso/settings", { ws: WS_FUNDER })).data).toMatchObject({ canRequire: { ok: true }, session: { signedInThroughSso: true } });
@@ -194,8 +196,9 @@ describe("requiring single sign-on (no lockout)", () => {
   it("an admin whose own address is on an active domain must have come through that domain's provider", async () => {
     await activeDomain(WS_FUNDER, DOMAIN, { provider: PROVIDER });
     await activeDomain(WS_FUNDER, "riverbend.org", { provider: OTHER_PROVIDER });
-    // Signed in through riverbend.org's provider, but the admin's address is on riverbendcf.example.
-    expect((await call(await session(USER_ADMIN, { provider: OTHER_PROVIDER }), "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } })).code).toBe("sso_session_required");
+    // Signed in through riverbend.org's provider, but the admin's address is on riverbendcf.org: that
+    // provider's word does not count for this address, so the session is refused before the check.
+    expect((await call(await session(USER_ADMIN, { provider: OTHER_PROVIDER }), "PUT", "/gms/sso/requirement", { ws: WS_FUNDER, body: { require: true } })).code).toBe("sso_domain_mismatch");
   });
 });
 
@@ -264,7 +267,7 @@ describe("joining through single sign-on", () => {
     const email = "Helen.Ortiz@riverbendcf.org";
 
     expect((await call(await session(SSO_ADMIN, { email }), "POST", "/gms/sso/join")).code).toBe("sso_session_required");
-    expect((await call(await session(SSO_ADMIN, { email, provider: OTHER_PROVIDER }), "POST", "/gms/sso/join")).data).toEqual({ joined: [] });
+    expect((await call(await session(SSO_ADMIN, { email, provider: OTHER_PROVIDER }), "POST", "/gms/sso/join")).code).toBe("sso_domain_mismatch");
 
     const sso = await session(SSO_ADMIN, { email, provider: PROVIDER });
     expect((await call(sso, "POST", "/gms/sso/join")).data).toEqual({ joined: [{ workspaceId: WS_FUNDER, handle: "riverbend", name: "Riverbend Community Foundation", role: "admin" }] });

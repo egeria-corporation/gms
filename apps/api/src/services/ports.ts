@@ -320,12 +320,16 @@ export type LinkOutcome = "recorded" | "already" | "refused";
  * Passport's ID token; this port never checks who is asking.
  */
 export interface IdentityPort {
-  /** The account with this email, without creating one. */
+  /**
+   * The account with this email, without creating one. Never a single sign-on account: a SAML
+   * identity provider can assert any address, so an account it made is not found by its address.
+   */
   findByEmail(email: string): Promise<string | null>;
   /**
    * Find or create the account for a verified email. An existing account is adopted only if its
    * own email was proven: one that was never confirmed (anyone can start a sign-up for any address)
-   * is deleted and made afresh.
+   * is deleted and made afresh. A single sign-on account holding the email is never adopted
+   * ({@link AccountMismatchError}): its address is only its identity provider's word.
    *
    * `link` says whether a link between the account and this Passport user is on record
    * (`passport_account_links`, migration 0023). It is `recorded` when this call created the
@@ -360,6 +364,7 @@ export interface SupabaseIdentityLike {
       createUser(attrs: { email: string; email_confirm: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }): Promise<{ data: { user: { id: string } | null }; error: { message: string; code?: string; status?: number } | null }>;
       deleteUser(id: string): Promise<{ error: { message: string } | null }>;
       generateLink(params: { type: "magiclink"; email: string }): Promise<{ data: { properties?: { hashed_token?: string; verification_type?: string } | null }; error: { message: string } | null }>;
+      getUserById(id: string): Promise<{ data: { user: { is_sso_user?: boolean } | null }; error: { message: string } | null }>;
     };
   };
 }
@@ -370,7 +375,19 @@ export class SupabaseIdentity implements IdentityPort {
   async findByEmail(email: string): Promise<string | null> {
     const { data, error } = await this.client.rpc("gms_user_id_by_email", { p_email: email });
     if (error) throw new Error(`Looking up the account failed: ${error.message}`);
-    return typeof data === "string" && data ? data : null;
+    const id = typeof data === "string" && data ? data : null;
+    return id && !(await this.isSsoAccount(id)) ? id : null;
+  }
+
+  /**
+   * Whether Supabase Auth made this account through single sign-on (`is_sso_user`). Its address is
+   * its identity provider's word only, so the email lookups never hand it out. Fails closed: an
+   * account that cannot be read is treated as one.
+   */
+  private async isSsoAccount(id: string): Promise<boolean> {
+    const { data, error } = await this.client.auth.admin.getUserById(id);
+    if (error || !data.user) return true;
+    return data.user.is_sso_user === true;
   }
 
   /** The account for an email with what `ensureUser` decides on; null when there is none. */
@@ -379,6 +396,8 @@ export class SupabaseIdentity implements IdentityPort {
     if (error) throw new Error(`Looking up the account failed: ${error.message}`);
     const row = (Array.isArray(data) ? data[0] : data) as { id?: unknown; email_confirmed?: unknown; passport_user_id?: unknown } | null | undefined;
     if (!row || typeof row.id !== "string" || !row.id) return null;
+    // A single sign-on account holding this address is never adopted, replaced or linked.
+    if (await this.isSsoAccount(row.id)) throw new AccountMismatchError();
     return { id: row.id, confirmed: row.email_confirmed === true, passportUserId: typeof row.passport_user_id === "string" && row.passport_user_id ? row.passport_user_id : null };
   }
 
@@ -462,12 +481,13 @@ export class MemoryIdentity implements IdentityPort {
    * is the recorded link. `tiedTo` is a Passport user named in app metadata before links were
    * recorded and never confirmed: it restricts who may be linked, and grants nothing.
    */
-  readonly users = new Map<string, { userId: string; passportUserId: string | null; confirmed?: boolean; tiedTo?: string | null }>();
+  readonly users = new Map<string, { userId: string; passportUserId: string | null; confirmed?: boolean; tiedTo?: string | null; sso?: boolean }>();
   readonly issued: { email: string; tokenHash: string }[] = [];
   /** Accounts removed because they were never confirmed. */
   readonly deleted: string[] = [];
   async findByEmail(email: string): Promise<string | null> {
-    return this.users.get(email.trim().toLowerCase())?.userId ?? null;
+    const u = this.users.get(email.trim().toLowerCase());
+    return u && !u.sso ? u.userId : null;
   }
   private byPassportUser(passportUserId: string): string | null {
     for (const u of this.users.values()) if (u.passportUserId === passportUserId && u.confirmed !== false) return u.userId;
@@ -476,6 +496,7 @@ export class MemoryIdentity implements IdentityPort {
   async ensureUser(email: string, link: { passportUserId: string }): Promise<{ userId: string; created: boolean; link: "recorded" | "pending" }> {
     const key = email.trim().toLowerCase();
     const existing = this.users.get(key);
+    if (existing?.sso) throw new AccountMismatchError();
     const linkedAccount = this.byPassportUser(link.passportUserId);
     if (existing && existing.confirmed !== false) {
       if (existing.passportUserId) {

@@ -8,6 +8,7 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireUser } from "../auth/middleware.ts";
+import { cameThroughSso } from "../auth/session.ts";
 import { created, ok, pageInfo, paginated } from "../lib/errors.ts";
 import { bareUuid } from "../lib/ids.ts";
 import { parse } from "../lib/input.ts";
@@ -19,7 +20,7 @@ export const galleryRoutes = new Hono<AppEnv>();
 
 /** Authenticate unless an earlier router (the workspace routes) already did. */
 const signedIn: MiddlewareHandler<AppEnv> = async (c, next) => (c.get("principal") ? next() : authenticate()(c, next));
-const moderator = (c: C): gallery.Moderator => ({ userId: c.get("user").userId, email: c.get("user").email ?? null });
+const moderator = (c: C): gallery.Moderator => ({ userId: c.get("user").userId, email: c.get("user").email ?? null, viaSso: cameThroughSso(c.get("user")) });
 const moderators = (c: C) => c.env.GALLERY_MODERATORS ?? null;
 const submissionId = (c: C) => bareUuid(c.req.param("id"), "Submission");
 
