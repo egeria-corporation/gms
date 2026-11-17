@@ -8,7 +8,7 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parseCsv } from "@gms/importers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { opportunityPage } from "../src/services/public.ts";
@@ -77,6 +77,10 @@ const feed = async (query = "") => {
 };
 const ids = (f: { items: { id: string }[] }) => f.items.map((i) => i.id).sort();
 const opp = (id: string, extra: Record<string, unknown>) => h.repos.table("opportunities").insert({ id, workspace_id: WS_FUNDER, status: "open", published_at: "2027-04-01T12:00:00.000Z", ...extra } as never);
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 beforeEach(async () => {
   h = await harness();
@@ -164,6 +168,22 @@ describe("open-call feeds", () => {
     expect((await call("GET", "/gms/public/feeds/opportunities.rss", { "If-None-Match": etag })).status).toBe(200);
   });
 
+  it("is kept in the colo's cache under its canonical address, other parameters ignored", async () => {
+    // A stand-in for the Workers Cache API's `caches.default` (absent in Node).
+    const kept = new Map<string, Response>();
+    vi.stubGlobal("caches", { default: { match: async (r: Request) => kept.get(r.url)?.clone(), put: async (r: Request, res: Response) => void kept.set(r.url, res) } });
+    const first = await call("GET", "/gms/public/feeds/opportunities.csv?funder=riverbend&utm_campaign=weekly");
+    expect([...kept.keys()]).toEqual([`${BASE}/gms/public/feeds/opportunities.csv?funder=riverbend`]);
+    expect(kept.get(`${BASE}/gms/public/feeds/opportunities.csv?funder=riverbend`)!.headers.get("Cache-Control")).toBe("public, max-age=300");
+    await h.repos.table("opportunities").update({ id: OPP_OPEN }, { title: "Renamed while cached" });
+    const again = await call("GET", "/gms/public/feeds/opportunities.csv?funder=riverbend");
+    expect(again.text).toBe(first.text);
+    expect(again.headers.get("Content-Disposition")).toBe(first.headers.get("Content-Disposition"));
+    expect(again.headers.get("ETag")).toBe(first.headers.get("ETag"));
+    kept.clear();
+    expect((await call("GET", "/gms/public/feeds/opportunities.csv?funder=riverbend")).text).toContain("Renamed while cached");
+  });
+
   it("writes formula-safe CSV cells", async () => {
     await opp(OPP_FORMULA, { slug: "formula", title: '=HYPERLINK("https://evil.example","Click")', description: "+1 cmd|' /C calc'!A0", eligibility_rules: { all: [{ label: "@SUM(1+1)", path: "org.name", op: "exists" }] } });
     const r = await call("GET", "/gms/public/feeds/opportunities.csv");
@@ -249,7 +269,7 @@ describe("Philanthropy News Digest", () => {
     const field = (k: string) => d.fields.find((f) => f.key === k)!.value;
     expect(field("scope")).toBe("Grants for clinics that bring care to families in rural Oregon.\n\nGrants of $50,000 to $150,000. $1,200,000 available in all. About 10 grants.");
     expect(field("qualifications")).toBe("Open to: 501(c)(3) nonprofits.\n- Based in OR or WA");
-    expect(field("deadlines")).toBe("Opens: April 1, 2027\nFull proposals due: June 30, 2027");
+    expect(field("deadlines")).toBe("Opens: April 1, 2027\nLetter of intent due: May 31, 2027\nFull proposals due: June 30, 2027");
     expect(new URL(field("link")).searchParams.get("utm_source")).toBe("pnd");
     // The letter of intent, due first, sets PND's four weeks.
     expect([d.earliestDeadline, d.sendBy]).toEqual(["2027-05-31", "2027-05-03"]);

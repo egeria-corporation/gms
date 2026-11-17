@@ -56,8 +56,13 @@ apostrophe (`@gms/importers` `csvCell`).
 (`urn:uuid:{id}`, not a permalink), `pubDate`, `description` and the fund as `category`. Characters
 XML 1.0 does not allow are dropped and the rest escaped; the test parses it with a strict XML parser.
 
-**Caching**: `Cache-Control: public, max-age=300, s-maxage=900` and a SHA-256 `ETag`; a matching
-`If-None-Match` answers 304. The body carries no clock time, so an unchanged feed keeps its ETag.
+**Caching**: a Worker's answer is not kept by Cloudflare's cache on its own, so each feed is put in
+the colo's cache (Workers Cache API) for five minutes (`FEED_EDGE_TTL_SECONDS`) under its canonical
+address: the filters in a fixed order, any other parameter dropped, so `?utm_campaign=…` shares the
+copy. Browsers and feed readers get `Cache-Control: public, max-age=300, s-maxage=900` and a SHA-256
+`ETag`; a matching `If-None-Match` answers 304. The body carries no clock time, so an unchanged feed
+keeps its ETag. A call taken out of the feeds leaves them within five minutes at the edge (fifteen
+in a shared cache that honours `s-maxage`).
 
 The channel's title and description are in English (`syndication.feed.*` in the `email` catalog):
 feeds are machine interfaces, like the API.
@@ -94,8 +99,8 @@ was read through a search service's copy. Check it again before relying on a cha
    Philanthropy News Digest: {title} ({funder})", and PND's fields filled from the public page:
    Funder, Opportunity, Program scope (description and funding), Grantee qualifications (applicant
    types and eligibility labels), Application instructions (the page, with `utm_source=pnd`),
-   Deadlines (every dated key date), Full RFP (the link) and Contact. The email is in English, as
-   PND publishes.
+   Deadlines (every dated key date, and each public stage's closing date, "Letter of intent due:
+   May 31, 2027"), Full RFP (the link) and Contact. The email is in English, as PND publishes.
 3. **Send to PND** sends it through Resend if it is still exactly the preview (a digest ties the
    two; 409 `preview_changed` otherwise), with idempotency key `pnd:{opportunityId}`.
 
@@ -152,7 +157,7 @@ Share this call panel says so (`OPENGRANTS_PULLS_FEED = false`).
 | Shape | The CommonGrants v0.5.0 list envelope: `{ status, message, items: OpportunityBase[], paginationInfo }`, each record validated with `@common-grants/sdk`. Oldest change first. |
 | Paging | `page` (from 1), `pageSize` (1 to 100, default 100); `paginationInfo.totalItems` |
 | Incremental | `modifiedSince=<ISO 8601>`: records whose `lastModifiedAt` is later |
-| Cadence | Daily full pull (OpenGrants refreshes daily), and hourly incremental pulls with `modifiedSince` if wanted. Send `If-None-Match` with the last `ETag`; an unchanged page answers 304. Cached five minutes (fifteen at the edge). |
+| Cadence | Daily full pull (OpenGrants refreshes daily), and hourly incremental pulls with `modifiedSince` if wanted. Send `If-None-Match` with the last `ETag`; an unchanged page answers 304. Each page is cached five minutes at the edge. |
 | Removals | A record a full pull no longer lists was taken out of the index, had its page turned off, or its funder was deactivated: remove it. `status.value: "closed"` means archive. |
 | Identity | `id` (UUID) and `identifiers.systemId` (registry `org:opengrants:gms`) are stable; dedupe on them. |
 

@@ -444,6 +444,7 @@
   "syndication.pnd.instructions.apply": "Lea los lineamientos completos y presente su solicitud en línea en {link}",
   "syndication.pnd.instructions.opens": "Las solicitudes se abren el {date}. Lea los lineamientos completos en {link}",
   "syndication.pnd.date": "{name}: {date}",
+  "syndication.pnd.stageDue": "Fecha límite de {stage}: {date}",
   "syndication.pnd.rolling": "Las solicitudes se reciben todo el año; no hay fecha límite fija.",
   "syndication.pnd.footer": "Enviado desde OpenGrants GMS en nombre de {funder}. Las respuestas llegan a {replyTo}.",
   "syndication.pnd.applicantType.individual": "Personas",

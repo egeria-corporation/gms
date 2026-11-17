@@ -444,6 +444,7 @@
   "syndication.pnd.instructions.apply": "Read the full guidelines and apply online at {link}",
   "syndication.pnd.instructions.opens": "Applications open {date}. Read the full guidelines at {link}",
   "syndication.pnd.date": "{name}: {date}",
+  "syndication.pnd.stageDue": "{stage} due: {date}",
   "syndication.pnd.rolling": "Applications are accepted all year; there is no fixed deadline.",
   "syndication.pnd.footer": "Sent from OpenGrants GMS on behalf of {funder}. Replies go to {replyTo}.",
   "syndication.pnd.applicantType.individual": "Individuals",

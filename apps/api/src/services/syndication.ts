@@ -96,7 +96,7 @@ export interface PublicCall {
     eligibility: string[];
     fund: { name: string; slug: string; isDefault: boolean } | null;
   };
-  competitions: { status: string; stages: { closes: string | null }[] }[];
+  competitions: { status: string; stages: { label: string; closes: string | null }[] }[];
   links: { page: string };
 }
 
@@ -122,7 +122,7 @@ async function competitionsOf(ctx: PublicContext, oppIds: string[]): Promise<Com
   return out.filter((c) => c.status !== "draft");
 }
 
-const stagesOf = (c: Comp) => (Array.isArray(c.stages) ? (c.stages as { closes?: string | null }[]) : []);
+const stagesOf = (c: Comp) => (Array.isArray(c.stages) ? (c.stages as { label?: string; closes?: string | null }[]) : []);
 
 /** The public page's data for each of these calls whose page is live, read in batches. */
 async function publicCalls(ctx: PublicContext, opps: Opp[]): Promise<PublicCall[]> {
@@ -154,7 +154,7 @@ async function publicCalls(ctx: PublicContext, opps: Opp[]): Promise<PublicCall[
         eligibility: ruleLabels(parsed.ok ? parsed.rules : null),
         fund: fundOf.get(o.id) ?? null,
       },
-      competitions: mine.map((c) => ({ status: c.status, stages: stagesOf(c).map((s) => ({ closes: s.closes ?? null })) })),
+      competitions: mine.map((c) => ({ status: c.status, stages: stagesOf(c).map((s) => ({ label: s.label ?? "", closes: s.closes ?? null })) })),
       links: { page: `${ctx.config.webBaseUrl}/f/${w.handle}/o/${o.slug}` },
     };
   });
@@ -516,15 +516,25 @@ function fundingSentence(funding: unknown): string | null {
   return parts.length ? parts.join(" ") : null;
 }
 
-/** Every dated key event of the call, in date order: "{name}: {date}". */
+/**
+ * Every dated key event of the call ("{name}: {date}") and the closing date of each stage of its
+ * public competitions ("{stage} due: {date}"), as the page lists them, in date order.
+ */
 function deadlineLines(p: PublicCall): string[] {
   const k = keyDatesOf(p);
-  const events: [DateEvent | undefined, string][] = [[k.postDate, "postDate"], [k.closeDate, "closeDate"], ...Object.entries(k.otherDates ?? {}).map(([key, e]) => [e, key] as [DateEvent, string])];
-  return events
-    .map(([e]) => ({ day: eventDay(e), name: typeof e?.name === "string" && e.name.trim() ? cleanLine(e.name) : null }))
+  const events = [k.postDate, k.closeDate, ...Object.values(k.otherDates ?? {})]
+    .map((e) => ({ day: eventDay(e), name: typeof e?.name === "string" && e.name.trim() ? cleanLine(e.name) : null }))
     .filter((x): x is { day: string; name: string } => !!x.day && !!x.name)
+    .map((x) => ({ day: x.day, line: en("syndication.pnd.date", { name: x.name, date: longDate(x.day) }) }));
+  const stages = p.competitions
+    .flatMap((c) => c.stages)
+    .map((s) => ({ day: dayOf(s.closes), stage: cleanLine(s.label) }))
+    .filter((x): x is { day: string; stage: string } => !!x.day && !!x.stage)
+    .map((x) => ({ day: x.day, line: en("syndication.pnd.stageDue", { stage: x.stage, date: longDate(x.day) }) }));
+  return [...events, ...stages]
     .sort((a, b) => a.day.localeCompare(b.day))
-    .map((x) => en("syndication.pnd.date", { name: x.name, date: longDate(x.day) }));
+    .map((x) => x.line)
+    .filter((line, i, all) => all.indexOf(line) === i);
 }
 
 /**
