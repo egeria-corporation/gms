@@ -20,7 +20,7 @@ export * from "./attachments.ts";
 export * from "./detect.ts";
 export * from "./json.ts";
 export * from "./types.ts";
-export { FLUXX, FLUXX_PULL_COLUMNS } from "./fluxx.ts";
+export { FLUXX, FLUXX_PULL_COLUMNS, FLUXX_REPORT_PULL_COLUMNS } from "./fluxx.ts";
 export { ZENGINE, ZENGINE_PULL_COLUMNS } from "./zengine.ts";
 export { CYBERGRANTS, FOUNDANT_GLM, GOOD_GRANTS, OPENWATER, SMARTSIMPLE, SM_APPLY, SUBMITTABLE };
 

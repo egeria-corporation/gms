@@ -92,6 +92,7 @@ export interface ImportsStore {
   /** Fluxx and Zengine: connected or not, per workspace (no credential is kept in mock mode). */
   pullers: Record<string, Partial<Record<ImportPuller, { instance: string | null; at: string }>>>;
   fluxxGrants: Record<string, string>[];
+  fluxxReports: Record<string, string>[];
   zengine: { forms: { id: string; name: string; workspaceId: string; workspaceName: string }[]; columns: string[]; records: Record<string, string>[] };
   /** Files attached from a zip: names and sizes only. */
   files: (ImportFile & { runId: string })[];
@@ -130,6 +131,11 @@ export function seedImportsStore(): ImportsStore {
       { "Fluxx ID": "4101", "Request ID": "R-23-0101", Organization: "Harbor Food Bank", "Project title": "Cold storage", "Amount requested": "30000", "Amount awarded": "25000", Granted: "Yes", Status: "granted", "Approved on": "2023-05-02", "Grant begins": "2023-06-01", "Grant ends": "2024-05-31", "Closed on": "2024-07-01", "Amount paid": "25000.00", "Last paid on": "2023-06-15" },
       { "Fluxx ID": "4102", "Request ID": "R-23-0102", Organization: "Valley Singers", "Project title": "Spring tour", "Amount requested": "8000", "Amount awarded": "", Granted: "No", Status: "declined", "Approved on": "", "Grant begins": "", "Grant ends": "", "Closed on": "", "Amount paid": "", "Last paid on": "" },
       { "Fluxx ID": "4103", "Request ID": "R-24-0007", Organization: "Northside Youth Sports", "Project title": "Coaching clinics", "Amount requested": "12000", "Amount awarded": "12000", Granted: "Yes", Status: "granted", "Approved on": "2024-02-10", "Grant begins": "2024-03-01", "Grant ends": "2025-02-28", "Closed on": "", "Amount paid": "6000.00", "Last paid on": "2024-03-05" },
+    ],
+    // Reports on the grant requests above (request_report), for past reports.
+    fluxxReports: [
+      { "Report Fluxx ID": "7101", "Grant Fluxx ID": "4101", Organization: "Harbor Food Bank", "Project title": "Cold storage", "Report type": "Final report", "Due on": "2024-08-31", "Approved on": "2024-09-12", Status: "approved" },
+      { "Report Fluxx ID": "7102", "Grant Fluxx ID": "4103", Organization: "Northside Youth Sports", "Project title": "Coaching clinics", "Report type": "Interim report", "Due on": "2024-09-01", "Approved on": "", Status: "new" },
     ],
     zengine: {
       forms: [{ id: "42", name: "Community grants", workspaceId: "7", workspaceName: "Grantmaking" }],
@@ -181,8 +187,11 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         if (!store.pullers[wsId]?.[source.kind]) throw new ApiError(409, `Connect ${PULLER_LABEL[source.kind]} first`, [{ code: "source_not_connected" }]);
         if ((source.startPage ?? 1) > 1) throw invalid("empty_source", `${PULLER_LABEL[source.kind]} has no more records after the ones imported`);
         if (source.kind === "fluxx") {
-          const records = store.fluxxGrants.map((r) => ({ id: r["Fluxx ID"]!, fields: r }));
-          return { table: tableFromRecords(records, Object.keys(store.fluxxGrants[0]!)), label: `Fluxx · ${store.pullers[wsId]!.fluxx!.instance ?? "your instance"} · grant requests (records 1–${records.length} of ${records.length})`, ref: "fluxx:mock", extra: { nextPage: null, total: records.length } };
+          // Past reports read Fluxx's reports; every other target its grant requests (as the server's puller).
+          const reports = target === "history_reports";
+          const rows = reports ? store.fluxxReports : store.fluxxGrants;
+          const records = rows.map((r) => ({ id: (reports ? r["Report Fluxx ID"] : r["Fluxx ID"])!, fields: r }));
+          return { table: tableFromRecords(records, Object.keys(rows[0]!)), label: `Fluxx · ${store.pullers[wsId]!.fluxx!.instance ?? "your instance"} · ${reports ? "reports" : "grant requests"} (records 1–${records.length} of ${records.length})`, ref: "fluxx:mock", extra: { nextPage: null, total: records.length } };
         }
         const records = store.zengine.records.map((r) => ({ id: r["Zengine record ID"]!, fields: r }));
         return { table: tableFromRecords(records, store.zengine.columns), label: `Zengine · form ${source.formId} (records 1–${records.length} of ${records.length})`, ref: `zengine:form:${source.formId}`, extra: { nextPage: null, total: records.length } };

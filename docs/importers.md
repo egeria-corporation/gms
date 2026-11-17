@@ -20,7 +20,7 @@ system's API was called while building this; Fluxx and Zengine were exercised ag
 | Foundant GLM | Export Data or a report, per process, CSV or .xlsx (save an older .xls as one of these) | Approved requests as grant history, with payment columns recorded as paid elsewhere | — |
 | SmartSimple | A list view (level 1 applications) exported to CSV or .xlsx | Funded applications as grant history | — |
 | OpenWater | Application data as CSV, .xlsx or JSON | Awarded applications as grant history | The bulk PDF zip, matched by application id or name |
-| Fluxx | REST API v2 on the funder's own instance, with an OAuth application it creates at `/oauth/applications` | Grant requests, the organization each went to and the payments on it, one row per request; granted ones become grant history | — |
+| Fluxx | REST API v2 on the funder's own instance, with an OAuth application it creates at `/oauth/applications` | Grant requests, the organization each went to and the payments on it, one row per request; granted ones become grant history. For past reports, its reports (`request_report`), one row per report with its grant request's Fluxx id, title and organization | — |
 | Zengine | REST API with an access token for the funder's own account, 250 requests per 5 minutes | The records of one form the person chooses | — |
 | Bonterra CyberGrants | Reports → Create Ad Hoc Report (a tabular report on requests, payments or impact reports), exported as CSV or Excel | Approved requests as grant history, every request as a past application, impact reports as past reports; payee bank columns dropped | Request snapshots and impact report PDFs the funder saves into one zip, matched by Request ID (or report id) or title |
 
@@ -94,7 +94,7 @@ as documents of the funder's own workspace with subjects `history_application_fi
 | SmartSimple | yes (level 1) | yes (level 2) | — |
 | OpenWater | yes | yes (judging data) | — |
 | Bonterra CyberGrants | yes | — | yes (impact reports) |
-| Fluxx (API) | yes (grant requests, declined ones included) | — | not yet: the puller reads no reports |
+| Fluxx (API) | yes (grant requests, declined ones included) | — | yes (`request_report`: type, due date, approval, status) |
 | Zengine (API) | yes | yes | yes (the person picks the form) |
 
 Import grant history first, then applications, then reviews and reports, so each finds the record it
@@ -164,6 +164,13 @@ for, and Zengine file and signature fields are skipped.
 - **Fluxx's joins**: organizations and payments are looked up only for granted requests, 50 ids a
   request, with Fluxx's JSON `filter` (`{"group_type":"or","conditions":[["id","eq",…]]}`); what
   was paid is the sum of the paid `request_transaction`s, recorded on the award as paid elsewhere.
+- **Fluxx reports** (past reports): `request_report` is read with seven fields only (`id`,
+  `request_id`, `report_type`, `due_at`, `approved_at`, `has_been_approved`, `state`), never the
+  grantee's contact fields or the report's text the model also carries; each report's grant request
+  is looked up by id for its title and organization (`id`, `project_title`,
+  `program_organization_id`). `Grant Fluxx ID` is the grant request's `Fluxx ID` in a grant history
+  pull, so a report links to the award that request became. Fluxx keeps no submitted date on a
+  report, so the column is left for the person to map.
 
 ## Files from a zip
 
@@ -202,7 +209,9 @@ are read: no document AI (CLAUDE.md).
   then the title.
 - Fluxx: the JSON `filter` shape with `group_type` "or", `per_page` 100 being accepted, and the
   `request_transaction` fields `amount_paid`, `paid_at`, `has_been_paid`, `request_id` on every
-  instance (each instance's model is its own).
+  instance (each instance's model is its own). The `request_report` field names come from the
+  open-source reader's model list (bruin-data/ingestr `fluxx_resources.go`, read 2026-11-17), not a
+  live instance; the report states (`new`, `approved` …) are each instance's own.
 - Zengine: sending the token as `Authorization: Bearer` (its docs show `?access_token=`, which
   would put the token in URLs and logs, so it is not used); the `/forms/{id}/fields` path; that
   `page` starts at 1.
@@ -214,7 +223,5 @@ are read: no document AI (CLAUDE.md).
 
 ## Not yet
 
-- Fluxx reports: the puller (`@gms/connectors`) reads grant requests, payments and organizations
-  only; reading `request_report` is a change there, after which the Fluxx adapter can name a preset.
 - Spreadsheets/Airtable trackers and GrantHub need no adapter: their exports import through the plain
   file, Google Sheets or Airtable paths.

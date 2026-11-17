@@ -234,7 +234,7 @@ describe("presets for the history targets", () => {
   it("are offered where the system's exports carry the data", () => {
     expect(adaptersFor("history_applications").map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants", "fluxx", "zengine"]);
     expect(adaptersFor("history_reviews").map((a) => a.key)).toEqual(["good_grants", "submittable", "smartsimple", "openwater", "zengine"]);
-    expect(adaptersFor("history_reports").map((a) => a.key)).toEqual(["cybergrants", "zengine"]);
+    expect(adaptersFor("history_reports").map((a) => a.key)).toEqual(["cybergrants", "fluxx", "zengine"]);
     expect(adaptersFor("outside_applications")).toEqual([]);
   });
 

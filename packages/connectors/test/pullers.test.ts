@@ -8,7 +8,7 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ConnectorAuthError, ConnectorRateLimitedError, ConnectorUnavailableError, FLUXX_COLUMNS, FluxxPuller, RequestWindow, SourceReadError, ZENGINE_FIXED_COLUMNS, ZenginePuller, fluxxBaseUrl, retryAfterMs } from "../src/index.ts";
+import { ConnectorAuthError, ConnectorRateLimitedError, ConnectorUnavailableError, FLUXX_COLUMNS, FLUXX_REPORT_COLUMNS, FluxxPuller, RequestWindow, SourceReadError, ZENGINE_FIXED_COLUMNS, ZenginePuller, fluxxBaseUrl, retryAfterMs } from "../src/index.ts";
 
 interface Seen {
   method: string;
@@ -37,6 +37,9 @@ const PAYMENTS = GRANTS.filter((g) => g.granted).flatMap((g, n) => [
   { id: 5000 + 2 * n, request_id: g.id, amount_paid: 5000, paid_at: "2024-03-10T00:00:00Z", has_been_paid: true },
   { id: 5001 + 2 * n, request_id: g.id, amount_paid: 2500.25, paid_at: "2024-09-10T00:00:00Z", has_been_paid: true },
 ]);
+// Reports (request_report): 150 of them, two on each of the first 75 grant requests; the model also
+// carries the grantee's contact fields and the report's text, which are never asked for.
+const REPORTS = Array.from({ length: 150 }, (_, i) => ({ id: 7000 + i, request_id: 1000 + Math.floor(i / 2), report_type: i % 2 ? "Final report" : "Interim report", due_at: "2024-09-30T04:00:00Z", approved_at: i % 3 === 0 ? "2024-10-15T00:00:00Z" : null, has_been_approved: i % 3 === 0, state: i % 3 === 0 ? "approved" : "new", grantee_email: "never-asked@example.org", report: "never asked for" }));
 // Zengine: one workspace, one form, 230 records.
 const ZFIELDS = [
   { id: 11, label: "Organization", type: "text-input" },
@@ -91,7 +94,16 @@ beforeAll(async () => {
       if (req.headers.authorization !== "Bearer fluxx-access") return send(401, { error: "unauthorized" });
       const model = url.pathname.split("/").pop()!;
       const q = url.searchParams;
-      if (model === "grant_request") return send(200, page(GRANTS, q, "grant_request"));
+      // Every model answers only the fields asked for (cols), as Fluxx does.
+      const only = <T extends Record<string, unknown>>(rows: T[]) => {
+        const cols = JSON.parse(q.get("cols") ?? "[]") as string[];
+        return rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => cols.includes(k))));
+      };
+      if (model === "grant_request") {
+        const ids = filterIds(q, "id");
+        return send(200, page(only(ids ? GRANTS.filter((g) => ids.includes(g.id)) : GRANTS), q, "grant_request"));
+      }
+      if (model === "request_report") return send(200, page(only(REPORTS), q, "request_report"));
       if (model === "organization") {
         const ids = filterIds(q, "id")!;
         return send(200, page(ORGS.filter((o) => ids.includes(o.id)), q, "organization"));
@@ -156,6 +168,37 @@ describe("Fluxx", () => {
     expect(r.records[1]!.fields).toMatchObject({ Granted: "No", "Amount paid": "" });
     const asked = seen.filter((s) => s.path.endsWith("/request_transaction")).flatMap((s) => (JSON.parse(s.query.get("filter")!) as { conditions: [string, string, number][] }).conditions.map((c) => c[2]));
     expect(asked.sort()).toEqual(GRANTS.filter((g) => g.granted).map((g) => g.id).sort());
+  });
+
+  it("pulls reports for imported history, each with its grant request's Fluxx id, title and organization", async () => {
+    const r = await fluxx().pullReports(creds);
+    expect(r.columns).toEqual([...FLUXX_REPORT_COLUMNS]);
+    expect(r.records).toHaveLength(150);
+    expect(r.nextPage).toBeNull();
+    expect(r.total).toBe(150);
+    expect(r.records[0]).toEqual({ id: "7000", fields: { "Report Fluxx ID": "7000", "Grant Fluxx ID": "1000", Organization: "Organization 1", "Project title": "Project 0", "Report type": "Interim report", "Due on": "2024-09-30", "Approved on": "2024-10-15", Status: "approved" } });
+    // Approved on only when Fluxx says it was approved.
+    expect(r.records[1]!.fields).toMatchObject({ "Report type": "Final report", "Approved on": "", Status: "new" });
+    // The grant requests are looked up by id, only those the reports are on, with three fields.
+    const grantLookups = seen.filter((x) => x.path.endsWith("/grant_request"));
+    expect(grantLookups.every((x) => x.query.get("filter"))).toBe(true);
+    expect(grantLookups.map((x) => JSON.parse(x.query.get("cols")!) as string[])).toEqual(grantLookups.map(() => ["id", "project_title", "program_organization_id"]));
+    const asked = grantLookups.flatMap((x) => (JSON.parse(x.query.get("filter")!) as { conditions: [string, string, number][] }).conditions.map((c) => c[2]));
+    expect(asked.sort()).toEqual(Array.from({ length: 75 }, (_, i) => 1000 + i));
+    // Read only: the token request is the one POST; no grantee contact field or report text is asked for or kept.
+    expect(seen.filter((x) => x.method !== "GET").map((x) => x.path)).toEqual(["/fluxx/oauth/token"]);
+    const reportCols = JSON.parse(seen.find((x) => x.path.endsWith("/request_report"))!.query.get("cols")!) as string[];
+    expect(reportCols).toEqual(["id", "request_id", "report_type", "due_at", "approved_at", "has_been_approved", "state"]);
+    expect(JSON.stringify(r.records)).not.toContain("never");
+  });
+
+  it("stops a report pull at the row limit and says where the next one starts", async () => {
+    const first = await fluxx().pullReports(creds, { maxRows: 100 });
+    expect(first.records).toHaveLength(100);
+    expect(first.nextPage).toBe(2);
+    const second = await fluxx().pullReports(creds, { startPage: first.nextPage! });
+    expect(second.records.map((x) => x.id)[0]).toBe("7100");
+    expect(second.nextPage).toBeNull();
   });
 
   it("only reads, and names every field it reads; no bank field is ever asked for", async () => {

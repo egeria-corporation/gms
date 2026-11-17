@@ -219,7 +219,7 @@ async function loadSource(ctx: ServiceContext, wsId: string, src: z.output<typeo
     if (src.kind === "csv") return { kind: "csv", table: tableFromCsv(src.text), label: src.fileName || "Pasted CSV", ref: null };
     if (src.kind === "json") return { kind: "json", table: tableFromJson(src.text), label: src.fileName || "JSON export", ref: null };
     if (src.kind === "fluxx" || src.kind === "zengine") {
-      const p = await pullSource(ctx, wsId, src);
+      const p = await pullSource(ctx, wsId, src, target);
       return { kind: src.kind, table: p.table, label: p.label, ref: p.ref, nextPage: p.nextPage, total: p.total };
     }
     if (src.kind === "xlsx") {
