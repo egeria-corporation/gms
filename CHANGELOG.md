@@ -3,6 +3,150 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.12.0 — 2026-11-17
+
+### Added
+
+- **Connected apps** (Settings › Connected apps, for funder and applicant teams), each offered only
+  once its Composio auth config is set:
+  - **Slack alerts:** a workspace admin connects Slack, picks a public channel and the events (new
+    application, review assigned, deadline in 3 days, report due, payment due). One short message
+    per event with the title and a link, never answers, emails or amounts.
+  - **Google Calendar:** each person connects their own calendar and picks one; opportunity
+    deadlines (funders) or application deadlines and report dues (applicants) are written as
+    all-day events and kept in step every hour.
+  - **Google Drive for applicants:** "Attach from Google Drive" beside upload on application and
+    outside-application attachments and in the document vault (`drive.file` through the Google
+    Picker; the same limits as an upload), and "Save the as-submitted copy to Google Drive".
+  - **Salesforce** as a read-only import source: the Nonprofit Success Pack grants or Accounts
+    presets, or a SOQL SELECT of your own, through the dry run, reconciliation, 5,000-row cap and
+    sensitive-column screen. A query is checked before anything is sent: one SELECT only, no
+    `FOR UPDATE`, `ALL ROWS`, `USING SCOPE`, `FIELDS()`, comments or DML, and no field whose name
+    suggests bank or identity details.
+- **Share this call** (on an opportunity's Publish step):
+  - open-call feeds for newsletters and partners at `/gms/public/feeds/opportunities.json` (JSON
+    Feed), `.csv` and `.rss`, filtered by funder, region, fund and closing date. They carry only
+    what each call's public page shows and link to it; cached, with an ETag; CSV cells are
+    formula-safe;
+  - the feed OpenGrants can pull, `/gms/public/feeds/opengrants.json`: the CommonGrants records of
+    the calls in the OpenGrants index;
+  - **Send to Philanthropy News Digest:** the date by which the listing is free (four weeks before
+    the earliest deadline), a preview of exactly PND's fields, and Send on your click, once per call.
+    Replies go to you;
+  - applications started from feed and PND links are counted.
+- **Imported history:** a funder brings its past applications (with their answers), the reviews of
+  them and the reports on past grants from the system it used before. They show read-only as
+  "Imported history" on each grantee's and award's page, and are never reviewed, decided or paid.
+  Presets for Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple, OpenWater,
+  Fluxx (grant requests and their reports) and Zengine where their exports carry the data; a new
+  **Bonterra CyberGrants** import (the payee's bank columns are dropped automatically); and an
+  "Imported history" data set in the report builder. Email addresses and bank or identity numbers
+  are removed from all imported free text.
+- **Funder loops:**
+  - **Invite a funder** (Settings › Invite a funder): a funder admin invites a peer by email with a
+    note of their own, after a preview of exactly what goes out. One email, under the admin's name
+    with replies to them, never a reminder and no tracking; at most five a week and one per address;
+  - **For funders** (`/for-funders`): the page a funder reaches from an application package's
+    footer or a peer's invitation. It names the applicant's region and, from ten up, how many
+    organizations there already keep their applications here (a number only, never a name), and
+    sets up a funder workspace in place;
+  - **Intermediaries** (Settings › Partners), for a workspace that runs two or more funds: a
+    co-branded onboarding link for its grantees and affiliated funders, with its funds and a logo
+    (with alt text), and a listing in the **partner directory** (`/partners`) once an operator in
+    `DIRECTORY_MODERATORS` (or `GALLERY_MODERATORS`) approves it. A grantee arriving through the link
+    reads "You're joining through {intermediary}" while setting up;
+  - **Your organization profile:** a panel on the applicant dashboard and at the start of applying
+    shows the details every funder here sees, verified through Passport or self-declared, and where
+    to edit or verify them.
+- **Award kit:** a 1080 × 1350 portrait card (both organizations and the program; the amount only
+  when you ask), also at a public address for portrait posts
+  (`/og/f/{handle}/awards/{slug}/portrait.png`, under the award page's rules); a 6–10 slide carousel
+  PDF with alt text for each slide; a press release that credits the funder as "funded by" or
+  "supported by"; the other side's page to tag when it agreed; the **federal share statement**
+  (Stevens Amendment) once the federal amount and percentage are entered; share-kit settings on both
+  sides; **Meet our grantees**, one post introducing a program's publicly listed grantees; and
+  **Two weeks left**, a "Post a reminder?" notification and digest line 14 days before an open
+  call's deadline, which opens the composer prefilled and never posts by itself.
+- **Bilingual forms:** a funder can add Spanish to a form (title, section titles, field labels, help
+  text, option labels) side by side in the form builder, with a completeness indicator and an
+  optional "Draft with the assistant" that uses the monthly assistant quota. Drafts are marked and
+  must be reviewed before the version is published. Applicants see a form in their language when the
+  funder gave it, otherwise as the funder wrote it with a note; answers are stored once, as the
+  funder's values. Reviewers and staff read the questions in their language with a switch to the
+  form's other one. An opportunity's title, summary and eligibility rules can be given in Spanish
+  too; the public page, its meta and its share card use them on `?lang=es` (or a Spanish cookie or
+  browser).
+- API: `/gms/connected-apps/*`, `/gms/public/feeds/*`, `/gms/opportunities/{id}/syndication/*`,
+  `/gms/history/*`, `/gms/peer-invitations`, `/gms/partner-settings/*`, `/gms/partners/moderation/*`,
+  `/gms/public/for-funders`, `/gms/public/partners`, `/gms/public/join/{token}`,
+  `/gms/referrals/claim`, `/gms/reusable-profile`, `/gms/awards/{id}/federal-funding`, the carousel
+  PDFs, `/gms/share-kit/profile`, `/gms/social/reminders/{id}/dismiss` and
+  `/gms/translations/{forms|opportunities}/{id}/draft` (`docs/api-surface.md`). MCP:
+  `get_slack_alerts` and `get_opportunity_syndication`, both read only.
+
+### Changed
+
+- **Spanish is no longer beta:** the owner, a native speaker, reviewed and approved it on
+  17 November 2026, and the language switcher says "Español".
+- The three ready-made posts of the award share kit are in the kit's language, Spanish included.
+- The CommonGrants list and search (`GET /common-grants/opportunities`,
+  `POST /common-grants/opportunities/search`) leave out a call whose public page is turned off; it
+  stays readable by its id, like an unlisted link.
+- Publishing a form or a call that carries a second language, or changing the second language of a
+  published call, is a signed-in person's (agents may ask the assistant for drafts).
+- The import wizard first asks a funder what it is importing: grant history, past applications, past
+  reviews or past reports. Files from an export's zip attach to past applications and reports too.
+- The switch pages say what moves over as the importer brings it: past applications, reviews and
+  reports as read-only history, and awards with payments recorded as paid elsewhere. Zengine and
+  Fluxx are read directly, read-only, with your own credentials.
+- The send-to-funder package's footer ends with the applicant's `/for-funders` link (a shorter line
+  in the PDF). In the application editor, fields filled from the organization's profile read
+  "From your profile (verified)" or "From your profile", and the form's title, sections and the
+  fields that need attention read in your language where the funder translated them.
+- `GET /gms/public/funders/{handle}/opportunities/{slug}` answers in the reader's language where the
+  funder translated the call, adds `opportunity.language` and `opportunity.translations`, and varies
+  on `Accept-Language` and `Cookie`. Social posting accepts a program as a post's subject; the jobs
+  Worker runs Slack alerts every 15 minutes, calendar sync hourly at :30 and the two-weeks reminder
+  daily at 14:40 UTC.
+- The Google Picker refuses a token broader than `drive.file` for folders too.
+- Against v1.11.0 the first page grows by 4.3 KB gzipped and everything an English visitor can
+  download by 91.9 KB (the new screens and their words; the parts no first page needs load with the
+  screens that show them). The API Worker is 6,234 KiB (1,341 KiB gzipped), the jobs Worker 3,260 KiB
+  (703 KiB) and the front Worker 8,927 KiB (3,158 KiB) with the web app it serves.
+
+### Fixed
+
+- The OpenGrants index help text in the opportunity builder no longer says OpenGrants pulls the call
+  today: it reads "Listed in the feed OpenGrants can pull".
+- A payments test could time out on a busy machine: the first screen a test worker mounts gets the
+  time it needs (no change to the payments screen).
+
+### Upgrade notes
+
+- **Run migrations `0044` to `0049`, in order, before deploying the API:** `0044_connected_apps`,
+  `0045_syndication`, `0046_history_import`, `0047_funder_loops`, `0048_award_kit_plus`,
+  `0049_form_translations`. They add tables and widen checks; no existing row is changed or removed
+  (`awards` gains `federally_funded`, default false, and `forms` gains `translations`, default `{}`).
+- **New secrets, all optional; each feature stays hidden until its own are set:**
+  - API Worker: `COMPOSIO_SLACK_AUTH_CONFIG_ID` (Slack alerts), `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`
+    (Google Calendar), `COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID` (Google Drive for applicants) and
+    `COMPOSIO_SALESFORCE_AUTH_CONFIG_ID` (Salesforce as an import source), with the existing
+    `COMPOSIO_API_KEY`;
+  - jobs Worker: `COMPOSIO_API_KEY`, `COMPOSIO_SLACK_AUTH_CONFIG_ID` and
+    `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID` (it posts the alerts and writes the events);
+  - the Drive auth config must be on **the same Google OAuth client as the Picker**; the Picker's
+    public build variables `VITE_GOOGLE_OAUTH_CLIENT_ID` and `VITE_GOOGLE_PICKER_API_KEY` must be set
+    for the web build (without them there is no "Attach from Google Drive");
+  - API Worker: `DIRECTORY_MODERATORS` (a secret, comma-separated user ids or addresses) chooses who
+    moderates the partner directory; while it is unset, `GALLERY_MODERATORS` do.
+  - Each auth config's exact scopes and callback are in `docs/connectors.md`.
+- Sending to Philanthropy News Digest uses the existing `RESEND_FROM`; no new secret.
+- `OPENGRANTS_PULLS_FEED` stays off: Share this call says OpenGrants does not import yet. The
+  OpenGrants team builds the pull per `docs/syndication.md` ("What OpenGrants must pull").
+- Deploy the API and jobs Workers together, then rebuild and deploy the web app, then the front
+  Worker with `--redirect-from`, as in `docs/staging.md`, so the reminder job, the routes and the
+  screens arrive at once.
+
 ## v1.11.0 — 2026-11-16
 
 ### Added
