@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The agent runbook must only mention steps and result codes the tool really has, and the release
 // files must agree with each other.
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -53,6 +54,18 @@ describe("release files", () => {
     expect(read("AGENTS.md")).toContain("DEPLOY_WITH_AGENT.md");
     expect(existsSync(join(REPO, ".claude/skills/deploy-gms/SKILL.md"))).toBe(true);
     expect(read(".claude/skills/deploy-gms/SKILL.md")).toContain("DEPLOY_WITH_AGENT.md");
+  });
+  it("the release workflow finds this version's notes, with or without a date after the heading", () => {
+    // The awk program the workflow runs, taken from release.yml so the test follows any change to it.
+    const yml = read(".github/workflows/release.yml");
+    const program = yml.match(/awk -v h="## v\$VERSION" '\n([\s\S]*?)\n\s*' CHANGELOG\.md > notes\.md/)![1]!;
+    const notes = (changelog: string, version: string) => execFileSync("awk", ["-v", `h=## v${version}`, program], { input: changelog, encoding: "utf8" });
+    const version = JSON.parse(read("package.json")).version as string;
+    expect(notes(read("CHANGELOG.md"), version)).toContain("Upgrade notes");
+    const sample = "# Changelog\n\n## v2.0.0 — 2027-01-02\n\nDated.\n\n## v1.0.0\n\nPlain.\n\n## v1.0.01\n\nNot this.\n";
+    expect(notes(sample, "2.0.0").trim()).toBe("Dated.");
+    expect(notes(sample, "1.0.0").trim()).toBe("Plain.");
+    expect(notes(sample, "1.0.1")).toBe("");
   });
   it("pre-approves read-only commands only, and the Wrangler form works from the repo root", () => {
     const allow = JSON.parse(read(".claude/settings.json")).permissions.allow as string[];
