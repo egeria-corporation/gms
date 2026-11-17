@@ -124,9 +124,16 @@ describe("connecting is a person's own act", () => {
     expect(calendar.accounts.size).toBe(0);
   });
 
-  it("lets an agent read the Slack settings, as the screen does", async () => {
+  it("lets an agent read the Slack settings, as the screen does, and gives it no tool that changes anything", async () => {
     const [agent] = await machines("funder");
     expect((await call(agent!, "GET", "/gms/connected-apps/slack")).status).toBe(200);
+    const rpc = async (method: string, params?: unknown) => {
+      const res = await h.request("/mcp", { method: "POST", headers: { ...agent!, Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++seq, method, ...(params ? { params } : {}) }) });
+      return (await res.json()) as { result: { tools?: { name: string }[]; structuredContent?: Record<string, unknown> } };
+    };
+    const tools = (await rpc("tools/list")).result.tools!.map((t) => t.name);
+    expect(tools.filter((n) => /slack|calendar|drive|salesforce|alert/.test(n))).toEqual(["get_slack_alerts"]);
+    expect((await rpc("tools/call", { name: "get_slack_alerts", arguments: {} })).result.structuredContent).toMatchObject({ configured: true, subscription: null, events: ["new_application", "review_assigned", "deadline_soon", "report_due", "payment_due"] });
   });
 });
 
