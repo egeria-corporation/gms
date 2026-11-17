@@ -48,6 +48,10 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 
 ### Fixed
 
+- The Feedback button on the hosted site (Userback's widget) failed colour contrast on every page: white
+  on light blue, 2.54:1. It now uses the theme's dark teal with white text (8.7:1). Found by running
+  axe against the live site after the v1.10.0 deploy; the mock-mode checks don't load the widget.
+
 - A screen that mounted while its messages were still loading could trip React's hook check when
   it was replayed (React error 467, recovered by re-rendering the whole page). It showed as a rare
   page error on dialogs such as "Sign the grant agreement" and the gallery share dialog.
