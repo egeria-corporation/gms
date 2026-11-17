@@ -18,6 +18,7 @@ import { applicationRoutes } from "./gms/applications.ts";
 import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
+import { translationRoutes } from "./gms/translations.ts";
 import { fundRoutes } from "./gms/funds.ts";
 import { designRoutes } from "./gms/design.ts";
 import { digestRoutes } from "./gms/digests.ts";
@@ -203,6 +204,8 @@ gms.route("/", connectedAppRoutes);
 gms.route("/", syndicationRoutes);
 // Funder loops (E4): peer invitations, "for funders", onboarding links, the partner directory, the reusable profile.
 gms.route("/", loopRoutes);
+// Bilingual forms and opportunity text: the assistant's translation drafts (E6, docs/forms.md).
+gms.route("/", translationRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

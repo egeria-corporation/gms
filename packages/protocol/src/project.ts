@@ -91,7 +91,20 @@ function funderRef(funder: FunderRow | null | undefined) {
 // Forms
 // ---------------------------------------------------------------------------------------------
 
+/** Language codes a form or opportunity can carry translations in (`@gms/forms` FORM_LANGUAGES). */
+const TRANSLATION_LANGUAGES = new Set(["en", "es"]);
+
+/**
+ * A form's translations as a custom field: the canonical fields stay in the funder's own language,
+ * and the other languages travel here only (absent when there are none).
+ */
+function translationsField(value: unknown): CustomField | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !Object.keys(value).some((k) => TRANSLATION_LANGUAGES.has(k))) return undefined;
+  return { name: "translations", fieldType: "object", value, description: "The funder's text in other languages, by language code; each text keeps the source it translates. Canonical fields are in `source` (English when absent)." };
+}
+
 export function projectForm(row: FormRow): FormBase {
+  const translations = translationsField(row.translations);
   const form = compact({
     id: row.id,
     title: row.title,
@@ -107,6 +120,7 @@ export function projectForm(row: FormRow): FormBase {
         { id: prefixedId("form", row.id), purpose: row.purpose, fieldMeta: row.field_meta, publishedAt: row.published_at ? iso(row.published_at) : undefined },
         "OpenGrants GMS form settings",
       ),
+      ...(translations ? { translations } : {}),
     },
     createdAt: iso(row.created_at),
     lastModifiedAt: iso(row.updated_at),

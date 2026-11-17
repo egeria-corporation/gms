@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Shared types for the form engine (build spec §10.2). A form is a CommonGrants `FormBase`:
 // JSON Schema 2020-12 (restricted subset) + JSON Forms-style UI schema + CG mappings.
+import type { FormTranslations } from "./translations.ts";
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type JsonObject = { [key: string]: Json };
@@ -151,6 +152,8 @@ export interface FormDefinition {
   fieldMeta?: Record<string, FieldMeta>;
   publishedAt?: string | null;
   supersedesFormVersion?: number | null;
+  /** The funder's text in other languages (translations.ts). Part of the version: published and copied with it. */
+  translations?: FormTranslations;
 }
 
 /**

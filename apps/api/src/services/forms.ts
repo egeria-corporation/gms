@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Forms: CommonGrants `FormBase`, versioned. A published version is immutable; editing creates the
 // next draft (build spec §10.2). Definitions are checked by `@gms/forms` before every save.
-import { FormDefinitionError, assertEditable, nextDraft, publishForm, testFill, validateFormDefinition, type FormDefinition } from "@gms/forms";
+import { FormDefinitionError, assertEditable, isPlainObject, nextDraft, normalizeTranslations, publishForm, testFill, validateFormDefinition, validateTranslations, type FormDefinition, type FormTranslations } from "@gms/forms";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
@@ -24,6 +24,8 @@ export const formInput = z
     mappingFromCommonGrants: json.optional(),
     mappingToCommonGrants: json.optional(),
     fieldMeta: json.optional(),
+    /** The funder's text in other languages (`@gms/forms` translations); its shape is checked with the definition. */
+    translations: json.optional(),
     /** Start from a published library or workspace form instead of an empty one. */
     copyFrom: z.object({ id: z.string(), version: z.number().int().min(1).optional() }).strict().optional(),
   })
@@ -32,6 +34,9 @@ export const formPatch = formInput.omit({ copyFrom: true }).partial();
 
 type FormRow = Row<"forms">;
 type J = FormRow["json_schema"];
+
+/** The stored translations, or nothing when the version has none. */
+const translationsOf = (r: Pick<FormRow, "translations">): FormTranslations | undefined => (isPlainObject(r.translations) && Object.keys(r.translations).length ? (r.translations as FormTranslations) : undefined);
 
 export const toDefinition = (r: FormRow): FormDefinition =>
   ({
@@ -47,6 +52,7 @@ export const toDefinition = (r: FormRow): FormDefinition =>
     fieldMeta: r.field_meta,
     publishedAt: r.published_at,
     supersedesFormVersion: r.supersedes_form_version,
+    ...(translationsOf(r) ? { translations: translationsOf(r) } : {}),
   }) as unknown as FormDefinition;
 
 export const formView = (r: FormRow) => ({
@@ -61,6 +67,7 @@ export const formView = (r: FormRow) => ({
   mappingFromCommonGrants: r.mapping_from_cg,
   mappingToCommonGrants: r.mapping_to_cg,
   fieldMeta: r.field_meta,
+  translations: translationsOf(r) ?? {},
   status: r.published_at ? ("published" as const) : ("draft" as const),
   publishedAt: r.published_at,
   supersedesFormVersion: r.supersedes_form_version,
@@ -70,7 +77,7 @@ export const formView = (r: FormRow) => ({
 });
 
 const summary = (r: FormRow) => {
-  const { jsonSchema: _s, uiSchema: _u, mappingFromCommonGrants: _f, mappingToCommonGrants: _t, fieldMeta: _m, ...rest } = formView(r);
+  const { jsonSchema: _s, uiSchema: _u, mappingFromCommonGrants: _f, mappingToCommonGrants: _t, fieldMeta: _m, translations: _l, ...rest } = formView(r);
   return rest;
 };
 
@@ -85,11 +92,23 @@ function columns(i: z.output<typeof formPatch>) {
     ...(i.mappingFromCommonGrants !== undefined ? { mapping_from_cg: i.mappingFromCommonGrants as J } : {}),
     ...(i.mappingToCommonGrants !== undefined ? { mapping_to_cg: i.mappingToCommonGrants as J } : {}),
     ...(i.fieldMeta !== undefined ? { field_meta: i.fieldMeta as J } : {}),
+    ...(i.translations !== undefined ? { translations: i.translations as J } : {}),
   };
 }
 
+/**
+ * The translations a saved version keeps: shape-checked with the definition first, then only the
+ * texts the form still has (a removed field's are dropped; a stale one stays, to be flagged).
+ */
+function withTranslations<T extends Partial<FormRow>>(draft: FormRow, patch: T): T {
+  if (patch.translations === undefined && patch.json_schema === undefined && patch.ui_schema === undefined && patch.title === undefined) return patch;
+  const def = toDefinition({ ...draft, ...patch } as FormRow);
+  if (!def.translations) return patch.translations === undefined ? patch : { ...patch, translations: {} as J };
+  return { ...patch, translations: normalizeTranslations(def) as unknown as J };
+}
+
 function assertValid(def: FormDefinition) {
-  const errors = validateFormDefinition(def);
+  const errors = [...validateFormDefinition(def), ...validateTranslations(def.translations)];
   if (errors.length) throw unprocessable("This form definition is not valid", errors);
 }
 
@@ -133,11 +152,13 @@ export async function createForm(ctx: ServiceContext, input: z.output<typeof for
   if (input.copyFrom && copyFromId) {
     const rows = (await versions(ctx, ws.id, copyFromId)).filter((r) => r.published_at);
     const src = required(input.copyFrom.version ? rows.find((r) => r.version === input.copyFrom!.version) : latestOf(rows), "Form to copy");
-    base = { json_schema: src.json_schema, ui_schema: src.ui_schema, mapping_from_cg: src.mapping_from_cg, mapping_to_cg: src.mapping_to_cg, field_meta: src.field_meta, purpose: src.purpose, description: src.description, instructions: src.instructions };
+    base = { json_schema: src.json_schema, ui_schema: src.ui_schema, mapping_from_cg: src.mapping_from_cg, mapping_to_cg: src.mapping_to_cg, field_meta: src.field_meta, translations: src.translations, purpose: src.purpose, description: src.description, instructions: src.instructions };
   }
   const { copyFrom: _c, ...fields } = input;
-  const draft = { ...base, ...columns(fields), title: input.title };
-  assertValid(toDefinition({ id: "new", version: 1, json_schema: { type: "object", properties: {} }, ui_schema: { type: "VerticalLayout", elements: [] }, mapping_from_cg: {}, mapping_to_cg: {}, field_meta: {}, ...draft } as FormRow));
+  const empty = { id: "new", version: 1, json_schema: { type: "object", properties: {} }, ui_schema: { type: "VerticalLayout", elements: [] }, mapping_from_cg: {}, mapping_to_cg: {}, field_meta: {}, translations: {} } as unknown as FormRow;
+  const given = { ...base, ...columns(fields), title: input.title };
+  assertValid(toDefinition({ ...empty, ...given } as FormRow));
+  const draft = withTranslations(empty, given);
   const row = await ctx.repos.table("forms").insert({ workspace_id: ws.id, version: 1, ...draft });
   await audit(ctx, "form.created", "form", row.id, { title: row.title, version: 1, ...(copyFromId ? { copiedFrom: copyFromId } : {}) });
   return formView(row);
@@ -153,8 +174,8 @@ export async function updateForm(ctx: ServiceContext, id: string, input: z.outpu
     if (e instanceof FormDefinitionError) throw new ApiError(409, "form_published", `Version ${current.version} is published and cannot change. Create version ${current.version + 1} to edit`);
     throw e;
   }
-  const patch = columns(input);
-  assertValid(toDefinition({ ...current, ...patch } as FormRow));
+  assertValid(toDefinition({ ...current, ...columns(input) } as FormRow));
+  const patch = withTranslations(current, columns(input));
   const [row] = await ctx.repos.table("forms").update({ id, version: current.version, workspace_id: ws.id }, patch);
   await audit(ctx, "form.updated", "form", id, { version: current.version, fields: Object.keys(input) });
   return formView(row!);
@@ -178,6 +199,8 @@ export async function createFormVersion(ctx: ServiceContext, id: string) {
     mapping_from_cg: current.mapping_from_cg,
     mapping_to_cg: current.mapping_to_cg,
     field_meta: current.field_meta,
+    // Each translation keeps the source it was made from: what this draft changes is flagged, the rest carries over.
+    translations: current.translations,
     purpose: current.purpose,
     supersedes_form_version: current.version,
   });

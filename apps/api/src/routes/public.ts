@@ -11,6 +11,7 @@ import { isUuid } from "@gms/db";
 import * as pub from "../services/public.ts";
 import { BADGE_TTL_SECONDS, badgeFor } from "../services/award-sharing.ts";
 import { cgSearchOpportunities } from "../services/search.ts";
+import { requestLocale } from "../lib/locale.ts";
 import { jsonBody, page, publicCtx, versionQuery } from "./http.ts";
 
 type C = Context<AppEnv>;
@@ -63,7 +64,9 @@ publicPages.get("/funders/:handle", async (c) => {
 });
 publicPages.get("/funders/:handle/opportunities/:slug", async (c) => {
   edge(c);
-  return c.json(ok(await pub.opportunityPage(publicCtx(c), c.req.param("handle"), c.req.param("slug"))));
+  // The funder's title, summary and eligibility labels follow the reader's language where translated.
+  c.header("Vary", "Accept-Language, Cookie");
+  return c.json(ok(await pub.opportunityPage(publicCtx(c), c.req.param("handle"), c.req.param("slug"), requestLocale({ url: c.req.url, header: (n) => c.req.header(n) }))));
 });
 // The grants a funder has awarded and lists (v1.9.0), and one award's page.
 publicPages.get("/funders/:handle/awards", async (c) => {

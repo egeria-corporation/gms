@@ -1541,6 +1541,7 @@ export type Database = {
           purpose: string;
           supersedes_form_version: number | null;
           title: string;
+          translations: Json;
           ui_schema: Json;
           updated_at: string;
           version: number;
@@ -1559,6 +1560,7 @@ export type Database = {
           purpose?: string;
           supersedes_form_version?: number | null;
           title: string;
+          translations?: Json;
           ui_schema?: Json;
           updated_at?: string;
           version?: number;
@@ -1577,6 +1579,7 @@ export type Database = {
           purpose?: string;
           supersedes_form_version?: number | null;
           title?: string;
+          translations?: Json;
           ui_schema?: Json;
           updated_at?: string;
           version?: number;

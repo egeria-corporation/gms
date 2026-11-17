@@ -26,6 +26,7 @@ import "./history.tsp";
 // E4: funder loops.
 import "./loops.tsp";
 import "./award-kit.tsp";
+import "./translations.tsp";
 
 using TypeSpec.Http;
 

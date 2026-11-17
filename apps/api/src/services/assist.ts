@@ -32,7 +32,7 @@ import { getApplicationDetail } from "./inbox.ts";
 import { authHeaderOf } from "./integrations.ts";
 import { getTemplate } from "./templates.ts";
 
-type Tool = "summarize" | "compare_rubric" | "draft_letter" | "adapt_answer" | "draft_answer" | "parse_guidelines";
+type Tool = "summarize" | "compare_rubric" | "draft_letter" | "adapt_answer" | "draft_answer" | "parse_guidelines" | "translate";
 
 const disabled = () => new ApiError(404, "assistant_disabled", "The drafting assistant is not enabled on this server");
 

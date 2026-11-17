@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A library form used by mock mode, the styleguide and the renderer tests. It exercises every
 // widget, a conditional rule, Passport prefill and a budget table capped by the requested amount.
-import type { FormDefinition, JsonObject } from "@gms/forms";
+import { setTranslation, translatableTexts, type FormDefinition, type FormTranslations, type JsonObject } from "@gms/forms";
 
 export const LOI_FORM: FormDefinition = {
   id: "frm_loi_library",
@@ -132,6 +132,47 @@ export const LOI_FORM: FormDefinition = {
   mappingToCommonGrants: { requestedAmount: { field: "requestedAmount" }, title: { field: "projectTitle" } },
   publishedAt: "2027-01-15T00:00:00Z",
 };
+
+/** The funder's Spanish for LOI_FORM, reviewed: every text, so an applicant reading in Spanish sees the whole form in Spanish. */
+export const LOI_SPANISH: Readonly<Record<string, string>> = {
+  "Letter of intent": "Carta de intención",
+  Organization: "Organización",
+  "Legal name": "Nombre legal",
+  "Mailing address": "Dirección postal",
+  "Contact email": "Correo electrónico de contacto",
+  "Contact phone": "Teléfono de contacto",
+  "We apply through a fiscal sponsor": "Presentamos la solicitud a través de un patrocinador fiscal",
+  "Fiscal sponsor name": "Nombre del patrocinador fiscal",
+  Project: "Proyecto",
+  "Project title": "Título del proyecto",
+  "Requested amount": "Monto solicitado",
+  "Range for this opportunity: $50,000 – $150,000": "Rango para esta convocatoria: $50,000 – $150,000",
+  "Planned start date": "Fecha de inicio prevista",
+  "Project type": "Tipo de proyecto",
+  "Direct service": "Servicio directo",
+  "Capacity building": "Fortalecimiento institucional",
+  Capital: "Inversión de capital",
+  "Families served per year": "Familias atendidas por año",
+  "Populations served": "Poblaciones atendidas",
+  Children: "Niñas y niños",
+  "Older adults": "Personas mayores",
+  "Rural residents": "Residentes de zonas rurales",
+  Veterans: "Veteranos y veteranas",
+  "What need does this project address?": "¿Qué necesidad atiende este proyecto?",
+  "Reviewers see this field. Avoid personal health details about named individuals.": "El equipo de revisión ve este campo. Evite datos personales de salud de personas identificadas.",
+  "Describe the main activities": "Describa las actividades principales",
+  "Key staff": "Personal clave",
+  "Budget and attachments": "Presupuesto y archivos adjuntos",
+  Budget: "Presupuesto",
+  Personnel: "Personal",
+  "Travel & vehicle": "Viajes y vehículo",
+  Supplies: "Materiales",
+  Indirect: "Costos indirectos",
+  "Letter of support": "Carta de apoyo",
+  "PDF, up to 10 MB.": "PDF, hasta 10 MB.",
+  Attestation: "Declaración",
+};
+export const LOI_FORM_SPANISH: FormTranslations = translatableTexts(LOI_FORM).reduce<FormTranslations>((t, u) => (LOI_SPANISH[u.source] ? setTranslation(t, "es", u, LOI_SPANISH[u.source]!) : t), {});
 
 export const LOI_RESPONSE: JsonObject = {
   legalName: "Alder Creek Family Services",

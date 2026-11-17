@@ -79,8 +79,19 @@ export interface FunderPageData {
 }
 export interface OpportunityPageData {
   funder: PublicFunder;
-  opportunity: PublicCard;
+  /** `translations`: the funder's reviewed title and summary in other languages (apps/api/src/services/public.ts). */
+  opportunity: PublicCard & { translations?: Partial<Record<Locale, { title?: string; description?: string }>> };
   competitions?: { status: string }[];
+}
+
+/**
+ * An opportunity's title and summary in a language: the funder's own translation where it gave a
+ * reviewed one, otherwise as it wrote them. The page's data always carries both, so one cached
+ * copy serves every language.
+ */
+export function opportunityTextIn(o: OpportunityPageData["opportunity"], locale: Locale): { title: string; description: string } {
+  const tr = o.translations?.[locale];
+  return { title: tr?.title ?? o.title, description: tr?.description ?? o.description };
 }
 /** An approved template gallery item (apps/api/src/services/gallery.ts, `GET /gms/gallery/{slug}`). */
 export interface GalleryItemData {
@@ -260,7 +271,7 @@ export function funderCard(d: FunderPageData, site: string, locale: Locale = DEF
 export function opportunityCard(d: OpportunityPageData, site: string, now: Date = new Date(), locale: Locale = DEFAULT_LOCALE): CardText {
   const s = opportunityStatus(d.opportunity, now, locale);
   const range = locale === DEFAULT_LOCALE ? amountOf(d.opportunity) : formatAwardRange(d.opportunity.funding ?? null, locale);
-  return { site, eyebrow: d.funder.name, title: d.opportunity.title, amount: range === "\u2014" ? null : range, status: { label: s.label, tone: s.tone }, note: notVerified(d.funder, locale) };
+  return { site, eyebrow: d.funder.name, title: opportunityTextIn(d.opportunity, locale).title, amount: range === "\u2014" ? null : range, status: { label: s.label, tone: s.tone }, note: notVerified(d.funder, locale) };
 }
 
 /** "{Funder} awarded {Recipient} a grant": the award card's title and the award page's heading. */
@@ -410,7 +421,8 @@ export function funderMeta(d: FunderPageData, origin: string, locale: Locale = D
 }
 
 export function opportunityMeta(d: OpportunityPageData, origin: string, now: Date = new Date(), locale: Locale = DEFAULT_LOCALE): PageMeta {
-  const o = d.opportunity;
+  // The funder's title and summary in the page's language where it translated them.
+  const o = { ...d.opportunity, ...opportunityTextIn(d.opportunity, locale) };
   const route: PageRoute = { kind: "opportunity", handle: d.funder.handle, slug: o.slug };
   const url = `${origin}${pagePathOf(route)}`;
   const status = opportunityStatus(o, now, locale);

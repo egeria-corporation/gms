@@ -25,6 +25,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
     mapping_from_cg: {},
     mapping_to_cg: {},
     field_meta: {},
+    translations: {},
     purpose: "application",
     published_at: null,
     supersedes_form_version: null,
