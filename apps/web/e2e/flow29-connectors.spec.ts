@@ -15,7 +15,7 @@ test("connect Slack alerts, a calendar, Google Drive and Salesforce", async ({ a
     await expect(page.getByRole("heading", { level: 1, name: "Connected apps" })).toBeVisible();
     const slack = page.getByRole("region", { name: "Slack alerts" });
     await expect(slack.getByText("Not connected")).toBeVisible();
-    await slack.getByRole("button", { name: "Connect Slack" }).click();
+    await slack.getByRole("button", { name: "Connect Slack", exact: true }).click();
     await expect(slack.getByText("Connected", { exact: true })).toBeVisible();
     await slack.getByRole("combobox", { name: "Channel" }).selectOption({ label: "#grants" });
     await expect(slack.getByRole("checkbox", { name: "Review assigned" })).toBeChecked();
@@ -39,11 +39,11 @@ test("connect Slack alerts, a calendar, Google Drive and Salesforce", async ({ a
     await rail(page, "Settings").click();
     await page.getByRole("region", { name: "Connected apps" }).getByRole("link", { name: "Open connected apps" }).click();
     const drive = page.getByRole("region", { name: "Google Drive" });
-    await drive.getByRole("button", { name: "Connect Google Drive" }).click();
+    await drive.getByRole("button", { name: "Connect Google Drive", exact: true }).click();
     await expect(drive.getByText("Connected", { exact: true })).toBeVisible();
     // An applicant team has no review alerts.
     const slack = page.getByRole("region", { name: "Slack alerts" });
-    await slack.getByRole("button", { name: "Connect Slack" }).click();
+    await slack.getByRole("button", { name: "Connect Slack", exact: true }).click();
     await expect(slack.getByRole("checkbox", { name: "Review assigned" })).toHaveCount(0);
     await expect(slack.getByRole("checkbox", { name: "Deadline in 3 days" })).toBeVisible();
   });
@@ -65,7 +65,7 @@ test("connect Slack alerts, a calendar, Google Drive and Salesforce", async ({ a
     await page.getByRole("radio", { name: /Salesforce/ }).check();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("region", { name: "Connect Salesforce" })).toContainText("The GMS only runs read queries and never changes a record");
-    await page.getByRole("button", { name: "Connect Salesforce" }).click();
+    await page.getByRole("button", { name: "Connect Salesforce", exact: true }).click();
     await expect(page.getByRole("heading", { name: "What should be read from Salesforce?" })).toBeVisible();
     await expect(page.getByRole("radio", { name: /Grants/ })).toBeChecked();
     await page.getByRole("radio", { name: /A query of my own/ }).check();

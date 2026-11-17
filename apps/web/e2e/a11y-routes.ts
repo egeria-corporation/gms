@@ -216,8 +216,9 @@ export const ROUTES: Record<string, RouteCase[]> = {
       path: `${F}/settings/apps`,
       who: "funder-admin",
       steps: async (page) => {
-        await page.getByRole("button", { name: "Connect Slack" }).click();
-        await page.getByRole("combobox", { name: "Channel" }).waitFor();
+        // The same steps run in English and Spanish.
+        await page.getByRole("button", { name: /^(Connect Slack|Conectar Slack)$/ }).click();
+        await page.getByRole("combobox", { name: /^(Channel|Canal)$/ }).waitFor();
       },
     },
   ],

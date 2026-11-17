@@ -6,7 +6,8 @@ import { ApiError } from "../api/client.ts";
 import type { AlertEvent, AppConnection, CalendarEntry, CalendarLink, ConnectedAppsApi, SlackAlerts, SlackChannel, WorkspaceApp } from "../api/connectedApps.ts";
 
 export interface ConnectedAppsStore {
-  connected: Record<WorkspaceApp, boolean>;
+  /** By workspace: each workspace connects its own apps. */
+  connected: Record<string, Partial<Record<WorkspaceApp, boolean>>>;
   channels: SlackChannel[];
   slack: Record<string, SlackAlerts["subscription"]>;
   calendars: CalendarEntry[];
@@ -21,7 +22,7 @@ export const MOCK_DRIVE_FILE_ID = "1MockDriveBudget01";
 
 export function seedConnectedAppsStore(): ConnectedAppsStore {
   return {
-    connected: { slack: false, google_drive: false, salesforce: false },
+    connected: {},
     channels: [
       { id: "C0GRANTS01", name: "grants", member: true },
       { id: "C0GENERAL1", name: "general", member: false },
@@ -54,7 +55,9 @@ export function createMockConnectedAppsApi(opts: MockConnectedAppsOptions): Conn
   const ws = () => opts.workspace() ?? { id: "", kind: "funder" as const, role: "admin" };
   // The server's rules (who may connect, which workspace kind) are tested against the API; the mock keeps what the screens show.
   const admin = ws;
-  const view = (app: WorkspaceApp): AppConnection => ({ provider: app, connected: store.connected[app], status: store.connected[app] ? "active" : "not_connected", scopes: store.connected[app] ? SCOPES[app] : [], connectUrl: null });
+  const on = (app: WorkspaceApp) => store.connected[ws().id]?.[app] === true;
+  const turn = (app: WorkspaceApp, value: boolean) => void (store.connected[ws().id] = { ...store.connected[ws().id], [app]: value });
+  const view = (app: WorkspaceApp): AppConnection => ({ provider: app, connected: on(app), status: on(app) ? "active" : "not_connected", scopes: on(app) ? SCOPES[app] : [], connectUrl: null });
   const linkKey = async () => `${ws().id}:${(await opts.person()) ?? "anon"}`;
   const emptyLink = (): CalendarLink => ({ configured: true, connected: false, status: "not_connected", calendar: null, events: 0, lastSyncAt: null });
   const synced = (link: CalendarLink) => ({ ...link, result: { created: link.events, updated: 0, deleted: 0, unchanged: 0, pending: 0 } });
@@ -67,22 +70,22 @@ export function createMockConnectedAppsApi(opts: MockConnectedAppsOptions): Conn
     async connect(app) {
       admin();
       // Mock mode has no Google or Slack sign-in: the connection is made at once.
-      store.connected[app] = true;
+      turn(app, true);
       return view(app);
     },
     async disconnect(app) {
       admin();
-      store.connected[app] = false;
+      turn(app, false);
       if (app === "slack") delete store.slack[ws().id];
       return view(app);
     },
     async slack() {
       const w = admin();
-      return { configured: true, connected: store.connected.slack, events: w.kind === "funder" ? FUNDER_EVENTS : APPLICANT_EVENTS, subscription: store.slack[w.id] ?? null, recent: [] };
+      return { configured: true, connected: on("slack"), events: w.kind === "funder" ? FUNDER_EVENTS : APPLICANT_EVENTS, subscription: store.slack[w.id] ?? null, recent: [] };
     },
     async slackChannels() {
       admin();
-      if (!store.connected.slack) throw new ApiError(409, "Connect Slack first", [{ code: "slack_not_connected" }]);
+      if (!on("slack")) throw new ApiError(409, "Connect Slack first", [{ code: "slack_not_connected" }]);
       return [...store.channels];
     },
     async saveSlack(input) {
@@ -134,13 +137,13 @@ export function createMockConnectedAppsApi(opts: MockConnectedAppsOptions): Conn
       return emptyLink();
     },
     async fetchDriveFile(fileId) {
-      if (!store.connected.google_drive) throw new ApiError(409, "Connect Google Drive first (Settings, Connected apps)", [{ code: "drive_not_connected" }]);
+      if (!on("google_drive")) throw new ApiError(409, "Connect Google Drive first (Settings, Connected apps)", [{ code: "drive_not_connected" }]);
       const f = store.driveFiles[fileId];
       if (!f) throw new ApiError(422, "Google Drive would not open that file for the GMS", [{ code: "drive_not_found" }]);
       return new File([f.text], f.name, { type: f.type });
     },
     async saveToDrive(input) {
-      if (!store.connected.google_drive) throw new ApiError(409, "Connect Google Drive first (Settings, Connected apps)", [{ code: "drive_not_connected" }]);
+      if (!on("google_drive")) throw new ApiError(409, "Connect Google Drive first (Settings, Connected apps)", [{ code: "drive_not_connected" }]);
       const fileName = `As submitted - ${input.id}.pdf`;
       store.saved.push(fileName);
       return { fileId: `1MockSaved${String(store.saved.length).padStart(8, "0")}`, fileName, url: "https://drive.google.com/drive/my-drive" };

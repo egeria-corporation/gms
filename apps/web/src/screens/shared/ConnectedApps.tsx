@@ -253,7 +253,7 @@ function SlackCard() {
       {app.q.status === "error" && <ErrorBanner error={app.q.error} onRetry={app.q.reload} />}
       {app.error !== null && <ErrorBanner error={app.error} />}
       {c && <ConnectRow app="slack" c={c} start={() => void app.start()} stop={() => void app.stop()} busy={app.busy} label="Slack" />}
-      {c?.connected && alerts.status === "ready" && <SlackSettings key={alerts.data.subscription?.updatedAt ?? "new"} alerts={alerts.data} onSaved={alerts.reload} />}
+      {c?.connected && alerts.status === "ready" && <SlackSettings alerts={alerts.data} onSaved={alerts.reload} />}
     </Card>
   );
 }
