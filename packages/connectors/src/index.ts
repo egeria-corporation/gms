@@ -9,6 +9,9 @@
 // - SheetsSource, AirtableSource: import sources in connected apps through Composio, read-only (./tabular.ts).
 // - FluxxPuller, ZenginePuller: a funder's records read from the system it is leaving, with its own
 //   credentials, read-only (./pullers.ts).
+// - SlackAlerts, CalendarSync, DriveFiles, SalesforceSource: connected apps through Composio
+//   (./apps.ts): alerts to one Slack channel, deadlines as Google Calendar events, an applicant's
+//   Drive files picked in the Google Picker, and a read-only Salesforce import source.
 
 // ------------------------------------------------------------------------------------ bank feed
 
@@ -293,3 +296,4 @@ export function isRegistrableMcpUrl(url: string): boolean {
 export * from "./composio.ts";
 export * from "./tabular.ts";
 export * from "./pullers.ts";
+export * from "./apps.ts";

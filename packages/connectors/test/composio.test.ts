@@ -94,7 +94,7 @@ describe("ComposioClient", () => {
 
   it("keeps ids, status and scopes from a connected account and drops the credential", () => {
     const mapped = mapConnectedAccount(account());
-    expect(mapped).toEqual({ id: ACCOUNT, status: "ACTIVE", authConfigId: AUTH_CONFIG, grantedScopes: GOOD_SCOPES.split(" "), requestedScopes: GOOD_SCOPES.split(" ") });
+    expect(mapped).toEqual({ id: ACCOUNT, status: "ACTIVE", authConfigId: AUTH_CONFIG, userId: null, grantedScopes: GOOD_SCOPES.split(" "), requestedScopes: GOOD_SCOPES.split(" ") });
     expect(JSON.stringify(mapped)).not.toContain("never-kept");
     expect(() => mapConnectedAccount({ status: "ACTIVE" })).toThrow(ComposioError);
   });
