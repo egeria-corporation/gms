@@ -103,7 +103,37 @@ function MeasureList({ m }: { m: OperatorMeasures }) {
   );
 }
 
-const reasonLabel = (r: LostDealReason) => t(`measures.reason.${r}` as const);
+/** Each reason's words, looked up when shown (never a table built once, which would keep one language). */
+function reasonLabel(r: LostDealReason): string {
+  switch (r) {
+    case "forms":
+      return t("measures.reason.forms");
+    case "reviews":
+      return t("measures.reason.reviews");
+    case "reporting":
+      return t("measures.reason.reporting");
+    case "payments":
+      return t("measures.reason.payments");
+    case "procurement":
+      return t("measures.reason.procurement");
+    case "languages":
+      return t("measures.reason.languages");
+    case "integrations":
+      return t("measures.reason.integrations");
+    case "data_migration":
+      return t("measures.reason.data_migration");
+    case "support":
+      return t("measures.reason.support");
+    case "went_elsewhere":
+      return t("measures.reason.went_elsewhere");
+    case "timing":
+      return t("measures.reason.timing");
+    case "no_decision":
+      return t("measures.reason.no_decision");
+    default:
+      return t("measures.reason.other");
+  }
+}
 
 function LostDeals({ m, onRecorded }: { m: OperatorMeasures; onRecorded: () => void }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -158,7 +188,7 @@ function LostDeals({ m, onRecorded }: { m: OperatorMeasures; onRecorded: () => v
             </button>
           </div>
         </form>
-        <div className="tbl-wrap">
+        <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("measures.lost.byReason")}>
           <table className="tbl">
             <caption className="sr">{t("measures.lost.byReason")}</caption>
             <thead>
@@ -188,7 +218,38 @@ function LostDeals({ m, onRecorded }: { m: OperatorMeasures; onRecorded: () => v
   );
 }
 
-const kindLabel = (k: PageKind) => t(`measures.kind.${k}` as const);
+function kindLabel(k: PageKind): string {
+  switch (k) {
+    case "home":
+      return t("measures.kind.home");
+    case "funder":
+      return t("measures.kind.funder");
+    case "opportunity":
+      return t("measures.kind.opportunity");
+    case "fund":
+      return t("measures.kind.fund");
+    case "awards":
+      return t("measures.kind.awards");
+    case "award":
+      return t("measures.kind.award");
+    case "switch":
+      return t("measures.kind.switch");
+    case "templates":
+      return t("measures.kind.templates");
+    case "for_funders":
+      return t("measures.kind.for_funders");
+    case "partners":
+      return t("measures.kind.partners");
+    default:
+      return t("measures.kind.other");
+  }
+}
+
+function problemLabel(p: NonNullable<SearchConsoleState["problem"]>): string {
+  if (p === "too_broad") return t("measures.sc.problem.too_broad");
+  if (p === "unreachable") return t("measures.sc.problem.unreachable");
+  return t("measures.sc.problem.reconnect");
+}
 
 function Report({ report }: { report: SearchConsoleReport }) {
   return (
@@ -197,7 +258,7 @@ function Report({ report }: { report: SearchConsoleReport }) {
         {t("measures.sc.range", { start: formatDate(report.range.start), end: formatDate(report.range.end) })}
       </p>
       <p style={{ margin: 0, fontWeight: 700 }}>{t("measures.sc.totals", { clicks: report.totals.clicks, impressions: report.totals.impressions })}</p>
-      <div className="tbl-wrap">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("measures.sc.byKind")}>
         <table className="tbl">
           <caption className="sr">{t("measures.sc.byKind")}</caption>
           <thead>
@@ -293,7 +354,7 @@ function SearchConsole({ onChanged }: { onChanged: () => void }) {
           {t("measures.sc.intro")}
         </p>
         {(connect.error ?? disconnect.error ?? choose.error) !== null && <ErrorBanner error={connect.error ?? disconnect.error ?? choose.error} />}
-        {s.problem && <Notice tone="warn" title={t(`measures.sc.problem.${s.problem}` as const)} />}
+        {s.problem && <Notice tone="warn" title={problemLabel(s.problem)} />}
         {!s.connected && (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
             <button type="button" className="btn btn-primary" onClick={start} disabled={busy}>
