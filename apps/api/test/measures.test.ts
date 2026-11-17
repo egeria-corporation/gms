@@ -133,7 +133,13 @@ describe("operators only", () => {
     expect((await call(await session(OPERATOR), "GET", "/gms/operator/measures")).status).toBe(200);
     expect((await call(await session(USER_OFFICER, { email: "OPS@opengrants.example" }), "GET", "/gms/operator/measures")).status).toBe(200);
     // A workspace's identity provider can assert any address: its word never makes an operator.
+    // Where it was not registered for the address's domain, the session is refused before the list
+    // is read (v1.13.0, redteam-sso-email.test.ts); where it was, the email entry still does not match.
+    expect((await call(await session(USER_OFFICER, { email: OPERATOR_EMAIL, sso: true }), "GET", "/gms/operator/measures")).code).toBe("sso_domain_mismatch");
+    const at = h.clock.now.toISOString();
+    for (const domain of ["opengrants.example", "riverbendcf.example"]) await h.repos.table("workspace_sso_domains").insert({ workspace_id: WS_FUNDER, domain, status: "active", require_sso: false, provider_id: PROVIDER, verification_token: "t".repeat(43), verified_at: at, last_checked_at: at, last_check_result: "matched", activated_at: at, created_by: USER_ADMIN });
     expect((await call(await session(USER_OFFICER, { email: OPERATOR_EMAIL, sso: true }), "GET", "/gms/operator/measures")).code).toBe("not_an_operator");
+    expect((await call(await session(USER_OFFICER, { email: OPERATOR_EMAIL, sso: true }), "GET", "/gms/operator/me")).data).toEqual({ operator: false });
     expect((await call(await session(OPERATOR, { sso: true }), "GET", "/gms/operator/me")).data).toEqual({ operator: true });
   });
 

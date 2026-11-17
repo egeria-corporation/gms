@@ -79,12 +79,19 @@ export function moderatorsOf(raw: string | null | undefined): { ids: Set<string>
   return { ids, emails };
 }
 
-export function isModerator(raw: string | null | undefined, who: Moderator): boolean {
+/**
+ * Whether a signed-in person is on a list of user ids and email addresses (GALLERY_MODERATORS,
+ * DIRECTORY_MODERATORS, OPERATORS). A user id always matches; an email entry matches a single
+ * sign-on session only when `emailMatchesSso` says so (each list's own constant, all false).
+ */
+export function onPeopleList(raw: string | null | undefined, who: Moderator, emailMatchesSso: boolean): boolean {
   const m = moderatorsOf(raw);
   if (m.ids.has(who.userId.toLowerCase())) return true;
-  if (who.viaSso && !MODERATOR_EMAIL_MATCHES_SSO_SESSIONS) return false;
+  if (who.viaSso && !emailMatchesSso) return false;
   return !!who.email && m.emails.has(who.email.trim().toLowerCase());
 }
+
+export const isModerator = (raw: string | null | undefined, who: Moderator): boolean => onPeopleList(raw, who, MODERATOR_EMAIL_MATCHES_SSO_SESSIONS);
 
 function assertModerator(ctx: ServiceContext, raw: string | null | undefined, who: Moderator) {
   if (ctx.actor.kind !== "user" || ctx.actor.userId !== who.userId) throw humanOnly("Moderating the gallery");

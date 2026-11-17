@@ -5,7 +5,7 @@
 // never registered for, must be refused at every place that authorizes or links by email:
 //   * centrally: every route that accepts a person's session (auth/middleware.ts, `personSession`);
 //   * workspace, draft, guest reviewer and award invitations, and peer-funder links;
-//   * the gallery's and the partner directory's moderators (email entries never match an SSO session);
+//   * the gallery's and the partner directory's moderators and the operators (email entries never match an SSO session);
 //   * joining a workspace through single sign-on;
 // and the right-domain session still works. Sign in with Passport never adopts an SSO account by
 // its address (passport-signin.test.ts, identity-port.test.ts).
@@ -200,6 +200,20 @@ describe("moderators: an email entry never matches a single sign-on session; a u
       expect(await call(sso, "GET", "/gms/partners/moderation/queue")).toMatchObject({ status: 403, code: "not_a_directory_moderator" });
       expect((await call(await session(SSO_USER, MOD_EMAIL, null), "GET", "/gms/partners/moderation/me")).data, env).toEqual({ moderator: true });
     }
+  });
+});
+
+describe("operators (OPERATORS): the same rule as the moderators", () => {
+  it("an SSO session asserting an operator's address is refused, by the central check or by the list", async () => {
+    const OPS_EMAIL = `ops@${RIVERBEND}`;
+    h.env.OPERATORS = OPS_EMAIL;
+    refused(await call(await session(SSO_USER, OPS_EMAIL, PROVIDER_B), "GET", "/gms/operator/measures"));
+    const sso = await session(SSO_USER, OPS_EMAIL, PROVIDER_A);
+    expect((await call(sso, "GET", "/gms/operator/me")).data).toEqual({ operator: false });
+    for (const path of ["/gms/operator/measures", "/gms/operator/search-console", "/gms/operator/search-console/report"]) expect(await call(sso, "GET", path)).toMatchObject({ status: 403, code: "not_an_operator" });
+    expect(await call(sso, "POST", "/gms/operator/lost-deals", { body: { reason: "forms" } })).toMatchObject({ status: 403, code: "not_an_operator" });
+    expect(await h.repos.table("lost_deals").count({})).toBe(0);
+    expect((await call(await session(SSO_USER, OPS_EMAIL, null), "GET", "/gms/operator/me")).data).toEqual({ operator: true });
   });
 });
 

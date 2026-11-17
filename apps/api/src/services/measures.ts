@@ -17,7 +17,7 @@ import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError,
 import { forbidden } from "../auth/verify.ts";
 import { ApiError } from "../lib/errors.ts";
 import { audit, type ServiceContext } from "./context.ts";
-import { moderatorsOf } from "./gallery.ts";
+import { onPeopleList } from "./gallery.ts";
 import type { SupabaseRpcLike } from "./ports.ts";
 
 // ------------------------------------------------------------------------------------ choices (one constant each)
@@ -76,12 +76,8 @@ export interface Operator {
 /** OPERATORS, else GALLERY_MODERATORS while it is unset or blank: comma-separated user ids or email addresses. */
 export const operatorsOf = (env: { OPERATORS?: string; GALLERY_MODERATORS?: string }): string | null => (env.OPERATORS?.trim() ? env.OPERATORS : (env.GALLERY_MODERATORS ?? null));
 
-export function isOperator(raw: string | null | undefined, who: Operator): boolean {
-  const m = moderatorsOf(raw);
-  if (m.ids.has(who.userId.toLowerCase())) return true;
-  if (who.viaSso && !OPERATOR_EMAIL_MATCHES_SSO_SESSIONS) return false;
-  return !!who.email && m.emails.has(who.email.trim().toLowerCase());
-}
+/** The same rule as the gallery's and the directory's moderators (gallery.ts, `onPeopleList`). */
+export const isOperator = (raw: string | null | undefined, who: Operator): boolean => onPeopleList(raw, who, OPERATOR_EMAIL_MATCHES_SSO_SESSIONS);
 
 /** A signed-in person on the operators' list, or 403. Checked before any body is read. */
 export function assertOperator(ctx: ServiceContext, raw: string | null | undefined, who: Operator): void {

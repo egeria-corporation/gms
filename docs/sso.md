@@ -214,7 +214,7 @@ Single sign-on does not replace the GMS's own two-step verification for admin an
 A SAML identity provider can assert any email address: nothing in SAML stops one organization's
 identity provider from saying its user is `director@another-funder.org`. Parts of the GMS act on a
 session's address (workspace, draft, guest reviewer and award invitations, joining through single
-sign-on, the email entries of `GALLERY_MODERATORS` and `DIRECTORY_MODERATORS`), so
+sign-on, the email entries of `GALLERY_MODERATORS`, `DIRECTORY_MODERATORS` and `OPERATORS`), so
 the GMS accepts a single sign-on session only where its provider was registered for
 the address's domain:
 
@@ -228,9 +228,11 @@ the address's domain:
   sign-in page offers to sign out. A pending domain, a removed one, an address on no registered
   domain and a session with no address are all refused. Email-code and Passport sessions, API
   clients and agents' tokens are untouched.
-- **At each email check, as well.** An email entry in `GALLERY_MODERATORS` or `DIRECTORY_MODERATORS`
-  never matches a session that came through single sign-on, even the right domain's
-  (`MODERATOR_EMAIL_MATCHES_SSO_SESSIONS`, false); a user id always matches. Sign in with Passport
+- **At each email check, as well.** An email entry in `GALLERY_MODERATORS`, `DIRECTORY_MODERATORS`
+  or `OPERATORS` never matches a session that came through single sign-on, even the right domain's
+  (one rule, `onPeopleList` in `apps/api/src/services/gallery.ts`, with
+  `MODERATOR_EMAIL_MATCHES_SSO_SESSIONS` and `OPERATOR_EMAIL_MATCHES_SSO_SESSIONS`, both false); a
+  user id always matches. Sign in with Passport
   never finds, adopts or links an account Supabase made through single sign-on (`is_sso_user`) by
   its address: the identity port refuses it (`account_mismatch`).
 - `apps/api/test/redteam-sso-email.test.ts` tries each place with provider A's session asserting an

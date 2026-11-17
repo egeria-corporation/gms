@@ -13,6 +13,7 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../../app.ts";
 import { requireUser } from "../../auth/middleware.ts";
+import { cameThroughSso } from "../../auth/session.ts";
 import { created, ok } from "../../lib/errors.ts";
 import { parse } from "../../lib/input.ts";
 import * as measures from "../../services/measures.ts";
@@ -23,7 +24,7 @@ export const measureRoutes = new Hono<AppEnv>();
 
 const operator = (c: C): measures.Operator => {
   const u = c.get("user");
-  return { userId: u.userId, email: u.email ?? null, viaSso: (u.ssoProviderIds ?? []).length > 0 };
+  return { userId: u.userId, email: u.email ?? null, viaSso: cameThroughSso(u) };
 };
 /** The context of an operator, or 403 before anything else happens. */
 const operatorSvc = (c: C) => {
