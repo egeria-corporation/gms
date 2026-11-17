@@ -347,5 +347,15 @@
   "code.recipient_not_allowed": "A report can be sent only to members of this workspace who can read it",
   "code.sensitive_document": "Bank and tax paperwork is never kept in the document vault",
   "code.source_not_readable": "The source could not be read. Nothing was imported",
-  "code.unprocessable": "Some of what was entered is not valid"
+  "code.unprocessable": "Some of what was entered is not valid",
+  "code.already_listed": "You are listed already. Withdraw the listing first to change it.",
+  "code.funders_only": "This link brings funders. Set up a funder workspace to be counted.",
+  "code.invite_yourself": "Enter the address of the funder you are inviting, not your own.",
+  "code.listing_pending": "Your request is waiting for a moderator. Withdraw it first to change it.",
+  "code.logo_not_an_image": "That file is not a PNG, JPEG or WebP image.",
+  "code.logo_too_large": "That logo is too large. Use an image of up to 256 KB.",
+  "code.not_an_intermediary": "Onboarding links and the partner directory are for workspaces that run two or more funds. Add your funds in Settings, Funds.",
+  "code.note_has_link": "Take the link or email address out of your note. The invitation carries one link only, to set up a funder workspace.",
+  "code.too_many_peer_invites": "A workspace can invite five funders a week. Try again next week.",
+  "code.not_a_directory_moderator": "Only the partner directory's moderators can review listings."
 }

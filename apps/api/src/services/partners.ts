@@ -240,7 +240,7 @@ export const directoryModerators = (env: { DIRECTORY_MODERATORS?: string; GALLER
 
 export function assertModerator(ctx: ServiceContext, raw: string | null, who: Moderator) {
   if (ctx.actor.kind !== "user" || ctx.actor.userId !== who.userId) throw humanOnly("Moderating the partner directory");
-  if (!isModerator(raw, who)) throw new ApiError(403, "not_a_moderator", "Only the directory's moderators can review listings");
+  if (!isModerator(raw, who)) throw new ApiError(403, "not_a_directory_moderator", "Only the partner directory's moderators can review listings");
 }
 
 export const isDirectoryModerator = (raw: string | null, who: Moderator) => isModerator(raw, who);
