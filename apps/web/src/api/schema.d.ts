@@ -4465,6 +4465,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/opportunities/{id}/syndication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The "Share this call" panel: the feeds the call is in, what OpenGrants can pull, the PND submission and why it cannot go now, and applications started from those links. A read: agents see it too and are told a person sends. */
+        get: operations["ShareThisCall_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/opportunities/{id}/syndication/feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Take the call out of the open-call feeds, or put it back (`publish.feeds`). */
+        put: operations["ShareThisCall_setFeeds"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/opportunities/{id}/syndication/pnd": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Send the call to PND if it is still exactly the preview (409 `preview_changed` otherwise). Once per call. 502 `mail_failed` records nothing, so the person can try again. */
+        post: operations["ShareThisCall_sendPnd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/opportunities/{id}/syndication/pnd/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Exactly the email to PND, and its digest. Nothing is sent. A person who edits calls (admins and program officers): agent and API-client tokens get 403 `human_only`. 409 `pnd_already_sent`, `pnd_sending`, `pnd_not_listed`, `pnd_call_closed` or `pnd_too_late`; 422 `pnd_no_reply_to`; 503 `mail_not_configured`. */
+        post: operations["ShareThisCall_previewPnd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/org-changes": {
         parameters: {
             query?: never;
@@ -5660,6 +5728,86 @@ export interface paths {
          * @description Published data behind the embeddable apply widget. No token; published fields only.
          */
         get: operations["Embed_embedWidget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/feeds/opengrants.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * OpenGrants index feed
+         * @description For OpenGrants to pull: published calls with `publish.openGrantsIndex` and their public page on, open, forecasted or closed, as CommonGrants `OpportunityBase` records, least recently changed first. `modifiedSince` (ISO 8601) for an incremental pull; a record a full pull no longer lists is gone. No token.
+         */
+        get: operations["OpenCallFeeds_openGrantsFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/feeds/opportunities.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open-call feed (CSV)
+         * @description The same calls as CSV; every cell formula-safe.
+         */
+        get: operations["OpenCallFeeds_csvFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/feeds/opportunities.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open-call feed (JSON)
+         * @description Open and forecasted calls with a public page that are in the feeds, newest first (at most 500), as JSON Feed 1.1. `region`: a US state (code or name) or any region the page names; `category`: a fund's name or slug; `funder`: a handle; `closingWithin`: 1 to 365 days. Other parameters are ignored. No token.
+         */
+        get: operations["OpenCallFeeds_jsonFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/public/feeds/opportunities.rss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open-call feed (RSS)
+         * @description The same calls as RSS 2.0.
+         */
+        get: operations["OpenCallFeeds_rssFeed"];
         put?: never;
         post?: never;
         delete?: never;
@@ -17204,6 +17352,80 @@ export interface components {
             /** @description An expected payment received: the amount that came in. */
             amount?: components["schemas"]["CommonGrants.Fields.Money"];
         };
+        /** @description One call in a feed: only what its public page shows. */
+        "Models.OpenCallFeedItem": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            description: string;
+            /** @enum {string} */
+            status: "open" | "forecasted";
+            acceptingApplications: boolean;
+            funder: {
+                name: string;
+                handle: string;
+                /** Format: uri */
+                page: string;
+            };
+            /** @description The fund the page names, when it is not the funder's default fund. */
+            category: {
+                name: string;
+                slug: string;
+                /** Format: uri */
+                page: string;
+            } | null;
+            /** @description CommonGrants `OppFunding`, as on the page. */
+            funding: {
+                [key: string]: unknown;
+            };
+            /** @description CommonGrants `OppTimeline`, as on the page. */
+            keyDates: {
+                [key: string]: unknown;
+            };
+            /** @description YYYY-MM-DD, from `keyDates.postDate`. */
+            opens: string | null;
+            /** @description YYYY-MM-DD, from `keyDates.closeDate`. */
+            closes: string | null;
+            /** @description CommonGrants applicant type codes. */
+            acceptedApplicantTypes: string[];
+            /** @description The eligibility rule labels the page lists (never the rules' values). */
+            eligibility: string[];
+            /** Format: date-time */
+            publishedAt: string | null;
+            /**
+             * Format: uri
+             * @description The public page, with `utm_source=feed`.
+             */
+            link: string;
+        };
+        /** @description JSON Feed 1.1 (https://jsonfeed.org/version/1.1); each item's fields in `_gms`. */
+        "Models.OpenCallJsonFeed": {
+            /** @enum {string} */
+            version: "https://jsonfeed.org/version/1.1";
+            title: string;
+            /** Format: uri */
+            home_page_url: string;
+            /** Format: uri */
+            feed_url: string;
+            description: string;
+            /** @enum {string} */
+            language: "en";
+            items: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: uri */
+                url: string;
+                title: string;
+                content_text: string;
+                /** Format: date-time */
+                date_published?: string;
+                authors: {
+                    name: string;
+                    /** Format: uri */
+                    url: string;
+                }[];
+                tags?: string[];
+                _gms: components["schemas"]["Models.OpenCallFeedItem"];
+            }[];
+        };
         /** @description One award in the period and what the export does with it. */
         "Models.OpenDataAwardRow": {
             awardId: components["schemas"]["Models.PrefixedId"];
@@ -18382,6 +18604,49 @@ export interface components {
             url: string | null;
             /** Format: date-time */
             updatedAt: string;
+        };
+        /**
+         * @description Why a call cannot go to PND now. `person_only`: the caller is an agent or API client. `role`: the person does not edit calls. `not_listed`: unpublished or no public page. `too_late`: past PND's four weeks. `no_reply_to`: no address for replies. `sent`: already sent (once per call). `sending`: a send is under way.
+         * @enum {string}
+         */
+        "Models.PndBlock": "person_only" | "role" | "not_listed" | "closed" | "too_late" | "mail_not_configured" | "no_reply_to" | "sent" | "sending";
+        /** @description Exactly the email that would be sent to PND. */
+        "Models.PndPreview": {
+            /** @description The funder's name on the GMS's sending address. */
+            from: string;
+            /** @enum {string} */
+            to: "pndrfp@candid.org";
+            /** @description The funder's public contact address, else the person's own. */
+            replyTo: string;
+            subject: string;
+            text: string;
+            html: string;
+            /** @description PND's fields, in the email's order, as the preview shows them. */
+            fields: {
+                /** @enum {string} */
+                key: "funder" | "title" | "scope" | "qualifications" | "instructions" | "deadlines" | "link" | "contact";
+                label: string;
+                value: string;
+            }[];
+            /** @description Ties a send to this preview: a send whose email differs is refused (409 `preview_changed`). */
+            digest: string;
+            earliestDeadline: string | null;
+            sendBy: string | null;
+            /** Format: uri */
+            sourceUrl: string;
+        };
+        "Models.PndSendInput": {
+            /** @description The `digest` of the preview the person confirmed. */
+            digest: string;
+        };
+        "Models.PndSent": {
+            /** @enum {boolean} */
+            sent: true;
+            /** Format: date-time */
+            sentAt: string;
+            /** @enum {string} */
+            to: "pndrfp@candid.org";
+            replyTo: string;
         };
         "Models.PortfolioSummary": {
             awarded: components["schemas"]["CommonGrants.Fields.Money"];
@@ -20416,6 +20681,79 @@ export interface components {
         };
         "Models.SummarizeRequest": {
             applicationId: components["schemas"]["Models.GmsId"];
+        };
+        /** @description The "Share this call" panel. */
+        "Models.Syndication": {
+            opportunityId: components["schemas"]["CommonGrants.Types.uuid"];
+            feeds: {
+                /** @description `publish.feeds`: false when the funder took the call out of the feeds. */
+                on: boolean;
+                /** @description In the feeds now: on, published with its page on, open or forecasted. */
+                listed: boolean;
+                /** @description This funder's feed in each format (`?funder={handle}`). */
+                urls: {
+                    /** Format: uri */
+                    json: string;
+                    /** Format: uri */
+                    csv: string;
+                    /** Format: uri */
+                    rss: string;
+                };
+                /**
+                 * Format: uri
+                 * @description Every funder's calls, as RSS.
+                 */
+                allUrl: string;
+            };
+            openGrants: {
+                /** @description `publish.openGrantsIndex`. */
+                on: boolean;
+                /** @description In the OpenGrants index feed now (open, forecasted or closed, with its page on). */
+                inFeed: boolean;
+                /** Format: uri */
+                feedUrl: string;
+                /** @description Whether OpenGrants pulls the feed today. False until the OpenGrants team does. */
+                pulling: boolean;
+            };
+            pnd: {
+                /** @enum {string} */
+                name: "Philanthropy News Digest";
+                /** @enum {string} */
+                address: "pndrfp@candid.org";
+                /**
+                 * Format: uri
+                 * @description Candid's page that states how PND takes RFPs.
+                 */
+                sourceUrl: string;
+                /**
+                 * Format: int32
+                 * @description 28: PND needs a call four weeks before its earliest deadline.
+                 */
+                leadDays: number;
+                /** @description YYYY-MM-DD: the call's closing date or a public stage's, whichever is first and still ahead. Null for a call open all year. */
+                earliestDeadline: string | null;
+                /** @description YYYY-MM-DD: the last day PND takes the call. Null when there is no deadline. */
+                sendBy: string | null;
+                sent: {
+                    /** Format: date-time */
+                    sentAt: string;
+                    /** @description Masked: `g…@example.org`. */
+                    replyTo: string;
+                } | null;
+                canSend: boolean;
+                blocked: components["schemas"]["Models.PndBlock"] | null;
+            };
+            /** @description Applications to this call started from a feed link and from a PND link (`utm_source`). */
+            startedFrom: {
+                /** Format: int32 */
+                feed: number;
+                /** Format: int32 */
+                pnd: number;
+            };
+        };
+        "Models.SyndicationFeedsInput": {
+            /** @description False takes the call out of the open-call feeds; true puts it back. */
+            feeds: boolean;
         };
         "Models.TagsRequest": {
             add?: string[];
@@ -38323,6 +38661,303 @@ export interface operations {
             };
         };
     };
+    ShareThisCall_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Syndication"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ShareThisCall_setFeeds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SyndicationFeedsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.Syndication"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ShareThisCall_sendPnd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PndSendInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PndSent"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Server error */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ShareThisCall_previewPnd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PndPreview"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Grantees_listOrgChanges: {
         parameters: {
             query?: {
@@ -43535,6 +44170,202 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenCallFeeds_openGrantsFeed: {
+        parameters: {
+            query?: {
+                /** @description The page to return */
+                page?: components["parameters"]["Models.PageParams.page"];
+                /** @description The number of items to return per page */
+                pageSize?: components["parameters"]["Models.PageParams.pageSize"];
+                modifiedSince?: string;
+            };
+            header?: {
+                "if-none-match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "cache-control": string;
+                    etag: string;
+                    "Access-Control-Allow-Origin": "*";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json; charset=utf-8": {
+                        /** @description Items from the current page */
+                        items: components["schemas"]["CommonGrants.Models.OpportunityBase"][];
+                        /** @description Details about the paginated results */
+                        paginationInfo: components["schemas"]["CommonGrants.Pagination.PaginatedResultsInfo"];
+                    };
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    etag: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenCallFeeds_csvFeed: {
+        parameters: {
+            query?: {
+                region?: string;
+                category?: string;
+                funder?: string;
+                closingWithin?: number;
+            };
+            header?: {
+                "if-none-match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "cache-control": string;
+                    etag: string;
+                    "content-disposition": string;
+                    "Access-Control-Allow-Origin": "*";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    etag: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenCallFeeds_jsonFeed: {
+        parameters: {
+            query?: {
+                region?: string;
+                category?: string;
+                funder?: string;
+                closingWithin?: number;
+            };
+            header?: {
+                "if-none-match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    /** @description `public, max-age=300, s-maxage=900`. */
+                    "cache-control": string;
+                    etag: string;
+                    "Access-Control-Allow-Origin": "*";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/feed+json; charset=utf-8": components["schemas"]["Models.OpenCallJsonFeed"];
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    etag: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    OpenCallFeeds_rssFeed: {
+        parameters: {
+            query?: {
+                region?: string;
+                category?: string;
+                funder?: string;
+                closingWithin?: number;
+            };
+            header?: {
+                "if-none-match"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "cache-control": string;
+                    etag: string;
+                    "Access-Control-Allow-Origin": "*";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/rss+xml; charset=utf-8": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    etag: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
