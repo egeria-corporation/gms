@@ -32,6 +32,7 @@ select tables_are(
     'funds',
     'package_sends',
     'digest_subscriptions', 'digest_sends',
+    'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
     'user_preferences'
   ],
   'public schema has exactly the GMS tables'
