@@ -2,3 +2,4 @@
 export * from "./storage.ts";
 export * from "./pdf.ts";
 export * from "./templates.ts";
+export * from "./carousel.ts";
