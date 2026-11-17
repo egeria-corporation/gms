@@ -7,6 +7,9 @@ import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { PreferencesPort } from "./preferences.ts";
+// F3: the operators' measures and Google Search Console.
+import type { MeasuresStore } from "./measures.ts";
+import type { SearchConsole } from "@gms/connectors";
 import type { LlmClient } from "@gms/assist";
 import type { AirtableSource, BankFeed, CalendarSync, DriveFiles, FluxxPuller, McpDirectory, QuickBooksBooks, SalesforceSource, SheetsSource, SlackAlerts, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
@@ -160,6 +163,10 @@ export interface ServicePorts {
   directAwards?: DirectAwardStore;
   /** Consulting requests counted and recorded in one step (Postgres); over the repositories for one isolate otherwise. */
   consulting?: ConsultingStore;
+  /** F3: the operators' growth measures as counts (Postgres, migration 0052); absent, the measures are unavailable. */
+  measures?: MeasuresStore;
+  /** F3: Google Search Console for the operators, read only through Composio; absent until its auth config is set. */
+  searchConsole?: SearchConsole;
 }
 
 export interface ServiceContext {

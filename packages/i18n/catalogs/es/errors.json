@@ -382,7 +382,6 @@
   "code.page_url_invalid": "Indique la dirección https de la página de su organización en LinkedIn, Facebook, Instagram, X, Bluesky o Threads.",
   "code.consent_needs_page": "Indique el enlace de su página antes de aceptar que la etiqueten.",
   "code.funder_only_setting": "Solo un financiador define la mención del comunicado de prensa y su descripción.",
-  "notFound.reminder": "No se encontró el recordatorio.",
   "code.not_a_draft": "Esta solicitud ya se envió; no hay un borrador para escribir en equipo.",
   "code.quickbooks_not_connected": "Primero conecte QuickBooks.",
   "code.quickbooks_refused": "QuickBooks no lo aceptó. Revise las cuentas, la clase o el proveedor elegidos en Configuración › Contabilidad.",
@@ -390,5 +389,15 @@
   "code.unknown_class": "Esa clase o ubicación no está en QuickBooks o no está activa.",
   "code.unknown_program": "Uno de los programas indicados no es de este espacio de trabajo.",
   "code.unknown_vendor": "Ese proveedor no está en QuickBooks o no está activo.",
-  "code.too_many": "Es más de lo que se puede guardar de una vez."
+  "code.too_many": "Es más de lo que se puede guardar de una vez.",
+  "code.not_an_operator": "Solo las personas operadoras de OpenGrants pueden ver los indicadores de crecimiento.",
+  "code.measures_unavailable": "Los indicadores de crecimiento no están disponibles en este servidor.",
+  "code.search_console_unavailable": "Google Search Console no está configurado en este servidor.",
+  "code.site_not_gms": "Elija la propiedad de Search Console de la dirección del propio GMS.",
+  "code.site_not_found": "La cuenta de Google conectada no puede leer esa propiedad.",
+  "code.search_console_site_required": "Primero elija la propiedad del GMS en Search Console.",
+  "code.search_console_unreachable": "Google Search Console no respondió. Inténtelo de nuevo en unos minutos.",
+  "code.search_console_reconnect": "Vuelva a conectar Google Search Console.",
+  "code.invalid_date": "Escriba una fecha real, que no sea futura y que esté dentro del último año.",
+  "notFound.reminder": "No se encontró el recordatorio."
 }

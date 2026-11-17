@@ -382,7 +382,6 @@
   "code.page_url_invalid": "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads.",
   "code.consent_needs_page": "Give your page's link before you agree to be tagged.",
   "code.funder_only_setting": "Only a funder sets the press release's credit wording and description.",
-  "notFound.reminder": "Reminder not found.",
   "code.not_a_draft": "This application has been submitted; there is no draft to write together.",
   "code.quickbooks_not_connected": "Connect QuickBooks first.",
   "code.quickbooks_refused": "QuickBooks did not take that. Check the accounts, class or vendor chosen in Settings › Accounting.",
@@ -390,5 +389,15 @@
   "code.unknown_class": "That class or location is not in QuickBooks, or is not active.",
   "code.unknown_program": "A program named is not one of this workspace's.",
   "code.unknown_vendor": "That vendor is not in QuickBooks, or is not active.",
-  "code.too_many": "That is more than can be saved at once."
+  "code.too_many": "That is more than can be saved at once.",
+  "code.not_an_operator": "Only OpenGrants' operators can see the growth measures.",
+  "code.measures_unavailable": "The growth measures are not available on this server.",
+  "code.search_console_unavailable": "Google Search Console is not set up on this server.",
+  "code.site_not_gms": "Choose the Search Console property for the GMS's own address.",
+  "code.site_not_found": "The connected Google account cannot read that property.",
+  "code.search_console_site_required": "Choose the GMS's property in Search Console first.",
+  "code.search_console_unreachable": "Google Search Console did not answer. Try again in a few minutes.",
+  "code.search_console_reconnect": "Connect Google Search Console again.",
+  "code.invalid_date": "Enter a real date, not in the future and within the last year.",
+  "notFound.reminder": "Reminder not found."
 }

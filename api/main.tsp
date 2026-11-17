@@ -31,6 +31,8 @@ import "./translations.tsp";
 import "./presence.tsp";
 // F2: QuickBooks sync (record-keeping only).
 import "./accounting.tsp";
+// F3: the operators' growth measures and Search Console.
+import "./measures.tsp";
 
 using TypeSpec.Http;
 

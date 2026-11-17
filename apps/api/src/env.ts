@@ -57,6 +57,8 @@ export interface Env {
   COMPOSIO_SALESFORCE_AUTH_CONFIG_ID?: string;
   /** QuickBooks sync (record-keeping only): a Composio auth config on the quickbooks toolkit with com.intuit.quickbooks.accounting only. */
   COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID?: string;
+  /** F3: Google Search Console for the operators' measures, read only: a Composio auth config on google_search_console with webmasters.readonly. Hidden while unset. */
+  COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_INBOUND_SECRET?: string;
@@ -75,6 +77,11 @@ export interface Env {
    * Wrangler secret like GALLERY_MODERATORS, which it falls back to while it is not set.
    */
   DIRECTORY_MODERATORS?: string;
+  /**
+   * F3: who sees the growth measures (docs/measures.md): comma-separated user ids or email
+   * addresses, a Wrangler secret like GALLERY_MODERATORS, which it falls back to while unset.
+   */
+  OPERATORS?: string;
   /** Social posting through Zernio: on only when both are set (docs/social.md). */
   ZERNIO_API_KEY?: string;
   ZERNIO_WEBHOOK_SECRET?: string;

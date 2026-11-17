@@ -184,6 +184,8 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   social_reminder_prompts: (at) => ({ prompted_at: at, dismissed_at: null, dismissed_by: null }),
   // 0050: a session's pass to a draft's live channel (co-editing).
   presence_passes: () => ({ can_write: false }),
+  // 0052: the operators' Search Console property (one row, id always true).
+  operator_settings: () => ({ id: true, search_console_site: null, updated_by: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -247,6 +249,7 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   social_reminder_prompts: [{ columns: ["opportunity_id"] }],
   // 0050: one pass per session and draft channel.
   presence_passes: [{ columns: ["user_id", "session_id", "topic"] }],
+  operator_settings: [{ columns: ["id"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -302,7 +305,7 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
-const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens", "share_kit_profiles"]);
+const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens", "share_kit_profiles", "operator_settings"]);
 
 function matches(row: AnyRow, where: AnyRow, notNull: readonly string[] = []): boolean {
   for (const [k, v] of Object.entries(where)) {

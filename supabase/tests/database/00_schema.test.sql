@@ -42,7 +42,9 @@ select tables_are(
     -- 0050: a signed-in session's pass to a draft's live channel (co-editing).
     'presence_passes',
     -- 0051: QuickBooks sync (the mapping and one entry per payment).
-    'accounting_links', 'accounting_entries'
+    'accounting_links', 'accounting_entries',
+    -- 0052: the operators' growth measures (deals lost by reason, the Search Console property).
+    'lost_deals', 'operator_settings'
   ],
   'public schema has exactly the GMS tables'
 );

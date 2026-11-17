@@ -55,6 +55,8 @@ import { feedRoutes } from "./feeds.ts";
 import { syndicationRoutes } from "./gms/syndication.ts";
 // F1: live co-editing, the pass to a draft's live channel (docs/co-editing.md).
 import { presenceRoutes } from "./gms/presence.ts";
+// F3: the operators' growth measures and Search Console (docs/measures.md).
+import { measureRoutes } from "./gms/measures.ts";
 
 export const gms = new Hono<AppEnv>();
 
@@ -216,6 +218,8 @@ gms.route("/", loopRoutes);
 gms.route("/", translationRoutes);
 // F1: live co-editing.
 gms.route("/", presenceRoutes);
+// F3: /gms/operator/* (operators only, signed in).
+gms.route("/", measureRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

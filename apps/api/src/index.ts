@@ -2,7 +2,7 @@
 // Worker entry: wires Supabase-backed stores. The service-role client is created once per isolate;
 // every store query filters by workspace explicitly (RLS is on for every table regardless).
 import { AnthropicLlmClient } from "@gms/assist";
-import { ComposioAirtableSource, ComposioClient, ComposioSheetsSource, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed, connectedAppPorts, quickBooksPort } from "@gms/connectors";
+import { ComposioAirtableSource, ComposioClient, ComposioSheetsSource, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed, connectedAppPorts, quickBooksPort, searchConsolePort } from "@gms/connectors";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
@@ -15,6 +15,7 @@ import { trimSlash, type Env } from "./env.ts";
 import { SupabaseCreationLimiter } from "./lib/rate-limit.ts";
 import type { ServicePorts } from "./services/context.ts";
 import { SupabaseConsultingStore } from "./services/consulting.ts";
+import { SupabaseMeasuresStore } from "./services/measures.ts";
 import { SupabaseDirectAwardStore, SupabaseInvitationLimiter } from "./services/direct-award-store.ts";
 import { RestOpenGrantsClient, R2FileStorage, SupabaseIdentity, SupabaseSecondSteps, SupabaseSessions, SupabaseUserDirectory, type SupabaseAdminLike, type SupabaseIdentityLike, type SupabaseRpcLike } from "./services/ports.ts";
 import { SupabasePreferences, type SupabasePreferencesLike } from "./services/preferences.ts";
@@ -39,7 +40,7 @@ function depsFor(env: Env): Deps | null {
         repos,
         webhooks: new SupabaseWebhookStore(db),
         now: () => new Date(),
-        ports: (e) => ({ ...ports(e), directory: new SupabaseUserDirectory(db as unknown as SupabaseAdminLike), sessions: new SupabaseSessions(db as unknown as SupabaseRpcLike), preferences: new SupabasePreferences(db as unknown as SupabasePreferencesLike), identity: new SupabaseIdentity(db as unknown as SupabaseIdentityLike), secondSteps: new SupabaseSecondSteps(db as unknown as SupabaseRpcLike), creationLimiter: new SupabaseCreationLimiter(db as unknown as SupabaseRpcLike), invitationLimiter: new SupabaseInvitationLimiter(db as unknown as SupabaseRpcLike), directAwards: new SupabaseDirectAwardStore(db as unknown as SupabaseRpcLike), consulting: new SupabaseConsultingStore(db as unknown as SupabaseRpcLike, repos) }),
+        ports: (e) => ({ ...ports(e), directory: new SupabaseUserDirectory(db as unknown as SupabaseAdminLike), sessions: new SupabaseSessions(db as unknown as SupabaseRpcLike), preferences: new SupabasePreferences(db as unknown as SupabasePreferencesLike), identity: new SupabaseIdentity(db as unknown as SupabaseIdentityLike), secondSteps: new SupabaseSecondSteps(db as unknown as SupabaseRpcLike), creationLimiter: new SupabaseCreationLimiter(db as unknown as SupabaseRpcLike), invitationLimiter: new SupabaseInvitationLimiter(db as unknown as SupabaseRpcLike), directAwards: new SupabaseDirectAwardStore(db as unknown as SupabaseRpcLike), consulting: new SupabaseConsultingStore(db as unknown as SupabaseRpcLike, repos), measures: new SupabaseMeasuresStore(db as unknown as SupabaseRpcLike) }),
         kv: (e) => (e.RATE_LIMIT ? { get: (k) => e.RATE_LIMIT!.get(k), put: (k, v, o) => e.RATE_LIMIT!.put(k, v, o) } : memoryKv),
         openapi,
       },
@@ -81,6 +82,8 @@ function ports(env: Env): ServicePorts {
     ...connectedAppPorts(env, (returnTo, provider) => returnUrl(env, returnTo, provider)),
     // QuickBooks sync (v1.13.0), record-keeping only: the key and its own auth config.
     ...quickBooksPort(env, (returnTo, provider) => returnUrl(env, returnTo, provider)),
+    // F3: the operators' Search Console (read only), only with the key and its own auth config.
+    ...searchConsolePort(env, (returnTo) => returnUrl(env, returnTo, "google_search_console")),
     mcpDirectory: new HttpMcpDirectory(),
     // The drafting assistant exists only when it is switched on and has a key.
     ...(env.ASSISTANT_ENABLED === "true" && env.ANTHROPIC_API_KEY ? { llm: new AnthropicLlmClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ASSISTANT_MODEL ?? null }) } : {}),
