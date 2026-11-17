@@ -123,8 +123,8 @@ function withTranslations(customFields: unknown, translations: unknown, rules: u
     if (Object.keys(kept).length) value[lang] = kept;
   }
   const { [TRANSLATIONS_FIELD]: _old, ...rest } = (customFields ?? {}) as Record<string, unknown>;
-  const languages = Object.keys(value).filter((k) => k !== "source");
-  return (languages.length
+  // A record written in another language than English keeps saying so, translated or not.
+  return (Object.keys(value).length
     ? { ...rest, [TRANSLATIONS_FIELD]: { name: TRANSLATIONS_FIELD, fieldType: "object", value, description: "The funder's title, summary and eligibility labels in other languages, by language code; each text keeps the source it translates. Canonical fields are in `source` (English when absent)." } }
     : rest) as J;
 }

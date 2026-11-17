@@ -2,12 +2,16 @@
 // Form builder: palette → canvas → properties. The draft is edited as sections of fields
 // (lib/form-model.ts) and saved as JSON Schema + UI Schema + CommonGrants mappings through
 // `/gms/forms`. A published version never changes; editing it starts the next draft.
-import { useMemo, useState } from "react";
+// "Add Spanish" puts the funder's own text side by side with its translation (Translate view),
+// with a completeness indicator and an optional assistant draft that must be reviewed before the
+// version is published (docs/forms.md, "Languages").
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowDown, ArrowUp, BadgeCheck, Clock, Eye, Info, Plus, Search, Trash2, Zap } from "lucide-react";
-import { PREFILL_PATHS, type FormDefinition, type JsonObject } from "@gms/forms";
+import { PREFILL_PATHS, type FormDefinition, type FormLanguage, type JsonObject } from "@gms/forms";
 import { ApiError } from "../../api/client.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
+import { useTranslationsApi } from "../../api/translationsHooks.ts";
 import type { FormPatch, FormPurpose, FormRecord } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
@@ -20,10 +24,14 @@ import { FormView } from "../../forms/FormView.tsx";
 import { formatDate } from "../../lib/format.ts";
 import {
   addField,
+  addLanguage,
   addSection,
+  applyDrafts,
   canMove,
   CG_TARGETS,
   compileForm,
+  compileTranslations,
+  confirmRow,
   conditionSources,
   countForm,
   FIELD_KINDS,
@@ -31,16 +39,23 @@ import {
   moveField,
   newField,
   parseForm,
+  parseTranslations,
   removeField,
+  removeLanguage,
   removeSection,
   renameSection,
+  setSourceLanguage,
+  translationRows,
   updateField,
+  writeTranslation,
   type FieldModel,
   type FormModel,
+  type TranslationModel,
 } from "../../lib/form-model.ts";
 import { PURPOSE_LABEL } from "./shared.tsx";
 import { conditionText, fieldKindLabel, prefillLabel } from "./formWords.ts";
 import { t, useFunderMessages } from "./i18n.ts";
+import { LanguagePicker, RowsHead, TranslateAssist, TranslationRow } from "./TranslationParts.tsx";
 
 const PURPOSES = (Object.keys(PURPOSE_LABEL) as FormPurpose[]).map((value) => ({ value, get label() { return PURPOSE_LABEL[value](); } }));
 
@@ -313,6 +328,50 @@ function VersionsDialog({ form, onClose }: { form: FormRecord; onClose: () => vo
   );
 }
 
+/** The Translate view: every text of the form beside its translation, in reading order. */
+function TranslateView({ model, tm, title, language, readOnly, onChange, assist }: { model: FormModel; tm: TranslationModel; title: string; language: FormLanguage; readOnly: boolean; onChange: (next: TranslationModel) => void; assist: ReactNode }) {
+  const rows = translationRows(model, tm, title, language);
+  return (
+    <section className="card" aria-labelledby="translate-title">
+      <div className="card-h" style={{ padding: "12px 16px" }}>
+        <h3 id="translate-title" style={{ fontSize: "14px" }}>
+          {t("formBuilder.translate.heading", { language })}
+        </h3>
+      </div>
+      <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px 16px" }}>
+        <p className="small muted">{t("formBuilder.translate.intro", { language })}</p>
+        <p className="small muted">{t("formBuilder.translate.versions")}</p>
+        {assist}
+        {rows.items.length === 0 ? (
+          <p className="muted small">{t("formBuilder.translate.empty")}</p>
+        ) : (
+          <>
+            <RowsHead source={tm.source} language={language} />
+            <ul style={{ display: "flex", flexDirection: "column" }} aria-label={t("formBuilder.translate.heading", { language })}>
+              {rows.items.map((item) => (
+                <TranslationRow
+                  key={item.id}
+                  kind={item.kind}
+                  source={item.source}
+                  sourceLanguage={tm.source}
+                  language={language}
+                  text={item.text}
+                  state={item.state}
+                  {...(item.was !== undefined ? { was: item.was } : {})}
+                  multiline={item.kind === "help"}
+                  readOnly={readOnly}
+                  onText={(text) => onChange(writeTranslation(model, tm, language, item, text))}
+                  onConfirm={() => onChange(confirmRow(model, tm, language, item))}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormRecord) => void }) {
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
@@ -322,7 +381,10 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   const [model, setModel] = useState<FormModel>(() => parseForm(initial));
   const [selected, setSelected] = useState<string | null>(() => parseForm(initial).sections[0]?.fields[0]?.key ?? null);
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState<"build" | "preview">("build");
+  const [view, setView] = useState<"build" | "translate" | "preview">("build");
+  const [tm, setTm] = useState<TranslationModel>(() => parseTranslations(initial.translations));
+  const [previewLanguage, setPreviewLanguage] = useState<FormLanguage | null>(null);
+  const [drafted, setDrafted] = useState<number | null>(null);
   const [response, setResponse] = useState<JsonObject>({});
   const [showVersions, setShowVersions] = useState(false);
   const [seq, setSeq] = useState(1);
@@ -331,11 +393,21 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   const problems = useMemo(() => localProblems(model), [model]);
   const counts = countForm(model);
   const parts = useMemo(() => compileForm(model), [model]);
-  const definition = useMemo<FormDefinition>(() => ({ id: form.id, version: form.version, title, ...parts }), [form.id, form.version, title, parts]);
+  const translations = useMemo(() => compileTranslations(model, tm, title), [model, tm, title]);
+  const definition = useMemo<FormDefinition>(() => ({ id: form.id, version: form.version, title, ...parts, translations }), [form.id, form.version, title, parts, translations]);
+  // One language beside the form's own in this release.
+  const added = tm.languages[0] ?? null;
+  const progress = useMemo(() => (added ? translationRows(model, tm, title, added) : null), [added, model, tm, title]);
+  const assistStatus = useApiQuery((api) => api.assistStatus(), []);
+  const assistOn = assistStatus.status === "ready" && assistStatus.data.enabled;
   const field = model.sections.flatMap((s) => s.fields).find((f) => f.key === selected) ?? null;
 
   const edit = (next: FormModel) => {
     setModel(next);
+    setDirty(true);
+  };
+  const editLanguages = (next: TranslationModel) => {
+    setTm(next);
     setDirty(true);
   };
 
@@ -343,6 +415,9 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   const publish = useApiMutation((api) => api.publishForm(form.id));
   const nextVersion = useApiMutation((api) => api.createFormVersion(form.id));
   const fill = useApiMutation((api) => api.testFillForm(form.id, { version: form.version }));
+  const translationsApi = useTranslationsApi();
+  const [assistError, setAssistError] = useState<unknown>(null);
+  const [assistBusy, setAssistBusy] = useState(false);
 
   const accept = (saved: FormRecord) => {
     setForm(saved);
@@ -351,7 +426,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   };
   async function saveDraft(): Promise<boolean> {
     if (Object.keys(problems).length) return false;
-    const saved = await save.run({ title: title.trim() || t("formBuilder.untitledForm"), purpose, ...parts });
+    const saved = await save.run({ title: title.trim() || t("formBuilder.untitledForm"), purpose, ...parts, translations: compileTranslations(model, tm, title.trim() || t("formBuilder.untitledForm")) });
     if (saved) accept(saved);
     return !!saved;
   }
@@ -365,6 +440,25 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
     if (draft) {
       accept(draft);
       setModel(parseForm(draft));
+      setTm(parseTranslations(draft.translations));
+    }
+  }
+  /** Saves first (the server drafts from the saved version), then marks each draft for review. */
+  async function draftTranslations() {
+    if (!added) return;
+    if (dirty && !(await saveDraft())) return;
+    setAssistBusy(true);
+    setAssistError(null);
+    try {
+      const result = await translationsApi.draftForm(ws.id, form.id, added);
+      const next = applyDrafts(model, tm, title, added, result.items);
+      if (next.applied) editLanguages(next.tm);
+      setDrafted(next.applied);
+      assistStatus.reload();
+    } catch (e) {
+      setAssistError(e);
+    } finally {
+      setAssistBusy(false);
     }
   }
   async function testFill() {
@@ -385,6 +479,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
     }),
   );
   const blocked = Object.keys(problems).length > 0;
+  const draftsToReview = progress?.drafts ?? 0;
 
   return (
     <main className="main" style={{ gap: "16px" }}>
@@ -431,7 +526,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                 <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving" || blocked}>
                   {t("formBuilder.saveDraft")}
                 </button>
-                <button type="button" className="btn btn-primary" onClick={publishNow} disabled={publish.state === "saving" || blocked || counts.fields === 0}>
+                <button type="button" className="btn btn-primary" onClick={publishNow} disabled={publish.state === "saving" || blocked || counts.fields === 0 || draftsToReview > 0} aria-describedby={draftsToReview > 0 ? "publish-drafts-note" : undefined}>
                   {t("formBuilder.publishV", { version: form.version })}
                 </button>
               </>
@@ -440,6 +535,14 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
         }
       />
 
+      {draftsToReview > 0 && !readOnly && (
+        <div className="bnr bnr-warn" role="status" id="publish-drafts-note">
+          <Info className="ic" aria-hidden="true" />
+          <div className="grow">
+            <div className="t">{t("formBuilder.publishBlockedDrafts")}</div>
+          </div>
+        </div>
+      )}
       {writeError !== null && (
         <ErrorBanner error={writeError} title={writeError instanceof ApiError && writeError.status === 422 ? t("formBuilder.thisFormDefinitionIs") : t("formBuilder.thatDidNotWork")} />
       )}
@@ -531,10 +634,31 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                 </select>
               </Field>
             </div>
+            <LanguagePicker
+              idPrefix="form"
+              source={tm.source}
+              added={added}
+              progress={progress}
+              readOnly={readOnly}
+              onSource={(l) => editLanguages(setSourceLanguage(tm, l))}
+              onAdd={(l) => {
+                editLanguages(addLanguage(tm, l));
+                setView("translate");
+              }}
+              onRemove={(l) => {
+                editLanguages(removeLanguage(tm, l));
+                if (view === "translate") setView("build");
+              }}
+            />
             <div className="seg" role="group" aria-label={t("formBuilder.canvasView")} style={{ alignSelf: "flex-start" }}>
               <button type="button" className={view === "build" ? "on" : ""} aria-pressed={view === "build"} onClick={() => setView("build")}>
                 {t("formBuilder.build")}
               </button>
+              {added && (
+                <button type="button" className={view === "translate" ? "on" : ""} aria-pressed={view === "translate"} onClick={() => setView("translate")}>
+                  {t("formBuilder.translate")}
+                </button>
+              )}
               <button type="button" className={view === "preview" ? "on" : ""} aria-pressed={view === "preview"} onClick={() => setView("preview")}>
                 <Eye className="ic ic-sm" aria-hidden="true" />
                 {t("formBuilder.previewAsApplicant")}
@@ -543,9 +667,48 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
           </div>
 
           {view === "preview" && (
-            <div className="card gms-applicant" style={{ padding: "20px" }} role="region" aria-label={t("formBuilder.applicantPreview")}>
-              {counts.fields === 0 ? <p className="muted">{t("formBuilder.addAFieldTo")}</p> : <FormView form={definition} response={response} mode="edit" onChange={setResponse} />}
+            <div className="card gms-applicant" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }} role="region" aria-label={t("formBuilder.applicantPreview")}>
+              {added && (
+                <div className="row" style={{ gap: "8px" }}>
+                  <span className="small muted" id="preview-language-label">
+                    {t("formBuilder.previewIn")}
+                  </span>
+                  <div className="seg" role="group" aria-labelledby="preview-language-label">
+                    {[tm.source, added].map((l) => (
+                      <button key={l} type="button" className={(previewLanguage ?? tm.source) === l ? "on" : ""} aria-pressed={(previewLanguage ?? tm.source) === l} onClick={() => setPreviewLanguage(l)}>
+                        {t("translation.language.name", { language: l })}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {counts.fields === 0 ? <p className="muted">{t("formBuilder.addAFieldTo")}</p> : <FormView form={definition} response={response} mode="edit" onChange={setResponse} language={previewLanguage ?? tm.source} previewDrafts />}
             </div>
+          )}
+
+          {view === "translate" && added && (
+            <TranslateView
+              model={model}
+              tm={tm}
+              title={title}
+              language={added}
+              readOnly={readOnly}
+              onChange={editLanguages}
+              assist={
+                assistOn && !readOnly ? (
+                  <TranslateAssist
+                    id="form-translate-assist"
+                    help={t("translation.assist.formHelp")}
+                    quota={assistStatus.status === "ready" ? assistStatus.data.quota : null}
+                    busy={assistBusy}
+                    disabled={blocked || !progress || progress.missing + progress.stale === 0}
+                    result={drafted}
+                    error={assistError !== null ? <ErrorBanner error={assistError} /> : null}
+                    onDraft={() => void draftTranslations()}
+                  />
+                ) : null
+              }
+            />
           )}
 
           {view === "build" && (

@@ -134,7 +134,7 @@ export const LOI_FORM: FormDefinition = {
 };
 
 /** The funder's Spanish for LOI_FORM, reviewed: every text, so an applicant reading in Spanish sees the whole form in Spanish. */
-const LOI_SPANISH: Record<string, string> = {
+export const LOI_SPANISH: Readonly<Record<string, string>> = {
   "Letter of intent": "Carta de intención",
   Organization: "Organización",
   "Legal name": "Nombre legal",
