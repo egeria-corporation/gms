@@ -27,6 +27,8 @@ import "./history.tsp";
 import "./loops.tsp";
 import "./award-kit.tsp";
 import "./translations.tsp";
+// F2: QuickBooks sync (record-keeping only).
+import "./accounting.tsp";
 
 using TypeSpec.Http;
 
