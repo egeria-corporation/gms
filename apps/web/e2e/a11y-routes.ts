@@ -285,6 +285,19 @@ export const ROUTES: Record<string, RouteCase[]> = {
       },
     },
   ],
+  // QuickBooks sync (F2): the screen before connecting, and once connected with its mapping, vendors and entries.
+  "/w/:ws/settings/accounting": [
+    one(`${F}/settings/accounting`, "funder-admin"),
+    {
+      path: `${F}/settings/accounting`,
+      who: "funder-admin",
+      steps: async (page) => {
+        // The same steps run in English and Spanish.
+        await page.getByRole("button", { name: /^(Connect QuickBooks|Conectar QuickBooks)$/ }).click();
+        await page.getByRole("combobox", { name: /^(Expense account|Cuenta de gastos)/ }).waitFor();
+      },
+    },
+  ],
   "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin"), one(`${F}/import?target=history_reviews`, "funder-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],
 

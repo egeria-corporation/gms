@@ -237,6 +237,8 @@ function seed(): State {
       slack: { provider: "slack", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
       google_drive: { provider: "google_drive", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
       salesforce: { provider: "salesforce", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
+      // F2: QuickBooks connects in Settings › Accounting (mocks/accounting.ts keeps its state).
+      quickbooks: { provider: "quickbooks", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null },
     },
     ledger,
     passportReachable: true,
@@ -245,7 +247,7 @@ function seed(): State {
   };
 }
 
-const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, google_sheets: { provider: "google_sheets", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, airtable: { provider: "airtable", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, slack: { provider: "slack", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, google_drive: { provider: "google_drive", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, salesforce: { provider: "salesforce", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null } } });
+const empty = (): State => ({ ...seed(), recipients: [], awards: [], tranches: [], requirements: [], submissions: [], budgets: new Map(), orgChanges: [], bank: [], webhooks: [], apiClients: [], connections: [], servers: [], ledger: [], connectors: { mercury: { provider: "mercury", connected: false, status: "not_connected", scopes: [], lastSyncAt: null }, google_workspace: { provider: "google_workspace", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, google_sheets: { provider: "google_sheets", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, airtable: { provider: "airtable", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, slack: { provider: "slack", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, google_drive: { provider: "google_drive", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, salesforce: { provider: "salesforce", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null }, quickbooks: { provider: "quickbooks", connected: false, status: "not_connected", scopes: [], lastSyncAt: null, connectUrl: null } } });
 
 const clone = <T>(v: T): T => structuredClone(v);
 

@@ -48,7 +48,7 @@ function passportSwitch(): boolean {
 export function seedLaunchStore(): LaunchStore {
   const on = passportSwitch();
   return {
-    config: { facilitatedPayments: false, passport: { signIn: on, linking: on, payments: false }, available: { openGrants: true, assistant: true, googleWorkspace: true, mercury: true, customMcp: true, slack: true, googleCalendar: true, googleDrive: true, salesforce: true } },
+    config: { facilitatedPayments: false, passport: { signIn: on, linking: on, payments: false }, available: { openGrants: true, assistant: true, googleWorkspace: true, mercury: true, customMcp: true, slack: true, googleCalendar: true, googleDrive: true, salesforce: true, quickbooks: true } },
     sessions: [
       { id: "5e000000-0000-7000-8000-000000000001", createdAt: "2027-04-20T15:02:00Z", lastActiveAt: "2027-04-20T16:40:00Z", device: "Chrome on macOS", ip: "203.0.113.24", mfa: true, current: true },
       { id: "5e000000-0000-7000-8000-000000000002", createdAt: "2027-04-18T02:11:00Z", lastActiveAt: "2027-04-19T21:05:00Z", device: "Safari on iPhone", ip: "198.51.100.7", mfa: true, current: false },

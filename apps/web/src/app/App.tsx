@@ -88,6 +88,8 @@ const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 // Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive, Salesforce.
 const ConnectedApps = lazy(() => import("../screens/shared/ConnectedApps.tsx"));
+// F2: Settings › Accounting (QuickBooks sync, record-keeping only).
+const FSettingsAccounting = lazy(() => import("../screens/funder/SettingsAccounting.tsx"));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
@@ -379,6 +381,8 @@ function AppRoutes() {
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             {/* Connected apps, both kinds of workspace; Composio returns here after a sign-in. */}
             <Route path="settings/apps" element={<ConnectedApps />} />
+            {/* QuickBooks sync (F2); Composio returns here after QuickBooks' sign-in. */}
+            <Route path="settings/accounting" element={f(<FSettingsAccounting />)} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}
             <Route path="import" element={<ImportWizard />} />
             <Route path="approvals" element={f(<FApprovals />)} />
