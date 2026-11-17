@@ -412,10 +412,16 @@ export default function SettingsAccounting() {
   const role = ws.member.role ?? "admin";
   const writer = role === "admin" || role === "finance";
   const [version, setVersion] = useState(0);
-  const sync = useAccountingQuery((api) => api.sync(), [version]);
+  // Reloaded in place (the screen stays) after a connection change; the mapping's answer replaces it directly.
+  const sync = useAccountingQuery((api) => api.sync(), []);
   const connected = sync.status === "ready" && sync.data.connected;
-  const vendors = useAccountingQuery((api) => (connected ? api.vendors() : Promise.resolve(null)), [connected, version]);
+  const [vendorsVersion, setVendorsVersion] = useState(0);
+  const vendors = useAccountingQuery((api) => (connected ? api.vendors() : Promise.resolve(null)), [connected, vendorsVersion]);
   const bump = () => setVersion((v) => v + 1);
+  const reconnected = () => {
+    sync.reload();
+    bump();
+  };
   return (
     <FunderShell active="Settings">
       <title>{t("accounting.pageTitle", { name: ws.name })}</title>
@@ -441,13 +447,13 @@ export default function SettingsAccounting() {
                 {sync.status === "error" && <ErrorBanner error={sync.error} onRetry={sync.reload} />}
                 {sync.status === "ready" && (
                   <>
-                    <Connection sync={sync.data} admin={role === "admin"} onChange={bump} />
+                    <Connection sync={sync.data} admin={role === "admin"} onChange={reconnected} />
                     {sync.data.connected && (
                       <Mapping
-                        key={sync.data.settings.updatedAt ?? "new"}
                         sync={sync.data}
                         onSaved={(next) => {
                           sync.set(next);
+                          setVendorsVersion((v) => v + 1);
                           bump();
                         }}
                       />
@@ -459,7 +465,16 @@ export default function SettingsAccounting() {
                       </p>
                     )}
                     {connected && vendors.status === "error" && <ErrorBanner error={vendors.error} onRetry={vendors.reload} />}
-                    {connected && vendors.status === "ready" && vendors.data && <Vendors key={version} data={vendors.data} onSaved={() => bump()} />}
+                    {connected && vendors.status === "ready" && vendors.data && (
+                      <Vendors
+                        key={vendorsVersion}
+                        data={vendors.data}
+                        onSaved={(next) => {
+                          vendors.set(next);
+                          bump();
+                        }}
+                      />
+                    )}
                     <Entries writer={writer} version={version} />
                   </>
                 )}
