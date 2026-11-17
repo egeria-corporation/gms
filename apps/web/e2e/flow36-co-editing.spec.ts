@@ -9,8 +9,9 @@
 // then the same in an outside application's questions. In mock mode the draft's channel is the
 // page's hub, relayed between the two contexts; each page keeps its own mock data, so a relayed save
 // carries the saved answer for the other page's store (the real channel never carries answers).
-import { expect, test } from "./helpers.ts";
 import { createRequire } from "node:module";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers.ts";
 import { pairContexts } from "./presence.ts";
 
 const require = createRequire(import.meta.url);
@@ -20,7 +21,7 @@ const APP = "app_90000000-0000-7000-8000-000000000001";
 const EDITOR = `/w/alder-creek/applications/${APP}/edit`;
 const NORTHWIND = "/w/alder-creek/outside/oap_d1000000-0000-7000-8000-000000000001";
 
-async function axeViolations(page: import("@playwright/test").Page): Promise<string[]> {
+async function axeViolations(page: Page): Promise<string[]> {
   await page.addScriptTag({ path: AXE });
   return page.evaluate(async () => {
     const axe = (window as unknown as { axe: { run: (c: Document, o: object) => Promise<{ violations: { id: string; nodes: { html: string }[] }[] }> } }).axe;
