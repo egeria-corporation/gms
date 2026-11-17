@@ -18,6 +18,7 @@ import { STARTER_ITEMS, STARTERS_PUBLISHED_AT } from "../src/services/gallery-st
 const SPEC = fileURLToPath(new URL("../../../api/tsp-output/@typespec/openapi3/openapi.GMS.yaml", import.meta.url));
 const COWRITER = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
 const COWRITER_EMAIL = "lena@fischergrants.example";
+const COWRITER_SESSION = "c0c0c0c0-5e55-4c0c-8c0c-c0c0c0c0c0c0";
 /** Written into every record the cowriter may not see; no answer to them may contain it. */
 const MARK = "ZZHIDDEN";
 const NOWHERE = "00000000-0000-4000-8000-00000000dead";
@@ -66,6 +67,8 @@ const DRAFT_ROUTES = new Set([
   "patch /gms/outside-questions/{qid}",
   "get /gms/outside-questions/{qid}/answers",
   "post /gms/outside-questions/{qid}/comments",
+  // F1: the pass to the invited draft's live channel (who is here, soft locks, "saved" nudges).
+  "post /gms/presence/passes",
 ]);
 
 /**
@@ -206,6 +209,7 @@ function bodyFor(key: string, ids: Ids, own: boolean): unknown {
     "patch /gms/my/answers/{id}": { body: "Families travel 47 miles." },
     "post /gms/my/answers/{id}/adapt": { question: "Describe the need." },
     "post /gms/draft-invitations": { email: "friend@example.org", draft: { kind: "outside_application", id: oa } },
+    "post /gms/presence/passes": { draft: { kind: "outside_application", id: oa } },
     "post /gms/assist/summary": { applicationId: ids.app },
     "post /gms/assist/summarize": { applicationId: ids.app },
     "post /gms/assist/compare-rubric": { applicationId: ids.app, rubricId: NOWHERE },
@@ -344,7 +348,7 @@ function paramsFor(path: string, ids: Ids): { own: boolean; values: Record<strin
     own,
     values: { ...shared, id: idFor(own), qid: own ? ids.q1 : ids.otherQ, commentId: own ? ids.comment : ids.otherComment, docId: path.startsWith("/gms/vault/") ? ids.vaultDoc : own ? ids.ownDoc : ids.otherDoc },
   });
-  const ownable = outside || path.startsWith("/gms/outside-questions/");
+  const ownable = outside || path.startsWith("/gms/outside-questions/") || path === "/gms/presence/passes";
   return ownable ? [variant(true), variant(false)] : [variant(false)];
 }
 
@@ -386,7 +390,8 @@ let me: Record<string, string>;
 
 async function sessionAs(userId: string, email: string) {
   const iat = Math.floor(h.clock.now.getTime() / 1000);
-  const token = await new SignJWT({ aal: "aal2", email, role: "authenticated" }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setSubject(userId).setAudience("authenticated").setIssuedAt(iat).setExpirationTime(iat + 3600).sign(new TextEncoder().encode(SESSION_SECRET));
+  // A session id, as Supabase puts in every session: a draft's live-channel pass is bound to one.
+  const token = await new SignJWT({ aal: "aal2", email, role: "authenticated", session_id: COWRITER_SESSION }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setSubject(userId).setAudience("authenticated").setIssuedAt(iat).setExpirationTime(iat + 3600).sign(new TextEncoder().encode(SESSION_SECRET));
   return { ...bearer(token).headers, "X-GMS-Workspace": WS_APPLICANT, "Content-Type": "application/json" };
 }
 const created = async <T>(r: Promise<{ status: number; body: unknown }>): Promise<T> => {
@@ -545,6 +550,23 @@ describe.skipIf(!existsSync(SPEC))("a cowriter invited into one outside draft, o
       expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
       expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key}${c.own ? " (the invited draft)" : ""} ${c.text.slice(0, 160)}`)).toEqual([]);
     }
+  });
+
+  it("joins the invited draft's live channel only: no pass for another draft or the team's applications (v1.13.0)", async () => {
+    const own = calls.find((c) => c.key === "post /gms/presence/passes" && c.own)!;
+    expect(own.status, own.text.slice(0, 200)).toBe(200);
+    expect((JSON.parse(own.text) as { data: { topic: string } }).data.topic).toBe(`draft:outside:${ids.oa}`);
+    const other = calls.find((c) => c.key === "post /gms/presence/passes" && !c.own)!;
+    expect(other.status, other.text.slice(0, 200)).toBe(404);
+    const res = await h.request("/gms/presence/passes", { method: "POST", headers: me, body: JSON.stringify({ draft: { kind: "application", id: ids.app } }) });
+    const refusal = await res.text();
+    expect([403, 404], refusal.slice(0, 200)).toContain(res.status);
+    expect(refusal).not.toContain(MARK);
+    // The only pass written is the invited draft's, for this session. Soft locks and "saved" nudges
+    // travel on that channel, which Realtime opens only to a session holding a live pass for it
+    // (migration 0050; supabase/tests/database/50_co_editing.test.sql): there is no lock route.
+    expect((await h.repos.table("presence_passes").find({ user_id: COWRITER })).map((p) => p.topic)).toEqual([`draft:outside:${ids.oa}`]);
+    expect(Object.keys(doc.paths).filter((p) => /lock/i.test(p))).toEqual([]);
   });
 
   it("never answers with anything of the records it may not see", () => {

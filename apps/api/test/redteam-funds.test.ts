@@ -566,6 +566,8 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
       "share this call": /^\w+ \/gms\/opportunities\/\{id\}\/syndication/,
       "award kit": /^\w+ \/gms\/(awards\/\{id\}\/(sharing|federal-funding)|share-kit)/,
       translations: /^\w+ \/gms\/translations\//,
+      // v1.13.0
+      accounting: /^\w+ \/gms\/accounting(\/|$)/,
     };
     for (const [area, re] of Object.entries(AREAS)) {
       const mine = calls.filter((c) => re.test(c.key));
@@ -638,6 +640,36 @@ describe.skipIf(!existsSync(SPEC))("a fund advisor, on every route in the docume
     // One run, two answers: a fund advisor's counts are never the workspace's cached ones.
     expect(whole.newApplications).toBeGreaterThan(0);
     expect(theirs.newApplications).toBe(0);
+  });
+
+  it("keeps the books closed to a fund advisor, even one in finance: the QuickBooks setting, entries and actions (v1.13.0)", async () => {
+    const { FixtureQuickBooksBooks } = await import("@gms/connectors");
+    Object.assign(h.extraPorts, { quickbooks: new FixtureQuickBooksBooks() });
+    // The workspace's books: the sync on, and the other fund's payment posted and then changed.
+    const link = await h.repos.table("accounting_links").insert({ workspace_id: WS_FUNDER, expense_ref: "61", expense_name: `${MARK} grants expense`, paid_from_ref: "35", paid_from_name: `${MARK} operating`, sync_enabled: true, sync_from: "2027-01-01T00:00:00.000Z", updated_by: USER_ADMIN } as never);
+    const entry = await h.repos.table("accounting_entries").insert({ workspace_id: WS_FUNDER, tranche_id: ids.trancheB, doc_number: `GMS-${ids.trancheB.replace(/-/g, "").slice(-16)}`, status: "needs_attention", reason: "changed", external_id: "4521", amount_minor: AWARD_MINOR / 2, currency: "USD", paid_on: "2027-04-15", vendor_ref: "56", vendor_name: `${MARK} vendor`, memo: `${MARK} memo` } as never);
+    const member = (await h.repos.table("workspace_members").find({ workspace_id: WS_FUNDER, user_id: ADVISOR }))[0]!;
+    await h.repos.table("workspace_members").update({ id: member.id }, { role: "finance" });
+    const before = { link: await h.repos.table("accounting_links").one({ id: link.id }), entry: await h.repos.table("accounting_entries").one({ id: entry.id }), events: h.ledger.events.length };
+    const call = async (method: string, path: string, body?: unknown) => {
+      const res = await h.request(path, { method, headers: me, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      return { status: res.status, text: await res.text() };
+    };
+    for (const path of ["/gms/accounting", "/gms/accounting/options", "/gms/accounting/vendors", "/gms/accounting/entries", "/gms/accounting/entries?compare=true"]) {
+      const r = await call("GET", path);
+      expect(leaks(r.text) || r.text.includes(ids.trancheB) || r.text.includes(entry.id) || r.text.includes(MARK), `${path}: ${r.status} ${r.text.slice(0, 200)}`).toBe(false);
+    }
+    for (const [method, path, body] of [
+      ["PUT", "/gms/accounting/settings", { expenseId: "61", paidFromId: "35", tracking: "class", programs: {}, vendorPolicy: "create", syncEnabled: false }],
+      ["PUT", "/gms/accounting/vendors", { vendors: [{ granteeId: WS_APPLICANT, vendorId: "56" }] }],
+      ["POST", `/gms/accounting/entries/${entry.id}/handled`],
+      ["POST", `/gms/accounting/entries/${entry.id}/retry`],
+    ] as [string, string, unknown?][]) {
+      const r = await call(method, path, body);
+      expect([403, 404], `${method} ${path}: ${r.status} ${r.text.slice(0, 200)}`).toContain(r.status);
+    }
+    expect({ link: await h.repos.table("accounting_links").one({ id: link.id }), entry: await h.repos.table("accounting_entries").one({ id: entry.id }), events: h.ledger.events.length }).toEqual(before);
+    await h.repos.table("workspace_members").update({ id: member.id }, { role: "program_officer" });
   });
 
   it("the event digest, the workspace ledger and review assignment keep to the fund (the three cross-track leaks)", async () => {
