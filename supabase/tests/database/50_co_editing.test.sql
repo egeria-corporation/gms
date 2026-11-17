@@ -4,10 +4,15 @@
 -- holds a live pass for that topic, while its membership stands. Checked the way Realtime checks a
 -- join: as `authenticated`, with the token's claims and `realtime.topic` set, reading and writing
 -- realtime.messages inside the transaction.
+--
+-- The Realtime half (19 tests) needs Supabase Realtime's `realtime.messages`, which Realtime creates
+-- when it starts; where it is not running (CI starts Supabase without it) migration 0050 skips its
+-- policies and that half is skipped here too, with psql's \if.
 begin;
 create extension if not exists pgtap with schema extensions;
 
 select plan(30);
+select to_regclass('realtime.messages') is not null as has_realtime \gset
 
 -- ---------------------------------------------------------------- fixtures (as postgres)
 insert into auth.users (id, email, aud, role) values
@@ -42,10 +47,12 @@ insert into public.outside_applications (id, workspace_id, title, funder_name) v
 
 -- One message of each kind on the draft's topic, as Realtime's own check does (it writes and reads
 -- inside a transaction it rolls back).
+\if :has_realtime
 insert into realtime.messages (topic, extension, payload, event, private) values
   ('draft:application:50000000-0000-7000-8000-0000000000a1', 'presence', '{}', 'presence', true),
   ('draft:application:50000000-0000-7000-8000-0000000000a1', 'broadcast', '{}', 'saved', true),
   ('room:lobby', 'broadcast', '{}', 'hello', true);
+\endif
 
 -- ---------------------------------------------------------------- the service role writes passes
 set local role service_role;
@@ -108,6 +115,7 @@ select throws_ok($$ select count(*) from public.presence_passes $$, '42501', nul
 reset role;
 
 -- ---------------------------------------------------------------- joining the draft's channel
+\if :has_realtime
 -- `as_session(user, session, topic)`: what Realtime sets before it checks a join.
 create function pg_temp.as_session(who text, sid text, topic text) returns void language plpgsql as $$
 begin
@@ -170,6 +178,9 @@ select is((select count(*)::int from realtime.messages where topic like 'draft:%
 reset role;
 
 select is((select count(*)::int from pg_policies where schemaname = 'realtime' and tablename = 'messages' and policyname like 'gms_draft_%'), 3, 'three draft policies on realtime.messages');
+\else
+select skip('Supabase Realtime is not running here (no realtime.messages), so 0050 made no channel policies to check', 19);
+\endif
 
 select * from finish();
 rollback;
