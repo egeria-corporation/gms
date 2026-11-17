@@ -34,7 +34,7 @@ function Feeds({ s, onChange, saving }: { s: Syndication; onChange: (on: boolean
   ];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <h4 id="share-feeds">{t("sharePanel.feeds.heading")}</h4>
+      <h4>{t("sharePanel.feeds.heading")}</h4>
       <p className="small muted">{t("sharePanel.feeds.help")}</p>
       {s.feeds.listed ? <Notice tone="ok" title={t("sharePanel.feeds.listed")} /> : !s.feeds.on ? <Notice tone="neu" title={t("sharePanel.feeds.off")} /> : <Notice tone="neu" title={t("sharePanel.feeds.notListed")} />}
       <label className="cb" htmlFor="share-feeds-on">
@@ -46,7 +46,7 @@ function Feeds({ s, onChange, saving }: { s: Syndication; onChange: (on: boolean
           </span>
         </span>
       </label>
-      <dl className="kv" aria-labelledby="share-feeds">
+      <dl className="kv">
         {formats.map((f) => (
           <div key={f.key} style={{ display: "contents" }}>
             <dt>{f.label}</dt>
@@ -118,7 +118,8 @@ function PndPreviewView({ preview, onSend, onCancel, sending }: { preview: PndPr
           <dt>{t("sharePanel.pnd.subject")}</dt>
           <dd>{preview.subject}</dd>
         </dl>
-        <dl className="kv" aria-label={t("sharePanel.pnd.fieldsLabel")}>
+        <h5 className="lbl">{t("sharePanel.pnd.fieldsLabel")}</h5>
+        <dl className="kv">
           {preview.fields.map((f) => (
             <div key={f.key} style={{ display: "contents" }}>
               <dt>{f.label}</dt>
