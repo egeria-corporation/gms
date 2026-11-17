@@ -38,6 +38,8 @@ import { galleryRoutes } from "./gallery.ts";
 import { socialRoutes } from "./gms/social.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
+// E4: funder loops.
+import { loopRoutes } from "./gms/loops.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -181,6 +183,8 @@ gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
+// Funder loops (E4): peer invitations, "for funders", onboarding links, the partner directory, the reusable profile.
+gms.route("/", loopRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
