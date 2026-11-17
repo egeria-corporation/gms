@@ -52,18 +52,13 @@ test("an operator reads the measures, records a lost deal and connects Search Co
 });
 
 test("someone who is not an operator sees no number", async ({ app: page }) => {
-  await start(page, "/workspaces");
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("heading", { name: "Sign In to OpenGrants GMS" })).toBeVisible();
-  await page.goto("/operator/measures");
-  await expect(page).toHaveURL(/\/signin\?next=%2Foperator%2Fmeasures/);
-  await page.getByLabel("Work email").fill("pat.kim@northwind.example");
-  await page.getByRole("button", { name: "Send code" }).click();
-  const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
-  for (let i = 0; i < 6; i++) await digits.nth(i).fill(String(i + 1));
-  await page.getByRole("button", { name: "Verify and continue" }).click();
-  await expect(page).toHaveURL(/\/operator\/measures$/);
+  // The demo person, a Riverbend funder admin, signed in with an address that is not an operator's
+  // (the mock keeps its session in sessionStorage; this is that session with another address).
+  await page.addInitScript(() => sessionStorage.setItem("gms.mock.session", JSON.stringify({ userId: "10000000-0000-4000-8000-000000000001", email: "pat.kim@northwind.example", aal: "aal2", accessToken: "mock.aal2" })));
+  await start(page, "/operator/measures");
+  await expect(page.getByRole("heading", { level: 1, name: "Growth measures" })).toBeVisible();
   await expect(shown(page, "Only OpenGrants' operators can see the growth measures")).toBeVisible();
   await expect(page.getByRole("list", { name: "The nine measures" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Google Search Console" })).toHaveCount(0);
+  await expect(page.getByRole("table")).toHaveCount(0);
 });
